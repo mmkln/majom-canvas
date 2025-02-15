@@ -1,0 +1,22 @@
+{
+  "name": "canvas-ts-project",
+  "version": "1.0.0",
+  "description": "Проект Canvas з кружечками, стрілками та видаленням на TypeScript",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "live-server --port=8080 --watch=./"
+  },
+  "keywords": [
+    "canvas",
+    "typescript",
+    "drawing",
+    "deletion"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "live-server": "^1.2.2",
+    "typescript": "^5.0.0"
+  }
+}
