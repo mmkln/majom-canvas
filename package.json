@@ -5,7 +5,8 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc",
-    "start": "tsc && live-server --open=src/index.html --port=8080 --watch=./"
+    "start": "tsc && live-server --open=src/index.html --port=8080 --watch=./",
+    "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,css,scss,md}\""
   },
   "keywords": [
     "canvas",
