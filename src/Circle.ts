@@ -1,3 +1,5 @@
+// Circle.ts
+
 export default class Circle {
     static nextId = 0;
     id: number;

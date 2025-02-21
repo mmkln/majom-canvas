@@ -1,3 +1,5 @@
+// utils.ts
+
 export function getRandomColor(): string {
     const letters = '0123456789ABCDEF';
     let color = '#';
