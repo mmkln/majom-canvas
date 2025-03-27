@@ -1,6 +1,6 @@
 // core/shapes/Octagon.ts
-
 import { IShape } from '../interfaces/shape';
+import { PanZoomManager } from '../../managers/PanZoomManager';
 
 export default class Octagon implements IShape {
   private static nextId = 0;
@@ -29,7 +29,7 @@ export default class Octagon implements IShape {
     this.lineWidth = lineWidth;
   }
 
-  draw(ctx: CanvasRenderingContext2D): void {
+  draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
     const sides = 8;
     ctx.beginPath();
     for (let i = 0; i < sides; i++) {
@@ -58,56 +58,44 @@ export default class Octagon implements IShape {
 
   getBoundaryPoint(angle: number): { x: number; y: number } {
     const sides = 8;
-    const vertices: { x: number; y: number }[] = [];
+    const sectorAngle = (Math.PI * 2) / sides; // Кут одного сектора
+    // Нормалізуємо кут до [0, 2π]
+    angle = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    // Знаходимо сектор, у якому лежить кут
+    const sector = Math.floor((angle + Math.PI / 2) / sectorAngle) % sides;
+    const sectorStartAngle = (sector * sectorAngle) - Math.PI / 2;
+    const sectorEndAngle = ((sector + 1) * sectorAngle) - Math.PI / 2;
 
-    // Обчислюємо вершини восьмикутника
-    for (let i = 0; i < sides; i++) {
-      const vertexAngle = (Math.PI * 2 * i) / sides - Math.PI / 2;
-      vertices.push({
-        x: this.x + this.radius * Math.cos(vertexAngle),
-        y: this.y + this.radius * Math.sin(vertexAngle),
-      });
-    }
+    // Обчислюємо вершини сектора
+    const startVertex = {
+      x: this.x + this.radius * Math.cos(sectorStartAngle),
+      y: this.y + this.radius * Math.sin(sectorStartAngle),
+    };
+    const endVertex = {
+      x: this.x + this.radius * Math.cos(sectorEndAngle),
+      y: this.y + this.radius * Math.sin(sectorEndAngle),
+    };
 
-    // Лінія від центру в заданому напрямку
+    // Знаходимо точку перетину променя з цією стороною
     const farPoint = {
-      x: this.x + this.radius * 2 * Math.cos(angle), // Далеко за межами восьмикутника
+      x: this.x + this.radius * 2 * Math.cos(angle),
       y: this.y + this.radius * 2 * Math.sin(angle),
     };
 
-    // Знаходимо точку перетину з найближчою стороною
-    let closestIntersection: { x: number; y: number } | null = null;
-    let minDistance = Infinity;
+    const intersection = this.lineIntersection(
+      this.x,
+      this.y,
+      farPoint.x,
+      farPoint.y,
+      startVertex.x,
+      startVertex.y,
+      endVertex.x,
+      endVertex.y
+    );
 
-    for (let i = 0; i < vertices.length; i++) {
-      const v1 = vertices[i];
-      const v2 = vertices[(i + 1) % sides];
-      const intersection = this.lineIntersection(
-        this.x,
-        this.y,
-        farPoint.x,
-        farPoint.y,
-        v1.x,
-        v1.y,
-        v2.x,
-        v2.y
-      );
-
-      if (intersection) {
-        const distance = Math.sqrt(
-          (intersection.x - this.x) ** 2 + (intersection.y - this.y) ** 2
-        );
-        if (distance < minDistance) {
-          minDistance = distance;
-          closestIntersection = intersection;
-        }
-      }
-    }
-
-    return closestIntersection || { x: this.x, y: this.y }; // Повертаємо центр, якщо не знайдено перетину
+    return intersection || { x: this.x, y: this.y };
   }
 
-  // Допоміжна функція для знаходження перетину двох ліній
   private lineIntersection(
     x1: number,
     y1: number,
@@ -119,7 +107,7 @@ export default class Octagon implements IShape {
     y4: number
   ): { x: number; y: number } | null {
     const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
-    if (denom === 0) return null; // Лінії паралельні
+    if (denom === 0) return null;
 
     const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
     const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom;
@@ -134,6 +122,6 @@ export default class Octagon implements IShape {
   }
 
   onDoubleClick?(): void {
-    console.log(`Double clicked on hexagon ${this.id}`);
+    console.log(`Double clicked on octagon ${this.id}`);
   }
 }

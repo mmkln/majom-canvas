@@ -1,5 +1,6 @@
 // core/shapes/Circle.ts
 import { IShape } from '../interfaces/shape';
+import { PanZoomManager } from '../../managers/PanZoomManager';
 
 export default class Circle implements IShape {
     private static nextId = 0;
@@ -28,7 +29,8 @@ export default class Circle implements IShape {
         this.lineWidth = lineWidth;
     }
 
-    draw(ctx: CanvasRenderingContext2D): void {
+    draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
+        // Вже враховано трансформацію в CanvasManager, тому просто малюємо
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fillStyle = this.fillColor;

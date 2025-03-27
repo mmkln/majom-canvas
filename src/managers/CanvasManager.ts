@@ -71,17 +71,17 @@ export class CanvasManager {
     const elements = this.scene.getElements();
     const shapes = this.scene.getShapes();
 
-    // Рендеримо IShape (кола)
+    // Рендеримо IShape (кола і восьмикутники)
     elements.forEach(element => {
-      if (isShape(element)) { // Використовуємо type guard
-        element.draw(this.ctx);
+      if (isShape(element)) {
+        element.draw(this.ctx, this.panZoom);
       }
     });
 
     // Рендеримо зв’язки
     elements.forEach(element => {
-      if (!isShape(element)) { // Використовуємо type guard
-        element.draw(this.ctx, shapes);
+      if (!isShape(element)) {
+        element.draw(this.ctx, this.panZoom, shapes);
       }
     });
 
