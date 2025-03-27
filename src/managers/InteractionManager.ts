@@ -7,11 +7,7 @@ export class InteractionManager {
   private dragOffsetY: number = 0;
 
   constructor(private canvas: HTMLCanvasElement, private scene: Scene) {
-    canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
-    canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
-    canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
-    canvas.addEventListener('dblclick', this.handleDoubleClick.bind(this));
-    canvas.addEventListener('contextmenu', this.handleRightClick.bind(this));
+    // Більше не додаємо обробники подій тут
   }
 
   private getMouseCoords(e: MouseEvent): { x: number; y: number } {
@@ -20,7 +16,7 @@ export class InteractionManager {
   }
 
   handleMouseDown(e: MouseEvent): boolean {
-    if (e.button !== 0) return false; // обробляємо лише ліва кнопка
+    if (e.button !== 0) return false; // Обробляємо лише ліву кнопку
     const { x, y } = this.getMouseCoords(e);
     const elements = this.scene.getElements();
     for (let i = elements.length - 1; i >= 0; i--) {
@@ -44,7 +40,7 @@ export class InteractionManager {
       if (this.draggingShape.onDrag) {
         this.draggingShape.onDrag(this.draggingShape.x, this.draggingShape.y);
       }
-      // Тут можна викликати якийсь callback або сповіщення, щоб CanvasManager перерисовував канвас
+      this.scene.changes.next(); // Сповіщаємо про зміни в сцені
     }
   }
 
@@ -53,6 +49,7 @@ export class InteractionManager {
       this.draggingShape.onDragEnd();
     }
     this.draggingShape = null;
+    this.scene.changes.next(); // Сповіщаємо про завершення
   }
 
   handleDoubleClick(e: MouseEvent): void {

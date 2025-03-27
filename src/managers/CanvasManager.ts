@@ -14,7 +14,6 @@ export class CanvasManager {
   renderer: CanvasRenderer;
   interactionManager: InteractionManager;
 
-  // Для обробки перетягування скролбарів
   draggingScrollbar: 'horizontal' | 'vertical' | null = null;
   dragStartX: number = 0;
   dragStartY: number = 0;
@@ -33,14 +32,11 @@ export class CanvasManager {
     this.scrollbarManager = new ScrollbarManager(canvas, this.ctx, this.panZoom);
     this.interactionManager = new InteractionManager(canvas, scene);
 
-    // Підписка на зміни сцени (наприклад, через RxJS чи callback)
     this.scene.changes.subscribe(() => this.draw());
 
-    // Додаємо обробку подій
     this.canvas.addEventListener('wheel', this.onWheel.bind(this));
     window.addEventListener('resize', this.onResize.bind(this));
 
-    // Події для миші делегуємо: спочатку InteractionManager, потім для скролбарів
     this.canvas.addEventListener('mousedown', this.onMouseDown.bind(this));
     this.canvas.addEventListener('mousemove', this.onMouseMove.bind(this));
     this.canvas.addEventListener('mouseup', this.onMouseUp.bind(this));
@@ -68,10 +64,7 @@ export class CanvasManager {
     this.ctx.translate(-this.panZoom.scrollX, -this.panZoom.scrollY);
     this.ctx.scale(this.panZoom.scale, this.panZoom.scale);
 
-    // Рендеримо фон (наприклад, сітку)
     this.renderer.drawContent();
-
-    // Рендеримо всі елементи сцени
     this.scene.getElements().forEach(element => {
       if (typeof element.draw === 'function') {
         element.draw(this.ctx);
@@ -79,37 +72,34 @@ export class CanvasManager {
     });
 
     this.ctx.restore();
-    // Рендеримо скролбари
     this.scrollbarManager.drawScrollbars();
   }
 
   onMouseDown(e: MouseEvent): void {
-    // Спочатку делегуємо подію InteractionManager
-    if (this.interactionManager.handleMouseDown(e)) {
-      return; // подія оброблена (наприклад, почато перетягування елемента)
-    }
-
-    // Якщо не оброблено, перевіряємо скролбар
     const rect = this.canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
+
+    // Перевіряємо скролбари першими
     const hit = this.scrollbarManager.hitTestScrollbars(mouseX, mouseY);
     if (hit === 'horizontal') {
       this.draggingScrollbar = 'horizontal';
       this.dragStartX = mouseX;
       this.dragStartScrollX = this.panZoom.scrollX;
+      return;
     } else if (hit === 'vertical') {
       this.draggingScrollbar = 'vertical';
       this.dragStartY = mouseY;
       this.dragStartScrollY = this.panZoom.scrollY;
+      return;
+    }
+
+    if (this.interactionManager.handleMouseDown(e)) {
+      this.draw();
     }
   }
 
   onMouseMove(e: MouseEvent): void {
-    // Спочатку делегуємо рух миші InteractionManager (якщо перетягується елемент)
-    this.interactionManager.handleMouseMove(e);
-
-    // Якщо не ведеться перетягування елементів, обробляємо скролбар
     const rect = this.canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
@@ -136,14 +126,17 @@ export class CanvasManager {
         Math.min(this.dragStartScrollY + deltaY * scrollRatio, scrollRange)
       );
       this.draw();
+    } else {
+      // Якщо немає перетягування скролбарів, делегуємо в InteractionManager
+      this.interactionManager.handleMouseMove(e);
+      this.draw();
     }
   }
 
   onMouseUp(e: MouseEvent): void {
-    // Завершуємо перетягування скролбару
     this.draggingScrollbar = null;
-    // Делегуємо завершення події InteractionManager
     this.interactionManager.handleMouseUp(e);
+    this.draw();
   }
 
   onWheel(e: WheelEvent): void {
