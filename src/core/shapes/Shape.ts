@@ -9,7 +9,7 @@ export abstract class Shape implements IShape {
   public y: number;
   public radius: number;
   public fillColor: string;
-  public strokeColor: string;
+  // public strokeColor: string;
   public lineWidth: number;
   public selected: boolean;
 
@@ -18,7 +18,7 @@ export abstract class Shape implements IShape {
     y: number,
     radius: number = 50,
     fillColor: string = '#0baef6',
-    strokeColor: string = '#f3c92f',
+    // strokeColor: string = '#f3c92f',
     lineWidth: number = 1
   ) {
     this.id = v4();
@@ -26,7 +26,7 @@ export abstract class Shape implements IShape {
     this.y = y;
     this.radius = radius;
     this.fillColor = fillColor;
-    this.strokeColor = strokeColor;
+    // this.strokeColor = strokeColor;
     this.lineWidth = lineWidth;
     this.selected = false;
   }
@@ -40,9 +40,9 @@ export abstract class Shape implements IShape {
 
     if (this.selected) {
       ctx.save();
-      ctx.strokeStyle = '#008dff';
-      ctx.lineWidth = 2;
-      const padding = 2;
+      ctx.strokeStyle = '#1a32cb';
+      ctx.lineWidth = 1;
+      const padding = 1;
       // Використовуємо radius як половину ширини/висоти
       ctx.strokeRect(
         this.x - this.radius - padding,
