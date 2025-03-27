@@ -2,6 +2,7 @@
 import { Subject } from 'rxjs';
 import { IDrawable } from '../interfaces/drawable';
 import { IShape } from '../interfaces/shape';
+import { isShape } from '../utils/typeGuards';
 
 export class Scene {
   private elements: IDrawable[] = [];
@@ -27,7 +28,7 @@ export class Scene {
   }
 
   public getShapes(): IShape[] {
-    return this.elements.filter(el => 'contains' in el) as IShape[];
+    return this.elements.filter(isShape);
   }
 
   public clear(): void {

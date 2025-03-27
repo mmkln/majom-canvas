@@ -4,7 +4,7 @@ import { PanZoomManager } from './PanZoomManager';
 import { ScrollbarManager } from './ScrollbarManager';
 import { CanvasRenderer } from './CanvasRenderer';
 import { InteractionManager } from './InteractionManager';
-import { IShape } from '../core/interfaces/shape';
+import { isShape } from '../core/utils/typeGuards';
 
 export class CanvasManager {
   canvas: HTMLCanvasElement;
@@ -68,21 +68,19 @@ export class CanvasManager {
 
     this.renderer.drawContent();
 
-    // Отримуємо всі елементи сцени
     const elements = this.scene.getElements();
-    // Отримуємо лише IShape для передачі в Connection
     const shapes = this.scene.getShapes();
 
-    // Спочатку рендеримо IShape (кола)
+    // Рендеримо IShape (кола)
     elements.forEach(element => {
-      if ('contains' in element) { // Перевіряємо, чи це IShape
+      if (isShape(element)) { // Використовуємо type guard
         element.draw(this.ctx);
       }
     });
 
-    // Потім рендеримо зв’язки
+    // Рендеримо зв’язки
     elements.forEach(element => {
-      if (!('contains' in element)) { // Перевіряємо, чи це НЕ IShape (тобто Connection)
+      if (!isShape(element)) { // Використовуємо type guard
         element.draw(this.ctx, shapes);
       }
     });
