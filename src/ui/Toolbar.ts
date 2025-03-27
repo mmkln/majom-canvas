@@ -32,7 +32,7 @@ export class Toolbar {
     addCircleBtn.style.fontSize = '14px';
 
     addCircleBtn.onclick = () => {
-      const circle = new Circle(100, 100, 50);
+      const circle = new Circle(400, 400, 50);
       this.scene.addElement(circle);
     };
 
@@ -47,7 +47,7 @@ export class Toolbar {
     addOctagonBtn.style.fontSize = '14px';
 
     addOctagonBtn.onclick = () => {
-      const hexagon = new Octagon(150, 150, 50); // Трохи зміщуємо, щоб не перекривати коло
+      const hexagon = new Octagon(450, 450, 50); // Трохи зміщуємо, щоб не перекривати коло
       this.scene.addElement(hexagon);
     };
 

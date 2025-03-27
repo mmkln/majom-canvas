@@ -51,22 +51,43 @@ export default class Octagon implements IShape {
   }
 
   contains(px: number, py: number): boolean {
-    const dx = px - this.x;
-    const dy = py - this.y;
-    return dx * dx + dy * dy <= this.radius * this.radius;
+    const sides = 8;
+    const vertices: { x: number; y: number }[] = [];
+
+    // Обчислюємо вершини восьмикутника
+    for (let i = 0; i < sides; i++) {
+      const angle = (Math.PI * 2 * i) / sides - Math.PI / 2;
+      vertices.push({
+        x: this.x + this.radius * Math.cos(angle),
+        y: this.y + this.radius * Math.sin(angle),
+      });
+    }
+
+    // Використовуємо алгоритм ray-casting для перевірки, чи точка всередині багатокутника
+    let inside = false;
+    for (let i = 0, j = sides - 1; i < sides; j = i++) {
+      const xi = vertices[i].x;
+      const yi = vertices[i].y;
+      const xj = vertices[j].x;
+      const yj = vertices[j].y;
+
+      const intersect =
+        ((yi > py) !== (yj > py)) &&
+        (px < ((xj - xi) * (py - yi)) / (yj - yi) + xi);
+      if (intersect) inside = !inside;
+    }
+
+    return inside;
   }
 
   getBoundaryPoint(angle: number): { x: number; y: number } {
     const sides = 8;
     const sectorAngle = (Math.PI * 2) / sides; // Кут одного сектора
-    // Нормалізуємо кут до [0, 2π]
     angle = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-    // Знаходимо сектор, у якому лежить кут
     const sector = Math.floor((angle + Math.PI / 2) / sectorAngle) % sides;
     const sectorStartAngle = (sector * sectorAngle) - Math.PI / 2;
     const sectorEndAngle = ((sector + 1) * sectorAngle) - Math.PI / 2;
 
-    // Обчислюємо вершини сектора
     const startVertex = {
       x: this.x + this.radius * Math.cos(sectorStartAngle),
       y: this.y + this.radius * Math.sin(sectorStartAngle),
@@ -76,7 +97,6 @@ export default class Octagon implements IShape {
       y: this.y + this.radius * Math.sin(sectorEndAngle),
     };
 
-    // Знаходимо точку перетину променя з цією стороною
     const farPoint = {
       x: this.x + this.radius * 2 * Math.cos(angle),
       y: this.y + this.radius * 2 * Math.sin(angle),

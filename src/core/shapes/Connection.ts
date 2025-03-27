@@ -13,10 +13,9 @@ export default class Connection implements IDrawable {
     }
 
     private getEndpoints(from: IShape, to: IShape, panZoom: PanZoomManager) {
-        // Обчислюємо кут між центрами об’єктів у просторі сцени
         const angle = Math.atan2(to.y - from.y, to.x - from.x);
         const start = from.getBoundaryPoint(angle);
-        const end = to.getBoundaryPoint(angle + Math.PI); // Протилежний напрямок для кінцевої точки
+        const end = to.getBoundaryPoint(angle + Math.PI);
         return { startX: start.x, startY: start.y, endX: end.x, endY: end.y, angle };
     }
 
@@ -26,13 +25,13 @@ export default class Connection implements IDrawable {
         ctx.moveTo(startX, startY);
         ctx.lineTo(endX, endY);
         ctx.strokeStyle = '#000';
-        ctx.lineWidth = 2 / panZoom.scale; // Враховуємо масштаб для товщини лінії
+        ctx.lineWidth = 2 / panZoom.scale;
         ctx.stroke();
     }
 
     private drawArrowHead(ctx: CanvasRenderingContext2D, from: IShape, to: IShape, panZoom: PanZoomManager): void {
         const { endX, endY, angle } = this.getEndpoints(from, to, panZoom);
-        const headLength = 15 / panZoom.scale; // Враховуємо масштаб для розміру стрілки
+        const headLength = 15 / panZoom.scale;
         ctx.beginPath();
         ctx.moveTo(endX, endY);
         ctx.lineTo(
