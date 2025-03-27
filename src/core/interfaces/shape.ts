@@ -5,6 +5,7 @@ export interface IShape extends IDrawable {
   id: string;
   x: number;
   y: number;
+  selected: boolean;
   radius: number;
   contains(px: number, py: number): boolean;
   getBoundaryPoint(angle: number): { x: number; y: number }; // Новий метод

@@ -11,6 +11,7 @@ export default class Octagon implements IShape {
   public fillColor: string;
   public strokeColor: string;
   public lineWidth: number;
+  public selected: boolean;
 
   constructor(
     x: number,
@@ -27,6 +28,7 @@ export default class Octagon implements IShape {
     this.fillColor = fillColor;
     this.strokeColor = strokeColor;
     this.lineWidth = lineWidth;
+    this.selected = false;
   }
 
   draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
@@ -48,6 +50,16 @@ export default class Octagon implements IShape {
     ctx.strokeStyle = this.strokeColor;
     ctx.lineWidth = this.lineWidth;
     ctx.stroke();
+
+    if (this.selected) {
+      ctx.save();
+      ctx.strokeStyle = 'blue';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius + 4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   contains(px: number, py: number): boolean {

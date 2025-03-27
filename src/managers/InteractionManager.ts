@@ -8,6 +8,7 @@ export class InteractionManager {
   private draggingShape: IShape | null = null;
   private dragOffsetX: number = 0;
   private dragOffsetY: number = 0;
+  private initialPositions: Map<string, { x: number; y: number }> = new Map();
 
   private creatingConnection: boolean = false;
   private connectionStartShape: IShape | null = null;
@@ -29,10 +30,13 @@ export class InteractionManager {
   }
 
   handleMouseDown(e: MouseEvent): boolean {
+    if (e.button !== 0) return false;
     const { x, y } = this.getMouseCoords(e);
     const shapes = this.scene.getShapes();
+    let clickedShape: IShape | null = null;
 
-    if (e.shiftKey) {
+
+    if (e.ctrlKey) {
       for (let i = shapes.length - 1; i >= 0; i--) {
         const shape = shapes[i];
         if (shape.contains(x, y)) {
@@ -54,6 +58,40 @@ export class InteractionManager {
       return false;
     }
 
+    for (let i = shapes.length - 1; i >= 0; i--) {
+      const shape = shapes[i];
+      if (shape.contains(x, y)) {
+        clickedShape = shape;
+        break;
+      }
+    }
+
+    console.log('clickedShape', clickedShape);
+    if (clickedShape) {
+      if (e.shiftKey) {
+        const currentlySelected = this.scene.getSelectedShapes();
+        if (currentlySelected.indexOf(clickedShape) === -1) {
+          this.scene.setSelected([...currentlySelected, clickedShape]);
+        }
+      } else {
+        this.scene.setSelected([clickedShape]);
+      }
+      // Починаємо перетягування групи, якщо вибрано більше одного
+      const selected = this.scene.getSelectedShapes();
+      // Запам'ятовуємо початкові позиції всіх вибраних фігур
+      this.initialPositions.clear();
+      selected.forEach((shape) => {
+        this.initialPositions.set(shape.id, { x: shape.x, y: shape.y });
+      });
+      // Встановлюємо draggingShape як ту, по якій клікнули
+      this.draggingShape = clickedShape;
+      const offset = { x: x - clickedShape.x, y: y - clickedShape.y };
+      this.dragOffsetX = offset.x;
+      this.dragOffsetY = offset.y;
+      if (clickedShape.onDragStart) clickedShape.onDragStart();
+      return true;
+    }
+
     if (e.button !== 0) return false;
     for (let i = shapes.length - 1; i >= 0; i--) {
       const shape = shapes[i];
@@ -65,6 +103,8 @@ export class InteractionManager {
         return true;
       }
     }
+
+    this.scene.setSelected([]);
     return false;
   }
 

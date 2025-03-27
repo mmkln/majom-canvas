@@ -31,6 +31,20 @@ export class Scene {
     return this.elements.filter(isShape);
   }
 
+  public setSelected(shapes: IShape[]): void {
+    this.getShapes().forEach((shape) => {
+      shape.selected = false;
+    });
+    shapes.forEach((shape) => {
+      shape.selected = true;
+    });
+    this.changes.next();
+  }
+
+  public getSelectedShapes(): IShape[] {
+    return this.getShapes().filter((shape) => shape.selected);
+  }
+
   public clear(): void {
     this.elements = [];
     this.changes.next();
