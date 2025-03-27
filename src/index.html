@@ -1,96 +1,23 @@
 <!DOCTYPE html>
-<html lang="uk">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Canvas: Задачі та залежності</title>
+    <title>Canvas with Scrollbars</title>
     <style>
-        body { margin: 0; padding: 0; }
-        #toolbar {
-            background: #f0f0f0;
-            padding: 10px;
-            border-bottom: 1px solid #ccc;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-        canvas { border: 1px solid #ccc; display: block; margin: 20px auto; }
-        /* Стилі для модального вікна */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 2000;
-            left: 0;
-            top: 0;
-            width: 100%;
+        html, body {
+            margin: 0;
+            padding: 0;
             height: 100%;
-            overflow: auto;
-            background-color: rgba(0,0,0,0.4);
+            overflow: hidden; /* Prevent browser scrollbars */
         }
-
-        .modal-content {
-            background-color: #fefefe;
-            margin: 10% auto;
-            padding: 20px;
-            border: 1px solid #888;
-            width: 300px;
-            border-radius: 4px;
-        }
-
-        .close {
-            color: #aaa;
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        .close:hover,
-        .close:focus {
-            color: black;
+        canvas {
+            border: 1px solid #ccc;
+            display: block; /* Remove extra space below canvas */
         }
     </style>
 </head>
 <body>
-<div id="toolbar">
-    <button id="btn-save">Зберегти</button>
-    <input type="text" id="search" placeholder="Пошук задач...">
-    <!-- В HTML додайте кнопку завантаження -->
-    <button id="btn-load">Завантажити діаграму</button>
-    <!-- Modal для редагування задачі -->
-    <div id="editModal" class="modal">
-        <div class="modal-content">
-            <span id="modalClose" class="close">&times;</span>
-            <h2>Редагувати задачу</h2>
-            <form id="editForm">
-                <label for="taskTitle">Назва:</label>
-                <input type="text" id="taskTitle" name="taskTitle" required>
-                <br>
-                <label for="taskDescription">Опис:</label>
-                <textarea id="taskDescription" name="taskDescription"></textarea>
-                <br>
-                <label for="taskStatus">Статус:</label>
-                <select id="taskStatus" name="taskStatus">
-                    <option value="pending">Pending</option>
-                    <option value="in-progress">In Progress</option>
-                    <option value="done">Done</option>
-                </select>
-                <br>
-                <label for="taskPriority">Пріоритет:</label>
-                <select id="taskPriority" name="taskPriority">
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                </select>
-                <br>
-                <label for="taskDueDate">Дедлайн:</label>
-                <input type="date" id="taskDueDate" name="taskDueDate">
-                <br>
-                <button type="submit">Зберегти</button>
-            </form>
-        </div>
-    </div>
-</div>
-<canvas id="myCanvas" width="800" height="600"></canvas>
+<canvas id="myCanvas"></canvas>
 <script type="module" src="../dist/main.js"></script>
 </body>
 </html>
