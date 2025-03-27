@@ -1,20 +1,23 @@
+// managers/CanvasManager.ts
 import { Scene } from '../core/scene/Scene';
+import { PanZoomManager } from './PanZoomManager';
+import { ScrollbarManager } from './ScrollbarManager';
+import { CanvasRenderer } from './CanvasRenderer';
 
 export class CanvasManager {
   canvas: HTMLCanvasElement;
   scene: Scene;
   ctx: CanvasRenderingContext2D;
-  scrollX: number = 0; // Horizontal scroll position
-  scrollY: number = 0; // Vertical scroll position
-  scale: number = 1; // Zoom level (optional feature)
-  virtualWidth: number = 3000; // Virtual content width
-  virtualHeight: number = 2000; // Virtual content height
-  scrollbarWidth: number = 6; // Width/height of scrollbar
-  draggingScrollbar: 'horizontal' | 'vertical' | null = null; // Track scrollbar dragging
-  dragStartX: number = 0; // Mouse X at start of drag
-  dragStartY: number = 0; // Mouse Y at start of drag
-  dragStartScrollX: number = 0; // Scroll X at start of drag
-  dragStartScrollY: number = 0; // Scroll Y at start of drag
+
+  panZoom: PanZoomManager;
+  scrollbarManager: ScrollbarManager;
+  renderer: CanvasRenderer;
+
+  draggingScrollbar: 'horizontal' | 'vertical' | null = null;
+  dragStartX: number = 0;
+  dragStartY: number = 0;
+  dragStartScrollX: number = 0;
+  dragStartScrollY: number = 0;
 
   constructor(canvas: HTMLCanvasElement, scene: Scene) {
     this.canvas = canvas;
@@ -22,6 +25,15 @@ export class CanvasManager {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Canvas 2D context not available');
     this.ctx = ctx;
+
+    // Initialize the specialized managers
+    this.panZoom = new PanZoomManager(canvas);
+    this.renderer = new CanvasRenderer(this.ctx, this.panZoom);
+    this.scrollbarManager = new ScrollbarManager(
+      canvas,
+      this.ctx,
+      this.panZoom
+    );
 
     // Bind event handlers
     this.onMouseDown = this.onMouseDown.bind(this);
@@ -43,7 +55,7 @@ export class CanvasManager {
   }
 
   resizeCanvas(): void {
-    this.canvas.width = window.innerWidth - 2; // Account for border
+    this.canvas.width = window.innerWidth - 2;
     this.canvas.height = window.innerHeight - 2;
     this.draw();
   }
@@ -57,131 +69,30 @@ export class CanvasManager {
 
     // Save context state
     this.ctx.save();
-
-    // Apply scroll and scale transformations
-    this.ctx.translate(-this.scrollX, -this.scrollY);
-    this.ctx.scale(this.scale, this.scale);
-
-    // Draw your content (e.g., grid, shapes)
-    this.drawContent();
-
-    // Restore context to draw UI elements like scrollbars unscaled
+    // Apply scroll and scale transformations from panZoom
+    this.ctx.translate(-this.panZoom.scrollX, -this.panZoom.scrollY);
+    this.ctx.scale(this.panZoom.scale, this.panZoom.scale);
+    // Draw main content via renderer
+    this.renderer.drawContent();
+    // Restore to draw UI elements unscaled
     this.ctx.restore();
-
     // Draw scrollbars
-    this.drawScrollbars();
-  }
-
-  drawContent(): void {
-    // Example: Draw a simple grid across the virtual area
-    this.ctx.strokeStyle = '#ddd';
-    this.ctx.lineWidth = 1;
-    for (let x = 0; x < this.virtualWidth; x += 50) {
-      this.ctx.beginPath();
-      this.ctx.moveTo(x, 0);
-      this.ctx.lineTo(x, this.virtualHeight);
-      this.ctx.stroke();
-    }
-    for (let y = 0; y < this.virtualHeight; y += 50) {
-      this.ctx.beginPath();
-      this.ctx.moveTo(0, y);
-      this.ctx.lineTo(this.virtualWidth, y);
-      this.ctx.stroke();
-    }
-  }
-
-  drawScrollbars(): void {
-    const viewportWidth = this.canvas.width - this.scrollbarWidth;
-    const viewportHeight = this.canvas.height - this.scrollbarWidth;
-    const contentWidth = this.virtualWidth * this.scale;
-    const contentHeight = this.virtualHeight * this.scale;
-
-    // Helper function to draw a rounded rectangle
-    const drawRoundedRect = (
-      ctx: CanvasRenderingContext2D,
-      x: number,
-      y: number,
-      width: number,
-      height: number,
-      radius: number
-    ) => {
-      ctx.beginPath();
-      ctx.moveTo(x + radius, y);
-      ctx.lineTo(x + width - radius, y);
-      ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-      ctx.lineTo(x + width, y + height - radius);
-      ctx.quadraticCurveTo(
-        x + width,
-        y + height,
-        x + width - radius,
-        y + height
-      );
-      ctx.lineTo(x + radius, y + height);
-      ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-      ctx.lineTo(x, y + radius);
-      ctx.quadraticCurveTo(x, y, x + radius, y);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-    };
-
-    // Draw horizontal scrollbar thumb if needed
-    if (contentWidth > viewportWidth) {
-      const scrollRatioX = viewportWidth / contentWidth;
-      const thumbWidth = viewportWidth * scrollRatioX;
-      const thumbX = (this.scrollX / contentWidth) * viewportWidth;
-      const trackY = this.canvas.height - this.scrollbarWidth;
-
-      // Draw only the thumb: light gray fill with a subtle gray outline
-      this.ctx.fillStyle = '#5D5D5D80';
-      this.ctx.strokeStyle = '#5D5D5D80';
-      this.ctx.lineWidth = 1;
-      drawRoundedRect(
-        this.ctx,
-        thumbX,
-        trackY,
-        thumbWidth,
-        this.scrollbarWidth,
-        this.scrollbarWidth / 2
-      );
-    }
-
-    // Draw vertical scrollbar thumb if needed
-    if (contentHeight > viewportHeight) {
-      const scrollRatioY = viewportHeight / contentHeight;
-      const thumbHeight = viewportHeight * scrollRatioY;
-      const thumbY = (this.scrollY / contentHeight) * viewportHeight;
-      const trackX = this.canvas.width - this.scrollbarWidth;
-
-      // Draw only the thumb: light gray fill with a subtle gray outline
-      this.ctx.fillStyle = '#5D5D5D80';
-      this.ctx.strokeStyle = '#5D5D5D80';
-      this.ctx.lineWidth = 1;
-      drawRoundedRect(
-        this.ctx,
-        trackX,
-        thumbY,
-        this.scrollbarWidth,
-        thumbHeight,
-        this.scrollbarWidth / 2
-      );
-    }
+    this.scrollbarManager.drawScrollbars();
   }
 
   onMouseDown(e: MouseEvent): void {
     const rect = this.canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
-
-    const scrollbarHit = this.hitTestScrollbars(mouseX, mouseY);
-    if (scrollbarHit === 'horizontal') {
+    const hit = this.scrollbarManager.hitTestScrollbars(mouseX, mouseY);
+    if (hit === 'horizontal') {
       this.draggingScrollbar = 'horizontal';
       this.dragStartX = mouseX;
-      this.dragStartScrollX = this.scrollX;
-    } else if (scrollbarHit === 'vertical') {
+      this.dragStartScrollX = this.panZoom.scrollX;
+    } else if (hit === 'vertical') {
       this.draggingScrollbar = 'vertical';
       this.dragStartY = mouseY;
-      this.dragStartScrollY = this.scrollY;
+      this.dragStartScrollY = this.panZoom.scrollY;
     }
   }
 
@@ -191,23 +102,23 @@ export class CanvasManager {
     const mouseY = e.clientY - rect.top;
 
     if (this.draggingScrollbar === 'horizontal') {
-      const viewportWidth = this.canvas.width - this.scrollbarWidth;
-      const contentWidth = this.virtualWidth * this.scale;
+      const viewportWidth = this.canvas.width - this.panZoom.scrollbarWidth;
+      const contentWidth = this.panZoom.virtualWidth * this.panZoom.scale;
       const scrollRange = contentWidth - viewportWidth;
       const deltaX = mouseX - this.dragStartX;
       const scrollRatio = scrollRange / viewportWidth;
-      this.scrollX = Math.max(
+      this.panZoom.scrollX = Math.max(
         0,
         Math.min(this.dragStartScrollX + deltaX * scrollRatio, scrollRange)
       );
       this.draw();
     } else if (this.draggingScrollbar === 'vertical') {
-      const viewportHeight = this.canvas.height - this.scrollbarWidth;
-      const contentHeight = this.virtualHeight * this.scale;
+      const viewportHeight = this.canvas.height - this.panZoom.scrollbarWidth;
+      const contentHeight = this.panZoom.virtualHeight * this.panZoom.scale;
       const scrollRange = contentHeight - viewportHeight;
       const deltaY = mouseY - this.dragStartY;
       const scrollRatio = scrollRange / viewportHeight;
-      this.scrollY = Math.max(
+      this.panZoom.scrollY = Math.max(
         0,
         Math.min(this.dragStartScrollY + deltaY * scrollRatio, scrollRange)
       );
@@ -220,95 +131,35 @@ export class CanvasManager {
   }
 
   onWheel(e: WheelEvent): void {
-    // Prevent default browser scrolling
     e.preventDefault();
-
-    // Get mouse position relative to the canvas
     const rect = this.canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
     if (e.ctrlKey) {
-      // Zooming with Ctrl + wheel or touchpad pinch
-      const zoomFactor = Math.pow(1.001, -e.deltaY); // Smooth scaling
-      const oldScale = this.scale;
+      // Zooming
+      const zoomFactor = Math.pow(1.001, -e.deltaY);
+      const oldScale = this.panZoom.scale;
       let newScale = oldScale * zoomFactor;
-
-      // Compute viewport dimensions (accounting for scrollbar)
-      const viewportWidth = this.canvas.width - this.scrollbarWidth;
-      const viewportHeight = this.canvas.height - this.scrollbarWidth;
-
-      // Define minimum scale so the virtual content at least fills the viewport
+      const viewportWidth = this.canvas.width - this.panZoom.scrollbarWidth;
+      const viewportHeight = this.canvas.height - this.panZoom.scrollbarWidth;
       const minScale = Math.max(
-        viewportWidth / this.virtualWidth,
-        viewportHeight / this.virtualHeight
+        viewportWidth / this.panZoom.virtualWidth,
+        viewportHeight / this.panZoom.virtualHeight
       );
-      // Define a maximum scale (arbitrary value—you can adjust as needed)
       const maxScale = 3;
-
-      // Clamp the new scale
       newScale = Math.min(Math.max(newScale, minScale), maxScale);
-
-      // Adjust scroll to keep the point under the mouse steady
-      const contentX = (mouseX + this.scrollX) / oldScale;
-      const contentY = (mouseY + this.scrollY) / oldScale;
-      this.scale = newScale;
-      this.scrollX = contentX * newScale - mouseX;
-      this.scrollY = contentY * newScale - mouseY;
+      const contentX = (mouseX + this.panZoom.scrollX) / oldScale;
+      const contentY = (mouseY + this.panZoom.scrollY) / oldScale;
+      this.panZoom.scale = newScale;
+      this.panZoom.scrollX = contentX * newScale - mouseX;
+      this.panZoom.scrollY = contentY * newScale - mouseY;
     } else {
-      // Scrolling with wheel or touchpad two-finger gesture
-      this.scrollX += e.deltaX;
-      this.scrollY += e.deltaY;
+      // Panning with wheel
+      this.panZoom.scrollX += e.deltaX;
+      this.panZoom.scrollY += e.deltaY;
     }
-
-    // Clamp scroll positions to stay within bounds
-    this.clampScroll();
-
-    // Redraw the canvas
+    this.panZoom.clampScroll();
     this.draw();
-  }
-
-  clampScroll(): void {
-    const viewportWidth = this.canvas.width - this.scrollbarWidth;
-    const viewportHeight = this.canvas.height - this.scrollbarWidth;
-    const maxScrollX = Math.max(
-      0,
-      this.virtualWidth * this.scale - viewportWidth
-    );
-    const maxScrollY = Math.max(
-      0,
-      this.virtualHeight * this.scale - viewportHeight
-    );
-    this.scrollX = Math.min(Math.max(0, this.scrollX), maxScrollX);
-    this.scrollY = Math.min(Math.max(0, this.scrollY), maxScrollY);
-  }
-
-  hitTestScrollbars(x: number, y: number): 'horizontal' | 'vertical' | null {
-    const viewportWidth = this.canvas.width - this.scrollbarWidth;
-    const viewportHeight = this.canvas.height - this.scrollbarWidth;
-    const contentWidth = this.virtualWidth * this.scale;
-    const contentHeight = this.virtualHeight * this.scale;
-
-    // Horizontal scrollbar hit test
-    if (contentWidth > viewportWidth && y > viewportHeight) {
-      const scrollRatioX = viewportWidth / contentWidth;
-      const thumbWidth = viewportWidth * scrollRatioX;
-      const thumbX = (this.scrollX / contentWidth) * viewportWidth;
-      if (x >= thumbX && x <= thumbX + thumbWidth) {
-        return 'horizontal';
-      }
-    }
-
-    // Vertical scrollbar hit test
-    if (contentHeight > viewportHeight && x > viewportWidth) {
-      const scrollRatioY = viewportHeight / contentHeight;
-      const thumbHeight = viewportHeight * scrollRatioY;
-      const thumbY = (this.scrollY / contentHeight) * viewportHeight;
-      if (y >= thumbY && y <= thumbY + thumbHeight) {
-        return 'vertical';
-      }
-    }
-
-    return null;
   }
 }
