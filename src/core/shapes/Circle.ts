@@ -44,11 +44,15 @@ export default class Circle implements IShape {
 
         if (this.selected) {
             ctx.save();
-            ctx.strokeStyle = 'blue';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, this.radius + 4, 0, Math.PI * 2);
-            ctx.stroke();
+            ctx.strokeStyle = '#008dff';
+            ctx.lineWidth = 2;
+            const padding = 2;
+            ctx.strokeRect(
+              this.x - this.radius - padding,
+              this.y - this.radius - padding,
+              this.radius * 2 + padding * 2,
+              this.radius * 2 + padding * 2
+            );
             ctx.restore();
         }
     }
