@@ -1,8 +1,10 @@
+// managers/CanvasManager.ts
 import { Scene } from '../core/scene/Scene';
 import { PanZoomManager } from './PanZoomManager';
 import { ScrollbarManager } from './ScrollbarManager';
 import { CanvasRenderer } from './CanvasRenderer';
 import { InteractionManager } from './InteractionManager';
+import { IShape } from '../core/interfaces/shape';
 
 export class CanvasManager {
   canvas: HTMLCanvasElement;
@@ -65,9 +67,23 @@ export class CanvasManager {
     this.ctx.scale(this.panZoom.scale, this.panZoom.scale);
 
     this.renderer.drawContent();
-    this.scene.getElements().forEach(element => {
-      if (typeof element.draw === 'function') {
+
+    // Отримуємо всі елементи сцени
+    const elements = this.scene.getElements();
+    // Отримуємо лише IShape для передачі в Connection
+    const shapes = this.scene.getShapes();
+
+    // Спочатку рендеримо IShape (кола)
+    elements.forEach(element => {
+      if ('contains' in element) { // Перевіряємо, чи це IShape
         element.draw(this.ctx);
+      }
+    });
+
+    // Потім рендеримо зв’язки
+    elements.forEach(element => {
+      if (!('contains' in element)) { // Перевіряємо, чи це НЕ IShape (тобто Connection)
+        element.draw(this.ctx, shapes);
       }
     });
 
@@ -80,7 +96,6 @@ export class CanvasManager {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    // Перевіряємо скролбари першими
     const hit = this.scrollbarManager.hitTestScrollbars(mouseX, mouseY);
     if (hit === 'horizontal') {
       this.draggingScrollbar = 'horizontal';
@@ -127,7 +142,6 @@ export class CanvasManager {
       );
       this.draw();
     } else {
-      // Якщо немає перетягування скролбарів, делегуємо в InteractionManager
       this.interactionManager.handleMouseMove(e);
       this.draw();
     }

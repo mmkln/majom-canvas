@@ -1,5 +1,7 @@
-// core/shapes/IShape.ts
-export interface IShape {
+// core/shapes/shape.ts
+import { IDrawable } from './drawable';
+
+export interface IShape extends IDrawable {
   id: number;
   x: number;
   y: number;

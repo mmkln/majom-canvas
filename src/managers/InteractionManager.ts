@@ -1,14 +1,18 @@
+// managers/InteractionManager.ts
 import { Scene } from '../core/scene/Scene';
 import { IShape } from '../core/interfaces/shape';
+import Connection from '../core/shapes/Connection';
 
 export class InteractionManager {
   private draggingShape: IShape | null = null;
   private dragOffsetX: number = 0;
   private dragOffsetY: number = 0;
 
-  constructor(private canvas: HTMLCanvasElement, private scene: Scene) {
-    // Більше не додаємо обробники подій тут
-  }
+  // Для створення зв’язків
+  private creatingConnection: boolean = false;
+  private connectionStartShape: IShape | null = null;
+
+  constructor(private canvas: HTMLCanvasElement, private scene: Scene) {}
 
   private getMouseCoords(e: MouseEvent): { x: number; y: number } {
     const rect = this.canvas.getBoundingClientRect();
@@ -16,17 +20,45 @@ export class InteractionManager {
   }
 
   handleMouseDown(e: MouseEvent): boolean {
-    if (e.button !== 0) return false; // Обробляємо лише ліву кнопку
     const { x, y } = this.getMouseCoords(e);
-    const elements = this.scene.getElements();
-    for (let i = elements.length - 1; i >= 0; i--) {
-      const shape = elements[i];
+    const shapes = this.scene.getShapes();
+
+    // Перевіряємо, чи користувач хоче створити зв’язок (Shift + клік)
+    if (e.shiftKey) {
+      for (let i = shapes.length - 1; i >= 0; i--) {
+        const shape = shapes[i];
+        if (shape.contains(x, y)) {
+          if (!this.creatingConnection) {
+            // Починаємо створення зв’язку
+            this.creatingConnection = true;
+            this.connectionStartShape = shape;
+            return true;
+          } else if (shape !== this.connectionStartShape) {
+            // Завершуємо створення зв’язку
+            const connection = new Connection(this.connectionStartShape!.id, shape.id);
+            this.scene.addElement(connection);
+            this.creatingConnection = false;
+            this.connectionStartShape = null;
+            return true;
+          }
+        }
+      }
+      // Якщо клікнули не на об’єкт, скидаємо режим створення зв’язку
+      this.creatingConnection = false;
+      this.connectionStartShape = null;
+      return false;
+    }
+
+    // Звичайна логіка перетягування
+    if (e.button !== 0) return false; // Обробляємо лише ліву кнопку
+    for (let i = shapes.length - 1; i >= 0; i--) {
+      const shape = shapes[i];
       if (shape.contains(x, y)) {
         this.draggingShape = shape;
         this.dragOffsetX = x - shape.x;
         this.dragOffsetY = y - shape.y;
         if (shape.onDragStart) shape.onDragStart();
-        return true; // Подія оброблена
+        return true;
       }
     }
     return false;
@@ -40,7 +72,7 @@ export class InteractionManager {
       if (this.draggingShape.onDrag) {
         this.draggingShape.onDrag(this.draggingShape.x, this.draggingShape.y);
       }
-      this.scene.changes.next(); // Сповіщаємо про зміни в сцені
+      this.scene.changes.next();
     }
   }
 
@@ -49,14 +81,14 @@ export class InteractionManager {
       this.draggingShape.onDragEnd();
     }
     this.draggingShape = null;
-    this.scene.changes.next(); // Сповіщаємо про завершення
+    this.scene.changes.next();
   }
 
   handleDoubleClick(e: MouseEvent): void {
     const { x, y } = this.getMouseCoords(e);
-    const elements = this.scene.getElements();
-    for (let i = elements.length - 1; i >= 0; i--) {
-      const shape = elements[i];
+    const shapes = this.scene.getShapes();
+    for (let i = shapes.length - 1; i >= 0; i--) {
+      const shape = shapes[i];
       if (shape.contains(x, y) && shape.onDoubleClick) {
         shape.onDoubleClick();
         break;
@@ -67,9 +99,9 @@ export class InteractionManager {
   handleRightClick(e: MouseEvent): void {
     e.preventDefault();
     const { x, y } = this.getMouseCoords(e);
-    const elements = this.scene.getElements();
-    for (let i = elements.length - 1; i >= 0; i--) {
-      const shape = elements[i];
+    const shapes = this.scene.getShapes();
+    for (let i = shapes.length - 1; i >= 0; i--) {
+      const shape = shapes[i];
       if (shape.contains(x, y) && shape.onRightClick) {
         shape.onRightClick();
         break;
