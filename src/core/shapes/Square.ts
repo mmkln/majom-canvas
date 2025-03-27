@@ -4,18 +4,18 @@ import { Shape } from './Shape';
 import { drawPolygon, getPolygonVertices, isPointInPolygon } from '../utils/polygon';
 import { lineIntersection } from '../utils/geometry';
 
-export default class Octagon extends Shape {
-  private static readonly SIDES = 8;
-  private static readonly ROTATION = -Math.PI / 2 + Math.PI / 8;
+export default class Square extends Shape {
+  private static readonly SIDES = 4;
+  private static readonly ROTATION = -Math.PI / 4;
 
-  protected drawShape(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
+  protected drawShape(ctx: CanvasRenderingContext2D): void {
     drawPolygon(
       ctx,
       this.x,
       this.y,
       this.radius,
-      Octagon.SIDES,
-      Octagon.ROTATION,
+      Square.SIDES,
+      Square.ROTATION,
       this.fillColor,
       this.strokeColor,
       this.lineWidth
@@ -27,18 +27,19 @@ export default class Octagon extends Shape {
       this.x,
       this.y,
       this.radius,
-      Octagon.SIDES,
-      Octagon.ROTATION
+      Square.SIDES,
+      Square.ROTATION
     );
     return isPointInPolygon(px, py, vertices);
   }
 
   getBoundaryPoint(angle: number): { x: number; y: number } {
-    const sectorAngle = (Math.PI * 2) / Octagon.SIDES;
+    const sectorAngle = (Math.PI * 2) / Square.SIDES;
     angle = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-    const sector = Math.floor((angle + Math.PI / 2 - Math.PI / 8) / sectorAngle) % Octagon.SIDES;
-    const sectorStartAngle = sector * sectorAngle - Math.PI / 2 + Math.PI / 8;
-    const sectorEndAngle = (sector + 1) * sectorAngle - Math.PI / 2 + Math.PI / 8;
+    // Враховуємо обертання при визначенні сектора
+    const sector = Math.floor((angle - Square.ROTATION) / sectorAngle) % Square.SIDES;
+    const sectorStartAngle = sector * sectorAngle + Square.ROTATION;
+    const sectorEndAngle = (sector + 1) * sectorAngle + Square.ROTATION;
 
     const startVertex = {
       x: this.x + this.radius * Math.cos(sectorStartAngle),
@@ -69,6 +70,6 @@ export default class Octagon extends Shape {
   }
 
   onDoubleClick?(): void {
-    console.log(`Double clicked on octagon ${this.id}`);
+    console.log(`Double clicked on square ${this.id}`);
   }
 }

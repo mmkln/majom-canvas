@@ -1,39 +1,8 @@
 // core/shapes/Circle.ts
-import { IShape } from '../interfaces/shape';
-import { PanZoomManager } from '../../managers/PanZoomManager';
-import { v4 } from 'uuid';
+import { Shape } from './Shape';
 
-export default class Circle implements IShape {
-    private static nextId = 0;
-    public id: string;
-    public x: number;
-    public y: number;
-    public radius: number;
-    public fillColor: string;
-    public strokeColor: string;
-    public lineWidth: number;
-    public selected: boolean;
-
-    constructor(
-      x: number,
-      y: number,
-      radius: number = 50,
-      fillColor: string = '#0baef6',
-      strokeColor: string = '#f3c92f',
-      lineWidth: number = 1
-    ) {
-        this.id = v4();
-        this.x = x;
-        this.y = y;
-        this.radius = radius;
-        this.fillColor = fillColor;
-        this.strokeColor = strokeColor;
-        this.lineWidth = lineWidth;
-        this.selected = false;
-    }
-
-    draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
-        // Вже враховано трансформацію в CanvasManager, тому просто малюємо
+export default class Circle extends Shape {
+    protected drawShape(ctx: CanvasRenderingContext2D): void {
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fillStyle = this.fillColor;
@@ -41,20 +10,6 @@ export default class Circle implements IShape {
         ctx.strokeStyle = this.strokeColor;
         ctx.lineWidth = this.lineWidth;
         ctx.stroke();
-
-        if (this.selected) {
-            ctx.save();
-            ctx.strokeStyle = '#008dff';
-            ctx.lineWidth = 2;
-            const padding = 2;
-            ctx.strokeRect(
-              this.x - this.radius - padding,
-              this.y - this.radius - padding,
-              this.radius * 2 + padding * 2,
-              this.radius * 2 + padding * 2
-            );
-            ctx.restore();
-        }
     }
 
     contains(px: number, py: number): boolean {
@@ -70,6 +25,7 @@ export default class Circle implements IShape {
         };
     }
 
+    // onDoubleClick успадковується від Shape, але ми можемо перевизначити, якщо потрібно
     onDoubleClick?(): void {
         console.log(`Double clicked on circle ${this.id}`);
     }

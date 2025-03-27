@@ -2,6 +2,7 @@
 import { Scene } from '../core/scene/Scene';
 import Circle from '../core/shapes/Circle';
 import Octagon from '../core/shapes/Octagon';
+import Square from '../core/shapes/Square';
 
 export class Toolbar {
   private readonly container: HTMLDivElement;
@@ -51,9 +52,25 @@ export class Toolbar {
       this.scene.addElement(hexagon);
     };
 
+    // Кнопка для створення квадрата
+    const addSquareBtn = document.createElement('button');
+    addSquareBtn.textContent = 'Add Square';
+    addSquareBtn.style.cursor = 'pointer';
+    addSquareBtn.style.padding = '6px 12px';
+    addSquareBtn.style.border = '1px solid #ccc';
+    addSquareBtn.style.borderRadius = '4px';
+    addSquareBtn.style.background = '#fff';
+    addSquareBtn.style.fontSize = '14px';
+
+    addSquareBtn.onclick = () => {
+      const square = new Square(500, 500, 50);
+      this.scene.addElement(square);
+    };
+
     // Додаємо кнопки до контейнера
     this.container.appendChild(addCircleBtn);
     this.container.appendChild(addOctagonBtn);
+    this.container.appendChild(addSquareBtn);
 
     document.body.appendChild(this.container);
   }

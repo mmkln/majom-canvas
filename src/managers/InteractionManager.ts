@@ -36,7 +36,7 @@ export class InteractionManager {
     let clickedShape: IShape | null = null;
 
 
-    if (e.ctrlKey) {
+    if (e.altKey) {
       for (let i = shapes.length - 1; i >= 0; i--) {
         const shape = shapes[i];
         if (shape.contains(x, y)) {
