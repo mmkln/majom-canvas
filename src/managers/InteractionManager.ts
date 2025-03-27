@@ -16,14 +16,14 @@ export class InteractionManager {
   constructor(
     private canvas: HTMLCanvasElement,
     private scene: Scene,
-    private panZoom: PanZoomManager // Додаємо PanZoomManager
+    private panZoom: PanZoomManager
   ) {}
 
   private getMouseCoords(e: MouseEvent): { x: number; y: number } {
     const rect = this.canvas.getBoundingClientRect();
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
-    // Перетворюємо координати екрану в координати сцени з урахуванням скролу і масштабу
+    // Convert screen coordinates to scene coordinates
     const sceneX = (screenX + this.panZoom.scrollX) / this.panZoom.scale;
     const sceneY = (screenY + this.panZoom.scrollY) / this.panZoom.scale;
     return { x: sceneX, y: sceneY };
@@ -76,14 +76,13 @@ export class InteractionManager {
       } else {
         this.scene.setSelected([clickedShape]);
       }
-      // Починаємо перетягування групи, якщо вибрано більше одного
+      // Begin bulk drag: store initial positions for all selected shapes
       const selected = this.scene.getSelectedShapes();
-      // Запам'ятовуємо початкові позиції всіх вибраних фігур
       this.initialPositions.clear();
       selected.forEach((shape) => {
         this.initialPositions.set(shape.id, { x: shape.x, y: shape.y });
       });
-      // Встановлюємо draggingShape як ту, по якій клікнули
+      // Set draggingShape as the one that was clicked
       this.draggingShape = clickedShape;
       const offset = { x: x - clickedShape.x, y: y - clickedShape.y };
       this.dragOffsetX = offset.x;
@@ -92,18 +91,7 @@ export class InteractionManager {
       return true;
     }
 
-    if (e.button !== 0) return false;
-    for (let i = shapes.length - 1; i >= 0; i--) {
-      const shape = shapes[i];
-      if (shape.contains(x, y)) {
-        this.draggingShape = shape;
-        this.dragOffsetX = x - shape.x;
-        this.dragOffsetY = y - shape.y;
-        if (shape.onDragStart) shape.onDragStart();
-        return true;
-      }
-    }
-
+    // If no shape is clicked, clear selection.
     this.scene.setSelected([]);
     return false;
   }
@@ -111,11 +99,23 @@ export class InteractionManager {
   handleMouseMove(e: MouseEvent): void {
     if (this.draggingShape) {
       const { x, y } = this.getMouseCoords(e);
-      this.draggingShape.x = x - this.dragOffsetX;
-      this.draggingShape.y = y - this.dragOffsetY;
-      if (this.draggingShape.onDrag) {
-        this.draggingShape.onDrag(this.draggingShape.x, this.draggingShape.y);
-      }
+      // Retrieve the initial position of the shape that was clicked
+      const clickedInitialPos = this.initialPositions.get(this.draggingShape.id);
+      if (!clickedInitialPos) return;
+      // Compute displacement (dx, dy) from the initial mouse down position (using the clicked shape's stored position and drag offset)
+      const dx = x - (clickedInitialPos.x + this.dragOffsetX);
+      const dy = y - (clickedInitialPos.y + this.dragOffsetY);
+
+      // For each selected shape, update its position relative to its stored initial position.
+      const selected = this.scene.getSelectedShapes();
+      selected.forEach((shape) => {
+        const initPos = this.initialPositions.get(shape.id);
+        if (initPos) {
+          shape.x = initPos.x + dx;
+          shape.y = initPos.y + dy;
+          if (shape.onDrag) shape.onDrag(shape.x, shape.y);
+        }
+      });
       this.scene.changes.next();
     }
   }
@@ -125,6 +125,7 @@ export class InteractionManager {
       this.draggingShape.onDragEnd();
     }
     this.draggingShape = null;
+    this.initialPositions.clear();
     this.scene.changes.next();
   }
 
