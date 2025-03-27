@@ -1,11 +1,10 @@
-// managers/InteractionManager.ts
 import { Scene } from '../core/scene/Scene';
 import { IShape } from '../core/interfaces/shape';
 
 export class InteractionManager {
   private draggingShape: IShape | null = null;
-  private dragOffsetX = 0;
-  private dragOffsetY = 0;
+  private dragOffsetX: number = 0;
+  private dragOffsetY: number = 0;
 
   constructor(private canvas: HTMLCanvasElement, private scene: Scene) {
     canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
@@ -21,11 +20,9 @@ export class InteractionManager {
   }
 
   handleMouseDown(e: MouseEvent): boolean {
-    // Обробляємо тільки ліва кнопка
-    if (e.button !== 0) return false;
+    if (e.button !== 0) return false; // обробляємо лише ліва кнопка
     const { x, y } = this.getMouseCoords(e);
     const elements = this.scene.getElements();
-    // Перебір з зверху вниз (остання фігура – найбільш "верхня")
     for (let i = elements.length - 1; i >= 0; i--) {
       const shape = elements[i];
       if (shape.contains(x, y)) {
