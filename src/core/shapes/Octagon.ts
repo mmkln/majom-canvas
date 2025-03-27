@@ -4,7 +4,6 @@ import { PanZoomManager } from '../../managers/PanZoomManager';
 import { v4 } from 'uuid';
 
 export default class Octagon implements IShape {
-  private static nextId = 0;
   public id: string;
   public x: number;
   public y: number;
@@ -34,7 +33,7 @@ export default class Octagon implements IShape {
     const sides = 8;
     ctx.beginPath();
     for (let i = 0; i < sides; i++) {
-      const angle = (Math.PI * 2 * i) / sides - Math.PI / 2;
+      const angle = (Math.PI * 2 * i) / sides - Math.PI / 2 + Math.PI / 8;
       const px = this.x + this.radius * Math.cos(angle);
       const py = this.y + this.radius * Math.sin(angle);
       if (i === 0) {
@@ -56,7 +55,7 @@ export default class Octagon implements IShape {
     const vertices: { x: number; y: number }[] = [];
 
     for (let i = 0; i < sides; i++) {
-      const angle = (Math.PI * 2 * i) / sides - Math.PI / 2;
+      const angle = (Math.PI * 2 * i) / sides - Math.PI / 2 + Math.PI / 8;
       vertices.push({
         x: this.x + this.radius * Math.cos(angle),
         y: this.y + this.radius * Math.sin(angle),
@@ -83,9 +82,9 @@ export default class Octagon implements IShape {
     const sides = 8;
     const sectorAngle = (Math.PI * 2) / sides; // Кут одного сектора
     angle = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-    const sector = Math.floor((angle + Math.PI / 2) / sectorAngle) % sides;
-    const sectorStartAngle = (sector * sectorAngle) - Math.PI / 2;
-    const sectorEndAngle = ((sector + 1) * sectorAngle) - Math.PI / 2;
+    const sector = Math.floor((angle + Math.PI / 2 - Math.PI / 8) / sectorAngle) % sides;
+    const sectorStartAngle = sector * sectorAngle - Math.PI / 2 + Math.PI / 8;
+    const sectorEndAngle = (sector + 1) * sectorAngle - Math.PI / 2 + Math.PI / 8;
 
     const startVertex = {
       x: this.x + this.radius * Math.cos(sectorStartAngle),
