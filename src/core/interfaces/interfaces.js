@@ -1,2 +1,0 @@
-// interfaces.ts
-export {};

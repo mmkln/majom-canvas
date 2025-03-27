@@ -35,6 +35,11 @@ export class CanvasManager {
       this.panZoom
     );
 
+    // Підписуємося на зміни в сцені за допомогою RxJS
+    this.scene.changes.subscribe(() => {
+      this.draw();
+    });
+
     // Bind event handlers
     this.onMouseDown = this.onMouseDown.bind(this);
     this.onMouseMove = this.onMouseMove.bind(this);
@@ -67,16 +72,24 @@ export class CanvasManager {
   draw(): void {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    // Save context state
+    // Save context state, apply pan/zoom
     this.ctx.save();
-    // Apply scroll and scale transformations from panZoom
     this.ctx.translate(-this.panZoom.scrollX, -this.panZoom.scrollY);
     this.ctx.scale(this.panZoom.scale, this.panZoom.scale);
-    // Draw main content via renderer
+
+    // Draw static content (e.g. grid)
     this.renderer.drawContent();
-    // Restore to draw UI elements unscaled
+
+    // Draw scene elements
+    this.scene.getElements().forEach((element) => {
+      if (typeof element.draw === 'function') {
+        element.draw(this.ctx);
+      }
+    });
+
     this.ctx.restore();
-    // Draw scrollbars
+
+    // Draw UI elements like scrollbars
     this.scrollbarManager.drawScrollbars();
   }
 
