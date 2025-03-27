@@ -207,17 +207,33 @@ export default class CanvasManager {
       // Zooming with Ctrl + wheel or touchpad pinch
       const zoomFactor = Math.pow(1.001, -e.deltaY); // Smooth scaling
       const oldScale = this.scale;
-      this.scale *= zoomFactor;
+      let newScale = oldScale * zoomFactor;
+
+      // Compute viewport dimensions (accounting for scrollbar)
+      const viewportWidth = this.canvas.width - this.scrollbarWidth;
+      const viewportHeight = this.canvas.height - this.scrollbarWidth;
+
+      // Define minimum scale so the virtual content at least fills the viewport
+      const minScale = Math.max(
+        viewportWidth / this.virtualWidth,
+        viewportHeight / this.virtualHeight
+      );
+      // Define a maximum scale (arbitrary value—you can adjust as needed)
+      const maxScale = 3;
+
+      // Clamp the new scale
+      newScale = Math.min(Math.max(newScale, minScale), maxScale);
 
       // Adjust scroll to keep the point under the mouse steady
       const contentX = (mouseX + this.scrollX) / oldScale;
       const contentY = (mouseY + this.scrollY) / oldScale;
-      this.scrollX = contentX * this.scale - mouseX;
-      this.scrollY = contentY * this.scale - mouseY;
+      this.scale = newScale;
+      this.scrollX = contentX * newScale - mouseX;
+      this.scrollY = contentY * newScale - mouseY;
     } else {
       // Scrolling with wheel or touchpad two-finger gesture
-      this.scrollX += e.deltaX; // Horizontal scroll
-      this.scrollY += e.deltaY; // Vertical scroll
+      this.scrollX += e.deltaX;
+      this.scrollY += e.deltaY;
     }
 
     // Clamp scroll positions to stay within bounds
