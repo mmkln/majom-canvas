@@ -1,8 +1,5 @@
-// dummyData.ts
-import { Task, TaskDependency } from './interfaces';
-
 // Dummy data для задач
-export const tasks: Task[] = [
+export const tasks = [
     {
         id: 1,
         title: 'Підготувати специфікацію',
@@ -44,9 +41,8 @@ export const tasks: Task[] = [
         y: 350,
     },
 ];
-
 // Dummy data для залежностей між задачами
-export const dependencies: TaskDependency[] = [
+export const dependencies = [
     { fromTaskId: 1, toTaskId: 2, type: 'blocks' },
     { fromTaskId: 2, toTaskId: 3, type: 'dependsOn' },
     { fromTaskId: 3, toTaskId: 4, type: 'blocks' },

@@ -4,8 +4,8 @@
   "description": "Проект Canvas з кружечками, стрілками та видаленням на TypeScript",
   "main": "dist/main.js",
   "scripts": {
-    "build": "tsc",
-    "start": "tsc && live-server --open=src/index.html --port=8080 --watch=./",
+    "build": "tsc && copyfiles -u 1 src/index.html dist",
+    "start": "npm run build && live-server src --port=8080 --watch=./",
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,css,scss,md}\""
   },
   "keywords": [
@@ -17,6 +17,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "copyfiles": "^2.4.1",
     "live-server": "^1.2.2",
     "prettier": "^3.5.1",
     "typescript": "^5.0.0"

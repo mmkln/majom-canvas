@@ -1,5 +1,8 @@
-export default class CanvasManager {
+import { Scene } from '../core/scene/Scene';
+
+export class CanvasManager {
   canvas: HTMLCanvasElement;
+  scene: Scene;
   ctx: CanvasRenderingContext2D;
   scrollX: number = 0; // Horizontal scroll position
   scrollY: number = 0; // Vertical scroll position
@@ -13,8 +16,9 @@ export default class CanvasManager {
   dragStartScrollX: number = 0; // Scroll X at start of drag
   dragStartScrollY: number = 0; // Scroll Y at start of drag
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, scene: Scene) {
     this.canvas = canvas;
+    this.scene = scene;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Canvas 2D context not available');
     this.ctx = ctx;
