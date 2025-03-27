@@ -2,12 +2,14 @@
 import { CanvasManager } from './managers/CanvasManager';
 import { Scene } from './core/scene/Scene';
 import { Toolbar } from './ui/Toolbar';
+import { KeyboardManager } from './managers/KeyboardManager';
 
 export class App {
   private readonly canvas: HTMLCanvasElement;
   private readonly scene: Scene;
   private readonly toolbar: Toolbar;
   private canvasManager: CanvasManager;
+  private keyboardManager: KeyboardManager;
 
 
   constructor() {
@@ -24,10 +26,12 @@ export class App {
 
     // Передаємо сцену в CanvasManager, щоб менеджер міг працювати з даними
     this.canvasManager = new CanvasManager(this.canvas, this.scene);
+    this.keyboardManager = new KeyboardManager(this.scene);
   }
 
   public init(): void {
     this.canvasManager.init();
     this.toolbar.init();
+    this.keyboardManager.init();
   }
 }

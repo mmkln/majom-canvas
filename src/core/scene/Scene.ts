@@ -23,6 +23,12 @@ export class Scene {
     }
   }
 
+  public removeElements(elements: IDrawable[]): void {
+    elements.forEach((element) => {
+      this.removeElement(element)
+    });
+  }
+
   public getElements(): IDrawable[] {
     return this.elements;
   }
