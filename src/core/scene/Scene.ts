@@ -24,9 +24,13 @@ export class Scene {
   }
 
   public removeElements(elements: IDrawable[]): void {
-    elements.forEach((element) => {
-      this.removeElement(element)
+    elements.forEach(element => {
+      const index = this.elements.indexOf(element);
+      if (index > -1) {
+        this.elements.splice(index, 1);
+      }
     });
+    this.changes.next();
   }
 
   public getElements(): IDrawable[] {
@@ -48,7 +52,7 @@ export class Scene {
   }
 
   public getSelectedShapes(): IShape[] {
-    return this.getShapes().filter((shape) => shape.selected);
+    return this.getShapes().filter(shape => shape.selected);
   }
 
   public clear(): void {

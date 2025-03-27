@@ -1,22 +1,68 @@
 // managers/KeyboardManager.ts
 import { Scene } from '../core/scene/Scene';
+import { IShape } from '../core/interfaces/shape';
+import { CanvasManager } from './CanvasManager';
 
 export class KeyboardManager {
-  constructor(private scene: Scene) {
+  private clipboard: IShape[] = [];
+
+  constructor(
+    private scene: Scene,
+    private canvasManager: CanvasManager
+  ) {
     document.addEventListener('keydown', this.onKeyDown.bind(this));
   }
 
-  private onKeyDown(e: KeyboardEvent): void {
-    // Check for the Delete key (or Backspace, depending on your needs)
-    console.log({ key: e.key });
-    if (e.key === 'Backspace') {
-      // Get a copy of selected shapes to avoid mutation issues during iteration
-      const selectedShapes = [...this.scene.getSelectedShapes()];
-        this.scene.removeElements(selectedShapes);
-    }
+  private getCanvasCenter(): { x: number; y: number } {
+    const canvas = this.canvasManager.getCanvas();
+    const width = canvas.width;
+    const height = canvas.height;
+    const panZoom = this.canvasManager.getPanZoomManager();
+    const centerX = (width / 2 + panZoom.scrollX) / panZoom.scale;
+    const centerY = (height / 2 + panZoom.scrollY) / panZoom.scale;
+    return { x: centerX, y: centerY };
   }
 
-  public init(): void {
-    // Nothing to initialize
+  private onKeyDown(e: KeyboardEvent): void {
+    console.log({ key: e.key });
+
+    if (e.ctrlKey && e.key === 'c') {
+      console.log('Ctrl+C pressed');
+      const selectedShapes = this.scene.getSelectedShapes();
+      if (selectedShapes.length > 0) {
+        this.clipboard = selectedShapes.map(shape => shape.clone());
+        console.log(`Copied ${this.clipboard.length} shapes to clipboard`);
+      }
+      e.preventDefault();
+    }
+
+    if (e.ctrlKey && e.key === 'v') {
+      console.log('Ctrl+V pressed');
+      if (this.clipboard.length > 0) {
+        // Отримуємо координати напряму з CanvasManager
+        let mouseCoords = this.canvasManager.getLastMouseCoords();
+        if (!mouseCoords) {
+          mouseCoords = this.getCanvasCenter();
+          console.log(`Mouse coordinates not available, pasting at canvas center (${mouseCoords.x}, ${mouseCoords.y})`);
+        }
+
+        this.scene.getShapes().forEach(shape => (shape.selected = false));
+
+        this.clipboard.forEach(shape => {
+          const clonedShape = shape.clone();
+          clonedShape.x = mouseCoords!.x + (clonedShape.x - shape.x);
+          clonedShape.y = mouseCoords!.y + (clonedShape.y - shape.y);
+          clonedShape.selected = true;
+          this.scene.addElement(clonedShape);
+        });
+        console.log(`Pasted ${this.clipboard.length} shapes at (${mouseCoords.x}, ${mouseCoords.y})`);
+      }
+      e.preventDefault();
+    }
+
+    if (e.key === 'Backspace') {
+      const selectedShapes = [...this.scene.getSelectedShapes()];
+      this.scene.removeElements(selectedShapes);
+    }
   }
 }

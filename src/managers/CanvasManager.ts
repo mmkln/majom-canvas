@@ -4,7 +4,7 @@ import { PanZoomManager } from './PanZoomManager';
 import { ScrollbarManager } from './ScrollbarManager';
 import { CanvasRenderer } from './CanvasRenderer';
 import { InteractionManager } from './InteractionManager';
-import { IShape } from '../core/interfaces/shape';
+import { KeyboardManager } from './KeyboardManager';
 import { isShape } from '../core/utils/typeGuards';
 
 export class CanvasManager {
@@ -16,12 +16,14 @@ export class CanvasManager {
   scrollbarManager: ScrollbarManager;
   renderer: CanvasRenderer;
   interactionManager: InteractionManager;
+  keyboardManager: KeyboardManager;
 
   draggingScrollbar: 'horizontal' | 'vertical' | null = null;
   dragStartX: number = 0;
   dragStartY: number = 0;
   dragStartScrollX: number = 0;
   dragStartScrollY: number = 0;
+  private lastMouseCoords: { x: number; y: number } | null = null;
 
   constructor(canvas: HTMLCanvasElement, scene: Scene) {
     this.canvas = canvas;
@@ -33,7 +35,8 @@ export class CanvasManager {
     this.panZoom = new PanZoomManager(canvas);
     this.renderer = new CanvasRenderer(this.ctx, this.panZoom);
     this.scrollbarManager = new ScrollbarManager(canvas, this.ctx, this.panZoom);
-    this.interactionManager = new InteractionManager(canvas, scene, this.panZoom); // Передаємо panZoom
+    this.interactionManager = new InteractionManager(canvas, scene, this.panZoom);
+    this.keyboardManager = new KeyboardManager(scene, this);
 
     this.scene.changes.subscribe(() => this.draw());
 
@@ -43,6 +46,8 @@ export class CanvasManager {
     this.canvas.addEventListener('mousedown', this.onMouseDown.bind(this));
     this.canvas.addEventListener('mousemove', this.onMouseMove.bind(this));
     this.canvas.addEventListener('mouseup', this.onMouseUp.bind(this));
+    this.canvas.addEventListener('dblclick', this.onDoubleClick.bind(this));
+    this.canvas.addEventListener('contextmenu', this.onRightClick.bind(this));
 
     this.resizeCanvas();
   }
@@ -88,7 +93,24 @@ export class CanvasManager {
     this.scrollbarManager.drawScrollbars();
   }
 
+  private getSceneCoords(e: MouseEvent): { sceneX: number; sceneY: number } {
+    const rect = this.canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const sceneX = (mouseX + this.panZoom.scrollX) / this.panZoom.scale;
+    const sceneY = (mouseY + this.panZoom.scrollY) / this.panZoom.scale;
+    this.lastMouseCoords = { x: sceneX, y: sceneY }; // Оновлюємо координати
+    return { sceneX, sceneY };
+  }
+
+  // Додаємо метод для отримання координат
+  public getLastMouseCoords(): { x: number; y: number } | null {
+    return this.lastMouseCoords;
+  }
+
   onMouseDown(e: MouseEvent): void {
+    const { sceneX, sceneY } = this.getSceneCoords(e);
+
     const rect = this.canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
@@ -106,12 +128,14 @@ export class CanvasManager {
       return;
     }
 
-    if (this.interactionManager.handleMouseDown(e)) {
+    if (this.interactionManager.handleMouseDown(e, sceneX, sceneY)) {
       this.draw();
     }
   }
 
   onMouseMove(e: MouseEvent): void {
+    const { sceneX, sceneY } = this.getSceneCoords(e);
+
     const rect = this.canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
@@ -139,14 +163,28 @@ export class CanvasManager {
       );
       this.draw();
     } else {
-      this.interactionManager.handleMouseMove(e);
+      this.interactionManager.handleMouseMove(sceneX, sceneY);
       this.draw();
     }
   }
 
   onMouseUp(e: MouseEvent): void {
     this.draggingScrollbar = null;
-    this.interactionManager.handleMouseUp(e);
+    this.interactionManager.handleMouseUp();
+    this.draw();
+  }
+
+  onDoubleClick(e: MouseEvent): void {
+    const { sceneX, sceneY } = this.getSceneCoords(e);
+    // Більше не викликаємо updateMouseCoords в InteractionManager
+    this.interactionManager.handleDoubleClick(sceneX, sceneY);
+    this.draw();
+  }
+
+  onRightClick(e: MouseEvent): void {
+    const { sceneX, sceneY } = this.getSceneCoords(e);
+    // Більше не викликаємо updateMouseCoords в InteractionManager
+    this.interactionManager.handleRightClick(e, sceneX, sceneY);
     this.draw();
   }
 
@@ -178,5 +216,17 @@ export class CanvasManager {
     }
     this.panZoom.clampScroll();
     this.draw();
+  }
+
+  public getCanvas(): HTMLCanvasElement {
+    return this.canvas;
+  }
+
+  public getPanZoomManager(): PanZoomManager {
+    return this.panZoom;
+  }
+
+  public getInteractionManager(): InteractionManager {
+    return this.interactionManager;
   }
 }

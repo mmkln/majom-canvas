@@ -3,6 +3,7 @@ import { PanZoomManager } from '../../managers/PanZoomManager';
 import { Shape } from './Shape';
 import { drawPolygon, getPolygonVertices, isPointInPolygon } from '../utils/polygon';
 import { lineIntersection } from '../utils/geometry';
+import { IShape } from '../interfaces/shape';
 
 export default class Octagon extends Shape {
   private static readonly SIDES = 8;
@@ -26,7 +27,6 @@ export default class Octagon extends Shape {
       Octagon.SIDES,
       Octagon.ROTATION,
       this.fillColor,
-      this.strokeColor,
       this.lineWidth
     );
   }
@@ -77,6 +77,18 @@ export default class Octagon extends Shape {
     );
 
     return intersection || { x: this.x, y: this.y };
+  }
+
+  clone(): IShape {
+    const cloned = new Octagon(
+      this.x,
+      this.y,
+      this.radius,
+      this.fillColor,
+      this.lineWidth
+    );
+    cloned.selected = this.selected;
+    return cloned;
   }
 
   onDoubleClick?(): void {

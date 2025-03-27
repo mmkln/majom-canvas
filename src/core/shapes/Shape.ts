@@ -56,6 +56,7 @@ export abstract class Shape implements IShape {
 
   abstract contains(px: number, py: number): boolean;
   abstract getBoundaryPoint(angle: number): { x: number; y: number };
+  abstract clone(): IShape;
 
   onDoubleClick?(): void {
     console.log(`Double clicked on shape ${this.id}`);

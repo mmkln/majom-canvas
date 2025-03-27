@@ -9,7 +9,6 @@ export class InteractionManager {
   private dragOffsetX: number = 0;
   private dragOffsetY: number = 0;
   private initialPositions: Map<string, { x: number; y: number }> = new Map();
-
   private creatingConnection: boolean = false;
   private connectionStartShape: IShape | null = null;
 
@@ -19,33 +18,24 @@ export class InteractionManager {
     private panZoom: PanZoomManager
   ) {}
 
-  private getMouseCoords(e: MouseEvent): { x: number; y: number } {
-    const rect = this.canvas.getBoundingClientRect();
-    const screenX = e.clientX - rect.left;
-    const screenY = e.clientY - rect.top;
-    // Convert screen coordinates to scene coordinates
-    const sceneX = (screenX + this.panZoom.scrollX) / this.panZoom.scale;
-    const sceneY = (screenY + this.panZoom.scrollY) / this.panZoom.scale;
-    return { x: sceneX, y: sceneY };
-  }
-
-  handleMouseDown(e: MouseEvent): boolean {
+  handleMouseDown(e: MouseEvent, sceneX: number, sceneY: number): boolean {
     if (e.button !== 0) return false;
-    const { x, y } = this.getMouseCoords(e);
     const shapes = this.scene.getShapes();
     let clickedShape: IShape | null = null;
-
 
     if (e.altKey) {
       for (let i = shapes.length - 1; i >= 0; i--) {
         const shape = shapes[i];
-        if (shape.contains(x, y)) {
+        if (shape.contains(sceneX, sceneY)) {
           if (!this.creatingConnection) {
             this.creatingConnection = true;
             this.connectionStartShape = shape;
             return true;
           } else if (shape !== this.connectionStartShape) {
-            const connection = new Connection(this.connectionStartShape!.id, shape.id);
+            const connection = new Connection(
+              this.connectionStartShape!.id,
+              shape.id
+            );
             this.scene.addElement(connection);
             this.creatingConnection = false;
             this.connectionStartShape = null;
@@ -60,7 +50,7 @@ export class InteractionManager {
 
     for (let i = shapes.length - 1; i >= 0; i--) {
       const shape = shapes[i];
-      if (shape.contains(x, y)) {
+      if (shape.contains(sceneX, sceneY)) {
         clickedShape = shape;
         break;
       }
@@ -76,37 +66,30 @@ export class InteractionManager {
       } else {
         this.scene.setSelected([clickedShape]);
       }
-      // Begin bulk drag: store initial positions for all selected shapes
       const selected = this.scene.getSelectedShapes();
       this.initialPositions.clear();
       selected.forEach((shape) => {
         this.initialPositions.set(shape.id, { x: shape.x, y: shape.y });
       });
-      // Set draggingShape as the one that was clicked
       this.draggingShape = clickedShape;
-      const offset = { x: x - clickedShape.x, y: y - clickedShape.y };
+      const offset = { x: sceneX - clickedShape.x, y: sceneY - clickedShape.y };
       this.dragOffsetX = offset.x;
       this.dragOffsetY = offset.y;
       if (clickedShape.onDragStart) clickedShape.onDragStart();
       return true;
     }
 
-    // If no shape is clicked, clear selection.
     this.scene.setSelected([]);
     return false;
   }
 
-  handleMouseMove(e: MouseEvent): void {
+  handleMouseMove(sceneX: number, sceneY: number): void {
     if (this.draggingShape) {
-      const { x, y } = this.getMouseCoords(e);
-      // Retrieve the initial position of the shape that was clicked
       const clickedInitialPos = this.initialPositions.get(this.draggingShape.id);
       if (!clickedInitialPos) return;
-      // Compute displacement (dx, dy) from the initial mouse down position (using the clicked shape's stored position and drag offset)
-      const dx = x - (clickedInitialPos.x + this.dragOffsetX);
-      const dy = y - (clickedInitialPos.y + this.dragOffsetY);
+      const dx = sceneX - (clickedInitialPos.x + this.dragOffsetX);
+      const dy = sceneY - (clickedInitialPos.y + this.dragOffsetY);
 
-      // For each selected shape, update its position relative to its stored initial position.
       const selected = this.scene.getSelectedShapes();
       selected.forEach((shape) => {
         const initPos = this.initialPositions.get(shape.id);
@@ -120,7 +103,7 @@ export class InteractionManager {
     }
   }
 
-  handleMouseUp(e: MouseEvent): void {
+  handleMouseUp(): void {
     if (this.draggingShape && this.draggingShape.onDragEnd) {
       this.draggingShape.onDragEnd();
     }
@@ -129,25 +112,23 @@ export class InteractionManager {
     this.scene.changes.next();
   }
 
-  handleDoubleClick(e: MouseEvent): void {
-    const { x, y } = this.getMouseCoords(e);
+  handleDoubleClick(sceneX: number, sceneY: number): void {
     const shapes = this.scene.getShapes();
     for (let i = shapes.length - 1; i >= 0; i--) {
       const shape = shapes[i];
-      if (shape.contains(x, y) && shape.onDoubleClick) {
+      if (shape.contains(sceneX, sceneY) && shape.onDoubleClick) {
         shape.onDoubleClick();
         break;
       }
     }
   }
 
-  handleRightClick(e: MouseEvent): void {
+  handleRightClick(e: MouseEvent, sceneX: number, sceneY: number): void {
     e.preventDefault();
-    const { x, y } = this.getMouseCoords(e);
     const shapes = this.scene.getShapes();
     for (let i = shapes.length - 1; i >= 0; i--) {
       const shape = shapes[i];
-      if (shape.contains(x, y) && shape.onRightClick) {
+      if (shape.contains(sceneX, sceneY) && shape.onRightClick) {
         shape.onRightClick();
         break;
       }

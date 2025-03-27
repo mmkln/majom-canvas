@@ -1,5 +1,4 @@
 // core/utils/polygon.ts
-import { PanZoomManager } from '../../managers/PanZoomManager';
 
 export function drawPolygon(
   ctx: CanvasRenderingContext2D,
@@ -9,8 +8,8 @@ export function drawPolygon(
   sides: number,
   rotation: number,
   fillColor: string,
-  strokeColor: string,
-  lineWidth: number
+  lineWidth: number,
+  strokeColor?: string,
 ): void {
   ctx.beginPath();
   for (let i = 0; i < sides; i++) {
@@ -26,7 +25,7 @@ export function drawPolygon(
   ctx.closePath();
   ctx.fillStyle = fillColor;
   ctx.fill();
-  ctx.strokeStyle = strokeColor;
+  strokeColor && (ctx.strokeStyle = strokeColor);
   ctx.lineWidth = lineWidth;
   ctx.stroke();
 }

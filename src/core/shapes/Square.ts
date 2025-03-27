@@ -1,8 +1,8 @@
 // core/shapes/Square.ts
-import { PanZoomManager } from '../../managers/PanZoomManager';
 import { Shape } from './Shape';
 import { drawPolygon, getPolygonVertices, isPointInPolygon } from '../utils/polygon';
 import { lineIntersection } from '../utils/geometry';
+import { IShape } from '../interfaces/shape';
 
 export default class Square extends Shape {
   private static readonly SIDES = 4;
@@ -16,7 +16,7 @@ export default class Square extends Shape {
     return this.radius / Math.cos(Math.PI / 4); // ≈ radius / 0.707 ≈ radius * 1.414
   }
 
-  protected drawShape(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
+  protected drawShape(ctx: CanvasRenderingContext2D): void {
     const innerRadius = this.getInnerRadius();
     drawPolygon(
       ctx,
@@ -26,7 +26,6 @@ export default class Square extends Shape {
       Square.SIDES,
       Square.ROTATION,
       this.fillColor,
-      this.strokeColor,
       this.lineWidth
     );
   }
@@ -77,6 +76,18 @@ export default class Square extends Shape {
     );
 
     return intersection || { x: this.x, y: this.y };
+  }
+
+  clone(): IShape {
+    const cloned = new Square(
+      this.x,
+      this.y,
+      this.radius,
+      this.fillColor,
+      this.lineWidth
+    );
+    cloned.selected = this.selected;
+    return cloned;
   }
 
   onDoubleClick?(): void {
