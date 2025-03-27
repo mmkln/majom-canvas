@@ -2,7 +2,7 @@
 import { IDrawable } from './drawable';
 
 export interface IShape extends IDrawable {
-  id: number;
+  id: string;
   x: number;
   y: number;
   radius: number;

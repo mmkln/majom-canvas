@@ -1,10 +1,11 @@
 // core/shapes/Circle.ts
 import { IShape } from '../interfaces/shape';
 import { PanZoomManager } from '../../managers/PanZoomManager';
+import { v4 } from 'uuid';
 
 export default class Circle implements IShape {
     private static nextId = 0;
-    public id: number;
+    public id: string;
     public x: number;
     public y: number;
     public radius: number;
@@ -20,7 +21,7 @@ export default class Circle implements IShape {
       strokeColor: string = '#f3c92f',
       lineWidth: number = 1
     ) {
-        this.id = Circle.nextId++;
+        this.id = v4();
         this.x = x;
         this.y = y;
         this.radius = radius;

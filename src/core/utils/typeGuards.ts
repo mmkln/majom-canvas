@@ -3,5 +3,5 @@ import { IShape } from '../interfaces/shape';
 import { IDrawable } from '../interfaces/drawable';
 
 export function isShape(element: IDrawable): element is IShape {
-  return 'contains' in element && typeof (element as any).contains === 'function';
+  return 'id' in element && 'x' in element && 'y' in element && 'radius' in element && 'contains' in element;
 }

@@ -1,10 +1,11 @@
 // core/shapes/Octagon.ts
 import { IShape } from '../interfaces/shape';
 import { PanZoomManager } from '../../managers/PanZoomManager';
+import { v4 } from 'uuid';
 
 export default class Octagon implements IShape {
   private static nextId = 0;
-  public id: number;
+  public id: string;
   public x: number;
   public y: number;
   public radius: number;
@@ -20,7 +21,7 @@ export default class Octagon implements IShape {
     strokeColor: string = '#f3c92f',
     lineWidth: number = 1
   ) {
-    this.id = Octagon.nextId++;
+    this.id = v4();
     this.x = x;
     this.y = y;
     this.radius = radius;
@@ -54,7 +55,6 @@ export default class Octagon implements IShape {
     const sides = 8;
     const vertices: { x: number; y: number }[] = [];
 
-    // Обчислюємо вершини восьмикутника
     for (let i = 0; i < sides; i++) {
       const angle = (Math.PI * 2 * i) / sides - Math.PI / 2;
       vertices.push({
@@ -63,7 +63,6 @@ export default class Octagon implements IShape {
       });
     }
 
-    // Використовуємо алгоритм ray-casting для перевірки, чи точка всередині багатокутника
     let inside = false;
     for (let i = 0, j = sides - 1; i < sides; j = i++) {
       const xi = vertices[i].x;
