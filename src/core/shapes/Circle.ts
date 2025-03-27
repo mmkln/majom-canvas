@@ -44,7 +44,13 @@ export default class Circle implements IShape {
         return dx * dx + dy * dy <= this.radius * this.radius;
     }
 
-    // Приклад обробки подвійного кліку
+    getBoundaryPoint(angle: number): { x: number; y: number } {
+        return {
+            x: this.x + this.radius * Math.cos(angle),
+            y: this.y + this.radius * Math.sin(angle),
+        };
+    }
+
     onDoubleClick?(): void {
         console.log(`Double clicked on circle ${this.id}`);
     }

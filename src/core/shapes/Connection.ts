@@ -13,11 +13,9 @@ export default class Connection implements IDrawable {
 
     private getEndpoints(from: IShape, to: IShape) {
         const angle = Math.atan2(to.y - from.y, to.x - from.x);
-        const startX = from.x + from.radius * Math.cos(angle);
-        const startY = from.y + from.radius * Math.sin(angle);
-        const endX = to.x - to.radius * Math.cos(angle);
-        const endY = to.y - to.radius * Math.sin(angle);
-        return { startX, startY, endX, endY, angle };
+        const start = from.getBoundaryPoint(angle);
+        const end = to.getBoundaryPoint(angle + Math.PI); // Протилежний напрямок для кінцевої точки
+        return { startX: start.x, startY: start.y, endX: end.x, endY: end.y, angle };
     }
 
     private drawLine(ctx: CanvasRenderingContext2D, from: IShape, to: IShape): void {

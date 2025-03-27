@@ -8,7 +8,6 @@ export class InteractionManager {
   private dragOffsetX: number = 0;
   private dragOffsetY: number = 0;
 
-  // Для створення зв’язків
   private creatingConnection: boolean = false;
   private connectionStartShape: IShape | null = null;
 
@@ -23,18 +22,15 @@ export class InteractionManager {
     const { x, y } = this.getMouseCoords(e);
     const shapes = this.scene.getShapes();
 
-    // Перевіряємо, чи користувач хоче створити зв’язок (Shift + клік)
     if (e.shiftKey) {
       for (let i = shapes.length - 1; i >= 0; i--) {
         const shape = shapes[i];
         if (shape.contains(x, y)) {
           if (!this.creatingConnection) {
-            // Починаємо створення зв’язку
             this.creatingConnection = true;
             this.connectionStartShape = shape;
             return true;
           } else if (shape !== this.connectionStartShape) {
-            // Завершуємо створення зв’язку
             const connection = new Connection(this.connectionStartShape!.id, shape.id);
             this.scene.addElement(connection);
             this.creatingConnection = false;
@@ -43,14 +39,12 @@ export class InteractionManager {
           }
         }
       }
-      // Якщо клікнули не на об’єкт, скидаємо режим створення зв’язку
       this.creatingConnection = false;
       this.connectionStartShape = null;
       return false;
     }
 
-    // Звичайна логіка перетягування
-    if (e.button !== 0) return false; // Обробляємо лише ліву кнопку
+    if (e.button !== 0) return false;
     for (let i = shapes.length - 1; i >= 0; i--) {
       const shape = shapes[i];
       if (shape.contains(x, y)) {

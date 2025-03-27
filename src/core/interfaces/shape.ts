@@ -6,8 +6,8 @@ export interface IShape extends IDrawable {
   x: number;
   y: number;
   radius: number;
-  draw(ctx: CanvasRenderingContext2D): void;
   contains(px: number, py: number): boolean;
+  getBoundaryPoint(angle: number): { x: number; y: number }; // Новий метод
   onDoubleClick?(): void;
   onRightClick?(): void;
   onDragStart?(): void;
