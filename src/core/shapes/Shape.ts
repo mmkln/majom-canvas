@@ -31,20 +31,19 @@ export abstract class Shape implements IShape {
     this.selected = false;
   }
 
-  // Абстрактний метод для малювання самої форми (без виділення)
+  protected abstract getInnerRadius(): number;
+
   protected abstract drawShape(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void;
 
-  // Загальний метод draw, який включає логіку виділення
   draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
-    // Малюємо саму форму
     this.drawShape(ctx, panZoom);
 
-    // Малюємо рамку виділення, якщо форма вибрана
     if (this.selected) {
       ctx.save();
       ctx.strokeStyle = '#008dff';
       ctx.lineWidth = 2;
       const padding = 2;
+      // Використовуємо radius як половину ширини/висоти
       ctx.strokeRect(
         this.x - this.radius - padding,
         this.y - this.radius - padding,
@@ -55,19 +54,8 @@ export abstract class Shape implements IShape {
     }
   }
 
-  contains(px: number, py: number): boolean {
-    const dx = px - this.x;
-    const dy = py - this.y;
-    return dx * dx + dy * dy <= this.radius * this.radius;
-  }
-
-  // Default getBoundaryPoint for a circle-like shape.
-  getBoundaryPoint(angle: number): { x: number; y: number } {
-    return {
-      x: this.x + this.radius * Math.cos(angle),
-      y: this.y + this.radius * Math.sin(angle),
-    };
-  }
+  abstract contains(px: number, py: number): boolean;
+  abstract getBoundaryPoint(angle: number): { x: number; y: number };
 
   onDoubleClick?(): void {
     console.log(`Double clicked on shape ${this.id}`);

@@ -1,10 +1,16 @@
 // core/shapes/Circle.ts
+import { PanZoomManager } from '../../managers/PanZoomManager';
 import { Shape } from './Shape';
 
 export default class Circle extends Shape {
-    protected drawShape(ctx: CanvasRenderingContext2D): void {
+    protected getInnerRadius(): number {
+        return this.radius;
+    }
+
+    protected drawShape(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
+        const innerRadius = this.getInnerRadius();
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.arc(this.x, this.y, innerRadius, 0, Math.PI * 2);
         ctx.fillStyle = this.fillColor;
         ctx.fill();
         ctx.strokeStyle = this.strokeColor;
@@ -13,19 +19,20 @@ export default class Circle extends Shape {
     }
 
     contains(px: number, py: number): boolean {
+        const innerRadius = this.getInnerRadius();
         const dx = px - this.x;
         const dy = py - this.y;
-        return dx * dx + dy * dy <= this.radius * this.radius;
+        return dx * dx + dy * dy <= innerRadius * innerRadius;
     }
 
     getBoundaryPoint(angle: number): { x: number; y: number } {
+        const innerRadius = this.getInnerRadius();
         return {
-            x: this.x + this.radius * Math.cos(angle),
-            y: this.y + this.radius * Math.sin(angle),
+            x: this.x + innerRadius * Math.cos(angle),
+            y: this.y + innerRadius * Math.sin(angle),
         };
     }
 
-    // onDoubleClick успадковується від Shape, але ми можемо перевизначити, якщо потрібно
     onDoubleClick?(): void {
         console.log(`Double clicked on circle ${this.id}`);
     }

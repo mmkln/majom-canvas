@@ -8,12 +8,21 @@ export default class Octagon extends Shape {
   private static readonly SIDES = 8;
   private static readonly ROTATION = -Math.PI / 2 + Math.PI / 8;
 
+  protected getInnerRadius(): number {
+    // Ширина восьмикутника = 2 * innerRadius * cos(π/8)
+    // Ми хочемо, щоб ширина дорівнювала 2 * radius
+    // Отже: 2 * radius = 2 * innerRadius * cos(π/8)
+    // innerRadius = radius / cos(π/8)
+    return this.radius / Math.cos(Math.PI / 8); // ≈ radius / 0.923 ≈ radius * 1.082
+  }
+
   protected drawShape(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
+    const innerRadius = this.getInnerRadius();
     drawPolygon(
       ctx,
       this.x,
       this.y,
-      this.radius,
+      innerRadius,
       Octagon.SIDES,
       Octagon.ROTATION,
       this.fillColor,
@@ -23,10 +32,11 @@ export default class Octagon extends Shape {
   }
 
   contains(px: number, py: number): boolean {
+    const innerRadius = this.getInnerRadius();
     const vertices = getPolygonVertices(
       this.x,
       this.y,
-      this.radius,
+      innerRadius,
       Octagon.SIDES,
       Octagon.ROTATION
     );
@@ -34,6 +44,7 @@ export default class Octagon extends Shape {
   }
 
   getBoundaryPoint(angle: number): { x: number; y: number } {
+    const innerRadius = this.getInnerRadius();
     const sectorAngle = (Math.PI * 2) / Octagon.SIDES;
     angle = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
     const sector = Math.floor((angle + Math.PI / 2 - Math.PI / 8) / sectorAngle) % Octagon.SIDES;
@@ -41,17 +52,17 @@ export default class Octagon extends Shape {
     const sectorEndAngle = (sector + 1) * sectorAngle - Math.PI / 2 + Math.PI / 8;
 
     const startVertex = {
-      x: this.x + this.radius * Math.cos(sectorStartAngle),
-      y: this.y + this.radius * Math.sin(sectorStartAngle),
+      x: this.x + innerRadius * Math.cos(sectorStartAngle),
+      y: this.y + innerRadius * Math.sin(sectorStartAngle),
     };
     const endVertex = {
-      x: this.x + this.radius * Math.cos(sectorEndAngle),
-      y: this.y + this.radius * Math.sin(sectorEndAngle),
+      x: this.x + innerRadius * Math.cos(sectorEndAngle),
+      y: this.y + innerRadius * Math.sin(sectorEndAngle),
     };
 
     const farPoint = {
-      x: this.x + this.radius * 2 * Math.cos(angle),
-      y: this.y + this.radius * 2 * Math.sin(angle),
+      x: this.x + innerRadius * 2 * Math.cos(angle),
+      y: this.y + innerRadius * 2 * Math.sin(angle),
     };
 
     const intersection = lineIntersection(

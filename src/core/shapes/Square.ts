@@ -1,4 +1,4 @@
-// core/shapes/Octagon.ts
+// core/shapes/Square.ts
 import { PanZoomManager } from '../../managers/PanZoomManager';
 import { Shape } from './Shape';
 import { drawPolygon, getPolygonVertices, isPointInPolygon } from '../utils/polygon';
@@ -6,14 +6,23 @@ import { lineIntersection } from '../utils/geometry';
 
 export default class Square extends Shape {
   private static readonly SIDES = 4;
-  private static readonly ROTATION = -Math.PI / 4;
+  private static readonly ROTATION = -Math.PI / 4; // Орієнтуємо квадрат так, щоб сторони були горизонтальними/вертикальними
 
-  protected drawShape(ctx: CanvasRenderingContext2D): void {
+  protected getInnerRadius(): number {
+    // Ширина квадрата = 2 * innerRadius * cos(π/4)
+    // Ми хочемо, щоб ширина дорівнювала 2 * radius
+    // Отже: 2 * radius = 2 * innerRadius * cos(π/4)
+    // innerRadius = radius / cos(π/4)
+    return this.radius / Math.cos(Math.PI / 4); // ≈ radius / 0.707 ≈ radius * 1.414
+  }
+
+  protected drawShape(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
+    const innerRadius = this.getInnerRadius();
     drawPolygon(
       ctx,
       this.x,
       this.y,
-      this.radius,
+      innerRadius,
       Square.SIDES,
       Square.ROTATION,
       this.fillColor,
@@ -23,10 +32,11 @@ export default class Square extends Shape {
   }
 
   contains(px: number, py: number): boolean {
+    const innerRadius = this.getInnerRadius();
     const vertices = getPolygonVertices(
       this.x,
       this.y,
-      this.radius,
+      innerRadius,
       Square.SIDES,
       Square.ROTATION
     );
@@ -34,25 +44,25 @@ export default class Square extends Shape {
   }
 
   getBoundaryPoint(angle: number): { x: number; y: number } {
+    const innerRadius = this.getInnerRadius();
     const sectorAngle = (Math.PI * 2) / Square.SIDES;
     angle = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-    // Враховуємо обертання при визначенні сектора
-    const sector = Math.floor((angle - Square.ROTATION) / sectorAngle) % Square.SIDES;
-    const sectorStartAngle = sector * sectorAngle + Square.ROTATION;
-    const sectorEndAngle = (sector + 1) * sectorAngle + Square.ROTATION;
+    const sector = Math.floor((angle + Math.PI / 2 - Math.PI / 4) / sectorAngle) % Square.SIDES;
+    const sectorStartAngle = sector * sectorAngle - Math.PI / 2 + Math.PI / 4;
+    const sectorEndAngle = (sector + 1) * sectorAngle - Math.PI / 2 + Math.PI / 4;
 
     const startVertex = {
-      x: this.x + this.radius * Math.cos(sectorStartAngle),
-      y: this.y + this.radius * Math.sin(sectorStartAngle),
+      x: this.x + innerRadius * Math.cos(sectorStartAngle),
+      y: this.y + innerRadius * Math.sin(sectorStartAngle),
     };
     const endVertex = {
-      x: this.x + this.radius * Math.cos(sectorEndAngle),
-      y: this.y + this.radius * Math.sin(sectorEndAngle),
+      x: this.x + innerRadius * Math.cos(sectorEndAngle),
+      y: this.y + innerRadius * Math.sin(sectorEndAngle),
     };
 
     const farPoint = {
-      x: this.x + this.radius * 2 * Math.cos(angle),
-      y: this.y + this.radius * 2 * Math.sin(angle),
+      x: this.x + innerRadius * 2 * Math.cos(angle),
+      y: this.y + innerRadius * 2 * Math.sin(angle),
     };
 
     const intersection = lineIntersection(
