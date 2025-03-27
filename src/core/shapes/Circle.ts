@@ -1,9 +1,8 @@
-// Circle.ts
+// core/shapes/Circle.ts
 import { IShape } from '../interfaces/shape';
 
 export default class Circle implements IShape {
     private static nextId = 0;
-
     public id: number;
     public x: number;
     public y: number;
@@ -34,7 +33,6 @@ export default class Circle implements IShape {
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fillStyle = this.fillColor;
         ctx.fill();
-
         ctx.strokeStyle = this.strokeColor;
         ctx.lineWidth = this.lineWidth;
         ctx.stroke();
@@ -44,5 +42,10 @@ export default class Circle implements IShape {
         const dx = px - this.x;
         const dy = py - this.y;
         return dx * dx + dy * dy <= this.radius * this.radius;
+    }
+
+    // Приклад обробки подвійного кліку
+    onDoubleClick?(): void {
+        console.log(`Double clicked on circle ${this.id}`);
     }
 }
