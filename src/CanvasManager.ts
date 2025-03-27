@@ -6,7 +6,7 @@ export default class CanvasManager {
   scale: number = 1; // Zoom level (optional feature)
   virtualWidth: number = 3000; // Virtual content width
   virtualHeight: number = 2000; // Virtual content height
-  scrollbarWidth: number = 15; // Width/height of scrollbar
+  scrollbarWidth: number = 6; // Width/height of scrollbar
   draggingScrollbar: 'horizontal' | 'vertical' | null = null; // Track scrollbar dragging
   dragStartX: number = 0; // Mouse X at start of drag
   dragStartY: number = 0; // Mouse Y at start of drag
@@ -92,53 +92,74 @@ export default class CanvasManager {
     const contentWidth = this.virtualWidth * this.scale;
     const contentHeight = this.virtualHeight * this.scale;
 
-    // Horizontal scrollbar
+    // Helper function to draw a rounded rectangle
+    const drawRoundedRect = (
+      ctx: CanvasRenderingContext2D,
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+      radius: number
+    ) => {
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + width - radius, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+      ctx.lineTo(x + width, y + height - radius);
+      ctx.quadraticCurveTo(
+        x + width,
+        y + height,
+        x + width - radius,
+        y + height
+      );
+      ctx.lineTo(x + radius, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    };
+
+    // Draw horizontal scrollbar thumb if needed
     if (contentWidth > viewportWidth) {
       const scrollRatioX = viewportWidth / contentWidth;
       const thumbWidth = viewportWidth * scrollRatioX;
       const thumbX = (this.scrollX / contentWidth) * viewportWidth;
+      const trackY = this.canvas.height - this.scrollbarWidth;
 
-      // Scrollbar track
-      this.ctx.fillStyle = '#ccc';
-      this.ctx.fillRect(
-        0,
-        this.canvas.height - this.scrollbarWidth,
-        viewportWidth,
-        this.scrollbarWidth
-      );
-
-      // Scrollbar thumb
-      this.ctx.fillStyle = '#666';
-      this.ctx.fillRect(
+      // Draw only the thumb: light gray fill with a subtle gray outline
+      this.ctx.fillStyle = '#5D5D5D80';
+      this.ctx.strokeStyle = '#5D5D5D80';
+      this.ctx.lineWidth = 1;
+      drawRoundedRect(
+        this.ctx,
         thumbX,
-        this.canvas.height - this.scrollbarWidth,
+        trackY,
         thumbWidth,
-        this.scrollbarWidth
+        this.scrollbarWidth,
+        this.scrollbarWidth / 2
       );
     }
 
-    // Vertical scrollbar
+    // Draw vertical scrollbar thumb if needed
     if (contentHeight > viewportHeight) {
       const scrollRatioY = viewportHeight / contentHeight;
       const thumbHeight = viewportHeight * scrollRatioY;
       const thumbY = (this.scrollY / contentHeight) * viewportHeight;
+      const trackX = this.canvas.width - this.scrollbarWidth;
 
-      // Scrollbar track
-      this.ctx.fillStyle = '#ccc';
-      this.ctx.fillRect(
-        this.canvas.width - this.scrollbarWidth,
-        0,
-        this.scrollbarWidth,
-        viewportHeight
-      );
-
-      // Scrollbar thumb
-      this.ctx.fillStyle = '#666';
-      this.ctx.fillRect(
-        this.canvas.width - this.scrollbarWidth,
+      // Draw only the thumb: light gray fill with a subtle gray outline
+      this.ctx.fillStyle = '#5D5D5D80';
+      this.ctx.strokeStyle = '#5D5D5D80';
+      this.ctx.lineWidth = 1;
+      drawRoundedRect(
+        this.ctx,
+        trackX,
         thumbY,
         this.scrollbarWidth,
-        thumbHeight
+        thumbHeight,
+        this.scrollbarWidth / 2
       );
     }
   }
