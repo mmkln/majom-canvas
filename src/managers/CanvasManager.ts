@@ -4,6 +4,7 @@ import { PanZoomManager } from './PanZoomManager';
 import { ScrollbarManager } from './ScrollbarManager';
 import { CanvasRenderer } from './CanvasRenderer';
 import { InteractionManager } from './InteractionManager';
+import { IShape } from '../core/interfaces/shape';
 import { isShape } from '../core/utils/typeGuards';
 
 export class CanvasManager {
@@ -32,7 +33,7 @@ export class CanvasManager {
     this.panZoom = new PanZoomManager(canvas);
     this.renderer = new CanvasRenderer(this.ctx, this.panZoom);
     this.scrollbarManager = new ScrollbarManager(canvas, this.ctx, this.panZoom);
-    this.interactionManager = new InteractionManager(canvas, scene);
+    this.interactionManager = new InteractionManager(canvas, scene, this.panZoom); // Передаємо panZoom
 
     this.scene.changes.subscribe(() => this.draw());
 
@@ -71,14 +72,12 @@ export class CanvasManager {
     const elements = this.scene.getElements();
     const shapes = this.scene.getShapes();
 
-    // Рендеримо IShape (кола і восьмикутники)
     elements.forEach(element => {
       if (isShape(element)) {
         element.draw(this.ctx, this.panZoom);
       }
     });
 
-    // Рендеримо зв’язки
     elements.forEach(element => {
       if (!isShape(element)) {
         element.draw(this.ctx, this.panZoom, shapes);

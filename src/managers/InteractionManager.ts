@@ -1,6 +1,7 @@
 // managers/InteractionManager.ts
 import { Scene } from '../core/scene/Scene';
 import { IShape } from '../core/interfaces/shape';
+import { PanZoomManager } from './PanZoomManager';
 import Connection from '../core/shapes/Connection';
 
 export class InteractionManager {
@@ -11,11 +12,20 @@ export class InteractionManager {
   private creatingConnection: boolean = false;
   private connectionStartShape: IShape | null = null;
 
-  constructor(private canvas: HTMLCanvasElement, private scene: Scene) {}
+  constructor(
+    private canvas: HTMLCanvasElement,
+    private scene: Scene,
+    private panZoom: PanZoomManager // Додаємо PanZoomManager
+  ) {}
 
   private getMouseCoords(e: MouseEvent): { x: number; y: number } {
     const rect = this.canvas.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const screenX = e.clientX - rect.left;
+    const screenY = e.clientY - rect.top;
+    // Перетворюємо координати екрану в координати сцени з урахуванням скролу і масштабу
+    const sceneX = (screenX + this.panZoom.scrollX) / this.panZoom.scale;
+    const sceneY = (screenY + this.panZoom.scrollY) / this.panZoom.scale;
+    return { x: sceneX, y: sceneY };
   }
 
   handleMouseDown(e: MouseEvent): boolean {
