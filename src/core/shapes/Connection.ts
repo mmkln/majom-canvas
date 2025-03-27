@@ -4,10 +4,10 @@ import { IShape } from '../interfaces/shape';
 import { PanZoomManager } from '../../managers/PanZoomManager';
 
 export default class Connection implements IDrawable {
-    fromId: number;
-    toId: number;
+    fromId: string;
+    toId: string;
 
-    constructor(fromId: number, toId: number) {
+    constructor(fromId: string, toId: string) {
         this.fromId = fromId;
         this.toId = toId;
     }
