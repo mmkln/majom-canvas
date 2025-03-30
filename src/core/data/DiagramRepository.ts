@@ -2,10 +2,10 @@
 
 import { Scene } from '../scene/Scene';
 import { Task, TaskDependency } from '../interfaces/interfaces';
-import Octagon from '../shapes/Octagon';
-import Connection from '../shapes/Connection';
 import { IDataProvider } from '../interfaces/dataProvider';
+import Connection from '../shapes/Connection';
 import Circle from '../shapes/Circle';
+import Octagon from '../shapes/Octagon';
 import Square from '../shapes/Square';
 
 export class DiagramRepository {
