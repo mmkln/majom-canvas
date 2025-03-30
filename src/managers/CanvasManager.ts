@@ -34,8 +34,16 @@ export class CanvasManager {
 
     this.panZoom = new PanZoomManager(canvas);
     this.renderer = new CanvasRenderer(this.ctx, this.panZoom);
-    this.scrollbarManager = new ScrollbarManager(canvas, this.ctx, this.panZoom);
-    this.interactionManager = new InteractionManager(canvas, scene, this.panZoom);
+    this.scrollbarManager = new ScrollbarManager(
+      canvas,
+      this.ctx,
+      this.panZoom
+    );
+    this.interactionManager = new InteractionManager(
+      canvas,
+      scene,
+      this.panZoom
+    );
     this.keyboardManager = new KeyboardManager(scene, this);
 
     this.scene.changes.subscribe(() => this.draw());
@@ -77,17 +85,31 @@ export class CanvasManager {
     const elements = this.scene.getElements();
     const shapes = this.scene.getShapes();
 
-    elements.forEach(element => {
+    elements.forEach((element) => {
       if (isShape(element)) {
         element.draw(this.ctx, this.panZoom);
       }
     });
 
-    elements.forEach(element => {
+    elements.forEach((element) => {
       if (!isShape(element)) {
         element.draw(this.ctx, this.panZoom, shapes);
       }
     });
+
+    const tempLine = this.interactionManager.getTempConnectionLine();
+    if (tempLine) {
+      this.ctx.save();
+      this.ctx.beginPath();
+      this.ctx.moveTo(tempLine.startX, tempLine.startY);
+      this.ctx.lineTo(tempLine.endX, tempLine.endY);
+      this.ctx.strokeStyle = '#000000';
+      this.ctx.lineWidth = 2 / this.panZoom.scale;
+      this.ctx.setLineDash([5 / this.panZoom.scale, 5 / this.panZoom.scale]); // Пунктирна лінія
+      this.ctx.globalAlpha = 0.5; // Напівпрозора
+      this.ctx.stroke();
+      this.ctx.restore();
+    }
 
     this.ctx.restore();
     this.scrollbarManager.drawScrollbars();

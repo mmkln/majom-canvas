@@ -2,15 +2,17 @@
 import { CanvasManager } from './managers/CanvasManager';
 import { Scene } from './core/scene/Scene';
 import { Toolbar } from './ui/Toolbar';
+import { DiagramRepository } from './core/data/DiagramRepository';
+import { IDataProvider } from './core/interfaces/dataProvider';
 
 export class App {
   private readonly canvas: HTMLCanvasElement;
   private readonly scene: Scene;
   private readonly toolbar: Toolbar;
   private canvasManager: CanvasManager;
+  private readonly diagramRepository: DiagramRepository;
 
-
-  constructor() {
+  constructor(dataProvider: IDataProvider) {
     const canvasElement = document.getElementById('myCanvas');
     if (!canvasElement || !(canvasElement instanceof HTMLCanvasElement)) {
       throw new Error('Canvas element not found');
@@ -23,10 +25,13 @@ export class App {
 
     // Передаємо сцену в CanvasManager, щоб менеджер міг працювати з даними
     this.canvasManager = new CanvasManager(this.canvas, this.scene);
+    // Використовуємо провайдера для створення репозиторію діаграми
+    this.diagramRepository = new DiagramRepository(dataProvider);
   }
 
-  public init(): void {
+  public async init(): Promise<void> {
     this.canvasManager.init();
     this.toolbar.init();
+    await this.diagramRepository.loadDiagram(this.scene);
   }
 }

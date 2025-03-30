@@ -22,7 +22,6 @@ export class Toolbar {
   }
 
   public init(): void {
-    // Кнопка для створення кола
     const addCircleBtn = document.createElement('button');
     addCircleBtn.textContent = 'Add Circle';
     addCircleBtn.style.cursor = 'pointer';
@@ -33,11 +32,10 @@ export class Toolbar {
     addCircleBtn.style.fontSize = '14px';
 
     addCircleBtn.onclick = () => {
-      const circle = new Circle(400, 400, 50);
+      const circle = new Circle({ x: 400, y: 400, radius: 50 });
       this.scene.addElement(circle);
     };
 
-    // Кнопка для створення восьмикутника
     const addOctagonBtn = document.createElement('button');
     addOctagonBtn.textContent = 'Add Octagon';
     addOctagonBtn.style.cursor = 'pointer';
@@ -48,11 +46,10 @@ export class Toolbar {
     addOctagonBtn.style.fontSize = '14px';
 
     addOctagonBtn.onclick = () => {
-      const hexagon = new Octagon(450, 450, 50); // Трохи зміщуємо, щоб не перекривати коло
+      const hexagon = new Octagon({ x: 450, y: 450, radius: 50 });
       this.scene.addElement(hexagon);
     };
 
-    // Кнопка для створення квадрата
     const addSquareBtn = document.createElement('button');
     addSquareBtn.textContent = 'Add Square';
     addSquareBtn.style.cursor = 'pointer';
@@ -63,11 +60,10 @@ export class Toolbar {
     addSquareBtn.style.fontSize = '14px';
 
     addSquareBtn.onclick = () => {
-      const square = new Square(500, 500, 50);
+      const square = new Square({ x: 500, y: 500, radius: 50 });
       this.scene.addElement(square);
     };
 
-    // Додаємо кнопки до контейнера
     this.container.appendChild(addCircleBtn);
     this.container.appendChild(addOctagonBtn);
     this.container.appendChild(addSquareBtn);

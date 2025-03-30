@@ -1,6 +1,10 @@
 // core/shapes/Square.ts
 import { Shape } from './Shape';
-import { drawPolygon, getPolygonVertices, isPointInPolygon } from '../utils/polygon';
+import {
+  drawPolygon,
+  getPolygonVertices,
+  isPointInPolygon,
+} from '../utils/polygon';
 import { lineIntersection } from '../utils/geometry';
 import { IShape } from '../interfaces/shape';
 
@@ -46,9 +50,12 @@ export default class Square extends Shape {
     const innerRadius = this.getInnerRadius();
     const sectorAngle = (Math.PI * 2) / Square.SIDES;
     angle = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-    const sector = Math.floor((angle + Math.PI / 2 - Math.PI / 4) / sectorAngle) % Square.SIDES;
+    const sector =
+      Math.floor((angle + Math.PI / 2 - Math.PI / 4) / sectorAngle) %
+      Square.SIDES;
     const sectorStartAngle = sector * sectorAngle - Math.PI / 2 + Math.PI / 4;
-    const sectorEndAngle = (sector + 1) * sectorAngle - Math.PI / 2 + Math.PI / 4;
+    const sectorEndAngle =
+      (sector + 1) * sectorAngle - Math.PI / 2 + Math.PI / 4;
 
     const startVertex = {
       x: this.x + innerRadius * Math.cos(sectorStartAngle),
@@ -79,13 +86,13 @@ export default class Square extends Shape {
   }
 
   clone(): IShape {
-    const cloned = new Square(
-      this.x,
-      this.y,
-      this.radius,
-      this.fillColor,
-      this.lineWidth
-    );
+    const cloned = new Square({
+      x: this.x,
+      y: this.y,
+      radius: this.radius,
+      fillColor: this.fillColor,
+      lineWidth: this.lineWidth,
+    });
     cloned.selected = this.selected;
     return cloned;
   }

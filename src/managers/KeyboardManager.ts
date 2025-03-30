@@ -26,36 +26,43 @@ export class KeyboardManager {
   private onKeyDown(e: KeyboardEvent): void {
     console.log({ key: e.key });
 
+    if (e.key === 'Escape') {
+      // Скасовуємо створення зв’язку
+      this.canvasManager.getInteractionManager().cancelConnectionCreation();
+      return;
+    }
+
     if (e.ctrlKey && e.key === 'c') {
-      console.log('Ctrl+C pressed');
       const selectedShapes = this.scene.getSelectedShapes();
       if (selectedShapes.length > 0) {
-        this.clipboard = selectedShapes.map(shape => shape.clone());
+        this.clipboard = selectedShapes.map((shape) => shape.clone());
         console.log(`Copied ${this.clipboard.length} shapes to clipboard`);
       }
       e.preventDefault();
     }
 
     if (e.ctrlKey && e.key === 'v') {
-      console.log('Ctrl+V pressed');
       if (this.clipboard.length > 0) {
-        // Отримуємо координати напряму з CanvasManager
         let mouseCoords = this.canvasManager.getLastMouseCoords();
         if (!mouseCoords) {
           mouseCoords = this.getCanvasCenter();
-          console.log(`Mouse coordinates not available, pasting at canvas center (${mouseCoords.x}, ${mouseCoords.y})`);
+          console.log(
+            `Mouse coordinates not available, pasting at canvas center (${mouseCoords.x}, ${mouseCoords.y})`
+          );
         }
 
-        this.scene.getShapes().forEach(shape => (shape.selected = false));
+        this.scene.getShapes().forEach((shape) => (shape.selected = false));
 
-        this.clipboard.forEach(shape => {
+        this.clipboard.forEach((shape) => {
           const clonedShape = shape.clone();
           clonedShape.x = mouseCoords!.x + (clonedShape.x - shape.x);
           clonedShape.y = mouseCoords!.y + (clonedShape.y - shape.y);
           clonedShape.selected = true;
           this.scene.addElement(clonedShape);
         });
-        console.log(`Pasted ${this.clipboard.length} shapes at (${mouseCoords.x}, ${mouseCoords.y})`);
+        console.log(
+          `Pasted ${this.clipboard.length} shapes at (${mouseCoords.x}, ${mouseCoords.y})`
+        );
       }
       e.preventDefault();
     }

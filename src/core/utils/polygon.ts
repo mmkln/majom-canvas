@@ -9,7 +9,7 @@ export function drawPolygon(
   rotation: number,
   fillColor: string,
   lineWidth: number,
-  strokeColor?: string,
+  strokeColor?: string
 ): void {
   ctx.beginPath();
   for (let i = 0; i < sides; i++) {
@@ -61,8 +61,7 @@ export function isPointInPolygon(
     const yj = vertices[j].y;
 
     const intersect =
-      ((yi > py) !== (yj > py)) &&
-      (px < ((xj - xi) * (py - yi)) / (yj - yi) + xi);
+      yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi;
     if (intersect) inside = !inside;
   }
   return inside;
