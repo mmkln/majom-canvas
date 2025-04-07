@@ -1,21 +1,22 @@
 // core/scene/Scene.ts
 import { Subject } from 'rxjs';
-import { IDrawable } from '../interfaces/drawable';
+import { ICanvasElement } from '../interfaces/canvasElement';
 import { IShape } from '../interfaces/shape';
-import { isShape } from '../utils/typeGuards';
+import { isConnection, isShape } from '../utils/typeGuards';
+import { IConnection } from '../interfaces/connection';
 
 export class Scene {
-  private elements: IDrawable[] = [];
+  private elements: ICanvasElement[] = [];
   public changes: Subject<void> = new Subject<void>();
 
   constructor() {}
 
-  public addElement(element: IDrawable): void {
+  public addElement(element: ICanvasElement): void {
     this.elements.push(element);
     this.changes.next();
   }
 
-  public removeElement(element: IDrawable): void {
+  public removeElement(element: ICanvasElement): void {
     const index = this.elements.indexOf(element);
     if (index > -1) {
       this.elements.splice(index, 1);
@@ -23,7 +24,7 @@ export class Scene {
     }
   }
 
-  public removeElements(elements: IDrawable[]): void {
+  public removeElements(elements: ICanvasElement[]): void {
     elements.forEach((element) => {
       const index = this.elements.indexOf(element);
       if (index > -1) {
@@ -33,7 +34,7 @@ export class Scene {
     this.changes.next();
   }
 
-  public getElements(): IDrawable[] {
+  public getElements(): ICanvasElement[] {
     return this.elements;
   }
 
@@ -41,14 +42,22 @@ export class Scene {
     return this.elements.filter(isShape);
   }
 
-  public setSelected(shapes: IShape[]): void {
-    this.getShapes().forEach((shape) => {
-      shape.selected = false;
+  public getConnections(): IConnection[] {
+    return this.elements.filter(isConnection);
+  }
+
+  public setSelected(elements: ICanvasElement[]): void {
+    this.getElements().forEach((element) => {
+      element.selected = false;
     });
-    shapes.forEach((shape) => {
-      shape.selected = true;
+    elements.forEach((selectable) => {
+      selectable.selected = true;
     });
     this.changes.next();
+  }
+
+  public getSelectedElements(): ICanvasElement[] {
+    return this.getElements().filter((element) => element.selected);
   }
 
   public getSelectedShapes(): IShape[] {

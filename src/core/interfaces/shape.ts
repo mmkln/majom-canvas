@@ -1,15 +1,14 @@
 // core/interfaces/shape.ts
-import { IDrawable } from './drawable';
+import { ICanvasElement } from './canvasElement';
 import { PanZoomManager } from '../../managers/PanZoomManager';
 
-export interface IShape extends IDrawable {
+export interface IShape extends ICanvasElement {
   id: string;
   x: number;
   y: number;
   radius: number;
   fillColor: string;
   lineWidth: number;
-  selected: boolean;
   isHovered: boolean;
   draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void;
   contains(px: number, py: number): boolean;

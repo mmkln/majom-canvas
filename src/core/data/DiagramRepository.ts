@@ -17,7 +17,7 @@ export class DiagramRepository {
       await this.dataProvider.loadDependencies();
 
     tasks.forEach((task) => {
-      const shape = new Square({ x: task.x, y: task.y, id: task.id });
+      const shape = new Octagon({ x: task.x, y: task.y, id: task.id });
       scene.addElement(shape);
     });
 

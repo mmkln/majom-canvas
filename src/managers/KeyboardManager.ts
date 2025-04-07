@@ -68,8 +68,8 @@ export class KeyboardManager {
     }
 
     if (e.key === 'Backspace') {
-      const selectedShapes = [...this.scene.getSelectedShapes()];
-      this.scene.removeElements(selectedShapes);
+      const selectedElements = [...this.scene.getSelectedElements()];
+      this.scene.removeElements(selectedElements);
     }
   }
 }

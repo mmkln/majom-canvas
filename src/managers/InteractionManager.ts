@@ -1,6 +1,7 @@
 // managers/InteractionManager.ts
 import { Scene } from '../core/scene/Scene';
 import { IShape, ConnectionPoint } from '../core/interfaces/shape';
+import { IConnection } from '../core/interfaces/connection';
 import { PanZoomManager } from './PanZoomManager';
 import Connection from '../core/shapes/Connection';
 
@@ -71,7 +72,9 @@ export class InteractionManager {
   handleMouseDown(e: MouseEvent, sceneX: number, sceneY: number): boolean {
     if (e.button !== 0) return false;
     const shapes = this.scene.getShapes();
+    const connections = this.scene.getConnections();
     let clickedShape: IShape | null = null;
+    let clickedConnection: IConnection | null = null;
 
     const connectionPointHit = this.findConnectionPointAt(
       sceneX,
@@ -101,7 +104,7 @@ export class InteractionManager {
 
     if (clickedShape) {
       if (e.shiftKey) {
-        const currentlySelected = this.scene.getSelectedShapes();
+        const currentlySelected = this.scene.getSelectedElements();
         if (currentlySelected.indexOf(clickedShape) === -1) {
           this.scene.setSelected([...currentlySelected, clickedShape]);
         }
@@ -119,6 +122,18 @@ export class InteractionManager {
       this.dragOffsetY = offset.y;
       if (clickedShape.onDragStart) clickedShape.onDragStart();
       return true;
+    }
+
+    for (const element of connections) {
+        if (element.isNearPoint(e.x, e.y, shapes)) {
+          clickedConnection = element;
+          if (e.shiftKey){
+            const currentlySelected = this.scene.getSelectedElements();
+            this.scene.setSelected([...currentlySelected, element]);
+          } else {
+          this.scene.setSelected([element]);}
+          return true;
+        }
     }
 
     this.scene.setSelected([]);

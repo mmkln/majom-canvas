@@ -9,3 +9,11 @@ export interface IDrawable {
     elements?: IShape[]
   ): void;
 }
+
+export interface ISelectable {
+  selected: boolean;
+}
+
+export interface ICanvasElement extends IDrawable, ISelectable {
+  id: string;
+}

@@ -1,15 +1,19 @@
 // core/shapes/Connection.ts
-import { IDrawable } from '../interfaces/drawable';
 import { IShape, ConnectionPoint } from '../interfaces/shape';
+import { IConnection } from '../interfaces/connection';
 import { PanZoomManager } from '../../managers/PanZoomManager';
+import { v4 } from 'uuid';
 
-export default class Connection implements IDrawable {
+export default class Connection implements IConnection {
+  id: string;
   fromId: string;
   toId: string;
+  selected: boolean = false;
 
-  constructor(fromId: string, toId: string) {
+  constructor(fromId: string, toId: string, id:string = v4()) {
     this.fromId = fromId;
     this.toId = toId;
+    this.id = id;
   }
 
   private getClosestConnectionPoints(
@@ -50,7 +54,7 @@ export default class Connection implements IDrawable {
     ctx.beginPath();
     ctx.moveTo(start.x, start.y);
     ctx.lineTo(end.x, end.y);
-    ctx.strokeStyle = '#000';
+    ctx.strokeStyle = this.selected ? '#008dff' : '#000';
     ctx.lineWidth = 2 / panZoom.scale;
     ctx.stroke();
   }
@@ -75,7 +79,7 @@ export default class Connection implements IDrawable {
       end.y - headLength * Math.sin(angle + Math.PI / 6)
     );
     ctx.closePath();
-    ctx.fillStyle = '#000';
+    ctx.fillStyle = this.selected ? '#008dff' : '#000';
     ctx.fill();
   }
 
@@ -90,5 +94,36 @@ export default class Connection implements IDrawable {
       this.drawLine(ctx, from, to, panZoom);
       this.drawArrowHead(ctx, from, to, panZoom);
     }
+  }
+
+  private distanceToLineSegment(
+    px: number,
+    py: number,
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number
+  ): number {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const lengthSquared = dx * dx + dy * dy;
+    if (lengthSquared === 0) {
+      return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
+    }
+    const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lengthSquared));
+    const projX = x1 + t * dx;
+    const projY = y1 + t * dy;
+    return Math.sqrt((px - projX) ** 2 + (py - projY) ** 2);
+  }
+
+  public isNearPoint(px: number, py: number, elements: IShape[], tolerance: number = 5): boolean {
+    const from = elements.find((el) => el.id === this.fromId);
+    const to = elements.find((el) => el.id === this.toId);
+    if (from && to) {
+      const { start, end } = this.getClosestConnectionPoints(from, to);
+      const distance = this.distanceToLineSegment(px, py, start.x, start.y, end.x, end.y);
+      return distance <= tolerance;
+    }
+    return false;
   }
 }
