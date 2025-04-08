@@ -1,0 +1,18 @@
+@import "tailwindcss";
+@theme {
+    --color-primary: hsl(49, 100%, 7%);
+    --font-display: "Poppins", "sans-serif";
+    --breakpoint-3xl: 1920px;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden; /* Prevent browser scrollbars */
+}
+
+canvas {
+    border: 1px solid #ccc;
+    display: block; /* Remove extra space below canvas */
+}

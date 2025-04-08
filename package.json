@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Проект Canvas з кружечками, стрілками та видаленням на TypeScript",
   "main": "dist/main.js",
+  "type": "module",
   "scripts": {
     "build": "vite build",
     "start": "vite",
@@ -23,7 +24,12 @@
     "vite": "^6.2.3"
   },
   "dependencies": {
+    "@tailwindcss/vite": "^4.1.3",
+    "jwt-decode": "^4.0.0",
     "rxjs": "^7.8.2",
+    "rxjs-http-client": "^8.0.0",
+    "tailwind-merge": "^3.2.0",
+    "tailwindcss": "^4.1.3",
     "uuid": "^11.1.0"
   }
 }

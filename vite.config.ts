@@ -1,6 +1,7 @@
 // vite.config.ts
-// @ts-ignore
 import { defineConfig } from 'vite';
+import tailwindcss from '@tailwindcss/vite';
+
 
 export default defineConfig({
   // Specify the project root (where index.html is located)
@@ -10,5 +11,8 @@ export default defineConfig({
     outDir: '../dist',
     // Empty out the output directory before building
     emptyOutDir: true,
-  }
+  },
+  plugins: [
+    tailwindcss(),
+  ]
 });
