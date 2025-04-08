@@ -1,5 +1,5 @@
 import { Observable } from 'rxjs';
-import { TokenService } from './TokenService';
+import { TokenService } from './TokenService.ts';
 //@ts-ignore
 import { RxJSHttpClient } from 'rxjs-http-client';
 

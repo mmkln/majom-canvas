@@ -2,7 +2,7 @@ import { from, Observable } from 'rxjs';
 import { mergeMap, toArray } from 'rxjs/operators';
 //@ts-ignore
 import { RxJSHttpClient } from 'rxjs-http-client';
-import { PlatformTask, Subtask, Tag } from '../interfaces';
+import { PlatformTask, Subtask, Tag } from '../interfaces/index.ts';
 
 interface TasksFilterParams {
   is_standalone?: boolean;

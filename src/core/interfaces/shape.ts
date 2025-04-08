@@ -1,6 +1,6 @@
 // core/interfaces/shape.ts
-import { ICanvasElement } from './canvasElement';
-import { PanZoomManager } from '../../managers/PanZoomManager';
+import { ICanvasElement } from './canvasElement.ts';
+import { PanZoomManager } from '../../managers/PanZoomManager.ts';
 
 export interface IShape extends ICanvasElement {
   id: string;

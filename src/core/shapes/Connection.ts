@@ -1,7 +1,7 @@
 // core/shapes/Connection.ts
-import { IShape, ConnectionPoint } from '../interfaces/shape';
-import { IConnection } from '../interfaces/connection';
-import { PanZoomManager } from '../../managers/PanZoomManager';
+import { IShape, ConnectionPoint } from '../interfaces/shape.ts';
+import { IConnection } from '../interfaces/connection.ts';
+import { PanZoomManager } from '../../managers/PanZoomManager.ts';
 import { v4 } from 'uuid';
 
 export default class Connection implements IConnection {

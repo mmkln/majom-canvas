@@ -1,13 +1,13 @@
 // core/shapes/Octagon.ts
-import { PanZoomManager } from '../../managers/PanZoomManager';
-import { Shape } from './Shape';
+import { PanZoomManager } from '../../managers/PanZoomManager.ts';
+import { Shape } from './Shape.ts';
 import {
   drawPolygon,
   getPolygonVertices,
   isPointInPolygon,
-} from '../utils/polygon';
-import { lineIntersection } from '../utils/geometry';
-import { IShape } from '../interfaces/shape';
+} from '../utils/polygon.ts';
+import { lineIntersection } from '../utils/geometry.ts';
+import { IShape } from '../interfaces/shape.ts';
 
 export default class Octagon extends Shape {
   private static readonly SIDES = 8;

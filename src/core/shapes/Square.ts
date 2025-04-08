@@ -1,12 +1,12 @@
 // core/shapes/Square.ts
-import { Shape } from './Shape';
+import { Shape } from './Shape.ts';
 import {
   drawPolygon,
   getPolygonVertices,
   isPointInPolygon,
-} from '../utils/polygon';
-import { lineIntersection } from '../utils/geometry';
-import { IShape } from '../interfaces/shape';
+} from '../utils/polygon.ts';
+import { lineIntersection } from '../utils/geometry.ts';
+import { IShape } from '../interfaces/shape.ts';
 
 export default class Square extends Shape {
   private static readonly SIDES = 4;

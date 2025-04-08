@@ -1,5 +1,5 @@
 // managers/ScrollbarManager.ts
-import { PanZoomManager } from './PanZoomManager';
+import { PanZoomManager } from './PanZoomManager.ts';
 
 export class ScrollbarManager {
   constructor(

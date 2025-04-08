@@ -1,9 +1,9 @@
 // app/App.ts
-import { CanvasManager } from './managers/CanvasManager';
-import { Scene } from './core/scene/Scene';
-import { Toolbar } from './ui/Toolbar';
-import { DiagramRepository } from './core/data/DiagramRepository';
-import { IDataProvider } from './core/interfaces/dataProvider';
+import { CanvasManager } from './managers/CanvasManager.ts';
+import { Scene } from './core/scene/Scene.ts';
+import { Toolbar } from './ui/Toolbar.ts';
+import { DiagramRepository } from './core/data/DiagramRepository.ts';
+import { IDataProvider } from './core/interfaces/dataProvider.ts';
 
 export class App {
   private readonly canvas: HTMLCanvasElement;

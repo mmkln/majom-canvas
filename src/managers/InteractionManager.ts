@@ -1,9 +1,9 @@
 // managers/InteractionManager.ts
-import { Scene } from '../core/scene/Scene';
-import { IShape, ConnectionPoint } from '../core/interfaces/shape';
-import { IConnection } from '../core/interfaces/connection';
-import { PanZoomManager } from './PanZoomManager';
-import Connection from '../core/shapes/Connection';
+import { Scene } from '../core/scene/Scene.ts';
+import { IShape, ConnectionPoint } from '../core/interfaces/shape.ts';
+import { IConnection } from '../core/interfaces/connection.ts';
+import { PanZoomManager } from './PanZoomManager.ts';
+import Connection from '../core/shapes/Connection.ts';
 
 export class InteractionManager {
   private draggingShape: IShape | null = null;
@@ -160,7 +160,7 @@ export class InteractionManager {
 
     // Оновлюємо стан наведення для точок з’єднання
     shapes.forEach((shape) => {
-      const points = shape.getConnectionPoints();
+      const points: ConnectionPoint[] = shape.getConnectionPoints();
       points.forEach((point) => (point.isHovered = false));
     });
     const connectionPointHit = this.findConnectionPointAt(

@@ -1,7 +1,7 @@
 // src/components/Button.ts
 import { twMerge } from 'tailwind-merge';
-import { Component } from '../core/Component';
-import { ThemeManager } from '../core/Theme';
+import { Component } from '../core/Component.ts';
+import { ThemeManager } from '../core/Theme.ts';
 
 export interface ButtonProps {
   text: string;

@@ -1,9 +1,9 @@
 // core/scene/Scene.ts
 import { Subject } from 'rxjs';
-import { ICanvasElement } from '../interfaces/canvasElement';
-import { IShape } from '../interfaces/shape';
-import { isConnection, isShape } from '../utils/typeGuards';
-import { IConnection } from '../interfaces/connection';
+import { ICanvasElement } from '../interfaces/canvasElement.ts';
+import { IShape } from '../interfaces/shape.ts';
+import { isConnection, isShape } from '../utils/typeGuards.ts';
+import { IConnection } from '../interfaces/connection.ts';
 
 export class Scene {
   private elements: ICanvasElement[] = [];

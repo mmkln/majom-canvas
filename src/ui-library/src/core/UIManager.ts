@@ -1,5 +1,5 @@
 // src/core/UIManager.ts
-import { Component } from './Component';
+import { Component } from './Component.ts';
 
 export class UIManager {
   private components: Component<any>[] = [];

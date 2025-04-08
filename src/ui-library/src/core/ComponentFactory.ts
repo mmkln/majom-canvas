@@ -1,7 +1,8 @@
 // src/core/ComponentFactory.ts
-import { Button, ButtonProps } from '../components/Button';
-import { Input, InputProps } from '../components/Input';
-import { Checkbox, CheckboxProps } from '../components/Checkbox';
+import { Button, ButtonProps } from '../components/Button.ts';
+import { Input, InputProps } from '../components/Input.ts';
+import { Checkbox, CheckboxProps } from '../components/Checkbox.ts';
+import { SearchSelect, SearchSelectProps } from '../components/SearchSelect.js';
 
 export class ComponentFactory {
   static createButton(props: ButtonProps): Button {
@@ -14,5 +15,9 @@ export class ComponentFactory {
 
   static createCheckbox(props: CheckboxProps): Checkbox {
     return new Checkbox(props);
+  }
+
+  static createSearchSelect(props: SearchSelectProps): SearchSelect {
+    return new SearchSelect(props);
   }
 }

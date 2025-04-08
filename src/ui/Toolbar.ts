@@ -1,9 +1,11 @@
 // ui/Toolbar.ts
-import { Scene } from '../core/scene/Scene';
-import Circle from '../core/shapes/Circle';
-import Octagon from '../core/shapes/Octagon';
-import Square from '../core/shapes/Square';
-import { ComponentFactory } from '../ui-library/src/core/ComponentFactory';
+import Circle from '../core/shapes/Circle.ts';
+import Octagon from '../core/shapes/Octagon.ts';
+import Square from '../core/shapes/Square.ts';
+import { Scene } from '../core/scene/Scene.ts';
+import { ComponentFactory } from '../ui-library/src/index.ts';
+import { TaskSearchComponent } from './components/TaskSearch.js';
+import { dummyTasksForSelect } from './dummyData.js';
 
 export class Toolbar {
   private readonly container: HTMLDivElement;
@@ -24,7 +26,7 @@ export class Toolbar {
 
   public init(): void {
     const addCircleBtn = ComponentFactory.createButton({
-      text: 'Add Circle',
+      text: 'Circle',
       onClick: () => {
         const circle = new Circle({ x: 400, y: 400, radius: 50 });
         this.scene.addElement(circle);
@@ -33,16 +35,16 @@ export class Toolbar {
     });
 
     const addOctagonBtn = ComponentFactory.createButton({
-      text: 'Add Octagon',
+      text: 'Octagon',
       onClick: () => {
         const octagon = new Octagon({ x: 450, y: 450, radius: 50 });
         this.scene.addElement(octagon);
       },
-      variant: 'secondary',
+      variant: 'primary',
     });
 
     const addSquareBtn = ComponentFactory.createButton({
-      text: 'Add Square',
+      text: 'Square',
       onClick: () => {
         const square = new Square({ x: 500, y: 500, radius: 50 });
         this.scene.addElement(square);
@@ -50,9 +52,16 @@ export class Toolbar {
       variant: 'primary',
     });
 
+    const dummyTasks = Array.from({ length: 50 }, (_, i) => `Task ${i + 1}`);
+
+    const taskList = new TaskSearchComponent({
+      tasks: dummyTasksForSelect
+    })
+
     addCircleBtn.render(this.container);
     addOctagonBtn.render(this.container);
     addSquareBtn.render(this.container);
+    taskList.render(this.container);
 
     document.body.appendChild(this.container);
   }

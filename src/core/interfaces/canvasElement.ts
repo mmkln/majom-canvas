@@ -1,6 +1,6 @@
 // core/interfaces/drawable.ts
-import { PanZoomManager } from '../../managers/PanZoomManager';
-import { IShape } from './shape';
+import { PanZoomManager } from '../../managers/PanZoomManager.ts';
+import { IShape } from './shape.ts';
 
 export interface IDrawable {
   draw(

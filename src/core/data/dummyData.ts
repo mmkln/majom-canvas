@@ -1,5 +1,5 @@
 // dummyData.ts
-import { Task, TaskDependency } from '../interfaces/interfaces';
+import { Task, TaskDependency } from '../interfaces/interfaces.ts';
 
 // Dummy data для задач
 export const tasks: Task[] = [
@@ -30,8 +30,8 @@ export const tasks: Task[] = [
     status: 'pending',
     priority: 'high',
     dueDate: new Date('2025-04-01'),
-    x: 200,
-    y: 300,
+    x: 600,
+    y: 400,
   },
   {
     id: '4',

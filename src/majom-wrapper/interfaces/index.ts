@@ -331,7 +331,7 @@ export interface Tag {
   slug: string;
   color: string;
   description?: string;
-  readonly tasks: PlatformTask[];
+  readonly tasks?: PlatformTask[];
 }
 
 export interface Wallpaper {

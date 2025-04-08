@@ -1,5 +1,5 @@
-import { ICanvasElement } from './canvasElement';
-import { IShape } from './shape';
+import { ICanvasElement } from './canvasElement.ts';
+import { IShape } from './shape.ts';
 
 export interface IConnection extends ICanvasElement {
   fromId: string;

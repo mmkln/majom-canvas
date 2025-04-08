@@ -1,7 +1,7 @@
 // core/utils/typeGuards.ts
-import { IShape } from '../interfaces/shape';
-import { ICanvasElement } from '../interfaces/canvasElement';
-import { IConnection } from '../interfaces/connection';
+import { IShape } from '../interfaces/shape.ts';
+import { ICanvasElement } from '../interfaces/canvasElement.ts';
+import { IConnection } from '../interfaces/connection.ts';
 
 export function isShape(element: ICanvasElement): element is IShape {
   return (

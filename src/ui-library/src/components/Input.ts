@@ -1,8 +1,8 @@
 // src/components/Input.ts
 import { twMerge } from 'tailwind-merge';
-import { Component } from '../core/Component';
-import { EventEmitter } from '../core/EventEmitter';
-import { ThemeManager } from '../core/Theme';
+import { Component } from '../core/Component.ts';
+import { EventEmitter } from '../core/EventEmitter.ts';
+import { ThemeManager } from '../core/Theme.ts';
 
 export interface InputProps {
   value: string;

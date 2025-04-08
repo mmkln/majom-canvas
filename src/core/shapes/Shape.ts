@@ -1,6 +1,6 @@
 // core/shapes/Shape.ts
-import { ConnectionPoint, IShape } from '../interfaces/shape';
-import { PanZoomManager } from '../../managers/PanZoomManager';
+import { ConnectionPoint, IShape } from '../interfaces/shape.ts';
+import { PanZoomManager } from '../../managers/PanZoomManager.ts';
 import { v4 } from 'uuid';
 
 export abstract class Shape implements IShape {

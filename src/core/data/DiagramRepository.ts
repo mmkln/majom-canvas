@@ -1,12 +1,12 @@
 // src/core/data/DiagramRepository.ts
 
-import { Scene } from '../scene/Scene';
-import { Task, TaskDependency } from '../interfaces/interfaces';
-import { IDataProvider } from '../interfaces/dataProvider';
-import Connection from '../shapes/Connection';
-import Circle from '../shapes/Circle';
-import Octagon from '../shapes/Octagon';
-import Square from '../shapes/Square';
+import { Scene } from '../scene/Scene.ts';
+import { Task, TaskDependency } from '../interfaces/interfaces.ts';
+import { IDataProvider } from '../interfaces/dataProvider.ts';
+import Connection from '../shapes/Connection.ts';
+import Circle from '../shapes/Circle.ts';
+import Octagon from '../shapes/Octagon.ts';
+import Square from '../shapes/Square.ts';
 
 export class DiagramRepository {
   constructor(private dataProvider: IDataProvider) {}

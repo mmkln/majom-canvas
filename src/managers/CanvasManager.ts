@@ -1,11 +1,11 @@
 // managers/CanvasManager.ts
-import { Scene } from '../core/scene/Scene';
-import { PanZoomManager } from './PanZoomManager';
-import { ScrollbarManager } from './ScrollbarManager';
-import { CanvasRenderer } from './CanvasRenderer';
-import { InteractionManager } from './InteractionManager';
-import { KeyboardManager } from './KeyboardManager';
-import { isShape } from '../core/utils/typeGuards';
+import { Scene } from '../core/scene/Scene.ts';
+import { PanZoomManager } from './PanZoomManager.ts';
+import { ScrollbarManager } from './ScrollbarManager.ts';
+import { CanvasRenderer } from './CanvasRenderer.ts';
+import { InteractionManager } from './InteractionManager.ts';
+import { KeyboardManager } from './KeyboardManager.ts';
+import { isShape } from '../core/utils/typeGuards.ts';
 
 export class CanvasManager {
   canvas: HTMLCanvasElement;

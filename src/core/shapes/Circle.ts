@@ -1,6 +1,6 @@
 // core/shapes/Circle.ts
-import { Shape } from './Shape';
-import { IShape } from '../interfaces/shape';
+import { Shape } from './Shape.ts';
+import { IShape } from '../interfaces/shape.ts';
 
 export default class Circle extends Shape {
   protected getInnerRadius(): number {

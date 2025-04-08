@@ -1,7 +1,7 @@
 // managers/KeyboardManager.ts
-import { Scene } from '../core/scene/Scene';
-import { IShape } from '../core/interfaces/shape';
-import { CanvasManager } from './CanvasManager';
+import { Scene } from '../core/scene/Scene.ts';
+import { IShape } from '../core/interfaces/shape.ts';
+import { CanvasManager } from './CanvasManager.ts';
 
 export class KeyboardManager {
   private clipboard: IShape[] = [];
