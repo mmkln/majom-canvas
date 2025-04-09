@@ -160,11 +160,58 @@ export default class Connection implements IConnection {
   public isNearPoint(px: number, py: number, elements: IShape[], tolerance: number = 5): boolean {
     const from = elements.find((el) => el.id === this.fromId);
     const to = elements.find((el) => el.id === this.toId);
-    if (from && to) {
-      const { start, end } = this.getClosestConnectionPoints(from, to);
+    if (!from || !to) {
+      return false;
+    }
+
+    const { start, end } = this.getClosestConnectionPoints(from, to);
+
+    if (this.lineType === ConnectionLineType.Straight) {
+      // Пряме з'єднання – використання існуючого методу для відрізка
       const distance = this.distanceToLineSegment(px, py, start.x, start.y, end.x, end.y);
       return distance <= tolerance;
+    } else if (this.lineType === ConnectionLineType.SShaped) {
+      // S-подібна крива – обчислюємо контрольні точки так само, як у drawLine
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const offset = distance / 1.4; // такий же коефіцієнт, як і в drawLine
+
+      // Використовуємо вже реалізований getControlPoint для обчислення контрольних точок
+      const cp1 = this.getControlPoint(start, offset);
+      const cp2 = this.getControlPoint(end, offset);
+
+      // Апроксимуємо криву, вибираючи, наприклад, 20 точок
+      const sampleCount = 20;
+      const samples: { x: number; y: number }[] = [];
+      for (let i = 0; i <= sampleCount; i++) {
+        const t = i / sampleCount;
+        const invT = 1 - t;
+        const x = invT * invT * invT * start.x +
+          3 * invT * invT * t * cp1.x +
+          3 * invT * t * t * cp2.x +
+          t * t * t * end.x;
+        const y = invT * invT * invT * start.y +
+          3 * invT * invT * t * cp1.y +
+          3 * invT * t * t * cp2.y +
+          t * t * t * end.y;
+        samples.push({ x, y });
+      }
+
+      // Обчислюємо мінімальну відстань від заданої точки до всіх сегментів, що складають криву
+      let minDistance = Infinity;
+      for (let i = 0; i < samples.length - 1; i++) {
+        const p1 = samples[i];
+        const p2 = samples[i + 1];
+        const d = this.distanceToLineSegment(px, py, p1.x, p1.y, p2.x, p2.y);
+        if (d < minDistance) {
+          minDistance = d;
+        }
+      }
+
+      return minDistance <= tolerance;
     }
+
     return false;
   }
 
