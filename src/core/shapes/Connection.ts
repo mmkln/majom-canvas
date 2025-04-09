@@ -1,6 +1,6 @@
 // core/shapes/Connection.ts
 import { IShape, ConnectionPoint } from '../interfaces/shape.ts';
-import { IConnection } from '../interfaces/connection.ts';
+import { ConnectionLineType, IConnection } from '../interfaces/connection.ts';
 import { PanZoomManager } from '../../managers/PanZoomManager.ts';
 import { v4 } from 'uuid';
 
@@ -9,11 +9,16 @@ export default class Connection implements IConnection {
   fromId: string;
   toId: string;
   selected: boolean = false;
+  public lineType: ConnectionLineType = ConnectionLineType.SShaped;
+  private tangentAngle: number = 0;
 
-  constructor(fromId: string, toId: string, id:string = v4()) {
+  constructor(fromId: string, toId: string, id: string = v4(), lineType?: ConnectionLineType) {
     this.fromId = fromId;
     this.toId = toId;
     this.id = id;
+    if (lineType) {
+      this.lineType = lineType;
+    }
   }
 
   private getClosestConnectionPoints(
@@ -27,7 +32,6 @@ export default class Connection implements IConnection {
     let bestStart: ConnectionPoint = fromPoints[0];
     let bestEnd: ConnectionPoint = toPoints[0];
 
-    // Знаходимо пару точок з’єднання з мінімальною відстанню
     for (const start of fromPoints) {
       for (const end of toPoints) {
         const distance = Math.sqrt(
@@ -44,6 +48,11 @@ export default class Connection implements IConnection {
     return { start: bestStart, end: bestEnd };
   }
 
+  private setStrokeProperties(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
+    ctx.strokeStyle = this.selected ? '#008dff' : '#000';
+    ctx.lineWidth = 2 / panZoom.scale;
+  }
+
   private drawLine(
     ctx: CanvasRenderingContext2D,
     from: IShape,
@@ -53,10 +62,42 @@ export default class Connection implements IConnection {
     const { start, end } = this.getClosestConnectionPoints(from, to);
     ctx.beginPath();
     ctx.moveTo(start.x, start.y);
-    ctx.lineTo(end.x, end.y);
-    ctx.strokeStyle = this.selected ? '#008dff' : '#000';
-    ctx.lineWidth = 2 / panZoom.scale;
+
+    if (this.lineType === ConnectionLineType.Straight) {
+      ctx.lineTo(end.x, end.y);
+      this.tangentAngle = Math.atan2(end.y - start.y, end.x - start.x);
+    } else if (this.lineType === ConnectionLineType.SShaped) {
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const offset = distance / 1.4; // change 1.4 if needed
+      const startControl = this.getControlPoint(start, offset);
+      const endControl = this.getControlPoint(end, offset);
+      ctx.bezierCurveTo(
+        startControl.x, startControl.y,
+        endControl.x, endControl.y,
+        end.x, end.y
+      );
+      this.tangentAngle = Math.atan2(end.y - endControl.y, end.x - endControl.x);
+    }
+
+    this.setStrokeProperties(ctx, panZoom);
     ctx.stroke();
+  }
+
+  private getControlPoint(point: ConnectionPoint, offset: number): { x: number; y: number } {
+    switch (point.direction) {
+      case 'left':
+        return { x: point.x - offset, y: point.y };
+      case 'right':
+        return { x: point.x + offset, y: point.y };
+      case 'top':
+        return { x: point.x, y: point.y - offset };
+      case 'bottom':
+        return { x: point.x, y: point.y + offset };
+      default:
+        return { x: point.x, y: point.y };
+    }
   }
 
   private drawArrowHead(
@@ -65,8 +106,8 @@ export default class Connection implements IConnection {
     to: IShape,
     panZoom: PanZoomManager
   ): void {
-    const { start, end } = this.getClosestConnectionPoints(from, to);
-    const angle = Math.atan2(end.y - start.y, end.x - start.x);
+    const { end } = this.getClosestConnectionPoints(from, to);
+    const angle = this.tangentAngle;
     const headLength = 15 / panZoom.scale;
     ctx.beginPath();
     ctx.moveTo(end.x, end.y);
@@ -125,5 +166,9 @@ export default class Connection implements IConnection {
       return distance <= tolerance;
     }
     return false;
+  }
+
+  public setLineType(type: ConnectionLineType): void {
+    this.lineType = type;
   }
 }

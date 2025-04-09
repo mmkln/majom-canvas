@@ -11,7 +11,7 @@ export abstract class Shape implements IShape {
   public fillColor: string;
   public lineWidth: number;
   public selected: boolean;
-  public isHovered: boolean = false; // Додаємо для відстеження наведення
+  public isHovered: boolean = false;
 
   constructor({
     x,
@@ -44,15 +44,17 @@ export abstract class Shape implements IShape {
     panZoom: PanZoomManager
   ): void;
 
-  // Отримуємо точки з’єднання (зверху, знизу, зліва, справа)
   public getConnectionPoints(): ConnectionPoint[] {
     const angles = [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2]; // 0°, 90°, 180°, 270°
-    return angles.map((angle) => {
+    const directions: ('right' | 'bottom' | 'left' | 'top')[] = ['right', 'bottom', 'left', 'top'];
+
+    return angles.map((angle, index) => {
       const point = this.getBoundaryPoint(angle);
       return {
         x: point.x,
         y: point.y,
         angle,
+        direction: directions[index],
         isHovered: false,
       };
     });
@@ -75,14 +77,13 @@ export abstract class Shape implements IShape {
       ctx.restore();
     }
 
-    // Відображаємо точки з’єднання, якщо фігура вибрана або наведена
     if (this.selected || this.isHovered) {
       const connectionPoints = this.getConnectionPoints();
       connectionPoints.forEach((point) => {
         ctx.save();
         ctx.beginPath();
         ctx.arc(point.x, point.y, 4 / panZoom.scale, 0, 2 * Math.PI); // Радіус точки 4 пікселя
-        ctx.fillStyle = point.isHovered ? '#00ff00' : '#ffffff'; // Зелений, якщо наведено, інакше білий
+        ctx.fillStyle = point.isHovered ? '#00ff00' : '#ffffff';
         ctx.fill();
         ctx.strokeStyle = '#000000';
         ctx.lineWidth = 1 / panZoom.scale;

@@ -27,4 +27,5 @@ export interface ConnectionPoint {
   y: number;
   angle: number;
   isHovered: boolean;
+  direction: 'left' | 'right' | 'top' | 'bottom';
 }
