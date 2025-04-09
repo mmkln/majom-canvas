@@ -125,7 +125,7 @@ export class InteractionManager {
     }
 
     for (const element of connections) {
-        if (element.isNearPoint(e.x, e.y, shapes)) {
+        if (element.isNearPoint(sceneX, sceneY, shapes)) {
           clickedConnection = element;
           if (e.shiftKey){
             const currentlySelected = this.scene.getSelectedElements();
