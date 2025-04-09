@@ -2,7 +2,7 @@
 export class PanZoomManager {
   scrollX: number = 0;
   scrollY: number = 0;
-  scale: number = 1;
+  scale: number = 1.4;
   // Virtual content dimensions (can be adjusted or passed in)
   virtualWidth: number = 3000;
   virtualHeight: number = 2000;

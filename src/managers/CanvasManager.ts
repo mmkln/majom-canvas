@@ -198,14 +198,12 @@ export class CanvasManager {
 
   onDoubleClick(e: MouseEvent): void {
     const { sceneX, sceneY } = this.getSceneCoords(e);
-    // Більше не викликаємо updateMouseCoords в InteractionManager
     this.interactionManager.handleDoubleClick(sceneX, sceneY);
     this.draw();
   }
 
   onRightClick(e: MouseEvent): void {
     const { sceneX, sceneY } = this.getSceneCoords(e);
-    // Більше не викликаємо updateMouseCoords в InteractionManager
     this.interactionManager.handleRightClick(e, sceneX, sceneY);
     this.draw();
   }
