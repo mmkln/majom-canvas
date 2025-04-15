@@ -18,7 +18,7 @@ export interface ButtonProps {
 }
 
 export class Button extends Component<ButtonProps> {
-  protected createElement(): HTMLElement {
+  public createElement(): HTMLElement {
     const button = document.createElement('button');
     button.type = this.props.type || 'button';
     if (this.props.text) {
@@ -47,12 +47,12 @@ export class Button extends Component<ButtonProps> {
     ].join(' ');
 
     const variantStyles: Record<ButtonVariant, string> = {
-      default: 'bg-primary text-primary-foreground hover:bg-primary/90',
-      destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
-      outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
-      secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
-      ghost: 'hover:bg-accent hover:text-accent-foreground',
-      link: 'text-primary underline-offset-4 hover:underline',
+      default: 'bg-primary text-white hover:bg-primary/90 active:bg-primary/80 transition-colors', // force white text for primary
+      destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80 transition-colors',
+      outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground active:bg-accent/80 transition-colors',
+      secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80 active:bg-secondary/70 transition-colors',
+      ghost: 'hover:bg-accent hover:text-accent-foreground active:bg-accent/80 transition-colors',
+      link: 'text-primary underline-offset-4 hover:underline active:text-primary/80 transition-colors',
     };
     const sizeStyles: Record<ButtonSize, string> = {
       default: 'h-10 px-4 py-2',

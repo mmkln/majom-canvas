@@ -1,4 +1,6 @@
 import { Component } from '../../ui-library/src/core/Component.js';
+import { Button } from '../../ui-library/src/components/Button.js';
+import { Input } from '../../ui-library/src/components/Input.js';
 import { AuthService } from '../../majom-wrapper/data-access/auth-service.js';
 import { LoginCredentials } from '../../majom-wrapper/interfaces/auth-interfaces.js';
 
@@ -21,16 +23,21 @@ export class AuthComponent extends Component<any> {
     this.avatarContainer = document.createElement('div');
     this.avatarContainer.className = 'absolute top-4 right-4';
     
-    // Create buttons directly instead of using ComponentFactory
-    this.loginButton = document.createElement('button');
-    this.loginButton.textContent = 'Login';
-    this.loginButton.addEventListener('click', () => this.showLoginModal());
-    
-    this.logoutButton = document.createElement('button');
-    this.logoutButton.textContent = 'Logout';
-    this.logoutButton.addEventListener('click', () => this.handleLogout());
-    this.logoutButton.className = 'bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded';
-    
+    // Use Button component from UI library for login and logout buttons
+    this.loginButton = new Button({
+      text: 'Login',
+      onClick: () => this.showLoginModal(),
+      variant: 'default',
+      className: 'w-full',
+    }).createElement() as HTMLButtonElement;
+
+    this.logoutButton = new Button({
+      text: 'Logout',
+      onClick: () => this.handleLogout(),
+      variant: 'destructive',
+      className: 'w-full',
+    }).createElement() as HTMLButtonElement;
+
     this.dropdownMenu = document.createElement('div');
     this.dropdownMenu.className = 'absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 hidden';
     this.dropdownMenu.appendChild(this.logoutButton);
@@ -85,21 +92,55 @@ export class AuthComponent extends Component<any> {
       <form id="loginForm">
         <div class="mb-4">
           <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
-          <input type="text" id="username" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50" required>
+          <span id="usernameInputPlaceholder"></span>
         </div>
         <div class="mb-4">
           <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
-          <input type="password" id="password" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50" required>
+          <span id="passwordInputPlaceholder"></span>
         </div>
-        <button type="submit" id="loginSubmit" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Login</button>
+        <span id="loginSubmitPlaceholder"></span>
       </form>
       <div id="errorMessage" class="mt-2 text-red-500 hidden"></div>
     `;
     this.modal.appendChild(modalContent);
+
+    // Use Input component for username and password fields
+    const usernameInput = new Input({
+      id: 'username',
+      name: 'username',
+      type: 'text',
+      placeholder: 'Enter your username',
+      className: 'mt-1',
+    }).createElement();
+    const passwordInput = new Input({
+      id: 'password',
+      name: 'password',
+      type: 'password',
+      placeholder: 'Enter your password',
+      className: 'mt-1',
+    }).createElement();
+    const usernameInputPlaceholder = modalContent.querySelector('#usernameInputPlaceholder');
+    const passwordInputPlaceholder = modalContent.querySelector('#passwordInputPlaceholder');
+    if (usernameInputPlaceholder) usernameInputPlaceholder.replaceWith(usernameInput);
+    if (passwordInputPlaceholder) passwordInputPlaceholder.replaceWith(passwordInput);
     document.body.appendChild(this.modal);
 
     const form = modalContent.querySelector('#loginForm');
     this.errorMessage = modalContent.querySelector('#errorMessage');
+
+    // Replace placeholder with Button component for submit
+    const loginSubmitPlaceholder = modalContent.querySelector('#loginSubmitPlaceholder');
+    if (loginSubmitPlaceholder) {
+      const loginButton = new Button({
+        text: 'Login',
+        type: 'submit',
+        variant: 'default',
+        className: 'w-full',
+      }).createElement();
+      loginButton.id = 'loginSubmit';
+      loginSubmitPlaceholder.replaceWith(loginButton);
+    }
+
     form?.addEventListener('submit', (e) => this.handleLoginSubmit(e));
 
     this.modal.addEventListener('click', (e) => {
