@@ -8,6 +8,7 @@ import { AuthComponent } from './ui/components/AuthComponent.ts';
 import { AuthService } from './majom-wrapper/data-access/auth-service.js';
 import { CanvasControls } from './ui/CanvasControls.ts';
 import { ZoomIndicator } from './ui/ZoomIndicator.ts';
+import { UIManager } from './ui/UIManager.ts';
 
 export class App {
   private readonly canvas: HTMLCanvasElement;
@@ -19,6 +20,7 @@ export class App {
   private readonly authComponent: AuthComponent;
   private readonly canvasControls: CanvasControls;
   private readonly zoomIndicator: ZoomIndicator;
+  private readonly uiManager: UIManager;
 
   constructor(dataProvider: IDataProvider) {
     const canvasElement = document.getElementById('myCanvas');
@@ -42,10 +44,10 @@ export class App {
     this.authComponent = new AuthComponent(appContainer, this.authService);
     // Додаємо CanvasControls
     this.canvasControls = new CanvasControls(this.canvasManager);
-    this.canvasControls.mount(document.body);
-    // Додаємо ZoomIndicator
     this.zoomIndicator = new ZoomIndicator(this.canvasManager);
-    this.zoomIndicator.mount(document.body);
+    // Використовуємо UIManager для монтування UI-компонентів
+    this.uiManager = new UIManager(this.canvasControls, this.zoomIndicator);
+    this.uiManager.mountAll(document.body);
   }
 
   public async init(): Promise<void> {
