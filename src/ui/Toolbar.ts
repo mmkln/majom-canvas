@@ -31,7 +31,8 @@ export class Toolbar {
         const circle = new Circle({ x: 400, y: 400, radius: 50 });
         this.scene.addElement(circle);
       },
-      variant: 'primary',
+      variant: 'default', // updated from 'primary'
+      size: 'default',
     });
 
     const addOctagonBtn = ComponentFactory.createButton({
@@ -40,7 +41,8 @@ export class Toolbar {
         const octagon = new Octagon({ x: 450, y: 450, radius: 50 });
         this.scene.addElement(octagon);
       },
-      variant: 'primary',
+      variant: 'secondary',
+      size: 'sm',
     });
 
     const addSquareBtn = ComponentFactory.createButton({
@@ -49,13 +51,15 @@ export class Toolbar {
         const square = new Square({ x: 500, y: 500, radius: 50 });
         this.scene.addElement(square);
       },
-      variant: 'primary',
+      variant: 'outline',
+      size: 'lg',
     });
 
-    const dummyTasks = Array.from({ length: 50 }, (_, i) => `Task ${i + 1}`);
-
     const taskList = new TaskSearchComponent({
-      tasks: dummyTasksForSelect
+      tasks: dummyTasksForSelect,
+      onSelect: (value) => {
+        console.log('selected', {value}); // TODO: remove
+      }
     })
 
     addCircleBtn.render(this.container);

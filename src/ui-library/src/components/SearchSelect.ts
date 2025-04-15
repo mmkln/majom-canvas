@@ -5,8 +5,13 @@ import { Input } from './Input.ts';
 import { ComponentFactory } from '../core/ComponentFactory.ts';
 import { EventEmitter } from '../core/EventEmitter.ts';
 
+export interface SelectItem {
+  value: string;
+  label: string;
+}
+
 export interface SearchSelectProps {
-  items: string[];
+  items: SelectItem[];
   placeholder?: string;
   className?: string;
   onSelect?: (selectedItem: string) => void;
@@ -15,17 +20,17 @@ export interface SearchSelectProps {
 export class SearchSelect extends Component<SearchSelectProps> {
   private filterInput!: Input;
   private listContainer!: HTMLUListElement;
-  private filteredItems!: string[];
+  private filteredItems!: SelectItem[];
   private isListVisible: boolean = false;
-  private selectEmitter = new EventEmitter<string>();
+  private selectEmitter!: EventEmitter<string>;
 
   constructor(readonly props: SearchSelectProps) {
     super(props);
   }
 
   protected createElement(): HTMLElement {
-
     this.filteredItems = [...this.props.items];
+
     this.filterInput = ComponentFactory.createInput({
       value: '',
       placeholder: this.props.placeholder ?? 'Search items...',
@@ -33,21 +38,22 @@ export class SearchSelect extends Component<SearchSelectProps> {
     });
 
     if (this.props.onSelect) {
+      if (!this.selectEmitter) {
+        this.selectEmitter = new EventEmitter<string>();
+      }
       this.onSelect(this.props.onSelect);
     }
 
     const container = document.createElement('div');
     container.className = twMerge(
-      'relative flex flex-col gap-2', // relative для позиціонування списку
+      'relative flex flex-col gap-2',
       this.props.className || ''
     );
 
-    // Поле введення
     const inputWrapper = document.createElement('div');
     this.filterInput.render(inputWrapper);
     container.appendChild(inputWrapper);
 
-    // Список варіантів
     this.listContainer = document.createElement('ul');
     this.listContainer.className = twMerge(
       'absolute top-full left-0 w-full flex flex-col gap-2 mt-1 bg-gray-100 rounded-lg shadow-lg max-h-60 overflow-y-auto',
@@ -74,7 +80,7 @@ export class SearchSelect extends Component<SearchSelectProps> {
   private filterItems(filter: string): void {
     const lowerFilter = filter.toLowerCase();
     this.filteredItems = this.props.items.filter((item) =>
-      item.toLowerCase().includes(lowerFilter)
+      item.label.toLowerCase().includes(lowerFilter)
     );
     this.isListVisible = true;
     this.renderItems();
@@ -87,13 +93,13 @@ export class SearchSelect extends Component<SearchSelectProps> {
       const noItemsMessage = document.createElement('li');
       noItemsMessage.textContent = 'No items found';
       noItemsMessage.className = twMerge(
-        'p-4 text-gray-500 italic text-center bg-white rounded-lg border-2 border-gray-200'
+        'px-3 py-2 text-gray-500 italic text-center bg-white rounded-lg border-2 border-gray-200'
       );
       this.listContainer.appendChild(noItemsMessage);
     } else {
       this.filteredItems.forEach((item) => {
         const li = document.createElement('li');
-        li.textContent = item;
+        li.textContent = item.label;
         li.className = twMerge(
           'px-3 py-2 text-gray-800 hover:bg-gray-200 cursor-pointer'
         );
@@ -107,10 +113,12 @@ export class SearchSelect extends Component<SearchSelectProps> {
     this.updateListVisibility();
   }
 
-  private selectItem(item: string): void {
-    this.filterInput.setValue(item);
+  private selectItem(item: SelectItem): void {
+    // При виборі встановлюємо у інпут значення label,
+    // але callback отримує value елемента.
+    this.filterInput.setValue(item.label);
     this.isListVisible = false;
-    this.selectEmitter.emit(item);
+    this.selectEmitter.emit(item.value);
     this.updateListVisibility();
   }
 
@@ -121,7 +129,7 @@ export class SearchSelect extends Component<SearchSelectProps> {
     );
   }
 
-  public updateItems(newItems: string[]): void {
+  public updateItems(newItems: SelectItem[]): void {
     this.props.items = newItems;
     this.filteredItems = [...newItems];
     this.filterItems(this.filterInput.getValue());
