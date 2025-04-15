@@ -4,6 +4,8 @@ import { Scene } from './core/scene/Scene.ts';
 import { Toolbar } from './ui/Toolbar.ts';
 import { DiagramRepository } from './core/data/DiagramRepository.ts';
 import { IDataProvider } from './core/interfaces/dataProvider.ts';
+import { AuthComponent } from './ui/components/AuthComponent.ts';
+import { AuthService } from './majom-wrapper/data-access/auth-service.js';
 
 export class App {
   private readonly canvas: HTMLCanvasElement;
@@ -11,6 +13,8 @@ export class App {
   private readonly toolbar: Toolbar;
   private canvasManager: CanvasManager;
   private readonly diagramRepository: DiagramRepository;
+  private readonly authService: AuthService;
+  private readonly authComponent: AuthComponent;
 
   constructor(dataProvider: IDataProvider) {
     const canvasElement = document.getElementById('myCanvas');
@@ -27,11 +31,17 @@ export class App {
     this.canvasManager = new CanvasManager(this.canvas, this.scene);
     // Використовуємо провайдера для створення репозиторію діаграми
     this.diagramRepository = new DiagramRepository(dataProvider);
+    // Ініціалізація сервісу аутентифікації
+    this.authService = new AuthService();
+    // Ініціалізація компонента аутентифікації
+    const appContainer = document.getElementById('app') || document.body;
+    this.authComponent = new AuthComponent(appContainer, this.authService);
   }
 
   public async init(): Promise<void> {
     this.canvasManager.init();
     this.toolbar.init();
     await this.diagramRepository.loadDiagram(this.scene);
+    // AuthComponent does not have an init method, initialization happens in constructor
   }
 }
