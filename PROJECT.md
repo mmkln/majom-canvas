@@ -12,7 +12,6 @@
 
 ---
 
-
 > **Fill this file with a description, vision, ideas, architecture, and plans for your application. I will take this file into account in all future sessions!**
 
 ---
@@ -143,41 +142,6 @@ Majom Canvas is an interactive tool for visualizing and managing tasks, stories,
 - **Canvas Manager**: Обробляє взаємодію з канвасом, включаючи масштабування та панорамування.
 - **Interaction Manager**: Керує подіями миші для перетягування фігур та створення зв'язків.
 - **PanZoom Manager**: Керує рівнем масштабу та позицією прокрутки канвасу.
-
-### Плановані Фічі та Задачі (з Декомпозицією)
-
-- **Goals (Цілі):**
-  - [ ] Створити клас або компонент для відображення цілей як окремих карток.
-  - [ ] Додати функціонал для відстеження прогресу через прив'язані задачі.
-  - [ ] Реалізувати інтерактивність (перетягування, редагування, контекстне меню).
-  - [ ] Integrate goals with other canvas elements (for example, connections with tasks).
-
-- **Stories:**
-  - [ ] Develop a container for grouping tasks as a story.
-  - [ ] Add the ability to customize the border color and story title.
-  - [ ] Implement dragging and resizing of the container.
-  - [ ] Add a context menu for editing and adding tasks to a story.
-
-- **Connections:**
-  - [ ] Complete the implementation of creating visual connections between tasks via drag-and-drop.
-  - [ ] Add the ability to delete connections via a context menu.
-  - [ ] Implement color coding for different types of dependencies.
-
-- **Canvas Interaction Buttons:**
-  - [ ] Create UI components for Zoom In, Zoom Out, and Center Canvas buttons in the bottom right corner.
-  - [ ] Connect zoom functionality to the Zoom In/Out buttons.
-  - [ ] Реалізувати центрування канвасу при натисканні на відповідну кнопку.
-
-- **Toolbar Buttons (Кнопки інструментів):**
-  - [ ] Додати кнопки Select, Create Task, Create Story, Create Goal у верхній центральній частині.
-  - [ ] Реалізувати функціонал для кожної кнопки (наприклад, зміна курсора для Select, створення нових елементів для інших кнопок).
-
-- **Authentication in majom-wrapper (Аутентифікація):**
-  - [ ] Розробити UI для відображення аватарки або кнопки Login у правому верхньому куті.
-  - [ ] Створити дропдаун меню для залогінених користувачів з опціями Login/Logout.
-  - [ ] Реалізувати модальне вікно для логіну з полями Username/Password та обробкою стану завантаження/помилки.
-  - [ ] Інтегрувати запити до бекенду для отримання токенів та їх збереження у local storage.
-  - [ ] Додати оновлення даних канвасу після успішного логіну.
 
 ## Важливі Нотатки
 (Будь-які особливості, які треба памʼятати)

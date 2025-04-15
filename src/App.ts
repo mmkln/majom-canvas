@@ -6,6 +6,8 @@ import { DiagramRepository } from './core/data/DiagramRepository.ts';
 import { IDataProvider } from './core/interfaces/dataProvider.ts';
 import { AuthComponent } from './ui/components/AuthComponent.ts';
 import { AuthService } from './majom-wrapper/data-access/auth-service.js';
+import { CanvasControls } from './ui/CanvasControls.ts';
+import { ZoomIndicator } from './ui/ZoomIndicator.ts';
 
 export class App {
   private readonly canvas: HTMLCanvasElement;
@@ -15,6 +17,8 @@ export class App {
   private readonly diagramRepository: DiagramRepository;
   private readonly authService: AuthService;
   private readonly authComponent: AuthComponent;
+  private readonly canvasControls: CanvasControls;
+  private readonly zoomIndicator: ZoomIndicator;
 
   constructor(dataProvider: IDataProvider) {
     const canvasElement = document.getElementById('myCanvas');
@@ -36,6 +40,12 @@ export class App {
     // Ініціалізація компонента аутентифікації
     const appContainer = document.getElementById('app') || document.body;
     this.authComponent = new AuthComponent(appContainer, this.authService);
+    // Додаємо CanvasControls
+    this.canvasControls = new CanvasControls(this.canvasManager);
+    this.canvasControls.mount(document.body);
+    // Додаємо ZoomIndicator
+    this.zoomIndicator = new ZoomIndicator(this.canvasManager);
+    this.zoomIndicator.mount(document.body);
   }
 
   public async init(): Promise<void> {

@@ -238,6 +238,20 @@ export class CanvasManager {
     this.draw();
   }
 
+  // --- CanvasControls integration methods ---
+  public zoomIn(): void {
+    this.panZoom.zoomIn(this.canvas);
+    this.draw();
+  }
+  public zoomOut(): void {
+    this.panZoom.zoomOut(this.canvas);
+    this.draw();
+  }
+  public centerCanvas(): void {
+    this.panZoom.center(this.canvas);
+    this.draw();
+  }
+
   public getCanvas(): HTMLCanvasElement {
     return this.canvas;
   }
