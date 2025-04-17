@@ -1,5 +1,5 @@
 import { PlatformTask } from '../../majom-wrapper/interfaces/index.js';
-import { SearchSelect, SelectItem } from '../../ui-library/src/components/SearchSelect.js';
+import { SearchSelect, SelectItem } from '../../ui-lib/src/components/SearchSelect.js';
 
 export interface TaskSearchProps {
   tasks: PlatformTask[];

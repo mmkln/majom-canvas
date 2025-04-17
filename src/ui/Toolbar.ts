@@ -3,9 +3,9 @@ import Circle from '../core/shapes/Circle.ts';
 import Octagon from '../core/shapes/Octagon.ts';
 import Square from '../core/shapes/Square.ts';
 import { Scene } from '../core/scene/Scene.ts';
-import { ComponentFactory } from '../ui-library/src/index.ts';
-import { TaskSearchComponent } from './components/TaskSearch.js';
-import { dummyTasksForSelect } from './dummyData.js';
+import { ComponentFactory } from '../ui-lib/src/index.ts';
+import { TaskSearchComponent } from './components/TaskSearch.ts';
+import { dummyTasksForSelect } from './dummyData.ts';
 
 export class Toolbar {
   private readonly container: HTMLDivElement;

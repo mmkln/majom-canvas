@@ -32,6 +32,7 @@ export class PanZoomManager {
     this.clampScroll();
     this.emitZoomChange();
   }
+
   public zoomOut(canvas: HTMLCanvasElement): void {
     const minScale = Math.max(
       (canvas.width - this.scrollbarWidth) / this.virtualWidth,
@@ -41,6 +42,7 @@ export class PanZoomManager {
     this.clampScroll();
     this.emitZoomChange();
   }
+
   public center(canvas: HTMLCanvasElement): void {
     this.scale = 1;
     this.scrollX = (this.virtualWidth * this.scale - canvas.width) / 2;
@@ -48,11 +50,14 @@ export class PanZoomManager {
     this.clampScroll();
     this.emitZoomChange();
   }
+
   // --- Event system ---
   private zoomListeners: (() => void)[] = [];
+
   public onZoomChange(listener: () => void) {
     this.zoomListeners.push(listener);
   }
+
   private emitZoomChange() {
     this.zoomListeners.forEach(l => l());
   }

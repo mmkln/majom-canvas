@@ -1,6 +1,6 @@
 // managers/KeyboardManager.ts
-import { Scene } from '../core/scene/Scene.ts';
-import { IShape } from '../core/interfaces/shape.ts';
+import { Scene } from '../scene/Scene.ts';
+import { IShape } from '../interfaces/shape.ts';
 import { CanvasManager } from './CanvasManager.ts';
 
 export class KeyboardManager {

@@ -1,6 +1,6 @@
-import { Component } from '../../ui-library/src/core/Component.js';
-import { Button } from '../../ui-library/src/components/Button.js';
-import { Input } from '../../ui-library/src/components/Input.js';
+import { Component } from '../../ui-lib/src/core/Component.js';
+import { Button } from '../../ui-lib/src/components/Button.js';
+import { Input } from '../../ui-lib/src/components/Input.js';
 import { AuthService } from '../../majom-wrapper/data-access/auth-service.js';
 import { LoginCredentials } from '../../majom-wrapper/interfaces/auth-interfaces.js';
 

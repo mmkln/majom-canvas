@@ -1,5 +1,5 @@
 // core/interfaces/drawable.ts
-import { PanZoomManager } from '../../managers/PanZoomManager.ts';
+import { PanZoomManager } from '../managers/PanZoomManager.ts';
 import { IShape } from './shape.ts';
 
 export interface IDrawable {
@@ -12,6 +12,11 @@ export interface IDrawable {
 
 export interface ISelectable {
   selected: boolean;
+}
+
+export interface IPositioned {
+  x: number;
+  y: number;
 }
 
 export interface ICanvasElement extends IDrawable, ISelectable {

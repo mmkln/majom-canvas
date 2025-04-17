@@ -1,7 +1,7 @@
 // ui/CanvasControls.ts
-import { CanvasManager } from '../managers/CanvasManager.ts';
-import { ComponentFactory } from '../ui-library/src/index.ts';
-import { ButtonVariant } from '../ui-library/src/components/Button.js';
+import { CanvasManager } from '../core/managers/CanvasManager.ts';
+import { ComponentFactory } from '../ui-lib/src/index.ts';
+import { ButtonVariant } from '../ui-lib/src/components/Button.js';
 
 export class CanvasControls {
   private readonly container: HTMLDivElement;

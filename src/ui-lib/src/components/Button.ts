@@ -38,7 +38,6 @@ export class Button extends Component<ButtonProps> {
     if (this.props.disabled) {
       button.disabled = true;
     }
-    // Tooltip (native title or custom)
     if (this.props.tooltip) {
       button.title = this.props.tooltip;
     }
@@ -56,11 +55,9 @@ export class Button extends Component<ButtonProps> {
       default: 'bg-primary text-white hover:bg-primary/90 active:bg-primary/80 transition-colors', // force white text for primary
       destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80 transition-colors',
       outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground active:bg-accent/80 transition-colors',
-      // Оновлений secondary: світло-сірий бекграунд
       secondary: 'bg-gray-100 text-gray-900 hover:bg-gray-200 active:bg-gray-300 transition-colors',
       ghost: 'hover:bg-accent hover:text-accent-foreground active:bg-accent/80 transition-colors',
       link: 'text-primary underline-offset-4 hover:underline active:text-primary/80 transition-colors',
-      // Новий lightgray стиль
       lightgray: 'bg-gray-200 text-gray-900 hover:bg-gray-300 active:bg-gray-400 border border-gray-300 transition-colors',
     };
     const sizeStyles: Record<ButtonSize, string> = {

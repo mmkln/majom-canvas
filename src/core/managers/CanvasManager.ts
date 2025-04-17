@@ -1,11 +1,13 @@
 // managers/CanvasManager.ts
-import { Scene } from '../core/scene/Scene.ts';
+import { Scene } from '../scene/Scene.ts';
 import { PanZoomManager } from './PanZoomManager.ts';
 import { ScrollbarManager } from './ScrollbarManager.ts';
 import { CanvasRenderer } from './CanvasRenderer.ts';
 import { InteractionManager } from './InteractionManager.ts';
 import { KeyboardManager } from './KeyboardManager.ts';
-import { isShape } from '../core/utils/typeGuards.ts';
+import { isShape } from '../utils/typeGuards.ts';
+import { ICanvasElement } from '../interfaces/canvasElement.js';
+import { isPlanningElement } from '../../elements/utils/typeGuards.js';
 
 export class CanvasManager {
   canvas: HTMLCanvasElement;
@@ -91,6 +93,13 @@ export class CanvasManager {
       }
     });
 
+    // TODO: consider refactoring for CanvasManager, it shouldn't know about PlanningElement
+    elements.forEach((element) => {
+      if (isPlanningElement(element)) {
+        element.draw(this.ctx, this.panZoom);
+      }
+    });
+
     elements.forEach((element) => {
       if (!isShape(element)) {
         element.draw(this.ctx, this.panZoom, shapes);
@@ -157,6 +166,7 @@ export class CanvasManager {
 
   onMouseMove(e: MouseEvent): void {
     const { sceneX, sceneY } = this.getSceneCoords(e);
+    this.lastMouseCoords = { x: sceneX, y: sceneY };
 
     const rect = this.canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
@@ -250,6 +260,20 @@ export class CanvasManager {
   public centerCanvas(): void {
     this.panZoom.center(this.canvas);
     this.draw();
+  }
+
+  /**
+   * Add a canvas item to the scene
+   * This works with the new adapter pattern (TaskCanvasAdapter, StoryCanvasAdapter, GoalCanvasAdapter)
+   */
+  public addElement(item: ICanvasElement): void {
+    // Add the canvas item to the scene
+    this.scene.addElement(item);
+    
+    // Trigger redraw
+    this.draw();
+    
+    console.log('Added item to canvas:', item);
   }
 
   public getCanvas(): HTMLCanvasElement {

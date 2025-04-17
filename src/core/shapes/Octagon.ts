@@ -1,5 +1,4 @@
 // core/shapes/Octagon.ts
-import { PanZoomManager } from '../../managers/PanZoomManager.ts';
 import { Shape } from './Shape.ts';
 import {
   drawPolygon,
@@ -22,8 +21,7 @@ export default class Octagon extends Shape {
   }
 
   protected drawShape(
-    ctx: CanvasRenderingContext2D,
-    panZoom: PanZoomManager
+    ctx: CanvasRenderingContext2D
   ): void {
     const innerRadius = this.getInnerRadius();
     drawPolygon(

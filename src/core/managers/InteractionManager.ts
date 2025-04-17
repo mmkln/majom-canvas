@@ -1,9 +1,9 @@
 // managers/InteractionManager.ts
-import { Scene } from '../core/scene/Scene.ts';
-import { IShape, ConnectionPoint } from '../core/interfaces/shape.ts';
-import { IConnection } from '../core/interfaces/connection.ts';
+import { Scene } from '../scene/Scene.ts';
+import { IShape, ConnectionPoint } from '../interfaces/shape.ts';
+import { IConnection } from '../interfaces/connection.ts';
 import { PanZoomManager } from './PanZoomManager.ts';
-import Connection from '../core/shapes/Connection.ts';
+import Connection from '../shapes/Connection.ts';
 
 export class InteractionManager {
   private draggingShape: IShape | null = null;
@@ -189,12 +189,14 @@ export class InteractionManager {
       this.scene.changes.next();
     }
 
-    // Звичайна логіка для перетягування фігур
+    // Handle shape dragging
     if (this.draggingShape) {
       const clickedInitialPos = this.initialPositions.get(
         this.draggingShape.id
       );
       if (!clickedInitialPos) return;
+
+      // Apply proper scaling for drag offsets based on zoom level
       const dx = sceneX - (clickedInitialPos.x + this.dragOffsetX);
       const dy = sceneY - (clickedInitialPos.y + this.dragOffsetY);
 
@@ -202,8 +204,11 @@ export class InteractionManager {
       selected.forEach((shape) => {
         const initPos = this.initialPositions.get(shape.id);
         if (initPos) {
+          // Apply scaled positions based on zoom level
           shape.x = initPos.x + dx;
           shape.y = initPos.y + dy;
+          
+          // Call onDrag handler if available
           if (shape.onDrag) shape.onDrag(shape.x, shape.y);
         }
       });

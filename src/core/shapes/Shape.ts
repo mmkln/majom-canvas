@@ -1,6 +1,6 @@
 // core/shapes/Shape.ts
 import { ConnectionPoint, IShape } from '../interfaces/shape.ts';
-import { PanZoomManager } from '../../managers/PanZoomManager.ts';
+import { PanZoomManager } from '../managers/PanZoomManager.ts';
 import { v4 } from 'uuid';
 
 export abstract class Shape implements IShape {
@@ -40,8 +40,7 @@ export abstract class Shape implements IShape {
   protected abstract getInnerRadius(): number;
 
   protected abstract drawShape(
-    ctx: CanvasRenderingContext2D,
-    panZoom: PanZoomManager
+    ctx: CanvasRenderingContext2D
   ): void;
 
   public getConnectionPoints(): ConnectionPoint[] {
@@ -61,7 +60,7 @@ export abstract class Shape implements IShape {
   }
 
   draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
-    this.drawShape(ctx, panZoom);
+    this.drawShape(ctx);
 
     if (this.selected) {
       ctx.save();

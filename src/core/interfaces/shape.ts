@@ -1,11 +1,9 @@
 // core/interfaces/shape.ts
-import { ICanvasElement } from './canvasElement.ts';
-import { PanZoomManager } from '../../managers/PanZoomManager.ts';
+import { ICanvasElement, IPositioned } from './canvasElement.ts';
+import { PanZoomManager } from '../managers/PanZoomManager.ts';
 
-export interface IShape extends ICanvasElement {
+export interface IShape extends ICanvasElement, IPositioned {
   id: string;
-  x: number;
-  y: number;
   radius: number;
   fillColor: string;
   lineWidth: number;
@@ -22,6 +20,7 @@ export interface IShape extends ICanvasElement {
   onDragEnd?(): void;
 }
 
+// TODO: update InteractionManager and connection points logic, to auto-connect to an element on hover
 export interface ConnectionPoint {
   x: number;
   y: number;

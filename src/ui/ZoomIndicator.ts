@@ -1,5 +1,5 @@
 // ui/ZoomIndicator.ts
-import { CanvasManager } from '../managers/CanvasManager.ts';
+import { CanvasManager } from '../core/managers/CanvasManager.ts';
 
 export class ZoomIndicator {
   private readonly container: HTMLDivElement;
