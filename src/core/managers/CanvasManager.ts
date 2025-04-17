@@ -9,6 +9,7 @@ import { isShape } from '../utils/typeGuards.ts';
 import type { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
 import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
 import type { IConnection } from '../interfaces/connection.ts';
+import { SELECT_COLOR, HOVER_OVERLAY_FILL, HOVER_OUTLINE_COLOR } from '../constants.ts';
 
 export class CanvasManager {
   canvas: HTMLCanvasElement;
@@ -96,6 +97,35 @@ export class CanvasManager {
     // draw planning elements (tasks, stories, goals)
     planningEls.forEach(el => el.draw(this.ctx, this.panZoom));
 
+    // highlight drop target when dragging connection
+    if (this.interactionManager.isCreatingConnection) {
+      const pad = 4 / this.panZoom.scale;
+      connectables.forEach(el => {
+        if ((el as any).isHovered) {
+          this.ctx.save();
+          this.ctx.fillStyle = HOVER_OVERLAY_FILL;
+          this.ctx.strokeStyle = HOVER_OUTLINE_COLOR;
+          this.ctx.lineWidth = 2 / this.panZoom.scale;
+          if ('radius' in el) {
+            this.ctx.beginPath();
+            this.ctx.arc(el.x, el.y, (el as any).radius + pad, 0, 2 * Math.PI);
+          } else {
+            this.ctx.beginPath();
+            this.ctx.roundRect(
+              (el as any).x - pad,
+              (el as any).y - pad,
+              (el as any).width + pad * 2,
+              (el as any).height + pad * 2,
+              6 / this.panZoom.scale
+            );
+          }
+          this.ctx.fill();
+          this.ctx.stroke();
+          this.ctx.restore();
+        }
+      });
+    }
+
     // draw connections between all connectable elements
     (this.scene.getConnections() as IConnection[]).forEach((conn) => {
       (conn as any).draw(this.ctx, this.panZoom, connectables);
@@ -111,6 +141,16 @@ export class CanvasManager {
       this.ctx.lineWidth = 2 / this.panZoom.scale;
       this.ctx.setLineDash([5 / this.panZoom.scale, 5 / this.panZoom.scale]); // Пунктирна лінія
       this.ctx.globalAlpha = 0.5; // Напівпрозора
+      this.ctx.stroke();
+      this.ctx.restore();
+      // draw moving port marker at end
+      this.ctx.save();
+      this.ctx.beginPath();
+      this.ctx.arc(tempLine.endX, tempLine.endY, 8 / this.panZoom.scale, 0, 2 * Math.PI);
+      this.ctx.fillStyle = SELECT_COLOR;
+      this.ctx.fill();
+      this.ctx.strokeStyle = '#000000';
+      this.ctx.lineWidth = 1 / this.panZoom.scale;
       this.ctx.stroke();
       this.ctx.restore();
     }

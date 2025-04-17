@@ -344,4 +344,9 @@ export class InteractionManager {
       }
     }
   }
+
+  // Public getter for connection creation state
+  public get isCreatingConnection(): boolean {
+    return this.creatingConnection;
+  }
 }
