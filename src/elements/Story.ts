@@ -1,24 +1,16 @@
 // core/shapes/Story.ts
-import { ICanvasElement } from '../core/interfaces/canvasElement.ts';
+import { PlanningElement } from './PlanningElement.ts';
 import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { Task } from './Task.ts';
+import { ConnectionPoint } from '../core/interfaces/shape.ts';
 
 /**
  * Story representation on the canvas - a container for tasks
  */
-export class Story implements ICanvasElement {
+export class Story extends PlanningElement {
   static width: number = 320;
   static height: number = 240;
 
-  id: string;
-  x: number;
-  y: number;
-  _width: number = Story.width;
-  _height: number = Story.height;
-  selected: boolean = false;
-
-  title: string;
-  description: string;
   status: 'pending' | 'in-progress' | 'done' = 'pending';
   borderColor: string;
   tasks: Task[] = [];
@@ -49,13 +41,7 @@ export class Story implements ICanvasElement {
     borderColor?: string;
     tasks?: Task[];
   }) {
-    this.id = id;
-    this.x = x;
-    this.y = y;
-    this._width = width;
-    this._height = height;
-    this.title = title;
-    this.description = description;
+    super({ id, x, y, width, height, fillColor: 'rgba(250, 245, 255, 0.6)', lineWidth: 2, title, description });
     this.status = status;
     this.borderColor = borderColor;
     this.tasks = tasks;
@@ -72,8 +58,8 @@ export class Story implements ICanvasElement {
     // Apply pan and zoom transformations
     const x = (this.x - panZoom.scrollX) / panZoom.scale;
     const y = (this.y - panZoom.scrollY) / panZoom.scale;
-    const width = this._width / panZoom.scale;
-    const height = this._height / panZoom.scale;
+    const width = this.width / panZoom.scale;
+    const height = this.height / panZoom.scale;
     
     // Semi-transparent background
     ctx.fillStyle = 'rgba(250, 245, 255, 0.6)'; // Light purple with transparency
@@ -197,12 +183,7 @@ export class Story implements ICanvasElement {
    * Check if coordinates are within this story
    */
   contains(px: number, py: number): boolean {
-    return (
-      px >= this.x &&
-      px <= this.x + this._width &&
-      py >= this.y &&
-      py <= this.y + this._height
-    );
+    return px >= this.x && px <= this.x + this.width && py >= this.y && py <= this.y + this.height;
   }
   
   /**
@@ -211,7 +192,7 @@ export class Story implements ICanvasElement {
   isEditButtonClicked(px: number, py: number): boolean {
     const titleHeight = 32;
     const buttonSize = 22;
-    const buttonX = this.x + this._width - 80;
+    const buttonX = this.x + this.width - 80;
     const buttonY = this.y + 6;
     
     return (
@@ -228,7 +209,7 @@ export class Story implements ICanvasElement {
   isDeleteButtonClicked(px: number, py: number): boolean {
     const titleHeight = 32;
     const buttonSize = 22;
-    const buttonX = this.x + this._width - 50;
+    const buttonX = this.x + this.width - 50;
     const buttonY = this.y + 6;
     
     return (
@@ -245,7 +226,7 @@ export class Story implements ICanvasElement {
   isAddButtonClicked(px: number, py: number): boolean {
     const titleHeight = 32;
     const buttonSize = 22;
-    const buttonX = this.x + this._width - 20;
+    const buttonX = this.x + this.width - 20;
     const buttonY = this.y + 6;
     
     return (
@@ -269,4 +250,12 @@ export class Story implements ICanvasElement {
   removeTask(taskId: string): void {
     // Logic temporarily removed
   }
+  
+  getBoundaryPoint(angle: number): { x: number; y: number } {
+    return { x: this.x + this.width / 2, y: this.y + this.height / 2 };
+  }
+  
+  getConnectionPoints(): ConnectionPoint[] { return []; }
+  
+  clone(): PlanningElement { return this; }
 }

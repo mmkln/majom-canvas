@@ -2,16 +2,20 @@
 import { Scene } from '../scene/Scene.ts';
 import { IShape, ConnectionPoint } from '../interfaces/shape.ts';
 import { IConnection } from '../interfaces/connection.ts';
+import { ICanvasElement, IPositioned } from '../interfaces/canvasElement.ts';
+import { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
 import { PanZoomManager } from './PanZoomManager.ts';
 import Connection from '../shapes/Connection.ts';
+import { isPlanningElement } from '../../elements/utils/typeGuards.js';
 
 export class InteractionManager {
+  private draggingElement: ICanvasElement & IPositioned | null = null;
   private draggingShape: IShape | null = null;
   private dragOffsetX: number = 0;
   private dragOffsetY: number = 0;
   private initialPositions: Map<string, { x: number; y: number }> = new Map();
   private creatingConnection: boolean = false;
-  private connectionStartShape: IShape | null = null;
+  private connectionStartShape: IShape | IPlanningElement | null = null;
   private connectionStartPoint: ConnectionPoint | null = null;
   private tempConnectionLine: {
     startX: number;
@@ -51,17 +55,16 @@ export class InteractionManager {
   private findConnectionPointAt(
     sceneX: number,
     sceneY: number,
-    shapes: IShape[]
-  ): { shape: IShape; point: ConnectionPoint } | null {
-    for (let i = shapes.length - 1; i >= 0; i--) {
-      const shape = shapes[i];
+    elements: (IShape | IPlanningElement)[]
+  ): { shape: IShape | IPlanningElement; point: ConnectionPoint } | null {
+    for (let i = elements.length - 1; i >= 0; i--) {
+      const shape = elements[i];
       const points = shape.getConnectionPoints();
       for (const point of points) {
         const distance = Math.sqrt(
           (sceneX - point.x) ** 2 + (sceneY - point.y) ** 2
         );
         if (distance < 5 / this.panZoom.scale) {
-          // Радіус для наведення
           return { shape, point };
         }
       }
@@ -71,7 +74,9 @@ export class InteractionManager {
 
   handleMouseDown(e: MouseEvent, sceneX: number, sceneY: number): boolean {
     if (e.button !== 0) return false;
-    const shapes = this.scene.getShapes();
+    const rawShapes = this.scene.getShapes();
+    const planningEls = this.scene.getElements().filter(isPlanningElement) as IPlanningElement[];
+    const connectables = [...rawShapes, ...planningEls];
     const connections = this.scene.getConnections();
     let clickedShape: IShape | null = null;
     let clickedConnection: IConnection | null = null;
@@ -79,7 +84,7 @@ export class InteractionManager {
     const connectionPointHit = this.findConnectionPointAt(
       sceneX,
       sceneY,
-      shapes
+      connectables
     );
     if (connectionPointHit) {
       this.creatingConnection = true;
@@ -94,8 +99,8 @@ export class InteractionManager {
       return true;
     }
 
-    for (let i = shapes.length - 1; i >= 0; i--) {
-      const shape = shapes[i];
+    for (let i = rawShapes.length - 1; i >= 0; i--) {
+      const shape = rawShapes[i];
       if (shape.contains(sceneX, sceneY)) {
         clickedShape = shape;
         break;
@@ -124,16 +129,46 @@ export class InteractionManager {
       return true;
     }
 
-    for (const element of connections) {
-        if (element.isNearPoint(sceneX, sceneY, shapes)) {
-          clickedConnection = element;
-          if (e.shiftKey){
-            const currentlySelected = this.scene.getSelectedElements();
-            this.scene.setSelected([...currentlySelected, element]);
-          } else {
-          this.scene.setSelected([element]);}
-          return true;
+    // Drag&drop for planning elements
+    let clickedElement: ICanvasElement & IPositioned | null = null;
+    for (let i = planningEls.length - 1; i >= 0; i--) {
+      const el = planningEls[i] as any;
+      if (el.contains(sceneX, sceneY)) {
+        clickedElement = el;
+        break;
+      }
+    }
+    if (clickedElement) {
+      if (e.shiftKey) {
+        const curr = this.scene.getSelectedElements();
+        if (curr.indexOf(clickedElement) === -1) {
+          this.scene.setSelected([...curr, clickedElement]);
         }
+      } else {
+        this.scene.setSelected([clickedElement]);
+      }
+      const sel = this.scene.getSelectedElements();
+      this.initialPositions.clear();
+      sel.forEach((elem) => {
+        this.initialPositions.set(elem.id, { x: (elem as any).x, y: (elem as any).y });
+      });
+      this.draggingElement = clickedElement;
+      this.dragOffsetX = sceneX - (clickedElement as any).x;
+      this.dragOffsetY = sceneY - (clickedElement as any).y;
+      if ((clickedElement as any).onDragStart) (clickedElement as any).onDragStart();
+      return true;
+    }
+
+    for (const element of connections) {
+      if (element.isNearPoint(sceneX, sceneY, rawShapes)) {
+        clickedConnection = element;
+        if (e.shiftKey){
+          const currentlySelected = this.scene.getSelectedElements();
+          this.scene.setSelected([...currentlySelected, element]);
+        } else {
+        this.scene.setSelected([element]);}
+        return true;
+      }
     }
 
     this.scene.setSelected([]);
@@ -141,12 +176,14 @@ export class InteractionManager {
   }
 
   handleMouseMove(sceneX: number, sceneY: number): void {
-    const shapes = this.scene.getShapes();
+    const rawShapes = this.scene.getShapes();
+    const planningEls = this.scene.getElements().filter(isPlanningElement) as IPlanningElement[];
+    const connectables = [...rawShapes, ...planningEls];
 
     // Оновлюємо стан наведення для фігур
     let newHoveredShape: IShape | null = null;
-    for (let i = shapes.length - 1; i >= 0; i--) {
-      const shape = shapes[i];
+    for (let i = rawShapes.length - 1; i >= 0; i--) {
+      const shape = rawShapes[i];
       shape.isHovered = false; // Скидаємо наведення для всіх фігур
       if (shape.contains(sceneX, sceneY)) {
         newHoveredShape = shape;
@@ -159,14 +196,14 @@ export class InteractionManager {
     this.hoveredShape = newHoveredShape;
 
     // Оновлюємо стан наведення для точок з’єднання
-    shapes.forEach((shape) => {
+    connectables.forEach((shape) => {
       const points: ConnectionPoint[] = shape.getConnectionPoints();
       points.forEach((point) => (point.isHovered = false));
     });
     const connectionPointHit = this.findConnectionPointAt(
       sceneX,
       sceneY,
-      shapes
+      connectables
     );
     if (connectionPointHit) {
       connectionPointHit.point.isHovered = true;
@@ -187,6 +224,24 @@ export class InteractionManager {
         this.tempConnectionLine.endY = sceneY;
       }
       this.scene.changes.next();
+    }
+
+    // Handle drag of planning elements
+    if (this.draggingElement) {
+      const init = this.initialPositions.get(this.draggingElement.id);
+      if (init) {
+        const dx = sceneX - (init.x + this.dragOffsetX);
+        const dy = sceneY - (init.y + this.dragOffsetY);
+        this.scene.getSelectedElements().forEach((elem) => {
+          if (this.initialPositions.has(elem.id)) {
+            (elem as any).x = this.initialPositions.get(elem.id)!.x + dx;
+            (elem as any).y = this.initialPositions.get(elem.id)!.y + dy;
+            if ((elem as any).onDrag) (elem as any).onDrag((elem as any).x, (elem as any).y);
+          }
+        });
+        this.scene.changes.next();
+      }
+      return;
     }
 
     // Handle shape dragging
@@ -219,11 +274,13 @@ export class InteractionManager {
   handleMouseUp(): void {
     // Завершуємо створення зв’язку
     if (this.creatingConnection) {
-      const shapes = this.scene.getShapes();
+      const rawShapes = this.scene.getShapes();
+      const planningEls = this.scene.getElements().filter(isPlanningElement) as IPlanningElement[];
+      const connectables = [...rawShapes, ...planningEls];
       const connectionPointHit = this.findConnectionPointAt(
         this.tempConnectionLine?.endX || 0,
         this.tempConnectionLine?.endY || 0,
-        shapes
+        connectables
       );
       if (
         connectionPointHit &&
@@ -246,6 +303,12 @@ export class InteractionManager {
       this.scene.changes.next();
     }
 
+    // End planning element drag
+    if (this.draggingElement && (this.draggingElement as any).onDragEnd) {
+      (this.draggingElement as any).onDragEnd();
+    }
+    this.draggingElement = null;
+
     // Звичайна логіка для завершення перетягування фігур
     if (this.draggingShape && this.draggingShape.onDragEnd) {
       this.draggingShape.onDragEnd();
@@ -256,9 +319,9 @@ export class InteractionManager {
   }
 
   handleDoubleClick(sceneX: number, sceneY: number): void {
-    const shapes = this.scene.getShapes();
-    for (let i = shapes.length - 1; i >= 0; i--) {
-      const shape = shapes[i];
+    const rawShapes = this.scene.getShapes();
+    for (let i = rawShapes.length - 1; i >= 0; i--) {
+      const shape = rawShapes[i];
       if (shape.contains(sceneX, sceneY) && shape.onDoubleClick) {
         shape.onDoubleClick();
         break;
@@ -268,9 +331,9 @@ export class InteractionManager {
 
   handleRightClick(e: MouseEvent, sceneX: number, sceneY: number): void {
     e.preventDefault();
-    const shapes = this.scene.getShapes();
-    for (let i = shapes.length - 1; i >= 0; i--) {
-      const shape = shapes[i];
+    const rawShapes = this.scene.getShapes();
+    for (let i = rawShapes.length - 1; i >= 0; i--) {
+      const shape = rawShapes[i];
       if (shape.contains(sceneX, sceneY) && shape.onRightClick) {
         shape.onRightClick();
         break;

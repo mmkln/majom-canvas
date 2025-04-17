@@ -1,15 +1,12 @@
 // src/elements/Task.ts
-import { ICanvasElement } from '../core/interfaces/canvasElement.ts';
+import { PlanningElement } from './PlanningElement.ts';
 import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
+import { ConnectionPoint } from '../core/interfaces/shape.ts';
 
 /**
  * Task representation on the canvas
  */
-export class Task implements ICanvasElement {
-  id: string;
-  x: number;
-  y: number;
-  selected: boolean = false;
+export class Task extends PlanningElement {
   title: string;
   status: 'pending' | 'in-progress' | 'done' = 'pending';
 
@@ -21,17 +18,17 @@ export class Task implements ICanvasElement {
     x = 0,
     y = 0,
     title = 'New Task',
+    description = '',
     status = 'pending'
   }: {
     id?: string;
     x?: number;
     y?: number;
     title?: string;
+    description?: string;
     status?: 'pending' | 'in-progress' | 'done';
   }) {
-    this.id = id;
-    this.x = x;
-    this.y = y;
+    super({ id, x, y, width: Task.width, height: Task.height, fillColor: '#ffffff', lineWidth: 1, title, description });
     this.title = title;
     this.status = status;
   }
@@ -108,4 +105,24 @@ export class Task implements ICanvasElement {
   onDragStart?(): void {}
   onDrag?(x: number, y: number): void { this.x = x; this.y = y; }
   onDragEnd?(): void {}
+
+  getBoundaryPoint(angle: number): { x: number; y: number } {
+    const cx = this.x + Task.width / 2;
+    const cy = this.y + Task.height / 2;
+    return { x: cx + Math.cos(angle) * (Task.width / 2), y: cy + Math.sin(angle) * (Task.height / 2) };
+  }
+
+  getConnectionPoints(): ConnectionPoint[] {
+    const w = Task.width, h = Task.height;
+    return [
+      { x: this.x + w/2, y: this.y, angle: -Math.PI/2, isHovered: false, direction: 'top' },
+      { x: this.x + w,   y: this.y + h/2, angle: 0,           isHovered: false, direction: 'right' },
+      { x: this.x + w/2, y: this.y + h,   angle: Math.PI/2,    isHovered: false, direction: 'bottom' },
+      { x: this.x,       y: this.y + h/2, angle: Math.PI,      isHovered: false, direction: 'left' }
+    ];
+  }
+
+  clone(): PlanningElement {
+    return new Task({ id: this.id, x: this.x, y: this.y, title: this.title, status: this.status });
+  }
 }

@@ -1,44 +1,54 @@
 // core/shapes/PlanningElement.ts
-import { IPlanningElement } from './interfaces/planningElement.ts';
+import { CanvasElement } from '../core/elements/CanvasElement.ts';
 import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
+import { IPlanningElement } from './interfaces/planningElement.ts';
 
-export abstract class PlanningElement implements IPlanningElement {
-  static width: number;
-  static height: number;
-
-  id: string;
-  x: number;
-  y: number;
+export abstract class PlanningElement extends CanvasElement implements IPlanningElement {
+  width: number;
+  height: number;
   fillColor: string;
   lineWidth: number;
-  isHovered: boolean = false;
-  selected: boolean = false;
+  title: string;
+  description: string;
+  dueDate?: Date;
+  tags?: string[];
 
   constructor({
     id,
-    x,
-    y,
+    x = 0,
+    y = 0,
     width,
     height,
     fillColor = '#e6f7ff',
-    lineWidth = 2
+    lineWidth = 2,
+    title = '',
+    description = '',
+    dueDate,
+    tags
   }: {
-    id: string;
-    x: number;
-    y: number;
+    id?: string;
+    x?: number;
+    y?: number;
     width: number;
     height: number;
     fillColor?: string;
     lineWidth?: number;
+    title?: string;
+    description?: string;
+    dueDate?: Date;
+    tags?: string[];
   }) {
-    this.id = id;
-    this.x = x;
-    this.y = y;
+    super(x, y);
+    if (id) this.id = id;
     this.width = width;
     this.height = height;
     this.fillColor = fillColor;
     this.lineWidth = lineWidth;
+    this.title = title;
+    this.description = description;
+    this.dueDate = dueDate;
+    this.tags = tags;
   }
 
   // Abstract methods that subclasses must implement
@@ -47,11 +57,4 @@ export abstract class PlanningElement implements IPlanningElement {
   abstract getBoundaryPoint(angle: number): { x: number; y: number };
   abstract getConnectionPoints(): ConnectionPoint[];
   abstract clone(): IPlanningElement;
-
-  // Optional event handlers can be empty by default
-  onDoubleClick?(): void {}
-  onRightClick?(): void {}
-  onDragStart?(): void {}
-  onDrag?(x: number, y: number): void {}
-  onDragEnd?(): void {}
 }
