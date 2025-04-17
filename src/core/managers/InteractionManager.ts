@@ -3,10 +3,10 @@ import { Scene } from '../scene/Scene.ts';
 import { IShape, ConnectionPoint } from '../interfaces/shape.ts';
 import { IConnection } from '../interfaces/connection.ts';
 import { ICanvasElement, IPositioned } from '../interfaces/canvasElement.ts';
-import { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
+import type { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
+import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
 import { PanZoomManager } from './PanZoomManager.ts';
 import Connection from '../shapes/Connection.ts';
-import { isPlanningElement } from '../../elements/utils/typeGuards.js';
 
 export class InteractionManager {
   private draggingElement: ICanvasElement & IPositioned | null = null;
@@ -23,7 +23,6 @@ export class InteractionManager {
     endX: number;
     endY: number;
   } | null = null;
-  private hoveredShape: IShape | null = null;
   private hoveredConnectionPoint: ConnectionPoint | null = null;
 
   constructor(
@@ -180,20 +179,19 @@ export class InteractionManager {
     const planningEls = this.scene.getElements().filter(isPlanningElement) as IPlanningElement[];
     const connectables = [...rawShapes, ...planningEls];
 
-    // Оновлюємо стан наведення для фігур
-    let newHoveredShape: IShape | null = null;
-    for (let i = rawShapes.length - 1; i >= 0; i--) {
-      const shape = rawShapes[i];
-      shape.isHovered = false; // Скидаємо наведення для всіх фігур
-      if (shape.contains(sceneX, sceneY)) {
-        newHoveredShape = shape;
+    // Unified hover state for all connectables (shapes + planning elements)
+    let newHovered: IShape | IPlanningElement | null = null;
+    connectables.forEach((el) => (el as any).isHovered = false);
+    for (let i = connectables.length - 1; i >= 0; i--) {
+      const el = connectables[i];
+      if ((el as any).contains(sceneX, sceneY)) {
+        newHovered = el;
         break;
       }
     }
-    if (newHoveredShape) {
-      newHoveredShape.isHovered = true;
+    if (newHovered) {
+      (newHovered as any).isHovered = true;
     }
-    this.hoveredShape = newHoveredShape;
 
     // Оновлюємо стан наведення для точок з’єднання
     connectables.forEach((shape) => {

@@ -6,8 +6,9 @@ import { CanvasRenderer } from './CanvasRenderer.ts';
 import { InteractionManager } from './InteractionManager.ts';
 import { KeyboardManager } from './KeyboardManager.ts';
 import { isShape } from '../utils/typeGuards.ts';
-import { ICanvasElement } from '../interfaces/canvasElement.js';
-import { isPlanningElement } from '../../elements/utils/typeGuards.js';
+import type { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
+import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
+import type { IConnection } from '../interfaces/connection.ts';
 
 export class CanvasManager {
   canvas: HTMLCanvasElement;
@@ -86,24 +87,18 @@ export class CanvasManager {
 
     const elements = this.scene.getElements();
     const shapes = this.scene.getShapes();
+    const planningEls = elements.filter(isPlanningElement) as IPlanningElement[];
+    const connectables = [...shapes, ...planningEls];
 
-    elements.forEach((element) => {
-      if (isShape(element)) {
-        element.draw(this.ctx, this.panZoom);
-      }
-    });
+    // draw shapes
+    shapes.forEach(shape => shape.draw(this.ctx, this.panZoom));
 
-    // TODO: consider refactoring for CanvasManager, it shouldn't know about PlanningElement
-    elements.forEach((element) => {
-      if (isPlanningElement(element)) {
-        element.draw(this.ctx, this.panZoom);
-      }
-    });
+    // draw planning elements (tasks, stories, goals)
+    planningEls.forEach(el => el.draw(this.ctx, this.panZoom));
 
-    elements.forEach((element) => {
-      if (!isShape(element)) {
-        element.draw(this.ctx, this.panZoom, shapes);
-      }
+    // draw connections between all connectable elements
+    (this.scene.getConnections() as IConnection[]).forEach((conn) => {
+      (conn as any).draw(this.ctx, this.panZoom, connectables);
     });
 
     const tempLine = this.interactionManager.getTempConnectionLine();
@@ -266,7 +261,7 @@ export class CanvasManager {
    * Add a canvas item to the scene
    * This works with the new adapter pattern (TaskCanvasAdapter, StoryCanvasAdapter, GoalCanvasAdapter)
    */
-  public addElement(item: ICanvasElement): void {
+  public addElement(item: any): void {
     // Add the canvas item to the scene
     this.scene.addElement(item);
     

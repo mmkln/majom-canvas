@@ -59,6 +59,21 @@ export class Task extends PlanningElement {
     this.drawButton(ctx, panZoom, x + w - 32, y + 10, '✏️');
     // Delete button
     this.drawButton(ctx, panZoom, x + w - 16, y + 10, '🗑️');
+    // Draw connection anchors when selected or hovered
+    if (this.selected || this.isHovered) {
+      const points = this.getConnectionPoints();
+      for (const point of points) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 4 / panZoom.scale, 0, 2 * Math.PI);
+        ctx.fillStyle = point.isHovered ? '#00ff00' : '#ffffff';
+        ctx.fill();
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 1 / panZoom.scale;
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
   }
 
   contains(px: number, py: number): boolean {
