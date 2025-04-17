@@ -63,7 +63,7 @@ export class InteractionManager {
         const distance = Math.sqrt(
           (sceneX - point.x) ** 2 + (sceneY - point.y) ** 2
         );
-        if (distance < 5 / this.panZoom.scale) {
+        if (distance < 8 / this.panZoom.scale) {
           return { shape, point };
         }
       }
@@ -194,18 +194,17 @@ export class InteractionManager {
     }
 
     // Оновлюємо стан наведення для точок з’єднання
-    connectables.forEach((shape) => {
-      const points: ConnectionPoint[] = shape.getConnectionPoints();
-      points.forEach((point) => (point.isHovered = false));
-    });
+    // Clear previous hoveredPort property
+    connectables.forEach((shape) => delete (shape as any).hoveredPort);
     const connectionPointHit = this.findConnectionPointAt(
       sceneX,
       sceneY,
       connectables
     );
     if (connectionPointHit) {
-      connectionPointHit.point.isHovered = true;
       this.hoveredConnectionPoint = connectionPointHit.point;
+      // Store hovered port on shape for drawing
+      (connectionPointHit.shape as any).hoveredPort = connectionPointHit.point;
     } else {
       this.hoveredConnectionPoint = null;
     }
@@ -275,20 +274,27 @@ export class InteractionManager {
       const rawShapes = this.scene.getShapes();
       const planningEls = this.scene.getElements().filter(isPlanningElement) as IPlanningElement[];
       const connectables = [...rawShapes, ...planningEls];
-      const connectionPointHit = this.findConnectionPointAt(
-        this.tempConnectionLine?.endX || 0,
-        this.tempConnectionLine?.endY || 0,
-        connectables
-      );
-      if (
-        connectionPointHit &&
-        connectionPointHit.shape !== this.connectionStartShape &&
-        this.connectionStartShape
-      ) {
-        // Створюємо зв’язок, якщо відпустили мишу над точкою з’єднання іншої фігури
+      const endX = this.tempConnectionLine?.endX || 0;
+      const endY = this.tempConnectionLine?.endY || 0;
+      let dropHit = this.findConnectionPointAt(endX, endY, connectables);
+      let targetShape = dropHit?.shape || null;
+      if (!targetShape) {
+        for (let i = connectables.length - 1; i >= 0; i--) {
+          const el = connectables[i];
+          if (
+            el !== this.connectionStartShape &&
+            el.contains(endX, endY)
+          ) {
+            targetShape = el;
+            break;
+          }
+        }
+      }
+      if (targetShape && this.connectionStartShape) {
+        // Create connection between source and target
         const connection = new Connection(
           this.connectionStartShape.id,
-          connectionPointHit.shape.id
+          targetShape.id
         );
         this.scene.addElement(connection);
       }

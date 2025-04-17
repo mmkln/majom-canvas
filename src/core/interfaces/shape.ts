@@ -1,8 +1,9 @@
 // core/interfaces/shape.ts
 import { ICanvasElement, IPositioned } from './canvasElement.ts';
 import { PanZoomManager } from '../managers/PanZoomManager.ts';
+import type { IConnectable } from './connectable.ts';
 
-export interface IShape extends ICanvasElement, IPositioned {
+export interface IShape extends ICanvasElement, IPositioned, IConnectable {
   id: string;
   radius: number;
   fillColor: string;

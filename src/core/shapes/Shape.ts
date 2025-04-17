@@ -1,9 +1,11 @@
 // core/shapes/Shape.ts
 import { ConnectionPoint, IShape } from '../interfaces/shape.ts';
+import type { IConnectable } from '../interfaces/connectable.ts';
 import { PanZoomManager } from '../managers/PanZoomManager.ts';
 import { v4 } from 'uuid';
+import { SELECT_COLOR } from '../constants.ts';
 
-export abstract class Shape implements IShape {
+export abstract class Shape implements IShape, IConnectable {
   public id: string;
   public x: number;
   public y: number;
@@ -64,7 +66,7 @@ export abstract class Shape implements IShape {
 
     if (this.selected) {
       ctx.save();
-      ctx.strokeStyle = '#1a32cb';
+      ctx.strokeStyle = SELECT_COLOR;
       ctx.lineWidth = 1;
       const padding = 1;
       ctx.strokeRect(
@@ -76,19 +78,27 @@ export abstract class Shape implements IShape {
       ctx.restore();
     }
 
-    if (this.selected || this.isHovered) {
-      const connectionPoints = this.getConnectionPoints();
-      connectionPoints.forEach((point) => {
+    // Draw ports: when selected/hovered shape or individual port hovered
+    const connectionPoints = this.getConnectionPoints();
+    const hoveredPort: ConnectionPoint | undefined = (this as any).hoveredPort;
+    if (this.selected || this.isHovered || hoveredPort) {
+      for (const point of connectionPoints) {
+        const isPortHovered = hoveredPort
+          ? point.x === hoveredPort.x && point.y === hoveredPort.y
+          : false;
+        // Only draw port if shape hovered/selected or this specific port hovered
+        if (!(this.selected || this.isHovered) && !isPortHovered) continue;
+        const radius = (isPortHovered ? 8 : 4) / panZoom.scale;
         ctx.save();
         ctx.beginPath();
-        ctx.arc(point.x, point.y, 4 / panZoom.scale, 0, 2 * Math.PI); // Радіус точки 4 пікселя
-        ctx.fillStyle = point.isHovered ? '#00ff00' : '#ffffff';
+        ctx.arc(point.x, point.y, radius, 0, 2 * Math.PI);
+        ctx.fillStyle = isPortHovered ? SELECT_COLOR : '#ffffff';
         ctx.fill();
         ctx.strokeStyle = '#000000';
         ctx.lineWidth = 1 / panZoom.scale;
         ctx.stroke();
         ctx.restore();
-      });
+      }
     }
   }
 
@@ -98,5 +108,66 @@ export abstract class Shape implements IShape {
 
   onDoubleClick?(): void {
     console.log(`Double clicked on shape ${this.id}`);
+  }
+
+  /** IConnectable: nearest anchor point to coords */
+  public getNearestPoint(px: number, py: number): { x: number; y: number } {
+    const points = this.getConnectionPoints();
+    let nearest = points[0];
+    let minDist = Infinity;
+    for (const p of points) {
+      const d = (p.x - px) ** 2 + (p.y - py) ** 2;
+      if (d < minDist) {
+        minDist = d;
+        nearest = p;
+      }
+    }
+    return { x: nearest.x, y: nearest.y };
+  }
+
+  /** IConnectable: draw anchor dots */
+  public drawAnchors(
+    ctx: CanvasRenderingContext2D,
+    panZoom: PanZoomManager
+  ): void {
+    // Draw anchors using hoveredPort info
+    const pts = this.getConnectionPoints();
+    const hoveredPort: ConnectionPoint | undefined = (this as any).hoveredPort;
+    if (this.selected || this.isHovered || hoveredPort) {
+      for (const pt of pts) {
+        const isPortHovered = hoveredPort
+          ? pt.x === hoveredPort.x && pt.y === hoveredPort.y
+          : false;
+        if (!(this.selected || this.isHovered) && !isPortHovered) continue;
+        const radius = (isPortHovered ? 8 : 4) / panZoom.scale;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, radius, 0, 2 * Math.PI);
+        ctx.fillStyle = isPortHovered ? SELECT_COLOR : '#ffffff';
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 1 / panZoom.scale;
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+  }
+
+  /** IConnectable: straight connection line */
+  public drawConnectionLine(
+    ctx: CanvasRenderingContext2D,
+    panZoom: PanZoomManager,
+    target: IConnectable
+  ): void {
+    const start = this.getNearestPoint(target.x, target.y);
+    const end = target.getNearestPoint(this.x, this.y);
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.strokeStyle = '#888';
+    ctx.lineWidth = 1 / panZoom.scale;
+    ctx.stroke();
+    ctx.restore();
   }
 }

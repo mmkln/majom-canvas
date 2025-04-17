@@ -2,6 +2,7 @@
 import { PlanningElement } from './PlanningElement.ts';
 import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
+import { SELECT_COLOR } from '../core/constants.ts';
 
 /**
  * Task representation on the canvas
@@ -40,7 +41,7 @@ export class Task extends PlanningElement {
     const h = Task.height;
     // Background
     ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = this.selected ? '#1890ff' : '#d9d9d9';
+    ctx.strokeStyle = this.selected ? SELECT_COLOR : '#d9d9d9';
     ctx.lineWidth = this.selected ? 2 : 1;
     ctx.beginPath();
     ctx.roundRect(x, y, w, h, 8);
@@ -59,14 +60,21 @@ export class Task extends PlanningElement {
     this.drawButton(ctx, panZoom, x + w - 32, y + 10, '✏️');
     // Delete button
     this.drawButton(ctx, panZoom, x + w - 16, y + 10, '🗑️');
-    // Draw connection anchors when selected or hovered
-    if (this.selected || this.isHovered) {
-      const points = this.getConnectionPoints();
+    // Draw connection anchors: show only when shape hovered/selected or specific port hovered
+    const points = this.getConnectionPoints();
+    const hoveredPort: ConnectionPoint | undefined = (this as any).hoveredPort;
+    if (this.selected || this.isHovered || hoveredPort) {
       for (const point of points) {
+        const isPortHovered = hoveredPort
+          ? point.x === hoveredPort.x && point.y === hoveredPort.y
+          : false;
+        // skip other ports when not selecting whole shape
+        if (!(this.selected || this.isHovered) && !isPortHovered) continue;
+        const radius = (isPortHovered ? 8 : 4) / panZoom.scale;
         ctx.save();
         ctx.beginPath();
-        ctx.arc(point.x, point.y, 4 / panZoom.scale, 0, 2 * Math.PI);
-        ctx.fillStyle = point.isHovered ? '#00ff00' : '#ffffff';
+        ctx.arc(point.x, point.y, radius, 0, 2 * Math.PI);
+        ctx.fillStyle = isPortHovered ? SELECT_COLOR : '#ffffff';
         ctx.fill();
         ctx.strokeStyle = '#000000';
         ctx.lineWidth = 1 / panZoom.scale;
