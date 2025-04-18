@@ -448,6 +448,15 @@ export class InteractionManager {
         break;
       }
     }
+    // Check planning elements (Stories/Tasks) for double-click
+    const planningEls = this.scene.getElements().filter(isPlanningElement);
+    for (let i = planningEls.length - 1; i >= 0; i--) {
+      const el = planningEls[i] as any;
+      if (el.contains(sceneX, sceneY) && el.onDoubleClick) {
+        el.onDoubleClick();
+        break;
+      }
+    }
   }
 
   handleRightClick(e: MouseEvent, sceneX: number, sceneY: number): void {

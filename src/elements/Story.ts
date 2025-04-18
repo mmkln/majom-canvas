@@ -249,5 +249,15 @@ export class Story extends PlanningElement {
     return null;
   }
 
+  /**
+   * Prompt to edit story title
+   */
+  public onDoubleClick(): void {
+    const newTitle = window.prompt('Edit Story Title:', this.title);
+    if (newTitle !== null) {
+      this.title = newTitle;
+    }
+  }
+
   clone(): PlanningElement { return this; }
 }

@@ -125,7 +125,6 @@ export class Task extends PlanningElement {
     }
   }
 
-  onDoubleClick?(): void {}
   onRightClick?(): void {}
   onDragStart?(): void {}
   onDrag?(x: number, y: number): void { this.x = x; this.y = y; }
@@ -149,5 +148,15 @@ export class Task extends PlanningElement {
 
   clone(): PlanningElement {
     return new Task({ id: this.id, x: this.x, y: this.y, title: this.title, status: this.status });
+  }
+
+  /**
+   * Prompt to edit task title
+   */
+  public onDoubleClick(): void {
+    const newTitle = window.prompt('Edit Task Title:', this.title);
+    if (newTitle !== null) {
+      this.title = newTitle;
+    }
   }
 }
