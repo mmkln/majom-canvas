@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 
 
 export default defineConfig({
+  base: '/majom-canvas/',
   // Specify the project root (where index.html is located)
   root: 'src',
   build: {
