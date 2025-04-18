@@ -1,11 +1,11 @@
 import { ConnectionPoint } from './shape.ts';
 import { PanZoomManager } from '../managers/PanZoomManager.ts';
-import type { IPositioned } from './canvasElement.ts';
+import type { IPositioned, ICanvasElement } from './canvasElement.ts';
 
 /**
  * Unified interface for connectable canvas elements (shapes, tasks, stories, etc.)
  */
-export interface IConnectable extends IPositioned {
+export interface IConnectable extends IPositioned, ICanvasElement {
   /**
    * All potential anchor points for a connection on this element.
    */

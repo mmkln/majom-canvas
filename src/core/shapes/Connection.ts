@@ -1,5 +1,6 @@
 // core/shapes/Connection.ts
-import { IShape, ConnectionPoint } from '../interfaces/shape.ts';
+import { ConnectionPoint } from '../interfaces/shape.ts';
+import type { IConnectable } from '../interfaces/connectable.ts';
 import { ConnectionLineType, IConnection } from '../interfaces/connection.ts';
 import { PanZoomManager } from '../managers/PanZoomManager.ts';
 import { v4 } from 'uuid';
@@ -22,8 +23,8 @@ export default class Connection implements IConnection {
   }
 
   private getClosestConnectionPoints(
-    from: IShape,
-    to: IShape
+    from: IConnectable,
+    to: IConnectable
   ): { start: ConnectionPoint; end: ConnectionPoint } {
     const fromPoints = from.getConnectionPoints();
     const toPoints = to.getConnectionPoints();
@@ -49,14 +50,16 @@ export default class Connection implements IConnection {
   }
 
   private setStrokeProperties(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
+    // Ensure solid line for permanent connections
+    ctx.setLineDash([]);
     ctx.strokeStyle = this.selected ? '#008dff' : '#000';
     ctx.lineWidth = 2 / panZoom.scale;
   }
 
   private drawLine(
     ctx: CanvasRenderingContext2D,
-    from: IShape,
-    to: IShape,
+    from: IConnectable,
+    to: IConnectable,
     panZoom: PanZoomManager
   ): void {
     const { start, end } = this.getClosestConnectionPoints(from, to);
@@ -102,8 +105,8 @@ export default class Connection implements IConnection {
 
   private drawArrowHead(
     ctx: CanvasRenderingContext2D,
-    from: IShape,
-    to: IShape,
+    from: IConnectable,
+    to: IConnectable,
     panZoom: PanZoomManager
   ): void {
     const { end } = this.getClosestConnectionPoints(from, to);
@@ -127,7 +130,7 @@ export default class Connection implements IConnection {
   draw(
     ctx: CanvasRenderingContext2D,
     panZoom: PanZoomManager,
-    elements: IShape[] = []
+    elements: IConnectable[] = []
   ): void {
     const from = elements.find((el) => el.id === this.fromId);
     const to = elements.find((el) => el.id === this.toId);
@@ -157,7 +160,7 @@ export default class Connection implements IConnection {
     return Math.sqrt((px - projX) ** 2 + (py - projY) ** 2);
   }
 
-  public isNearPoint(px: number, py: number, elements: IShape[], tolerance: number = 5): boolean {
+  public isNearPoint(px: number, py: number, elements: IConnectable[], tolerance: number = 5): boolean {
     const from = elements.find((el) => el.id === this.fromId);
     const to = elements.find((el) => el.id === this.toId);
     if (!from || !to) {

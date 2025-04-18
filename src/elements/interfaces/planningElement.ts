@@ -3,14 +3,15 @@
  * with dimensions, styling, and richer metadata. Subclasses will implement drawing, hit-testing,
  * boundary computation, and connection points.
  */
-import { ICanvasElement } from '../../core/interfaces/canvasElement.ts';
+import type { ICanvasElement } from '../../core/interfaces/canvasElement.ts';
+import type { IConnectable } from '../../core/interfaces/connectable.ts';
 import { PanZoomManager } from '../../core/managers/PanZoomManager.ts';
 import { ConnectionPoint } from '../../core/interfaces/shape.ts';
 
 /**
  * A richer canvas element representing planning constructs (Task, Story, Goal).
  */
-export interface IPlanningElement extends ICanvasElement {
+export interface IPlanningElement extends ICanvasElement, IConnectable {
   /** width in pixels under current zoom */
   width: number;
   /** height in pixels under current zoom */

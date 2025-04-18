@@ -44,15 +44,19 @@ Majom Canvas is an interactive tool for visualizing and managing tasks, stories,
 - **Stories:**
   - Group related tasks into a single container.
   - Visualization:
-    - **Format:** Transparent container with a border, encompassing tasks.
-    - **Title:** Text at the top of the container (e.g., "User Authentication Flow").
-    - **Border color:** Customizable for different stories.
-    - **Placement:** Can be placed anywhere on the canvas.
-  - **Interactivity:**
-    - Drag the entire container with its tasks.
-    - Resize the container to fit more tasks.
-    - Edit title and color via modal window.
-    - Context menu with options: "Edit", "Delete", "Add task to story".
+    - Transparent fill with a dashed border.
+    - Title displayed at the top of the container.
+    - Border color reflects the story’s status (pending, in-progress, done).
+    - Freely draggable and resizable on the canvas.
+  - Interaction:
+    - Drag to move the story along with all its tasks.
+    - Drag tasks into the container to add them, or out to remove them.
+    - Click to select (Shift+click for multi-selection).
+    - Press Backspace to delete the selected story.
+    - Edit title and border color via a modal or context menu.
+    - Context menu options: Edit, Delete, Add Task to Story.
+  - Connections:
+    - Stories and tasks can be connected (excluding tasks already contained in the story).
 
 - **Goals:**
   - Represent larger project goals to which tasks can be linked.

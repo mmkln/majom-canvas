@@ -62,7 +62,7 @@ export class CanvasToolbar {
     const createStoryBtn = ComponentFactory.createButton({
       text: 'Story',
       variant: 'secondary',
-      onClick: () => alert('Додавання Story тимчасово вимкнено'),
+      onClick: () => this.createStory(),
       tooltip: 'Create a new story on canvas'
     }).createElement();
     
@@ -121,8 +121,15 @@ export class CanvasToolbar {
    * Create a new story on the canvas
    */
   private createStory(): void {
-    // Disabled logic
-    // alert('Додавання Story тимчасово вимкнено');
+    // Create a new story at center of view
+    const centerX = this.canvasManager.canvas.width / 2;
+    const centerY = this.canvasManager.canvas.height / 2;
+    const panZoom = this.canvasManager.getPanZoomManager();
+    const sceneX = centerX * panZoom.scale + panZoom.scrollX - Story.width / 2;
+    const sceneY = centerY * panZoom.scale + panZoom.scrollY - Story.height / 2;
+    const story = new Story({ x: sceneX, y: sceneY });
+    this.scene.addElement(story);
+    this.canvasManager.draw();
   }
   
   /**

@@ -35,6 +35,8 @@ export class Task extends PlanningElement {
   }
 
   draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
+    // Ensure solid border for Task
+    ctx.setLineDash([]);
     const x = this.x;
     const y = this.y;
     const w = Task.width;

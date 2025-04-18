@@ -1,12 +1,15 @@
 // managers/InteractionManager.ts
 import { Scene } from '../scene/Scene.ts';
 import { IShape, ConnectionPoint } from '../interfaces/shape.ts';
+import type { IConnectable } from '../interfaces/connectable.ts';
 import { IConnection } from '../interfaces/connection.ts';
 import { ICanvasElement, IPositioned } from '../interfaces/canvasElement.ts';
 import type { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
 import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
 import { PanZoomManager } from './PanZoomManager.ts';
 import Connection from '../shapes/Connection.ts';
+import { Task } from '../../elements/Task.ts';
+import { Story } from '../../elements/Story.ts';
 
 export class InteractionManager {
   private draggingElement: ICanvasElement & IPositioned | null = null;
@@ -15,7 +18,7 @@ export class InteractionManager {
   private dragOffsetY: number = 0;
   private initialPositions: Map<string, { x: number; y: number }> = new Map();
   private creatingConnection: boolean = false;
-  private connectionStartShape: IShape | IPlanningElement | null = null;
+  private connectionStartShape: IConnectable | null = null;
   private connectionStartPoint: ConnectionPoint | null = null;
   private tempConnectionLine: {
     startX: number;
@@ -54,8 +57,8 @@ export class InteractionManager {
   private findConnectionPointAt(
     sceneX: number,
     sceneY: number,
-    elements: (IShape | IPlanningElement)[]
-  ): { shape: IShape | IPlanningElement; point: ConnectionPoint } | null {
+    elements: IConnectable[]
+  ): { shape: IConnectable; point: ConnectionPoint } | null {
     for (let i = elements.length - 1; i >= 0; i--) {
       const shape = elements[i];
       const points = shape.getConnectionPoints();
@@ -75,7 +78,7 @@ export class InteractionManager {
     if (e.button !== 0) return false;
     const rawShapes = this.scene.getShapes();
     const planningEls = this.scene.getElements().filter(isPlanningElement) as IPlanningElement[];
-    const connectables = [...rawShapes, ...planningEls];
+    const connectables: IConnectable[] = [...rawShapes, ...planningEls];
     const connections = this.scene.getConnections();
     let clickedShape: IShape | null = null;
     let clickedConnection: IConnection | null = null;
@@ -159,7 +162,7 @@ export class InteractionManager {
     }
 
     for (const element of connections) {
-      if (element.isNearPoint(sceneX, sceneY, rawShapes)) {
+      if (element.isNearPoint(sceneX, sceneY, connectables)) {
         clickedConnection = element;
         if (e.shiftKey){
           const currentlySelected = this.scene.getSelectedElements();
@@ -177,10 +180,10 @@ export class InteractionManager {
   handleMouseMove(sceneX: number, sceneY: number): void {
     const rawShapes = this.scene.getShapes();
     const planningEls = this.scene.getElements().filter(isPlanningElement) as IPlanningElement[];
-    const connectables = [...rawShapes, ...planningEls];
+    const connectables: IConnectable[] = [...rawShapes, ...planningEls];
 
     // Unified hover state for all connectables (shapes + planning elements)
-    let newHovered: IShape | IPlanningElement | null = null;
+    let newHovered: IConnectable | null = null;
     connectables.forEach((el) => (el as any).isHovered = false);
     for (let i = connectables.length - 1; i >= 0; i--) {
       const el = connectables[i];
@@ -225,6 +228,13 @@ export class InteractionManager {
 
     // Handle drag of planning elements
     if (this.draggingElement) {
+      // Highlight Story containers when dragging a Task
+      if (this.draggingElement instanceof Task) {
+        const stories = this.scene.getElements()
+          .filter(isPlanningElement)
+          .filter((el): el is Story => el instanceof Story);
+        stories.forEach(story => (story as any).isHovered = story.contains(sceneX, sceneY));
+      }
       const init = this.initialPositions.get(this.draggingElement.id);
       if (init) {
         const dx = sceneX - (init.x + this.dragOffsetX);
@@ -273,7 +283,7 @@ export class InteractionManager {
     if (this.creatingConnection) {
       const rawShapes = this.scene.getShapes();
       const planningEls = this.scene.getElements().filter(isPlanningElement) as IPlanningElement[];
-      const connectables = [...rawShapes, ...planningEls];
+      const connectables: IConnectable[] = [...rawShapes, ...planningEls];
       const endX = this.tempConnectionLine?.endX || 0;
       const endY = this.tempConnectionLine?.endY || 0;
       let dropHit = this.findConnectionPointAt(endX, endY, connectables);
@@ -291,12 +301,15 @@ export class InteractionManager {
         }
       }
       if (targetShape && this.connectionStartShape) {
-        // Create connection between source and target
-        const connection = new Connection(
-          this.connectionStartShape.id,
-          targetShape.id
-        );
-        this.scene.addElement(connection);
+        // Skip invalid Story↔Task connections
+        const src = this.connectionStartShape;
+        const dst = targetShape;
+        const invalid = (src instanceof Story && dst instanceof Task && src.tasks.some(t => t.id === dst.id))
+          || (src instanceof Task && dst instanceof Story && dst.tasks.some(t => t.id === src.id));
+        if (!invalid) {
+          const connection = new Connection(src.id, dst.id);
+          this.scene.addElement(connection);
+        }
       }
       // Скидаємо стан створення зв’язку
       this.creatingConnection = false;
@@ -308,8 +321,19 @@ export class InteractionManager {
     }
 
     // End planning element drag
-    if (this.draggingElement && (this.draggingElement as any).onDragEnd) {
-      (this.draggingElement as any).onDragEnd();
+    if (this.draggingElement) {
+      // Handle Task drop into/out of Story containers
+      if (this.draggingElement instanceof Task) {
+        const task = this.draggingElement;
+        const stories = this.scene.getElements()
+          .filter(isPlanningElement)
+          .filter((el): el is Story => el instanceof Story);
+        stories.forEach(story => {
+          if (story.contains(task.x, task.y)) story.addTask(task);
+          else story.removeTask(task.id);
+        });
+      }
+      if ((this.draggingElement as any).onDragEnd) (this.draggingElement as any).onDragEnd();
     }
     this.draggingElement = null;
 
@@ -348,5 +372,12 @@ export class InteractionManager {
   // Public getter for connection creation state
   public get isCreatingConnection(): boolean {
     return this.creatingConnection;
+  }
+
+  /**
+   * Indicates if a Task is currently being dragged.
+   */
+  public get isDraggingTask(): boolean {
+    return this.draggingElement instanceof Task;
   }
 }
