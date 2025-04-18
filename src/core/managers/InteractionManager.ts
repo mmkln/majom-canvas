@@ -154,6 +154,12 @@ export class InteractionManager {
       sel.forEach((elem) => {
         this.initialPositions.set(elem.id, { x: (elem as any).x, y: (elem as any).y });
       });
+      // also record initial positions for tasks when dragging a Story
+      if (clickedElement instanceof Story) {
+        clickedElement.tasks.forEach(task => {
+          this.initialPositions.set(task.id, { x: task.x, y: task.y });
+        });
+      }
       this.draggingElement = clickedElement;
       this.dragOffsetX = sceneX - (clickedElement as any).x;
       this.dragOffsetY = sceneY - (clickedElement as any).y;
@@ -239,13 +245,18 @@ export class InteractionManager {
       if (init) {
         const dx = sceneX - (init.x + this.dragOffsetX);
         const dy = sceneY - (init.y + this.dragOffsetY);
-        this.scene.getSelectedElements().forEach((elem) => {
-          if (this.initialPositions.has(elem.id)) {
-            (elem as any).x = this.initialPositions.get(elem.id)!.x + dx;
-            (elem as any).y = this.initialPositions.get(elem.id)!.y + dy;
-            if ((elem as any).onDrag) (elem as any).onDrag((elem as any).x, (elem as any).y);
-          }
-        });
+        if (this.draggingElement instanceof Story) {
+          // delegate shifting to Story.onDrag
+          (this.draggingElement as any).onDrag(init.x + dx, init.y + dy);
+        } else {
+          this.scene.getSelectedElements().forEach((elem) => {
+            if (this.initialPositions.has(elem.id)) {
+              (elem as any).x = this.initialPositions.get(elem.id)!.x + dx;
+              (elem as any).y = this.initialPositions.get(elem.id)!.y + dy;
+              if ((elem as any).onDrag) (elem as any).onDrag((elem as any).x, (elem as any).y);
+            }
+          });
+        }
         this.scene.changes.next();
       }
       return;

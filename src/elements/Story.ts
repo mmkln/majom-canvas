@@ -192,5 +192,19 @@ export class Story extends PlanningElement {
     return points;
   }
 
+  /**
+   * Move story along with its tasks
+   */
+  public onDrag(x: number, y: number): void {
+    const dx = x - this.x;
+    const dy = y - this.y;
+    this.x = x;
+    this.y = y;
+    this.tasks.forEach(t => {
+      t.x += dx;
+      t.y += dy;
+    });
+  }
+
   clone(): PlanningElement { return this; }
 }
