@@ -83,6 +83,8 @@ export abstract class PlanningElement extends CanvasElement implements IPlanning
       const points = this.getConnectionPoints();
       for (const pt of points) {
         ctx.save();
+        // anchors always solid border
+        ctx.setLineDash([]);
         ctx.beginPath();
         ctx.arc(pt.x, pt.y, 4 / panZoom.scale, 0, 2 * Math.PI);
         ctx.fillStyle = pt.isHovered ? SELECT_COLOR : '#ffffff';

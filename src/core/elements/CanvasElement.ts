@@ -13,6 +13,8 @@ export abstract class CanvasElement implements ICanvasElement, IPositioned {
   y: number;
   selected: boolean = false;
   isHovered: boolean = false;
+  /** Layer index for draw ordering; lower draws first */
+  public zIndex: number = 0;
 
   constructor(x: number = 0, y: number = 0) {
     this.id = uuid();

@@ -6,8 +6,8 @@ import { CanvasRenderer } from './CanvasRenderer.ts';
 import { InteractionManager } from './InteractionManager.ts';
 import { KeyboardManager } from './KeyboardManager.ts';
 import { isShape } from '../utils/typeGuards.ts';
-import type { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
 import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
+import type { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
 import type { IConnection } from '../interfaces/connection.ts';
 import { SELECT_COLOR, HOVER_OVERLAY_FILL, HOVER_OUTLINE_COLOR } from '../constants.ts';
 
@@ -94,8 +94,10 @@ export class CanvasManager {
     // draw shapes
     shapes.forEach(shape => shape.draw(this.ctx, this.panZoom));
 
-    // draw planning elements (tasks, stories, goals)
-    planningEls.forEach(el => el.draw(this.ctx, this.panZoom));
+    // draw planning elements in layer order
+    planningEls
+      .sort((a, b) => a.zIndex - b.zIndex)
+      .forEach(el => el.draw(this.ctx, this.panZoom));
 
     // highlight drop target when dragging connection
     if (this.interactionManager.isCreatingConnection) {

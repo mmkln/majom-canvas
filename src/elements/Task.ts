@@ -30,6 +30,7 @@ export class Task extends PlanningElement {
     status?: 'pending' | 'in-progress' | 'done';
   }) {
     super({ id, x, y, width: Task.width, height: Task.height, fillColor: '#ffffff', lineWidth: 1, title, description });
+    this.zIndex = 2;
     this.title = title;
     this.status = status;
   }

@@ -140,13 +140,28 @@ export class InteractionManager {
       return true;
     }
 
-    // Drag&drop for planning elements
+    // Drag&drop for planning elements: tasks first, then stories, then others
     let clickedElement: ICanvasElement & IPositioned | null = null;
-    for (let i = planningEls.length - 1; i >= 0; i--) {
-      const el = planningEls[i] as any;
-      if (el.contains(sceneX, sceneY)) {
-        clickedElement = el;
-        break;
+    // Task priority
+    const taskEls = planningEls.filter((el): el is Task => el instanceof Task);
+    for (let i = taskEls.length - 1; i >= 0; i--) {
+      if (taskEls[i].contains(sceneX, sceneY)) { clickedElement = taskEls[i]; break; }
+    }
+    // Story next
+    if (!clickedElement) {
+      const storyEls = planningEls.filter((el): el is Story => el instanceof Story);
+      for (let i = storyEls.length - 1; i >= 0; i--) {
+        if (storyEls[i].contains(sceneX, sceneY)) { clickedElement = storyEls[i]; break; }
+      }
+    }
+    // Other elements fallback
+    if (!clickedElement) {
+      for (let i = planningEls.length - 1; i >= 0; i--) {
+        const el = planningEls[i] as any;
+        if (!(el instanceof Task) && !(el instanceof Story) && el.contains(sceneX, sceneY)) {
+          clickedElement = el;
+          break;
+        }
       }
     }
     if (clickedElement) {

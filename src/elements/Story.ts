@@ -3,7 +3,7 @@ import { PlanningElement } from './PlanningElement.ts';
 import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { Task } from './Task.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
-import { SELECT_COLOR } from '../core/constants.ts';
+import { SELECT_COLOR, STORY_FILL_COLOR, STORY_BORDER_COLOR } from '../core/constants.ts';
 
 /**
  * Story representation on the canvas - a container for tasks
@@ -32,7 +32,8 @@ export class Story extends PlanningElement {
     title = 'New Story',
     description = '',
     status = 'pending',
-    borderColor = '#722ed1', // Default purple
+    /** border color */
+    borderColor = STORY_BORDER_COLOR,
     tasks = []
   }: {
     id?: string;
@@ -46,10 +47,12 @@ export class Story extends PlanningElement {
     borderColor?: string;
     tasks?: Task[];
   }) {
-    super({ id, x, y, width, height, fillColor: 'rgba(250, 245, 255, 0.6)', lineWidth: 2, title, description });
+    super({ id, x, y, width, height, fillColor: STORY_FILL_COLOR, lineWidth: 2, title, description });
+    // layer ordering: draw stories below tasks
+    this.zIndex = 1;
     this.status = status;
     this.borderColor = borderColor;
-    this.tasks = tasks;
+    this.tasks = tasks; // initialize contained tasks
     // Logic temporarily removed
   }
 
@@ -62,12 +65,14 @@ export class Story extends PlanningElement {
     ctx.beginPath();
     ctx.roundRect(this.x, this.y, this.width, this.height, 8 / panZoom.scale);
     ctx.fill();
-    // Border: dashed or solid based on selection
+    // Border: dashed with larger segments
+    const dashOn = 32 / panZoom.scale;
+    const dashOff = 16 / panZoom.scale;
     if (this.selected) {
       ctx.setLineDash([]);
       ctx.strokeStyle = SELECT_COLOR;
     } else {
-      ctx.setLineDash([4 / panZoom.scale, 4 / panZoom.scale]);
+      ctx.setLineDash([dashOn, dashOff]);
       ctx.strokeStyle = this.borderColor;
     }
     ctx.lineWidth = this.lineWidth / panZoom.scale;

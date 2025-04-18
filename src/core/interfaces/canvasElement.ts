@@ -20,5 +20,8 @@ export interface IPositioned {
 }
 
 export interface ICanvasElement extends IDrawable, ISelectable {
+  /** Unique identifier */
   id: string;
+  /** Layer index for draw ordering; lower draws first */
+  zIndex: number;
 }
