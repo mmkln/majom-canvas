@@ -1,7 +1,7 @@
 // interfaces.ts
 
 // Інтерфейс задачі (Task)
-export interface Task {
+export interface ITask {
   id: string; // Унікальний ідентифікатор задачі
   title: string; // Назва задачі
   description: string; // Короткий опис задачі
@@ -17,4 +17,20 @@ export interface TaskDependency {
   fromTaskId: string; // Ідентифікатор задачі, яка блокує чи впливає
   toTaskId: string; // Ідентифікатор задачі, на яку впливає
   type: 'blocks' | 'dependsOn'; // Тип залежності (наприклад, "блокує" або "залежить")
+}
+
+/**
+ * Інтерфейс для збереження Story в LocalStorage
+ */
+export interface IStory {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  title: string;
+  description: string;
+  status: 'pending' | 'in-progress' | 'done';
+  borderColor: string;
+  tasks: string[]; // id задач, що належать цій Story
 }

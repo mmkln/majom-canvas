@@ -14,6 +14,7 @@ export abstract class Shape implements IShape, IConnectable {
   public lineWidth: number;
   public selected: boolean;
   public isHovered: boolean = false;
+  public zIndex: number;
 
   constructor({
     x,
@@ -37,6 +38,7 @@ export abstract class Shape implements IShape, IConnectable {
     this.fillColor = fillColor;
     this.lineWidth = lineWidth;
     this.selected = false;
+    this.zIndex = 1;
   }
 
   protected abstract getInnerRadius(): number;

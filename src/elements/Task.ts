@@ -10,6 +10,8 @@ import { SELECT_COLOR } from '../core/constants.ts';
 export class Task extends PlanningElement {
   title: string;
   status: 'pending' | 'in-progress' | 'done' = 'pending';
+  priority: 'low' | 'medium' | 'high';
+  dueDate: Date;
 
   static width: number = 180;
   static height: number = 90;
@@ -20,7 +22,10 @@ export class Task extends PlanningElement {
     y = 0,
     title = 'New Task',
     description = '',
-    status = 'pending'
+    status = 'pending',
+    selected = false,
+    priority = 'medium',
+    dueDate = new Date()
   }: {
     id?: string;
     x?: number;
@@ -28,11 +33,17 @@ export class Task extends PlanningElement {
     title?: string;
     description?: string;
     status?: 'pending' | 'in-progress' | 'done';
+    selected?: boolean;
+    priority?: 'low' | 'medium' | 'high';
+    dueDate?: Date;
   }) {
     super({ id, x, y, width: Task.width, height: Task.height, fillColor: '#ffffff', lineWidth: 1, title, description });
     this.zIndex = 2;
     this.title = title;
     this.status = status;
+    this.selected = selected;
+    this.priority = priority;
+    this.dueDate = dueDate;
   }
 
   draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
@@ -148,7 +159,7 @@ export class Task extends PlanningElement {
   }
 
   clone(): PlanningElement {
-    return new Task({ id: this.id, x: this.x, y: this.y, title: this.title, status: this.status });
+    return new Task({ id: this.id, x: this.x, y: this.y, title: this.title, status: this.status, priority: this.priority, dueDate: this.dueDate });
   }
 
   /**

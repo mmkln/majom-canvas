@@ -43,6 +43,8 @@ export class App {
   public async init(): Promise<void> {
     this.canvasManager.init();
     await this.diagramRepository.loadDiagram(this.scene);
+    // Auto-save on any scene change to localStorage
+    this.scene.changes.subscribe(() => this.diagramRepository.saveDiagram(this.scene));
     // AuthComponent does not have an init method, initialization happens in constructor
   }
 }

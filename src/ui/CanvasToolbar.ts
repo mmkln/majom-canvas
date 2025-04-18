@@ -109,7 +109,8 @@ export class CanvasToolbar {
       description: 'Enter description',
       status: 'pending',
       x: sceneX,
-      y: sceneY
+      y: sceneY,
+      selected: true
     });
 
     // Add the adapter to the scene

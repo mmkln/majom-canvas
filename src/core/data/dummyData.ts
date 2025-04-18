@@ -1,8 +1,8 @@
 // dummyData.ts
-import { Task, TaskDependency } from '../interfaces/interfaces.ts';
+import { ITask, TaskDependency } from '../interfaces/interfaces.ts';
 
 // Dummy data для задач
-export const tasks: Task[] = [
+export const tasks: ITask[] = [
   {
     id: '1',
     title: 'Підготувати специфікацію',

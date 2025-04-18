@@ -11,6 +11,7 @@ export default class Connection implements IConnection {
   toId: string;
   selected: boolean = false;
   public lineType: ConnectionLineType = ConnectionLineType.SShaped;
+  public zIndex: number = 1;
   private tangentAngle: number = 0;
 
   constructor(fromId: string, toId: string, id: string = v4(), lineType?: ConnectionLineType) {

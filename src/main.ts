@@ -1,9 +1,9 @@
 // main.ts
 import { App } from './App.ts';
-import { DataProvider } from './core/data/DataProvider.ts';
+import { LocalStorageDataProvider } from './core/data/LocalStorageDataProvider.ts';
 
 document.addEventListener('DOMContentLoaded', () => {
-  const dataProvider = new DataProvider();
+  const dataProvider = new LocalStorageDataProvider();
   const app = new App(dataProvider);
   app.init();
 });
