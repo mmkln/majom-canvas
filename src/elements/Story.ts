@@ -11,10 +11,14 @@ import { SELECT_COLOR } from '../core/constants.ts';
 export class Story extends PlanningElement {
   static width: number = 320;
   static height: number = 240;
+  /** Size for resize handles (in px) */
+  static HANDLE_SIZE: number = 8;
 
   status: 'pending' | 'in-progress' | 'done' = 'pending';
   borderColor: string;
   tasks: Task[] = [];
+  /** Currently hovered resize direction */
+  public hoveredResizeHandle: 'nw'|'ne'|'se'|'sw'|null = null;
   
   /**
    * Create a new Story
@@ -74,6 +78,16 @@ export class Story extends PlanningElement {
     ctx.fillText(this.title, this.x + 8 / panZoom.scale, this.y + 16 / panZoom.scale);
     // Draw anchors via base class
     super.drawAnchors(ctx, panZoom);
+    // Draw resize handles when selected
+    if (this.selected) {
+      const size = Story.HANDLE_SIZE / panZoom.scale;
+      ctx.fillStyle = SELECT_COLOR;
+      this.getResizeHandles(panZoom).forEach(h => {
+        ctx.beginPath();
+        ctx.rect(h.x - size/2, h.y - size/2, size, size);
+        ctx.fill();
+      });
+    }
   }
   
   /**
@@ -204,6 +218,35 @@ export class Story extends PlanningElement {
       t.x += dx;
       t.y += dy;
     });
+  }
+
+  /**
+   * Get positions and directions of resize handles
+   */
+  public getResizeHandles(panZoom: PanZoomManager): { x: number; y: number; direction: 'nw'|'ne'|'se'|'sw' }[] {
+    return [
+      { x: this.x, y: this.y, direction: 'nw' },
+      { x: this.x + this.width, y: this.y, direction: 'ne' },
+      { x: this.x + this.width, y: this.y + this.height, direction: 'se' },
+      { x: this.x, y: this.y + this.height, direction: 'sw' }
+    ];
+  }
+
+  /**
+   * Detect which resize handle (if any) contains px,py
+   */
+  public getResizeHandleDirectionAt(px: number, py: number, panZoom: PanZoomManager): 'nw'|'ne'|'se'|'sw'|null {
+    // clickable area: fixed 64px in screen coordinates for better UX
+    const detectSize = 64 / panZoom.scale;
+    for (const h of this.getResizeHandles(panZoom)) {
+      if (
+        px >= h.x - detectSize/2 && px <= h.x + detectSize/2 &&
+        py >= h.y - detectSize/2 && py <= h.y + detectSize/2
+      ) {
+        return h.direction;
+      }
+    }
+    return null;
   }
 
   clone(): PlanningElement { return this; }

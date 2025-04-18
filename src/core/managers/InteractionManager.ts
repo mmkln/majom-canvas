@@ -27,6 +27,15 @@ export class InteractionManager {
     endY: number;
   } | null = null;
   private hoveredConnectionPoint: ConnectionPoint | null = null;
+  // Resize state
+  private resizingElement: Story | null = null;
+  private resizeDirection: 'nw'|'ne'|'se'|'sw'|null = null;
+  private resizeStartX: number = 0;
+  private resizeStartY: number = 0;
+  private initialX: number = 0;
+  private initialY: number = 0;
+  private initialWidth: number = 0;
+  private initialHeight: number = 0;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -141,6 +150,22 @@ export class InteractionManager {
       }
     }
     if (clickedElement) {
+      // start resize if clicking a Story handle
+      if (clickedElement instanceof Story) {
+        const dir = clickedElement.getResizeHandleDirectionAt(sceneX, sceneY, this.panZoom);
+        if (dir) {
+          this.resizingElement = clickedElement;
+          this.resizeDirection = dir;
+          this.resizeStartX = sceneX;
+          this.resizeStartY = sceneY;
+          this.initialX = clickedElement.x;
+          this.initialY = clickedElement.y;
+          this.initialWidth = clickedElement.width;
+          this.initialHeight = clickedElement.height;
+          this.scene.setSelected([clickedElement]);
+          return true;
+        }
+      }
       if (e.shiftKey) {
         const curr = this.scene.getSelectedElements();
         if (curr.indexOf(clickedElement) === -1) {
@@ -232,6 +257,25 @@ export class InteractionManager {
       this.scene.changes.next();
     }
 
+    // Resize-handle hover detection
+    const stories = planningEls.filter((el): el is Story => el instanceof Story);
+    let handleFound = false;
+    for (const story of stories) {
+      if (story.selected) {
+        const dir = story.getResizeHandleDirectionAt(sceneX, sceneY, this.panZoom);
+        story.hoveredResizeHandle = dir;
+        if (dir) { handleFound = true; break; }
+      }
+    }
+    if (!this.resizingElement) {
+      if (handleFound) {
+        const hovered = stories.find(s => s.hoveredResizeHandle);
+        if (hovered) this.canvas.style.cursor = `${hovered.hoveredResizeHandle}-resize`;
+      } else {
+        this.canvas.style.cursor = 'default';
+      }
+    }
+
     // Handle drag of planning elements
     if (this.draggingElement) {
       // Highlight Story containers when dragging a Task
@@ -286,6 +330,31 @@ export class InteractionManager {
         }
       });
       this.scene.changes.next();
+    }
+
+    // handle resizing
+    if (this.resizingElement && this.resizeDirection) {
+      const dx = sceneX - this.resizeStartX;
+      const dy = sceneY - this.resizeStartY;
+      let newX = this.initialX;
+      let newY = this.initialY;
+      let newW = this.initialWidth;
+      let newH = this.initialHeight;
+      switch (this.resizeDirection) {
+        case 'se': newW += dx; newH += dy; break;
+        case 'ne': newW += dx; newH -= dy; newY += dy; break;
+        case 'sw': newW -= dx; newH += dy; newX += dx; break;
+        case 'nw': newW -= dx; newH -= dy; newX += dx; newY += dy; break;
+      }
+      // avoid negative size
+      newW = Math.max(newW, 1);
+      newH = Math.max(newH, 1);
+      this.resizingElement.x = newX;
+      this.resizingElement.y = newY;
+      this.resizingElement.width = newW;
+      this.resizingElement.height = newH;
+      this.scene.changes.next();
+      return;
     }
   }
 
@@ -355,6 +424,19 @@ export class InteractionManager {
     this.draggingShape = null;
     this.initialPositions.clear();
     this.scene.changes.next();
+
+    // finish resize
+    if (this.resizingElement) {
+      this.resizingElement = null;
+      this.resizeDirection = null;
+      this.canvas.style.cursor = 'default';
+      this.scene.getElements()
+        .filter(isPlanningElement)
+        .filter((el): el is Story => el instanceof Story)
+        .forEach(s => s.hoveredResizeHandle = null);
+      this.scene.changes.next();
+      return;
+    }
   }
 
   handleDoubleClick(sceneX: number, sceneY: number): void {
