@@ -34,3 +34,12 @@ export interface IStory {
   borderColor: string;
   tasks: string[]; // id задач, що належать цій Story
 }
+
+/**
+ * Інтерфейс збереження стану перегляду (зум/скрол)
+ */
+export interface IViewState {
+  scrollX: number;
+  scrollY: number;
+  scale: number;
+}

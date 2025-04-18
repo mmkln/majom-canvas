@@ -6,8 +6,10 @@ import { IDataProvider } from './core/interfaces/dataProvider.ts';
 import { AuthComponent } from './ui/components/AuthComponent.ts';
 import { AuthService } from './majom-wrapper/data-access/auth-service.ts';
 import { UIManager } from './ui/UIManager.ts';
+import type { IViewState } from './core/interfaces/interfaces.ts';
 
 export class App {
+  private readonly dataProvider: IDataProvider;
   private readonly canvas: HTMLCanvasElement;
   private readonly scene: Scene;
   private readonly canvasManager: CanvasManager;
@@ -17,6 +19,7 @@ export class App {
   private readonly uiManager: UIManager;
 
   constructor(dataProvider: IDataProvider) {
+    this.dataProvider = dataProvider;
     const canvasElement = document.getElementById('myCanvas');
     if (!canvasElement || !(canvasElement instanceof HTMLCanvasElement)) {
       throw new Error('Canvas element not found');
@@ -43,7 +46,15 @@ export class App {
   public async init(): Promise<void> {
     this.canvasManager.init();
     await this.diagramRepository.loadDiagram(this.scene);
-    // Auto-save on any scene change to localStorage
+    // Restore last view state (scroll & zoom) via centralized setter
+    const view: IViewState = await this.dataProvider.loadViewState();
+    const panZoom = this.canvasManager.getPanZoomManager();
+    panZoom.setViewState(view);
+    // Draw after restore and notify listeners (including ZoomIndicator)
+    this.canvasManager.draw();
+    // Auto-save view state on any change
+    panZoom.viewChanges.subscribe(state => this.dataProvider.saveViewState(state));
+    // Auto-save diagram on content change
     this.scene.changes.subscribe(() => this.diagramRepository.saveDiagram(this.scene));
     // AuthComponent does not have an init method, initialization happens in constructor
   }

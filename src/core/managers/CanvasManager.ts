@@ -260,28 +260,7 @@ export class CanvasManager {
     const rect = this.canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
-    if (e.ctrlKey) {
-      const zoomFactor = Math.pow(1.001, -e.deltaY);
-      const oldScale = this.panZoom.scale;
-      let newScale = oldScale * zoomFactor;
-      const viewportWidth = this.canvas.width - this.panZoom.scrollbarWidth;
-      const viewportHeight = this.canvas.height - this.panZoom.scrollbarWidth;
-      const minScale = Math.max(
-        viewportWidth / this.panZoom.virtualWidth,
-        viewportHeight / this.panZoom.virtualHeight
-      );
-      const maxScale = 3;
-      newScale = Math.min(Math.max(newScale, minScale), maxScale);
-      const contentX = (mouseX + this.panZoom.scrollX) / oldScale;
-      const contentY = (mouseY + this.panZoom.scrollY) / oldScale;
-      this.panZoom.scale = newScale;
-      this.panZoom.scrollX = contentX * newScale - mouseX;
-      this.panZoom.scrollY = contentY * newScale - mouseY;
-    } else {
-      this.panZoom.scrollX += e.deltaX;
-      this.panZoom.scrollY += e.deltaY;
-    }
-    this.panZoom.clampScroll();
+    this.panZoom.handleWheelEvent(e, this.canvas, mouseX, mouseY);
     this.draw();
   }
 
