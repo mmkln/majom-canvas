@@ -33,19 +33,6 @@ export class DiagramRepository {
       scene.addElement(taskElement);
     });
 
-    dependencies.forEach((dep) => {
-      console.log({ dep });
-      const fromElement = scene
-        .getElements()
-        .find((el) => el.id === dep.fromTaskId);
-      const toElement = scene.getElements().find((el) => el.id === dep.toTaskId);
-      if (fromElement && toElement) {
-        const line = new Connection(fromElement.id, toElement.id);
-        console.log({ line });
-        scene.addElement(line);
-      }
-    });
-
     // load stories
     const storiesDto: IStory[] = await this.dataProvider.loadStories();
     storiesDto.forEach((storyDto) => {
@@ -66,6 +53,16 @@ export class DiagramRepository {
         tasks: storyTasks,
       });
       scene.addElement(storyElement);
+    });
+
+    // process all connections after tasks and stories added
+    dependencies.forEach((dep) => {
+      const fromElement = scene.getElements().find(el => el.id === dep.fromTaskId);
+      const toElement = scene.getElements().find(el => el.id === dep.toTaskId);
+      if (fromElement && toElement) {
+        const line = new Connection(fromElement.id, toElement.id);
+        scene.addElement(line);
+      }
     });
   }
 
