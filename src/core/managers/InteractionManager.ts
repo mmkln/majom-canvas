@@ -463,10 +463,10 @@ export class InteractionManager {
         break;
       }
     }
-    // Check planning elements (Stories/Tasks) for double-click
-    const planningEls = this.scene.getElements().filter(isPlanningElement);
-    for (let i = planningEls.length - 1; i >= 0; i--) {
-      const el = planningEls[i] as any;
+    // Check planning elements (Tasks/Stories/Goals) in zIndex order (highest first)
+    const planningEls = [...this.scene.getElements().filter(isPlanningElement) as any[]];
+    planningEls.sort((a, b) => (b.zIndex ?? 0) - (a.zIndex ?? 0));
+    for (const el of planningEls) {
       if (el.contains(sceneX, sceneY) && el.onDoubleClick) {
         el.onDoubleClick();
         break;
