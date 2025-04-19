@@ -23,6 +23,9 @@ export function createModalShell(title: string, options?: ModalOptions): { overl
   // Override remove() to unregister modalService
   const originalRemove = overlay.remove;
   overlay.remove = function () {
+    // Clear focus to prevent stale inputs catching key events
+    const active = document.activeElement as HTMLElement | null;
+    if (active && typeof active.blur === 'function') active.blur();
     modalService.unregister();
     originalRemove.call(this);
   };
@@ -60,15 +63,5 @@ export function createModalShell(title: string, options?: ModalOptions): { overl
       }
     }
   });
-  // Trap Backspace inside modal to prevent global deletion
-  overlay.addEventListener('keydown', (e: KeyboardEvent) => {
-    const tgt = e.target as HTMLElement;
-    // Ignore form fields or editable content
-    if (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.tagName === 'SELECT' || tgt.isContentEditable) return;
-    if (e.key === 'Backspace') {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  }, { capture: true });
   return { overlay, container };
 }

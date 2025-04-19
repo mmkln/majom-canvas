@@ -25,8 +25,8 @@ export class KeyboardManager {
   }
 
   private onKeyDown(e: KeyboardEvent): void {
-    // Do not handle global shortcuts if a modal is open
-    if (modalService.isOpen()) return;
+    // Do not handle global shortcuts if a modal is open (service or actual dialog)
+    if (modalService.isOpen() || document.querySelector('[role="dialog"]')) return;
     // Ignore shortcuts when focused on form fields or editable content
     const tgt = e.target as HTMLElement;
     if (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.tagName === 'SELECT' || tgt.isContentEditable) return;
@@ -74,6 +74,9 @@ export class KeyboardManager {
     }
 
     if (e.key === 'Backspace') {
+      // Prevent browser default (e.g., navigation) and stop bubbling
+      e.preventDefault();
+      e.stopPropagation();
       const selectedElements = [...this.scene.getSelectedElements()];
       this.scene.removeElements(selectedElements);
     }

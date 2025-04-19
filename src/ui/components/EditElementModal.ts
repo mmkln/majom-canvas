@@ -105,7 +105,8 @@ export class EditElementModal {
 
   private close(): void {
     if (this.modal) {
-      document.body.removeChild(this.modal);
+      // Use remove() to trigger modalService.unregister()
+      this.modal.remove();
       this.modal = null;
     }
   }
