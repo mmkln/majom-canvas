@@ -9,7 +9,7 @@ import { isShape } from '../utils/typeGuards.ts';
 import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
 import type { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
 import type { IConnection } from '../interfaces/connection.ts';
-import { SELECT_COLOR, HOVER_OVERLAY_FILL, HOVER_OUTLINE_COLOR } from '../constants.ts';
+import { SELECT_COLOR, HOVER_OVERLAY_FILL, HOVER_OUTLINE_COLOR, REGION_SELECT_BORDER_COLOR, REGION_SELECT_FILL } from '../constants.ts';
 import { Task } from '../../elements/Task.ts';
 import { Goal } from '../../elements/Goal.ts';
 
@@ -170,6 +170,18 @@ export class CanvasManager {
       this.ctx.strokeStyle = '#000000';
       this.ctx.lineWidth = 1 / this.panZoom.scale;
       this.ctx.stroke();
+      this.ctx.restore();
+    }
+
+    // region-select overlay
+    const region = this.interactionManager.getRegionRect();
+    if (region) {
+      this.ctx.save();
+      this.ctx.fillStyle = REGION_SELECT_FILL;
+      this.ctx.fillRect(region.x, region.y, region.width, region.height);
+      this.ctx.strokeStyle = REGION_SELECT_BORDER_COLOR;
+      this.ctx.setLineDash([4 / this.panZoom.scale, 4 / this.panZoom.scale]);
+      this.ctx.strokeRect(region.x, region.y, region.width, region.height);
       this.ctx.restore();
     }
 

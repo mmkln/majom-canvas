@@ -9,3 +9,6 @@ export const STORY_BORDER_COLOR = '#1890ff';
 // Goal component colors
 export const GOAL_FILL_COLOR = 'rgba(255,165,0,0.1)';
 export const GOAL_BORDER_COLOR = '#fa8c16';
+// Region selection colors
+export const REGION_SELECT_BORDER_COLOR = '#1890ff';
+export const REGION_SELECT_FILL = 'rgba(24,144,255,0.2)';

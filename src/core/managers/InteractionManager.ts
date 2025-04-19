@@ -38,6 +38,12 @@ export class InteractionManager {
   private initialY: number = 0;
   private initialWidth: number = 0;
   private initialHeight: number = 0;
+  /** region-select state */
+  private isRegionSelecting: boolean = false;
+  private regionStartX: number = 0;
+  private regionStartY: number = 0;
+  private regionCurrentX: number = 0;
+  private regionCurrentY: number = 0;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -63,6 +69,18 @@ export class InteractionManager {
     this.tempConnectionLine = null;
     this.hoveredConnectionPoint = null;
     this.scene.changes.next();
+  }
+
+  /**
+   * Return the active region-select rect (scene coords) or null
+   */
+  public getRegionRect(): { x: number; y: number; width: number; height: number } | null {
+    if (!this.isRegionSelecting) return null;
+    const x0 = Math.min(this.regionStartX, this.regionCurrentX);
+    const y0 = Math.min(this.regionStartY, this.regionCurrentY);
+    const width = Math.abs(this.regionCurrentX - this.regionStartX);
+    const height = Math.abs(this.regionCurrentY - this.regionStartY);
+    return { x: x0, y: y0, width, height };
   }
 
   private findConnectionPointAt(
@@ -221,6 +239,17 @@ export class InteractionManager {
       }
     }
 
+    // start region-select when clicking empty space
+    if (!clickedShape && !clickedConnection && !planningEls.some(el => el.contains(sceneX, sceneY))) {
+      this.isRegionSelecting = true;
+      this.regionStartX = sceneX;
+      this.regionStartY = sceneY;
+      this.regionCurrentX = sceneX;
+      this.regionCurrentY = sceneY;
+      this.scene.setSelected([]);
+      return true;
+    }
+
     this.scene.setSelected([]);
     return false;
   }
@@ -291,6 +320,14 @@ export class InteractionManager {
       } else {
         this.canvas.style.cursor = 'default';
       }
+    }
+
+    // update region-select drag
+    if (this.isRegionSelecting) {
+      this.regionCurrentX = sceneX;
+      this.regionCurrentY = sceneY;
+      this.scene.changes.next();
+      return;
     }
 
     // Handle drag of planning elements
@@ -415,6 +452,28 @@ export class InteractionManager {
       this.tempConnectionLine = null;
       this.hoveredConnectionPoint = null;
       this.scene.changes.next();
+    }
+
+    // complete region-select
+    if (this.isRegionSelecting) {
+      const x0 = Math.min(this.regionStartX, this.regionCurrentX);
+      const y0 = Math.min(this.regionStartY, this.regionCurrentY);
+      const width = Math.abs(this.regionCurrentX - this.regionStartX);
+      const height = Math.abs(this.regionCurrentY - this.regionStartY);
+      const rawShapes = this.scene.getShapes();
+      const planningEls = this.scene.getElements().filter(isPlanningElement) as IPlanningElement[];
+      const all = [...rawShapes, ...planningEls];
+      const inRect = all.filter(el => {
+        const minX = 'radius' in el ? el.x - el.radius : el.x;
+        const minY = 'radius' in el ? el.y - el.radius : el.y;
+        const maxX = 'radius' in el ? el.x + el.radius : el.x + el.width;
+        const maxY = 'radius' in el ? el.y + el.radius : el.y + el.height;
+        return minX >= x0 && minY >= y0 && maxX <= x0 + width && maxY <= y0 + height;
+      });
+      this.scene.setSelected(inRect);
+      this.isRegionSelecting = false;
+      this.scene.changes.next();
+      return;
     }
 
     // End planning element drag
