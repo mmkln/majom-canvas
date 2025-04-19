@@ -12,6 +12,8 @@ import { historyService } from './core/services/HistoryService.ts';
 import { CopyCommand } from './core/commands/CopyCommand.ts';
 import { PasteCommand } from './core/commands/PasteCommand.ts';
 import { DeleteCommand } from './core/commands/DeleteCommand.ts';
+import { CutCommand } from './core/commands/CutCommand.ts';
+import { getCommandConfigs } from './core/config/commandConfigs.ts';
 
 export class App {
   private readonly dataProvider: IDataProvider;
@@ -47,26 +49,11 @@ export class App {
     this.uiManager = new UIManager(this.canvasManager, this.scene);
     this.uiManager.mountAll(document.body);
 
-    // Register global commands and keyboard shortcuts
-    commandManager.register('undo', () => historyService.undo());
-    commandManager.bindShortcut('undo', 'ctrl+z');
-    commandManager.bindShortcut('undo', 'meta+z');
-    commandManager.register('redo', () => historyService.redo());
-    commandManager.bindShortcut('redo', 'ctrl+y');
-    commandManager.bindShortcut('redo', 'meta+y');
-    commandManager.bindShortcut('redo', 'meta+shift+z');
-    // Copy/Paste for Tasks, Stories, Goals (only PlanningElement clones)
-    commandManager.register('copy', () => historyService.execute(new CopyCommand(this.scene)));
-    commandManager.bindShortcut('copy', 'ctrl+c');
-    commandManager.register('paste', () => historyService.execute(new PasteCommand(this.scene, this.canvasManager)));
-    commandManager.bindShortcut('paste', 'ctrl+v');
-    // Delete selected elements
-    commandManager.register('delete', () => {
-      const elems = this.scene.getSelectedElements();
-      historyService.execute(new DeleteCommand(this.scene, elems));
+    // Register commands from config
+    getCommandConfigs(this.scene, this.canvasManager).forEach(cmd => {
+      commandManager.register(cmd.name, cmd.handler);
+      cmd.keys.forEach(k => commandManager.bindShortcut(cmd.name, k));
     });
-    commandManager.bindShortcut('delete', 'delete');
-    commandManager.bindShortcut('delete', 'backspace');
   }
 
   public async init(): Promise<void> {
