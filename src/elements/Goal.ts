@@ -3,14 +3,19 @@ import { PlanningElement } from './PlanningElement.ts';
 import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
 import { SELECT_COLOR, GOAL_FILL_COLOR, GOAL_BORDER_COLOR } from '../core/constants.ts';
+import { editElement$ } from '../core/eventBus.ts';
 
 export class Goal extends PlanningElement {
   links: string[] = [];
   progress: number = 0;
+  public status: 'pending' | 'in-progress' | 'done' = 'pending';
+  public priority: 'low' | 'medium' | 'high' = 'medium';
 
-  constructor({ id = `goal-${Date.now()}`, x = 0, y = 0, width = 200, height = 120, title = 'New Goal' }: { id?: string; x?: number; y?: number; width?: number; height?: number; title?: string }) {
+  constructor({ id = `goal-${Date.now()}`, x = 0, y = 0, width = 200, height = 120, title = 'New Goal', status = 'pending', priority = 'medium' }: { id?: string; x?: number; y?: number; width?: number; height?: number; title?: string; status?: 'pending' | 'in-progress' | 'done'; priority?: 'low' | 'medium' | 'high' }) {
     super({ id, x, y, width, height, fillColor: GOAL_FILL_COLOR, lineWidth: 2, title });
     this.zIndex = 3;
+    this.status = status;
+    this.priority = priority;
   }
 
   draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
@@ -73,7 +78,7 @@ export class Goal extends PlanningElement {
   }
 
   clone(): PlanningElement {
-    const clone = new Goal({ id: this.id, x: this.x, y: this.y, width: this.width, height: this.height, title: this.title });
+    const clone = new Goal({ id: this.id, x: this.x, y: this.y, width: this.width, height: this.height, title: this.title, status: this.status, priority: this.priority });
     clone.progress = this.progress;
     clone.links = [...this.links];
     return clone;
@@ -83,9 +88,6 @@ export class Goal extends PlanningElement {
    * Prompt to edit goal title
    */
   public onDoubleClick(): void {
-    const newTitle = window.prompt('Edit Goal Title:', this.title);
-    if (newTitle !== null) {
-      this.title = newTitle;
-    }
+    editElement$.next(this);
   }
 }

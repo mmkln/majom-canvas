@@ -50,6 +50,7 @@ export class DiagramRepository {
         title: storyDto.title,
         description: storyDto.description,
         status: storyDto.status,
+        priority: storyDto.priority,
         borderColor: storyDto.borderColor,
         tasks: storyTasks,
       });
@@ -66,6 +67,8 @@ export class DiagramRepository {
         width: goalDto.width,
         height: goalDto.height,
         title: goalDto.title,
+        status: goalDto.status,
+        priority: goalDto.priority,
       });
       goalElement.progress = goalDto.progress;
       goalElement.links = goalDto.links;
@@ -119,6 +122,7 @@ export class DiagramRepository {
       title: s.title,
       description: s.description,
       status: s.status,
+      priority: s.priority,
       borderColor: s.borderColor,
       tasks: s.tasks.map((t) => t.id),
     }));
@@ -133,6 +137,8 @@ export class DiagramRepository {
       width: g.width,
       height: g.height,
       title: g.title,
+      status: g.status,
+      priority: g.priority,
       progress: g.progress,
       links: g.links,
     }));

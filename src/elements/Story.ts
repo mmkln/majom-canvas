@@ -4,6 +4,7 @@ import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { Task } from './Task.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
 import { SELECT_COLOR, STORY_FILL_COLOR, STORY_BORDER_COLOR } from '../core/constants.ts';
+import { editElement$ } from '../core/eventBus.ts';
 
 /**
  * Story representation on the canvas - a container for tasks
@@ -17,6 +18,7 @@ export class Story extends PlanningElement {
   status: 'pending' | 'in-progress' | 'done' = 'pending';
   borderColor: string;
   tasks: Task[] = [];
+  public priority: 'low' | 'medium' | 'high' = 'medium';
   /** Currently hovered resize direction */
   public hoveredResizeHandle: 'nw'|'ne'|'se'|'sw'|null = null;
   
@@ -32,6 +34,7 @@ export class Story extends PlanningElement {
     title = 'New Story',
     description = '',
     status = 'pending',
+    priority = 'medium',
     /** border color */
     borderColor = STORY_BORDER_COLOR,
     tasks = []
@@ -44,6 +47,7 @@ export class Story extends PlanningElement {
     title?: string;
     description?: string;
     status?: 'pending' | 'in-progress' | 'done';
+    priority?: 'low' | 'medium' | 'high';
     borderColor?: string;
     tasks?: Task[];
   }) {
@@ -51,6 +55,7 @@ export class Story extends PlanningElement {
     // layer ordering: draw stories below tasks
     this.zIndex = 1;
     this.status = status;
+    this.priority = priority;
     this.borderColor = borderColor;
     this.tasks = tasks; // initialize contained tasks
     // Logic temporarily removed
@@ -255,13 +260,10 @@ export class Story extends PlanningElement {
   }
 
   /**
-   * Prompt to edit story title
+   * Prompt to edit story properties
    */
   public onDoubleClick(): void {
-    const newTitle = window.prompt('Edit Story Title:', this.title);
-    if (newTitle !== null) {
-      this.title = newTitle;
-    }
+    editElement$.next(this);
   }
 
   clone(): PlanningElement { return this; }

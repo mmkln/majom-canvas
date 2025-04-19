@@ -34,7 +34,7 @@ export class CanvasToolbar {
     container.style.background = 'white';
     container.style.borderRadius = '12px';
     container.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
-    container.style.zIndex = '1000';
+    container.style.zIndex = '100';
     return container;
   }
   

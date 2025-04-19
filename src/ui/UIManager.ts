@@ -2,8 +2,11 @@
 import { CanvasControls } from './CanvasControls.ts';
 import { ZoomIndicator } from './ZoomIndicator.ts';
 import { CanvasToolbar } from './CanvasToolbar.ts';
+import { EditElementModal } from './components/EditElementModal.ts';
+import { NotificationContainer } from './components/NotificationContainer.ts';
 import { CanvasManager } from '../core/managers/CanvasManager.ts';
 import { Scene } from '../core/scene/Scene.ts';
+import { editElement$ } from '../core/eventBus.ts';
 
 export class UIManager {
   private readonly components: { mount(parent?: HTMLElement): void; unmount(): void }[] = [];
@@ -21,7 +24,13 @@ export class UIManager {
     this.zoomIndicator = new ZoomIndicator(this.canvasManager);
     
     // Add controls to components that will be mounted
+    // Core UI components
     this.components.push(this.canvasControls, this.zoomIndicator, this.canvasToolbar);
+    // Notification container
+    const notificationContainer = new NotificationContainer();
+    this.components.push(notificationContainer);
+    // Show modal on edit requests via RxJS bus
+    editElement$.subscribe((el) => new EditElementModal(el, this.scene).show());
   }
 
   public mountAll(parent: HTMLElement = document.body): void {

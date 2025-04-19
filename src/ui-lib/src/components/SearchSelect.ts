@@ -15,6 +15,7 @@ export interface SearchSelectProps {
   placeholder?: string;
   className?: string;
   onSelect?: (selectedItem: string) => void;
+  selectedValue?: string;
 }
 
 export class SearchSelect extends Component<SearchSelectProps> {
@@ -29,13 +30,23 @@ export class SearchSelect extends Component<SearchSelectProps> {
   }
 
   protected createElement(): HTMLElement {
+    // Initialize filtered list
     this.filteredItems = [...this.props.items];
+    // Determine initial filter input value based on selectedValue
+    const initialLabel = this.props.selectedValue
+      ? this.props.items.find(item => item.value === this.props.selectedValue)?.label || ''
+      : '';
 
     this.filterInput = ComponentFactory.createInput({
-      value: '',
+      value: initialLabel,
       placeholder: this.props.placeholder ?? 'Search items...',
       onChange: (value: string) => this.filterItems(value),
     });
+
+    // If a selectedValue is provided, filter list to that item
+    if (this.props.selectedValue) {
+      this.filteredItems = this.props.items.filter(item => item.value === this.props.selectedValue);
+    }
 
     if (this.props.onSelect) {
       if (!this.selectEmitter) {
@@ -56,7 +67,7 @@ export class SearchSelect extends Component<SearchSelectProps> {
 
     this.listContainer = document.createElement('ul');
     this.listContainer.className = twMerge(
-      'absolute top-full left-0 w-full flex flex-col gap-2 mt-1 bg-gray-100 rounded-lg shadow-lg max-h-60 overflow-y-auto',
+      'absolute z-60 top-full left-0 w-full flex flex-col gap-2 mt-1 bg-gray-100 rounded-lg shadow-lg max-h-60 overflow-y-auto',
       this.isListVisible ? 'block' : 'hidden'
     );
     this.renderItems();
@@ -124,7 +135,7 @@ export class SearchSelect extends Component<SearchSelectProps> {
 
   private updateListVisibility(): void {
     this.listContainer.className = twMerge(
-      'absolute top-full left-0 w-full flex flex-col gap-2 mt-1 bg-gray-100 rounded-lg shadow-lg max-h-60 overflow-y-auto',
+      'absolute z-60 top-full left-0 w-full flex flex-col gap-2 mt-1 bg-gray-100 rounded-lg shadow-lg max-h-60 overflow-y-auto',
       this.isListVisible ? 'block' : 'hidden'
     );
   }

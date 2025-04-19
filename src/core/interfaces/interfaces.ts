@@ -31,6 +31,7 @@ export interface IStory {
   title: string;
   description: string;
   status: 'pending' | 'in-progress' | 'done';
+  priority: 'low' | 'medium' | 'high';
   borderColor: string;
   tasks: string[]; // id задач, що належать цій Story
 }
@@ -45,6 +46,8 @@ export interface IGoal {
   width: number;
   height: number;
   title: string;
+  status: 'pending' | 'in-progress' | 'done';
+  priority: 'low' | 'medium' | 'high';
   progress: number;
   links: string[];
 }

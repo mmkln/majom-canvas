@@ -3,6 +3,7 @@ import { PlanningElement } from './PlanningElement.ts';
 import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
 import { SELECT_COLOR } from '../core/constants.ts';
+import { editElement$ } from '../core/eventBus.ts';
 
 /**
  * Task representation on the canvas
@@ -163,12 +164,10 @@ export class Task extends PlanningElement {
   }
 
   /**
-   * Prompt to edit task title
+   * Prompt to edit task title, status and priority
    */
   public onDoubleClick(): void {
-    const newTitle = window.prompt('Edit Task Title:', this.title);
-    if (newTitle !== null) {
-      this.title = newTitle;
-    }
+    // Trigger edit modal via event bus
+    editElement$.next(this);
   }
 }
