@@ -24,6 +24,17 @@ export class EditElementModal {
     document.body.appendChild(overlay);
     container.focus();
 
+    // Modal header for clarity
+    const headerEl = document.createElement('h2');
+    headerEl.className = 'text-lg font-semibold';
+    const typeLabel = this.element instanceof Task
+      ? 'Task'
+      : this.element instanceof Story
+      ? 'Story'
+      : 'Goal';
+    headerEl.textContent = `Edit ${typeLabel}`;
+    container.appendChild(headerEl);
+
     // Local temp state
     let tempTitle = this.element.title;
     let tempStatus = this.element.status;
