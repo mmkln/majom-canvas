@@ -183,7 +183,6 @@ export class CanvasManager {
     const mouseY = e.clientY - rect.top;
     const sceneX = (mouseX + this.panZoom.scrollX) / this.panZoom.scale;
     const sceneY = (mouseY + this.panZoom.scrollY) / this.panZoom.scale;
-    this.lastMouseCoords = { x: sceneX, y: sceneY }; // Оновлюємо координати
     return { sceneX, sceneY };
   }
 
@@ -194,6 +193,8 @@ export class CanvasManager {
 
   onMouseDown(e: MouseEvent): void {
     const { sceneX, sceneY } = this.getSceneCoords(e);
+    // Update last mouse position for copy/paste placement
+    this.lastMouseCoords = { x: sceneX, y: sceneY };
 
     const rect = this.canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
