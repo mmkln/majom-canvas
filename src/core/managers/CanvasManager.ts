@@ -10,6 +10,8 @@ import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
 import type { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
 import type { IConnection } from '../interfaces/connection.ts';
 import { SELECT_COLOR, HOVER_OVERLAY_FILL, HOVER_OUTLINE_COLOR } from '../constants.ts';
+import { Task } from '../../elements/Task.ts';
+import { Goal } from '../../elements/Goal.ts';
 
 export class CanvasManager {
   canvas: HTMLCanvasElement;
@@ -90,6 +92,20 @@ export class CanvasManager {
     const shapes = this.scene.getShapes();
     const planningEls = elements.filter(isPlanningElement) as IPlanningElement[];
     const connectables = [...shapes, ...planningEls];
+
+    // Update goal links and progress
+    const connections = this.scene.getConnections();
+    planningEls.filter(el => el instanceof Goal).forEach((goal: Goal) => {
+      const linkedIds = connections
+        .filter(c => c.fromId === goal.id || c.toId === goal.id)
+        .map(c => c.fromId === goal.id ? c.toId : c.fromId);
+      goal.links = Array.from(new Set(linkedIds));
+      const taskEls = planningEls.filter(el => el instanceof Task) as Task[];
+      const linkedTasks = taskEls.filter(t => goal.links.indexOf(t.id) !== -1);
+      goal.progress = linkedTasks.length
+        ? linkedTasks.filter(t => t.status === 'done').length / linkedTasks.length
+        : 0;
+    });
 
     // draw shapes
     shapes.forEach(shape => shape.draw(this.ctx, this.panZoom));

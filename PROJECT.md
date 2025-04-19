@@ -59,20 +59,21 @@ Majom Canvas is an interactive tool for visualizing and managing tasks, stories,
     - Stories and tasks can be connected (excluding tasks already contained in the story).
 
 - **Goals:**
-  - Represent larger project goals to which tasks can be linked.
+  - Represent larger personal goals to which tasks and stories can be linked.
   - Visualization:
     - **Format:** Separate cards or badges, visually distinct from tasks and stories.
     - **Card elements:**
       - **Title:** Text at the top (e.g., "Launch MVP").
       - **Progress indicator:** Bar or percentage showing completion status.
       - **Number of linked tasks:** Number or icon indicating how many tasks are linked to the goal.
-      - **Action buttons:** Icons for editing and deleting.
+      - **Action buttons:** Icons for editing and deleting. (can be skipped for now)
     - **Placement:** Can be placed anywhere on the canvas.
   - **Interactivity:**
     - Dragging on the canvas.
     - Update progress via linked tasks.
     - Edit via modal window.
-    - Context menu with options: "Edit", "Delete", "Link task".
+    - Connect to tasks and stories.
+    - Context menu with options: "Edit", "Delete", "Link task". (can be skipped for now)
 
 - **Connections:**
   - Visualization of dependencies between tasks as arrows.

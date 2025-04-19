@@ -1,7 +1,7 @@
 // src/core/data/DiagramRepository.ts
 
 import { Scene } from '../scene/Scene.ts';
-import { ITask, TaskDependency, IStory } from '../interfaces/interfaces.ts';
+import { ITask, TaskDependency, IStory, IGoal } from '../interfaces/interfaces.ts';
 import { IDataProvider } from '../interfaces/dataProvider.ts';
 import Connection from '../shapes/Connection.ts';
 import Circle from '../shapes/Circle.ts';
@@ -10,6 +10,7 @@ import Square from '../shapes/Square.ts';
 import { ICanvasElement } from '../interfaces/canvasElement.ts';
 import { Task } from '../../elements/Task.ts';
 import { Story } from '../../elements/Story.ts';
+import { Goal } from '../../elements/Goal.ts';
 
 export class DiagramRepository {
   constructor(private dataProvider: IDataProvider) {}
@@ -55,10 +56,26 @@ export class DiagramRepository {
       scene.addElement(storyElement);
     });
 
+    // load goals
+    const goalsDto: IGoal[] = await this.dataProvider.loadGoals();
+    goalsDto.forEach((goalDto) => {
+      const goalElement = new Goal({
+        id: goalDto.id,
+        x: goalDto.x,
+        y: goalDto.y,
+        width: goalDto.width,
+        height: goalDto.height,
+        title: goalDto.title,
+      });
+      goalElement.progress = goalDto.progress;
+      goalElement.links = goalDto.links;
+      scene.addElement(goalElement);
+    });
+
     // process all connections after tasks and stories added
     dependencies.forEach((dep) => {
-      const fromElement = scene.getElements().find(el => el.id === dep.fromTaskId);
-      const toElement = scene.getElements().find(el => el.id === dep.toTaskId);
+      const fromElement = scene.getElements().find((el) => el.id === dep.fromTaskId);
+      const toElement = scene.getElements().find((el) => el.id === dep.toTaskId);
       if (fromElement && toElement) {
         const line = new Connection(fromElement.id, toElement.id);
         scene.addElement(line);
@@ -71,7 +88,7 @@ export class DiagramRepository {
     // serialize tasks
     const tasks: ITask[] = scene
       .getElements()
-      .filter(el => el instanceof Task)
+      .filter((el) => el instanceof Task)
       .map((t: Task) => ({
         id: t.id,
         x: t.x,
@@ -86,7 +103,7 @@ export class DiagramRepository {
     // serialize dependencies
     const deps: TaskDependency[] = scene
       .getConnections()
-      .map(c => ({ fromTaskId: c.fromId, toTaskId: c.toId, type: 'dependsOn' }));
+      .map((c) => ({ fromTaskId: c.fromId, toTaskId: c.toId, type: 'dependsOn' }));
     await this.dataProvider.saveDependencies(deps);
 
     // serialize stories
@@ -106,5 +123,19 @@ export class DiagramRepository {
       tasks: s.tasks.map((t) => t.id),
     }));
     await this.dataProvider.saveStories(storiesToSave);
+
+    // serialize goals
+    const goalElements = scene.getElements().filter((el) => el instanceof Goal) as Goal[];
+    const goalsToSave: IGoal[] = goalElements.map((g) => ({
+      id: g.id,
+      x: g.x,
+      y: g.y,
+      width: g.width,
+      height: g.height,
+      title: g.title,
+      progress: g.progress,
+      links: g.links,
+    }));
+    await this.dataProvider.saveGoals(goalsToSave);
   }
 }

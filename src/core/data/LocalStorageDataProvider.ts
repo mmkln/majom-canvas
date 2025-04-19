@@ -1,10 +1,11 @@
 import { IDataProvider } from '../interfaces/dataProvider.ts';
-import { ITask, TaskDependency, IStory, IViewState } from '../interfaces/interfaces.ts';
+import { ITask, TaskDependency, IStory, IViewState, IGoal } from '../interfaces/interfaces.ts';
 
 const TASKS_KEY = 'canvas-tasks';
 const DEPS_KEY = 'canvas-dependencies';
 const STORIES_KEY = 'canvas-stories';
 const VIEW_KEY = 'canvas-view';
+const GOALS_KEY = 'canvas-goals';
 
 /**
  * DataProvider that reads/writes tasks and dependencies to localStorage.
@@ -25,6 +26,11 @@ export class LocalStorageDataProvider implements IDataProvider {
     return raw ? JSON.parse(raw) as IStory[] : [];
   }
 
+  async loadGoals(): Promise<IGoal[]> {
+    const raw = localStorage.getItem(GOALS_KEY);
+    return raw ? (JSON.parse(raw) as IGoal[]) : [];
+  }
+
   async saveTasks(tasks: ITask[]): Promise<void> {
     localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
   }
@@ -35,6 +41,10 @@ export class LocalStorageDataProvider implements IDataProvider {
 
   async saveStories(stories: IStory[]): Promise<void> {
     localStorage.setItem(STORIES_KEY, JSON.stringify(stories));
+  }
+
+  async saveGoals(goals: IGoal[]): Promise<void> {
+    localStorage.setItem(GOALS_KEY, JSON.stringify(goals));
   }
 
   /** Load saved view (scroll & zoom) */

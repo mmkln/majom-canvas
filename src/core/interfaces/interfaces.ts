@@ -36,6 +36,20 @@ export interface IStory {
 }
 
 /**
+ * Interface for saving Goal in LocalStorage
+ */
+export interface IGoal {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  title: string;
+  progress: number;
+  links: string[];
+}
+
+/**
  * Інтерфейс збереження стану перегляду (зум/скрол)
  */
 export interface IViewState {

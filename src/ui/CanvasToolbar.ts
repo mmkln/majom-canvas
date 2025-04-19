@@ -70,7 +70,7 @@ export class CanvasToolbar {
     const createGoalBtn = ComponentFactory.createButton({
       text: 'Goal',
       variant: 'secondary',
-      onClick: () => alert('Додавання Goal тимчасово вимкнено'),
+      onClick: () => this.createGoal(),
       tooltip: 'Create a new goal on canvas'
     }).createElement();
     
@@ -137,8 +137,14 @@ export class CanvasToolbar {
    * Create a new goal on the canvas
    */
   private createGoal(): void {
-    // Disabled logic
-    // alert('Додавання Goal тимчасово вимкнено');
+    const centerX = this.canvasManager.canvas.width / 2;
+    const centerY = this.canvasManager.canvas.height / 2;
+    const panZoom = this.canvasManager.getPanZoomManager();
+    const sceneX = centerX * panZoom.scale + panZoom.scrollX - 100;
+    const sceneY = centerY * panZoom.scale + panZoom.scrollY - 60;
+    const goal = new Goal({ x: sceneX, y: sceneY });
+    this.scene.addElement(goal);
+    this.canvasManager.draw();
   }
   
   /**
