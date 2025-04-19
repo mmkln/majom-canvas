@@ -3,6 +3,7 @@ import { Button } from '../../ui-lib/src/components/Button.js';
 import { Input } from '../../ui-lib/src/components/Input.js';
 import { AuthService } from '../../majom-wrapper/data-access/auth-service.js';
 import { LoginCredentials } from '../../majom-wrapper/interfaces/auth-interfaces.js';
+import { createModalShell } from '../../ui-lib/src/components/Modal.js';
 
 /**
  * AuthComponent manages the UI for user authentication, including login/logout buttons and modal for credentials.
@@ -82,77 +83,49 @@ export class AuthComponent extends Component<any> {
 
   private showLoginModal(): void {
     if (this.modal) return;
+    const { overlay, container } = createModalShell('Login to Majom Canvas', { onClose: () => this.closeModal() });
+    this.modal = overlay;
 
-    this.modal = document.createElement('div');
-    this.modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50';
-    const modalContent = document.createElement('div');
-    modalContent.className = 'bg-white rounded-lg p-6 w-96';
-    modalContent.innerHTML = `
-      <h2 class="text-2xl font-bold mb-4">Login to Majom Canvas</h2>
-      <form id="loginForm">
-        <div class="mb-4">
-          <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
-          <span id="usernameInputPlaceholder"></span>
-        </div>
-        <div class="mb-4">
-          <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
-          <span id="passwordInputPlaceholder"></span>
-        </div>
-        <span id="loginSubmitPlaceholder"></span>
-      </form>
-      <div id="errorMessage" class="mt-2 text-red-500 hidden"></div>
-    `;
-    this.modal.appendChild(modalContent);
+    // Build login form
+    const form = document.createElement('form');
+    form.id = 'loginForm';
 
-    // Use Input component for username and password fields
-    const usernameInput = new Input({
-      id: 'username',
-      name: 'username',
-      type: 'text',
-      placeholder: 'Enter your username',
-      className: 'mt-1',
-    }).createElement();
-    const passwordInput = new Input({
-      id: 'password',
-      name: 'password',
-      type: 'password',
-      placeholder: 'Enter your password',
-      className: 'mt-1',
-    }).createElement();
-    const usernameInputPlaceholder = modalContent.querySelector('#usernameInputPlaceholder');
-    const passwordInputPlaceholder = modalContent.querySelector('#passwordInputPlaceholder');
-    if (usernameInputPlaceholder) usernameInputPlaceholder.replaceWith(usernameInput);
-    if (passwordInputPlaceholder) passwordInputPlaceholder.replaceWith(passwordInput);
-    document.body.appendChild(this.modal);
+    // Username field
+    const usernameDiv = document.createElement('div');
+    usernameDiv.className = 'mb-4';
+    const usernameLabel = document.createElement('label');
+    usernameLabel.htmlFor = 'username';
+    usernameLabel.className = 'block text-sm font-medium text-gray-700';
+    usernameLabel.textContent = 'Username';
+    const usernameInput = new Input({ id: 'username', name: 'username', type: 'text', placeholder: 'Enter your username', className: 'mt-1' }).createElement();
+    usernameDiv.append(usernameLabel, usernameInput);
 
-    const form = modalContent.querySelector('#loginForm');
-    this.errorMessage = modalContent.querySelector('#errorMessage');
+    // Password field
+    const passwordDiv = document.createElement('div');
+    passwordDiv.className = 'mb-4';
+    const passwordLabel = document.createElement('label');
+    passwordLabel.htmlFor = 'password';
+    passwordLabel.className = 'block text-sm font-medium text-gray-700';
+    passwordLabel.textContent = 'Password';
+    const passwordInput = new Input({ id: 'password', name: 'password', type: 'password', placeholder: 'Enter your password', className: 'mt-1' }).createElement();
+    passwordDiv.append(passwordLabel, passwordInput);
 
-    // Replace placeholder with Button component for submit
-    const loginSubmitPlaceholder = modalContent.querySelector('#loginSubmitPlaceholder');
-    if (loginSubmitPlaceholder) {
-      const loginButton = new Button({
-        text: 'Login',
-        type: 'submit',
-        variant: 'default',
-        className: 'w-full',
-      }).createElement();
-      loginButton.id = 'loginSubmit';
-      loginSubmitPlaceholder.replaceWith(loginButton);
-    }
+    // Error message
+    this.errorMessage = document.createElement('div');
+    this.errorMessage.className = 'mt-2 text-red-500 hidden';
 
-    form?.addEventListener('submit', (e) => this.handleLoginSubmit(e));
+    // Submit button
+    const loginBtn = new Button({ text: 'Login', type: 'submit', variant: 'default', className: 'w-full' }).createElement();
+    loginBtn.id = 'loginSubmit';
 
-    this.modal.addEventListener('click', (e) => {
-      if (e.target === this.modal) {
-        this.closeModal();
-      }
-    });
+    form.append(usernameDiv, passwordDiv, loginBtn);
+    container.append(form, this.errorMessage);
+    form.addEventListener('submit', (e) => this.handleLoginSubmit(e));
   }
 
   private closeModal(): void {
     if (this.modal) {
-      document.body.removeChild(this.modal);
+      this.modal.remove();
       this.modal = null;
       this.errorMessage = null;
     }

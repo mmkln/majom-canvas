@@ -4,6 +4,7 @@ import { Goal } from '../../elements/Goal.ts';
 import { Scene } from '../../core/scene/Scene.ts';
 import { ComponentFactory } from '../../ui-lib/src/core/ComponentFactory.ts';
 import { notify } from '../../core/services/NotificationService.ts';
+import { createModalShell } from '../../ui-lib/src/components/Modal.js';
 
 // Modal for editing title, status, and priority of an element
 export class EditElementModal {
@@ -11,45 +12,37 @@ export class EditElementModal {
   constructor(private element: Task | Story | Goal, private scene: Scene) {}
 
   public show(): void {
-    // Overlay and container
-    const overlay = document.createElement('div');
-    overlay.className = 'fixed inset-0 bg-black/15 backdrop-blur-xs flex items-center justify-center';
-    // Ensure overlay above canvas
-    overlay.style.zIndex = '200';
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) this.close(); });
-    const container = document.createElement('div');
-    container.className = 'bg-white rounded-lg p-6 w-96 space-y-4 shadow-lg';
-    container.tabIndex = 0;
-    overlay.appendChild(container);
-    document.body.appendChild(overlay);
-    container.focus();
-
-    // Modal header for clarity
-    const headerEl = document.createElement('h2');
-    headerEl.className = 'text-lg font-semibold';
-    const typeLabel = this.element instanceof Task
-      ? 'Task'
-      : this.element instanceof Story
-      ? 'Story'
-      : 'Goal';
-    headerEl.textContent = `Edit ${typeLabel}`;
-    container.appendChild(headerEl);
+    const typeLabel = this.element instanceof Task ? 'Task' : this.element instanceof Story ? 'Story' : 'Goal';
+    const { overlay, container } = createModalShell(`Edit ${typeLabel}`, { onClose: () => this.close() });
 
     // Local temp state
     let tempTitle = this.element.title;
     let tempStatus = this.element.status;
     let tempPriority = this.element.priority;
 
-    // Title input
+    // Title input with label
+    const titleDiv = document.createElement('div');
+    titleDiv.className = 'mb-4';
+    const titleLabel = document.createElement('label');
+    titleLabel.className = 'block text-sm font-medium text-gray-700';
+    titleLabel.textContent = 'Title';
+    titleDiv.appendChild(titleLabel);
     const titleInput = ComponentFactory.createInput({
       value: tempTitle,
       onChange: (v: string) => { tempTitle = v; },
       autoFocus: true,
       className: 'w-full'
     });
-    titleInput.render(container);
+    titleInput.render(titleDiv);
+    container.appendChild(titleDiv);
 
-    // Status dropdown
+    // Status dropdown with label
+    const statusDiv = document.createElement('div');
+    statusDiv.className = 'mb-4';
+    const statusLabelEl = document.createElement('label');
+    statusLabelEl.className = 'block text-sm font-medium text-gray-700';
+    statusLabelEl.textContent = 'Status';
+    statusDiv.appendChild(statusLabelEl);
     const statusSelect = ComponentFactory.createSelect({
       items: [
         { value: 'pending', label: 'Pending' },
@@ -60,9 +53,16 @@ export class EditElementModal {
       onChange: (v: string) => { tempStatus = v as 'pending' | 'in-progress' | 'done'; },
       className: 'w-full'
     });
-    statusSelect.render(container);
+    statusSelect.render(statusDiv);
+    container.appendChild(statusDiv);
 
-    // Priority dropdown
+    // Priority dropdown with label
+    const priorityDiv = document.createElement('div');
+    priorityDiv.className = 'mb-4';
+    const priorityLabelEl = document.createElement('label');
+    priorityLabelEl.className = 'block text-sm font-medium text-gray-700';
+    priorityLabelEl.textContent = 'Priority';
+    priorityDiv.appendChild(priorityLabelEl);
     const prioritySelect = ComponentFactory.createSelect({
       items: [
         { value: 'low', label: 'Low' },
@@ -73,7 +73,8 @@ export class EditElementModal {
       onChange: (v: string) => { tempPriority = v as 'low' | 'medium' | 'high'; },
       className: 'w-full'
     });
-    prioritySelect.render(container);
+    prioritySelect.render(priorityDiv);
+    container.appendChild(priorityDiv);
 
     // Save function
     const saveAndClose = () => {
