@@ -160,7 +160,7 @@ export class Task extends PlanningElement {
   }
 
   clone(): PlanningElement {
-    return new Task({ id: this.id, x: this.x, y: this.y, title: this.title, status: this.status, priority: this.priority, dueDate: this.dueDate });
+    return new Task({ x: this.x, y: this.y, title: this.title, status: this.status, priority: this.priority, dueDate: this.dueDate });
   }
 
   /**

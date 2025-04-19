@@ -10,6 +10,8 @@ import { PanZoomManager } from './PanZoomManager.ts';
 import Connection from '../shapes/Connection.ts';
 import { Task } from '../../elements/Task.ts';
 import { Story } from '../../elements/Story.ts';
+import { historyService } from '../services/HistoryService.ts';
+import { MoveCommand } from '../commands/MoveCommand.ts';
 
 export class InteractionManager {
   private draggingElement: ICanvasElement & IPositioned | null = null;
@@ -437,6 +439,16 @@ export class InteractionManager {
       this.draggingShape.onDragEnd();
     }
     this.draggingShape = null;
+    // Capture move for undo/redo if any drag occurred
+    const initial = new Map(this.initialPositions);
+    if (initial.size > 0) {
+      const final = new Map<string, { x: number; y: number }>();
+      initial.forEach((_, id) => {
+        const el = this.scene.getElements().find(el => el.id === id) as any;
+        if (el) final.set(id, { x: el.x, y: el.y });
+      });
+      historyService.execute(new MoveCommand(this.scene, initial, final));
+    }
     this.initialPositions.clear();
     this.scene.changes.next();
 
