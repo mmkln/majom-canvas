@@ -2,7 +2,7 @@
 import { PlanningElement } from './PlanningElement.ts';
 import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
-import { SELECT_COLOR, GOAL_FILL_COLOR, GOAL_BORDER_COLOR } from '../core/constants.ts';
+import { SELECT_COLOR, GOAL_FILL_COLOR, GOAL_BORDER_COLOR, FONT_FAMILY, TITLE_FONT_SIZE, SMALL_FONT_SIZE } from '../core/constants.ts';
 import { editElement$ } from '../core/eventBus.ts';
 
 export class Goal extends PlanningElement {
@@ -23,21 +23,21 @@ export class Goal extends PlanningElement {
     // Background
     ctx.fillStyle = this.fillColor;
     ctx.beginPath();
-    ctx.roundRect(x, y, width, height, 8 / panZoom.scale);
+    ctx.roundRect(x, y, width, height, 8);
     ctx.fill();
     // Border
     ctx.strokeStyle = this.selected ? SELECT_COLOR : GOAL_BORDER_COLOR;
-    ctx.lineWidth = this.lineWidth / panZoom.scale;
+    ctx.lineWidth = this.lineWidth;
     ctx.stroke();
     // Title
     ctx.fillStyle = '#000000';
-    ctx.font = `${14 / panZoom.scale}px Arial`;
-    ctx.fillText(title, x + 8 / panZoom.scale, y + 20 / panZoom.scale);
+    ctx.font = `${TITLE_FONT_SIZE}px ${FONT_FAMILY}`;
+    ctx.fillText(title, x + 8, y + 20);
     // Progress bar background
-    const barX = x + 8 / panZoom.scale;
-    const barY = y + height - 16 / panZoom.scale;
-    const barWidth = width - 16 / panZoom.scale;
-    const barHeight = 8 / panZoom.scale;
+    const barX = x + 8;
+    const barY = y + height - 16;
+    const barWidth = width - 16;
+    const barHeight = 8;
     ctx.fillStyle = GOAL_FILL_COLOR;
     ctx.fillRect(barX, barY, barWidth, barHeight);
     // Progress fill
@@ -45,13 +45,13 @@ export class Goal extends PlanningElement {
     ctx.fillRect(barX, barY, barWidth * progress, barHeight);
     // Percentage text
     ctx.fillStyle = '#000000';
-    ctx.font = `${12 / panZoom.scale}px Arial`;
+    ctx.font = `${SMALL_FONT_SIZE}px ${FONT_FAMILY}`;
     const percentText = `${Math.round(progress * 100)}%`;
-    ctx.fillText(percentText, barX + barWidth * progress + 4 / panZoom.scale, barY + barHeight + 12 / panZoom.scale);
+    ctx.fillText(percentText, barX + barWidth * progress + 4, barY + barHeight + 12);
     // Link count icon and number at top-right
     const linkText = `🔗${links.length}`;
     const textWidth = ctx.measureText(linkText).width;
-    ctx.fillText(linkText, x + width - 8 / panZoom.scale - textWidth, y + 20 / panZoom.scale);
+    ctx.fillText(linkText, x + width - 8 - textWidth, y + 20);
     // Anchors
     super.drawAnchors(ctx, panZoom);
   }

@@ -3,7 +3,7 @@ import { PlanningElement } from './PlanningElement.ts';
 import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { Task } from './Task.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
-import { SELECT_COLOR, STORY_FILL_COLOR, STORY_BORDER_COLOR } from '../core/constants.ts';
+import { SELECT_COLOR, STORY_FILL_COLOR, STORY_BORDER_COLOR, FONT_FAMILY, TITLE_FONT_SIZE, SMALL_FONT_SIZE } from '../core/constants.ts';
 import { editElement$ } from '../core/eventBus.ts';
 
 /**
@@ -84,8 +84,8 @@ export class Story extends PlanningElement {
     ctx.stroke();
     // Title text
     ctx.fillStyle = '#000000';
-    ctx.font = `${14 / panZoom.scale}px Arial`;
-    ctx.fillText(this.title, this.x + 8 / panZoom.scale, this.y + 16 / panZoom.scale);
+    ctx.font = `bold ${TITLE_FONT_SIZE}px ${FONT_FAMILY}`;
+    ctx.fillText(this.title, this.x + 10, this.y + 20);
     // Draw anchors via base class
     super.drawAnchors(ctx, panZoom);
     // Draw resize handles when selected
@@ -123,7 +123,7 @@ export class Story extends PlanningElement {
     
     // Icon
     ctx.fillStyle = '#666666';
-    ctx.font = `${14 / panZoom.scale}px Arial`;
+    ctx.font = `${SMALL_FONT_SIZE / panZoom.scale}px ${FONT_FAMILY}`;
     ctx.fillText(icon, x + 3 / panZoom.scale, y + 16 / panZoom.scale);
   }
   

@@ -12,3 +12,7 @@ export const GOAL_BORDER_COLOR = '#fa8c16';
 // Region selection colors
 export const REGION_SELECT_BORDER_COLOR = '#1890ff';
 export const REGION_SELECT_FILL = 'rgba(24,144,255,0.2)';
+// Font settings
+export const FONT_FAMILY = 'Arial';
+export const TITLE_FONT_SIZE = 14; // px
+export const SMALL_FONT_SIZE = 12; // px

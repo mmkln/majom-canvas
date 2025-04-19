@@ -14,19 +14,19 @@ export class ShortcutManager {
 
   /** Register a handler for a key combo, e.g. 'ctrl+z' or 'Backspace' */
   public register(combo: string, handler: ShortcutHandler): void {
-    const key = combo.toLowerCase();
+    const key: string = combo.toLowerCase();
     if (!this.handlers.has(key)) this.handlers.set(key, []);
     this.handlers.get(key)!.push(handler);
   }
 
   /** Unregister a handler or all handlers for a combo */
   public unregister(combo: string, handler?: ShortcutHandler): void {
-    const key = combo.toLowerCase();
+    const key: string = combo.toLowerCase();
     if (!this.handlers.has(key)) return;
     if (!handler) {
       this.handlers.delete(key);
     } else {
-      const arr = this.handlers.get(key)!.filter(h => h !== handler);
+      const arr: ShortcutHandler[] = this.handlers.get(key)!.filter(h => h !== handler);
       if (arr.length) this.handlers.set(key, arr);
       else this.handlers.delete(key);
     }
@@ -36,11 +36,11 @@ export class ShortcutManager {
     // Ignore when modal open
     if (modalService.isOpen() || document.querySelector('[role="dialog"]')) return;
     // Ignore editable fields
-    const tgt = e.target as HTMLElement;
+    const tgt: HTMLElement = e.target as HTMLElement;
     if (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.tagName === 'SELECT' || tgt.isContentEditable) return;
-    const combo = this.normalize(e);
-    const handlers = this.handlers.get(combo);
-    if (handlers) {
+    const combo: string = this.normalize(e);
+    const handlers: ShortcutHandler[] = this.handlers.get(combo) || [];
+    if (handlers.length) {
       e.preventDefault();
       e.stopPropagation();
       handlers.forEach(h => h(e));
@@ -58,4 +58,4 @@ export class ShortcutManager {
   }
 }
 
-export const shortcutManager = new ShortcutManager();
+export const shortcutManager: ShortcutManager = new ShortcutManager();
