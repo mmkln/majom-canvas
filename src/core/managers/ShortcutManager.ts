@@ -37,8 +37,7 @@ export class ShortcutManager {
     if (modalService.isOpen() || document.querySelector('[role="dialog"]')) return;
     // Ignore editable fields
     const tgt = e.target as HTMLElement;
-    if (['INPUT','TEXTAREA','SELECT'].includes(tgt.tagName) || tgt.isContentEditable) return;
-
+    if (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.tagName === 'SELECT' || tgt.isContentEditable) return;
     const combo = this.normalize(e);
     const handlers = this.handlers.get(combo);
     if (handlers) {

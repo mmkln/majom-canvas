@@ -78,7 +78,7 @@ export class Goal extends PlanningElement {
   }
 
   clone(): PlanningElement {
-    const clone = new Goal({ id: this.id, x: this.x, y: this.y, width: this.width, height: this.height, title: this.title, status: this.status, priority: this.priority });
+    const clone = new Goal({ x: this.x, y: this.y, width: this.width, height: this.height, title: this.title, status: this.status, priority: this.priority });
     clone.progress = this.progress;
     clone.links = [...this.links];
     return clone;
