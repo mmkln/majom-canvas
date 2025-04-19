@@ -2,6 +2,7 @@
 import { Scene } from '../scene/Scene.ts';
 import { IShape } from '../interfaces/shape.ts';
 import { CanvasManager } from './CanvasManager.ts';
+import { modalService } from '../../ui-lib/src/services/ModalService.ts';
 
 export class KeyboardManager {
   private clipboard: IShape[] = [];
@@ -24,6 +25,8 @@ export class KeyboardManager {
   }
 
   private onKeyDown(e: KeyboardEvent): void {
+    // Do not handle global shortcuts if a modal is open
+    if (modalService.isOpen()) return;
     // Ignore shortcuts when focused on form fields or editable content
     const tgt = e.target as HTMLElement;
     if (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.tagName === 'SELECT' || tgt.isContentEditable) return;

@@ -5,3 +5,4 @@ export { Checkbox } from './components/Checkbox.ts';
 export { ComponentFactory } from './core/ComponentFactory.ts';
 export { UIManager } from './core/UIManager.ts';
 export { ThemeManager } from './core/Theme.ts';
+export { ToastProvider } from './components/ToastProvider.ts';
