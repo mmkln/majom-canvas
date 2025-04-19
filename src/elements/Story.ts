@@ -266,5 +266,18 @@ export class Story extends PlanningElement {
     editElement$.next(this);
   }
 
-  clone(): PlanningElement { return this; }
+  clone(): PlanningElement {
+    return new Story({
+      x: this.x,
+      y: this.y,
+      width: this.width,
+      height: this.height,
+      title: this.title,
+      description: this.description,
+      status: this.status,
+      priority: this.priority,
+      borderColor: this.borderColor,
+      tasks: []
+    });
+  }
 }
