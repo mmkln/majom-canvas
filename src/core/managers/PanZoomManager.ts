@@ -33,18 +33,36 @@ export class PanZoomManager {
 
   // --- Canvas controls logic ---
   public zoomIn(canvas: HTMLCanvasElement): void {
+    // Zoom relative to canvas center
+    const oldScale = this.scale;
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const contentX = (centerX + this.scrollX) / oldScale;
+    const contentY = (centerY + this.scrollY) / oldScale;
     const maxScale = 3;
-    this.scale = Math.min(this.scale * 1.15, maxScale);
+    this.scale = Math.min(oldScale * 1.15, maxScale);
+    // adjust scroll to keep center fixed
+    this.scrollX = contentX * this.scale - centerX;
+    this.scrollY = contentY * this.scale - centerY;
     this.clampScroll();
     this.emitZoomChange();
   }
 
   public zoomOut(canvas: HTMLCanvasElement): void {
+    // Zoom out relative to canvas center
+    const oldScale = this.scale;
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const contentX = (centerX + this.scrollX) / oldScale;
+    const contentY = (centerY + this.scrollY) / oldScale;
     const minScale = Math.max(
       (canvas.width - this.scrollbarWidth) / this.virtualWidth,
       (canvas.height - this.scrollbarWidth) / this.virtualHeight
     );
-    this.scale = Math.max(this.scale / 1.15, minScale);
+    this.scale = Math.max(oldScale / 1.15, minScale);
+    // adjust scroll to keep center fixed
+    this.scrollX = contentX * this.scale - centerX;
+    this.scrollY = contentY * this.scale - centerY;
     this.clampScroll();
     this.emitZoomChange();
   }
