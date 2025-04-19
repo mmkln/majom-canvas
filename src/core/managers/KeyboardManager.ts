@@ -24,6 +24,9 @@ export class KeyboardManager {
   }
 
   private onKeyDown(e: KeyboardEvent): void {
+    // Ignore shortcuts when focused on form fields or editable content
+    const tgt = e.target as HTMLElement;
+    if (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.tagName === 'SELECT' || tgt.isContentEditable) return;
     console.log({ key: e.key });
 
     if (e.key === 'Escape') {

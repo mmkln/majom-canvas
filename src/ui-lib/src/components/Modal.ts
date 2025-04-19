@@ -24,6 +24,15 @@ export function createModalShell(title: string, options?: ModalOptions): { overl
     });
   }
   container.focus();
-
+  // Trap Backspace inside modal to prevent global deletion
+  overlay.addEventListener('keydown', (e: KeyboardEvent) => {
+    const tgt = e.target as HTMLElement;
+    // Ignore form fields or editable content
+    if (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.tagName === 'SELECT' || tgt.isContentEditable) return;
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, { capture: true });
   return { overlay, container };
 }

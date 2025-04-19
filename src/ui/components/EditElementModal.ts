@@ -93,10 +93,13 @@ export class EditElementModal {
     ComponentFactory.createButton({ text: 'Save', onClick: saveAndClose, variant: 'default' }).render(btnRow);
     container.appendChild(btnRow);
 
-    // Keyboard: Enter=Save, Escape=Close
+    // Keyboard: capture keys within modal and prevent global handlers
     container.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') saveAndClose();
-      if (e.key === 'Escape') this.close();
+      e.stopPropagation();
+      // Prevent default navigation/back behavior
+      if (e.key === 'Backspace') e.preventDefault();
+      if (e.key === 'Enter') { e.preventDefault(); saveAndClose(); }
+      if (e.key === 'Escape') { e.preventDefault(); this.close(); }
     });
 
     this.modal = overlay;
