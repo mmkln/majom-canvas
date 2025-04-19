@@ -4,6 +4,7 @@ import { Input } from '../../ui-lib/src/components/Input.js';
 import { AuthService } from '../../majom-wrapper/data-access/auth-service.js';
 import { LoginCredentials } from '../../majom-wrapper/interfaces/auth-interfaces.js';
 import { createModalShell } from '../../ui-lib/src/components/Modal.js';
+import { notify } from '../../core/services/NotificationService.ts';
 
 /**
  * AuthComponent manages the UI for user authentication, including login/logout buttons and modal for credentials.
@@ -151,6 +152,7 @@ export class AuthComponent extends Component<any> {
     try {
       await this.authService.login(credentials);
       this.isLoading = false;
+      notify('Logged in successfully', 'success');
       this.closeModal();
       this.updateUI();
       // Trigger canvas data refresh
@@ -159,15 +161,18 @@ export class AuthComponent extends Component<any> {
       this.isLoading = false;
       loginButton.disabled = false;
       loginButton.textContent = 'Login';
+      const msg = error instanceof Error ? error.message : 'Login failed. Please try again.';
+      notify(msg, 'error');
       if (this.errorMessage) {
         this.errorMessage.classList.remove('hidden');
-        this.errorMessage.textContent = error instanceof Error ? error.message : 'An error occurred. Please try again.';
+        this.errorMessage.textContent = msg;
       }
     }
   }
 
   private handleLogout(): void {
     this.authService.logout();
+    notify('Logged out', 'info');
     this.updateUI();
     this.dropdownMenu.classList.add('hidden');
     // Trigger canvas data refresh

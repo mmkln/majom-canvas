@@ -5,6 +5,7 @@ import { CanvasManager } from '../core/managers/CanvasManager.ts';
 import { Task } from '../elements/Task.ts';
 import { Story } from '../elements/Story.ts';
 import { Goal } from '../elements/Goal.ts';
+import { notify } from '../core/services/NotificationService.ts';
 
 /**
  * Canvas toolbar component with buttons for creating tasks, stories, and goals
@@ -116,6 +117,7 @@ export class CanvasToolbar {
     // Add the adapter to the scene
     this.scene.addElement(task);
     this.canvasManager.draw();
+    notify('Task created', 'success');
   }
   
   /**
@@ -131,6 +133,7 @@ export class CanvasToolbar {
     const story = new Story({ x: sceneX, y: sceneY });
     this.scene.addElement(story);
     this.canvasManager.draw();
+    notify('Story created', 'success');
   }
   
   /**
@@ -145,6 +148,7 @@ export class CanvasToolbar {
     const goal = new Goal({ x: sceneX, y: sceneY });
     this.scene.addElement(goal);
     this.canvasManager.draw();
+    notify('Goal created', 'success');
   }
   
   /**
