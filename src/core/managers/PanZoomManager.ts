@@ -7,8 +7,8 @@ export class PanZoomManager {
   scrollY: number = 0;
   scale: number = 1.4;
   // Virtual content dimensions (can be adjusted or passed in)
-  virtualWidth: number = 3000;
-  virtualHeight: number = 2000;
+  virtualWidth: number = 5000;
+  virtualHeight: number = 4000;
   scrollbarWidth: number = 6;
 
   /** Emits on any view (scroll/zoom) change */
@@ -80,7 +80,8 @@ export class PanZoomManager {
    */
   public handleWheelEvent(e: WheelEvent, canvas: HTMLCanvasElement, mouseX: number, mouseY: number): void {
     if (e.ctrlKey) {
-      const zoomFactor = Math.pow(1.001, -e.deltaY);
+      // increase zoom speed for touchpad zoom
+      const zoomFactor = Math.pow(1.005, -e.deltaY);
       const oldScale = this.scale;
       let newScale = oldScale * zoomFactor;
       const viewportWidth = canvas.width - this.scrollbarWidth;
