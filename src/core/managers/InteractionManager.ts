@@ -381,7 +381,8 @@ export class InteractionManager {
         const minY = 'radius' in el ? el.y - el.radius : el.y;
         const maxX = 'radius' in el ? el.x + el.radius : el.x + el.width;
         const maxY = 'radius' in el ? el.y + el.radius : el.y + el.height;
-        return minX >= x0 && minY >= y0 && maxX <= x0 + width && maxY <= y0 + height;
+        // select if any part of element intersects the region
+        return maxX >= x0 && minX <= x0 + width && maxY >= y0 && minY <= y0 + height;
       });
       this.scene.setSelected(inRect);
       this.isRegionSelecting = false;
