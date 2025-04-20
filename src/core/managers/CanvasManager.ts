@@ -313,12 +313,17 @@ export class CanvasManager {
    * This works with the new adapter pattern (TaskCanvasAdapter, StoryCanvasAdapter, GoalCanvasAdapter)
    */
   public addElement(item: any): void {
-    // Add the canvas item to the scene
+    // Position new element at last mouse coords or center of viewport
+    if ('x' in item && 'y' in item) {
+      const coords = this.lastMouseCoords ?? {
+        x: (this.canvas.width / 2 + this.panZoom.scrollX) / this.panZoom.scale,
+        y: (this.canvas.height / 2 + this.panZoom.scrollY) / this.panZoom.scale
+      };
+      item.x = coords.x;
+      item.y = coords.y;
+    }
     this.scene.addElement(item);
-    
-    // Trigger redraw
     this.draw();
-    
     console.log('Added item to canvas:', item);
   }
 
