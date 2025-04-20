@@ -1,0 +1,80 @@
+// ui/UndoRedoControls.ts
+import { ComponentFactory } from '../ui-lib/src/index.ts';
+import { ButtonVariant } from '../ui-lib/src/components/Button.js';
+import { historyService } from '../core/services/HistoryService.ts';
+import { Subscription } from 'rxjs';
+
+export class UndoRedoControls {
+  private readonly container: HTMLDivElement;
+  private undoBtn!: HTMLButtonElement;
+  private redoBtn!: HTMLButtonElement;
+  private subscription!: Subscription;
+
+  constructor() {
+    this.container = document.createElement('div');
+    this.container.style.position = 'absolute';
+    // Initial styles; actual position set dynamically in mount()
+    this.container.style.display = 'flex';
+    this.container.style.gap = '12px';
+    this.container.style.background = 'rgba(255,255,255,0.95)';
+    this.container.style.borderRadius = '12px';
+    this.container.style.boxShadow = '0 2px 10px rgba(0,0,0,0.08)';
+    this.container.style.padding = '12px';
+
+    const buttonVariant: ButtonVariant = 'secondary';
+
+    this.undoBtn = ComponentFactory.createButton({
+      text: '↺', // mirror of redo icon
+      variant: buttonVariant,
+      size: 'icon',
+      onClick: () => historyService.undo(),
+      tooltip: 'Undo',
+    }).createElement() as HTMLButtonElement;
+
+    // rotate undo icon 90° left
+    this.undoBtn.style.transform = 'rotate(-90deg)';
+
+    this.redoBtn = ComponentFactory.createButton({
+      text: '↻',
+      variant: buttonVariant,
+      size: 'icon',
+      onClick: () => historyService.redo(),
+      tooltip: 'Redo',
+    }).createElement() as HTMLButtonElement;
+
+    // rotate redo icon 90° right
+    this.redoBtn.style.transform = 'rotate(90deg)';
+
+    this.container.appendChild(this.undoBtn);
+    this.container.appendChild(this.redoBtn);
+
+    // subscribe to history changes to update button states
+    this.subscription = historyService.changes.subscribe(() => this.updateButtons());
+    this.updateButtons();
+  }
+
+  public mount(parent: HTMLElement = document.body): void {
+    // Position next to CanvasToolbar block
+    const toolbarEl = document.querySelector('.canvas-toolbar') as HTMLElement | null;
+    if (toolbarEl) {
+      const rect = toolbarEl.getBoundingClientRect();
+      this.container.style.left = `${rect.right + 12}px`;
+      this.container.style.top = `${rect.top}px`;
+    } else {
+      // Fallback to top-left if toolbar not found
+      this.container.style.left = '24px';
+      this.container.style.top = '20px';
+    }
+    parent.appendChild(this.container);
+  }
+
+  private updateButtons(): void {
+    this.undoBtn.disabled = !historyService.canUndo();
+    this.redoBtn.disabled = !historyService.canRedo();
+  }
+
+  public unmount(): void {
+    this.subscription.unsubscribe();
+    this.container.remove();
+  }
+}

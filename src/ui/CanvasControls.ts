@@ -45,6 +45,7 @@ export class CanvasControls {
       tooltip: 'Center Canvas',
     }).createElement();
 
+    // append controls: zoom in/out and center
     this.container.appendChild(zoomInBtn);
     this.container.appendChild(zoomOutBtn);
     this.container.appendChild(centerBtn);
