@@ -4,6 +4,7 @@ import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
 import { SELECT_COLOR, GOAL_FILL_COLOR, GOAL_BORDER_COLOR, FONT_FAMILY, TITLE_FONT_SIZE, SMALL_FONT_SIZE } from '../core/constants.ts';
 import { editElement$ } from '../core/eventBus.ts';
+import { v4 } from 'uuid';
 
 export class Goal extends PlanningElement {
   links: string[] = [];
@@ -11,11 +12,12 @@ export class Goal extends PlanningElement {
   public status: 'pending' | 'in-progress' | 'done' = 'pending';
   public priority: 'low' | 'medium' | 'high' = 'medium';
 
-  constructor({ id = `goal-${Date.now()}`, x = 0, y = 0, width = 200, height = 120, title = 'New Goal', status = 'pending', priority = 'medium' }: { id?: string; x?: number; y?: number; width?: number; height?: number; title?: string; status?: 'pending' | 'in-progress' | 'done'; priority?: 'low' | 'medium' | 'high' }) {
+  constructor({ id = v4(), x = 0, y = 0, width = 200, height = 120, title = 'New Goal', status = 'pending', priority = 'medium', selected = false }: { id?: string; x?: number; y?: number; width?: number; height?: number; title?: string; status?: 'pending' | 'in-progress' | 'done'; priority?: 'low' | 'medium' | 'high'; selected?: boolean }) {
     super({ id, x, y, width, height, fillColor: GOAL_FILL_COLOR, lineWidth: 2, title });
     this.zIndex = 3;
     this.status = status;
     this.priority = priority;
+    this.selected = selected;
   }
 
   draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {

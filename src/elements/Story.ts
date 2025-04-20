@@ -37,7 +37,8 @@ export class Story extends PlanningElement {
     priority = 'medium',
     /** border color */
     borderColor = STORY_BORDER_COLOR,
-    tasks = []
+    tasks = [],
+    selected = false
   }: {
     id?: string;
     x?: number;
@@ -50,6 +51,7 @@ export class Story extends PlanningElement {
     priority?: 'low' | 'medium' | 'high';
     borderColor?: string;
     tasks?: Task[];
+    selected?: boolean;
   }) {
     super({ id, x, y, width, height, fillColor: STORY_FILL_COLOR, lineWidth: 2, title, description });
     // layer ordering: draw stories below tasks
@@ -57,8 +59,8 @@ export class Story extends PlanningElement {
     this.status = status;
     this.priority = priority;
     this.borderColor = borderColor;
-    this.tasks = tasks; // initialize contained tasks
-    // Logic temporarily removed
+    this.tasks = tasks;
+    this.selected = selected;
   }
 
   /**

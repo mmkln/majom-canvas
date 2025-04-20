@@ -130,7 +130,7 @@ export class CanvasToolbar {
     const panZoom = this.canvasManager.getPanZoomManager();
     const sceneX = centerX * panZoom.scale + panZoom.scrollX - Story.width / 2;
     const sceneY = centerY * panZoom.scale + panZoom.scrollY - Story.height / 2;
-    const story = new Story({ x: sceneX, y: sceneY });
+    const story = new Story({ x: sceneX, y: sceneY, selected: true });
     this.scene.addElement(story);
     this.canvasManager.draw();
     notify('Story created', 'success');
@@ -145,7 +145,7 @@ export class CanvasToolbar {
     const panZoom = this.canvasManager.getPanZoomManager();
     const sceneX = centerX * panZoom.scale + panZoom.scrollX - 100;
     const sceneY = centerY * panZoom.scale + panZoom.scrollY - 60;
-    const goal = new Goal({ x: sceneX, y: sceneY });
+    const goal = new Goal({ x: sceneX, y: sceneY, selected: true });
     this.scene.addElement(goal);
     this.canvasManager.draw();
     notify('Goal created', 'success');
