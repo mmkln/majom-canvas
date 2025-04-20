@@ -79,7 +79,7 @@ export class PanZoomManager {
    * Handle wheel event for zooming and panning, then notify listeners
    */
   public handleWheelEvent(e: WheelEvent, canvas: HTMLCanvasElement, mouseX: number, mouseY: number): void {
-    if (e.ctrlKey) {
+    if (e.ctrlKey || e.metaKey) {
       // increase zoom speed for touchpad zoom
       const zoomFactor = Math.pow(1.005, -e.deltaY);
       const oldScale = this.scale;

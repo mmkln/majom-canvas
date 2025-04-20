@@ -12,6 +12,7 @@ import type { IConnection } from '../interfaces/connection.ts';
 import { SELECT_COLOR, HOVER_OVERLAY_FILL, HOVER_OUTLINE_COLOR, REGION_SELECT_BORDER_COLOR, REGION_SELECT_FILL } from '../constants.ts';
 import { Task } from '../../elements/Task.ts';
 import { Goal } from '../../elements/Goal.ts';
+import { Story } from '../../elements/Story.ts';
 
 export class CanvasManager {
   canvas: HTMLCanvasElement;
@@ -31,8 +32,23 @@ export class CanvasManager {
   dragStartScrollY: number = 0;
   private lastMouseCoords: { x: number; y: number } | null = null;
 
+  // Multi-touch pinch-to-resize state
+  private activePointers: Map<number, { x: number; y: number }> = new Map();
+  private pinchInitialDist: number | null = null;
+  private pinchInitialRect: { x: number; y: number; width: number; height: number } | null = null;
+  private pinchCenter: { x: number; y: number } | null = null;
+  private pinchElement: Story | null = null;
+
+  // Pinch-to-zoom state
+  private pinchZoomInitialDist: number | null = null;
+  private pinchZoomInitialScale: number = 1;
+  private pinchZoomCenterScene: { x: number; y: number } | null = null;
+
   constructor(canvas: HTMLCanvasElement, scene: Scene) {
     this.canvas = canvas;
+    // disable native touch gestures so pointer events work for drag/resize
+    this.canvas.style.touchAction = 'none';
+    this.canvas.style.userSelect = 'none';
     this.scene = scene;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Canvas 2D context not available');
@@ -62,6 +78,17 @@ export class CanvasManager {
     this.canvas.addEventListener('mouseup', this.onMouseUp.bind(this));
     this.canvas.addEventListener('dblclick', this.onDoubleClick.bind(this));
     this.canvas.addEventListener('contextmenu', this.onRightClick.bind(this));
+
+    // Pointer events for touch/mobile support
+    this.canvas.addEventListener('pointerdown', this.onPointerDown.bind(this));
+    this.canvas.addEventListener('pointermove', this.onPointerMove.bind(this));
+    this.canvas.addEventListener('pointerup', this.onPointerUp.bind(this));
+    this.canvas.addEventListener('pointercancel', this.onPointerUp.bind(this));
+
+    // Gesture events (Mac Safari pinch-to-zoom)
+    (this.canvas as any).addEventListener('gesturestart', this.onGestureStart.bind(this));
+    (this.canvas as any).addEventListener('gesturechange', this.onGestureChange.bind(this));
+    (this.canvas as any).addEventListener('gestureend', this.onGestureEnd.bind(this));
 
     this.resizeCanvas();
   }
@@ -285,6 +312,12 @@ export class CanvasManager {
     this.draw();
   }
 
+  onClick(e: MouseEvent): void {
+    const { sceneX, sceneY } = this.getSceneCoords(e);
+    this.interactionManager.handleDoubleClick(sceneX, sceneY);
+    this.draw();
+  }
+
   onWheel(e: WheelEvent): void {
     e.preventDefault();
     const rect = this.canvas.getBoundingClientRect();
@@ -337,5 +370,129 @@ export class CanvasManager {
 
   public getInteractionManager(): InteractionManager {
     return this.interactionManager;
+  }
+
+  // --- Touch / Pointer event handlers ---
+  private onPointerDown(e: PointerEvent): void {
+    // record pointer for pinch detection
+    this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (this.activePointers.size === 2) {
+      // two-finger gesture: either resize a Story or zoom canvas
+      const [p1, p2] = Array.from(this.activePointers.values());
+      const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+      // Story pinch-resize
+      const selectedStories = this.scene.getSelectedElements().filter(el => el instanceof Story) as Story[];
+      if (selectedStories.length === 1) {
+        this.pinchElement = selectedStories[0];
+        this.pinchInitialDist = dist;
+        this.pinchInitialRect = { x: this.pinchElement.x, y: this.pinchElement.y, width: this.pinchElement.width, height: this.pinchElement.height };
+        const rect = this.canvas.getBoundingClientRect();
+        const midX = ((p1.x + p2.x) / 2) - rect.left;
+        const midY = ((p1.y + p2.y) / 2) - rect.top;
+        this.pinchCenter = {
+          x: (midX + this.panZoom.scrollX) / this.panZoom.scale,
+          y: (midY + this.panZoom.scrollY) / this.panZoom.scale
+        };
+      } else {
+        // pinch-to-zoom
+        this.pinchZoomInitialDist = dist;
+        this.pinchZoomInitialScale = this.panZoom.scale;
+        const rect = this.canvas.getBoundingClientRect();
+        const midX = ((p1.x + p2.x) / 2) - rect.left;
+        const midY = ((p1.y + p2.y) / 2) - rect.top;
+        this.pinchZoomCenterScene = {
+          x: (midX + this.panZoom.scrollX) / this.panZoom.scale,
+          y: (midY + this.panZoom.scrollY) / this.panZoom.scale
+        };
+      }
+      // do not start normal drag
+      return;
+    }
+    this.canvas.setPointerCapture(e.pointerId);
+    this.onMouseDown(e as unknown as MouseEvent);
+  }
+
+  private onPointerMove(e: PointerEvent): void {
+    // pinch-to-zoom handling
+    if (this.pinchZoomInitialDist !== null && this.activePointers.size >= 2 && this.pinchZoomCenterScene) {
+      // update pointer coords
+      this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const [p1, p2] = Array.from(this.activePointers.values());
+      const currDist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+      let newScale = this.pinchZoomInitialScale * (currDist / this.pinchZoomInitialDist!);
+      // clamp scale
+      const minScale = Math.max((this.canvas.width - this.panZoom.scrollbarWidth) / this.panZoom.virtualWidth, (this.canvas.height - this.panZoom.scrollbarWidth) / this.panZoom.virtualHeight);
+      newScale = Math.min(Math.max(newScale, minScale), 3);
+      // compute screen center of pinch
+      const rect = this.canvas.getBoundingClientRect();
+      const midX = ((p1.x + p2.x) / 2) - rect.left;
+      const midY = ((p1.y + p2.y) / 2) - rect.top;
+      // update panZoom
+      this.panZoom.scale = newScale;
+      this.panZoom.scrollX = this.pinchZoomCenterScene.x * newScale - midX;
+      this.panZoom.scrollY = this.pinchZoomCenterScene.y * newScale - midY;
+      this.panZoom.clampScroll();
+      this.draw();
+      return;
+    }
+    // then handle story pinch-resize
+    if (this.pinchInitialDist !== null && this.activePointers.size >= 2 && this.pinchElement && this.pinchInitialRect && this.pinchCenter) {
+      // existing story resize logic...
+      this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const [p1, p2] = Array.from(this.activePointers.values());
+      const currDist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+      const scale = currDist / this.pinchInitialDist!;
+      const newW = this.pinchInitialRect.width * scale;
+      const newH = this.pinchInitialRect.height * scale;
+      this.pinchElement.width = Math.max(newW, 1);
+      this.pinchElement.height = Math.max(newH, 1);
+      this.pinchElement.x = this.pinchCenter.x - newW / 2;
+      this.pinchElement.y = this.pinchCenter.y - newH / 2;
+      this.scene.changes.next();
+      return;
+    }
+    this.onMouseMove(e as unknown as MouseEvent);
+  }
+
+  private onPointerUp(e: PointerEvent): void {
+    // clear story-resize pinch
+    this.pinchInitialDist = null;
+    this.pinchInitialRect = null;
+    this.pinchCenter = null;
+    this.pinchElement = null;
+    // clear pinch-to-zoom
+    this.pinchZoomInitialDist = null;
+    this.pinchZoomInitialScale = 1;
+    this.pinchZoomCenterScene = null;
+    this.onMouseUp(e as unknown as MouseEvent);
+    this.canvas.releasePointerCapture(e.pointerId);
+    // on mobile, treat tap as edit-modal open
+    if (e.pointerType === 'touch') {
+      this.onClick(e as unknown as MouseEvent);
+    }
+  }
+
+  // --- Gesture event handlers for Safari pinch ---
+  private gestureInitialScale: number = 1;
+  private onGestureStart(e: any): void {
+    e.preventDefault();
+    this.gestureInitialScale = this.panZoom.scale;
+  }
+  private onGestureChange(e: any): void {
+    e.preventDefault();
+    let newScale = this.gestureInitialScale * e.scale;
+    const minScale = Math.max((this.canvas.width - this.panZoom.scrollbarWidth) / this.panZoom.virtualWidth, (this.canvas.height - this.panZoom.scrollbarWidth) / this.panZoom.virtualHeight);
+    newScale = Math.min(Math.max(newScale, minScale), 3);
+    const centerX = this.canvas.width / 2;
+    const centerY = this.canvas.height / 2;
+    const contentX = (centerX + this.panZoom.scrollX) / this.panZoom.scale;
+    const contentY = (centerY + this.panZoom.scrollY) / this.panZoom.scale;
+    this.panZoom.scale = newScale;
+    this.panZoom.scrollX = contentX * newScale - centerX;
+    this.panZoom.scrollY = contentY * newScale - centerY;
+    this.draw();
+  }
+  private onGestureEnd(e: any): void {
+    e.preventDefault();
   }
 }
