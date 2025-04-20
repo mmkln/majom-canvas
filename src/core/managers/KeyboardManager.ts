@@ -38,7 +38,7 @@ export class KeyboardManager {
       return;
     }
 
-    if (e.ctrlKey && e.key === 'c') {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
       const selectedShapes = this.scene.getSelectedShapes();
       if (selectedShapes.length > 0) {
         this.clipboard = selectedShapes.map((shape) => shape.clone());
@@ -47,7 +47,7 @@ export class KeyboardManager {
       e.preventDefault();
     }
 
-    if (e.ctrlKey && e.key === 'v') {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
       if (this.clipboard.length > 0) {
         let mouseCoords = this.canvasManager.getLastMouseCoords();
         if (!mouseCoords) {
@@ -74,7 +74,7 @@ export class KeyboardManager {
     }
 
     // Select all elements on canvas
-    if (e.ctrlKey && e.key === 'a') {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
       const allElements = this.scene.getElements();
       this.scene.setSelected(allElements);
       e.preventDefault();
