@@ -12,10 +12,11 @@ import { Task } from '../../elements/Task.ts';
 import { Story } from '../../elements/Story.ts';
 import { historyService } from '../services/HistoryService.ts';
 import { MoveCommand } from '../commands/MoveCommand.ts';
+import { SelectionService } from '../services/SelectionService.ts';
+import type { IDraggable } from '../interfaces/draggable.ts';
 
 export class InteractionManager {
-  private draggingElement: ICanvasElement & IPositioned | null = null;
-  private draggingShape: IShape | null = null;
+  private draggingItem: ICanvasElement & IDraggable | null = null;
   private dragOffsetX: number = 0;
   private dragOffsetY: number = 0;
   private initialPositions: Map<string, { x: number; y: number }> = new Map();
@@ -103,160 +104,99 @@ export class InteractionManager {
     return null;
   }
 
+  /**
+   * Update scene selection based on clicked target and shiftKey; abstracts click selection logic.
+   */
+  private updateSelectionOnClick(target: ICanvasElement | null, shiftKey: boolean): void {
+    const current = this.scene.getSelectedElements();
+    if (target) {
+      if (shiftKey) {
+        if (current.indexOf(target) === -1) {
+          this.scene.setSelected([...current, target]);
+        }
+      } else {
+        if (!(current.length > 1 && current.indexOf(target) !== -1)) {
+          this.scene.setSelected([target]);
+        }
+      }
+    } else {
+      this.scene.setSelected([]);
+    }
+  }
+
   handleMouseDown(e: MouseEvent, sceneX: number, sceneY: number): boolean {
     if (e.button !== 0) return false;
     const rawShapes = this.scene.getShapes();
     const planningEls = this.scene.getElements().filter(isPlanningElement) as IPlanningElement[];
-    const connectables: IConnectable[] = [...rawShapes, ...planningEls];
-    const connections = this.scene.getConnections();
-    let clickedShape: IShape | null = null;
-    let clickedConnection: IConnection | null = null;
-
-    const connectionPointHit = this.findConnectionPointAt(
-      sceneX,
-      sceneY,
-      connectables
-    );
-    if (connectionPointHit) {
-      this.creatingConnection = true;
-      this.connectionStartShape = connectionPointHit.shape;
-      this.connectionStartPoint = connectionPointHit.point;
-      this.tempConnectionLine = {
-        startX: connectionPointHit.point.x,
-        startY: connectionPointHit.point.y,
-        endX: sceneX,
-        endY: sceneY,
-      };
-      return true;
-    }
-
-    for (let i = rawShapes.length - 1; i >= 0; i--) {
-      const shape = rawShapes[i];
-      if (shape.contains(sceneX, sceneY)) {
-        clickedShape = shape;
-        break;
-      }
-    }
-
-    if (clickedShape) {
-      if (e.shiftKey) {
-        const currentlySelected = this.scene.getSelectedElements();
-        if (currentlySelected.indexOf(clickedShape) === -1) {
-          this.scene.setSelected([...currentlySelected, clickedShape]);
-        }
-      } else {
-        const curr = this.scene.getSelectedShapes();
-        if (!(curr.length > 1 && curr.indexOf(clickedShape) !== -1)) {
-          this.scene.setSelected([clickedShape]);
-        }
-      }
-      const selected = this.scene.getSelectedShapes();
-      this.initialPositions.clear();
-      selected.forEach((shape) => {
-        this.initialPositions.set(shape.id, { x: shape.x, y: shape.y });
-      });
-      this.draggingShape = clickedShape;
-      const offset = { x: sceneX - clickedShape.x, y: sceneY - clickedShape.y };
-      this.dragOffsetX = offset.x;
-      this.dragOffsetY = offset.y;
-      if (clickedShape.onDragStart) clickedShape.onDragStart();
-      return true;
-    }
-
-    // Drag&drop for planning elements: tasks first, then stories, then others
-    let clickedElement: ICanvasElement & IPositioned | null = null;
+    let clickedItem: ICanvasElement & IDraggable | null = null;
+    // Task → Story → Other planning → Shape click order
     // Task priority
     const taskEls = planningEls.filter((el): el is Task => el instanceof Task);
     for (let i = taskEls.length - 1; i >= 0; i--) {
-      if (taskEls[i].contains(sceneX, sceneY)) { clickedElement = taskEls[i]; break; }
+      if (taskEls[i].contains(sceneX, sceneY)) { clickedItem = taskEls[i]; break; }
     }
     // Story next
-    if (!clickedElement) {
+    if (!clickedItem) {
       const storyEls = planningEls.filter((el): el is Story => el instanceof Story);
       for (let i = storyEls.length - 1; i >= 0; i--) {
-        if (storyEls[i].contains(sceneX, sceneY)) { clickedElement = storyEls[i]; break; }
+        if (storyEls[i].contains(sceneX, sceneY)) { clickedItem = storyEls[i]; break; }
       }
     }
-    // Other elements fallback
-    if (!clickedElement) {
+    // Other planning elements
+    if (!clickedItem) {
       for (let i = planningEls.length - 1; i >= 0; i--) {
-        const el = planningEls[i] as any;
-        if (!(el instanceof Task) && !(el instanceof Story) && el.contains(sceneX, sceneY)) {
-          clickedElement = el;
-          break;
+        const pl = planningEls[i] as any as ICanvasElement & IDraggable;
+        if (!(pl instanceof Task) && !(pl instanceof Story) && pl.contains(sceneX, sceneY)) {
+          clickedItem = pl; break;
         }
       }
     }
-    if (clickedElement) {
-      // start resize if clicking a Story handle
-      if (clickedElement instanceof Story) {
-        const dir = clickedElement.getResizeHandleDirectionAt(sceneX, sceneY, this.panZoom);
-        if (dir) {
-          this.resizingElement = clickedElement;
-          this.resizeDirection = dir;
-          this.resizeStartX = sceneX;
-          this.resizeStartY = sceneY;
-          this.initialX = clickedElement.x;
-          this.initialY = clickedElement.y;
-          this.initialWidth = clickedElement.width;
-          this.initialHeight = clickedElement.height;
-          this.scene.setSelected([clickedElement]);
-          return true;
-        }
+    // Shape fallback
+    if (!clickedItem) {
+      for (let i = rawShapes.length - 1; i >= 0; i--) {
+        const shape = rawShapes[i] as any as ICanvasElement & IDraggable;
+        if (shape.contains(sceneX, sceneY)) { clickedItem = shape; break; }
       }
-      const curr = this.scene.getSelectedElements();
-      if (e.shiftKey) {
-        if (curr.indexOf(clickedElement) === -1) {
-          this.scene.setSelected([...curr, clickedElement]);
-        }
-      } else {
-        if (!(curr.length > 1 && curr.indexOf(clickedElement) !== -1)) {
-          this.scene.setSelected([clickedElement]);
-        }
-      }
-      const sel = this.scene.getSelectedElements();
-      this.initialPositions.clear();
-      // Record initial positions for all selected items
-      sel.forEach((elem) => {
-        this.initialPositions.set(elem.id, { x: (elem as any).x, y: (elem as any).y });
-      });
-      // Record tasks of selected Stories to drag together
-      sel.filter(el => el instanceof Story).forEach((story: Story) => {
-        (story as any).tasks.forEach((task: any) => {
-          this.initialPositions.set(task.id, { x: task.x, y: task.y });
-        });
-      });
-      this.draggingElement = clickedElement;
-      this.dragOffsetX = sceneX - (clickedElement as any).x;
-      this.dragOffsetY = sceneY - (clickedElement as any).y;
-      if ((clickedElement as any).onDragStart) (clickedElement as any).onDragStart();
-      return true;
     }
-
-    for (const element of connections) {
-      if (element.isNearPoint(sceneX, sceneY, connectables)) {
-        clickedConnection = element;
-        if (e.shiftKey){
-          const currentlySelected = this.scene.getSelectedElements();
-          this.scene.setSelected([...currentlySelected, element]);
-        } else {
-        this.scene.setSelected([element]);}
+    // resize handle on Story
+    if (clickedItem instanceof Story) {
+      const dir = clickedItem.getResizeHandleDirectionAt(sceneX, sceneY, this.panZoom);
+      if (dir) {
+        this.resizingElement = clickedItem;
+        this.resizeDirection = dir;
+        this.resizeStartX = sceneX;
+        this.resizeStartY = sceneY;
+        this.initialX = clickedItem.x;
+        this.initialY = clickedItem.y;
+        this.initialWidth = clickedItem.width;
+        this.initialHeight = clickedItem.height;
+        this.updateSelectionOnClick(clickedItem, e.shiftKey);
         return true;
       }
     }
-
+    if (clickedItem) {
+      this.updateSelectionOnClick(clickedItem, e.shiftKey);
+      const selected = this.scene.getSelectedElements();
+      const dragGroup = SelectionService.getDragGroup(selected);
+      this.initialPositions.clear();
+      dragGroup.forEach(elem => this.initialPositions.set(elem.id, { x: (elem as any).x, y: (elem as any).y }));
+      this.draggingItem = clickedItem;
+      this.dragOffsetX = sceneX - (clickedItem as any).x;
+      this.dragOffsetY = sceneY - (clickedItem as any).y;
+      if (clickedItem.onDragStart) clickedItem.onDragStart();
+      return true;
+    }
     // start region-select when clicking empty space
-    if (!clickedShape && !clickedConnection && !planningEls.some(el => el.contains(sceneX, sceneY))) {
+    if (!rawShapes.some(el => el.contains(sceneX, sceneY)) && !planningEls.some(el => el.contains(sceneX, sceneY))) {
       this.isRegionSelecting = true;
       this.regionStartX = sceneX;
       this.regionStartY = sceneY;
       this.regionCurrentX = sceneX;
       this.regionCurrentY = sceneY;
-      this.scene.setSelected([]);
+      this.updateSelectionOnClick(null, false);
       return true;
     }
-
-    this.scene.setSelected([]);
+    this.updateSelectionOnClick(null, false);
     return false;
   }
 
@@ -336,67 +276,27 @@ export class InteractionManager {
       return;
     }
 
-    // Handle drag of planning elements
-    if (this.draggingElement) {
-      // Highlight Story containers when dragging a Task
-      if (this.draggingElement instanceof Task) {
-        const stories = this.scene.getElements()
-          .filter(isPlanningElement)
-          .filter((el): el is Story => el instanceof Story);
-        stories.forEach(story => (story as any).isHovered = story.contains(sceneX, sceneY));
-      }
-      const init = this.initialPositions.get(this.draggingElement.id);
+    // Handle drag of any draggable item
+    if (this.draggingItem) {
+      const init = this.initialPositions.get(this.draggingItem.id);
       if (init) {
         const dx = sceneX - (init.x + this.dragOffsetX);
         const dy = sceneY - (init.y + this.dragOffsetY);
         const selected = this.scene.getSelectedElements();
-        // Solo Story drag: only if single selected
-        if (this.draggingElement instanceof Story && selected.length === 1) {
-          (this.draggingElement as any).onDrag(init.x + dx, init.y + dy);
-        } else {
-          // Multi-element drag: include Story children tasks
-          const dragGroup = new Set<any>(selected);
-          selected.filter(el => el instanceof Story).forEach((story: Story) => {
-            (story as any).tasks.forEach((task: any) => dragGroup.add(task));
-          });
-          dragGroup.forEach((elem: any) => {
-            const origin = this.initialPositions.get(elem.id);
-            if (origin) {
-              elem.x = origin.x + dx;
-              elem.y = origin.y + dy;
-              if (elem.onDrag) elem.onDrag(elem.x, elem.y);
-            }
-          });
-        }
+        const dragGroup = SelectionService.getDragGroup(selected);
+        dragGroup.forEach(elem => {
+          const origin = this.initialPositions.get(elem.id);
+          if (origin) {
+            const newX = origin.x + dx;
+            const newY = origin.y + dy;
+            (elem as any).x = newX;
+            (elem as any).y = newY;
+            if ((elem as any).onDrag) (elem as any).onDrag(newX, newY);
+          }
+        });
+        this.scene.changes.next();
       }
-      this.scene.changes.next();
       return;
-    }
-
-    // Handle shape dragging
-    if (this.draggingShape) {
-      const clickedInitialPos = this.initialPositions.get(
-        this.draggingShape.id
-      );
-      if (!clickedInitialPos) return;
-
-      // Apply proper scaling for drag offsets based on zoom level
-      const dx = sceneX - (clickedInitialPos.x + this.dragOffsetX);
-      const dy = sceneY - (clickedInitialPos.y + this.dragOffsetY);
-
-      const selected = this.scene.getSelectedShapes();
-      selected.forEach((shape) => {
-        const initPos = this.initialPositions.get(shape.id);
-        if (initPos) {
-          // Apply scaled positions based on zoom level
-          shape.x = initPos.x + dx;
-          shape.y = initPos.y + dy;
-          
-          // Call onDrag handler if available
-          if (shape.onDrag) shape.onDrag(shape.x, shape.y);
-        }
-      });
-      this.scene.changes.next();
     }
 
     // handle resizing
@@ -489,11 +389,11 @@ export class InteractionManager {
       return;
     }
 
-    // End planning element drag
-    if (this.draggingElement) {
+    // finalize drag and record history
+    if (this.draggingItem) {
       // Handle Task drop into/out of Story containers
-      if (this.draggingElement instanceof Task) {
-        const task = this.draggingElement;
+      if (this.draggingItem instanceof Task) {
+        const task = this.draggingItem as Task;
         const stories = this.scene.getElements()
           .filter(isPlanningElement)
           .filter((el): el is Story => el instanceof Story);
@@ -502,28 +402,20 @@ export class InteractionManager {
           else story.removeTask(task.id);
         });
       }
-      if ((this.draggingElement as any).onDragEnd) (this.draggingElement as any).onDragEnd();
+      if (this.draggingItem.onDragEnd) this.draggingItem.onDragEnd();
+      const initial = new Map(this.initialPositions);
+      if (initial.size > 0) {
+        const finalPositions = new Map<string, { x: number; y: number }>();
+        initial.forEach((_, id) => {
+          const el = this.scene.getElements().find(el => el.id === id) as any;
+          if (el) finalPositions.set(id, { x: el.x, y: el.y });
+        });
+        historyService.execute(new MoveCommand(this.scene, initial, finalPositions));
+      }
+      this.initialPositions.clear();
+      this.draggingItem = null;
+      this.scene.changes.next();
     }
-    this.draggingElement = null;
-
-    // Звичайна логіка для завершення перетягування фігур
-    if (this.draggingShape && this.draggingShape.onDragEnd) {
-      this.draggingShape.onDragEnd();
-    }
-    this.draggingShape = null;
-    // Capture move for undo/redo if any drag occurred
-    const initial = new Map(this.initialPositions);
-    if (initial.size > 0) {
-      const final = new Map<string, { x: number; y: number }>();
-      initial.forEach((_, id) => {
-        const el = this.scene.getElements().find(el => el.id === id) as any;
-        if (el) final.set(id, { x: el.x, y: el.y });
-      });
-      historyService.execute(new MoveCommand(this.scene, initial, final));
-    }
-    this.initialPositions.clear();
-    this.scene.changes.next();
-
     // finish resize
     if (this.resizingElement) {
       this.resizingElement = null;
@@ -579,6 +471,6 @@ export class InteractionManager {
    * Indicates if a Task is currently being dragged.
    */
   public get isDraggingTask(): boolean {
-    return this.draggingElement instanceof Task;
+    return this.draggingItem instanceof Task;
   }
 }

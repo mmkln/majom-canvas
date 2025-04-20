@@ -93,8 +93,9 @@ export class CanvasManager {
     const planningEls = elements.filter(isPlanningElement) as IPlanningElement[];
     const connectables = [...shapes, ...planningEls];
 
-    // Update goal links and progress
     const connections = this.scene.getConnections();
+
+    // Update goal links and progress
     planningEls.filter(el => el instanceof Goal).forEach((goal: Goal) => {
       const linkedIds = connections
         .filter(c => c.fromId === goal.id || c.toId === goal.id)
