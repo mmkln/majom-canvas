@@ -13,7 +13,8 @@ export class Story extends PlanningElement {
   static width: number = 320;
   static height: number = 240;
   /** Size for resize handles (in px) */
-  static HANDLE_SIZE: number = 8;
+  // Size in px for the circular resize handle (larger for better UX)
+  static HANDLE_SIZE: number = 16;
 
   status: 'pending' | 'in-progress' | 'done' = 'pending';
   borderColor: string;
@@ -96,7 +97,8 @@ export class Story extends PlanningElement {
       ctx.fillStyle = SELECT_COLOR;
       this.getResizeHandles(panZoom).forEach(h => {
         ctx.beginPath();
-        ctx.rect(h.x - size/2, h.y - size/2, size, size);
+        // draw circular handle
+        ctx.arc(h.x, h.y, size / 2, 0, 2 * Math.PI);
         ctx.fill();
       });
     }
@@ -236,11 +238,9 @@ export class Story extends PlanningElement {
    * Get positions and directions of resize handles
    */
   public getResizeHandles(panZoom: PanZoomManager): { x: number; y: number; direction: 'nw'|'ne'|'se'|'sw' }[] {
+    // Single handle: bottom-right corner only, to declutter UI and simplify resizing
     return [
-      { x: this.x + 1, y: this.y + 1, direction: 'nw' },
-      { x: this.x + this.width - 1, y: this.y + 1, direction: 'ne' },
-      { x: this.x + this.width - 1, y: this.y + this.height - 1, direction: 'se' },
-      { x: this.x + 1, y: this.y + this.height - 1, direction: 'sw' }
+      { x: this.x + this.width - 1, y: this.y + this.height - 1, direction: 'se' }
     ];
   }
 
