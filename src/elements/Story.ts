@@ -248,8 +248,8 @@ export class Story extends PlanningElement {
    * Detect which resize handle (if any) contains px,py
    */
   public getResizeHandleDirectionAt(px: number, py: number, panZoom: PanZoomManager): 'nw'|'ne'|'se'|'sw'|null {
-    // clickable area: fixed 64px in screen coordinates for better UX
-    const detectSize = 64 / panZoom.scale;
+    // clickable area: match handle size only
+    const detectSize = Story.HANDLE_SIZE / panZoom.scale;
     for (const h of this.getResizeHandles(panZoom)) {
       if (
         px >= h.x - detectSize/2 && px <= h.x + detectSize/2 &&
