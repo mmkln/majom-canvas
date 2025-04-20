@@ -145,7 +145,10 @@ export class InteractionManager {
           this.scene.setSelected([...currentlySelected, clickedShape]);
         }
       } else {
-        this.scene.setSelected([clickedShape]);
+        const curr = this.scene.getSelectedShapes();
+        if (!(curr.length > 1 && curr.indexOf(clickedShape) !== -1)) {
+          this.scene.setSelected([clickedShape]);
+        }
       }
       const selected = this.scene.getSelectedShapes();
       this.initialPositions.clear();
@@ -201,25 +204,28 @@ export class InteractionManager {
           return true;
         }
       }
+      const curr = this.scene.getSelectedElements();
       if (e.shiftKey) {
-        const curr = this.scene.getSelectedElements();
         if (curr.indexOf(clickedElement) === -1) {
           this.scene.setSelected([...curr, clickedElement]);
         }
       } else {
-        this.scene.setSelected([clickedElement]);
+        if (!(curr.length > 1 && curr.indexOf(clickedElement) !== -1)) {
+          this.scene.setSelected([clickedElement]);
+        }
       }
       const sel = this.scene.getSelectedElements();
       this.initialPositions.clear();
+      // Record initial positions for all selected items
       sel.forEach((elem) => {
         this.initialPositions.set(elem.id, { x: (elem as any).x, y: (elem as any).y });
       });
-      // also record initial positions for tasks when dragging a Story
-      if (clickedElement instanceof Story) {
-        clickedElement.tasks.forEach(task => {
+      // Record tasks of selected Stories to drag together
+      sel.filter(el => el instanceof Story).forEach((story: Story) => {
+        (story as any).tasks.forEach((task: any) => {
           this.initialPositions.set(task.id, { x: task.x, y: task.y });
         });
-      }
+      });
       this.draggingElement = clickedElement;
       this.dragOffsetX = sceneX - (clickedElement as any).x;
       this.dragOffsetY = sceneY - (clickedElement as any).y;
@@ -343,20 +349,27 @@ export class InteractionManager {
       if (init) {
         const dx = sceneX - (init.x + this.dragOffsetX);
         const dy = sceneY - (init.y + this.dragOffsetY);
-        if (this.draggingElement instanceof Story) {
-          // delegate shifting to Story.onDrag
+        const selected = this.scene.getSelectedElements();
+        // Solo Story drag: only if single selected
+        if (this.draggingElement instanceof Story && selected.length === 1) {
           (this.draggingElement as any).onDrag(init.x + dx, init.y + dy);
         } else {
-          this.scene.getSelectedElements().forEach((elem) => {
-            if (this.initialPositions.has(elem.id)) {
-              (elem as any).x = this.initialPositions.get(elem.id)!.x + dx;
-              (elem as any).y = this.initialPositions.get(elem.id)!.y + dy;
-              if ((elem as any).onDrag) (elem as any).onDrag((elem as any).x, (elem as any).y);
+          // Multi-element drag: include Story children tasks
+          const dragGroup = new Set<any>(selected);
+          selected.filter(el => el instanceof Story).forEach((story: Story) => {
+            (story as any).tasks.forEach((task: any) => dragGroup.add(task));
+          });
+          dragGroup.forEach((elem: any) => {
+            const origin = this.initialPositions.get(elem.id);
+            if (origin) {
+              elem.x = origin.x + dx;
+              elem.y = origin.y + dy;
+              if (elem.onDrag) elem.onDrag(elem.x, elem.y);
             }
           });
         }
-        this.scene.changes.next();
       }
+      this.scene.changes.next();
       return;
     }
 
