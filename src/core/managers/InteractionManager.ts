@@ -14,6 +14,7 @@ import { Story } from '../../elements/Story.ts';
 import { historyService } from '../services/HistoryService.ts';
 import { MoveCommand } from '../commands/MoveCommand.ts';
 import { ConnectCommand } from '../commands/ConnectCommand.ts';
+import { ResizeCommand } from '../commands/ResizeCommand.ts';
 import { SelectionService } from '../services/SelectionService.ts';
 import { ConnectionInteractionService } from '../services/ConnectionInteractionService.ts';
 import type { IDraggable } from '../interfaces/draggable.ts';
@@ -415,6 +416,14 @@ export class InteractionManager {
     }
     // finish resize
     if (this.resizingElement) {
+      // record resize in history
+      const el = this.resizingElement;
+      const initial = new Map<string, { x: number; y: number; width: number; height: number }>();
+      initial.set(el.id, { x: this.initialX, y: this.initialY, width: this.initialWidth, height: this.initialHeight });
+      const finalMap = new Map<string, { x: number; y: number; width: number; height: number }>();
+      finalMap.set(el.id, { x: el.x, y: el.y, width: el.width, height: el.height });
+      historyService.execute(new ResizeCommand(this.scene, initial, finalMap));
+      // clear resizing state
       this.resizingElement = null;
       this.resizeDirection = null;
       this.canvas.style.cursor = 'default';
