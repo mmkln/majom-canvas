@@ -6,6 +6,7 @@ import { IConnection } from '../interfaces/connection.ts';
 import { ICanvasElement, IPositioned } from '../interfaces/canvasElement.ts';
 import type { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
 import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
+import { isShape } from '../utils/typeGuards.ts';
 import { PanZoomManager } from './PanZoomManager.ts';
 import Connection from '../shapes/Connection.ts';
 import { Task } from '../../elements/Task.ts';
@@ -272,6 +273,32 @@ export class InteractionManager {
     if (this.isRegionSelecting) {
       this.regionCurrentX = sceneX;
       this.regionCurrentY = sceneY;
+      // compute current region rectangle
+      const x0 = Math.min(this.regionStartX, this.regionCurrentX);
+      const y0 = Math.min(this.regionStartY, this.regionCurrentY);
+      const width = Math.abs(this.regionCurrentX - this.regionStartX);
+      const height = Math.abs(this.regionCurrentY - this.regionStartY);
+      // gather all elements
+      const rawShapes = this.scene.getShapes();
+      const planningEls = this.scene.getElements().filter(isPlanningElement) as IPlanningElement[];
+      const all = [...rawShapes, ...planningEls] as (IShape | IPlanningElement)[];
+      // select intersecting elements
+      const inRect = all.filter(el => {
+        let minX: number, minY: number, maxX: number, maxY: number;
+        if (isShape(el)) {
+          minX = el.x - el.radius;
+          minY = el.y - el.radius;
+          maxX = el.x + el.radius;
+          maxY = el.y + el.radius;
+        } else {
+          minX = el.x;
+          minY = el.y;
+          maxX = el.x + el.width;
+          maxY = el.y + el.height;
+        }
+        return maxX >= x0 && minX <= x0 + width && maxY >= y0 && minY <= y0 + height;
+      });
+      this.scene.setSelected(inRect);
       this.scene.changes.next();
       return;
     }
@@ -375,13 +402,20 @@ export class InteractionManager {
       const height = Math.abs(this.regionCurrentY - this.regionStartY);
       const rawShapes = this.scene.getShapes();
       const planningEls = this.scene.getElements().filter(isPlanningElement) as IPlanningElement[];
-      const all = [...rawShapes, ...planningEls];
+      const all = [...rawShapes, ...planningEls] as (IShape | IPlanningElement)[];
       const inRect = all.filter(el => {
-        const minX = 'radius' in el ? el.x - el.radius : el.x;
-        const minY = 'radius' in el ? el.y - el.radius : el.y;
-        const maxX = 'radius' in el ? el.x + el.radius : el.x + el.width;
-        const maxY = 'radius' in el ? el.y + el.radius : el.y + el.height;
-        // select if any part of element intersects the region
+        let minX: number, minY: number, maxX: number, maxY: number;
+        if (isShape(el)) {
+          minX = el.x - el.radius;
+          minY = el.y - el.radius;
+          maxX = el.x + el.radius;
+          maxY = el.y + el.radius;
+        } else {
+          minX = el.x;
+          minY = el.y;
+          maxX = el.x + el.width;
+          maxY = el.y + el.height;
+        }
         return maxX >= x0 && minX <= x0 + width && maxY >= y0 && minY <= y0 + height;
       });
       this.scene.setSelected(inRect);
@@ -394,13 +428,16 @@ export class InteractionManager {
     if (this.draggingItem) {
       // Handle Task drop into/out of Story containers
       if (this.draggingItem instanceof Task) {
-        const task = this.draggingItem as Task;
+        const selectedEls = this.scene.getSelectedElements();
+        const tasks = selectedEls.filter(el => el instanceof Task) as Task[];
         const stories = this.scene.getElements()
           .filter(isPlanningElement)
           .filter((el): el is Story => el instanceof Story);
         stories.forEach(story => {
-          if (story.contains(task.x, task.y)) story.addTask(task);
-          else story.removeTask(task.id);
+          tasks.forEach(task => {
+            if (story.contains(task.x, task.y)) story.addTask(task);
+            else story.removeTask(task.id);
+          });
         });
       }
       if (this.draggingItem.onDragEnd) this.draggingItem.onDragEnd();
