@@ -101,8 +101,8 @@ export class CanvasToolbar {
     
     // Convert to scene coordinates
     const panZoom = this.canvasManager.getPanZoomManager();
-    const sceneX = centerX * panZoom.scale + panZoom.scrollX - Task.width / 2;
-    const sceneY = centerY * panZoom.scale + panZoom.scrollY - Task.height / 2;
+    const sceneX = (centerX + panZoom.scrollX) / panZoom.scale - Task.width / 2;
+    const sceneY = (centerY + panZoom.scrollY) / panZoom.scale - Task.height / 2;
     
     // Create the task and set its position
     const task = new Task({
@@ -128,8 +128,8 @@ export class CanvasToolbar {
     const centerX = this.canvasManager.canvas.width / 2;
     const centerY = this.canvasManager.canvas.height / 2;
     const panZoom = this.canvasManager.getPanZoomManager();
-    const sceneX = centerX * panZoom.scale + panZoom.scrollX - Story.width / 2;
-    const sceneY = centerY * panZoom.scale + panZoom.scrollY - Story.height / 2;
+    const sceneX = (centerX + panZoom.scrollX) / panZoom.scale - Story.width / 2;
+    const sceneY = (centerY + panZoom.scrollY) / panZoom.scale - Story.height / 2;
     const story = new Story({ x: sceneX, y: sceneY, selected: true });
     this.scene.addElement(story);
     this.canvasManager.draw();
@@ -143,8 +143,8 @@ export class CanvasToolbar {
     const centerX = this.canvasManager.canvas.width / 2;
     const centerY = this.canvasManager.canvas.height / 2;
     const panZoom = this.canvasManager.getPanZoomManager();
-    const sceneX = centerX * panZoom.scale + panZoom.scrollX - 100;
-    const sceneY = centerY * panZoom.scale + panZoom.scrollY - 60;
+    const sceneX = (centerX + panZoom.scrollX) / panZoom.scale - 100;
+    const sceneY = (centerY + panZoom.scrollY) / panZoom.scale - 60;
     const goal = new Goal({ x: sceneX, y: sceneY, selected: true });
     this.scene.addElement(goal);
     this.canvasManager.draw();
