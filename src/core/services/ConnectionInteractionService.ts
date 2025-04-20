@@ -26,7 +26,9 @@ export class ConnectionInteractionService {
     const connections = this.scene.getConnections();
     for (let i = connections.length - 1; i >= 0; i--) {
       const conn = connections[i];
-      if (conn.isNearPoint(x, y, connectables)) {
+      // use fixed screen-pixel tolerance (5px)
+      const tol = 5 / this.panZoom.scale;
+      if (conn.isNearPoint(x, y, connectables, tol)) {
         return conn;
       }
     }

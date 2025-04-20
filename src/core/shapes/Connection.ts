@@ -54,7 +54,7 @@ export default class Connection implements IConnection {
     // Ensure solid line for permanent connections
     ctx.setLineDash([]);
     ctx.strokeStyle = this.selected ? '#008dff' : '#000';
-    ctx.lineWidth = 2 / panZoom.scale;
+    ctx.lineWidth = 2;
   }
 
   private drawLine(
@@ -112,7 +112,7 @@ export default class Connection implements IConnection {
   ): void {
     const { end } = this.getClosestConnectionPoints(from, to);
     const angle = this.tangentAngle;
-    const headLength = 15 / panZoom.scale;
+    const headLength = 15;
     ctx.beginPath();
     ctx.moveTo(end.x, end.y);
     ctx.lineTo(

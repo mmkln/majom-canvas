@@ -157,19 +157,19 @@ export class CanvasManager {
       this.ctx.moveTo(tempLine.startX, tempLine.startY);
       this.ctx.lineTo(tempLine.endX, tempLine.endY);
       this.ctx.strokeStyle = '#000000';
-      this.ctx.lineWidth = 2 / this.panZoom.scale;
-      this.ctx.setLineDash([5 / this.panZoom.scale, 5 / this.panZoom.scale]); // Пунктирна лінія
-      this.ctx.globalAlpha = 0.5; // Напівпрозора
+      this.ctx.lineWidth = 2;
+      this.ctx.setLineDash([5, 5]);
+      this.ctx.globalAlpha = 0.5;
       this.ctx.stroke();
       this.ctx.restore();
       // draw moving port marker at end
       this.ctx.save();
       this.ctx.beginPath();
-      this.ctx.arc(tempLine.endX, tempLine.endY, 8 / this.panZoom.scale, 0, 2 * Math.PI);
+      this.ctx.arc(tempLine.endX, tempLine.endY, 8, 0, 2 * Math.PI);
       this.ctx.fillStyle = SELECT_COLOR;
       this.ctx.fill();
       this.ctx.strokeStyle = '#000000';
-      this.ctx.lineWidth = 1 / this.panZoom.scale;
+      this.ctx.lineWidth = 1;
       this.ctx.stroke();
       this.ctx.restore();
     }

@@ -73,8 +73,8 @@ export class Story extends PlanningElement {
     ctx.roundRect(this.x, this.y, this.width, this.height, 8 / panZoom.scale);
     ctx.fill();
     // Border: dashed with larger segments
-    const dashOn = 6 / panZoom.scale;
-    const dashOff = 2 / panZoom.scale;
+    const dashOn = 6;
+    const dashOff = 2;
     if (this.selected) {
       ctx.setLineDash([]);
       ctx.strokeStyle = SELECT_COLOR;
@@ -82,7 +82,7 @@ export class Story extends PlanningElement {
       ctx.setLineDash([dashOn, dashOff]);
       ctx.strokeStyle = this.borderColor;
     }
-    ctx.lineWidth = this.lineWidth / panZoom.scale;
+    ctx.lineWidth = this.lineWidth;
     ctx.stroke();
     // Title text
     ctx.fillStyle = '#000000';
