@@ -13,7 +13,9 @@ import { Task } from '../../elements/Task.ts';
 import { Story } from '../../elements/Story.ts';
 import { historyService } from '../services/HistoryService.ts';
 import { MoveCommand } from '../commands/MoveCommand.ts';
+import { ConnectCommand } from '../commands/ConnectCommand.ts';
 import { SelectionService } from '../services/SelectionService.ts';
+import { ConnectionInteractionService } from '../services/ConnectionInteractionService.ts';
 import type { IDraggable } from '../interfaces/draggable.ts';
 
 export class InteractionManager {
@@ -21,15 +23,7 @@ export class InteractionManager {
   private dragOffsetX: number = 0;
   private dragOffsetY: number = 0;
   private initialPositions: Map<string, { x: number; y: number }> = new Map();
-  private creatingConnection: boolean = false;
-  private connectionStartShape: IConnectable | null = null;
-  private connectionStartPoint: ConnectionPoint | null = null;
-  private tempConnectionLine: {
-    startX: number;
-    startY: number;
-    endX: number;
-    endY: number;
-  } | null = null;
+  private connectionService: ConnectionInteractionService;
   private hoveredConnectionPoint: ConnectionPoint | null = null;
   // Resize state
   private resizingElement: Story | null = null;
@@ -51,7 +45,9 @@ export class InteractionManager {
     private canvas: HTMLCanvasElement,
     private scene: Scene,
     private panZoom: PanZoomManager
-  ) {}
+  ) {
+    this.connectionService = new ConnectionInteractionService(this.scene, this.panZoom);
+  }
 
   // Отримуємо тимчасову лінію для відображення
   public getTempConnectionLine(): {
@@ -60,16 +56,12 @@ export class InteractionManager {
     endX: number;
     endY: number;
   } | null {
-    return this.tempConnectionLine;
+    return this.connectionService.getTemporaryLine();
   }
 
   // Очищаємо стан створення зв’язку (наприклад, для скасування через Esc)
   public cancelConnectionCreation(): void {
-    this.creatingConnection = false;
-    this.connectionStartShape = null;
-    this.connectionStartPoint = null;
-    this.tempConnectionLine = null;
-    this.hoveredConnectionPoint = null;
+    this.connectionService.cancel();
     this.scene.changes.next();
   }
 
@@ -175,6 +167,16 @@ export class InteractionManager {
         return true;
       }
     }
+    // service-based connection selection
+    const existingConn = this.connectionService.hitTest(sceneX, sceneY);
+    if (existingConn) {
+      this.updateSelectionOnClick(existingConn, e.shiftKey);
+      return true;
+    }
+    // service-based connection creation start
+    if (this.connectionService.start(sceneX, sceneY)) {
+      return true;
+    }
     if (clickedItem) {
       this.updateSelectionOnClick(clickedItem, e.shiftKey);
       const selected = this.scene.getSelectedElements();
@@ -236,18 +238,10 @@ export class InteractionManager {
       this.hoveredConnectionPoint = null;
     }
 
-    // Якщо створюємо зв’язок, оновлюємо тимчасову лінію
-    if (this.creatingConnection && this.tempConnectionLine) {
-      if (this.hoveredConnectionPoint) {
-        // Якщо наведено на точку з’єднання, прив’язуємо кінець лінії до неї
-        this.tempConnectionLine.endX = this.hoveredConnectionPoint.x;
-        this.tempConnectionLine.endY = this.hoveredConnectionPoint.y;
-      } else {
-        // Інакше кінець лінії слідує за курсором
-        this.tempConnectionLine.endX = sceneX;
-        this.tempConnectionLine.endY = sceneY;
-      }
-      this.scene.changes.next();
+    // connection creation update via service
+    if (this.connectionService.isCreating()) {
+      this.connectionService.update(sceneX, sceneY);
+      return;
     }
 
     // Resize-handle hover detection
@@ -353,45 +347,10 @@ export class InteractionManager {
   }
 
   handleMouseUp(): void {
-    // Завершуємо створення зв’язку
-    if (this.creatingConnection) {
-      const rawShapes = this.scene.getShapes();
-      const planningEls = this.scene.getElements().filter(isPlanningElement) as IPlanningElement[];
-      const connectables: IConnectable[] = [...rawShapes, ...planningEls];
-      const endX = this.tempConnectionLine?.endX || 0;
-      const endY = this.tempConnectionLine?.endY || 0;
-      let dropHit = this.findConnectionPointAt(endX, endY, connectables);
-      let targetShape = dropHit?.shape || null;
-      if (!targetShape) {
-        for (let i = connectables.length - 1; i >= 0; i--) {
-          const el = connectables[i];
-          if (
-            el !== this.connectionStartShape &&
-            el.contains(endX, endY)
-          ) {
-            targetShape = el;
-            break;
-          }
-        }
-      }
-      if (targetShape && this.connectionStartShape) {
-        // Skip invalid Story↔Task connections
-        const src = this.connectionStartShape;
-        const dst = targetShape;
-        const invalid = (src instanceof Story && dst instanceof Task && src.tasks.some(t => t.id === dst.id))
-          || (src instanceof Task && dst instanceof Story && dst.tasks.some(t => t.id === src.id));
-        if (!invalid) {
-          const connection = new Connection(src.id, dst.id);
-          this.scene.addElement(connection);
-        }
-      }
-      // Скидаємо стан створення зв’язку
-      this.creatingConnection = false;
-      this.connectionStartShape = null;
-      this.connectionStartPoint = null;
-      this.tempConnectionLine = null;
-      this.hoveredConnectionPoint = null;
-      this.scene.changes.next();
+    // finish connection via service
+    if (this.connectionService.isCreating()) {
+      this.connectionService.finish();
+      return;
     }
 
     // complete region-select
@@ -502,7 +461,7 @@ export class InteractionManager {
 
   // Public getter for connection creation state
   public get isCreatingConnection(): boolean {
-    return this.creatingConnection;
+    return this.connectionService.isCreating();
   }
 
   /**
