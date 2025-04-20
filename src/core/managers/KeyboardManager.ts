@@ -73,6 +73,13 @@ export class KeyboardManager {
       e.preventDefault();
     }
 
+    // Select all elements on canvas
+    if (e.ctrlKey && e.key === 'a') {
+      const allElements = this.scene.getElements();
+      this.scene.setSelected(allElements);
+      e.preventDefault();
+    }
+
     if (e.key === 'Backspace') {
       // Prevent browser default (e.g., navigation) and stop bubbling
       e.preventDefault();
