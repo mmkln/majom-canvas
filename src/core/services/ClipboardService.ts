@@ -1,6 +1,7 @@
 import { Scene } from '../scene/Scene.ts';
 import { PlanningElement } from '../../elements/PlanningElement.ts';
 import { v4 as uuidv4 } from 'uuid';
+import { getBoundingBox } from '../utils/geometryUtils.ts';
 
 /**
  * Clipboard service stores copies of PlanningElement for paste operations.
@@ -18,12 +19,19 @@ export class ClipboardService {
   }
 
   public paste(scene: Scene, position?: { x: number; y: number }): PlanningElement[] {
+    // Compute reference origin (top-left of bounding box) for relative paste
+    let baseX = 0, baseY = 0;
+    if (position && this.items.length) {
+      const bbox = getBoundingBox(this.items.map(item => ({ x: item.x, y: item.y }))); 
+      baseX = bbox.minX;
+      baseY = bbox.minY;
+    }
     const clones: PlanningElement[] = this.items.map(item => {
       const newClone = item.clone() as PlanningElement;
       newClone.id = uuidv4();
-      if (position && this.items.length > 0) {
-        const dx = item.x - this.items[0].x;
-        const dy = item.y - this.items[0].y;
+      if (position) {
+        const dx = item.x - baseX;
+        const dy = item.y - baseY;
         newClone.x = position.x + dx;
         newClone.y = position.y + dy;
       }
