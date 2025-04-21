@@ -4,6 +4,7 @@ import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
 import { SELECT_COLOR } from '../core/constants.ts';
 import { taskStyles } from './styles/taskStyles.ts';
+import { ElementStatus } from './ElementStatus.ts';
 import { editElement$ } from '../core/eventBus.ts';
 
 /**
@@ -11,7 +12,7 @@ import { editElement$ } from '../core/eventBus.ts';
  */
 export class Task extends PlanningElement {
   title: string;
-  status: 'pending' | 'in-progress' | 'done' = 'pending';
+  status: ElementStatus = ElementStatus.Defined;
   priority: 'low' | 'medium' | 'high';
   dueDate: Date;
 
@@ -24,7 +25,7 @@ export class Task extends PlanningElement {
     y = 0,
     title = 'New Task',
     description = '',
-    status = 'pending',
+    status = ElementStatus.Defined,
     selected = false,
     priority = 'medium',
     dueDate = new Date()
@@ -34,7 +35,7 @@ export class Task extends PlanningElement {
     y?: number;
     title?: string;
     description?: string;
-    status?: 'pending' | 'in-progress' | 'done';
+    status?: ElementStatus;
     selected?: boolean;
     priority?: 'low' | 'medium' | 'high';
     dueDate?: Date;

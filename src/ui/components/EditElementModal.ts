@@ -5,6 +5,7 @@ import { Scene } from '../../core/scene/Scene.ts';
 import { ComponentFactory } from '../../ui-lib/src/core/ComponentFactory.ts';
 import { notify } from '../../core/services/NotificationService.ts';
 import { createModalShell } from '../../ui-lib/src/components/Modal.js';
+import { ELEMENT_STATUS_OPTIONS, ElementStatus } from '../../elements/ElementStatus.ts';
 
 // Modal for editing title, status, and priority of an element
 export class EditElementModal {
@@ -17,7 +18,7 @@ export class EditElementModal {
 
     // Local temp state
     let tempTitle = this.element.title;
-    let tempStatus = this.element.status;
+    let tempStatus: ElementStatus = this.element.status;
     let tempPriority = this.element.priority;
 
     // Title input with label
@@ -44,13 +45,9 @@ export class EditElementModal {
     statusLabelEl.textContent = 'Status';
     statusDiv.appendChild(statusLabelEl);
     const statusSelect = ComponentFactory.createSelect({
-      items: [
-        { value: 'pending', label: 'Pending' },
-        { value: 'in-progress', label: 'In Progress' },
-        { value: 'done', label: 'Done' }
-      ],
+      items: ELEMENT_STATUS_OPTIONS,
       selectedValue: tempStatus,
-      onChange: (v: string) => { tempStatus = v as 'pending' | 'in-progress' | 'done'; },
+      onChange: (v: string) => { tempStatus = v as ElementStatus; },
       className: 'w-full'
     });
     statusSelect.render(statusDiv);

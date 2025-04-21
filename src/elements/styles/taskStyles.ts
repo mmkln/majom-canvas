@@ -1,11 +1,12 @@
-// src/elements/styles/taskStyles.ts
 import {
   TASK_STATUS_DONE_FILL,
   TASK_STATUS_DONE_BORDER,
   TASK_STATUS_IN_PROGRESS_FILL,
   TASK_STATUS_IN_PROGRESS_BORDER,
   TASK_STATUS_PENDING_FILL,
-  TASK_STATUS_PENDING_BORDER
+  TASK_STATUS_PENDING_BORDER,
+  TASK_STATUS_DEFINED_FILL,
+  TASK_STATUS_DEFINED_BORDER
 } from '../constants.ts';
 
 export interface TaskStyle {
@@ -13,7 +14,7 @@ export interface TaskStyle {
   borderColor: string;
 }
 
-export const taskStyles: Record<'pending' | 'in-progress' | 'done', TaskStyle> = {
+export const taskStyles: Record<'pending' | 'in-progress' | 'done' | 'defined', TaskStyle> = {
   done: {
     fillColor: TASK_STATUS_DONE_FILL,
     borderColor: TASK_STATUS_DONE_BORDER
@@ -25,5 +26,9 @@ export const taskStyles: Record<'pending' | 'in-progress' | 'done', TaskStyle> =
   pending: {
     fillColor: TASK_STATUS_PENDING_FILL,
     borderColor: TASK_STATUS_PENDING_BORDER
+  },
+  defined: {
+    fillColor: TASK_STATUS_DEFINED_FILL,
+    borderColor: TASK_STATUS_DEFINED_BORDER
   }
 };

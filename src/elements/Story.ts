@@ -6,6 +6,7 @@ import { ConnectionPoint } from '../core/interfaces/shape.ts';
 import { SELECT_COLOR, FONT_FAMILY, TITLE_FONT_SIZE, SMALL_FONT_SIZE } from '../core/constants.ts';
 import { editElement$ } from '../core/eventBus.ts';
 import { storyStyles } from './styles/storyStyles.ts';
+import { ElementStatus } from './ElementStatus.ts';
 
 /**
  * Story representation on the canvas - a container for tasks
@@ -17,7 +18,7 @@ export class Story extends PlanningElement {
   // Size in px for the circular resize handle (larger for better UX)
   static HANDLE_SIZE: number = 16;
 
-  status: 'pending' | 'in-progress' | 'done' = 'pending';
+  status: ElementStatus = ElementStatus.Defined;
   tasks: Task[] = [];
   public priority: 'low' | 'medium' | 'high' = 'medium';
   /** Currently hovered resize direction */
@@ -34,7 +35,7 @@ export class Story extends PlanningElement {
     height = 240,
     title = 'New Story',
     description = '',
-    status = 'pending',
+    status = ElementStatus.Defined,
     priority = 'medium',
     tasks = [],
     selected = false
@@ -46,7 +47,7 @@ export class Story extends PlanningElement {
     height?: number;
     title?: string;
     description?: string;
-    status?: 'pending' | 'in-progress' | 'done';
+    status?: ElementStatus;
     priority?: 'low' | 'medium' | 'high';
     tasks?: Task[];
     selected?: boolean;

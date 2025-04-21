@@ -6,14 +6,15 @@ import { SELECT_COLOR, FONT_FAMILY, TITLE_FONT_SIZE, SMALL_FONT_SIZE } from '../
 import { editElement$ } from '../core/eventBus.ts';
 import { v4 } from 'uuid';
 import { goalStyles } from './styles/goalStyles.ts';
+import { ElementStatus } from './ElementStatus.ts';
 
 export class Goal extends PlanningElement {
   links: string[] = [];
   progress: number = 0;
-  public status: 'pending' | 'in-progress' | 'done' = 'pending';
+  public status: ElementStatus = ElementStatus.Defined;
   public priority: 'low' | 'medium' | 'high' = 'medium';
 
-  constructor({ id = v4(), x = 0, y = 0, width = 200, height = 120, title = 'New Goal', status = 'pending', priority = 'medium', selected = false }: { id?: string; x?: number; y?: number; width?: number; height?: number; title?: string; status?: 'pending' | 'in-progress' | 'done'; priority?: 'low' | 'medium' | 'high'; selected?: boolean }) {
+  constructor({ id = v4(), x = 0, y = 0, width = 200, height = 120, title = 'New Goal', status = ElementStatus.Defined, priority = 'medium', selected = false }: { id?: string; x?: number; y?: number; width?: number; height?: number; title?: string; status?: ElementStatus; priority?: 'low' | 'medium' | 'high'; selected?: boolean }) {
     super({ id, x, y, width, height, fillColor: goalStyles[status].fillColor, lineWidth: 2, title });
     this.zIndex = 3;
     this.status = status;
