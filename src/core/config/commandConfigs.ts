@@ -3,6 +3,9 @@ import { CopyCommand } from '../commands/CopyCommand.ts';
 import { PasteCommand } from '../commands/PasteCommand.ts';
 import { CutCommand } from '../commands/CutCommand.ts';
 import { DeleteCommand } from '../commands/DeleteCommand.ts';
+import { ZoomInCommand } from '../commands/ZoomInCommand.ts';
+import { ZoomOutCommand } from '../commands/ZoomOutCommand.ts';
+import { PanCommand } from '../commands/PanCommand.ts';
 import type { Scene } from '../scene/Scene.ts';
 import type { CanvasManager } from '../managers/CanvasManager.ts';
 
@@ -46,6 +49,36 @@ export function getCommandConfigs(scene: Scene, canvasManager: CanvasManager): C
         historyService.execute(new DeleteCommand(scene, elems));
       },
       keys: ['delete', 'backspace']
+    },
+    {
+      name: 'zoomIn',
+      handler: () => historyService.execute(new ZoomInCommand(canvasManager)),
+      keys: [']', 'ї']
+    },
+    {
+      name: 'zoomOut',
+      handler: () => historyService.execute(new ZoomOutCommand(canvasManager)),
+      keys: ['[', 'х']
+    },
+    {
+      name: 'panLeft',
+      handler: () => historyService.execute(new PanCommand(canvasManager, -50, 0)),
+      keys: ['arrowleft']
+    },
+    {
+      name: 'panRight',
+      handler: () => historyService.execute(new PanCommand(canvasManager, 50, 0)),
+      keys: ['arrowright']
+    },
+    {
+      name: 'panUp',
+      handler: () => historyService.execute(new PanCommand(canvasManager, 0, -50)),
+      keys: ['arrowup']
+    },
+    {
+      name: 'panDown',
+      handler: () => historyService.execute(new PanCommand(canvasManager, 0, 50)),
+      keys: ['arrowdown']
     }
   ];
 }
