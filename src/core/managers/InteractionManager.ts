@@ -207,7 +207,15 @@ export class InteractionManager {
   handleMouseMove(sceneX: number, sceneY: number): void {
     const rawShapes = this.scene.getShapes();
     const planningEls = this.scene.getElements().filter(isPlanningElement) as IPlanningElement[];
-    const connectables: IConnectable[] = [...rawShapes, ...planningEls];
+    // reorder planning elements so tasks are prioritized during connection creation
+    let connectables: IConnectable[];
+    if (this.connectionService.isCreating()) {
+      const tasks = planningEls.filter(el => el instanceof Task) as Task[];
+      const others = planningEls.filter(el => !(el instanceof Task));
+      connectables = [...rawShapes, ...others, ...tasks];
+    } else {
+      connectables = [...rawShapes, ...planningEls];
+    }
 
     // Unified hover state for all connectables (shapes + planning elements)
     let newHovered: IConnectable | null = null;

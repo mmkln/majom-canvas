@@ -7,6 +7,7 @@ import type { IPlanningElement } from '../../elements/interfaces/planningElement
 import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
 import { Task } from '../../elements/Task.ts';
 import { Story } from '../../elements/Story.ts';
+import { getOrderedConnectables } from '../utils/connectableUtils.ts';
 import type { IConnection } from '../interfaces/connection.ts';
 import { historyService } from './HistoryService.ts';
 import { ConnectCommand } from '../commands/ConnectCommand.ts';
@@ -37,8 +38,7 @@ export class ConnectionInteractionService {
 
   /** Start drawing a new connection */
   public start(x: number, y: number): boolean {
-    const planningEls = this.scene.getElements().filter(isPlanningElement) as IPlanningElement[];
-    const connectables: IConnectable[] = [...this.scene.getShapes(), ...planningEls];
+    const connectables = getOrderedConnectables(this.scene);
     const hit = this.findPoint(x, y, connectables);
     if (!hit) return false;
     this.creating = true;
@@ -62,14 +62,15 @@ export class ConnectionInteractionService {
   public finish(): boolean {
     if (!this.creating || !this.startShape || !this.tempLine) return false;
     let target: IConnectable | null = null;
-    const planningEls = this.scene.getElements().filter(isPlanningElement) as IPlanningElement[];
-    const connectables: IConnectable[] = [...this.scene.getShapes(), ...planningEls];
-    const dropHit = this.findPoint(this.tempLine.endX, this.tempLine.endY, connectables);
-    target = dropHit?.shape || null;
+    const connectables = getOrderedConnectables(this.scene);
+    const x = this.tempLine.endX, y = this.tempLine.endY;
+    // Try connection point hit
+    target = this.findPoint(x, y, connectables)?.shape || null;
+    // Fallback to contains hit
     if (!target) {
       for (let i = connectables.length - 1; i >= 0; i--) {
         const el = connectables[i];
-        if (el !== this.startShape && el.contains(this.tempLine.endX, this.tempLine.endY)) {
+        if (el !== this.startShape && el.contains(x, y)) {
           target = el;
           break;
         }
