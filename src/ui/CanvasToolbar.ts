@@ -110,12 +110,12 @@ export class CanvasToolbar {
       description: 'Enter description',
       status: 'pending',
       x: sceneX,
-      y: sceneY,
-      selected: true
+      y: sceneY
     });
 
     // Add the adapter to the scene
     this.scene.addElement(task);
+    this.scene.setSelected([task]);
     this.canvasManager.draw();
     notify('Task created', 'success');
   }
@@ -130,8 +130,9 @@ export class CanvasToolbar {
     const panZoom = this.canvasManager.getPanZoomManager();
     const sceneX = (centerX + panZoom.scrollX) / panZoom.scale - Story.width / 2;
     const sceneY = (centerY + panZoom.scrollY) / panZoom.scale - Story.height / 2;
-    const story = new Story({ x: sceneX, y: sceneY, selected: true });
+    const story = new Story({ x: sceneX, y: sceneY});
     this.scene.addElement(story);
+    this.scene.setSelected([story]);
     this.canvasManager.draw();
     notify('Story created', 'success');
   }
@@ -145,8 +146,9 @@ export class CanvasToolbar {
     const panZoom = this.canvasManager.getPanZoomManager();
     const sceneX = (centerX + panZoom.scrollX) / panZoom.scale - 100;
     const sceneY = (centerY + panZoom.scrollY) / panZoom.scale - 60;
-    const goal = new Goal({ x: sceneX, y: sceneY, selected: true });
+    const goal = new Goal({ x: sceneX, y: sceneY });
     this.scene.addElement(goal);
+    this.scene.setSelected([goal]);
     this.canvasManager.draw();
     notify('Goal created', 'success');
   }
