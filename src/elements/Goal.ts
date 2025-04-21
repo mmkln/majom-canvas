@@ -2,9 +2,10 @@
 import { PlanningElement } from './PlanningElement.ts';
 import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
-import { SELECT_COLOR, GOAL_FILL_COLOR, GOAL_BORDER_COLOR, FONT_FAMILY, TITLE_FONT_SIZE, SMALL_FONT_SIZE } from '../core/constants.ts';
+import { SELECT_COLOR, FONT_FAMILY, TITLE_FONT_SIZE, SMALL_FONT_SIZE } from '../core/constants.ts';
 import { editElement$ } from '../core/eventBus.ts';
 import { v4 } from 'uuid';
+import { goalStyles } from './styles/goalStyles.ts';
 
 export class Goal extends PlanningElement {
   links: string[] = [];
@@ -13,7 +14,7 @@ export class Goal extends PlanningElement {
   public priority: 'low' | 'medium' | 'high' = 'medium';
 
   constructor({ id = v4(), x = 0, y = 0, width = 200, height = 120, title = 'New Goal', status = 'pending', priority = 'medium', selected = false }: { id?: string; x?: number; y?: number; width?: number; height?: number; title?: string; status?: 'pending' | 'in-progress' | 'done'; priority?: 'low' | 'medium' | 'high'; selected?: boolean }) {
-    super({ id, x, y, width, height, fillColor: GOAL_FILL_COLOR, lineWidth: 2, title });
+    super({ id, x, y, width, height, fillColor: goalStyles[status].fillColor, lineWidth: 2, title });
     this.zIndex = 3;
     this.status = status;
     this.priority = priority;
@@ -22,13 +23,15 @@ export class Goal extends PlanningElement {
 
   draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
     const { x, y, width, height, title, progress, links } = this;
+    // Apply fill and border based on status
+    const style = goalStyles[this.status];
     // Background
-    ctx.fillStyle = this.fillColor;
+    ctx.fillStyle = style.fillColor;
     ctx.beginPath();
     ctx.roundRect(x, y, width, height, 8);
     ctx.fill();
     // Border
-    ctx.strokeStyle = this.selected ? SELECT_COLOR : GOAL_BORDER_COLOR;
+    ctx.strokeStyle = this.selected ? SELECT_COLOR : style.borderColor;
     ctx.lineWidth = this.lineWidth;
     ctx.stroke();
     // Title
@@ -40,10 +43,10 @@ export class Goal extends PlanningElement {
     const barY = y + height - 16;
     const barWidth = width - 16;
     const barHeight = 8;
-    ctx.fillStyle = GOAL_FILL_COLOR;
+    ctx.fillStyle = style.fillColor;
     ctx.fillRect(barX, barY, barWidth, barHeight);
     // Progress fill
-    ctx.fillStyle = GOAL_BORDER_COLOR;
+    ctx.fillStyle = style.borderColor;
     ctx.fillRect(barX, barY, barWidth * progress, barHeight);
     // Percentage text
     ctx.fillStyle = '#000000';

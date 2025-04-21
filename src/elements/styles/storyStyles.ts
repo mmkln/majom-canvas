@@ -1,11 +1,11 @@
 import {
   STORY_STATUS_DONE_FILL,
   STORY_STATUS_DONE_BORDER,
+  STORY_STATUS_IN_PROGRESS_FILL,
+  STORY_STATUS_IN_PROGRESS_BORDER,
   STORY_STATUS_PENDING_FILL,
-  STORY_STATUS_PENDING_BORDER,
-  STORY_FILL_COLOR,
-  STORY_BORDER_COLOR
-} from '../../core/constants.ts';
+  STORY_STATUS_PENDING_BORDER
+} from '../constants.ts';
 
 export interface StoryStyle {
   fillColor: string;
@@ -18,8 +18,8 @@ export const storyStyles: Record<'pending' | 'in-progress' | 'done', StoryStyle>
     borderColor: STORY_STATUS_DONE_BORDER
   },
   'in-progress': {
-    fillColor: STORY_FILL_COLOR,
-    borderColor: STORY_BORDER_COLOR
+    fillColor: STORY_STATUS_IN_PROGRESS_FILL,
+    borderColor: STORY_STATUS_IN_PROGRESS_BORDER
   },
   pending: {
     fillColor: STORY_STATUS_PENDING_FILL,

@@ -3,7 +3,7 @@ import { PlanningElement } from './PlanningElement.ts';
 import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { Task } from './Task.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
-import { SELECT_COLOR, STORY_FILL_COLOR, STORY_BORDER_COLOR, FONT_FAMILY, TITLE_FONT_SIZE, SMALL_FONT_SIZE } from '../core/constants.ts';
+import { SELECT_COLOR, FONT_FAMILY, TITLE_FONT_SIZE, SMALL_FONT_SIZE } from '../core/constants.ts';
 import { editElement$ } from '../core/eventBus.ts';
 import { storyStyles } from './styles/storyStyles.ts';
 
@@ -18,7 +18,6 @@ export class Story extends PlanningElement {
   static HANDLE_SIZE: number = 16;
 
   status: 'pending' | 'in-progress' | 'done' = 'pending';
-  borderColor: string;
   tasks: Task[] = [];
   public priority: 'low' | 'medium' | 'high' = 'medium';
   /** Currently hovered resize direction */
@@ -37,8 +36,6 @@ export class Story extends PlanningElement {
     description = '',
     status = 'pending',
     priority = 'medium',
-    /** border color */
-    borderColor = STORY_BORDER_COLOR,
     tasks = [],
     selected = false
   }: {
@@ -51,16 +48,16 @@ export class Story extends PlanningElement {
     description?: string;
     status?: 'pending' | 'in-progress' | 'done';
     priority?: 'low' | 'medium' | 'high';
-    borderColor?: string;
     tasks?: Task[];
     selected?: boolean;
   }) {
-    super({ id, x, y, width, height, fillColor: STORY_FILL_COLOR, lineWidth: 2, title, description });
+    // determine style by status
+    const style = storyStyles[status];
+    super({ id, x, y, width, height, fillColor: style.fillColor, lineWidth: 2, title, description });
     // layer ordering: draw stories below tasks
     this.zIndex = 1;
     this.status = status;
     this.priority = priority;
-    this.borderColor = borderColor;
     this.tasks = tasks;
     this.selected = selected;
   }
@@ -275,7 +272,6 @@ export class Story extends PlanningElement {
       description: this.description,
       status: this.status,
       priority: this.priority,
-      borderColor: this.borderColor,
       tasks: []
     });
   }
