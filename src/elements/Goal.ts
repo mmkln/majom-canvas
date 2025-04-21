@@ -28,11 +28,11 @@ export class Goal extends PlanningElement {
     // Background
     ctx.fillStyle = style.fillColor;
     ctx.beginPath();
-    ctx.roundRect(x, y, width, height, 8);
+    ctx.roundRect(x, y, width, height, 8 * panZoom.scale);
     ctx.fill();
     // Border
     ctx.strokeStyle = this.selected ? SELECT_COLOR : style.borderColor;
-    ctx.lineWidth = this.lineWidth;
+    ctx.lineWidth = this.lineWidth / panZoom.scale;
     ctx.stroke();
     // Title
     ctx.fillStyle = '#000000';

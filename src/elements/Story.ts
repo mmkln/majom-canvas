@@ -70,14 +70,14 @@ export class Story extends PlanningElement {
     const style = storyStyles[this.status];
     ctx.fillStyle = style.fillColor;
     ctx.beginPath();
-    ctx.roundRect(this.x, this.y, this.width, this.height, 8 / panZoom.scale);
+    ctx.roundRect(this.x, this.y, this.width, this.height, 8 * panZoom.scale);
     ctx.fill();
     // Border: dashed or solid
-    const dashOn = 6;
-    const dashOff = 2;
+    const dashOn = 6 / panZoom.scale;
+    const dashOff = 2 / panZoom.scale;
     ctx.setLineDash(this.selected ? [] : [dashOn, dashOff]);
     ctx.strokeStyle = this.selected ? SELECT_COLOR : style.borderColor;
-    ctx.lineWidth = this.lineWidth;
+    ctx.lineWidth = this.lineWidth / panZoom.scale;
     ctx.stroke();
     // Title text
     ctx.fillStyle = '#000000';
