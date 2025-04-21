@@ -85,8 +85,8 @@ export class Story extends PlanningElement {
     ctx.fillText(this.title, this.x + 10, this.y + 20);
     // Draw anchors via base class
     super.drawAnchors(ctx, panZoom);
-    // Draw resize handles when selected
-    if (this.selected) {
+    // Draw resize handles when selected or hovered
+    if (this.selected || this.isHovered) {
       const size = Story.HANDLE_SIZE / panZoom.scale;
       ctx.fillStyle = SELECT_COLOR;
       this.getResizeHandles(panZoom).forEach(h => {
