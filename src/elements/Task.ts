@@ -3,6 +3,7 @@ import { PlanningElement } from './PlanningElement.ts';
 import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
 import { SELECT_COLOR } from '../core/constants.ts';
+import { taskStyles } from './styles/taskStyles.ts';
 import { editElement$ } from '../core/eventBus.ts';
 
 /**
@@ -55,11 +56,12 @@ export class Task extends PlanningElement {
     const w = Task.width;
     const h = Task.height;
     // Background
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = this.selected ? SELECT_COLOR : '#d9d9d9';
-    ctx.lineWidth = this.selected ? 2 : 1;
+    const style = taskStyles[this.status];
+    ctx.fillStyle = style.fillColor;
+    ctx.strokeStyle = this.selected ? SELECT_COLOR : style.borderColor;
+    ctx.lineWidth = (this.selected ? 2 : 1) / panZoom.scale;
     ctx.beginPath();
-    ctx.roundRect(x, y, w, h, 8);
+    ctx.roundRect(x, y, w, h, 8 * panZoom.scale);
     ctx.fill();
     ctx.stroke();
     // Title
@@ -67,7 +69,7 @@ export class Task extends PlanningElement {
     ctx.font = `bold 14px Arial`;
     ctx.fillText(this.title, x + 10, y + 20);
     // Status badge
-    ctx.fillStyle = this.getStatusColor();
+    ctx.fillStyle = style.borderColor;
     ctx.beginPath();
     ctx.arc(x + w - 12, y + 12, 6, 0, 2 * Math.PI);
     ctx.fill();
@@ -127,15 +129,6 @@ export class Task extends PlanningElement {
     ctx.fillStyle = 'transparent';
     ctx.font = `14px Arial`;
     ctx.fillText(icon, x, y + 12);
-  }
-
-  private getStatusColor(): string {
-    switch (this.status) {
-      case 'pending': return '#faad14';
-      case 'in-progress': return '#1890ff';
-      case 'done': return '#52c41a';
-      default: return '#d9d9d9';
-    }
   }
 
   onRightClick?(): void {}
