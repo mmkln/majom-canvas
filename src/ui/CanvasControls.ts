@@ -13,11 +13,11 @@ export class CanvasControls {
     this.container.style.bottom = '24px';
     this.container.style.display = 'flex';
     this.container.style.flexDirection = 'column';
-    this.container.style.gap = '12px';
+    this.container.style.gap = '8px';
     this.container.style.background = 'rgba(255,255,255,0.95)';
-    this.container.style.borderRadius = '12px';
+    this.container.style.borderRadius = '8px';
     this.container.style.boxShadow = '0 2px 10px rgba(0,0,0,0.08)';
-    this.container.style.padding = '12px';
+    this.container.style.padding = '8px';
 
     const buttonVariant: ButtonVariant = 'secondary';
 

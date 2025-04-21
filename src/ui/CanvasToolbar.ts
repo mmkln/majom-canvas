@@ -30,10 +30,10 @@ export class CanvasToolbar {
     container.style.left = '50%';
     container.style.transform = 'translateX(-50%)';
     container.style.display = 'flex';
-    container.style.gap = '12px';
-    container.style.padding = '12px';
+    container.style.gap = '8px';
+    container.style.padding = '8px';
     container.style.background = 'white';
-    container.style.borderRadius = '12px';
+    container.style.borderRadius = '8px';
     container.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
     container.style.zIndex = '100';
     return container;
