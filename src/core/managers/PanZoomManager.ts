@@ -7,8 +7,8 @@ export class PanZoomManager {
   scrollY: number = 0;
   scale: number = 1.4;
   // Virtual content dimensions (can be adjusted or passed in)
-  virtualWidth: number = 10000;
-  virtualHeight: number = 6000;
+  virtualWidth: number = 20000;
+  virtualHeight: number = 12000;
   scrollbarWidth: number = 6;
 
   /** Emits on any view (scroll/zoom) change */
