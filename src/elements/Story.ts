@@ -5,6 +5,7 @@ import { Task } from './Task.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
 import { SELECT_COLOR, STORY_FILL_COLOR, STORY_BORDER_COLOR, FONT_FAMILY, TITLE_FONT_SIZE, SMALL_FONT_SIZE } from '../core/constants.ts';
 import { editElement$ } from '../core/eventBus.ts';
+import { storyStyles } from './styles/storyStyles.ts';
 
 /**
  * Story representation on the canvas - a container for tasks
@@ -68,21 +69,17 @@ export class Story extends PlanningElement {
    * Draw the story container on canvas
    */
   draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
-    // Fill transparent story container
-    ctx.fillStyle = this.fillColor;
+    // Apply fill and border based on status
+    const style = storyStyles[this.status];
+    ctx.fillStyle = style.fillColor;
     ctx.beginPath();
     ctx.roundRect(this.x, this.y, this.width, this.height, 8 / panZoom.scale);
     ctx.fill();
-    // Border: dashed with larger segments
+    // Border: dashed or solid
     const dashOn = 6;
     const dashOff = 2;
-    if (this.selected) {
-      ctx.setLineDash([]);
-      ctx.strokeStyle = SELECT_COLOR;
-    } else {
-      ctx.setLineDash([dashOn, dashOff]);
-      ctx.strokeStyle = this.borderColor;
-    }
+    ctx.setLineDash(this.selected ? [] : [dashOn, dashOff]);
+    ctx.strokeStyle = this.selected ? SELECT_COLOR : style.borderColor;
     ctx.lineWidth = this.lineWidth;
     ctx.stroke();
     // Title text
