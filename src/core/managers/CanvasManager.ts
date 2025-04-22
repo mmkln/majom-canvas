@@ -13,6 +13,7 @@ import { SELECT_COLOR, HOVER_OVERLAY_FILL, HOVER_OUTLINE_COLOR, REGION_SELECT_BO
 import { Task } from '../../elements/Task.ts';
 import { Goal } from '../../elements/Goal.ts';
 import { Story } from '../../elements/Story.ts';
+import { getBoundingBox } from '../utils/geometryUtils.ts';
 
 export class CanvasManager {
   canvas: HTMLCanvasElement;
@@ -201,6 +202,35 @@ export class CanvasManager {
       this.ctx.restore();
     }
 
+    // draw bounding box for multiple selected elements using geometryUtils
+    const selectedEls = this.scene.getSelectedElements() as any[];
+    if (selectedEls.length > 1) {
+      const points: { x: number; y: number }[] = [];
+      selectedEls.forEach((e: any) => {
+        if (e.width !== undefined && e.height !== undefined) {
+          points.push(
+            { x: e.x, y: e.y },
+            { x: e.x + e.width, y: e.y },
+            { x: e.x, y: e.y + e.height },
+            { x: e.x + e.width, y: e.y + e.height }
+          );
+        } else if (e.radius !== undefined) {
+          points.push(
+            { x: e.x - e.radius, y: e.y - e.radius },
+            { x: e.x + e.radius, y: e.y + e.radius }
+          );
+        } else {
+          points.push({ x: e.x, y: e.y });
+        }
+      });
+      const { minX, minY, maxX, maxY } = getBoundingBox(points);
+      this.ctx.save();
+      this.ctx.setLineDash([]);
+      this.ctx.strokeStyle = REGION_SELECT_BORDER_COLOR;
+      this.ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
+      this.ctx.restore();
+    }
+
     // region-select overlay
     const region = this.interactionManager.getRegionRect();
     if (region) {
@@ -208,7 +238,7 @@ export class CanvasManager {
       this.ctx.fillStyle = REGION_SELECT_FILL;
       this.ctx.fillRect(region.x, region.y, region.width, region.height);
       this.ctx.strokeStyle = REGION_SELECT_BORDER_COLOR;
-      this.ctx.setLineDash([4 / this.panZoom.scale, 4 / this.panZoom.scale]);
+      this.ctx.setLineDash([]);
       this.ctx.strokeRect(region.x, region.y, region.width, region.height);
       this.ctx.restore();
     }
