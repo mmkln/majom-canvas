@@ -6,6 +6,7 @@ import { SELECT_COLOR } from '../core/constants.ts';
 import { taskStyles } from './styles/taskStyles.ts';
 import { ElementStatus } from './ElementStatus.ts';
 import { editElement$ } from '../core/eventBus.ts';
+import { v4 } from 'uuid';
 
 /**
  * Task representation on the canvas
@@ -20,7 +21,7 @@ export class Task extends PlanningElement {
   static height: number = 90;
 
   constructor({
-    id = `task-${Date.now()}`,
+    id = v4(),
     x = 0,
     y = 0,
     title = 'New Task',

@@ -105,12 +105,7 @@ export class CanvasToolbar {
     const sceneY = (centerY + panZoom.scrollY) / panZoom.scale - Task.height / 2;
     
     // Create the task and set its position
-    const task = new Task({
-      title: 'New Task',
-      description: 'Enter description',
-      x: sceneX,
-      y: sceneY
-    });
+    const task = new Task({ x: sceneX, y: sceneY });
 
     // Add the adapter to the scene
     this.scene.addElement(task);

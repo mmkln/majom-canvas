@@ -7,6 +7,7 @@ import { SELECT_COLOR, FONT_FAMILY, TITLE_FONT_SIZE, SMALL_FONT_SIZE } from '../
 import { editElement$ } from '../core/eventBus.ts';
 import { storyStyles } from './styles/storyStyles.ts';
 import { ElementStatus } from './ElementStatus.ts';
+import { v4 } from 'uuid';
 
 /**
  * Story representation on the canvas - a container for tasks
@@ -28,7 +29,7 @@ export class Story extends PlanningElement {
    * Create a new Story
    */
   constructor({
-    id = `story-${Date.now()}`,
+    id = v4(),
     x = 0,
     y = 0,
     width = 320,
