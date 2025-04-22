@@ -18,6 +18,7 @@ export class EditElementModal {
 
     // Local temp state
     let tempTitle = this.element.title;
+    let tempDescription = this.element.description;
     let tempStatus: ElementStatus = this.element.status;
     let tempPriority = this.element.priority;
 
@@ -36,6 +37,21 @@ export class EditElementModal {
     });
     titleInput.render(titleDiv);
     container.appendChild(titleDiv);
+
+    // Description textarea with label
+    const descDiv = document.createElement('div');
+    descDiv.className = 'mb-4';
+    const descLabel = document.createElement('label');
+    descLabel.className = 'block text-sm font-medium text-gray-700';
+    descLabel.textContent = 'Description';
+    descDiv.appendChild(descLabel);
+    const descTextarea = document.createElement('textarea');
+    descTextarea.value = tempDescription;
+    descTextarea.className = 'w-full border rounded p-2';
+    descTextarea.rows = 3;
+    descTextarea.addEventListener('input', (e) => { tempDescription = (e.target as HTMLTextAreaElement).value; });
+    descDiv.appendChild(descTextarea);
+    container.appendChild(descDiv);
 
     // Status dropdown with label
     const statusDiv = document.createElement('div');
@@ -76,6 +92,7 @@ export class EditElementModal {
     // Save function
     const saveAndClose = () => {
       this.element.title = tempTitle;
+      this.element.description = tempDescription;
       this.element.status = tempStatus;
       this.element.priority = tempPriority;
       this.scene.changes.next();
