@@ -10,8 +10,8 @@ export class ZoomIndicator {
     this.canvasManager = canvasManager;
     this.container = document.createElement('div');
     this.container.style.position = 'absolute';
-    this.container.style.left = '20px';
-    this.container.style.bottom = '20px';
+    this.container.style.left = '12px';
+    this.container.style.bottom = '12px';
     this.container.style.background = 'rgba(255,255,255,0.95)';
     this.container.style.borderRadius = '8px';
     this.container.style.boxShadow = '0 1px 4px rgba(0,0,0,0.08)';
