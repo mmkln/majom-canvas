@@ -9,8 +9,8 @@ export class CanvasControls {
   constructor(private canvasManager: CanvasManager) {
     this.container = document.createElement('div');
     this.container.style.position = 'absolute';
-    this.container.style.right = '24px';
-    this.container.style.bottom = '24px';
+    this.container.style.right = '12px';
+    this.container.style.bottom = '12px';
     this.container.style.display = 'flex';
     this.container.style.flexDirection = 'column';
     this.container.style.gap = '8px';

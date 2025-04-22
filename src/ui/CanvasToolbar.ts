@@ -12,7 +12,7 @@ import { notify } from '../core/services/NotificationService.ts';
  * Located at the top center of the canvas as specified in PROJECT.md
  */
 export class CanvasToolbar {
-  private readonly container: HTMLDivElement;
+  public readonly container: HTMLDivElement;
   
   constructor(private scene: Scene, private canvasManager: CanvasManager) {
     this.container = this.createToolbarContainer();
@@ -26,7 +26,7 @@ export class CanvasToolbar {
     const container = document.createElement('div');
     container.className = 'canvas-toolbar';
     container.style.position = 'absolute';
-    container.style.top = '20px';
+    container.style.top = '12px';
     container.style.left = '50%';
     container.style.transform = 'translateX(-50%)';
     container.style.display = 'flex';
@@ -108,7 +108,6 @@ export class CanvasToolbar {
     const task = new Task({
       title: 'New Task',
       description: 'Enter description',
-      status: 'pending',
       x: sceneX,
       y: sceneY
     });

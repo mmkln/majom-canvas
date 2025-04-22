@@ -24,7 +24,7 @@ export class UIManager {
     this.canvasToolbar = new CanvasToolbar(this.scene, this.canvasManager);
     this.canvasControls = new CanvasControls(this.canvasManager);
     this.zoomIndicator = new ZoomIndicator(this.canvasManager);
-    this.undoRedoControls = new UndoRedoControls();
+    this.undoRedoControls = new UndoRedoControls(this.canvasToolbar.container);
     
     // Add controls to components that will be mounted
     // Core UI components

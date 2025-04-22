@@ -4,13 +4,18 @@ import { ButtonVariant } from '../ui-lib/src/components/Button.js';
 import { historyService } from '../core/services/HistoryService.ts';
 import { Subscription } from 'rxjs';
 
+/**
+ * Undo/Redo controls positioned relative to toolbar
+ */
 export class UndoRedoControls {
-  private readonly container: HTMLDivElement;
+  public readonly container: HTMLDivElement;
   private undoBtn!: HTMLButtonElement;
   private redoBtn!: HTMLButtonElement;
   private subscription!: Subscription;
+  private toolbarContainer: HTMLElement;
 
-  constructor() {
+  constructor(toolbarContainer: HTMLElement) {
+    this.toolbarContainer = toolbarContainer;
     this.container = document.createElement('div');
     this.container.style.position = 'absolute';
     // Initial styles; actual position set dynamically in mount()
@@ -20,6 +25,7 @@ export class UndoRedoControls {
     this.container.style.borderRadius = '8px';
     this.container.style.boxShadow = '0 2px 10px rgba(0,0,0,0.08)';
     this.container.style.padding = '8px';
+    this.container.style.zIndex = '100';
 
     const buttonVariant: ButtonVariant = 'secondary';
 
@@ -54,17 +60,9 @@ export class UndoRedoControls {
   }
 
   public mount(parent: HTMLElement = document.body): void {
-    // Position next to CanvasToolbar block
-    const toolbarEl = document.querySelector('.canvas-toolbar') as HTMLElement | null;
-    if (toolbarEl) {
-      const rect = toolbarEl.getBoundingClientRect();
-      this.container.style.left = `${rect.right + 12}px`;
-      this.container.style.top = `${rect.top}px`;
-    } else {
-      // Fallback to top-left if toolbar not found
-      this.container.style.left = '24px';
-      this.container.style.top = '20px';
-    }
+    const rect = this.toolbarContainer.getBoundingClientRect();
+    this.container.style.left = `${rect.right + 12}px`;
+    this.container.style.top = `${rect.top}px`;
     parent.appendChild(this.container);
   }
 
