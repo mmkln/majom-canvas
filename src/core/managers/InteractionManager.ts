@@ -18,6 +18,7 @@ import { ResizeCommand } from '../commands/ResizeCommand.ts';
 import { SelectionService } from '../services/SelectionService.ts';
 import { ConnectionInteractionService } from '../services/ConnectionInteractionService.ts';
 import type { IDraggable } from '../interfaces/draggable.ts';
+import { getBoundingBox } from '../utils/geometryUtils.ts';
 
 export class InteractionManager {
   private draggingItem: ICanvasElement & IDraggable | null = null;
@@ -41,6 +42,9 @@ export class InteractionManager {
   private regionStartY: number = 0;
   private regionCurrentX: number = 0;
   private regionCurrentY: number = 0;
+  private draggingGroup: ICanvasElement[] | null = null;
+  private groupDragStartX: number = 0;
+  private groupDragStartY: number = 0;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -190,6 +194,30 @@ export class InteractionManager {
       if (clickedItem.onDragStart) clickedItem.onDragStart();
       return true;
     }
+    // start group drag when clicking inside bounding box of multi-selected elements
+    const selected = this.scene.getSelectedElements();
+    if (selected.length > 1) {
+      const pts: { x: number; y: number }[] = [];
+      selected.forEach(el => {
+        const e = el as any;
+        if (e.width !== undefined && e.height !== undefined) {
+          pts.push({ x: e.x, y: e.y }, { x: e.x + e.width, y: e.y + e.height });
+        } else if (e.radius !== undefined) {
+          pts.push({ x: e.x - e.radius, y: e.y - e.radius }, { x: e.x + e.radius, y: e.y + e.radius });
+        } else {
+          pts.push({ x: e.x, y: e.y });
+        }
+      });
+      const { minX, minY, maxX, maxY } = getBoundingBox(pts);
+      if (sceneX >= minX && sceneX <= maxX && sceneY >= minY && sceneY <= maxY) {
+        this.draggingGroup = SelectionService.getDragGroup(selected);
+        this.initialPositions.clear();
+        this.draggingGroup.forEach(el => this.initialPositions.set(el.id, { x: (el as any).x, y: (el as any).y }));
+        this.groupDragStartX = sceneX;
+        this.groupDragStartY = sceneY;
+        return true;
+      }
+    }
     // start region-select when clicking empty space
     if (!rawShapes.some(el => el.contains(sceneX, sceneY)) && !planningEls.some(el => el.contains(sceneX, sceneY))) {
       this.isRegionSelecting = true;
@@ -270,6 +298,22 @@ export class InteractionManager {
       } else {
         this.canvas.style.cursor = 'default';
       }
+    }
+
+    // update group drag
+    if (this.draggingGroup) {
+      const dx = sceneX - this.groupDragStartX;
+      const dy = sceneY - this.groupDragStartY;
+      this.draggingGroup.forEach(el => {
+        const init = this.initialPositions.get(el.id);
+        if (init) {
+          const e = el as any;
+          e.x = init.x + dx;
+          e.y = init.y + dy;
+        }
+      });
+      this.scene.changes.next();
+      return;
     }
 
     // update region-select drag
@@ -388,6 +432,21 @@ export class InteractionManager {
       });
       this.scene.setSelected(inRect);
       this.isRegionSelecting = false;
+      this.scene.changes.next();
+      return;
+    }
+
+    // finalize group drag
+    if (this.draggingGroup) {
+      const initial = new Map(this.initialPositions);
+      const finalPos = new Map<string, { x: number; y: number }>();
+      this.draggingGroup.forEach(el => {
+        const e = el as any;
+        finalPos.set(el.id, { x: e.x, y: e.y });
+      });
+      historyService.execute(new MoveCommand(this.scene, initial, finalPos));
+      this.initialPositions.clear();
+      this.draggingGroup = null;
       this.scene.changes.next();
       return;
     }
