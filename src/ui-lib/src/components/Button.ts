@@ -3,7 +3,7 @@ import { twMerge } from 'tailwind-merge';
 import { Component } from '../core/Component.ts';
 import { ThemeManager } from '../core/Theme.ts';
 
-export type ButtonVariant = 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | 'lightgray';
+export type ButtonVariant = 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | 'lightgray' | 'success';
 export type ButtonSize = 'default' | 'sm' | 'lg' | 'icon';
 
 export interface ButtonProps {
@@ -46,7 +46,7 @@ export class Button extends Component<ButtonProps> {
     const baseStyles = [
       'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors',
       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-      'disabled:pointer-events-none disabled:opacity-30 disabled:grayscale disabled:cursor-not-allowed',
+      'disabled:pointer-events-none disabled:brightness-150 disabled:contrast-98 disabled:opacity-90 disabled:saturate-2 disabled:cursor-not-allowed',
       '[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
       'cursor-pointer',
     ].join(' ');
@@ -59,6 +59,7 @@ export class Button extends Component<ButtonProps> {
       ghost: 'hover:bg-accent hover:text-accent-foreground active:bg-accent/80 transition-colors',
       link: 'text-primary underline-offset-4 hover:underline active:text-primary/80 transition-colors',
       lightgray: 'bg-gray-200 text-gray-900 hover:bg-gray-300 active:bg-gray-400 border border-gray-300 transition-colors',
+      success: 'bg-green-600 text-white hover:bg-green-700 active:bg-green-800 transition-colors',
     };
     const sizeStyles: Record<ButtonSize, string> = {
       default: 'h-10 px-4 py-2',
