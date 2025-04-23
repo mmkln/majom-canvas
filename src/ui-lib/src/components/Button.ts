@@ -3,7 +3,7 @@ import { twMerge } from 'tailwind-merge';
 import { Component } from '../core/Component.ts';
 import { ThemeManager } from '../core/Theme.ts';
 
-export type ButtonVariant = 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | 'lightgray' | 'success';
+export type ButtonVariant = 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | 'lightgray' | 'success' | 'accent';
 export type ButtonSize = 'default' | 'sm' | 'lg' | 'icon';
 
 export interface ButtonProps {
@@ -60,6 +60,7 @@ export class Button extends Component<ButtonProps> {
       link: 'text-primary underline-offset-4 hover:underline active:text-primary/80 transition-colors',
       lightgray: 'bg-gray-200 text-gray-900 hover:bg-gray-300 active:bg-gray-400 border border-gray-300 transition-colors',
       success: 'bg-green-600 text-white hover:bg-green-700 active:bg-green-800 transition-colors',
+      accent: 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition-colors'
     };
     const sizeStyles: Record<ButtonSize, string> = {
       default: 'h-10 px-4 py-2',
