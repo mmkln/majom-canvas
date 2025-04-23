@@ -142,11 +142,47 @@ Majom Canvas is an interactive tool for visualizing and managing tasks, stories,
 
 ## Current Implementation Status & Roadmap
 
-### Реалізовані Фічі
-- **Toolbar**: Реалізовані кнопки для створення фігур (Circle, Octagon, Square) та вибору задач.
-- **Canvas Manager**: Обробляє взаємодію з канвасом, включаючи масштабування та панорамування.
-- **Interaction Manager**: Керує подіями миші для перетягування фігур та створення зв'язків.
-- **PanZoom Manager**: Керує рівнем масштабу та позицією прокрутки канвасу.
+### Implemented Features
+- **Data Access Layer**:
+  - `TasksApiService`, `StoriesApiService`, `GoalsApiService` (RxJSHttpClient-based CRUD for core entities).
+  - Core HTTP client modules (`ApiService`, `TokenService`).
+- **Domain Layer**:
+  - `Task`, `Story`, `Goal` classes with rendering logic and DTO→domain mapping.
+  - Command pattern implementation (`CommandManager`, `HistoryService`) for undo/redo operations.
+- **UI Layer**:
+  - `CanvasManager` for rendering shapes on the canvas.
+  - `InteractionManager` for mouse events, drag-and-drop, and element connections.
+  - `PanZoomManager` for zooming and panning controls.
+  - `CanvasToolbar` for creating and selecting elements.
+  - `EditElementModal` for editing element properties.
+- **Utility Services**:
+  - `ClipboardService`, `ShortcutManager`, and shared services for cross-cutting concerns.
+
+### Architecture Overview
+- **UI Layer**: TypeScript components/services handling user interactions and rendering.
+- **Application Service Layer**: `CanvasDataService` aggregates API services and maps backend DTOs to domain objects.
+- **Domain Layer**: Core classes (elements, commands, managers) encapsulating business logic and state management.
+- **Data Access Layer**: REST API services (`TasksApiService`, `StoriesApiService`, `GoalsApiService`) interacting with the Django backend.
+
+**Data Flow:**
+1. On startup, `CanvasDataService.loadElements()` performs parallel REST calls (tasks, stories, goals, canvas layouts), maps each DTO to a domain object, and populates the `Scene`.
+2. User actions (create, update, delete, move) are wrapped in `ICommand` implementations, update in-memory models, and synchronize changes to the backend via batched REST or WebSocket.
+
+**Backend Architecture:**
+- Django monolith with separate apps for `tasks`, `stories`, `goals`, and `canvas` layout.
+- Django REST Framework for CRUD endpoints; Django Channels + Redis for optional real-time updates.
+- PostgreSQL for persistent storage; JSONB used for flexible metadata on canvas elements.
+- Centralized Auth service using JWT (DRF Simple JWT) for all API apps.
+
+**Deployment & CI/CD:**
+- Dockerized Django services orchestrated via Docker Compose for development and Kubernetes for production.
+- CI/CD pipelines (e.g., GitHub Actions) for linting, testing, building, and automated deployments to staging/production.
+
+### Roadmap
+1. **Alpha Release**: Basic CRUD, drag-and-drop, and canvas layout persistence via REST.
+2. **Beta Release**: Real-time collaboration with WebSocket integration; mobile-responsive UI adjustments; OAuth2 support.
+3. **v1.0**: Advanced layout editing (group move, align tools); plugin/extension architecture; internationalization (i18n).
+4. **Future Enhancements**: Analytics dashboard for progress tracking; third-party integrations (e.g., Jira, Trello); user roles and permissions for shared canvases.
 
 ## Важливі Нотатки
 (Будь-які особливості, які треба памʼятати)

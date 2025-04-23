@@ -9,3 +9,4 @@
 - [x] fix region selection. If region selection is on a element partialy, it should be selected. For now its only working when region selection is on a element fully
 - [x] fix copy/paste logic for multiple elements, when multiple elements are copied, all of them should be pasted on the adequate relative position
 - [x] add description to elements and display it in the modal window
+- [ ] if an element is selected, on arrow keys pressed, the element should be moved by 10px in the direction of the arrow, and if arrow + Shift it should be moved by 100px
