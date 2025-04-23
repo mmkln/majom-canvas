@@ -5,6 +5,7 @@ import { AuthService } from '../../majom-wrapper/data-access/auth-service.js';
 import { LoginCredentials } from '../../majom-wrapper/interfaces/auth-interfaces.js';
 import { createModalShell } from '../../ui-lib/src/components/Modal.js';
 import { notify } from '../../core/services/NotificationService.ts';
+import { historyService } from '../../core/services/HistoryService.ts';
 
 /**
  * AuthComponent manages the UI for user authentication, including login/logout buttons and modal for credentials.
@@ -56,6 +57,9 @@ export class AuthComponent extends Component<any> {
       console.error('Container is not a valid DOM node', container);
     }
     this.updateUI();
+    // Update login button text on history or auth changes
+    historyService.changes.subscribe(() => this.updateUI());
+    window.addEventListener('refreshCanvasData', () => this.updateUI());
   }
 
   protected createElement(): HTMLElement {
@@ -65,11 +69,14 @@ export class AuthComponent extends Component<any> {
   private updateUI(): void {
     if (this.authService.isLoggedIn()) {
       const user = this.authService.getAuthToken(); // Assuming user data is part of token or stored separately
-      this.avatarContainer.innerHTML = '<img src="avatar-url-placeholder" alt="User Avatar" class="w-10 h-10 rounded-full cursor-pointer">';
+      this.avatarContainer.innerHTML = '<img src="https://cdn.thegreatprojects.com/thegreatprojects/images/c/c/c/d/9/cccd9ab3a8832417497e233c1cb92b9e.jpg?width=364&height=364&format=jpg" alt="User Avatar" class="w-10 h-10 bg-gray-100 rounded-full cursor-pointer">';
       this.avatarContainer.firstChild?.addEventListener('click', () => this.toggleDropdown());
       this.avatarContainer.appendChild(this.dropdownMenu);
     } else {
       this.avatarContainer.innerHTML = '';
+      // Show login prompt if there are unsaved changes
+      const canSave = historyService.canUndo();
+      this.loginButton.textContent = canSave ? 'Login to Save' : 'Login';
       this.avatarContainer.appendChild(this.loginButton);
     }
   }
