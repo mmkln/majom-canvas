@@ -1,34 +1,27 @@
 import { Observable } from 'rxjs';
-// @ts-ignore
-import { RxJSHttpClient } from 'rxjs-http-client';
-import { Story } from '../interfaces/index.ts';
+import { HttpInterceptorClient } from './http-interceptor.js';
+import { Story as StoryDto } from '../interfaces/index.js';
 
 export class StoriesApiService {
-  constructor(private http: RxJSHttpClient, private readonly apiUrl: string) {}
+  constructor(private http: HttpInterceptorClient) {}
 
-  public getStories(): Observable<Story[]> {
-    return this.http.get<Story[]>(`${this.apiUrl}/stories/`);
+  public getStories(): Observable<StoryDto[]> {
+    return this.http.get<StoryDto[]>('/stories/');
   }
 
-  public getStory(id: number): Observable<Story> {
-    return this.http.get<Story>(`${this.apiUrl}/stories/${id}/`);
+  public getStory(id: number): Observable<StoryDto> {
+    return this.http.get<StoryDto>(`/stories/${id}/`);
   }
 
-  public createStory(data: Partial<Story>): Observable<Story> {
-    return this.http.post<Story>(`${this.apiUrl}/stories/`, data, {
-      headers: {},
-    });
+  public createStory(data: Partial<StoryDto>): Observable<StoryDto> {
+    return this.http.post<StoryDto>('/stories/', data);
   }
 
-  public updateStory(id: number, data: Story): Observable<Story> {
-    return this.http.put<Story>(`${this.apiUrl}/stories/${id}/`, data, {
-      headers: {},
-    });
+  public updateStory(id: number, data: StoryDto): Observable<StoryDto> {
+    return this.http.put<StoryDto>(`/stories/${id}/`, data);
   }
 
   public deleteStory(id: number): Observable<any> {
-    return this.http.delete(`${this.apiUrl}/stories/${id}/`, {
-      headers: {},
-    });
+    return this.http.delete(`/stories/${id}/`);
   }
 }

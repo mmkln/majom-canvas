@@ -1,8 +1,7 @@
 import { from, Observable } from 'rxjs';
 import { mergeMap, toArray } from 'rxjs/operators';
-//@ts-ignore
-import { RxJSHttpClient } from 'rxjs-http-client';
-import { PlatformTask, Subtask, Tag } from '../interfaces/index.ts';
+import { HttpInterceptorClient } from './http-interceptor.js';
+import { PlatformTask, Subtask, Tag } from '../interfaces/index.js';
 
 interface TasksFilterParams {
   is_standalone?: boolean;
@@ -15,7 +14,7 @@ interface TasksFilterParams {
 }
 
 export class TasksApiService {
-  constructor(private http: RxJSHttpClient, private readonly apiUrl: string ) {}
+  constructor(private http: HttpInterceptorClient) {}
 
   public getTasks(filterParams?: TasksFilterParams): Observable<PlatformTask[]> {
     let queryString = '';
@@ -47,62 +46,42 @@ export class TasksApiService {
       }
     }
 
-    return this.http.get<PlatformTask[]>(`${this.apiUrl}/tasks/${queryString}`);
+    return this.http.get<PlatformTask[]>(`/tasks/${queryString}`);
   }
 
   public getTask(id: number): Observable<PlatformTask> {
-    return this.http.get<PlatformTask>(`${this.apiUrl}/tasks/${id}/`);
+    return this.http.get<PlatformTask>(`/tasks/${id}/`);
   }
 
   public createTask(data: Partial<PlatformTask>): Observable<PlatformTask> {
-    return this.http.post<PlatformTask>(`${this.apiUrl}/tasks/`, data, {
-      headers: {},
-    });
+    return this.http.post<PlatformTask>('/tasks/', data);
   }
 
   public updateTask(id: number, data: PlatformTask): Observable<PlatformTask> {
-    return this.http.put<PlatformTask>(
-      `${this.apiUrl}/tasks/${id}/`,
-      data,
-      {
-        headers: {},
-      }
-    );
+    return this.http.put<PlatformTask>(`/tasks/${id}/`, data);
   }
 
   public deleteTask(id: number): Observable<any> {
-    return this.http.delete(`${this.apiUrl}/tasks/${id}/`, {
-      headers: {},
-    });
+    return this.http.delete(`/tasks/${id}/`);
   }
 
-  public getTags(): Observable<Array<Tag>> {
-    return this.http.get<Array<Tag>>(`${this.apiUrl}/tags/`);
+  public getTags(): Observable<Tag[]> {
+    return this.http.get<Tag[]>('/tags/');
   }
 
   public createSubtask(data: Partial<Subtask>): Observable<Subtask> {
-    return this.http.post<Subtask>(`${this.apiUrl}/subtasks/`, data, {
-      headers: {},
-    });
+    return this.http.post<Subtask>('/subtasks/', data);
   }
 
   public updateSubtask(id: number, data: Subtask): Observable<Subtask> {
-    return this.http.put<Subtask>(
-      `${this.apiUrl}/subtasks/${id}/`,
-      data,
-      {
-        headers: {},
-      }
-    );
+    return this.http.put<Subtask>(`/subtasks/${id}/`, data);
   }
 
   public deleteSubtask(id: number): Observable<any> {
-    return this.http.delete(`${this.apiUrl}/subtasks/${id}/`, {
-      headers: {},
-    });
+    return this.http.delete(`/subtasks/${id}/`);
   }
 
-  public deleteAllTaskSubtasks(task: PlatformTask): Observable<any> {
+  public deleteAllTaskSubtasks(task: PlatformTask): Observable<any[]> {
     return from(task.subtasks).pipe(
       mergeMap((subtask) => {
         return this.deleteSubtask(subtask.id);
