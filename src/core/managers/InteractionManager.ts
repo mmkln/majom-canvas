@@ -9,8 +9,8 @@ import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
 import { isShape } from '../utils/typeGuards.ts';
 import { PanZoomManager } from './PanZoomManager.ts';
 import Connection from '../shapes/Connection.ts';
-import { Task } from '../../elements/Task.ts';
-import { Story } from '../../elements/Story.ts';
+import { TaskElement } from '../../elements/TaskElement.ts';
+import { StoryElement } from '../../elements/StoryElement.ts';
 import { historyService } from '../services/HistoryService.ts';
 import { MoveCommand } from '../commands/MoveCommand.ts';
 import { ConnectCommand } from '../commands/ConnectCommand.ts';
@@ -21,15 +21,15 @@ import type { IDraggable } from '../interfaces/draggable.ts';
 import { getBoundingBox } from '../utils/geometryUtils.ts';
 
 export class InteractionManager {
-  private draggingItem: ICanvasElement & IDraggable | null = null;
+  private draggingItem: (ICanvasElement & IDraggable) | null = null;
   private dragOffsetX: number = 0;
   private dragOffsetY: number = 0;
   private initialPositions: Map<string, { x: number; y: number }> = new Map();
   private connectionService: ConnectionInteractionService;
   private hoveredConnectionPoint: ConnectionPoint | null = null;
   // Resize state
-  private resizingElement: Story | null = null;
-  private resizeDirection: 'nw'|'ne'|'se'|'sw'|null = null;
+  private resizingElement: StoryElement | null = null;
+  private resizeDirection: 'nw' | 'ne' | 'se' | 'sw' | null = null;
   private resizeStartX: number = 0;
   private resizeStartY: number = 0;
   private initialX: number = 0;
@@ -51,7 +51,10 @@ export class InteractionManager {
     private scene: Scene,
     private panZoom: PanZoomManager
   ) {
-    this.connectionService = new ConnectionInteractionService(this.scene, this.panZoom);
+    this.connectionService = new ConnectionInteractionService(
+      this.scene,
+      this.panZoom
+    );
   }
 
   // Отримуємо тимчасову лінію для відображення
@@ -73,7 +76,12 @@ export class InteractionManager {
   /**
    * Return the active region-select rect (scene coords) or null
    */
-  public getRegionRect(): { x: number; y: number; width: number; height: number } | null {
+  public getRegionRect(): {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null {
     if (!this.isRegionSelecting) return null;
     const x0 = Math.min(this.regionStartX, this.regionCurrentX);
     const y0 = Math.min(this.regionStartY, this.regionCurrentY);
@@ -105,7 +113,10 @@ export class InteractionManager {
   /**
    * Update scene selection based on clicked target and shiftKey; abstracts click selection logic.
    */
-  private updateSelectionOnClick(target: ICanvasElement | null, shiftKey: boolean): void {
+  private updateSelectionOnClick(
+    target: ICanvasElement | null,
+    shiftKey: boolean
+  ): void {
     const current = this.scene.getSelectedElements();
     if (target) {
       if (shiftKey) {
@@ -125,27 +136,44 @@ export class InteractionManager {
   handleMouseDown(e: MouseEvent, sceneX: number, sceneY: number): boolean {
     if (e.button !== 0) return false;
     const rawShapes = this.scene.getShapes();
-    const planningEls = this.scene.getElements().filter(isPlanningElement) as IPlanningElement[];
-    let clickedItem: ICanvasElement & IDraggable | null = null;
+    const planningEls = this.scene
+      .getElements()
+      .filter(isPlanningElement) as IPlanningElement[];
+    let clickedItem: (ICanvasElement & IDraggable) | null = null;
     // Task → Story → Other planning → Shape click order
     // Task priority
-    const taskEls = planningEls.filter((el): el is Task => el instanceof Task);
+    const taskEls = planningEls.filter(
+      (el): el is TaskElement => el instanceof TaskElement
+    );
     for (let i = taskEls.length - 1; i >= 0; i--) {
-      if (taskEls[i].contains(sceneX, sceneY)) { clickedItem = taskEls[i]; break; }
+      if (taskEls[i].contains(sceneX, sceneY)) {
+        clickedItem = taskEls[i];
+        break;
+      }
     }
     // Story next
     if (!clickedItem) {
-      const storyEls = planningEls.filter((el): el is Story => el instanceof Story);
+      const storyEls = planningEls.filter(
+        (el): el is StoryElement => el instanceof StoryElement
+      );
       for (let i = storyEls.length - 1; i >= 0; i--) {
-        if (storyEls[i].contains(sceneX, sceneY)) { clickedItem = storyEls[i]; break; }
+        if (storyEls[i].contains(sceneX, sceneY)) {
+          clickedItem = storyEls[i];
+          break;
+        }
       }
     }
     // Other planning elements
     if (!clickedItem) {
       for (let i = planningEls.length - 1; i >= 0; i--) {
         const pl = planningEls[i] as any as ICanvasElement & IDraggable;
-        if (!(pl instanceof Task) && !(pl instanceof Story) && pl.contains(sceneX, sceneY)) {
-          clickedItem = pl; break;
+        if (
+          !(pl instanceof TaskElement) &&
+          !(pl instanceof StoryElement) &&
+          pl.contains(sceneX, sceneY)
+        ) {
+          clickedItem = pl;
+          break;
         }
       }
     }
@@ -153,12 +181,19 @@ export class InteractionManager {
     if (!clickedItem) {
       for (let i = rawShapes.length - 1; i >= 0; i--) {
         const shape = rawShapes[i] as any as ICanvasElement & IDraggable;
-        if (shape.contains(sceneX, sceneY)) { clickedItem = shape; break; }
+        if (shape.contains(sceneX, sceneY)) {
+          clickedItem = shape;
+          break;
+        }
       }
     }
     // resize handle on Story
-    if (clickedItem instanceof Story) {
-      const dir = clickedItem.getResizeHandleDirectionAt(sceneX, sceneY, this.panZoom);
+    if (clickedItem instanceof StoryElement) {
+      const dir = clickedItem.getResizeHandleDirectionAt(
+        sceneX,
+        sceneY,
+        this.panZoom
+      );
       if (dir) {
         this.resizingElement = clickedItem;
         this.resizeDirection = dir;
@@ -187,7 +222,12 @@ export class InteractionManager {
       const selected = this.scene.getSelectedElements();
       const dragGroup = SelectionService.getDragGroup(selected);
       this.initialPositions.clear();
-      dragGroup.forEach(elem => this.initialPositions.set(elem.id, { x: (elem as any).x, y: (elem as any).y }));
+      dragGroup.forEach((elem) =>
+        this.initialPositions.set(elem.id, {
+          x: (elem as any).x,
+          y: (elem as any).y,
+        })
+      );
       this.draggingItem = clickedItem;
       this.dragOffsetX = sceneX - (clickedItem as any).x;
       this.dragOffsetY = sceneY - (clickedItem as any).y;
@@ -198,28 +238,44 @@ export class InteractionManager {
     const selected = this.scene.getSelectedElements();
     if (selected.length > 1) {
       const pts: { x: number; y: number }[] = [];
-      selected.forEach(el => {
+      selected.forEach((el) => {
         const e = el as any;
         if (e.width !== undefined && e.height !== undefined) {
           pts.push({ x: e.x, y: e.y }, { x: e.x + e.width, y: e.y + e.height });
         } else if (e.radius !== undefined) {
-          pts.push({ x: e.x - e.radius, y: e.y - e.radius }, { x: e.x + e.radius, y: e.y + e.radius });
+          pts.push(
+            { x: e.x - e.radius, y: e.y - e.radius },
+            { x: e.x + e.radius, y: e.y + e.radius }
+          );
         } else {
           pts.push({ x: e.x, y: e.y });
         }
       });
       const { minX, minY, maxX, maxY } = getBoundingBox(pts);
-      if (sceneX >= minX && sceneX <= maxX && sceneY >= minY && sceneY <= maxY) {
+      if (
+        sceneX >= minX &&
+        sceneX <= maxX &&
+        sceneY >= minY &&
+        sceneY <= maxY
+      ) {
         this.draggingGroup = SelectionService.getDragGroup(selected);
         this.initialPositions.clear();
-        this.draggingGroup.forEach(el => this.initialPositions.set(el.id, { x: (el as any).x, y: (el as any).y }));
+        this.draggingGroup.forEach((el) =>
+          this.initialPositions.set(el.id, {
+            x: (el as any).x,
+            y: (el as any).y,
+          })
+        );
         this.groupDragStartX = sceneX;
         this.groupDragStartY = sceneY;
         return true;
       }
     }
     // start region-select when clicking empty space
-    if (!rawShapes.some(el => el.contains(sceneX, sceneY)) && !planningEls.some(el => el.contains(sceneX, sceneY))) {
+    if (
+      !rawShapes.some((el) => el.contains(sceneX, sceneY)) &&
+      !planningEls.some((el) => el.contains(sceneX, sceneY))
+    ) {
       this.isRegionSelecting = true;
       this.regionStartX = sceneX;
       this.regionStartY = sceneY;
@@ -234,12 +290,16 @@ export class InteractionManager {
 
   handleMouseMove(sceneX: number, sceneY: number): void {
     const rawShapes = this.scene.getShapes();
-    const planningEls = this.scene.getElements().filter(isPlanningElement) as IPlanningElement[];
+    const planningEls = this.scene
+      .getElements()
+      .filter(isPlanningElement) as IPlanningElement[];
     // reorder planning elements so tasks are prioritized during connection creation
     let connectables: IConnectable[];
     if (this.connectionService.isCreating()) {
-      const tasks = planningEls.filter(el => el instanceof Task) as Task[];
-      const others = planningEls.filter(el => !(el instanceof Task));
+      const tasks = planningEls.filter(
+        (el) => el instanceof TaskElement
+      ) as TaskElement[];
+      const others = planningEls.filter((el) => !(el instanceof TaskElement));
       connectables = [...rawShapes, ...others, ...tasks];
     } else {
       connectables = [...rawShapes, ...planningEls];
@@ -247,7 +307,7 @@ export class InteractionManager {
 
     // Unified hover state for all connectables (shapes + planning elements)
     let newHovered: IConnectable | null = null;
-    connectables.forEach((el) => (el as any).isHovered = false);
+    connectables.forEach((el) => ((el as any).isHovered = false));
     for (let i = connectables.length - 1; i >= 0; i--) {
       const el = connectables[i];
       if ((el as any).contains(sceneX, sceneY)) {
@@ -282,19 +342,29 @@ export class InteractionManager {
     }
 
     // Resize-handle hover detection
-    const stories = planningEls.filter((el): el is Story => el instanceof Story);
+    const stories = planningEls.filter(
+      (el): el is StoryElement => el instanceof StoryElement
+    );
     let handleFound = false;
     for (const story of stories) {
       if (story.selected) {
-        const dir = story.getResizeHandleDirectionAt(sceneX, sceneY, this.panZoom);
+        const dir = story.getResizeHandleDirectionAt(
+          sceneX,
+          sceneY,
+          this.panZoom
+        );
         story.hoveredResizeHandle = dir;
-        if (dir) { handleFound = true; break; }
+        if (dir) {
+          handleFound = true;
+          break;
+        }
       }
     }
     if (!this.resizingElement) {
       if (handleFound) {
-        const hovered = stories.find(s => s.hoveredResizeHandle);
-        if (hovered) this.canvas.style.cursor = `${hovered.hoveredResizeHandle}-resize`;
+        const hovered = stories.find((s) => s.hoveredResizeHandle);
+        if (hovered)
+          this.canvas.style.cursor = `${hovered.hoveredResizeHandle}-resize`;
       } else {
         this.canvas.style.cursor = 'default';
       }
@@ -304,7 +374,7 @@ export class InteractionManager {
     if (this.draggingGroup) {
       const dx = sceneX - this.groupDragStartX;
       const dy = sceneY - this.groupDragStartY;
-      this.draggingGroup.forEach(el => {
+      this.draggingGroup.forEach((el) => {
         const init = this.initialPositions.get(el.id);
         if (init) {
           const e = el as any;
@@ -327,10 +397,15 @@ export class InteractionManager {
       const height = Math.abs(this.regionCurrentY - this.regionStartY);
       // gather all elements
       const rawShapes = this.scene.getShapes();
-      const planningEls = this.scene.getElements().filter(isPlanningElement) as IPlanningElement[];
-      const all = [...rawShapes, ...planningEls] as (IShape | IPlanningElement)[];
+      const planningEls = this.scene
+        .getElements()
+        .filter(isPlanningElement) as IPlanningElement[];
+      const all = [...rawShapes, ...planningEls] as (
+        | IShape
+        | IPlanningElement
+      )[];
       // select intersecting elements
-      const inRect = all.filter(el => {
+      const inRect = all.filter((el) => {
         let minX: number, minY: number, maxX: number, maxY: number;
         if (isShape(el)) {
           minX = el.x - el.radius;
@@ -343,7 +418,9 @@ export class InteractionManager {
           maxX = el.x + el.width;
           maxY = el.y + el.height;
         }
-        return maxX >= x0 && minX <= x0 + width && maxY >= y0 && minY <= y0 + height;
+        return (
+          maxX >= x0 && minX <= x0 + width && maxY >= y0 && minY <= y0 + height
+        );
       });
       this.scene.setSelected(inRect);
       this.scene.changes.next();
@@ -358,7 +435,7 @@ export class InteractionManager {
         const dy = sceneY - (init.y + this.dragOffsetY);
         const selected = this.scene.getSelectedElements();
         const dragGroup = SelectionService.getDragGroup(selected);
-        dragGroup.forEach(elem => {
+        dragGroup.forEach((elem) => {
           const origin = this.initialPositions.get(elem.id);
           if (origin) {
             const newX = origin.x + dx;
@@ -382,10 +459,26 @@ export class InteractionManager {
       let newW = this.initialWidth;
       let newH = this.initialHeight;
       switch (this.resizeDirection) {
-        case 'se': newW += dx; newH += dy; break;
-        case 'ne': newW += dx; newH -= dy; newY += dy; break;
-        case 'sw': newW -= dx; newH += dy; newX += dx; break;
-        case 'nw': newW -= dx; newH -= dy; newX += dx; newY += dy; break;
+        case 'se':
+          newW += dx;
+          newH += dy;
+          break;
+        case 'ne':
+          newW += dx;
+          newH -= dy;
+          newY += dy;
+          break;
+        case 'sw':
+          newW -= dx;
+          newH += dy;
+          newX += dx;
+          break;
+        case 'nw':
+          newW -= dx;
+          newH -= dy;
+          newX += dx;
+          newY += dy;
+          break;
       }
       // avoid negative size
       newW = Math.max(newW, 1);
@@ -413,9 +506,14 @@ export class InteractionManager {
       const width = Math.abs(this.regionCurrentX - this.regionStartX);
       const height = Math.abs(this.regionCurrentY - this.regionStartY);
       const rawShapes = this.scene.getShapes();
-      const planningEls = this.scene.getElements().filter(isPlanningElement) as IPlanningElement[];
-      const all = [...rawShapes, ...planningEls] as (IShape | IPlanningElement)[];
-      const inRect = all.filter(el => {
+      const planningEls = this.scene
+        .getElements()
+        .filter(isPlanningElement) as IPlanningElement[];
+      const all = [...rawShapes, ...planningEls] as (
+        | IShape
+        | IPlanningElement
+      )[];
+      const inRect = all.filter((el) => {
         let minX: number, minY: number, maxX: number, maxY: number;
         if (isShape(el)) {
           minX = el.x - el.radius;
@@ -428,7 +526,9 @@ export class InteractionManager {
           maxX = el.x + el.width;
           maxY = el.y + el.height;
         }
-        return maxX >= x0 && minX <= x0 + width && maxY >= y0 && minY <= y0 + height;
+        return (
+          maxX >= x0 && minX <= x0 + width && maxY >= y0 && minY <= y0 + height
+        );
       });
       this.scene.setSelected(inRect);
       this.isRegionSelecting = false;
@@ -440,7 +540,7 @@ export class InteractionManager {
     if (this.draggingGroup) {
       const initial = new Map(this.initialPositions);
       const finalPos = new Map<string, { x: number; y: number }>();
-      this.draggingGroup.forEach(el => {
+      this.draggingGroup.forEach((el) => {
         const e = el as any;
         finalPos.set(el.id, { x: e.x, y: e.y });
       });
@@ -454,14 +554,17 @@ export class InteractionManager {
     // finalize drag and record history
     if (this.draggingItem) {
       // Handle Task drop into/out of Story containers
-      if (this.draggingItem instanceof Task) {
+      if (this.draggingItem instanceof TaskElement) {
         const selectedEls = this.scene.getSelectedElements();
-        const tasks = selectedEls.filter(el => el instanceof Task) as Task[];
-        const stories = this.scene.getElements()
+        const tasks = selectedEls.filter(
+          (el) => el instanceof TaskElement
+        ) as TaskElement[];
+        const stories = this.scene
+          .getElements()
           .filter(isPlanningElement)
-          .filter((el): el is Story => el instanceof Story);
-        stories.forEach(story => {
-          tasks.forEach(task => {
+          .filter((el): el is StoryElement => el instanceof StoryElement);
+        stories.forEach((story) => {
+          tasks.forEach((task) => {
             if (story.contains(task.x, task.y)) story.addTask(task);
             else story.removeTask(task.id);
           });
@@ -472,10 +575,12 @@ export class InteractionManager {
       if (initial.size > 0) {
         const finalPositions = new Map<string, { x: number; y: number }>();
         initial.forEach((_, id) => {
-          const el = this.scene.getElements().find(el => el.id === id) as any;
+          const el = this.scene.getElements().find((el) => el.id === id) as any;
           if (el) finalPositions.set(id, { x: el.x, y: el.y });
         });
-        historyService.execute(new MoveCommand(this.scene, initial, finalPositions));
+        historyService.execute(
+          new MoveCommand(this.scene, initial, finalPositions)
+        );
       }
       this.initialPositions.clear();
       this.draggingItem = null;
@@ -485,19 +590,36 @@ export class InteractionManager {
     if (this.resizingElement) {
       // record resize in history
       const el = this.resizingElement;
-      const initial = new Map<string, { x: number; y: number; width: number; height: number }>();
-      initial.set(el.id, { x: this.initialX, y: this.initialY, width: this.initialWidth, height: this.initialHeight });
-      const finalMap = new Map<string, { x: number; y: number; width: number; height: number }>();
-      finalMap.set(el.id, { x: el.x, y: el.y, width: el.width, height: el.height });
+      const initial = new Map<
+        string,
+        { x: number; y: number; width: number; height: number }
+      >();
+      initial.set(el.id, {
+        x: this.initialX,
+        y: this.initialY,
+        width: this.initialWidth,
+        height: this.initialHeight,
+      });
+      const finalMap = new Map<
+        string,
+        { x: number; y: number; width: number; height: number }
+      >();
+      finalMap.set(el.id, {
+        x: el.x,
+        y: el.y,
+        width: el.width,
+        height: el.height,
+      });
       historyService.execute(new ResizeCommand(this.scene, initial, finalMap));
       // clear resizing state
       this.resizingElement = null;
       this.resizeDirection = null;
       this.canvas.style.cursor = 'default';
-      this.scene.getElements()
+      this.scene
+        .getElements()
         .filter(isPlanningElement)
-        .filter((el): el is Story => el instanceof Story)
-        .forEach(s => s.hoveredResizeHandle = null);
+        .filter((el): el is StoryElement => el instanceof StoryElement)
+        .forEach((s) => (s.hoveredResizeHandle = null));
       this.scene.changes.next();
       return;
     }
@@ -513,7 +635,9 @@ export class InteractionManager {
       }
     }
     // Check planning elements (Tasks/Stories/Goals) in zIndex order (highest first)
-    const planningEls = [...this.scene.getElements().filter(isPlanningElement) as any[]];
+    const planningEls = [
+      ...(this.scene.getElements().filter(isPlanningElement) as any[]),
+    ];
     planningEls.sort((a, b) => (b.zIndex ?? 0) - (a.zIndex ?? 0));
     for (const el of planningEls) {
       if (el.contains(sceneX, sceneY) && el.onDoubleClick) {
@@ -544,6 +668,6 @@ export class InteractionManager {
    * Indicates if a Task is currently being dragged.
    */
   public get isDraggingTask(): boolean {
-    return this.draggingItem instanceof Task;
+    return this.draggingItem instanceof TaskElement;
   }
 }

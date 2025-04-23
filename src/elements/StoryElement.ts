@@ -1,9 +1,14 @@
 // core/shapes/Story.ts
 import { PlanningElement } from './PlanningElement.ts';
 import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
-import { Task } from './Task.ts';
+import { TaskElement } from './TaskElement.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
-import { SELECT_COLOR, FONT_FAMILY, TITLE_FONT_SIZE, SMALL_FONT_SIZE } from '../core/constants.ts';
+import {
+  SELECT_COLOR,
+  FONT_FAMILY,
+  TITLE_FONT_SIZE,
+  SMALL_FONT_SIZE,
+} from '../core/constants.ts';
 import { editElement$ } from '../core/eventBus.ts';
 import { storyStyles } from './styles/storyStyles.ts';
 import { ElementStatus } from './ElementStatus.ts';
@@ -12,7 +17,7 @@ import { v4 } from 'uuid';
 /**
  * Story representation on the canvas - a container for tasks
  */
-export class Story extends PlanningElement {
+export class StoryElement extends PlanningElement {
   static width: number = 320;
   static height: number = 240;
   /** Size for resize handles (in px) */
@@ -20,11 +25,11 @@ export class Story extends PlanningElement {
   static HANDLE_SIZE: number = 16;
 
   status: ElementStatus = ElementStatus.Defined;
-  tasks: Task[] = [];
+  tasks: TaskElement[] = [];
   public priority: 'low' | 'medium' | 'high' = 'medium';
   /** Currently hovered resize direction */
-  public hoveredResizeHandle: 'nw'|'ne'|'se'|'sw'|null = null;
-  
+  public hoveredResizeHandle: 'nw' | 'ne' | 'se' | 'sw' | null = null;
+
   /**
    * Create a new Story
    */
@@ -39,7 +44,7 @@ export class Story extends PlanningElement {
     status = ElementStatus.Defined,
     priority = 'medium',
     tasks = [],
-    selected = false
+    selected = false,
   }: {
     id?: string;
     x?: number;
@@ -50,12 +55,22 @@ export class Story extends PlanningElement {
     description?: string;
     status?: ElementStatus;
     priority?: 'low' | 'medium' | 'high';
-    tasks?: Task[];
+    tasks?: TaskElement[];
     selected?: boolean;
   }) {
     // determine style by status
     const style = storyStyles[status];
-    super({ id, x, y, width, height, fillColor: style.fillColor, lineWidth: 2, title, description });
+    super({
+      id,
+      x,
+      y,
+      width,
+      height,
+      fillColor: style.fillColor,
+      lineWidth: 2,
+      title,
+      description,
+    });
     // layer ordering: draw stories below tasks
     this.zIndex = 1;
     this.status = status;
@@ -89,9 +104,9 @@ export class Story extends PlanningElement {
     super.drawAnchors(ctx, panZoom);
     // Draw resize handles when selected or hovered
     if (this.selected || this.isHovered) {
-      const size = Story.HANDLE_SIZE / panZoom.scale;
+      const size = StoryElement.HANDLE_SIZE / panZoom.scale;
       ctx.fillStyle = SELECT_COLOR;
-      this.getResizeHandles(panZoom).forEach(h => {
+      this.getResizeHandles(panZoom).forEach((h) => {
         ctx.beginPath();
         // draw circular handle
         ctx.arc(h.x, h.y, size / 2, 0, 2 * Math.PI);
@@ -99,7 +114,7 @@ export class Story extends PlanningElement {
       });
     }
   }
-  
+
   /**
    * Draw a button
    */
@@ -112,7 +127,7 @@ export class Story extends PlanningElement {
     color: string
   ): void {
     const size = 22 / panZoom.scale;
-    
+
     // Button background
     if (color !== 'transparent') {
       ctx.fillStyle = color;
@@ -120,20 +135,25 @@ export class Story extends PlanningElement {
       ctx.roundRect(x, y, size, size, 4 / panZoom.scale);
       ctx.fill();
     }
-    
+
     // Icon
     ctx.fillStyle = '#666666';
     ctx.font = `${SMALL_FONT_SIZE / panZoom.scale}px ${FONT_FAMILY}`;
     ctx.fillText(icon, x + 3 / panZoom.scale, y + 16 / panZoom.scale);
   }
-  
+
   /**
    * Check if coordinates are within this story
    */
   contains(px: number, py: number): boolean {
-    return px >= this.x && px <= this.x + this.width && py >= this.y && py <= this.y + this.height;
+    return (
+      px >= this.x &&
+      px <= this.x + this.width &&
+      py >= this.y &&
+      py <= this.y + this.height
+    );
   }
-  
+
   /**
    * Check if coordinates are within the edit button
    */
@@ -142,7 +162,7 @@ export class Story extends PlanningElement {
     const buttonSize = 22;
     const buttonX = this.x + this.width - 80;
     const buttonY = this.y + 6;
-    
+
     return (
       px >= buttonX &&
       px <= buttonX + buttonSize &&
@@ -150,7 +170,7 @@ export class Story extends PlanningElement {
       py <= buttonY + buttonSize
     );
   }
-  
+
   /**
    * Check if coordinates are within the delete button
    */
@@ -159,7 +179,7 @@ export class Story extends PlanningElement {
     const buttonSize = 22;
     const buttonX = this.x + this.width - 50;
     const buttonY = this.y + 6;
-    
+
     return (
       px >= buttonX &&
       px <= buttonX + buttonSize &&
@@ -167,7 +187,7 @@ export class Story extends PlanningElement {
       py <= buttonY + buttonSize
     );
   }
-  
+
   /**
    * Check if coordinates are within the add task button
    */
@@ -176,7 +196,7 @@ export class Story extends PlanningElement {
     const buttonSize = 22;
     const buttonX = this.x + this.width - 20;
     const buttonY = this.y + 6;
-    
+
     return (
       px >= buttonX &&
       px <= buttonX + buttonSize &&
@@ -184,12 +204,12 @@ export class Story extends PlanningElement {
       py <= buttonY + buttonSize
     );
   }
-  
+
   /**
    * Add a task to this story
    */
-  addTask(task: Task): void {
-    if (!this.tasks.find(t => t.id === task.id)) {
+  addTask(task: TaskElement): void {
+    if (!this.tasks.find((t) => t.id === task.id)) {
       this.tasks.push(task);
     }
   }
@@ -198,21 +218,45 @@ export class Story extends PlanningElement {
    * Remove a task from this story
    */
   removeTask(taskId: string): void {
-    this.tasks = this.tasks.filter(t => t.id !== taskId);
+    this.tasks = this.tasks.filter((t) => t.id !== taskId);
   }
-  
+
   getBoundaryPoint(angle: number): { x: number; y: number } {
     return { x: this.x + this.width / 2, y: this.y + this.height / 2 };
   }
-  
+
   getConnectionPoints(): ConnectionPoint[] {
     const points: ConnectionPoint[] = [];
     const w = this.width;
     const h = this.height;
-    points.push({ x: this.x + w / 2, y: this.y, angle: -Math.PI/2, isHovered: false, direction: 'top' });
-    points.push({ x: this.x + w, y: this.y + h / 2, angle: 0, isHovered: false, direction: 'right' });
-    points.push({ x: this.x + w / 2, y: this.y + h, angle: Math.PI/2, isHovered: false, direction: 'bottom' });
-    points.push({ x: this.x, y: this.y + h / 2, angle: Math.PI, isHovered: false, direction: 'left' });
+    points.push({
+      x: this.x + w / 2,
+      y: this.y,
+      angle: -Math.PI / 2,
+      isHovered: false,
+      direction: 'top',
+    });
+    points.push({
+      x: this.x + w,
+      y: this.y + h / 2,
+      angle: 0,
+      isHovered: false,
+      direction: 'right',
+    });
+    points.push({
+      x: this.x + w / 2,
+      y: this.y + h,
+      angle: Math.PI / 2,
+      isHovered: false,
+      direction: 'bottom',
+    });
+    points.push({
+      x: this.x,
+      y: this.y + h / 2,
+      angle: Math.PI,
+      isHovered: false,
+      direction: 'left',
+    });
     return points;
   }
 
@@ -224,7 +268,7 @@ export class Story extends PlanningElement {
     const dy = y - this.y;
     this.x = x;
     this.y = y;
-    this.tasks.forEach(t => {
+    this.tasks.forEach((t) => {
       t.x += dx;
       t.y += dy;
     });
@@ -233,23 +277,35 @@ export class Story extends PlanningElement {
   /**
    * Get positions and directions of resize handles
    */
-  public getResizeHandles(panZoom: PanZoomManager): { x: number; y: number; direction: 'nw'|'ne'|'se'|'sw' }[] {
+  public getResizeHandles(
+    panZoom: PanZoomManager
+  ): { x: number; y: number; direction: 'nw' | 'ne' | 'se' | 'sw' }[] {
     // Single handle: bottom-right corner only, to declutter UI and simplify resizing
     return [
-      { x: this.x + this.width - 1, y: this.y + this.height - 1, direction: 'se' }
+      {
+        x: this.x + this.width - 1,
+        y: this.y + this.height - 1,
+        direction: 'se',
+      },
     ];
   }
 
   /**
    * Detect which resize handle (if any) contains px,py
    */
-  public getResizeHandleDirectionAt(px: number, py: number, panZoom: PanZoomManager): 'nw'|'ne'|'se'|'sw'|null {
+  public getResizeHandleDirectionAt(
+    px: number,
+    py: number,
+    panZoom: PanZoomManager
+  ): 'nw' | 'ne' | 'se' | 'sw' | null {
     // clickable area: match handle size only
-    const detectSize = Story.HANDLE_SIZE / panZoom.scale;
+    const detectSize = StoryElement.HANDLE_SIZE / panZoom.scale;
     for (const h of this.getResizeHandles(panZoom)) {
       if (
-        px >= h.x - detectSize/2 && px <= h.x + detectSize/2 &&
-        py >= h.y - detectSize/2 && py <= h.y + detectSize/2
+        px >= h.x - detectSize / 2 &&
+        px <= h.x + detectSize / 2 &&
+        py >= h.y - detectSize / 2 &&
+        py <= h.y + detectSize / 2
       ) {
         return h.direction;
       }
@@ -265,7 +321,7 @@ export class Story extends PlanningElement {
   }
 
   clone(): PlanningElement {
-    return new Story({
+    return new StoryElement({
       x: this.x,
       y: this.y,
       width: this.width,
@@ -274,7 +330,7 @@ export class Story extends PlanningElement {
       description: this.description,
       status: this.status,
       priority: this.priority,
-      tasks: []
+      tasks: [],
     });
   }
 }

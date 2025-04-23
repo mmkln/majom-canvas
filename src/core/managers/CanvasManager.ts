@@ -9,10 +9,16 @@ import { isShape } from '../utils/typeGuards.ts';
 import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
 import type { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
 import type { IConnection } from '../interfaces/connection.ts';
-import { SELECT_COLOR, HOVER_OVERLAY_FILL, HOVER_OUTLINE_COLOR, REGION_SELECT_BORDER_COLOR, REGION_SELECT_FILL } from '../constants.ts';
-import { Task } from '../../elements/Task.ts';
-import { Goal } from '../../elements/Goal.ts';
-import { Story } from '../../elements/Story.ts';
+import {
+  SELECT_COLOR,
+  HOVER_OVERLAY_FILL,
+  HOVER_OUTLINE_COLOR,
+  REGION_SELECT_BORDER_COLOR,
+  REGION_SELECT_FILL,
+} from '../constants.ts';
+import { TaskElement } from '../../elements/TaskElement.ts';
+import { GoalElement } from '../../elements/GoalElement.ts';
+import { StoryElement } from '../../elements/StoryElement.ts';
 import { getBoundingBox } from '../utils/geometryUtils.ts';
 
 export class CanvasManager {
@@ -36,9 +42,14 @@ export class CanvasManager {
   // Multi-touch pinch-to-resize state
   private activePointers: Map<number, { x: number; y: number }> = new Map();
   private pinchInitialDist: number | null = null;
-  private pinchInitialRect: { x: number; y: number; width: number; height: number } | null = null;
+  private pinchInitialRect: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null = null;
   private pinchCenter: { x: number; y: number } | null = null;
-  private pinchElement: Story | null = null;
+  private pinchElement: StoryElement | null = null;
 
   // Pinch-to-zoom state
   private pinchZoomInitialDist: number | null = null;
@@ -87,9 +98,18 @@ export class CanvasManager {
     this.canvas.addEventListener('pointercancel', this.onPointerUp.bind(this));
 
     // Gesture events (Mac Safari pinch-to-zoom)
-    (this.canvas as any).addEventListener('gesturestart', this.onGestureStart.bind(this));
-    (this.canvas as any).addEventListener('gesturechange', this.onGestureChange.bind(this));
-    (this.canvas as any).addEventListener('gestureend', this.onGestureEnd.bind(this));
+    (this.canvas as any).addEventListener(
+      'gesturestart',
+      this.onGestureStart.bind(this)
+    );
+    (this.canvas as any).addEventListener(
+      'gesturechange',
+      this.onGestureChange.bind(this)
+    );
+    (this.canvas as any).addEventListener(
+      'gestureend',
+      this.onGestureEnd.bind(this)
+    );
 
     this.resizeCanvas();
   }
@@ -118,36 +138,45 @@ export class CanvasManager {
 
     const elements = this.scene.getElements();
     const shapes = this.scene.getShapes();
-    const planningEls = elements.filter(isPlanningElement) as IPlanningElement[];
+    const planningEls = elements.filter(
+      isPlanningElement
+    ) as IPlanningElement[];
     const connectables = [...shapes, ...planningEls];
 
     const connections = this.scene.getConnections();
 
     // Update goal links and progress
-    planningEls.filter(el => el instanceof Goal).forEach((goal: Goal) => {
-      const linkedIds = connections
-        .filter(c => c.fromId === goal.id || c.toId === goal.id)
-        .map(c => c.fromId === goal.id ? c.toId : c.fromId);
-      goal.links = Array.from(new Set(linkedIds));
-      const taskEls = planningEls.filter(el => el instanceof Task) as Task[];
-      const linkedTasks = taskEls.filter(t => goal.links.indexOf(t.id) !== -1);
-      goal.progress = linkedTasks.length
-        ? linkedTasks.filter(t => t.status === 'done').length / linkedTasks.length
-        : 0;
-    });
+    planningEls
+      .filter((el) => el instanceof GoalElement)
+      .forEach((goal: GoalElement) => {
+        const linkedIds = connections
+          .filter((c) => c.fromId === goal.id || c.toId === goal.id)
+          .map((c) => (c.fromId === goal.id ? c.toId : c.fromId));
+        goal.links = Array.from(new Set(linkedIds));
+        const taskEls = planningEls.filter(
+          (el) => el instanceof TaskElement
+        ) as TaskElement[];
+        const linkedTasks = taskEls.filter(
+          (t) => goal.links.indexOf(t.id) !== -1
+        );
+        goal.progress = linkedTasks.length
+          ? linkedTasks.filter((t) => t.status === 'done').length /
+            linkedTasks.length
+          : 0;
+      });
 
     // draw shapes
-    shapes.forEach(shape => shape.draw(this.ctx, this.panZoom));
+    shapes.forEach((shape) => shape.draw(this.ctx, this.panZoom));
 
     // draw planning elements in layer order
     planningEls
       .sort((a, b) => a.zIndex - b.zIndex)
-      .forEach(el => el.draw(this.ctx, this.panZoom));
+      .forEach((el) => el.draw(this.ctx, this.panZoom));
 
     // highlight drop target when dragging connection
     if (this.interactionManager.isCreatingConnection) {
       const pad = 4 / this.panZoom.scale;
-      connectables.forEach(el => {
+      connectables.forEach((el) => {
         if ((el as any).isHovered) {
           this.ctx.save();
           this.ctx.fillStyle = HOVER_OVERLAY_FILL;
@@ -380,7 +409,7 @@ export class CanvasManager {
     if ('x' in item && 'y' in item) {
       const coords = this.lastMouseCoords ?? {
         x: (this.canvas.width / 2 + this.panZoom.scrollX) / this.panZoom.scale,
-        y: (this.canvas.height / 2 + this.panZoom.scrollY) / this.panZoom.scale
+        y: (this.canvas.height / 2 + this.panZoom.scrollY) / this.panZoom.scale,
       };
       item.x = coords.x;
       item.y = coords.y;
@@ -411,28 +440,35 @@ export class CanvasManager {
       const [p1, p2] = Array.from(this.activePointers.values());
       const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
       // Story pinch-resize
-      const selectedStories = this.scene.getSelectedElements().filter(el => el instanceof Story) as Story[];
+      const selectedStories = this.scene
+        .getSelectedElements()
+        .filter((el) => el instanceof StoryElement) as StoryElement[];
       if (selectedStories.length === 1) {
         this.pinchElement = selectedStories[0];
         this.pinchInitialDist = dist;
-        this.pinchInitialRect = { x: this.pinchElement.x, y: this.pinchElement.y, width: this.pinchElement.width, height: this.pinchElement.height };
+        this.pinchInitialRect = {
+          x: this.pinchElement.x,
+          y: this.pinchElement.y,
+          width: this.pinchElement.width,
+          height: this.pinchElement.height,
+        };
         const rect = this.canvas.getBoundingClientRect();
-        const midX = ((p1.x + p2.x) / 2) - rect.left;
-        const midY = ((p1.y + p2.y) / 2) - rect.top;
+        const midX = (p1.x + p2.x) / 2 - rect.left;
+        const midY = (p1.y + p2.y) / 2 - rect.top;
         this.pinchCenter = {
           x: (midX + this.panZoom.scrollX) / this.panZoom.scale,
-          y: (midY + this.panZoom.scrollY) / this.panZoom.scale
+          y: (midY + this.panZoom.scrollY) / this.panZoom.scale,
         };
       } else {
         // pinch-to-zoom
         this.pinchZoomInitialDist = dist;
         this.pinchZoomInitialScale = this.panZoom.scale;
         const rect = this.canvas.getBoundingClientRect();
-        const midX = ((p1.x + p2.x) / 2) - rect.left;
-        const midY = ((p1.y + p2.y) / 2) - rect.top;
+        const midX = (p1.x + p2.x) / 2 - rect.left;
+        const midY = (p1.y + p2.y) / 2 - rect.top;
         this.pinchZoomCenterScene = {
           x: (midX + this.panZoom.scrollX) / this.panZoom.scale,
-          y: (midY + this.panZoom.scrollY) / this.panZoom.scale
+          y: (midY + this.panZoom.scrollY) / this.panZoom.scale,
         };
       }
       // do not start normal drag
@@ -444,19 +480,29 @@ export class CanvasManager {
 
   private onPointerMove(e: PointerEvent): void {
     // pinch-to-zoom handling
-    if (this.pinchZoomInitialDist !== null && this.activePointers.size >= 2 && this.pinchZoomCenterScene) {
+    if (
+      this.pinchZoomInitialDist !== null &&
+      this.activePointers.size >= 2 &&
+      this.pinchZoomCenterScene
+    ) {
       // update pointer coords
       this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       const [p1, p2] = Array.from(this.activePointers.values());
       const currDist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-      let newScale = this.pinchZoomInitialScale * (currDist / this.pinchZoomInitialDist!);
+      let newScale =
+        this.pinchZoomInitialScale * (currDist / this.pinchZoomInitialDist!);
       // clamp scale
-      const minScale = Math.max((this.canvas.width - this.panZoom.scrollbarWidth) / this.panZoom.virtualWidth, (this.canvas.height - this.panZoom.scrollbarWidth) / this.panZoom.virtualHeight);
+      const minScale = Math.max(
+        (this.canvas.width - this.panZoom.scrollbarWidth) /
+          this.panZoom.virtualWidth,
+        (this.canvas.height - this.panZoom.scrollbarWidth) /
+          this.panZoom.virtualHeight
+      );
       newScale = Math.min(Math.max(newScale, minScale), 3);
       // compute screen center of pinch
       const rect = this.canvas.getBoundingClientRect();
-      const midX = ((p1.x + p2.x) / 2) - rect.left;
-      const midY = ((p1.y + p2.y) / 2) - rect.top;
+      const midX = (p1.x + p2.x) / 2 - rect.left;
+      const midY = (p1.y + p2.y) / 2 - rect.top;
       // update panZoom
       this.panZoom.scale = newScale;
       this.panZoom.scrollX = this.pinchZoomCenterScene.x * newScale - midX;
@@ -466,7 +512,13 @@ export class CanvasManager {
       return;
     }
     // then handle story pinch-resize
-    if (this.pinchInitialDist !== null && this.activePointers.size >= 2 && this.pinchElement && this.pinchInitialRect && this.pinchCenter) {
+    if (
+      this.pinchInitialDist !== null &&
+      this.activePointers.size >= 2 &&
+      this.pinchElement &&
+      this.pinchInitialRect &&
+      this.pinchCenter
+    ) {
       // existing story resize logic...
       this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       const [p1, p2] = Array.from(this.activePointers.values());
@@ -511,7 +563,12 @@ export class CanvasManager {
   private onGestureChange(e: any): void {
     e.preventDefault();
     let newScale = this.gestureInitialScale * e.scale;
-    const minScale = Math.max((this.canvas.width - this.panZoom.scrollbarWidth) / this.panZoom.virtualWidth, (this.canvas.height - this.panZoom.scrollbarWidth) / this.panZoom.virtualHeight);
+    const minScale = Math.max(
+      (this.canvas.width - this.panZoom.scrollbarWidth) /
+        this.panZoom.virtualWidth,
+      (this.canvas.height - this.panZoom.scrollbarWidth) /
+        this.panZoom.virtualHeight
+    );
     newScale = Math.min(Math.max(newScale, minScale), 3);
     const centerX = this.canvas.width / 2;
     const centerY = this.canvas.height / 2;

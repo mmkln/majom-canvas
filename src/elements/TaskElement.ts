@@ -11,7 +11,7 @@ import { v4 } from 'uuid';
 /**
  * Task representation on the canvas
  */
-export class Task extends PlanningElement {
+export class TaskElement extends PlanningElement {
   title: string;
   status: ElementStatus = ElementStatus.Defined;
   priority: 'low' | 'medium' | 'high';
@@ -29,7 +29,7 @@ export class Task extends PlanningElement {
     status = ElementStatus.Defined,
     selected = false,
     priority = 'medium',
-    dueDate = new Date()
+    dueDate = new Date(),
   }: {
     id?: string;
     x?: number;
@@ -41,7 +41,17 @@ export class Task extends PlanningElement {
     priority?: 'low' | 'medium' | 'high';
     dueDate?: Date;
   }) {
-    super({ id, x, y, width: Task.width, height: Task.height, fillColor: '#ffffff', lineWidth: 1, title, description });
+    super({
+      id,
+      x,
+      y,
+      width: TaskElement.width,
+      height: TaskElement.height,
+      fillColor: '#ffffff',
+      lineWidth: 1,
+      title,
+      description,
+    });
     this.zIndex = 2;
     this.title = title;
     this.status = status;
@@ -55,8 +65,8 @@ export class Task extends PlanningElement {
     ctx.setLineDash([]);
     const x = this.x;
     const y = this.y;
-    const w = Task.width;
-    const h = Task.height;
+    const w = TaskElement.width;
+    const h = TaskElement.height;
     // Background
     const style = taskStyles[this.status];
     ctx.fillStyle = style.fillColor;
@@ -104,18 +114,23 @@ export class Task extends PlanningElement {
   }
 
   contains(px: number, py: number): boolean {
-    return px >= this.x && px <= this.x + Task.width && py >= this.y && py <= this.y + Task.height;
+    return (
+      px >= this.x &&
+      px <= this.x + TaskElement.width &&
+      py >= this.y &&
+      py <= this.y + TaskElement.height
+    );
   }
 
   isEditButtonClicked(px: number, py: number): boolean {
-    const bx = this.x + Task.width - 32;
+    const bx = this.x + TaskElement.width - 32;
     const by = this.y + 10;
     const size = 16;
     return px >= bx && px <= bx + size && py >= by && py <= by + size;
   }
 
   isDeleteButtonClicked(px: number, py: number): boolean {
-    const bx = this.x + Task.width - 16;
+    const bx = this.x + TaskElement.width - 16;
     const by = this.y + 10;
     const size = 16;
     return px >= bx && px <= bx + size && py >= by && py <= by + size;
@@ -135,27 +150,65 @@ export class Task extends PlanningElement {
 
   onRightClick?(): void {}
   onDragStart?(): void {}
-  onDrag?(x: number, y: number): void { this.x = x; this.y = y; }
+  onDrag?(x: number, y: number): void {
+    this.x = x;
+    this.y = y;
+  }
   onDragEnd?(): void {}
 
   getBoundaryPoint(angle: number): { x: number; y: number } {
-    const cx = this.x + Task.width / 2;
-    const cy = this.y + Task.height / 2;
-    return { x: cx + Math.cos(angle) * (Task.width / 2), y: cy + Math.sin(angle) * (Task.height / 2) };
+    const cx = this.x + TaskElement.width / 2;
+    const cy = this.y + TaskElement.height / 2;
+    return {
+      x: cx + Math.cos(angle) * (TaskElement.width / 2),
+      y: cy + Math.sin(angle) * (TaskElement.height / 2),
+    };
   }
 
   getConnectionPoints(): ConnectionPoint[] {
-    const w = Task.width, h = Task.height;
+    const w = TaskElement.width,
+      h = TaskElement.height;
     return [
-      { x: this.x + w/2, y: this.y, angle: -Math.PI/2, isHovered: false, direction: 'top' },
-      { x: this.x + w,   y: this.y + h/2, angle: 0,           isHovered: false, direction: 'right' },
-      { x: this.x + w/2, y: this.y + h,   angle: Math.PI/2,    isHovered: false, direction: 'bottom' },
-      { x: this.x,       y: this.y + h/2, angle: Math.PI,      isHovered: false, direction: 'left' }
+      {
+        x: this.x + w / 2,
+        y: this.y,
+        angle: -Math.PI / 2,
+        isHovered: false,
+        direction: 'top',
+      },
+      {
+        x: this.x + w,
+        y: this.y + h / 2,
+        angle: 0,
+        isHovered: false,
+        direction: 'right',
+      },
+      {
+        x: this.x + w / 2,
+        y: this.y + h,
+        angle: Math.PI / 2,
+        isHovered: false,
+        direction: 'bottom',
+      },
+      {
+        x: this.x,
+        y: this.y + h / 2,
+        angle: Math.PI,
+        isHovered: false,
+        direction: 'left',
+      },
     ];
   }
 
   clone(): PlanningElement {
-    return new Task({ x: this.x, y: this.y, title: this.title, status: this.status, priority: this.priority, dueDate: this.dueDate });
+    return new TaskElement({
+      x: this.x,
+      y: this.y,
+      title: this.title,
+      status: this.status,
+      priority: this.priority,
+      dueDate: this.dueDate,
+    });
   }
 
   /**

@@ -8,13 +8,14 @@ import {
   STORY_STATUS_DEFINED_FILL,
   STORY_STATUS_DEFINED_BORDER
 } from '../constants.ts';
+import { ElementStatus } from '../ElementStatus.ts';
 
 export interface StoryStyle {
   fillColor: string;
   borderColor: string;
 }
 
-export const storyStyles: Record<'pending' | 'in-progress' | 'done' | 'defined', StoryStyle> = {
+export const storyStyles: Record<ElementStatus, StoryStyle> = {
   done: {
     fillColor: STORY_STATUS_DONE_FILL,
     borderColor: STORY_STATUS_DONE_BORDER

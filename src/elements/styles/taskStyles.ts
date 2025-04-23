@@ -8,13 +8,14 @@ import {
   TASK_STATUS_DEFINED_FILL,
   TASK_STATUS_DEFINED_BORDER
 } from '../constants.ts';
+import { ElementStatus } from '../ElementStatus.ts';
 
 export interface TaskStyle {
   fillColor: string;
   borderColor: string;
 }
 
-export const taskStyles: Record<'pending' | 'in-progress' | 'done' | 'defined', TaskStyle> = {
+export const taskStyles: Record<ElementStatus, TaskStyle> = {
   done: {
     fillColor: TASK_STATUS_DONE_FILL,
     borderColor: TASK_STATUS_DONE_BORDER

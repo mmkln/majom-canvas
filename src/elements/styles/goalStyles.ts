@@ -8,13 +8,14 @@ import {
   GOAL_STATUS_DEFINED_FILL,
   GOAL_STATUS_DEFINED_BORDER
 } from "../constants.ts";
+import { ElementStatus } from "../ElementStatus.ts";
 
 export interface GoalStyle {
   fillColor: string;
   borderColor: string;
 }
 
-export const goalStyles: Record<'pending' | 'in-progress' | 'done' | 'defined', GoalStyle> = {
+export const goalStyles: Record<ElementStatus, GoalStyle> = {
   done: {
     fillColor: GOAL_STATUS_DONE_FILL,
     borderColor: GOAL_STATUS_DONE_BORDER

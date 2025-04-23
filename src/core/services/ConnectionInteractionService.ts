@@ -5,8 +5,8 @@ import type { IConnectable } from '../interfaces/connectable.ts';
 import type { ConnectionPoint } from '../interfaces/shape.ts';
 import type { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
 import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
-import { Task } from '../../elements/Task.ts';
-import { Story } from '../../elements/Story.ts';
+import { TaskElement } from '../../elements/TaskElement.ts';
+import { StoryElement } from '../../elements/StoryElement.ts';
 import { getOrderedConnectables } from '../utils/connectableUtils.ts';
 import type { IConnection } from '../interfaces/connection.ts';
 import { historyService } from './HistoryService.ts';
@@ -16,14 +16,24 @@ export class ConnectionInteractionService {
   private creating = false;
   private startShape: IConnectable | null = null;
   private startPoint: ConnectionPoint | null = null;
-  private tempLine: { startX: number; startY: number; endX: number; endY: number } | null = null;
+  private tempLine: {
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+  } | null = null;
 
   constructor(private scene: Scene, private panZoom: PanZoomManager) {}
 
   /** Hit test existing connections */
   public hitTest(x: number, y: number): IConnection | null {
-    const planningEls = this.scene.getElements().filter(isPlanningElement) as IPlanningElement[];
-    const connectables: IConnectable[] = [...this.scene.getShapes(), ...planningEls];
+    const planningEls = this.scene
+      .getElements()
+      .filter(isPlanningElement) as IPlanningElement[];
+    const connectables: IConnectable[] = [
+      ...this.scene.getShapes(),
+      ...planningEls,
+    ];
     const connections = this.scene.getConnections();
     for (let i = connections.length - 1; i >= 0; i--) {
       const conn = connections[i];
@@ -44,7 +54,12 @@ export class ConnectionInteractionService {
     this.creating = true;
     this.startShape = hit.shape;
     this.startPoint = hit.point;
-    this.tempLine = { startX: hit.point.x, startY: hit.point.y, endX: x, endY: y };
+    this.tempLine = {
+      startX: hit.point.x,
+      startY: hit.point.y,
+      endX: x,
+      endY: y,
+    };
     this.scene.changes.next();
     return true;
   }
@@ -63,7 +78,8 @@ export class ConnectionInteractionService {
     if (!this.creating || !this.startShape || !this.tempLine) return false;
     let target: IConnectable | null = null;
     const connectables = getOrderedConnectables(this.scene);
-    const x = this.tempLine.endX, y = this.tempLine.endY;
+    const x = this.tempLine.endX,
+      y = this.tempLine.endY;
     // Try connection point hit
     target = this.findPoint(x, y, connectables)?.shape || null;
     // Fallback to contains hit
@@ -79,8 +95,13 @@ export class ConnectionInteractionService {
     if (target) {
       const src = this.startShape;
       const dst = target;
-      const invalid = (src instanceof Story && dst instanceof Task && src.tasks.some(t => t.id === dst.id))
-        || (src instanceof Task && dst instanceof Story && dst.tasks.some(t => t.id === src.id));
+      const invalid =
+        (src instanceof StoryElement &&
+          dst instanceof TaskElement &&
+          src.tasks.some((t) => t.id === dst.id)) ||
+        (src instanceof TaskElement &&
+          dst instanceof StoryElement &&
+          dst.tasks.some((t) => t.id === src.id));
       if (!invalid) {
         historyService.execute(new ConnectCommand(this.scene, src.id, dst.id));
       }
@@ -108,12 +129,21 @@ export class ConnectionInteractionService {
   }
 
   /** Get the temporary line for rendering */
-  public getTemporaryLine(): { startX: number; startY: number; endX: number; endY: number } | null {
+  public getTemporaryLine(): {
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+  } | null {
     return this.tempLine;
   }
 
   /** Internal helper to find a connection point on shapes */
-  private findPoint(x: number, y: number, elements: IConnectable[]): { shape: IConnectable; point: ConnectionPoint } | null {
+  private findPoint(
+    x: number,
+    y: number,
+    elements: IConnectable[]
+  ): { shape: IConnectable; point: ConnectionPoint } | null {
     for (let i = elements.length - 1; i >= 0; i--) {
       const shape = elements[i];
       const points = shape.getConnectionPoints();

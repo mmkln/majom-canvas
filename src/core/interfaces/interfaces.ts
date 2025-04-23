@@ -1,11 +1,13 @@
 // interfaces.ts
 
 // Інтерфейс задачі (Task)
+import { ElementStatus } from '../../elements/ElementStatus.js';
+
 export interface ITask {
   id: string; // Унікальний ідентифікатор задачі
   title: string; // Назва задачі
   description: string; // Короткий опис задачі
-  status: 'pending' | 'in-progress' | 'done'; // Статус виконання
+  status: ElementStatus; // Статус виконання
   priority: 'low' | 'medium' | 'high'; // Пріоритет задачі
   dueDate: Date; // Кінцевий термін виконання
   x: number; // Координата X на полотні
@@ -30,9 +32,8 @@ export interface IStory {
   height: number;
   title: string;
   description: string;
-  status: 'pending' | 'in-progress' | 'done';
+  status: ElementStatus;
   priority: 'low' | 'medium' | 'high';
-  borderColor: string;
   tasks: string[]; // id задач, що належать цій Story
 }
 
@@ -46,7 +47,7 @@ export interface IGoal {
   width: number;
   height: number;
   title: string;
-  status: 'pending' | 'in-progress' | 'done';
+  status: ElementStatus;
   priority: 'low' | 'medium' | 'high';
   progress: number;
   links: string[];
