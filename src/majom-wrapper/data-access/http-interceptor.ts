@@ -48,6 +48,7 @@ export class HttpInterceptorClient {
         )
       : this.client.get<T>(`${this.baseUrl}${path}`, { ...options, headers });
     return request$.pipe(
+      switchMap((res: any) => from(res.json() as Promise<T>)),
       catchError(err => {
         if (err.status === 401) {
           return this.getRefreshedAccessToken().pipe(
@@ -160,6 +161,7 @@ export class HttpInterceptorClient {
         )
       : this.client.delete<T>(`${this.baseUrl}${path}`, { ...options, headers });
     return request$.pipe(
+      switchMap((res: any) => from(res.json() as Promise<T>)),
       catchError(err => {
         if (err.status === 401) {
           return this.getRefreshedAccessToken().pipe(
