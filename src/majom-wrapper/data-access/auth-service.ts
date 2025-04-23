@@ -1,6 +1,7 @@
 import { AuthResponse, LoginCredentials, User } from '../interfaces/auth-interfaces.js';
 import { environment } from '../../config/environment.js';
 import { jwtDecode, JwtPayload } from 'jwt-decode';
+import { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY } from '../../config/storage-keys.js';
 
 /**
  * AuthService handles authentication requests to the backend.
@@ -84,8 +85,8 @@ export class AuthService {
    * @param tokens Object containing access and refresh tokens.
    */
   setTokens(tokens: { access: string; refresh: string }): void {
-    localStorage.setItem('jwt', tokens.access);
-    localStorage.setItem('refresh', tokens.refresh);
+    localStorage.setItem(ACCESS_TOKEN_KEY, tokens.access);
+    localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refresh);
   }
 
   /**
@@ -93,7 +94,7 @@ export class AuthService {
    * @param token The access token.
    */
   setToken(token: string): void {
-    localStorage.setItem('jwt', token);
+    localStorage.setItem(ACCESS_TOKEN_KEY, token);
   }
 
   /**
@@ -101,15 +102,15 @@ export class AuthService {
    * @param token The refresh token.
    */
   setRefreshToken(token: string): void {
-    localStorage.setItem('refresh', token);
+    localStorage.setItem(REFRESH_TOKEN_KEY, token);
   }
 
   /**
    * Removes both tokens from local storage.
    */
   removeTokens(): void {
-    localStorage.removeItem('jwt');
-    localStorage.removeItem('refresh');
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
   }
 
   /**
@@ -117,7 +118,7 @@ export class AuthService {
    * @returns The access token or null if not found.
    */
   getAuthToken(): string | null {
-    return localStorage.getItem('jwt');
+    return localStorage.getItem(ACCESS_TOKEN_KEY);
   }
 
   /**
@@ -150,7 +151,7 @@ export class AuthService {
    * @returns The refresh token or null if not found.
    */
   getRefreshToken(): string | null {
-    return localStorage.getItem('refresh');
+    return localStorage.getItem(REFRESH_TOKEN_KEY);
   }
 
   /**
