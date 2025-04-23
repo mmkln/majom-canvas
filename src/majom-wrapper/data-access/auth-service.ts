@@ -1,5 +1,6 @@
 import { AuthResponse, LoginCredentials, User } from '../interfaces/auth-interfaces.js';
 import { environment } from '../../config/environment.js';
+import { jwtDecode, JwtPayload } from 'jwt-decode';
 
 /**
  * AuthService handles authentication requests to the backend.
@@ -168,7 +169,7 @@ export class AuthService {
    */
   isTokenExpired(token: string): boolean {
     try {
-      const decoded = this.decodeToken(token);
+      const decoded = jwtDecode<JwtPayload>(token);
       if (!decoded?.exp) {
         return true;
       }
@@ -176,20 +177,6 @@ export class AuthService {
       return Date.now() > expiryTime;
     } catch (error) {
       return true;
-    }
-  }
-
-  /**
-   * Decodes a JWT token to extract its payload.
-   * @param token The JWT token to decode.
-   * @returns The decoded payload or null if decoding fails.
-   */
-  private decodeToken(token: string): any {
-    try {
-      const payload = token.split('.')[1];
-      return JSON.parse(atob(payload));
-    } catch (error) {
-      return null;
     }
   }
 }
