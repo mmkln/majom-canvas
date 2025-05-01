@@ -5,6 +5,7 @@ import { Checkbox, CheckboxProps } from '../components/Checkbox.ts';
 import { SearchSelect, SearchSelectProps } from '../components/SearchSelect.js';
 import { Select, SelectProps } from '../components/Select.ts';
 
+// TODO: Call .createElement() on each component to create the actual DOM element
 export class ComponentFactory {
   static createButton(props: ButtonProps): Button {
     return new Button(props);

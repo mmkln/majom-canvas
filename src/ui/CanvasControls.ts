@@ -13,18 +13,18 @@ export class CanvasControls {
     this.container.style.bottom = '12px';
     this.container.style.display = 'flex';
     this.container.style.flexDirection = 'column';
-    this.container.style.gap = '8px';
+    this.container.style.gap = '6px';
     this.container.style.background = 'rgba(255,255,255,0.95)';
-    this.container.style.borderRadius = '8px';
+    this.container.style.borderRadius = '10px';
     this.container.style.boxShadow = '0 2px 10px rgba(0,0,0,0.08)';
-    this.container.style.padding = '8px';
+    this.container.style.padding = '6px';
 
     const buttonVariant: ButtonVariant = 'secondary';
 
     const zoomInBtn = ComponentFactory.createButton({
       text: '+',
       variant: buttonVariant,
-      size: 'icon',
+      size: 'icon-lg',
       onClick: () => this.canvasManager.zoomIn(),
       tooltip: 'Zoom In',
     }).createElement();
@@ -32,7 +32,7 @@ export class CanvasControls {
     const zoomOutBtn = ComponentFactory.createButton({
       text: '-',
       variant: buttonVariant,
-      size: 'icon',
+      size: 'icon-lg',
       onClick: () => this.canvasManager.zoomOut(),
       tooltip: 'Zoom Out',
     }).createElement();
@@ -40,7 +40,7 @@ export class CanvasControls {
     const centerBtn = ComponentFactory.createButton({
       text: '⦿',
       variant: buttonVariant,
-      size: 'icon',
+      size: 'icon-lg',
       onClick: () => this.canvasManager.centerCanvas(),
       tooltip: 'Center Canvas',
     }).createElement();

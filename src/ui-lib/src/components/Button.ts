@@ -4,7 +4,7 @@ import { Component } from '../core/Component.ts';
 import { ThemeManager } from '../core/Theme.ts';
 
 export type ButtonVariant = 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | 'lightgray' | 'success' | 'accent';
-export type ButtonSize = 'default' | 'sm' | 'lg' | 'icon';
+export type ButtonSize = 'default' | 'sm' | 'lg' | 'icon' | 'icon-sm' | 'icon-lg';
 
 export interface ButtonProps {
   text?: string;
@@ -67,6 +67,8 @@ export class Button extends Component<ButtonProps> {
       sm: 'h-9 rounded-md px-3',
       lg: 'h-11 rounded-md px-8',
       icon: 'h-10 w-10',
+      'icon-sm': 'h-9 w-9',
+      'icon-lg': 'h-11 w-11',
     };
 
     const variant = this.props.variant || 'default';

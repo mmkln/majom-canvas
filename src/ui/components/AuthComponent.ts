@@ -1,11 +1,12 @@
-import { Component } from '../../ui-lib/src/core/Component.js';
-import { Button } from '../../ui-lib/src/components/Button.js';
-import { Input } from '../../ui-lib/src/components/Input.js';
-import { AuthService } from '../../majom-wrapper/data-access/auth-service.js';
-import { LoginCredentials } from '../../majom-wrapper/interfaces/auth-interfaces.js';
-import { createModalShell } from '../../ui-lib/src/components/Modal.js';
+import { Component } from '../../ui-lib/src/core/Component.ts';
+import { Button } from '../../ui-lib/src/components/Button.ts';
+import { Input } from '../../ui-lib/src/components/Input.ts';
+import { AuthService } from '../../majom-wrapper/data-access/auth-service.ts';
+import { LoginCredentials } from '../../majom-wrapper/interfaces/auth-interfaces.ts';
+import { createModalShell } from '../../ui-lib/src/components/Modal.ts';
 import { notify } from '../../core/services/NotificationService.ts';
 import { historyService } from '../../core/services/HistoryService.ts';
+import { ComponentFactory } from '../../ui-lib/src/index.js';
 
 /**
  * AuthComponent manages the UI for user authentication, including login/logout buttons and modal for credentials.
@@ -27,18 +28,20 @@ export class AuthComponent extends Component<any> {
     this.avatarContainer.className = 'absolute top-4 right-4';
     
     // Use Button component from UI library for login and logout buttons
-    this.loginButton = new Button({
+    this.loginButton = ComponentFactory.createButton({
       text: 'Login',
       onClick: () => this.showLoginModal(),
       variant: 'default',
       className: 'w-full',
+      size: 'lg',
     }).createElement() as HTMLButtonElement;
 
-    this.logoutButton = new Button({
+    this.logoutButton = ComponentFactory.createButton({
       text: 'Logout',
       onClick: () => this.handleLogout(),
       variant: 'destructive',
       className: 'w-full',
+      size: 'lg',
     }).createElement() as HTMLButtonElement;
 
     this.dropdownMenu = document.createElement('div');
@@ -105,7 +108,7 @@ export class AuthComponent extends Component<any> {
     usernameLabel.htmlFor = 'username';
     usernameLabel.className = 'block text-sm font-medium text-gray-700';
     usernameLabel.textContent = 'Username';
-    const usernameInput = new Input({ id: 'username', name: 'username', type: 'text', placeholder: 'Enter your username', className: 'mt-1' }).createElement();
+    const usernameInput = ComponentFactory.createInput({ id: 'username', name: 'username', type: 'text', placeholder: 'Enter your username', className: 'mt-1' }).createElement();
     usernameDiv.append(usernameLabel, usernameInput);
 
     // Password field
@@ -115,7 +118,7 @@ export class AuthComponent extends Component<any> {
     passwordLabel.htmlFor = 'password';
     passwordLabel.className = 'block text-sm font-medium text-gray-700';
     passwordLabel.textContent = 'Password';
-    const passwordInput = new Input({ id: 'password', name: 'password', type: 'password', placeholder: 'Enter your password', className: 'mt-1' }).createElement();
+    const passwordInput = ComponentFactory.createInput({ id: 'password', name: 'password', type: 'password', placeholder: 'Enter your password', className: 'mt-1' }).createElement();
     passwordDiv.append(passwordLabel, passwordInput);
 
     // Error message
@@ -123,7 +126,7 @@ export class AuthComponent extends Component<any> {
     this.errorMessage.className = 'mt-2 text-red-500 hidden';
 
     // Submit button
-    const loginBtn = new Button({ text: 'Login', type: 'submit', variant: 'default', className: 'w-full' }).createElement();
+    const loginBtn = ComponentFactory.createButton({ text: 'Login', type: 'submit', variant: 'default', className: 'w-full' }).createElement();
     loginBtn.id = 'loginSubmit';
 
     form.append(usernameDiv, passwordDiv, loginBtn);

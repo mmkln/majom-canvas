@@ -20,11 +20,11 @@ export class UndoRedoControls {
     this.container.style.position = 'absolute';
     // Initial styles; actual position set dynamically in mount()
     this.container.style.display = 'flex';
-    this.container.style.gap = '8px';
+    this.container.style.gap = '6px';
     this.container.style.background = 'rgba(255,255,255,0.95)';
-    this.container.style.borderRadius = '8px';
+    this.container.style.borderRadius = '10px';
     this.container.style.boxShadow = '0 2px 10px rgba(0,0,0,0.08)';
-    this.container.style.padding = '8px';
+    this.container.style.padding = '6px';
     this.container.style.zIndex = '100';
 
     const buttonVariant: ButtonVariant = 'secondary';
@@ -32,7 +32,7 @@ export class UndoRedoControls {
     this.undoBtn = ComponentFactory.createButton({
       text: '↺', // mirror of redo icon
       variant: buttonVariant,
-      size: 'icon',
+      size: 'icon-lg',
       onClick: () => historyService.undo(),
       tooltip: 'Undo',
     }).createElement() as HTMLButtonElement;
@@ -43,7 +43,7 @@ export class UndoRedoControls {
     this.redoBtn = ComponentFactory.createButton({
       text: '↻',
       variant: buttonVariant,
-      size: 'icon',
+      size: 'icon-lg',
       onClick: () => historyService.redo(),
       tooltip: 'Redo',
     }).createElement() as HTMLButtonElement;

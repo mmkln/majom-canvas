@@ -30,10 +30,10 @@ export class CanvasToolbar {
     container.style.left = '50%';
     container.style.transform = 'translateX(-50%)';
     container.style.display = 'flex';
-    container.style.gap = '8px';
-    container.style.padding = '8px';
+    container.style.gap = '6px';
+    container.style.padding = '6px';
     container.style.background = 'white';
-    container.style.borderRadius = '8px';
+    container.style.borderRadius = '10px';
     container.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
     container.style.zIndex = '100';
     return container;
@@ -49,6 +49,7 @@ export class CanvasToolbar {
       variant: 'secondary',
       onClick: () => this.handleSelectMode(),
       tooltip: 'Select elements on canvas',
+      size: 'lg',
     }).createElement();
 
     // Create Task button
@@ -57,6 +58,7 @@ export class CanvasToolbar {
       variant: 'secondary',
       onClick: () => this.createTask(),
       tooltip: 'Create a new task on canvas',
+      size: 'lg',
     }).createElement();
 
     // Create Story button
@@ -65,6 +67,7 @@ export class CanvasToolbar {
       variant: 'secondary',
       onClick: () => this.createStory(),
       tooltip: 'Create a new story on canvas',
+      size: 'lg',
     }).createElement();
 
     // Create Goal button
@@ -73,6 +76,7 @@ export class CanvasToolbar {
       variant: 'secondary',
       onClick: () => this.createGoal(),
       tooltip: 'Create a new goal on canvas',
+      size: 'lg',
     }).createElement();
 
     // Add buttons to container
