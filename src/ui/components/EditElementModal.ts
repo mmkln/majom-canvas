@@ -77,6 +77,7 @@ export class EditElementModal {
     statusLabelEl.className = 'block text-sm font-medium text-gray-700';
     statusLabelEl.textContent = 'Status';
     statusDiv.appendChild(statusLabelEl);
+    // TODO: replace Select with ToggleSwitch component
     const statusSelect = ComponentFactory.createSelect({
       items: ELEMENT_STATUS_OPTIONS,
       selectedValue: tempStatus,
@@ -95,6 +96,8 @@ export class EditElementModal {
     priorityLabelEl.className = 'block text-sm font-medium text-gray-700';
     priorityLabelEl.textContent = 'Priority';
     priorityDiv.appendChild(priorityLabelEl);
+    // TODO: replace Select with ToggleSwitch component
+    // TODO: use correct priority values (create a new enum for priority)
     const prioritySelect = ComponentFactory.createSelect({
       items: [
         { value: 'low', label: 'Low' },

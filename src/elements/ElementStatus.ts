@@ -1,3 +1,6 @@
+// TODO: update Status with values from Majom Platform
+//  (or figure out how to isolate this logic, or create an abstraction layer,
+//  or create a new enum for Majom Elements status)
 export enum ElementStatus {
   Defined = 'defined',
   Pending = 'pending',
