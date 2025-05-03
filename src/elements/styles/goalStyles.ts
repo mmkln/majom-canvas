@@ -1,14 +1,14 @@
-import { 
-  GOAL_STATUS_DONE_FILL, 
-  GOAL_STATUS_DONE_BORDER, 
-  GOAL_STATUS_IN_PROGRESS_FILL, 
-  GOAL_STATUS_IN_PROGRESS_BORDER, 
-  GOAL_STATUS_PENDING_FILL, 
+import {
+  GOAL_STATUS_DONE_FILL,
+  GOAL_STATUS_DONE_BORDER,
+  GOAL_STATUS_IN_PROGRESS_FILL,
+  GOAL_STATUS_IN_PROGRESS_BORDER,
+  GOAL_STATUS_PENDING_FILL,
   GOAL_STATUS_PENDING_BORDER,
   GOAL_STATUS_DEFINED_FILL,
-  GOAL_STATUS_DEFINED_BORDER
-} from "../constants.ts";
-import { ElementStatus } from "../ElementStatus.ts";
+  GOAL_STATUS_DEFINED_BORDER,
+} from '../constants.ts';
+import { ElementStatus } from '../ElementStatus.ts';
 
 export interface GoalStyle {
   fillColor: string;
@@ -18,18 +18,18 @@ export interface GoalStyle {
 export const goalStyles: Record<ElementStatus, GoalStyle> = {
   done: {
     fillColor: GOAL_STATUS_DONE_FILL,
-    borderColor: GOAL_STATUS_DONE_BORDER
+    borderColor: GOAL_STATUS_DONE_BORDER,
   },
   'in-progress': {
     fillColor: GOAL_STATUS_IN_PROGRESS_FILL,
-    borderColor: GOAL_STATUS_IN_PROGRESS_BORDER
+    borderColor: GOAL_STATUS_IN_PROGRESS_BORDER,
   },
   pending: {
     fillColor: GOAL_STATUS_PENDING_FILL,
-    borderColor: GOAL_STATUS_PENDING_BORDER
+    borderColor: GOAL_STATUS_PENDING_BORDER,
   },
   defined: {
     fillColor: GOAL_STATUS_DEFINED_FILL,
-    borderColor: GOAL_STATUS_DEFINED_BORDER
-  }
+    borderColor: GOAL_STATUS_DEFINED_BORDER,
+  },
 };

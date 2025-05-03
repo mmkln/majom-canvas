@@ -41,8 +41,10 @@ export class Input extends Component<InputProps> {
     if (this.props.autoFocus) input.autofocus = true;
     if (this.props.autoComplete) input.autocomplete = this.props.autoComplete;
     if (this.props.required) input.required = true;
-    if (this.props.minLength !== undefined) input.minLength = this.props.minLength;
-    if (this.props.maxLength !== undefined) input.maxLength = this.props.maxLength;
+    if (this.props.minLength !== undefined)
+      input.minLength = this.props.minLength;
+    if (this.props.maxLength !== undefined)
+      input.maxLength = this.props.maxLength;
     if (this.props.pattern) input.pattern = this.props.pattern;
 
     input.addEventListener('input', () => {

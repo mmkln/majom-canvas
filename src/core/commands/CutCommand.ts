@@ -17,7 +17,8 @@ export class CutCommand extends Command {
   }
 
   execute(): void {
-    const selection = this.scene.getSelectedElements()
+    const selection = this.scene
+      .getSelectedElements()
       .filter((el): el is PlanningElement => el instanceof PlanningElement);
     this.elements = selection;
     // copy to clipboard, then remove from scene
@@ -28,7 +29,7 @@ export class CutCommand extends Command {
 
   undo(): void {
     // re-add cut elements
-    this.elements.forEach(el => this.scene.addElement(el));
+    this.elements.forEach((el) => this.scene.addElement(el));
     notify(`Restored ${this.elements.length} items`, 'success');
   }
 }

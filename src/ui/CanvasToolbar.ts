@@ -14,7 +14,10 @@ import { notify } from '../core/services/NotificationService.ts';
 export class CanvasToolbar {
   public readonly container: HTMLDivElement;
 
-  constructor(private scene: Scene, private canvasManager: CanvasManager) {
+  constructor(
+    private scene: Scene,
+    private canvasManager: CanvasManager
+  ) {
     this.container = this.createToolbarContainer();
     this.addButtons();
   }

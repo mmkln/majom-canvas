@@ -50,9 +50,9 @@ export class App {
     this.uiManager.mountAll(document.body);
 
     // Register commands from config
-    getCommandConfigs(this.scene, this.canvasManager).forEach(cmd => {
+    getCommandConfigs(this.scene, this.canvasManager).forEach((cmd) => {
       commandManager.register(cmd.name, cmd.handler);
-      cmd.keys.forEach(k => commandManager.bindShortcut(cmd.name, k));
+      cmd.keys.forEach((k) => commandManager.bindShortcut(cmd.name, k));
     });
   }
 
@@ -66,9 +66,13 @@ export class App {
     // Draw after restore and notify listeners (including ZoomIndicator)
     this.canvasManager.draw();
     // Auto-save view state on any change
-    panZoom.viewChanges.subscribe(state => this.dataProvider.saveViewState(state));
+    panZoom.viewChanges.subscribe((state) =>
+      this.dataProvider.saveViewState(state)
+    );
     // Auto-save diagram on content change
-    this.scene.changes.subscribe(() => this.diagramRepository.saveDiagram(this.scene));
+    this.scene.changes.subscribe(() =>
+      this.diagramRepository.saveDiagram(this.scene)
+    );
     // AuthComponent does not have an init method, initialization happens in constructor
   }
 }

@@ -43,13 +43,16 @@ export abstract class Shape implements IShape, IConnectable {
 
   protected abstract getInnerRadius(): number;
 
-  protected abstract drawShape(
-    ctx: CanvasRenderingContext2D
-  ): void;
+  protected abstract drawShape(ctx: CanvasRenderingContext2D): void;
 
   public getConnectionPoints(): ConnectionPoint[] {
     const angles = [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2]; // 0°, 90°, 180°, 270°
-    const directions: ('right' | 'bottom' | 'left' | 'top')[] = ['right', 'bottom', 'left', 'top'];
+    const directions: ('right' | 'bottom' | 'left' | 'top')[] = [
+      'right',
+      'bottom',
+      'left',
+      'top',
+    ];
 
     return angles.map((angle, index) => {
       const point = this.getBoundaryPoint(angle);

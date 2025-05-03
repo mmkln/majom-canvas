@@ -6,7 +6,12 @@ export interface IConnection extends ICanvasElement {
   fromId: string;
   toId: string;
   lineType: ConnectionLineType;
-  isNearPoint(px: number, py: number, elements: IConnectable[], tolerance?: number): boolean;
+  isNearPoint(
+    px: number,
+    py: number,
+    elements: IConnectable[],
+    tolerance?: number
+  ): boolean;
   setLineType(type: ConnectionLineType): void;
 }
 

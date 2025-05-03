@@ -78,7 +78,12 @@ export class PanZoomManager {
   /**
    * Handle wheel event for zooming and panning, then notify listeners
    */
-  public handleWheelEvent(e: WheelEvent, canvas: HTMLCanvasElement, mouseX: number, mouseY: number): void {
+  public handleWheelEvent(
+    e: WheelEvent,
+    canvas: HTMLCanvasElement,
+    mouseX: number,
+    mouseY: number
+  ): void {
     if (e.ctrlKey || e.metaKey) {
       // increase zoom speed for touchpad zoom
       const zoomFactor = Math.pow(1.005, -e.deltaY);
@@ -86,7 +91,10 @@ export class PanZoomManager {
       let newScale = oldScale * zoomFactor;
       const viewportWidth = canvas.width - this.scrollbarWidth;
       const viewportHeight = canvas.height - this.scrollbarWidth;
-      const minScale = Math.max(viewportWidth / this.virtualWidth, viewportHeight / this.virtualHeight);
+      const minScale = Math.max(
+        viewportWidth / this.virtualWidth,
+        viewportHeight / this.virtualHeight
+      );
       const maxScale = 3;
       newScale = Math.min(Math.max(newScale, minScale), maxScale);
       const contentX = (mouseX + this.scrollX) / oldScale;
@@ -110,9 +118,13 @@ export class PanZoomManager {
   }
 
   private emitZoomChange() {
-    this.zoomListeners.forEach(l => l());
+    this.zoomListeners.forEach((l) => l());
     // emit unified view change event
-    this.viewChanges.next({ scrollX: this.scrollX, scrollY: this.scrollY, scale: this.scale });
+    this.viewChanges.next({
+      scrollX: this.scrollX,
+      scrollY: this.scrollY,
+      scale: this.scale,
+    });
   }
 
   /**
@@ -121,7 +133,7 @@ export class PanZoomManager {
   public setViewState(state: IViewState): void {
     this.scrollX = state.scrollX;
     this.scrollY = state.scrollY;
-    this.scale   = state.scale;
+    this.scale = state.scale;
     this.clampScroll();
     this.emitZoomChange();
   }

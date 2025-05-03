@@ -58,9 +58,9 @@ export class Toolbar {
     const taskList = new TaskSearchComponent({
       tasks: dummyTasksForSelect,
       onSelect: (value) => {
-        console.log('selected', {value}); // TODO: remove
-      }
-    })
+        console.log('selected', { value }); // TODO: remove
+      },
+    });
 
     addCircleBtn.render(this.container);
     addOctagonBtn.render(this.container);

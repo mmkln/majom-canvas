@@ -23,8 +23,8 @@ export class EditElementModal {
       this.element instanceof TaskElement
         ? 'Task'
         : this.element instanceof StoryElement
-        ? 'Story'
-        : 'Goal';
+          ? 'Story'
+          : 'Goal';
     const { overlay, container } = createModalShell(`Edit ${typeLabel}`, {
       onClose: () => this.close(),
     });

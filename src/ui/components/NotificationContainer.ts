@@ -9,7 +9,8 @@ export class NotificationContainer {
 
   constructor() {
     this.container = document.createElement('div');
-    this.container.className = 'fixed top-4 right-4 flex flex-col space-y-2 z-50';
+    this.container.className =
+      'fixed top-4 right-4 flex flex-col space-y-2 z-50';
   }
 
   mount(parent: HTMLElement = document.body): void {

@@ -26,10 +26,17 @@ export class KeyboardManager {
 
   private onKeyDown(e: KeyboardEvent): void {
     // Do not handle global shortcuts if a modal is open (service or actual dialog)
-    if (modalService.isOpen() || document.querySelector('[role="dialog"]')) return;
+    if (modalService.isOpen() || document.querySelector('[role="dialog"]'))
+      return;
     // Ignore shortcuts when focused on form fields or editable content
     const tgt = e.target as HTMLElement;
-    if (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.tagName === 'SELECT' || tgt.isContentEditable) return;
+    if (
+      tgt.tagName === 'INPUT' ||
+      tgt.tagName === 'TEXTAREA' ||
+      tgt.tagName === 'SELECT' ||
+      tgt.isContentEditable
+    )
+      return;
     console.log({ key: e.key });
 
     if (e.key === 'Escape') {

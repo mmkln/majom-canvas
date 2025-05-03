@@ -105,11 +105,11 @@ export class StoryElement extends PlanningElement {
     TextRenderer.drawWrappedText(
       ctx,
       this.title,
-      this.x + 10, 
+      this.x + 10,
       this.y + 20,
       maxTitleWidth,
       Math.round(TITLE_FONT_SIZE * 1.3), // Line height based on font size
-      3  // Max 2 lines for Story title
+      3 // Max 2 lines for Story title
     );
     // Draw anchors via base class
     super.drawAnchors(ctx, panZoom);
@@ -121,7 +121,7 @@ export class StoryElement extends PlanningElement {
 
         ctx.beginPath();
         ctx.arc(h.x, h.y, size, 0, 2 * Math.PI);
-        
+
         ctx.fillStyle = isHandleHovered ? '#00A8FF' : SELECT_COLOR;
         ctx.fill();
       });
@@ -317,7 +317,7 @@ export class StoryElement extends PlanningElement {
     const detectSize = StoryElement.HANDLE_SIZE / panZoom.scale;
     const handles = this.getResizeHandles(panZoom);
     const handle = handles[0];
-    
+
     const dx = px - handle.x;
     const dy = py - handle.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
@@ -325,7 +325,7 @@ export class StoryElement extends PlanningElement {
     if (distance <= detectSize) {
       return handle.direction;
     }
-    
+
     return null;
   }
 

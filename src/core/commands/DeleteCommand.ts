@@ -22,6 +22,6 @@ export class DeleteCommand extends Command {
 
   undo(): void {
     // re-add deleted elements
-    this.elements.forEach(el => this.scene.addElement(el));
+    this.elements.forEach((el) => this.scene.addElement(el));
   }
 }

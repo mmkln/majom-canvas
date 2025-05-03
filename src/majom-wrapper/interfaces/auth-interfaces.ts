@@ -32,4 +32,3 @@ export interface Wallpaper {
   // Define according to your backend response
   [key: string]: any;
 }
-

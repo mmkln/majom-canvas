@@ -16,29 +16,41 @@ interface TasksFilterParams {
 export class TasksApiService {
   constructor(private http: HttpInterceptorClient) {}
 
-  public getTasks(filterParams?: TasksFilterParams): Observable<PlatformTask[]> {
+  public getTasks(
+    filterParams?: TasksFilterParams
+  ): Observable<PlatformTask[]> {
     let queryString = '';
 
     if (filterParams) {
       const params: string[] = [];
 
       if (filterParams.is_standalone !== undefined) {
-        params.push(`is_standalone=${encodeURIComponent(filterParams.is_standalone.toString())}`);
+        params.push(
+          `is_standalone=${encodeURIComponent(filterParams.is_standalone.toString())}`
+        );
       }
       if (filterParams.project !== undefined) {
-        params.push(`project=${encodeURIComponent(filterParams.project.toString())}`);
+        params.push(
+          `project=${encodeURIComponent(filterParams.project.toString())}`
+        );
       }
       if (filterParams.stage !== undefined) {
-        params.push(`stage=${encodeURIComponent(filterParams.stage.toString())}`);
+        params.push(
+          `stage=${encodeURIComponent(filterParams.stage.toString())}`
+        );
       }
       if (filterParams.goal !== undefined) {
         params.push(`goal=${encodeURIComponent(filterParams.goal.toString())}`);
       }
       if (filterParams.resolvedDateAfter) {
-        params.push(`resolved_date_range_after=${encodeURIComponent(filterParams.resolvedDateAfter)}`);
+        params.push(
+          `resolved_date_range_after=${encodeURIComponent(filterParams.resolvedDateAfter)}`
+        );
       }
       if (filterParams.resolvedDateBefore) {
-        params.push(`resolved_date_range_before=${encodeURIComponent(filterParams.resolvedDateBefore)}`);
+        params.push(
+          `resolved_date_range_before=${encodeURIComponent(filterParams.resolvedDateBefore)}`
+        );
       }
 
       if (params.length) {

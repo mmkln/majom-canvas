@@ -55,7 +55,9 @@ export class UndoRedoControls {
     this.container.appendChild(this.redoBtn);
 
     // subscribe to history changes to update button states
-    this.subscription = historyService.changes.subscribe(() => this.updateButtons());
+    this.subscription = historyService.changes.subscribe(() =>
+      this.updateButtons()
+    );
     this.updateButtons();
   }
 

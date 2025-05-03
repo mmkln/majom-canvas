@@ -1,5 +1,11 @@
 import { IDataProvider } from '../interfaces/dataProvider.ts';
-import { ITask, TaskDependency, IStory, IViewState, IGoal } from '../interfaces/interfaces.ts';
+import {
+  ITask,
+  TaskDependency,
+  IStory,
+  IViewState,
+  IGoal,
+} from '../interfaces/interfaces.ts';
 
 const TASKS_KEY = 'canvas-tasks';
 const DEPS_KEY = 'canvas-dependencies';
@@ -13,17 +19,17 @@ const GOALS_KEY = 'canvas-goals';
 export class LocalStorageDataProvider implements IDataProvider {
   async loadTasks(): Promise<ITask[]> {
     const raw = localStorage.getItem(TASKS_KEY);
-    return raw ? JSON.parse(raw) as ITask[] : [];
+    return raw ? (JSON.parse(raw) as ITask[]) : [];
   }
 
   async loadDependencies(): Promise<TaskDependency[]> {
     const raw = localStorage.getItem(DEPS_KEY);
-    return raw ? JSON.parse(raw) as TaskDependency[] : [];
+    return raw ? (JSON.parse(raw) as TaskDependency[]) : [];
   }
 
   async loadStories(): Promise<IStory[]> {
     const raw = localStorage.getItem(STORIES_KEY);
-    return raw ? JSON.parse(raw) as IStory[] : [];
+    return raw ? (JSON.parse(raw) as IStory[]) : [];
   }
 
   async loadGoals(): Promise<IGoal[]> {
@@ -50,7 +56,9 @@ export class LocalStorageDataProvider implements IDataProvider {
   /** Load saved view (scroll & zoom) */
   async loadViewState(): Promise<IViewState> {
     const raw = localStorage.getItem(VIEW_KEY);
-    return raw ? (JSON.parse(raw) as IViewState) : { scrollX: 0, scrollY: 0, scale: 1.4 };
+    return raw
+      ? (JSON.parse(raw) as IViewState)
+      : { scrollX: 0, scrollY: 0, scale: 1.4 };
   }
 
   /** Save current view (scroll & zoom) */

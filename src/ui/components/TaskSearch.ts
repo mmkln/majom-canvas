@@ -1,5 +1,8 @@
 import { PlatformTask } from '../../majom-wrapper/interfaces/index.js';
-import { SearchSelect, SelectItem } from '../../ui-lib/src/components/SearchSelect.js';
+import {
+  SearchSelect,
+  SelectItem,
+} from '../../ui-lib/src/components/SearchSelect.js';
 
 export interface TaskSearchProps {
   tasks: PlatformTask[];
@@ -12,14 +15,13 @@ export class TaskSearchComponent extends SearchSelect {
   constructor(props: TaskSearchProps) {
     const items: SelectItem[] = props.tasks.map((task) => ({
       label: `${task.title}`,
-      value: String(task.id)
+      value: String(task.id),
     }));
     super({
       items,
       placeholder: 'Search task..',
       className: 'mt-2',
-      onSelect: props.onSelect
+      onSelect: props.onSelect,
     });
   }
 }
-

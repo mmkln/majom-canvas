@@ -26,7 +26,9 @@ export class ShortcutManager {
     if (!handler) {
       this.handlers.delete(key);
     } else {
-      const arr: ShortcutHandler[] = this.handlers.get(key)!.filter(h => h !== handler);
+      const arr: ShortcutHandler[] = this.handlers
+        .get(key)!
+        .filter((h) => h !== handler);
       if (arr.length) this.handlers.set(key, arr);
       else this.handlers.delete(key);
     }
@@ -34,16 +36,23 @@ export class ShortcutManager {
 
   private handleKeyDown(e: KeyboardEvent): void {
     // Ignore when modal open
-    if (modalService.isOpen() || document.querySelector('[role="dialog"]')) return;
+    if (modalService.isOpen() || document.querySelector('[role="dialog"]'))
+      return;
     // Ignore editable fields
     const tgt: HTMLElement = e.target as HTMLElement;
-    if (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.tagName === 'SELECT' || tgt.isContentEditable) return;
+    if (
+      tgt.tagName === 'INPUT' ||
+      tgt.tagName === 'TEXTAREA' ||
+      tgt.tagName === 'SELECT' ||
+      tgt.isContentEditable
+    )
+      return;
     const combo: string = this.normalize(e);
     const handlers: ShortcutHandler[] = this.handlers.get(combo) || [];
     if (handlers.length) {
       e.preventDefault();
       e.stopPropagation();
-      handlers.forEach(h => h(e));
+      handlers.forEach((h) => h(e));
     }
   }
 

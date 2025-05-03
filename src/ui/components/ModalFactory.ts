@@ -1,7 +1,11 @@
 // Reusable modal shell for consistent UI
-export function createModalShell(title: string, zIndex = 200): { overlay: HTMLDivElement; container: HTMLDivElement } {
+export function createModalShell(
+  title: string,
+  zIndex = 200
+): { overlay: HTMLDivElement; container: HTMLDivElement } {
   const overlay = document.createElement('div');
-  overlay.className = 'fixed inset-0 bg-black/15 backdrop-blur-xs flex items-center justify-center';
+  overlay.className =
+    'fixed inset-0 bg-black/15 backdrop-blur-xs flex items-center justify-center';
   overlay.style.zIndex = zIndex.toString();
 
   const container = document.createElement('div');

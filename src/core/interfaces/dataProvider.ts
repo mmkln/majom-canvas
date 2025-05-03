@@ -1,5 +1,11 @@
 // src/core/data/IDataProvider.ts
-import { ITask, TaskDependency, IStory, IViewState, IGoal } from './interfaces.ts';
+import {
+  ITask,
+  TaskDependency,
+  IStory,
+  IViewState,
+  IGoal,
+} from './interfaces.ts';
 
 export interface IDataProvider {
   loadTasks(): Promise<ITask[]>;

@@ -3,5 +3,5 @@
  */
 export const environment = {
   apiUrl: 'https://mxll.pythonanywhere.com',
-  localApiUrl: 'http://localhost:8000'
+  localApiUrl: 'http://localhost:8000',
 };

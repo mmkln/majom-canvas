@@ -14,7 +14,9 @@ export class PasteCommand extends Command {
   constructor(
     private scene: Scene,
     private canvasManager: CanvasManager
-  ) { super(); }
+  ) {
+    super();
+  }
 
   execute(): void {
     let position = this.canvasManager.getLastMouseCoords();
@@ -23,7 +25,7 @@ export class PasteCommand extends Command {
       const panZoom = this.canvasManager.getPanZoomManager();
       position = {
         x: (canvas.width / 2 + panZoom.scrollX) / panZoom.scale,
-        y: (canvas.height / 2 + panZoom.scrollY) / panZoom.scale
+        y: (canvas.height / 2 + panZoom.scrollY) / panZoom.scale,
       };
     }
     this.clones = clipboardService.paste(this.scene, position);
@@ -31,7 +33,7 @@ export class PasteCommand extends Command {
   }
 
   undo(): void {
-    this.clones.forEach(el => this.scene.removeElement(el));
+    this.clones.forEach((el) => this.scene.removeElement(el));
     notify(`Undid paste of ${this.clones.length} items`, 'info');
   }
 }

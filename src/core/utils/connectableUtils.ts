@@ -8,7 +8,9 @@ import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
  */
 export function getOrderedConnectables(scene: Scene): IConnectable[] {
   const shapes = scene.getShapes();
-  const planningEls = scene.getElements().filter(isPlanningElement) as IConnectable[];
+  const planningEls = scene
+    .getElements()
+    .filter(isPlanningElement) as IConnectable[];
   const items: IConnectable[] = [...shapes, ...planningEls];
   return items.sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
 }

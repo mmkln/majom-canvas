@@ -147,7 +147,6 @@ export interface Story {
   tasks?: PlatformTask[];
 }
 
-
 export interface PlatformTask {
   readonly id: number;
   title: string;

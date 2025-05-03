@@ -26,7 +26,7 @@ export class AuthComponent extends Component<any> {
     this.authService = authService;
     this.avatarContainer = document.createElement('div');
     this.avatarContainer.className = 'absolute top-4 right-4';
-    
+
     // Use Button component from UI library for login and logout buttons
     this.loginButton = ComponentFactory.createButton({
       text: 'Login',
@@ -44,16 +44,20 @@ export class AuthComponent extends Component<any> {
     }).createElement() as HTMLButtonElement;
 
     this.dropdownMenu = document.createElement('div');
-    this.dropdownMenu.className = 'absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 hidden';
+    this.dropdownMenu.className =
+      'absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 hidden';
     this.dropdownMenu.appendChild(this.logoutButton);
     this.avatarContainer.appendChild(this.dropdownMenu);
-    
+
     // Ensure container and avatarContainer are valid DOM nodes before appending
     if (container instanceof Node) {
       if (this.avatarContainer instanceof Node) {
         container.appendChild(this.avatarContainer);
       } else {
-        console.error('avatarContainer is not a valid DOM node', this.avatarContainer);
+        console.error(
+          'avatarContainer is not a valid DOM node',
+          this.avatarContainer
+        );
       }
     } else {
       console.error('Container is not a valid DOM node', container);
@@ -71,8 +75,11 @@ export class AuthComponent extends Component<any> {
   private updateUI(): void {
     if (this.authService.isLoggedIn()) {
       const user = this.authService.getAuthToken(); // Assuming user data is part of token or stored separately
-      this.avatarContainer.innerHTML = '<img src="https://cdn.thegreatprojects.com/thegreatprojects/images/c/c/c/d/9/cccd9ab3a8832417497e233c1cb92b9e.jpg?width=364&height=364&format=jpg" alt="User Avatar" class="w-10 h-10 bg-gray-100 rounded-full cursor-pointer">';
-      this.avatarContainer.firstChild?.addEventListener('click', () => this.toggleDropdown());
+      this.avatarContainer.innerHTML =
+        '<img src="https://cdn.thegreatprojects.com/thegreatprojects/images/c/c/c/d/9/cccd9ab3a8832417497e233c1cb92b9e.jpg?width=364&height=364&format=jpg" alt="User Avatar" class="w-10 h-10 bg-gray-100 rounded-full cursor-pointer">';
+      this.avatarContainer.firstChild?.addEventListener('click', () =>
+        this.toggleDropdown()
+      );
       this.avatarContainer.appendChild(this.dropdownMenu);
     } else {
       this.avatarContainer.innerHTML = '';
@@ -93,7 +100,9 @@ export class AuthComponent extends Component<any> {
 
   private showLoginModal(): void {
     if (this.modal) return;
-    const { overlay, container } = createModalShell('Login to Majom Canvas', { onClose: () => this.closeModal() });
+    const { overlay, container } = createModalShell('Login to Majom Canvas', {
+      onClose: () => this.closeModal(),
+    });
     this.modal = overlay;
 
     // Build login form
@@ -107,7 +116,13 @@ export class AuthComponent extends Component<any> {
     usernameLabel.htmlFor = 'username';
     usernameLabel.className = 'block text-sm font-medium text-gray-700';
     usernameLabel.textContent = 'Username';
-    const usernameInput = ComponentFactory.createInput({ id: 'username', name: 'username', type: 'text', placeholder: 'Enter your username', className: 'mt-1' }).createElement();
+    const usernameInput = ComponentFactory.createInput({
+      id: 'username',
+      name: 'username',
+      type: 'text',
+      placeholder: 'Enter your username',
+      className: 'mt-1',
+    }).createElement();
     usernameDiv.append(usernameLabel, usernameInput);
 
     // Password field
@@ -117,7 +132,13 @@ export class AuthComponent extends Component<any> {
     passwordLabel.htmlFor = 'password';
     passwordLabel.className = 'block text-sm font-medium text-gray-700';
     passwordLabel.textContent = 'Password';
-    const passwordInput = ComponentFactory.createInput({ id: 'password', name: 'password', type: 'password', placeholder: 'Enter your password', className: 'mt-1' }).createElement();
+    const passwordInput = ComponentFactory.createInput({
+      id: 'password',
+      name: 'password',
+      type: 'password',
+      placeholder: 'Enter your password',
+      className: 'mt-1',
+    }).createElement();
     passwordDiv.append(passwordLabel, passwordInput);
 
     // Error message
@@ -125,7 +146,12 @@ export class AuthComponent extends Component<any> {
     this.errorMessage.className = 'mt-2 text-red-500 hidden';
 
     // Submit button
-    const loginBtn = ComponentFactory.createButton({ text: 'Login', type: 'submit', variant: 'default', className: 'w-full' }).createElement();
+    const loginBtn = ComponentFactory.createButton({
+      text: 'Login',
+      type: 'submit',
+      variant: 'default',
+      className: 'w-full',
+    }).createElement();
     loginBtn.id = 'loginSubmit';
 
     form.append(usernameDiv, passwordDiv, loginBtn);
@@ -145,9 +171,15 @@ export class AuthComponent extends Component<any> {
     e.preventDefault();
     if (this.isLoading || !this.modal) return;
 
-    const usernameInput = this.modal.querySelector('#username') as HTMLInputElement;
-    const passwordInput = this.modal.querySelector('#password') as HTMLInputElement;
-    const loginButton = this.modal.querySelector('#loginSubmit') as HTMLButtonElement;
+    const usernameInput = this.modal.querySelector(
+      '#username'
+    ) as HTMLInputElement;
+    const passwordInput = this.modal.querySelector(
+      '#password'
+    ) as HTMLInputElement;
+    const loginButton = this.modal.querySelector(
+      '#loginSubmit'
+    ) as HTMLButtonElement;
 
     const credentials: LoginCredentials = {
       username: usernameInput.value,
@@ -170,7 +202,10 @@ export class AuthComponent extends Component<any> {
       this.isLoading = false;
       loginButton.disabled = false;
       loginButton.textContent = 'Login';
-      const msg = error instanceof Error ? error.message : 'Login failed. Please try again.';
+      const msg =
+        error instanceof Error
+          ? error.message
+          : 'Login failed. Please try again.';
       notify(msg, 'error');
       if (this.errorMessage) {
         this.errorMessage.classList.remove('hidden');

@@ -3,8 +3,23 @@ import { twMerge } from 'tailwind-merge';
 import { Component } from '../core/Component.ts';
 import { ThemeManager } from '../core/Theme.ts';
 
-export type ButtonVariant = 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | 'lightgray' | 'success' | 'accent';
-export type ButtonSize = 'default' | 'sm' | 'lg' | 'icon' | 'icon-sm' | 'icon-lg';
+export type ButtonVariant =
+  | 'default'
+  | 'destructive'
+  | 'outline'
+  | 'secondary'
+  | 'ghost'
+  | 'link'
+  | 'lightgray'
+  | 'success'
+  | 'accent';
+export type ButtonSize =
+  | 'default'
+  | 'sm'
+  | 'lg'
+  | 'icon'
+  | 'icon-sm'
+  | 'icon-lg';
 
 export interface ButtonProps {
   text?: string;
@@ -52,15 +67,23 @@ export class Button extends Component<ButtonProps> {
     ].join(' ');
 
     const variantStyles: Record<ButtonVariant, string> = {
-      default: 'bg-primary text-white hover:bg-primary/90 active:bg-primary/80 transition-colors', // force white text for primary
-      destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80 transition-colors',
-      outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground active:bg-accent/80 transition-colors',
-      secondary: 'bg-gray-100 text-gray-900 hover:bg-gray-200 active:bg-gray-300 transition-colors',
-      ghost: 'hover:bg-accent hover:text-accent-foreground active:bg-accent/80 transition-colors',
+      default:
+        'bg-primary text-white hover:bg-primary/90 active:bg-primary/80 transition-colors', // force white text for primary
+      destructive:
+        'bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80 transition-colors',
+      outline:
+        'border border-input bg-background hover:bg-accent hover:text-accent-foreground active:bg-accent/80 transition-colors',
+      secondary:
+        'bg-gray-100 text-gray-900 hover:bg-gray-200 active:bg-gray-300 transition-colors',
+      ghost:
+        'hover:bg-accent hover:text-accent-foreground active:bg-accent/80 transition-colors',
       link: 'text-primary underline-offset-4 hover:underline active:text-primary/80 transition-colors',
-      lightgray: 'bg-gray-200 text-gray-900 hover:bg-gray-300 active:bg-gray-400 border border-gray-300 transition-colors',
-      success: 'bg-green-600 text-white hover:bg-green-700 active:bg-green-800 transition-colors',
-      accent: 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition-colors'
+      lightgray:
+        'bg-gray-200 text-gray-900 hover:bg-gray-300 active:bg-gray-400 border border-gray-300 transition-colors',
+      success:
+        'bg-green-600 text-white hover:bg-green-700 active:bg-green-800 transition-colors',
+      accent:
+        'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition-colors',
     };
     const sizeStyles: Record<ButtonSize, string> = {
       default: 'h-10 px-4 py-2',

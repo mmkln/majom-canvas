@@ -14,7 +14,7 @@ export function mapGoal(
   layout: CanvasPositionDTO[]
 ): GoalElement {
   const pos = layout.find(
-    l => l.element_type === 'goal' && l.object_id === dto.id
+    (l) => l.element_type === 'goal' && l.object_id === dto.id
   );
   return new GoalElement({
     id: dto.id.toString(),

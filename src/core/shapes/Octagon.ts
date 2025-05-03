@@ -20,9 +20,7 @@ export default class Octagon extends Shape {
     return this.radius / Math.cos(Math.PI / 8); // ≈ radius / 0.923 ≈ radius * 1.082
   }
 
-  protected drawShape(
-    ctx: CanvasRenderingContext2D
-  ): void {
+  protected drawShape(ctx: CanvasRenderingContext2D): void {
     const innerRadius = this.getInnerRadius();
     drawPolygon(
       ctx,

@@ -6,7 +6,10 @@ import { IPlanningElement } from './interfaces/planningElement.ts';
 import type { IConnectable } from '../core/interfaces/connectable.ts';
 import { SELECT_COLOR } from '../core/constants.ts';
 
-export abstract class PlanningElement extends CanvasElement implements IPlanningElement, IConnectable {
+export abstract class PlanningElement
+  extends CanvasElement
+  implements IPlanningElement, IConnectable
+{
   width: number;
   height: number;
   fillColor: string;
@@ -27,7 +30,7 @@ export abstract class PlanningElement extends CanvasElement implements IPlanning
     title = '',
     description = '',
     dueDate,
-    tags
+    tags,
   }: {
     id?: string;
     x?: number;

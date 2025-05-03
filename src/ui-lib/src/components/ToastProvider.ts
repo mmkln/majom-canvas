@@ -1,5 +1,9 @@
 import { Subscription } from 'rxjs';
-import { notifications$, Notification as NotificationData, NotificationType } from '../../../core/services/NotificationService.ts';
+import {
+  notifications$,
+  Notification as NotificationData,
+  NotificationType,
+} from '../../../core/services/NotificationService.ts';
 import { Notification } from './Notification.ts';
 
 export interface ToastProviderOptions {
@@ -31,13 +35,13 @@ export class ToastProvider {
       'top-right': 'fixed top-4 right-4 flex flex-col space-y-2',
       'top-left': 'fixed top-4 left-4 flex flex-col space-y-2',
       'bottom-right': 'fixed bottom-4 right-4 flex flex-col-reverse space-y-2',
-      'bottom-left': 'fixed bottom-4 left-4 flex flex-col-reverse space-y-2'
+      'bottom-left': 'fixed bottom-4 left-4 flex flex-col-reverse space-y-2',
     };
     this.container.className = `${posClasses[position]} z-50`;
     parent.appendChild(this.container);
 
     // Subscribe to notifications with enqueue logic
-    this.subscription = notifications$.subscribe(data => this.enqueue(data));
+    this.subscription = notifications$.subscribe((data) => this.enqueue(data));
   }
 
   /** Destroy provider and cleanup */
@@ -52,7 +56,9 @@ export class ToastProvider {
   private enqueue(data: NotificationData): void {
     const key = `${data.type}-${data.message}`;
     // Group duplicate: reset progress bar if exists
-    const existing = this.container.querySelector(`[data-toast-key="${key}"]`) as HTMLElement;
+    const existing = this.container.querySelector(
+      `[data-toast-key="${key}"]`
+    ) as HTMLElement;
     if (existing) {
       const bar = existing.querySelector('.progress-bar') as HTMLElement;
       if (bar) {
@@ -79,7 +85,12 @@ export class ToastProvider {
         this.showToast(next, `${next.type}-${next.message}`);
       }
     };
-    const toast = new Notification({ message: data.message, type: data.type, duration: this.duration, onDismiss: destroy });
+    const toast = new Notification({
+      message: data.message,
+      type: data.type,
+      duration: this.duration,
+      onDismiss: destroy,
+    });
     toast.render(container);
     const el = toast.getElement();
     if (el) el.setAttribute('data-toast-key', key);

@@ -26,19 +26,21 @@ export class CanvasDataService {
   /**
    * Load tasks, stories, goals along with their canvas positions.
    */
-  public loadElements(): Observable<Array<TaskElement | StoryElement | GoalElement>> {
+  public loadElements(): Observable<
+    Array<TaskElement | StoryElement | GoalElement>
+  > {
     return forkJoin({
       tasks: this.tasksApi.getTasks(),
       stories: this.storiesApi.getStories(),
       goals: this.goalsApi.getGoals(),
-      layout: this.canvasApi.loadLayout()
+      layout: this.canvasApi.loadLayout(),
     }).pipe(
       retry(2),
       map(({ tasks, stories, goals, layout }) => {
         const elems: Array<TaskElement | StoryElement | GoalElement> = [];
-        elems.push(...tasks.map(t => mapTask(t, layout)));
-        elems.push(...stories.map(s => mapStory(s, layout)));
-        elems.push(...goals.map(g => mapGoal(g, layout)));
+        elems.push(...tasks.map((t) => mapTask(t, layout)));
+        elems.push(...stories.map((s) => mapStory(s, layout)));
+        elems.push(...goals.map((g) => mapGoal(g, layout)));
         return elems;
       }),
       shareReplay(1)

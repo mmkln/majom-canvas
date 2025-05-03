@@ -14,7 +14,12 @@ export default class Connection implements IConnection {
   public zIndex: number = 1;
   private tangentAngle: number = 0;
 
-  constructor(fromId: string, toId: string, id: string = v4(), lineType?: ConnectionLineType) {
+  constructor(
+    fromId: string,
+    toId: string,
+    id: string = v4(),
+    lineType?: ConnectionLineType
+  ) {
     this.fromId = fromId;
     this.toId = toId;
     this.id = id;
@@ -50,7 +55,10 @@ export default class Connection implements IConnection {
     return { start: bestStart, end: bestEnd };
   }
 
-  private setStrokeProperties(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
+  private setStrokeProperties(
+    ctx: CanvasRenderingContext2D,
+    panZoom: PanZoomManager
+  ): void {
     // Ensure solid line for permanent connections
     ctx.setLineDash([]);
     ctx.strokeStyle = this.selected ? '#008dff' : '#000';
@@ -78,18 +86,27 @@ export default class Connection implements IConnection {
       const startControl = this.getControlPoint(start, offset);
       const endControl = this.getControlPoint(end, offset);
       ctx.bezierCurveTo(
-        startControl.x, startControl.y,
-        endControl.x, endControl.y,
-        end.x, end.y
+        startControl.x,
+        startControl.y,
+        endControl.x,
+        endControl.y,
+        end.x,
+        end.y
       );
-      this.tangentAngle = Math.atan2(end.y - endControl.y, end.x - endControl.x);
+      this.tangentAngle = Math.atan2(
+        end.y - endControl.y,
+        end.x - endControl.x
+      );
     }
 
     this.setStrokeProperties(ctx, panZoom);
     ctx.stroke();
   }
 
-  private getControlPoint(point: ConnectionPoint, offset: number): { x: number; y: number } {
+  private getControlPoint(
+    point: ConnectionPoint,
+    offset: number
+  ): { x: number; y: number } {
     switch (point.direction) {
       case 'left':
         return { x: point.x - offset, y: point.y };
@@ -155,13 +172,21 @@ export default class Connection implements IConnection {
     if (lengthSquared === 0) {
       return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
     }
-    const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lengthSquared));
+    const t = Math.max(
+      0,
+      Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lengthSquared)
+    );
     const projX = x1 + t * dx;
     const projY = y1 + t * dy;
     return Math.sqrt((px - projX) ** 2 + (py - projY) ** 2);
   }
 
-  public isNearPoint(px: number, py: number, elements: IConnectable[], tolerance: number = 5): boolean {
+  public isNearPoint(
+    px: number,
+    py: number,
+    elements: IConnectable[],
+    tolerance: number = 5
+  ): boolean {
     const from = elements.find((el) => el.id === this.fromId);
     const to = elements.find((el) => el.id === this.toId);
     if (!from || !to) {
@@ -172,7 +197,14 @@ export default class Connection implements IConnection {
 
     if (this.lineType === ConnectionLineType.Straight) {
       // Пряме з'єднання – використання існуючого методу для відрізка
-      const distance = this.distanceToLineSegment(px, py, start.x, start.y, end.x, end.y);
+      const distance = this.distanceToLineSegment(
+        px,
+        py,
+        start.x,
+        start.y,
+        end.x,
+        end.y
+      );
       return distance <= tolerance;
     } else if (this.lineType === ConnectionLineType.SShaped) {
       // S-подібна крива – обчислюємо контрольні точки так само, як у drawLine
@@ -191,11 +223,13 @@ export default class Connection implements IConnection {
       for (let i = 0; i <= sampleCount; i++) {
         const t = i / sampleCount;
         const invT = 1 - t;
-        const x = invT * invT * invT * start.x +
+        const x =
+          invT * invT * invT * start.x +
           3 * invT * invT * t * cp1.x +
           3 * invT * t * t * cp2.x +
           t * t * t * end.x;
-        const y = invT * invT * invT * start.y +
+        const y =
+          invT * invT * invT * start.y +
           3 * invT * invT * t * cp1.y +
           3 * invT * t * t * cp2.y +
           t * t * t * end.y;

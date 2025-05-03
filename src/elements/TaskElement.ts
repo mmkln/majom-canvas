@@ -77,14 +77,14 @@ export class TaskElement extends PlanningElement {
     ctx.roundRect(x, y, w, h, 8 * panZoom.scale);
     ctx.fill();
     ctx.stroke();
-    
+
     // Title with word wrapping
     ctx.fillStyle = '#000000';
     ctx.font = `bold 14px Arial`;
-    
+
     // Calculate maximum width for text (accounting for padding and buttons)
     const maxTitleWidth = w - 60; // Leaving space for buttons on right side
-    
+
     // Draw title with word wrapping (font is already set)
     TextRenderer.drawWrappedText(
       ctx,
@@ -93,9 +93,9 @@ export class TaskElement extends PlanningElement {
       y + 20,
       maxTitleWidth,
       18, // Line height for 14px font
-      3  // Max 3 lines of text
+      3 // Max 3 lines of text
     );
-    
+
     // Status badge
     ctx.fillStyle = style.borderColor;
     ctx.beginPath();

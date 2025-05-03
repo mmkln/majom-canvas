@@ -8,13 +8,21 @@ import type { IViewState } from '../interfaces/interfaces.ts';
 export class PanCommand extends Command {
   private prevState!: IViewState;
 
-  constructor(private canvasManager: CanvasManager, private dx: number, private dy: number) {
+  constructor(
+    private canvasManager: CanvasManager,
+    private dx: number,
+    private dy: number
+  ) {
     super();
   }
 
   public execute(): void {
     const panZoom = this.canvasManager.getPanZoomManager();
-    this.prevState = { scrollX: panZoom.scrollX, scrollY: panZoom.scrollY, scale: panZoom.scale };
+    this.prevState = {
+      scrollX: panZoom.scrollX,
+      scrollY: panZoom.scrollY,
+      scale: panZoom.scale,
+    };
     panZoom.scrollX += this.dx;
     panZoom.scrollY += this.dy;
     panZoom.clampScroll();

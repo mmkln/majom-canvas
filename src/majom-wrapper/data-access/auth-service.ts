@@ -1,7 +1,14 @@
-import { AuthResponse, LoginCredentials, User } from '../interfaces/auth-interfaces.js';
+import {
+  AuthResponse,
+  LoginCredentials,
+  User,
+} from '../interfaces/auth-interfaces.js';
 import { environment } from '../../config/environment.js';
 import { jwtDecode, JwtPayload } from 'jwt-decode';
-import { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY } from '../../config/storage-keys.js';
+import {
+  ACCESS_TOKEN_KEY,
+  REFRESH_TOKEN_KEY,
+} from '../../config/storage-keys.js';
 
 /**
  * AuthService handles authentication requests to the backend.
@@ -38,7 +45,11 @@ export class AuthService {
       this.setTokens({ access: data.access, refresh: data.refresh });
       return data;
     } catch (error: unknown) {
-      throw new Error((error instanceof Error ? error.message : 'An error occurred during login.'));
+      throw new Error(
+        error instanceof Error
+          ? error.message
+          : 'An error occurred during login.'
+      );
     }
   }
 
@@ -69,7 +80,11 @@ export class AuthService {
       this.setToken(data.access);
       return { access: data.access };
     } catch (error: unknown) {
-      throw new Error((error instanceof Error ? error.message : 'An error occurred during token refresh.'));
+      throw new Error(
+        error instanceof Error
+          ? error.message
+          : 'An error occurred during token refresh.'
+      );
     }
   }
 
@@ -133,7 +148,7 @@ export class AuthService {
       }
       const response = await fetch(`${this.baseUrl}/user/`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
       });
       if (!response.ok) {
@@ -142,7 +157,11 @@ export class AuthService {
       const user: User = await response.json();
       return user;
     } catch (error: unknown) {
-      throw new Error((error instanceof Error ? error.message : 'An error occurred while fetching user data.'));
+      throw new Error(
+        error instanceof Error
+          ? error.message
+          : 'An error occurred while fetching user data.'
+      );
     }
   }
 

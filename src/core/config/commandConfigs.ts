@@ -15,32 +15,36 @@ export interface CommandConfig {
   keys: string[];
 }
 
-export function getCommandConfigs(scene: Scene, canvasManager: CanvasManager): CommandConfig[] {
+export function getCommandConfigs(
+  scene: Scene,
+  canvasManager: CanvasManager
+): CommandConfig[] {
   return [
     {
       name: 'undo',
       handler: () => historyService.undo(),
-      keys: ['ctrl+z', 'meta+z']
+      keys: ['ctrl+z', 'meta+z'],
     },
     {
       name: 'redo',
       handler: () => historyService.redo(),
-      keys: ['ctrl+y', 'meta+y', 'meta+shift+z']
+      keys: ['ctrl+y', 'meta+y', 'meta+shift+z'],
     },
     {
       name: 'copy',
       handler: () => historyService.execute(new CopyCommand(scene)),
-      keys: ['ctrl+c', 'meta+c']
+      keys: ['ctrl+c', 'meta+c'],
     },
     {
       name: 'paste',
-      handler: () => historyService.execute(new PasteCommand(scene, canvasManager)),
-      keys: ['ctrl+v', 'meta+v']
+      handler: () =>
+        historyService.execute(new PasteCommand(scene, canvasManager)),
+      keys: ['ctrl+v', 'meta+v'],
     },
     {
       name: 'cut',
       handler: () => historyService.execute(new CutCommand(scene)),
-      keys: ['ctrl+x', 'meta+x']
+      keys: ['ctrl+x', 'meta+x'],
     },
     {
       name: 'delete',
@@ -48,37 +52,41 @@ export function getCommandConfigs(scene: Scene, canvasManager: CanvasManager): C
         const elems = scene.getSelectedElements();
         historyService.execute(new DeleteCommand(scene, elems));
       },
-      keys: ['delete', 'backspace']
+      keys: ['delete', 'backspace'],
     },
     {
       name: 'zoomIn',
       handler: () => historyService.execute(new ZoomInCommand(canvasManager)),
-      keys: [']', 'ї']
+      keys: [']', 'ї'],
     },
     {
       name: 'zoomOut',
       handler: () => historyService.execute(new ZoomOutCommand(canvasManager)),
-      keys: ['[', 'х']
+      keys: ['[', 'х'],
     },
     {
       name: 'panLeft',
-      handler: () => historyService.execute(new PanCommand(canvasManager, -50, 0)),
-      keys: ['arrowleft']
+      handler: () =>
+        historyService.execute(new PanCommand(canvasManager, -50, 0)),
+      keys: ['arrowleft'],
     },
     {
       name: 'panRight',
-      handler: () => historyService.execute(new PanCommand(canvasManager, 50, 0)),
-      keys: ['arrowright']
+      handler: () =>
+        historyService.execute(new PanCommand(canvasManager, 50, 0)),
+      keys: ['arrowright'],
     },
     {
       name: 'panUp',
-      handler: () => historyService.execute(new PanCommand(canvasManager, 0, -50)),
-      keys: ['arrowup']
+      handler: () =>
+        historyService.execute(new PanCommand(canvasManager, 0, -50)),
+      keys: ['arrowup'],
     },
     {
       name: 'panDown',
-      handler: () => historyService.execute(new PanCommand(canvasManager, 0, 50)),
-      keys: ['arrowdown']
-    }
+      handler: () =>
+        historyService.execute(new PanCommand(canvasManager, 0, 50)),
+      keys: ['arrowdown'],
+    },
   ];
 }

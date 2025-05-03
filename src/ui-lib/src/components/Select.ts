@@ -27,7 +27,7 @@ export class Select extends Component<SelectProps> {
       'disabled:pointer-events-none disabled:opacity-50',
     ].join(' ');
     select.className = twMerge(baseStyles, this.props.className ?? '');
-    this.props.items.forEach(item => {
+    this.props.items.forEach((item) => {
       const opt = document.createElement('option');
       opt.value = item.value;
       opt.textContent = item.label;
@@ -36,7 +36,7 @@ export class Select extends Component<SelectProps> {
       }
       select.appendChild(opt);
     });
-    select.addEventListener('change', e => {
+    select.addEventListener('change', (e) => {
       const value = (e.target as HTMLSelectElement).value;
       if (this.props.onChange) this.props.onChange(value);
     });

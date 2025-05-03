@@ -34,7 +34,8 @@ export class SearchSelect extends Component<SearchSelectProps> {
     this.filteredItems = [...this.props.items];
     // Determine initial filter input value based on selectedValue
     const initialLabel = this.props.selectedValue
-      ? this.props.items.find(item => item.value === this.props.selectedValue)?.label || ''
+      ? this.props.items.find((item) => item.value === this.props.selectedValue)
+          ?.label || ''
       : '';
 
     this.filterInput = ComponentFactory.createInput({
@@ -45,7 +46,9 @@ export class SearchSelect extends Component<SearchSelectProps> {
 
     // If a selectedValue is provided, filter list to that item
     if (this.props.selectedValue) {
-      this.filteredItems = this.props.items.filter(item => item.value === this.props.selectedValue);
+      this.filteredItems = this.props.items.filter(
+        (item) => item.value === this.props.selectedValue
+      );
     }
 
     if (this.props.onSelect) {

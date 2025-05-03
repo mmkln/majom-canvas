@@ -29,7 +29,7 @@ export class SaveButton {
         } else {
           window.dispatchEvent(new CustomEvent('saveCanvasLayout'));
         }
-      }
+      },
     }).createElement() as HTMLButtonElement;
 
     this.container.appendChild(this.button);
@@ -44,7 +44,9 @@ export class SaveButton {
   private updateButton(): void {
     const canSave = historyService.canUndo();
     // Show button only when there are unsaved history commands
-    this.container.style.display = this.authService.isLoggedIn() ? 'block' : 'none';
+    this.container.style.display = this.authService.isLoggedIn()
+      ? 'block'
+      : 'none';
     // Always text 'Save'; disable if not logged in
     this.button.disabled = !canSave;
   }

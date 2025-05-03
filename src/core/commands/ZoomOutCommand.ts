@@ -11,7 +11,11 @@ export class ZoomOutCommand extends Command {
 
   public execute(): void {
     const panZoom = this.canvasManager.getPanZoomManager();
-    this.prevState = { scrollX: panZoom.scrollX, scrollY: panZoom.scrollY, scale: panZoom.scale };
+    this.prevState = {
+      scrollX: panZoom.scrollX,
+      scrollY: panZoom.scrollY,
+      scale: panZoom.scale,
+    };
     this.canvasManager.zoomOut();
   }
 

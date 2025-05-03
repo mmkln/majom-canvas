@@ -7,12 +7,21 @@ import { Scene } from '../scene/Scene.ts';
  */
 export class ResizeCommand extends Command {
   private scene: Scene;
-  private initial: Map<string, { x: number; y: number; width: number; height: number }>;
-  private final: Map<string, { x: number; y: number; width: number; height: number }>;
+  private initial: Map<
+    string,
+    { x: number; y: number; width: number; height: number }
+  >;
+  private final: Map<
+    string,
+    { x: number; y: number; width: number; height: number }
+  >;
 
   constructor(
     scene: Scene,
-    initial: Map<string, { x: number; y: number; width: number; height: number }>,
+    initial: Map<
+      string,
+      { x: number; y: number; width: number; height: number }
+    >,
     final: Map<string, { x: number; y: number; width: number; height: number }>
   ) {
     super();
@@ -35,7 +44,7 @@ export class ResizeCommand extends Command {
     map: Map<string, { x: number; y: number; width: number; height: number }>
   ): void {
     map.forEach((val, id) => {
-      const el = this.scene.getElements().find(e => e.id === id) as any;
+      const el = this.scene.getElements().find((e) => e.id === id) as any;
       if (el) {
         el.x = val.x;
         el.y = val.y;

@@ -10,10 +10,13 @@ import { notify } from '../services/NotificationService.ts';
 export class CopyCommand extends Command {
   private elements: PlanningElement[] = [];
 
-  constructor(private scene: Scene) { super(); }
+  constructor(private scene: Scene) {
+    super();
+  }
 
   execute(): void {
-    const selection = this.scene.getSelectedElements()
+    const selection = this.scene
+      .getSelectedElements()
       .filter((el): el is PlanningElement => el instanceof PlanningElement);
     this.elements = selection;
     clipboardService.copy(this.elements);

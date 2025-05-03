@@ -37,7 +37,7 @@ export class MoveCommand extends Command {
     positions.forEach((pos, id) => {
       const element = this.scene
         .getElements()
-        .find(el => el.id === id) as any;
+        .find((el) => el.id === id) as any;
       if (element) {
         element.x = pos.x;
         element.y = pos.y;

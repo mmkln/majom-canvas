@@ -24,10 +24,7 @@ export interface IConnectable extends IPositioned, ICanvasElement {
   /**
    * Draw visual anchor indicators (e.g. dots) when hovered/selected or in connect mode.
    */
-  drawAnchors(
-    ctx: CanvasRenderingContext2D,
-    panZoom: PanZoomManager
-  ): void;
+  drawAnchors(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void;
 
   /**
    * Draw a connection line between this element and the target element.

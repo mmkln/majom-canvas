@@ -23,7 +23,10 @@ export class ConnectionInteractionService {
     endY: number;
   } | null = null;
 
-  constructor(private scene: Scene, private panZoom: PanZoomManager) {}
+  constructor(
+    private scene: Scene,
+    private panZoom: PanZoomManager
+  ) {}
 
   /** Hit test existing connections */
   public hitTest(x: number, y: number): IConnection | null {

@@ -16,7 +16,10 @@ import { GoalElement } from '../elements/GoalElement.ts';
 import { mapStatus } from '../majom-wrapper/utils/statusMapping.ts';
 
 export class UIManager {
-  private readonly components: { mount(parent?: HTMLElement): void; unmount(): void }[] = [];
+  private readonly components: {
+    mount(parent?: HTMLElement): void;
+    unmount(): void;
+  }[] = [];
   private readonly canvasToolbar: CanvasToolbar;
   private readonly canvasControls: CanvasControls;
   private readonly zoomIndicator: ZoomIndicator;
@@ -24,20 +27,27 @@ export class UIManager {
 
   constructor(
     private readonly canvasManager: CanvasManager,
-    private readonly scene: Scene,
+    private readonly scene: Scene
   ) {
     // Initialize Canvas Toolbar for creating elements
     this.canvasToolbar = new CanvasToolbar(this.scene, this.canvasManager);
     this.canvasControls = new CanvasControls(this.canvasManager);
     this.zoomIndicator = new ZoomIndicator(this.canvasManager);
     this.undoRedoControls = new UndoRedoControls(this.canvasToolbar.container);
-    
+
     // Initialize palette menu
     const paletteMenu = new PaletteMenu(this.scene);
     const saveButton = new SaveButton(this.scene);
 
     // Add controls to components list
-    this.components.push(this.canvasControls, this.zoomIndicator, paletteMenu, saveButton, this.canvasToolbar, this.undoRedoControls);
+    this.components.push(
+      this.canvasControls,
+      this.zoomIndicator,
+      paletteMenu,
+      saveButton,
+      this.canvasToolbar,
+      this.undoRedoControls
+    );
     // Notification container
     const notificationContainer = new NotificationContainer();
     this.components.push(notificationContainer);
@@ -46,11 +56,11 @@ export class UIManager {
   }
 
   public mountAll(parent: HTMLElement = document.body): void {
-    this.components.forEach(c => c.mount(parent));
+    this.components.forEach((c) => c.mount(parent));
 
     // drag-and-drop from palette to canvas
     const canvas = this.canvasManager.getCanvas();
-    canvas.addEventListener('dragover', e => e.preventDefault());
+    canvas.addEventListener('dragover', (e) => e.preventDefault());
     canvas.addEventListener('drop', (e: DragEvent) => {
       e.preventDefault();
       const json = e.dataTransfer?.getData('application/json');
@@ -62,17 +72,32 @@ export class UIManager {
       const y = (e.clientY - rect.top + panZoom.scrollY) / panZoom.scale;
       let element;
       if (type === 'task') {
-        element = new TaskElement({ ...dto, status: mapStatus(dto.status), x, y });
+        element = new TaskElement({
+          ...dto,
+          status: mapStatus(dto.status),
+          x,
+          y,
+        });
       } else if (type === 'story') {
-        element = new StoryElement({ ...dto, status: mapStatus(dto.status), x, y });
+        element = new StoryElement({
+          ...dto,
+          status: mapStatus(dto.status),
+          x,
+          y,
+        });
       } else if (type === 'goal') {
-        element = new GoalElement({ ...dto, status: mapStatus(dto.status), x, y });
+        element = new GoalElement({
+          ...dto,
+          status: mapStatus(dto.status),
+          x,
+          y,
+        });
       }
       if (element) this.scene.addElement(element);
     });
   }
 
   public unmountAll(): void {
-    this.components.forEach(c => c.unmount());
+    this.components.forEach((c) => c.unmount());
   }
 }
