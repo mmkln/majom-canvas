@@ -33,7 +33,6 @@ export class AuthComponent extends Component<any> {
       onClick: () => this.showLoginModal(),
       variant: 'default',
       className: 'w-full',
-      size: 'lg',
     }).createElement() as HTMLButtonElement;
 
     this.logoutButton = ComponentFactory.createButton({
