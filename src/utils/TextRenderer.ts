@@ -1,4 +1,7 @@
 // src/utils/TextRenderer.ts
+
+import { FONT_FAMILY } from "../core/constants.ts";
+
 /**
  * Utility class for rendering text on canvas with word wrapping and truncation
  */
@@ -135,8 +138,10 @@ export class TextRenderer {
    * @param x X-coordinate of the text starting position
    * @param y Y-coordinate of the first line
    * @param maxWidth Maximum width for each line in pixels
-   * @param lineHeight Vertical distance between lines
+   * @param lineHeight Line height multiplier
    * @param maxLines Maximum number of lines (truncated with ellipsis if exceeded)
+   * @param fontSize Font size for the text
+   * @param fontWeight Font weight for the text
    */
   static drawWrappedText(
     ctx: CanvasRenderingContext2D,
@@ -144,14 +149,17 @@ export class TextRenderer {
     x: number,
     y: number,
     maxWidth: number,
-    lineHeight: number,
-    maxLines: number = 3
+    lineHeight: number = 1.3,
+    maxLines: number = 3,
+    fontSize: number = 20,
+    fontWeight: 'normal' | 'bold' = 'normal'
   ): void {
     // Save current state to preserve font settings
     ctx.save();
+    ctx.font = `${fontWeight} ${fontSize}px ${FONT_FAMILY}`;
 
     const lines = this.wrapText(ctx, text, maxWidth, maxLines);
-    this.drawTextLines(ctx, lines, x, y, lineHeight);
+    this.drawTextLines(ctx, lines, x, y, fontSize * lineHeight);
 
     // Restore original state
     ctx.restore();

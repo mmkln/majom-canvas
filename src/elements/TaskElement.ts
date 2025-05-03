@@ -18,8 +18,8 @@ export class TaskElement extends PlanningElement {
   priority: 'low' | 'medium' | 'high';
   dueDate: Date;
 
-  static width: number = 180;
-  static height: number = 90;
+  static width: number = 272;
+  static height: number = 112;
 
   constructor({
     id = v4(),
@@ -70,14 +70,16 @@ export class TaskElement extends PlanningElement {
     const h = TaskElement.height;
     // Background
     const style = taskStyles[this.status];
+    // Draw background and uniform 2px rounded border
+    const radius = 24;
     ctx.fillStyle = style.fillColor;
-    ctx.strokeStyle = this.selected ? SELECT_COLOR : style.borderColor;
-    ctx.lineWidth = (this.selected ? 2 : 1) / panZoom.scale;
     ctx.beginPath();
-    ctx.roundRect(x, y, w, h, 8 * panZoom.scale);
+    ctx.roundRect(x, y, w, h, radius);
     ctx.fill();
+    ctx.strokeStyle = this.selected ? SELECT_COLOR : style.borderColor;
+    ctx.lineWidth = 2 / panZoom.scale;
+    ctx.lineJoin = 'round';
     ctx.stroke();
-
     // Title with word wrapping
     ctx.fillStyle = '#000000';
     ctx.font = `bold 14px Arial`;
@@ -86,20 +88,24 @@ export class TaskElement extends PlanningElement {
     const maxTitleWidth = w - 60; // Leaving space for buttons on right side
 
     // Draw title with word wrapping (font is already set)
+    const fontSize = 20;
+    const lineHeight = 1.3;
     TextRenderer.drawWrappedText(
       ctx,
       this.title,
-      x + 10,
-      y + 20,
+      x + 16,
+      y + 32,
       maxTitleWidth,
-      18, // Line height for 14px font
-      3 // Max 3 lines of text
+      lineHeight,
+      4, // Max 4 lines of text
+      fontSize,
     );
 
     // Status badge
     ctx.fillStyle = style.borderColor;
     ctx.beginPath();
-    ctx.arc(x + w - 12, y + 12, 6, 0, 2 * Math.PI);
+    // TODO: implement status instead on the badge
+    ctx.arc(x + w - 24, y + 24, 6, 0, 2 * Math.PI);
     ctx.fill();
     // Edit button
     this.drawButton(ctx, panZoom, x + w - 32, y + 10, '✏️');
@@ -122,7 +128,7 @@ export class TaskElement extends PlanningElement {
         ctx.fillStyle = isPortHovered ? SELECT_COLOR : '#ffffff';
         ctx.fill();
         ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 1 / panZoom.scale;
+        ctx.lineWidth = 2;
         ctx.stroke();
         ctx.restore();
       }

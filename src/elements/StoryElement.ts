@@ -102,14 +102,17 @@ export class StoryElement extends PlanningElement {
     ctx.font = `bold ${TITLE_FONT_SIZE}px ${FONT_FAMILY}`;
     // Calculate max width for title, accounting for potential buttons
     const maxTitleWidth = this.width - 90; // Leave space for buttons on the right
+    const fontSize = 24;
+    const lineHeight = 1.3;
     TextRenderer.drawWrappedText(
       ctx,
       this.title,
-      this.x + 10,
-      this.y + 20,
+      this.x + 16,
+      this.y + 32,
       maxTitleWidth,
-      Math.round(TITLE_FONT_SIZE * 1.3), // Line height based on font size
-      3 // Max 2 lines for Story title
+      lineHeight,
+      3, // Max 2 lines for Story title
+      fontSize,
     );
     // Draw anchors via base class
     super.drawAnchors(ctx, panZoom);

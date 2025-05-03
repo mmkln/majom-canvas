@@ -20,12 +20,13 @@ export class GoalElement extends PlanningElement {
   public status: ElementStatus = ElementStatus.Defined;
   public priority: 'low' | 'medium' | 'high' = 'medium';
 
+  static width: number = 320;
+  static height: number = 184;
+
   constructor({
     id = v4(),
     x = 0,
     y = 0,
-    width = 200,
-    height = 120,
     title = 'New Goal',
     status = ElementStatus.Defined,
     priority = 'medium',
@@ -35,8 +36,6 @@ export class GoalElement extends PlanningElement {
     id?: string;
     x?: number;
     y?: number;
-    width?: number;
-    height?: number;
     title?: string;
     status?: ElementStatus;
     priority?: 'low' | 'medium' | 'high';
@@ -47,8 +46,8 @@ export class GoalElement extends PlanningElement {
       id,
       x,
       y,
-      width,
-      height,
+      width: GoalElement.width,
+      height: GoalElement.height,
       fillColor: goalStyles[status].fillColor,
       lineWidth: 2,
       title,
@@ -83,14 +82,17 @@ export class GoalElement extends PlanningElement {
     // Calculate max width for title (leave space for link counter)
     const maxTitleWidth = width - 16 - linkTextWidth - 10; // 16 = padding (8px on each side), 10 = gap between title and link count
     // Draw title with wrapping
+    const fontSize = 26;
+    const lineHeight = 1.3;
     TextRenderer.drawWrappedText(
       ctx,
       title,
-      x + 8,
-      y + 20,
+      x + 20,
+      y + 40,
       maxTitleWidth,
-      Math.round(TITLE_FONT_SIZE * 1.3), // Line height based on font size
-      3 // Max 2 lines for Goal title
+      lineHeight,
+      4, // Max 2 lines for Goal title
+      fontSize,
     );
 
     // Link count icon and number at top-right
@@ -98,7 +100,7 @@ export class GoalElement extends PlanningElement {
 
     // Progress bar background
     const barX = x + 8;
-    const barY = y + height - 16;
+    const barY = y + height - 32;
     const barWidth = width - 16;
     const barHeight = 8;
     ctx.fillStyle = style.fillColor;
@@ -176,8 +178,6 @@ export class GoalElement extends PlanningElement {
     const clone = new GoalElement({
       x: this.x,
       y: this.y,
-      width: this.width,
-      height: this.height,
       title: this.title,
       status: this.status,
       priority: this.priority,
