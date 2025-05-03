@@ -13,6 +13,7 @@ import { editElement$ } from '../core/eventBus.ts';
 import { storyStyles } from './styles/storyStyles.ts';
 import { ElementStatus } from './ElementStatus.ts';
 import { v4 } from 'uuid';
+import { TextRenderer } from '../utils/TextRenderer.ts';
 
 /**
  * Story representation on the canvas - a container for tasks
@@ -96,10 +97,20 @@ export class StoryElement extends PlanningElement {
     ctx.strokeStyle = this.selected ? SELECT_COLOR : style.borderColor;
     ctx.lineWidth = this.lineWidth / panZoom.scale;
     ctx.stroke();
-    // Title text
+    // Title text with word wrapping
     ctx.fillStyle = '#000000';
     ctx.font = `bold ${TITLE_FONT_SIZE}px ${FONT_FAMILY}`;
-    ctx.fillText(this.title, this.x + 10, this.y + 20);
+    // Calculate max width for title, accounting for potential buttons
+    const maxTitleWidth = this.width - 90; // Leave space for buttons on the right
+    TextRenderer.drawWrappedText(
+      ctx,
+      this.title,
+      this.x + 10, 
+      this.y + 20,
+      maxTitleWidth,
+      Math.round(TITLE_FONT_SIZE * 1.3), // Line height based on font size
+      3  // Max 2 lines for Story title
+    );
     // Draw anchors via base class
     super.drawAnchors(ctx, panZoom);
     // Draw resize handles when selected or hovered

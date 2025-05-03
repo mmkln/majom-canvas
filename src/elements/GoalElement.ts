@@ -12,6 +12,7 @@ import { editElement$ } from '../core/eventBus.ts';
 import { v4 } from 'uuid';
 import { goalStyles } from './styles/goalStyles.ts';
 import { ElementStatus } from './ElementStatus.ts';
+import { TextRenderer } from '../utils/TextRenderer.ts';
 
 export class GoalElement extends PlanningElement {
   links: string[] = [];
@@ -72,10 +73,29 @@ export class GoalElement extends PlanningElement {
     ctx.strokeStyle = this.selected ? SELECT_COLOR : style.borderColor;
     ctx.lineWidth = this.lineWidth / panZoom.scale;
     ctx.stroke();
-    // Title
-    ctx.fillStyle = '#000000';
+    // Link count icon and number at top-right (calculate first to know available space)
+    const linkText = `🔗${links.length}`;
     ctx.font = `${TITLE_FONT_SIZE}px ${FONT_FAMILY}`;
-    ctx.fillText(title, x + 8, y + 20);
+    const linkTextWidth = ctx.measureText(linkText).width;
+    
+    // Title with wrapping
+    ctx.fillStyle = '#000000';
+    // Calculate max width for title (leave space for link counter)
+    const maxTitleWidth = width - 16 - linkTextWidth - 10; // 16 = padding (8px on each side), 10 = gap between title and link count
+    // Draw title with wrapping
+    TextRenderer.drawWrappedText(
+      ctx,
+      title,
+      x + 8,
+      y + 20,
+      maxTitleWidth,
+      Math.round(TITLE_FONT_SIZE * 1.3), // Line height based on font size
+      3  // Max 2 lines for Goal title
+    );
+    
+    // Link count icon and number at top-right
+    ctx.fillText(linkText, x + width - 8 - linkTextWidth, y + 20);
+    
     // Progress bar background
     const barX = x + 8;
     const barY = y + height - 16;
@@ -83,9 +103,11 @@ export class GoalElement extends PlanningElement {
     const barHeight = 8;
     ctx.fillStyle = style.fillColor;
     ctx.fillRect(barX, barY, barWidth, barHeight);
+    
     // Progress fill
     ctx.fillStyle = style.borderColor;
     ctx.fillRect(barX, barY, barWidth * progress, barHeight);
+    
     // Percentage text
     ctx.fillStyle = '#000000';
     ctx.font = `${SMALL_FONT_SIZE}px ${FONT_FAMILY}`;
@@ -95,10 +117,6 @@ export class GoalElement extends PlanningElement {
       barX + barWidth * progress + 4,
       barY + barHeight + 12
     );
-    // Link count icon and number at top-right
-    const linkText = `🔗${links.length}`;
-    const textWidth = ctx.measureText(linkText).width;
-    ctx.fillText(linkText, x + width - 8 - textWidth, y + 20);
     // Anchors
     super.drawAnchors(ctx, panZoom);
   }

@@ -7,6 +7,7 @@ import { taskStyles } from './styles/taskStyles.ts';
 import { ElementStatus } from './ElementStatus.ts';
 import { editElement$ } from '../core/eventBus.ts';
 import { v4 } from 'uuid';
+import { TextRenderer } from '../utils/TextRenderer.ts';
 
 /**
  * Task representation on the canvas
@@ -76,10 +77,25 @@ export class TaskElement extends PlanningElement {
     ctx.roundRect(x, y, w, h, 8 * panZoom.scale);
     ctx.fill();
     ctx.stroke();
-    // Title
+    
+    // Title with word wrapping
     ctx.fillStyle = '#000000';
     ctx.font = `bold 14px Arial`;
-    ctx.fillText(this.title, x + 10, y + 20);
+    
+    // Calculate maximum width for text (accounting for padding and buttons)
+    const maxTitleWidth = w - 60; // Leaving space for buttons on right side
+    
+    // Draw title with word wrapping (font is already set)
+    TextRenderer.drawWrappedText(
+      ctx,
+      this.title,
+      x + 10,
+      y + 20,
+      maxTitleWidth,
+      18, // Line height for 14px font
+      3  // Max 3 lines of text
+    );
+    
     // Status badge
     ctx.fillStyle = style.borderColor;
     ctx.beginPath();
