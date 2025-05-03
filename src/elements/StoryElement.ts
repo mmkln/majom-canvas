@@ -23,7 +23,7 @@ export class StoryElement extends PlanningElement {
   static height: number = 240;
   /** Size for resize handles (in px) */
   // Size in px for the circular resize handle (larger for better UX)
-  static HANDLE_SIZE: number = 16;
+  static HANDLE_SIZE: number = 8;
 
   status: ElementStatus = ElementStatus.Defined;
   tasks: TaskElement[] = [];
@@ -115,12 +115,14 @@ export class StoryElement extends PlanningElement {
     super.drawAnchors(ctx, panZoom);
     // Draw resize handles when selected or hovered
     if (this.selected || this.isHovered) {
-      const size = StoryElement.HANDLE_SIZE / panZoom.scale;
-      ctx.fillStyle = SELECT_COLOR;
       this.getResizeHandles(panZoom).forEach((h) => {
+        const isHandleHovered = this.hoveredResizeHandle === h.direction;
+        const size = StoryElement.HANDLE_SIZE / panZoom.scale;
+
         ctx.beginPath();
-        // draw circular handle
-        ctx.arc(h.x, h.y, size / 2, 0, 2 * Math.PI);
+        ctx.arc(h.x, h.y, size, 0, 2 * Math.PI);
+        
+        ctx.fillStyle = isHandleHovered ? '#00A8FF' : SELECT_COLOR;
         ctx.fill();
       });
     }
@@ -283,6 +285,7 @@ export class StoryElement extends PlanningElement {
       t.x += dx;
       t.y += dy;
     });
+    this.hoveredResizeHandle = null;
   }
 
   /**
@@ -292,10 +295,11 @@ export class StoryElement extends PlanningElement {
     panZoom: PanZoomManager
   ): { x: number; y: number; direction: 'nw' | 'ne' | 'se' | 'sw' }[] {
     // Single handle: bottom-right corner only, to declutter UI and simplify resizing
+    const offsetFromEdge = 1;
     return [
       {
-        x: this.x + this.width - 1,
-        y: this.y + this.height - 1,
+        x: this.x + this.width - offsetFromEdge,
+        y: this.y + this.height - offsetFromEdge,
         direction: 'se',
       },
     ];
@@ -311,16 +315,17 @@ export class StoryElement extends PlanningElement {
   ): 'nw' | 'ne' | 'se' | 'sw' | null {
     // clickable area: match handle size only
     const detectSize = StoryElement.HANDLE_SIZE / panZoom.scale;
-    for (const h of this.getResizeHandles(panZoom)) {
-      if (
-        px >= h.x - detectSize / 2 &&
-        px <= h.x + detectSize / 2 &&
-        py >= h.y - detectSize / 2 &&
-        py <= h.y + detectSize / 2
-      ) {
-        return h.direction;
-      }
+    const handles = this.getResizeHandles(panZoom);
+    const handle = handles[0];
+    
+    const dx = px - handle.x;
+    const dy = py - handle.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance <= detectSize) {
+      return handle.direction;
     }
+    
     return null;
   }
 

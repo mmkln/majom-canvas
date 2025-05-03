@@ -140,6 +140,28 @@ export class InteractionManager {
       .getElements()
       .filter(isPlanningElement) as IPlanningElement[];
     let clickedItem: (ICanvasElement & IDraggable) | null = null;
+
+    // Resize handle detection on Story (independent of bounding box)
+    const storyEls = planningEls.filter(
+      (el): el is StoryElement => el instanceof StoryElement
+    );
+    for (let i = storyEls.length - 1; i >= 0; i--) {
+      const el = storyEls[i];
+      const dir = el.getResizeHandleDirectionAt(sceneX, sceneY, this.panZoom);
+      if (dir) {
+        this.resizingElement = el;
+        this.resizeDirection = dir;
+        this.resizeStartX = sceneX;
+        this.resizeStartY = sceneY;
+        this.initialX = el.x;
+        this.initialY = el.y;
+        this.initialWidth = el.width;
+        this.initialHeight = el.height;
+        this.updateSelectionOnClick(el, e.shiftKey);
+        return true;
+      }
+    }
+
     // Task → Story → Other planning → Shape click order
     // Task priority
     const taskEls = planningEls.filter(
@@ -187,26 +209,7 @@ export class InteractionManager {
         }
       }
     }
-    // resize handle on Story
-    if (clickedItem instanceof StoryElement) {
-      const dir = clickedItem.getResizeHandleDirectionAt(
-        sceneX,
-        sceneY,
-        this.panZoom
-      );
-      if (dir) {
-        this.resizingElement = clickedItem;
-        this.resizeDirection = dir;
-        this.resizeStartX = sceneX;
-        this.resizeStartY = sceneY;
-        this.initialX = clickedItem.x;
-        this.initialY = clickedItem.y;
-        this.initialWidth = clickedItem.width;
-        this.initialHeight = clickedItem.height;
-        this.updateSelectionOnClick(clickedItem, e.shiftKey);
-        return true;
-      }
-    }
+
     // service-based connection selection
     const existingConn = this.connectionService.hitTest(sceneX, sceneY);
     if (existingConn) {
