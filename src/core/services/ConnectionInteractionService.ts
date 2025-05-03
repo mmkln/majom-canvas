@@ -96,6 +96,7 @@ export class ConnectionInteractionService {
       const src = this.startShape;
       const dst = target;
       const invalid =
+        src === dst ||
         (src instanceof StoryElement &&
           dst instanceof TaskElement &&
           src.tasks.some((t) => t.id === dst.id)) ||
