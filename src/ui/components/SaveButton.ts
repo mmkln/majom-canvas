@@ -21,7 +21,7 @@ export class SaveButton {
     // UI-lib Save button
     this.button = new Button({
       text: 'Save',
-      variant: 'accent',
+      variant: 'success',
       disabled: true,
       onClick: () => {
         if (!this.authService.isLoggedIn()) {
