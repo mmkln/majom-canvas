@@ -15,7 +15,7 @@ export class SaveButton {
   constructor(private scene: Scene) {
     // Container overlay
     this.container = document.createElement('div');
-    this.container.className = 'absolute top-4 right-20 z-20';
+    this.container.className = 'absolute top-5 right-20 z-20';
     this.container.style.display = 'none';
 
     // UI-lib Save button

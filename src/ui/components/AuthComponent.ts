@@ -25,13 +25,13 @@ export class AuthComponent extends Component<any> {
     super(container);
     this.authService = authService;
     this.avatarContainer = document.createElement('div');
-    this.avatarContainer.className = 'absolute top-4 right-4';
+    this.avatarContainer.className = 'absolute top-5 right-4';
 
     // Use Button component from UI library for login and logout buttons
     this.loginButton = ComponentFactory.createButton({
       text: 'Login',
       onClick: () => this.showLoginModal(),
-      variant: 'default',
+      variant: 'accent',
       className: 'w-full',
     }).createElement() as HTMLButtonElement;
 
