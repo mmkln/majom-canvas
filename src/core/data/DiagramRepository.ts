@@ -72,8 +72,6 @@ export class DiagramRepository {
         id: goalDto.id,
         x: goalDto.x,
         y: goalDto.y,
-        width: goalDto.width,
-        height: goalDto.height,
         title: goalDto.title,
         status: goalDto.status,
         priority: goalDto.priority,
