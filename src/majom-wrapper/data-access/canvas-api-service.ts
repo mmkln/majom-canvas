@@ -15,4 +15,14 @@ export class CanvasApiService {
   saveLayoutBatch(changes: CanvasPositionDTO[]): Observable<void> {
     return this.http.patch<void>('/api/canvas/layouts/batch/', changes);
   }
+
+  /** Create a new canvas container */
+  createCanvas(): Observable<{ id: string }> {
+    return this.http.post<{ id: string }>('/api/canvas/', {});
+  }
+
+  /** Bulk create positions for a canvas */
+  bulkCreatePositions(canvasId: string, positions: CanvasPositionDTO[]): Observable<void> {
+    return this.http.post<void>(`/api/canvas/${canvasId}/positions/bulk/`, positions);
+  }
 }
