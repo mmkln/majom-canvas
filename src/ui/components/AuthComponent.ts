@@ -31,7 +31,7 @@ export class AuthComponent extends Component<any> {
     this.loginButton = ComponentFactory.createButton({
       text: 'Login',
       onClick: () => this.showLoginModal(),
-      variant: 'accent',
+      variant: 'default',
       className: 'w-full',
     }).createElement() as HTMLButtonElement;
 
