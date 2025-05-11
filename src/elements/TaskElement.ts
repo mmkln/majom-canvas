@@ -85,7 +85,7 @@ export class TaskElement extends PlanningElement {
     ctx.font = `bold 14px Arial`;
 
     // Calculate maximum width for text (accounting for padding and buttons)
-    const maxTitleWidth = w - 60; // Leaving space for buttons on right side
+    const maxTitleWidth = w - 48; // Leaving space for buttons on right side
 
     // Draw title with word wrapping (font is already set)
     const fontSize = 20;
@@ -97,7 +97,7 @@ export class TaskElement extends PlanningElement {
       y + 32,
       maxTitleWidth,
       lineHeight,
-      4, // Max 4 lines of text
+      3, // Max 3 lines of text
       fontSize,
     );
 
