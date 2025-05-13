@@ -20,8 +20,9 @@ export class GoalElement extends PlanningElement {
   public status: ElementStatus = ElementStatus.Defined;
   public priority: 'low' | 'medium' | 'high' = 'medium';
 
-  static width: number = 320;
-  static height: number = 184;
+  static diameter: number = 320;
+  static width: number = GoalElement.diameter;
+  static height: number = GoalElement.diameter;
 
   constructor({
     id = v4(),
@@ -60,82 +61,77 @@ export class GoalElement extends PlanningElement {
   }
 
   draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
-    const { x, y, width, height, title, progress, links } = this;
-    // Apply fill and border based on status
+    const { x, y, width, height, title, progress } = this;
     const style = goalStyles[this.status];
-    // Background
+    const centerX = x + width / 2;
+    const centerY = y + height / 2;
+    const radius = width / 2;
+
+    // Background circle
     ctx.fillStyle = style.fillColor;
     ctx.beginPath();
-    ctx.roundRect(x, y, width, height, 8 * panZoom.scale);
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
     ctx.fill();
+
+    // Progress ring
+    const progressRingWidth = 12;
+    ctx.beginPath();
+    ctx.strokeStyle = style.borderColor;
+    ctx.lineWidth = progressRingWidth;
+    ctx.arc(centerX, centerY, radius - progressRingWidth/2, -Math.PI/2, -Math.PI/2 + (Math.PI * 2 * progress));
+    ctx.stroke();
+
     // Border
     ctx.strokeStyle = this.selected ? SELECT_COLOR : style.borderColor;
     ctx.lineWidth = this.lineWidth / panZoom.scale;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
     ctx.stroke();
-    // Link count icon and number at top-right (calculate first to know available space)
-    const linkText = `🔗${links.length}`;
-    ctx.font = `${TITLE_FONT_SIZE}px ${FONT_FAMILY}`;
-    const linkTextWidth = ctx.measureText(linkText).width;
 
     // Title with wrapping
     ctx.fillStyle = '#000000';
-    // Calculate max width for title (leave space for link counter)
-    const maxTitleWidth = width - 16 - linkTextWidth - 10; // 16 = padding (8px on each side), 10 = gap between title and link count
-    // Draw title with wrapping
     const fontSize = 26;
     const lineHeight = 1.3;
+    const maxTitleWidth = width * 0.8; // Use 80% of the circle's width
+    
+    // Center the text vertically and horizontally
     TextRenderer.drawWrappedText(
       ctx,
       title,
-      x + 20,
-      y + 40,
+      centerX - maxTitleWidth/2,
+      centerY - fontSize,  // Offset up by half the font size
       maxTitleWidth,
       lineHeight,
-      4, // Max 2 lines for Goal title
+      2, // Max 2 lines for Goal title
       fontSize,
     );
-
-    // Link count icon and number at top-right
-    ctx.fillText(linkText, x + width - 8 - linkTextWidth, y + 20);
-
-    // Progress bar background
-    const barX = x + 8;
-    const barY = y + height - 32;
-    const barWidth = width - 16;
-    const barHeight = 8;
-    ctx.fillStyle = style.fillColor;
-    ctx.fillRect(barX, barY, barWidth, barHeight);
-
-    // Progress fill
-    ctx.fillStyle = style.borderColor;
-    ctx.fillRect(barX, barY, barWidth * progress, barHeight);
 
     // Percentage text
     ctx.fillStyle = '#000000';
     ctx.font = `${SMALL_FONT_SIZE}px ${FONT_FAMILY}`;
+    ctx.textAlign = 'center';
     const percentText = `${Math.round(progress * 100)}%`;
-    ctx.fillText(
-      percentText,
-      barX + barWidth * progress + 4,
-      barY + barHeight + 12
-    );
+    ctx.fillText(percentText, centerX, centerY + fontSize + 10);
+    ctx.textAlign = 'left'; // Reset text align
+
     // Anchors
     super.drawAnchors(ctx, panZoom);
   }
 
   contains(px: number, py: number): boolean {
-    return (
-      px >= this.x &&
-      px <= this.x + this.width &&
-      py >= this.y &&
-      py <= this.y + this.height
-    );
+    const centerX = this.x + this.width / 2;
+    const centerY = this.y + this.height / 2;
+    const radius = this.width / 2;
+    const dx = px - centerX;
+    const dy = py - centerY;
+    return dx * dx + dy * dy <= radius * radius;
   }
 
   getBoundaryPoint(angle: number): { x: number; y: number } {
+    const radius = this.width / 2;
     return {
-      x: this.x + this.width / 2 + Math.cos(angle) * (this.width / 2),
-      y: this.y + this.height / 2 + Math.sin(angle) * (this.height / 2),
+      x: this.x + this.width / 2 + Math.cos(angle) * radius,
+      y: this.y + this.height / 2 + Math.sin(angle) * radius,
     };
   }
 
