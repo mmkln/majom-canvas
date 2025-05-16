@@ -73,12 +73,23 @@ export class GoalElement extends PlanningElement {
     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
     ctx.fill();
 
-    // Progress ring
+    // Progress ring (outside the main circle)
     const progressRingWidth = 12;
+    const progressRingOffset = 8; // Space between main circle and progress ring
+    const progressRingRadius = radius + progressRingOffset + (progressRingWidth / 2);
+    
+    // Background of progress ring (unfilled part)
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(224,224,224,0.5)';
+    ctx.lineWidth = progressRingWidth;
+    ctx.arc(centerX, centerY, progressRingRadius, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    // Filled progress
     ctx.beginPath();
     ctx.strokeStyle = style.borderColor;
     ctx.lineWidth = progressRingWidth;
-    ctx.arc(centerX, centerY, radius - progressRingWidth/2, -Math.PI/2, -Math.PI/2 + (Math.PI * 2 * progress));
+    ctx.arc(centerX, centerY, progressRingRadius, -Math.PI/2, -Math.PI/2 + (Math.PI * 2 * progress));
     ctx.stroke();
 
     // Border
@@ -102,17 +113,17 @@ export class GoalElement extends PlanningElement {
       centerY - fontSize,  // Offset up by half the font size
       maxTitleWidth,
       lineHeight,
-      2, // Max 2 lines for Goal title
+      3, // Max 3 lines for Goal title
       fontSize,
     );
 
     // Percentage text
-    ctx.fillStyle = '#000000';
-    ctx.font = `${SMALL_FONT_SIZE}px ${FONT_FAMILY}`;
-    ctx.textAlign = 'center';
-    const percentText = `${Math.round(progress * 100)}%`;
-    ctx.fillText(percentText, centerX, centerY + fontSize + 10);
-    ctx.textAlign = 'left'; // Reset text align
+    // ctx.fillStyle = '#000000';
+    // ctx.font = `${SMALL_FONT_SIZE}px ${FONT_FAMILY}`;
+    // ctx.textAlign = 'center';
+    // const percentText = `${Math.round(progress * 100)}%`;
+    // ctx.fillText(percentText, centerX, centerY + fontSize + 10);
+    // ctx.textAlign = 'left'; // Reset text align
 
     // Anchors
     super.drawAnchors(ctx, panZoom);
@@ -122,9 +133,16 @@ export class GoalElement extends PlanningElement {
     const centerX = this.x + this.width / 2;
     const centerY = this.y + this.height / 2;
     const radius = this.width / 2;
+    const progressRingWidth = 12;
+    const progressRingOffset = 8;
+    const maxRadius = radius + progressRingOffset + progressRingWidth;
+    
     const dx = px - centerX;
     const dy = py - centerY;
-    return dx * dx + dy * dy <= radius * radius;
+    const distanceSquared = dx * dx + dy * dy;
+    
+    // Check if point is within the outer boundary (including progress ring)
+    return distanceSquared <= (maxRadius * maxRadius);
   }
 
   getBoundaryPoint(angle: number): { x: number; y: number } {
