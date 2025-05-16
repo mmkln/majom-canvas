@@ -2,7 +2,7 @@
 
 ## Tasks
 - [x] Update DTO to match backend model (`canvas`, `content_type`, `object_id`, `x`, `y`, `meta`, optional `id`).
-- [x] Implement CanvasApiService endpoints GET `/api/canvas/layouts/` and PATCH `/api/canvas/layouts/batch/`.
+- [x] Implement CanvasApiService endpoints GET `/canvas/layouts/` and PATCH `/canvas/layouts/batch/`.
 - [x] Update CanvasDataService.loadElements() to fetch & merge tasks/stories/goals with layout.
 - [x] Create mappers: `mapPlatformTask()`, `mapStory()`, `mapGoal()`.
 - [ ] Initialize and render elements in `main.ts`.
@@ -44,12 +44,12 @@ This document outlines the tasks and implementation details needed to wire up th
     constructor(private http: RxJSHttpClient, private readonly apiUrl: string) {}
 
     loadLayout(): Observable<CanvasPositionDTO[]> {
-      return this.http.get<CanvasPositionDTO[]>(`${this.apiUrl}/api/canvas/layouts/`);
+      return this.http.get<CanvasPositionDTO[]>(`${this.apiUrl}/canvas/layouts/`);
     }
 
     saveLayoutBatch(changes: CanvasPositionDTO[]): Observable<void> {
       return this.http.patch<void>(
-        `${this.apiUrl}/api/canvas/layouts/batch/`,
+        `${this.apiUrl}/canvas/layouts/batch/`,
         changes,
         { headers: {} }
       );

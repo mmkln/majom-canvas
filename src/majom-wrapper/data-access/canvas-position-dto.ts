@@ -1,8 +1,8 @@
 export interface CanvasPositionDTO {
-  /** Optional ID returned by backend */
-  id?: number;
-  /** ID of Canvas to which this position belongs */
-  canvas: number;
+  /** Optional ID(UUID) returned by backend */
+  id?: string;
+  /** ID (UUID) of Canvas to which this position belongs */
+  canvas: string;
   /** ContentType ID (Django) of the element */
   content_type: number;
   /** Model name of the element ('task','story','goal', etc.) */

@@ -81,6 +81,7 @@ export class HttpInterceptorClient {
     );
   }
 
+  // Use native fetch for POST to guarantee headers inclusion
   public post<T>(path: string, body: any, options: any = {}): Observable<T> {
     const authService = this.authService;
     let headers = this.attachAuth(options.headers);
@@ -158,39 +159,24 @@ export class HttpInterceptorClient {
   }
 
   public patch<T>(path: string, body: any, options: any = {}): Observable<T> {
-    const authService = this.authService;
-    let headers = this.attachAuth(options.headers);
-    const accessToken = authService.getAuthToken();
-    const request$ =
-      accessToken && authService.isTokenExpired(accessToken)
-        ? this.getRefreshedAccessToken().pipe(
-            switchMap((access) => {
-              headers = this.attachAuth(options.headers);
-              return this.client.patch<T>(`${this.baseUrl}${path}`, body, {
-                ...options,
-                headers,
-              });
-            })
-          )
-        : this.client.patch<T>(`${this.baseUrl}${path}`, body, {
-            ...options,
-            headers,
-          });
-    return request$.pipe(
-      catchError((err) => {
-        if (err.status === 401) {
-          return this.getRefreshedAccessToken().pipe(
-            switchMap((access) => {
-              headers = this.attachAuth(options.headers);
-              return this.client.patch<T>(`${this.baseUrl}${path}`, body, {
-                ...options,
-                headers,
-              });
-            })
-          );
+    const headers = {
+      'Content-Type': 'application/json',
+      ...this.attachAuth(options.headers),
+    };
+    const url = `${this.baseUrl}${path}`;
+    console.log('[HttpInterceptor] fetch PATCH', url, headers, body);
+    return from(
+      fetch(url, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(body),
+      }).then(async (res) => {
+        if (!res.ok) {
+          const error: any = new Error(`HTTP error, status ${res.status}`);
+          error.response = res;
+          throw error;
         }
-        console.error('PATCH Error:', err);
-        return throwError(() => err);
+        return (await res.json()) as T;
       })
     );
   }

@@ -14,6 +14,14 @@ import { PasteCommand } from './core/commands/PasteCommand.ts';
 import { DeleteCommand } from './core/commands/DeleteCommand.ts';
 import { CutCommand } from './core/commands/CutCommand.ts';
 import { getCommandConfigs } from './core/config/commandConfigs.ts';
+import { OfflineCanvasService } from './majom-wrapper/services/OfflineCanvasService.ts';
+import { CanvasSyncService } from './majom-wrapper/services/CanvasSyncService.ts';
+import { HttpInterceptorClient } from './majom-wrapper/data-access/http-interceptor.ts';
+import { TasksApiService } from './majom-wrapper/data-access/tasks-api-service.ts';
+import { StoriesApiService } from './majom-wrapper/data-access/stories-api-service.ts';
+import { GoalsApiService } from './majom-wrapper/data-access/goals-api-service.ts';
+import { CanvasApiService } from './majom-wrapper/data-access/canvas-api-service.ts';
+import { environment } from './config/environment.js';
 
 export class App {
   private readonly dataProvider: IDataProvider;
@@ -45,8 +53,23 @@ export class App {
     // Створюємо компонент для авторизації
     const appContainer = document.getElementById('app') || document.body;
     this.authComponent = new AuthComponent(appContainer, this.authService);
+
+    // Instantiate HTTP client and API services
+    const httpClient = new HttpInterceptorClient(environment.apiUrl);
+    const tasksApi = new TasksApiService(httpClient);
+    const storiesApi = new StoriesApiService(httpClient);
+    const goalsApi = new GoalsApiService(httpClient);
+    const canvasApi = new CanvasApiService(httpClient);
+    const offlineService = new OfflineCanvasService();
+    const canvasSyncService = new CanvasSyncService(offlineService, canvasApi, tasksApi, storiesApi, goalsApi);
+
     // Використовуємо UIManager для монтування UI-компонентів
-    this.uiManager = new UIManager(this.canvasManager, this.scene);
+    this.uiManager = new UIManager(
+      this.canvasManager,
+      this.scene,
+      offlineService,
+      canvasSyncService
+    );
     this.uiManager.mountAll(document.body);
 
     // Register commands from config

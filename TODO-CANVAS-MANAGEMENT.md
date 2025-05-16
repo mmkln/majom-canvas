@@ -8,34 +8,20 @@
 - [ ] Design offline→online synchronization flow
 
 **Implementation Details:**
-- Offline user actions stored via `LocalStorageDataProvider` / `DiagramRepository`.
-- New elements created offline require server creation:
-  - Use `TaskApiService.create()`, `StoryApiService.create()`, `GoalApiService.create()`, etc.
-- After elements exist on server:
-  - Create or get canvas via `CanvasApiService.createCanvas()`
-  - Create element positions via `CanvasApiService.bulkCreatePositions(canvasId, positions)`
-- On success: clear offline storage & notify via `NotificationService`.
-- On error: retry or show error notification.
+- Temporary actions stored in `OfflineCanvasService`.
+- Retrieve buffered elements via `OfflineCanvasService.getElements()`.
+- For each element type (Task/Story/Goal): map to DTO and create on server via respective API.
+- Create or get canvas with `CanvasApiService.createCanvas()`.
+- Batch create positions via `CanvasApiService.bulkCreatePositions()`.
+- On success: clear buffer using `OfflineCanvasService.clearElements()` and notify via `notify()`.
+- On failure: retry or show error notification.
 
 **Tasks for Scenario 1:**
-- [ ] Extend `CanvasApiService`:
-  - `createCanvas(): Observable<{ id: string }>`
-  - `bulkCreatePositions(canvasId: string, positions: CanvasPositionDTO[]): Observable<void>`
-- [ ] Create `CanvasSyncService`:
-  - Inject `DiagramRepository`, `CanvasApiService`, `TaskApiService`, `StoryApiService`, `GoalApiService`, `NotificationService`.
-  - Implement `synchronizeOfflineCanvas(): Promise<void>` to:
-    - Load offline elements.
-    - For each element type (Task/Story/Goal): create missing items on server via respective API service.
-    - Invoke `createCanvas()` if needed.
-    - Call `bulkCreatePositions(canvasId, positions)`.
-    - Clear offline storage & notify on success.
-    - Retry or show error notification on failure.
-- [ ] Subscribe to `saveCanvasLayout` in `UIManager`:
-  - Show loading, disable `SaveButton`.
-  - Call `CanvasSyncService.synchronizeOfflineCanvas()`.
-  - Enable `SaveButton` & notify on completion.
-- [ ] Update `SaveButton` component to show loading and prevent duplicates.
-- [ ] Add unit/integration tests for sync flow.
+- [ ] Create `OfflineCanvasService` with methods: `addElement()`, `removeElement()`, `getElements()`, `clearElements()`, `validateUniqueness()`.
+- [ ] Refactor `CanvasSyncService` to use `OfflineCanvasService` instead of `DiagramRepository`.
+- [ ] Subscribe sync event in `UIManager` to disable/enable `SaveButton`.
+- [ ] Update `SaveButton` component to show loading and prevent duplicate submissions.
+- [ ] Add unit/integration tests for offline→online sync flow.
 
 ### Scenario 2: Canvas Management After Authentication
 - [ ] Develop canvas initialization strategy

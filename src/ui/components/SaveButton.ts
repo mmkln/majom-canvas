@@ -1,6 +1,7 @@
 import { Scene } from '../../core/scene/Scene.ts';
 import { AuthService } from '../../majom-wrapper/data-access/auth-service.ts';
 import { historyService } from '../../core/services/HistoryService.ts';
+import { OfflineCanvasService } from '../../majom-wrapper/services/OfflineCanvasService.ts';
 import { Button } from '../../ui-lib/src/components/Button.js';
 
 /**
@@ -12,7 +13,7 @@ export class SaveButton {
   private button: HTMLButtonElement;
   private authService = new AuthService();
 
-  constructor(private scene: Scene) {
+  constructor(private scene: Scene, private offlineService: OfflineCanvasService) {
     // Container overlay
     this.container = document.createElement('div');
     this.container.className = 'absolute top-5 right-20 z-20';
@@ -42,13 +43,24 @@ export class SaveButton {
   }
 
   private updateButton(): void {
-    const canSave = historyService.canUndo();
-    // Show button only when there are unsaved history commands
-    this.container.style.display = this.authService.isLoggedIn()
-      ? 'block'
-      : 'none';
-    // Always text 'Save'; disable if not logged in
+    const hasHistory = historyService.canUndo();
+    const hasOffline = this.offlineService.getElements().length > 0;
+    const canSave = hasHistory || hasOffline;
+    this.container.style.display =
+      this.authService.isLoggedIn() && canSave ? 'block' : 'none';
     this.button.disabled = !canSave;
+  }
+
+  /** Show loading state on Save button */
+  public startLoading(): void {
+    this.button.textContent = 'Saving...';
+    this.button.disabled = true;
+  }
+
+  /** Revert loading state and update button status */
+  public stopLoading(): void {
+    this.button.textContent = 'Save';
+    this.updateButton();
   }
 
   mount(parent: HTMLElement = document.body): void {

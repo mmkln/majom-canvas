@@ -14,6 +14,9 @@ import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
 import { mapStatus } from '../majom-wrapper/utils/statusMapping.ts';
+import { OfflineCanvasService } from '../majom-wrapper/services/OfflineCanvasService.ts';
+import { CanvasSyncService } from '../majom-wrapper/services/CanvasSyncService.ts';
+import { notify } from '../core/services/NotificationService.ts';
 
 export class UIManager {
   private readonly components: {
@@ -27,7 +30,9 @@ export class UIManager {
 
   constructor(
     private readonly canvasManager: CanvasManager,
-    private readonly scene: Scene
+    private readonly scene: Scene,
+    private readonly offlineService: OfflineCanvasService,
+    private readonly canvasSyncService: CanvasSyncService
   ) {
     // Initialize Canvas Toolbar for creating elements
     this.canvasToolbar = new CanvasToolbar(this.scene, this.canvasManager);
@@ -37,7 +42,7 @@ export class UIManager {
 
     // Initialize palette menu
     const paletteMenu = new PaletteMenu(this.scene);
-    const saveButton = new SaveButton(this.scene);
+    const saveButton = new SaveButton(this.scene, this.offlineService);
 
     // Add controls to components list
     this.components.push(
@@ -53,6 +58,20 @@ export class UIManager {
     this.components.push(notificationContainer);
     // Show modal on edit requests via RxJS bus
     editElement$.subscribe((el) => new EditElementModal(el, this.scene).show());
+    // Trigger sync on SaveButton click with user feedback
+    window.addEventListener('saveCanvasLayout', async () => {
+      saveButton.startLoading();
+      notify('Synchronizing canvas...', 'info');
+      try {
+        await this.canvasSyncService.synchronizeOfflineCanvas();
+        notify('Canvas synchronized successfully.', 'success');
+      } catch (err: any) {
+        console.error(err);
+        notify(`Sync failed: ${err.message || err}`, 'error');
+      } finally {
+        saveButton.stopLoading();
+      }
+    });
   }
 
   public mountAll(parent: HTMLElement = document.body): void {
@@ -93,7 +112,10 @@ export class UIManager {
           y,
         });
       }
-      if (element) this.scene.addElement(element);
+      if (element) {
+        this.scene.addElement(element);
+        this.offlineService.addElement(element);
+      }
     });
   }
 

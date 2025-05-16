@@ -8,21 +8,22 @@ export class CanvasApiService {
 
   /** Load all canvas positions */
   loadLayout(): Observable<CanvasPositionDTO[]> {
-    return this.http.get<CanvasPositionDTO[]>('/api/canvas/layouts/');
+    return this.http.get<CanvasPositionDTO[]>('/canvas/layouts/');
   }
 
   /** Batch update or create canvas positions */
   saveLayoutBatch(changes: CanvasPositionDTO[]): Observable<void> {
-    return this.http.patch<void>('/api/canvas/layouts/batch/', changes);
+    return this.http.patch<void>('/canvas/layouts/batch/', changes);
   }
 
   /** Create a new canvas container */
-  createCanvas(): Observable<{ id: string }> {
-    return this.http.post<{ id: string }>('/api/canvas/', {});
+  createCanvas(name: string = 'Untitled Canvas'): Observable<{ id: string }> {
+    // 'name' is required by the API
+    return this.http.post<{ id: string }>('/canvas/', { name });
   }
 
   /** Bulk create positions for a canvas */
   bulkCreatePositions(canvasId: string, positions: CanvasPositionDTO[]): Observable<void> {
-    return this.http.post<void>(`/api/canvas/${canvasId}/positions/bulk/`, positions);
+    return this.http.post<void>(`/canvas/${canvasId}/positions/bulk/`, positions);
   }
 }
