@@ -13,7 +13,8 @@
     "start": "vite",
     "start:8080": "vite --port=8080",
     "start:4200": "vite --port=4200",
-    "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,css,scss,md}\""
+    "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,css,scss,md}\"",
+    "deploy:build": "npm run build && npm run deploy"
   },
   "keywords": [
     "canvas",
