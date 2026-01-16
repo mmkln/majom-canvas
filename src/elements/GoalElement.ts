@@ -73,24 +73,37 @@ export class GoalElement extends PlanningElement {
     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
     ctx.fill();
 
-    // Progress ring (outside the main circle)
+    // Progress ring (outside the main circle) - segmented
     const progressRingWidth = 12;
     const progressRingOffset = 8; // Space between main circle and progress ring
     const progressRingRadius = radius + progressRingOffset + (progressRingWidth / 2);
-    
-    // Background of progress ring (unfilled part)
-    ctx.beginPath();
+    const segmentCount = 100;
+    const gapAngle = (Math.PI * 2) * 0.004; // Small gap between segments
+    const totalAngle = Math.PI * 2;
+    const segmentAngle = (totalAngle / segmentCount) - gapAngle;
+    const startAngle = -Math.PI / 2;
+    const filledSegments = Math.max(0, Math.min(segmentCount, Math.round(progress * segmentCount)));
+
+    ctx.lineWidth = progressRingWidth;
+    ctx.lineCap = 'butt';
+
+    // Background segments (unfilled)
     ctx.strokeStyle = 'rgba(224,224,224,0.5)';
-    ctx.lineWidth = progressRingWidth;
-    ctx.arc(centerX, centerY, progressRingRadius, 0, Math.PI * 2);
-    ctx.stroke();
-    
-    // Filled progress
-    ctx.beginPath();
+    for (let i = 0; i < segmentCount; i += 1) {
+      const segStart = startAngle + i * (segmentAngle + gapAngle);
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, progressRingRadius, segStart, segStart + segmentAngle);
+      ctx.stroke();
+    }
+
+    // Filled segments
     ctx.strokeStyle = style.borderColor;
-    ctx.lineWidth = progressRingWidth;
-    ctx.arc(centerX, centerY, progressRingRadius, -Math.PI/2, -Math.PI/2 + (Math.PI * 2 * progress));
-    ctx.stroke();
+    for (let i = 0; i < filledSegments; i += 1) {
+      const segStart = startAngle + i * (segmentAngle + gapAngle);
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, progressRingRadius, segStart, segStart + segmentAngle);
+      ctx.stroke();
+    }
 
     // Border
     ctx.strokeStyle = this.selected ? SELECT_COLOR : style.borderColor;
