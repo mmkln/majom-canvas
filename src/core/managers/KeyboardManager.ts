@@ -3,6 +3,7 @@ import { Scene } from '../scene/Scene.ts';
 import { IShape } from '../interfaces/shape.ts';
 import { CanvasManager } from './CanvasManager.ts';
 import { modalService } from '../../ui-lib/src/services/ModalService.ts';
+import { normalizeKeyboardKey } from '../utils/keyboardUtils.ts';
 
 export class KeyboardManager {
   private clipboard: IShape[] = [];
@@ -38,6 +39,7 @@ export class KeyboardManager {
     )
       return;
     console.log({ key: e.key });
+    const key = normalizeKeyboardKey(e);
 
     if (e.key === 'Escape') {
       // Скасовуємо створення зв’язку
@@ -45,7 +47,7 @@ export class KeyboardManager {
       return;
     }
 
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+    if ((e.ctrlKey || e.metaKey) && key === 'c') {
       const selectedShapes = this.scene.getSelectedShapes();
       if (selectedShapes.length > 0) {
         this.clipboard = selectedShapes.map((shape) => shape.clone());
@@ -54,7 +56,7 @@ export class KeyboardManager {
       e.preventDefault();
     }
 
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+    if ((e.ctrlKey || e.metaKey) && key === 'v') {
       if (this.clipboard.length > 0) {
         let mouseCoords = this.canvasManager.getLastMouseCoords();
         if (!mouseCoords) {
@@ -81,7 +83,7 @@ export class KeyboardManager {
     }
 
     // Select all elements on canvas
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+    if ((e.ctrlKey || e.metaKey) && key === 'a') {
       const allElements = this.scene.getElements();
       this.scene.setSelected(allElements);
       e.preventDefault();
@@ -95,4 +97,5 @@ export class KeyboardManager {
       this.scene.removeElements(selectedElements);
     }
   }
+
 }

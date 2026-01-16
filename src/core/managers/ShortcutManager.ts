@@ -1,4 +1,5 @@
 import { modalService } from '../../ui-lib/src/services/ModalService.ts';
+import { normalizeKeyboardKey } from '../utils/keyboardUtils.ts';
 
 type ShortcutHandler = (e: KeyboardEvent) => void;
 
@@ -62,7 +63,7 @@ export class ShortcutManager {
     if (e.shiftKey) parts.push('shift');
     if (e.altKey) parts.push('alt');
     if (e.metaKey) parts.push('meta');
-    parts.push(e.key.toLowerCase());
+    parts.push(normalizeKeyboardKey(e));
     return parts.join('+');
   }
 }
