@@ -20,6 +20,8 @@ export class AuthComponent extends Component<any> {
   private modal: HTMLElement | null = null;
   private errorMessage: HTMLElement | null = null;
   private isLoading: boolean = false;
+  private authGuardOverlay: HTMLElement | null = null;
+  private showLoginModalHandler: () => void;
 
   constructor(container: HTMLElement, authService: AuthService) {
     super(container);
@@ -62,6 +64,9 @@ export class AuthComponent extends Component<any> {
     } else {
       console.error('Container is not a valid DOM node', container);
     }
+    this.showLoginModalHandler = () => this.showLoginModal(true);
+    window.addEventListener('showLoginModal', this.showLoginModalHandler);
+
     this.updateUI();
     // Update login button text on history or auth changes
     historyService.changes.subscribe(() => this.updateUI());
@@ -88,6 +93,8 @@ export class AuthComponent extends Component<any> {
       this.loginButton.textContent = canSave ? 'Login to Save' : 'Login';
       this.avatarContainer.appendChild(this.loginButton);
     }
+
+    this.syncAuthRequirement();
   }
 
   private toggleDropdown(): void {
@@ -98,10 +105,20 @@ export class AuthComponent extends Component<any> {
     }
   }
 
-  private showLoginModal(): void {
-    if (this.modal) return;
+  private showLoginModal(force: boolean = false): void {
+    if (this.modal) {
+      if (!force) return;
+      this.closeModal();
+    }
     const { overlay, container } = createModalShell('Login to Majom Canvas', {
-      onClose: () => this.closeModal(),
+      onClose: () => {
+        this.closeModal();
+        if (!this.authService.isLoggedIn()) {
+          this.ensureAuthGuardOverlay();
+          window.setTimeout(() => this.showLoginModal(true), 0);
+        }
+      },
+      zIndex: 210,
     });
     this.modal = overlay;
 
@@ -221,5 +238,43 @@ export class AuthComponent extends Component<any> {
     this.dropdownMenu.classList.add('hidden');
     // Trigger canvas data refresh
     window.dispatchEvent(new CustomEvent('refreshCanvasData'));
+  }
+
+  private ensureAuthGuardOverlay(): void {
+    if (this.authService.isLoggedIn() || this.authGuardOverlay) return;
+
+    const overlay = document.createElement('div');
+    overlay.className =
+      'fixed inset-0 z-[180] bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center gap-4 pointer-events-auto';
+
+    const message = document.createElement('p');
+    message.className = 'text-lg font-semibold text-gray-800';
+    message.textContent = 'Please log in to continue.';
+
+    const openModalButton = ComponentFactory.createButton({
+      text: 'Open Login',
+      variant: 'default',
+      size: 'lg',
+      onClick: () => this.showLoginModal(true),
+    }).createElement() as HTMLButtonElement;
+
+    overlay.append(message, openModalButton);
+    document.body.appendChild(overlay);
+    this.authGuardOverlay = overlay;
+  }
+
+  private removeAuthGuardOverlay(): void {
+    if (!this.authGuardOverlay) return;
+    this.authGuardOverlay.remove();
+    this.authGuardOverlay = null;
+  }
+
+  private syncAuthRequirement(): void {
+    if (this.authService.isLoggedIn()) {
+      this.removeAuthGuardOverlay();
+    } else {
+      this.ensureAuthGuardOverlay();
+      this.showLoginModal();
+    }
   }
 }
