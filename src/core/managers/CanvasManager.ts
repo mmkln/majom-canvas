@@ -20,6 +20,7 @@ import { TaskElement } from '../../elements/TaskElement.ts';
 import { GoalElement } from '../../elements/GoalElement.ts';
 import { StoryElement } from '../../elements/StoryElement.ts';
 import { getBoundingBox } from '../utils/geometryUtils.ts';
+import { hasStatusAnimation } from '../../elements/utils/statusAnimations.ts';
 
 export class CanvasManager {
   canvas: HTMLCanvasElement;
@@ -55,6 +56,8 @@ export class CanvasManager {
   private pinchZoomInitialDist: number | null = null;
   private pinchZoomInitialScale: number = 1;
   private pinchZoomCenterScene: { x: number; y: number } | null = null;
+  private animationFrameId: number | null = null;
+  private isAnimationRunning: boolean = false;
 
   constructor(canvas: HTMLCanvasElement, scene: Scene) {
     this.canvas = canvas;
@@ -144,6 +147,10 @@ export class CanvasManager {
     const connectables = [...shapes, ...planningEls];
 
     const connections = this.scene.getConnections();
+    const hasAnimatedStatus = planningEls.some(
+      (el) => 'status' in el && hasStatusAnimation((el as any).status)
+    );
+    this.updateAnimationLoop(hasAnimatedStatus);
 
     // Update goal links and progress
     planningEls
@@ -274,6 +281,34 @@ export class CanvasManager {
 
     this.ctx.restore();
     this.scrollbarManager.drawScrollbars();
+  }
+
+  private startAnimationLoop(): void {
+    if (this.isAnimationRunning) return;
+    this.isAnimationRunning = true;
+    const tick = (): void => {
+      if (!this.isAnimationRunning) return;
+      this.draw();
+      this.animationFrameId = requestAnimationFrame(tick);
+    };
+    this.animationFrameId = requestAnimationFrame(tick);
+  }
+
+  private stopAnimationLoop(): void {
+    if (!this.isAnimationRunning) return;
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
+    }
+    this.animationFrameId = null;
+    this.isAnimationRunning = false;
+  }
+
+  private updateAnimationLoop(shouldAnimate: boolean): void {
+    if (shouldAnimate) {
+      this.startAnimationLoop();
+    } else {
+      this.stopAnimationLoop();
+    }
   }
 
   private getSceneCoords(e: MouseEvent): { sceneX: number; sceneY: number } {

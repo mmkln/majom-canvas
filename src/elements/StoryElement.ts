@@ -14,6 +14,12 @@ import { storyStyles } from './styles/storyStyles.ts';
 import { ElementStatus } from './ElementStatus.ts';
 import { v4 } from 'uuid';
 import { TextRenderer } from '../utils/TextRenderer.ts';
+import {
+  drawDoneBorderSweepRect,
+  drawInProgressPulseRect,
+  drawPendingMarchingAntsRect,
+  drawDefinedBorderRect,
+} from './utils/statusAnimations.ts';
 
 /**
  * Story representation on the canvas - a container for tasks
@@ -86,9 +92,10 @@ export class StoryElement extends PlanningElement {
   draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
     // Apply fill and border based on status
     const style = storyStyles[this.status];
+    const radius = 8 * panZoom.scale;
     ctx.fillStyle = style.fillColor;
     ctx.beginPath();
-    ctx.roundRect(this.x, this.y, this.width, this.height, 8 * panZoom.scale);
+    ctx.roundRect(this.x, this.y, this.width, this.height, radius);
     ctx.fill();
     // Border: dashed or solid
     const dashOn = 6 / panZoom.scale;
@@ -97,6 +104,56 @@ export class StoryElement extends PlanningElement {
     ctx.strokeStyle = this.selected ? SELECT_COLOR : style.borderColor;
     ctx.lineWidth = this.lineWidth / panZoom.scale;
     ctx.stroke();
+    if (this.status === ElementStatus.Done) {
+      drawDoneBorderSweepRect({
+        ctx,
+        x: this.x,
+        y: this.y,
+        width: this.width,
+        height: this.height,
+        radius,
+        lineWidth: this.lineWidth / panZoom.scale,
+        scale: panZoom.scale,
+      });
+    }
+    if (this.status === ElementStatus.InProgress) {
+      drawInProgressPulseRect({
+        ctx,
+        x: this.x,
+        y: this.y,
+        width: this.width,
+        height: this.height,
+        radius,
+        lineWidth: this.lineWidth / panZoom.scale,
+        scale: panZoom.scale,
+      });
+    }
+    if (this.status === ElementStatus.Pending) {
+      drawPendingMarchingAntsRect({
+        ctx,
+        x: this.x,
+        y: this.y,
+        width: this.width,
+        height: this.height,
+        radius,
+        lineWidth: this.lineWidth / panZoom.scale,
+        scale: panZoom.scale,
+        color: style.borderColor,
+      });
+    }
+    if (this.status === ElementStatus.Defined) {
+      drawDefinedBorderRect({
+        ctx,
+        x: this.x,
+        y: this.y,
+        width: this.width,
+        height: this.height,
+        radius,
+        lineWidth: this.lineWidth / panZoom.scale,
+        scale: panZoom.scale,
+        color: style.borderColor,
+      });
+    }
     // Title text with word wrapping
     ctx.fillStyle = '#000000';
     ctx.font = `bold ${TITLE_FONT_SIZE}px ${FONT_FAMILY}`;

@@ -13,6 +13,12 @@ import { v4 } from 'uuid';
 import { goalStyles } from './styles/goalStyles.ts';
 import { ElementStatus } from './ElementStatus.ts';
 import { TextRenderer } from '../utils/TextRenderer.ts';
+import {
+  drawDoneBorderSweepCircle,
+  drawInProgressPulseCircle,
+  drawPendingMarchingAntsCircle,
+  drawDefinedBorderCircle,
+} from './utils/statusAnimations.ts';
 
 export class GoalElement extends PlanningElement {
   links: string[] = [];
@@ -111,6 +117,48 @@ export class GoalElement extends PlanningElement {
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
     ctx.stroke();
+    if (this.status === ElementStatus.Done) {
+      drawDoneBorderSweepCircle({
+        ctx,
+        centerX,
+        centerY,
+        radius,
+        lineWidth: this.lineWidth / panZoom.scale,
+        scale: panZoom.scale,
+      });
+    }
+    if (this.status === ElementStatus.InProgress) {
+      drawInProgressPulseCircle({
+        ctx,
+        centerX,
+        centerY,
+        radius,
+        lineWidth: this.lineWidth / panZoom.scale,
+        scale: panZoom.scale,
+      });
+    }
+    if (this.status === ElementStatus.Pending) {
+      drawPendingMarchingAntsCircle({
+        ctx,
+        centerX,
+        centerY,
+        radius,
+        lineWidth: this.lineWidth / panZoom.scale,
+        scale: panZoom.scale,
+        color: style.borderColor,
+      });
+    }
+    if (this.status === ElementStatus.Defined) {
+      drawDefinedBorderCircle({
+        ctx,
+        centerX,
+        centerY,
+        radius,
+        lineWidth: this.lineWidth / panZoom.scale,
+        scale: panZoom.scale,
+        color: style.borderColor,
+      });
+    }
 
     // Title with wrapping
     ctx.fillStyle = '#000000';
