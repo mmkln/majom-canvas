@@ -111,6 +111,7 @@ export class StoryElement extends PlanningElement {
       scale: panZoom.scale,
       color: style.borderColor,
       timeMs: panZoom.timeMs,
+      viewBounds: panZoom.viewBounds,
     });
     // Title text with word wrapping
     ctx.fillStyle = '#000000';

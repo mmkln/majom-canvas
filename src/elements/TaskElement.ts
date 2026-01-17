@@ -93,6 +93,7 @@ export class TaskElement extends PlanningElement {
       scale: panZoom.scale,
       color: style.borderColor,
       timeMs: panZoom.timeMs,
+      viewBounds: panZoom.viewBounds,
     });
     // Title with word wrapping
     ctx.fillStyle = '#000000';

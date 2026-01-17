@@ -52,6 +52,43 @@ const getRoundedRectPerimeter = (
   return straight + curved;
 };
 
+const isRectVisible = (
+  viewBounds: { minX: number; minY: number; maxX: number; maxY: number } | null | undefined,
+  x: number,
+  y: number,
+  width: number,
+  height: number
+): boolean => {
+  if (!viewBounds) return true;
+  const right = x + width;
+  const bottom = y + height;
+  return (
+    right >= viewBounds.minX &&
+    x <= viewBounds.maxX &&
+    bottom >= viewBounds.minY &&
+    y <= viewBounds.maxY
+  );
+};
+
+const isCircleVisible = (
+  viewBounds: { minX: number; minY: number; maxX: number; maxY: number } | null | undefined,
+  centerX: number,
+  centerY: number,
+  radius: number
+): boolean => {
+  if (!viewBounds) return true;
+  const left = centerX - radius;
+  const right = centerX + radius;
+  const top = centerY - radius;
+  const bottom = centerY + radius;
+  return (
+    right >= viewBounds.minX &&
+    left <= viewBounds.maxX &&
+    bottom >= viewBounds.minY &&
+    top <= viewBounds.maxY
+  );
+};
+
 export const hasStatusAnimation = (status?: ElementStatus): boolean =>
   status === ElementStatus.Done ||
   status === ElementStatus.InProgress ||
@@ -70,6 +107,7 @@ type RectAnimationParams = {
   scale: number;
   color?: string;
   timeMs: number;
+  viewBounds?: { minX: number; minY: number; maxX: number; maxY: number } | null;
 };
 
 type CircleAnimationParams = {
@@ -82,6 +120,7 @@ type CircleAnimationParams = {
   scale: number;
   color?: string;
   timeMs: number;
+  viewBounds?: { minX: number; minY: number; maxX: number; maxY: number } | null;
 };
 
 type OutlinePath = {
@@ -98,6 +137,7 @@ type OutlineAnimationParams = {
   scale: number;
   color?: string;
   timeMs: number;
+  viewBounds?: { minX: number; minY: number; maxX: number; maxY: number } | null;
 };
 
 type OutlineEffectParams = Omit<OutlineAnimationParams, 'status'>;
@@ -599,7 +639,9 @@ export const drawStatusAnimationRect = (params: RectAnimationParams): void => {
     scale,
     color,
     timeMs,
+    viewBounds,
   } = params;
+  if (!isRectVisible(viewBounds, x, y, width, height)) return;
   const outline = createRectOutline({ x, y, width, height, radius });
   drawStatusAnimation({
     status,
@@ -609,6 +651,7 @@ export const drawStatusAnimationRect = (params: RectAnimationParams): void => {
     scale,
     color,
     timeMs,
+    viewBounds,
   });
 };
 
@@ -625,7 +668,9 @@ export const drawStatusAnimationCircle = (
     scale,
     color,
     timeMs,
+    viewBounds,
   } = params;
+  if (!isCircleVisible(viewBounds, centerX, centerY, radius)) return;
   const outline = createCircleOutline({ centerX, centerY, radius });
   drawStatusAnimation({
     status,
@@ -635,6 +680,7 @@ export const drawStatusAnimationCircle = (
     scale,
     color,
     timeMs,
+    viewBounds,
   });
 };
 

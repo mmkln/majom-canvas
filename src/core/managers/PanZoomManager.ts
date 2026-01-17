@@ -12,6 +12,9 @@ export class PanZoomManager {
   scrollbarWidth: number = 6;
   /** Shared frame time for animation syncing */
   timeMs: number = 0;
+  /** Current view bounds in scene coordinates */
+  viewBounds: { minX: number; minY: number; maxX: number; maxY: number } | null =
+    null;
 
   /** Emits on any view (scroll/zoom) change */
   public viewChanges: Subject<IViewState> = new Subject<IViewState>();

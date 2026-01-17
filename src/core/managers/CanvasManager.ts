@@ -21,6 +21,7 @@ import { GoalElement } from '../../elements/GoalElement.ts';
 import { StoryElement } from '../../elements/StoryElement.ts';
 import { getBoundingBox } from '../utils/geometryUtils.ts';
 import { hasStatusAnimation } from '../../elements/utils/statusAnimations.ts';
+import { CANVAS_PERF_LOG } from '../../config/env/index.ts';
 
 export class CanvasManager {
   canvas: HTMLCanvasElement;
@@ -58,6 +59,15 @@ export class CanvasManager {
   private pinchZoomCenterScene: { x: number; y: number } | null = null;
   private animationFrameId: number | null = null;
   private isAnimationRunning: boolean = false;
+  private readonly enablePerfLogging: boolean = CANVAS_PERF_LOG;
+  private readonly perfLogIntervalMs: number = 1000;
+  private perfStats = {
+    lastLogMs: 0,
+    frameCount: 0,
+    totalDrawMs: 0,
+    animatedTotal: 0,
+    animatedVisible: 0,
+  };
 
   constructor(canvas: HTMLCanvasElement, scene: Scene) {
     this.canvas = canvas;
@@ -132,7 +142,20 @@ export class CanvasManager {
   }
 
   draw(): void {
-    this.panZoom.timeMs = performance.now();
+    const frameStartMs = performance.now();
+    this.panZoom.timeMs = frameStartMs;
+    const viewMinX = this.panZoom.scrollX / this.panZoom.scale;
+    const viewMinY = this.panZoom.scrollY / this.panZoom.scale;
+    const viewMaxX =
+      (this.panZoom.scrollX + this.canvas.width) / this.panZoom.scale;
+    const viewMaxY =
+      (this.panZoom.scrollY + this.canvas.height) / this.panZoom.scale;
+    this.panZoom.viewBounds = {
+      minX: viewMinX,
+      minY: viewMinY,
+      maxX: viewMaxX,
+      maxY: viewMaxY,
+    };
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.ctx.save();
     this.ctx.translate(-this.panZoom.scrollX, -this.panZoom.scrollY);
@@ -148,9 +171,26 @@ export class CanvasManager {
     const connectables = [...shapes, ...planningEls];
 
     const connections = this.scene.getConnections();
-    const hasAnimatedStatus = planningEls.some(
+    const viewBounds = this.panZoom.viewBounds;
+    const isVisible = (el: any): boolean => {
+      if (!viewBounds) return true;
+      if (typeof el.width === 'number' && typeof el.height === 'number') {
+        const right = el.x + el.width;
+        const bottom = el.y + el.height;
+        return (
+          right >= viewBounds.minX &&
+          el.x <= viewBounds.maxX &&
+          bottom >= viewBounds.minY &&
+          el.y <= viewBounds.maxY
+        );
+      }
+      return true;
+    };
+    const animatedElements = planningEls.filter(
       (el) => 'status' in el && hasStatusAnimation((el as any).status)
     );
+    const animatedVisible = animatedElements.filter((el) => isVisible(el));
+    const hasAnimatedStatus = animatedVisible.length > 0;
     this.updateAnimationLoop(hasAnimatedStatus);
 
     // Update goal links and progress
@@ -282,6 +322,44 @@ export class CanvasManager {
 
     this.ctx.restore();
     this.scrollbarManager.drawScrollbars();
+    this.updatePerfStats(
+      performance.now() - frameStartMs,
+      animatedElements.length,
+      animatedVisible.length
+    );
+  }
+
+  private updatePerfStats(
+    frameMs: number,
+    animatedTotal: number,
+    animatedVisible: number
+  ): void {
+    if (!this.enablePerfLogging) return;
+    const now = performance.now();
+    if (this.perfStats.lastLogMs === 0) {
+      this.perfStats.lastLogMs = now;
+    }
+    this.perfStats.frameCount += 1;
+    this.perfStats.totalDrawMs += frameMs;
+    this.perfStats.animatedTotal = animatedTotal;
+    this.perfStats.animatedVisible = animatedVisible;
+
+    const elapsed = now - this.perfStats.lastLogMs;
+    if (elapsed < this.perfLogIntervalMs) return;
+    const avgDrawMs = this.perfStats.totalDrawMs / this.perfStats.frameCount;
+    const fps = (this.perfStats.frameCount / elapsed) * 1000;
+    const visibleRatio = animatedTotal
+      ? (animatedVisible / animatedTotal) * 100
+      : 0;
+    console.log(
+      `[canvas] avg draw ${avgDrawMs.toFixed(
+        2
+      )}ms | fps ${fps.toFixed(1)} | animated ${animatedVisible}/${animatedTotal} (${visibleRatio.toFixed(0)}%)`
+    );
+
+    this.perfStats.lastLogMs = now;
+    this.perfStats.frameCount = 0;
+    this.perfStats.totalDrawMs = 0;
   }
 
   private startAnimationLoop(): void {
