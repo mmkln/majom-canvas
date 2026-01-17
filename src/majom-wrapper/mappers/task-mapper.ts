@@ -14,7 +14,9 @@ export function mapTask(
   layout: CanvasPositionDTO[]
 ): TaskElement {
   const pos = layout.find(
-    (l) => l.element_type === 'task' && l.object_id === dto.id
+    (l) =>
+      l.element_type === 'task' &&
+      (l.element_id ?? l.object_id) === dto.id
   );
   return new TaskElement({
     id: dto.id.toString(),

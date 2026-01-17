@@ -1,6 +1,6 @@
 // @ts-ignore: implicit any for rxjs-http-client types
 import { RxJSHttpClient } from 'rxjs-http-client';
-import { Observable, throwError } from 'rxjs';
+import { Observable, throwError, of, from } from 'rxjs';
 import {
   catchError,
   switchMap,
@@ -8,7 +8,6 @@ import {
   finalize,
   shareReplay,
 } from 'rxjs/operators';
-import { from } from 'rxjs';
 import { AuthService } from './auth-service.js';
 import { ACCESS_TOKEN_KEY } from '../../config/storage-keys.js';
 
@@ -45,6 +44,16 @@ export class HttpInterceptorClient {
     return this.refreshAccessToken$;
   }
 
+  private parseResponse<T>(res: any): Observable<T> {
+    if (!res || typeof res.status !== 'number') {
+      return of(res as T);
+    }
+    if (res.status === 204 || res.status === 205) {
+      return of(undefined as T);
+    }
+    return from(res.json() as Promise<T>);
+  }
+
   public get<T>(path: string, options: any = {}): Observable<T> {
     const authService = this.authService;
     let headers = this.attachAuth(options.headers);
@@ -62,7 +71,7 @@ export class HttpInterceptorClient {
           )
         : this.client.get<T>(`${this.baseUrl}${path}`, { ...options, headers });
     return request$.pipe(
-      switchMap((res: any) => from(res.json() as Promise<T>)),
+      switchMap((res: any) => this.parseResponse<T>(res)),
       catchError((err) => {
         if (err.status === 401) {
           return this.getRefreshedAccessToken().pipe(
@@ -72,7 +81,8 @@ export class HttpInterceptorClient {
                 ...options,
                 headers,
               });
-            })
+            }),
+            switchMap((res: any) => this.parseResponse<T>(res))
           );
         }
         console.error('GET Error:', err);
@@ -83,34 +93,40 @@ export class HttpInterceptorClient {
 
   public post<T>(path: string, body: any, options: any = {}): Observable<T> {
     const authService = this.authService;
-    let headers = this.attachAuth(options.headers);
+    const baseHeaders = { 'Content-Type': 'application/json', ...options.headers };
+    let headers = this.attachAuth(baseHeaders);
     const accessToken = authService.getAuthToken();
     const request$ =
       accessToken && authService.isTokenExpired(accessToken)
         ? this.getRefreshedAccessToken().pipe(
             switchMap((access) => {
-              headers = this.attachAuth(options.headers);
-              return this.client.post<T>(`${this.baseUrl}${path}`, body, {
+              headers = this.attachAuth(baseHeaders);
+              return this.client.post<T>(`${this.baseUrl}${path}`, {
                 ...options,
+                body,
                 headers,
               });
             })
           )
-        : this.client.post<T>(`${this.baseUrl}${path}`, body, {
+        : this.client.post<T>(`${this.baseUrl}${path}`, {
             ...options,
+            body,
             headers,
           });
     return request$.pipe(
+      switchMap((res: any) => this.parseResponse<T>(res)),
       catchError((err) => {
         if (err.status === 401) {
           return this.getRefreshedAccessToken().pipe(
             switchMap((access) => {
-              headers = this.attachAuth(options.headers);
-              return this.client.post<T>(`${this.baseUrl}${path}`, body, {
+              headers = this.attachAuth(baseHeaders);
+              return this.client.post<T>(`${this.baseUrl}${path}`, {
                 ...options,
+                body,
                 headers,
               });
-            })
+            }),
+            switchMap((res: any) => this.parseResponse<T>(res))
           );
         }
         console.error('POST Error:', err);
@@ -121,34 +137,40 @@ export class HttpInterceptorClient {
 
   public put<T>(path: string, body: any, options: any = {}): Observable<T> {
     const authService = this.authService;
-    let headers = this.attachAuth(options.headers);
+    const baseHeaders = { 'Content-Type': 'application/json', ...options.headers };
+    let headers = this.attachAuth(baseHeaders);
     const accessToken = authService.getAuthToken();
     const request$ =
       accessToken && authService.isTokenExpired(accessToken)
         ? this.getRefreshedAccessToken().pipe(
             switchMap((access) => {
-              headers = this.attachAuth(options.headers);
-              return this.client.put<T>(`${this.baseUrl}${path}`, body, {
+              headers = this.attachAuth(baseHeaders);
+              return this.client.put<T>(`${this.baseUrl}${path}`, {
                 ...options,
+                body,
                 headers,
               });
             })
           )
-        : this.client.put<T>(`${this.baseUrl}${path}`, body, {
+        : this.client.put<T>(`${this.baseUrl}${path}`, {
             ...options,
+            body,
             headers,
           });
     return request$.pipe(
+      switchMap((res: any) => this.parseResponse<T>(res)),
       catchError((err) => {
         if (err.status === 401) {
           return this.getRefreshedAccessToken().pipe(
             switchMap((access) => {
-              headers = this.attachAuth(options.headers);
-              return this.client.put<T>(`${this.baseUrl}${path}`, body, {
+              headers = this.attachAuth(baseHeaders);
+              return this.client.put<T>(`${this.baseUrl}${path}`, {
                 ...options,
+                body,
                 headers,
               });
-            })
+            }),
+            switchMap((res: any) => this.parseResponse<T>(res))
           );
         }
         console.error('PUT Error:', err);
@@ -159,34 +181,40 @@ export class HttpInterceptorClient {
 
   public patch<T>(path: string, body: any, options: any = {}): Observable<T> {
     const authService = this.authService;
-    let headers = this.attachAuth(options.headers);
+    const baseHeaders = { 'Content-Type': 'application/json', ...options.headers };
+    let headers = this.attachAuth(baseHeaders);
     const accessToken = authService.getAuthToken();
     const request$ =
       accessToken && authService.isTokenExpired(accessToken)
         ? this.getRefreshedAccessToken().pipe(
             switchMap((access) => {
-              headers = this.attachAuth(options.headers);
-              return this.client.patch<T>(`${this.baseUrl}${path}`, body, {
+              headers = this.attachAuth(baseHeaders);
+              return this.client.patch<T>(`${this.baseUrl}${path}`, {
                 ...options,
+                body,
                 headers,
               });
             })
           )
-        : this.client.patch<T>(`${this.baseUrl}${path}`, body, {
+        : this.client.patch<T>(`${this.baseUrl}${path}`, {
             ...options,
+            body,
             headers,
           });
     return request$.pipe(
+      switchMap((res: any) => this.parseResponse<T>(res)),
       catchError((err) => {
         if (err.status === 401) {
           return this.getRefreshedAccessToken().pipe(
             switchMap((access) => {
-              headers = this.attachAuth(options.headers);
-              return this.client.patch<T>(`${this.baseUrl}${path}`, body, {
+              headers = this.attachAuth(baseHeaders);
+              return this.client.patch<T>(`${this.baseUrl}${path}`, {
                 ...options,
+                body,
                 headers,
               });
-            })
+            }),
+            switchMap((res: any) => this.parseResponse<T>(res))
           );
         }
         console.error('PATCH Error:', err);
@@ -215,7 +243,7 @@ export class HttpInterceptorClient {
             headers,
           });
     return request$.pipe(
-      switchMap((res: any) => from(res.json() as Promise<T>)),
+      switchMap((res: any) => this.parseResponse<T>(res)),
       catchError((err) => {
         if (err.status === 401) {
           return this.getRefreshedAccessToken().pipe(
@@ -225,7 +253,8 @@ export class HttpInterceptorClient {
                 ...options,
                 headers,
               });
-            })
+            }),
+            switchMap((res: any) => this.parseResponse<T>(res))
           );
         }
         console.error('DELETE Error:', err);

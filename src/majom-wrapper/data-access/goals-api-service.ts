@@ -1,10 +1,9 @@
 import { Observable } from 'rxjs';
-// @ts-ignore
-import { RxJSHttpClient } from 'rxjs-http-client';
+import { HttpInterceptorClient } from './http-interceptor.js';
 import { Goal } from '../interfaces/index.ts';
 
 export class GoalsApiService {
-  constructor(private http: RxJSHttpClient) {}
+  constructor(private http: HttpInterceptorClient) {}
 
   public getGoals(): Observable<Goal[]> {
     return this.http.get<Goal[]>('/goals/');
@@ -15,20 +14,14 @@ export class GoalsApiService {
   }
 
   public createGoal(data: Partial<Goal>): Observable<Goal> {
-    return this.http.post<Goal>('/goals/', data, {
-      headers: {},
-    });
+    return this.http.post<Goal>('/goals/', data);
   }
 
   public updateGoal(id: number, data: Goal): Observable<Goal> {
-    return this.http.put<Goal>(`/goals/${id}/`, data, {
-      headers: {},
-    });
+    return this.http.put<Goal>(`/goals/${id}/`, data);
   }
 
   public deleteGoal(id: number): Observable<any> {
-    return this.http.delete(`/goals/${id}/`, {
-      headers: {},
-    });
+    return this.http.delete(`/goals/${id}/`);
   }
 }

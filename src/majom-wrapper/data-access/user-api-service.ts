@@ -1,13 +1,12 @@
 import { Observable } from 'rxjs';
-// @ts-ignore
-import { RxJSHttpClient } from 'rxjs-http-client';
+import { HttpInterceptorClient } from './http-interceptor.js';
 import { User } from '../interfaces/auth-interfaces.ts';
 
 /**
  * UserApiService provides methods for interacting with user-related API endpoints
  */
 export class UserApiService {
-  constructor(private http: RxJSHttpClient) {}
+  constructor(private http: HttpInterceptorClient) {}
 
   /**
    * Retrieve the current user's profile information

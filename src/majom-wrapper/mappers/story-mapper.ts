@@ -14,7 +14,9 @@ export function mapStory(
   layout: CanvasPositionDTO[]
 ): StoryElement {
   const pos = layout.find(
-    (l) => l.element_type === 'story' && l.object_id === dto.id
+    (l) =>
+      l.element_type === 'story' &&
+      (l.element_id ?? l.object_id) === dto.id
   );
   return new StoryElement({
     id: dto.id.toString(),
