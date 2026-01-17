@@ -8,12 +8,7 @@ import { ElementStatus } from './ElementStatus.ts';
 import { editElement$ } from '../core/eventBus.ts';
 import { v4 } from 'uuid';
 import { TextRenderer } from '../utils/TextRenderer.ts';
-import {
-  drawDoneBorderSweepRect,
-  drawInProgressPulseRect,
-  drawPendingMarchingAntsRect,
-  drawDefinedBorderRect,
-} from './utils/statusAnimations.ts';
+import { drawStatusAnimationRect } from './utils/statusAnimations.ts';
 
 /**
  * Task representation on the canvas
@@ -86,56 +81,18 @@ export class TaskElement extends PlanningElement {
     ctx.lineWidth = 2 / panZoom.scale;
     ctx.lineJoin = 'round';
     ctx.stroke();
-    if (this.status === ElementStatus.Done) {
-      drawDoneBorderSweepRect({
-        ctx,
-        x,
-        y,
-        width: w,
-        height: h,
-        radius,
-        lineWidth: 2 / panZoom.scale,
-        scale: panZoom.scale,
-      });
-    }
-    if (this.status === ElementStatus.InProgress) {
-      drawInProgressPulseRect({
-        ctx,
-        x,
-        y,
-        width: w,
-        height: h,
-        radius,
-        lineWidth: 2 / panZoom.scale,
-        scale: panZoom.scale,
-      });
-    }
-    if (this.status === ElementStatus.Pending) {
-      drawPendingMarchingAntsRect({
-        ctx,
-        x,
-        y,
-        width: w,
-        height: h,
-        radius,
-        lineWidth: 2 / panZoom.scale,
-        scale: panZoom.scale,
-        color: style.borderColor,
-      });
-    }
-    if (this.status === ElementStatus.Defined) {
-      drawDefinedBorderRect({
-        ctx,
-        x,
-        y,
-        width: w,
-        height: h,
-        radius,
-        lineWidth: 2 / panZoom.scale,
-        scale: panZoom.scale,
-        color: style.borderColor,
-      });
-    }
+    drawStatusAnimationRect({
+      status: this.status,
+      ctx,
+      x,
+      y,
+      width: w,
+      height: h,
+      radius,
+      lineWidth: 2 / panZoom.scale,
+      scale: panZoom.scale,
+      color: style.borderColor,
+    });
     // Title with word wrapping
     ctx.fillStyle = '#000000';
     ctx.font = `bold 14px Arial`;

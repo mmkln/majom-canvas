@@ -58,6 +58,32 @@ export const hasStatusAnimation = (status?: ElementStatus): boolean =>
   status === ElementStatus.Pending ||
   status === ElementStatus.Defined;
 
+type RectAnimationParams = {
+  status: ElementStatus;
+  ctx: CanvasRenderingContext2D;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  radius: number;
+  lineWidth: number;
+  scale: number;
+  color?: string;
+  timeMs?: number;
+};
+
+type CircleAnimationParams = {
+  status: ElementStatus;
+  ctx: CanvasRenderingContext2D;
+  centerX: number;
+  centerY: number;
+  radius: number;
+  lineWidth: number;
+  scale: number;
+  color?: string;
+  timeMs?: number;
+};
+
 const clampRadius = (width: number, height: number, radius: number): number =>
   Math.max(0, Math.min(radius, width / 2, height / 2));
 
@@ -441,6 +467,206 @@ export const drawPendingMarchingAntsCircle = ({
   ctx.arc(centerX, centerY, radius + offset, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
+};
+
+const STATUS_RECT_ANIMATIONS: Partial<
+  Record<ElementStatus, (params: RectAnimationParams) => void>
+> = {
+  [ElementStatus.Done]: ({
+    ctx,
+    x,
+    y,
+    width,
+    height,
+    radius,
+    lineWidth,
+    scale,
+    timeMs,
+  }) =>
+    drawDoneBorderSweepRect({
+      ctx,
+      x,
+      y,
+      width,
+      height,
+      radius,
+      lineWidth,
+      scale,
+      timeMs,
+    }),
+  [ElementStatus.InProgress]: ({
+    ctx,
+    x,
+    y,
+    width,
+    height,
+    radius,
+    lineWidth,
+    scale,
+    timeMs,
+  }) =>
+    drawInProgressPulseRect({
+      ctx,
+      x,
+      y,
+      width,
+      height,
+      radius,
+      lineWidth,
+      scale,
+      timeMs,
+    }),
+  [ElementStatus.Pending]: ({
+    ctx,
+    x,
+    y,
+    width,
+    height,
+    radius,
+    lineWidth,
+    scale,
+    color,
+    timeMs,
+  }) => {
+    if (!color) return;
+    drawPendingMarchingAntsRect({
+      ctx,
+      x,
+      y,
+      width,
+      height,
+      radius,
+      lineWidth,
+      scale,
+      color,
+      timeMs,
+    });
+  },
+  [ElementStatus.Defined]: ({
+    ctx,
+    x,
+    y,
+    width,
+    height,
+    radius,
+    lineWidth,
+    scale,
+    color,
+    timeMs,
+  }) => {
+    if (!color) return;
+    drawDefinedBorderRect({
+      ctx,
+      x,
+      y,
+      width,
+      height,
+      radius,
+      lineWidth,
+      scale,
+      color,
+      timeMs,
+    });
+  },
+};
+
+const STATUS_CIRCLE_ANIMATIONS: Partial<
+  Record<ElementStatus, (params: CircleAnimationParams) => void>
+> = {
+  [ElementStatus.Done]: ({
+    ctx,
+    centerX,
+    centerY,
+    radius,
+    lineWidth,
+    scale,
+    timeMs,
+  }) =>
+    drawDoneBorderSweepCircle({
+      ctx,
+      centerX,
+      centerY,
+      radius,
+      lineWidth,
+      scale,
+      timeMs,
+    }),
+  [ElementStatus.InProgress]: ({
+    ctx,
+    centerX,
+    centerY,
+    radius,
+    lineWidth,
+    scale,
+    timeMs,
+  }) =>
+    drawInProgressPulseCircle({
+      ctx,
+      centerX,
+      centerY,
+      radius,
+      lineWidth,
+      scale,
+      timeMs,
+    }),
+  [ElementStatus.Pending]: ({
+    ctx,
+    centerX,
+    centerY,
+    radius,
+    lineWidth,
+    scale,
+    color,
+    timeMs,
+  }) => {
+    if (!color) return;
+    drawPendingMarchingAntsCircle({
+      ctx,
+      centerX,
+      centerY,
+      radius,
+      lineWidth,
+      scale,
+      color,
+      timeMs,
+    });
+  },
+  [ElementStatus.Defined]: ({
+    ctx,
+    centerX,
+    centerY,
+    radius,
+    lineWidth,
+    scale,
+    color,
+    timeMs,
+  }) => {
+    if (!color) return;
+    drawDefinedBorderCircle({
+      ctx,
+      centerX,
+      centerY,
+      radius,
+      lineWidth,
+      scale,
+      color,
+      timeMs,
+    });
+  },
+};
+
+export const drawStatusAnimationRect = (params: RectAnimationParams): void => {
+  const handler = STATUS_RECT_ANIMATIONS[params.status];
+  if (!handler) return;
+  handler(params);
+};
+
+export const drawStatusAnimationCircle = (
+  params: CircleAnimationParams
+): void => {
+  const handler = STATUS_CIRCLE_ANIMATIONS[params.status];
+  if (!handler) return;
+  handler(params);
 };
 
 export const drawDefinedBorderRect = ({

@@ -14,12 +14,7 @@ import { storyStyles } from './styles/storyStyles.ts';
 import { ElementStatus } from './ElementStatus.ts';
 import { v4 } from 'uuid';
 import { TextRenderer } from '../utils/TextRenderer.ts';
-import {
-  drawDoneBorderSweepRect,
-  drawInProgressPulseRect,
-  drawPendingMarchingAntsRect,
-  drawDefinedBorderRect,
-} from './utils/statusAnimations.ts';
+import { drawStatusAnimationRect } from './utils/statusAnimations.ts';
 
 /**
  * Story representation on the canvas - a container for tasks
@@ -104,56 +99,18 @@ export class StoryElement extends PlanningElement {
     ctx.strokeStyle = this.selected ? SELECT_COLOR : style.borderColor;
     ctx.lineWidth = this.lineWidth / panZoom.scale;
     ctx.stroke();
-    if (this.status === ElementStatus.Done) {
-      drawDoneBorderSweepRect({
-        ctx,
-        x: this.x,
-        y: this.y,
-        width: this.width,
-        height: this.height,
-        radius,
-        lineWidth: this.lineWidth / panZoom.scale,
-        scale: panZoom.scale,
-      });
-    }
-    if (this.status === ElementStatus.InProgress) {
-      drawInProgressPulseRect({
-        ctx,
-        x: this.x,
-        y: this.y,
-        width: this.width,
-        height: this.height,
-        radius,
-        lineWidth: this.lineWidth / panZoom.scale,
-        scale: panZoom.scale,
-      });
-    }
-    if (this.status === ElementStatus.Pending) {
-      drawPendingMarchingAntsRect({
-        ctx,
-        x: this.x,
-        y: this.y,
-        width: this.width,
-        height: this.height,
-        radius,
-        lineWidth: this.lineWidth / panZoom.scale,
-        scale: panZoom.scale,
-        color: style.borderColor,
-      });
-    }
-    if (this.status === ElementStatus.Defined) {
-      drawDefinedBorderRect({
-        ctx,
-        x: this.x,
-        y: this.y,
-        width: this.width,
-        height: this.height,
-        radius,
-        lineWidth: this.lineWidth / panZoom.scale,
-        scale: panZoom.scale,
-        color: style.borderColor,
-      });
-    }
+    drawStatusAnimationRect({
+      status: this.status,
+      ctx,
+      x: this.x,
+      y: this.y,
+      width: this.width,
+      height: this.height,
+      radius,
+      lineWidth: this.lineWidth / panZoom.scale,
+      scale: panZoom.scale,
+      color: style.borderColor,
+    });
     // Title text with word wrapping
     ctx.fillStyle = '#000000';
     ctx.font = `bold ${TITLE_FONT_SIZE}px ${FONT_FAMILY}`;
