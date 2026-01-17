@@ -84,6 +84,24 @@ type CircleAnimationParams = {
   timeMs?: number;
 };
 
+type OutlinePath = {
+  drawPath: (ctx: CanvasRenderingContext2D, offset: number) => void;
+  perimeter: (offset: number) => number;
+  pointAt: (t: number, offset: number) => { x: number; y: number };
+};
+
+type OutlineAnimationParams = {
+  status: ElementStatus;
+  ctx: CanvasRenderingContext2D;
+  outline: OutlinePath;
+  lineWidth: number;
+  scale: number;
+  color?: string;
+  timeMs?: number;
+};
+
+type OutlineEffectParams = Omit<OutlineAnimationParams, 'status'>;
+
 const clampRadius = (width: number, height: number, radius: number): number =>
   Math.max(0, Math.min(radius, width / 2, height / 2));
 
@@ -163,6 +181,72 @@ const getRoundedRectPoint = (
   return { x: x + r, y };
 };
 
+const createRectOutline = ({
+  x,
+  y,
+  width,
+  height,
+  radius,
+}: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  radius: number;
+}): OutlinePath => {
+  const getAdjusted = (offset: number) => {
+    const adjX = x - offset;
+    const adjY = y - offset;
+    const adjW = Math.max(0, width + offset * 2);
+    const adjH = Math.max(0, height + offset * 2);
+    const adjRadius = clampRadius(adjW, adjH, radius + offset);
+    return { adjX, adjY, adjW, adjH, adjRadius };
+  };
+
+  return {
+    drawPath: (ctx, offset) => {
+      const { adjX, adjY, adjW, adjH, adjRadius } = getAdjusted(offset);
+      ctx.roundRect(adjX, adjY, adjW, adjH, adjRadius);
+    },
+    perimeter: (offset) => {
+      const { adjW, adjH, adjRadius } = getAdjusted(offset);
+      return getRoundedRectPerimeter(adjW, adjH, adjRadius);
+    },
+    pointAt: (t, offset) => {
+      const { adjX, adjY, adjW, adjH, adjRadius } = getAdjusted(offset);
+      return getRoundedRectPoint(adjX, adjY, adjW, adjH, adjRadius, t);
+    },
+  };
+};
+
+const createCircleOutline = ({
+  centerX,
+  centerY,
+  radius,
+}: {
+  centerX: number;
+  centerY: number;
+  radius: number;
+}): OutlinePath => {
+  const getRadius = (offset: number) => Math.max(0, radius + offset);
+
+  return {
+    drawPath: (ctx, offset) => {
+      ctx.arc(centerX, centerY, getRadius(offset), 0, Math.PI * 2);
+    },
+    perimeter: (offset) => Math.PI * 2 * getRadius(offset),
+    pointAt: (t, offset) => {
+      const progress = ((t % 1) + 1) % 1;
+      const angle = progress * Math.PI * 2;
+      const r = getRadius(offset);
+      return {
+        x: centerX + Math.cos(angle) * r,
+        y: centerY + Math.sin(angle) * r,
+      };
+    },
+  };
+};
+
 const drawGlow = (
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -189,6 +273,124 @@ const getPulseAlpha = (progress: number): number =>
 const getPulseExpand = (progress: number, scale: number): number =>
   (PULSE_EXPAND_MAX * progress) / scale;
 
+const drawDoneBorderSweep = ({
+  ctx,
+  outline,
+  lineWidth,
+  scale,
+  timeMs = performance.now(),
+}: OutlineEffectParams): void => {
+  const progress = getSweepProgress(timeMs);
+  const glowRadius = SWEEP_GLOW_RADIUS / scale;
+  const p1 = outline.pointAt(progress, 0);
+  const p2 = outline.pointAt(progress + 0.5, 0);
+  drawGlow(ctx, p1.x, p1.y, glowRadius);
+  drawGlow(ctx, p2.x, p2.y, glowRadius);
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = lineWidth * 0.7;
+  ctx.beginPath();
+  outline.drawPath(ctx, 0);
+  ctx.stroke();
+  ctx.restore();
+};
+
+const drawInProgressPulse = ({
+  ctx,
+  outline,
+  lineWidth,
+  scale,
+  timeMs = performance.now(),
+}: OutlineEffectParams): void => {
+  const drawPulse = (progress: number): void => {
+    const alpha = getPulseAlpha(progress);
+    const expand = getPulseExpand(progress, scale);
+    const baseAlpha = alpha * 0.55;
+    const innerAlpha = Math.min(0.9, alpha * 1.4);
+
+    ctx.save();
+    ctx.fillStyle = `rgba(${PULSE_COLOR},${baseAlpha})`;
+    ctx.beginPath();
+    outline.drawPath(ctx, expand);
+    outline.drawPath(ctx, 0);
+    ctx.fill('evenodd');
+    ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle = `rgba(${PULSE_COLOR},${innerAlpha})`;
+    ctx.lineWidth = lineWidth;
+    ctx.beginPath();
+    outline.drawPath(ctx, 0);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle = `rgba(${PULSE_COLOR},${baseAlpha * 0.6})`;
+    ctx.lineWidth = lineWidth;
+    ctx.beginPath();
+    outline.drawPath(ctx, expand);
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  const progress = getPulseProgress(timeMs);
+  drawPulse(progress);
+  drawPulse((progress + PULSE_OVERLAP_OFFSET) % 1);
+};
+
+const drawPendingMarchingAnts = ({
+  ctx,
+  outline,
+  lineWidth,
+  scale,
+  color,
+  timeMs = performance.now(),
+}: OutlineEffectParams): void => {
+  if (!color) return;
+  const offset = ANTS_OFFSET / scale;
+  ctx.save();
+  ctx.globalAlpha = ANTS_ALPHA;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidth * ANTS_LINE_MULTIPLIER;
+  ctx.setLineDash([ANTS_DASH / scale, ANTS_GAP / scale]);
+  ctx.lineDashOffset = getAntsOffset(timeMs, scale);
+  ctx.beginPath();
+  outline.drawPath(ctx, offset);
+  ctx.stroke();
+  ctx.restore();
+};
+
+const drawDefinedBorder = ({
+  ctx,
+  outline,
+  lineWidth,
+  scale,
+  color,
+  timeMs = performance.now(),
+}: OutlineEffectParams): void => {
+  if (!color) return;
+  const cycleProgress = getDefinedProgress(timeMs);
+  const activePortion = DEFINED_DRAW_DURATION_MS / DEFINED_CYCLE_MS;
+  if (cycleProgress <= 0 || cycleProgress > activePortion) return;
+  const drawProgress = cycleProgress / activePortion;
+  const offset = DEFINED_OFFSET / scale;
+  const perimeter = outline.perimeter(offset);
+  const segmentFactor = getDefinedSegmentFactor(drawProgress);
+  const segmentLength = perimeter * DEFINED_SEGMENT_RATIO * segmentFactor;
+
+  ctx.save();
+  ctx.globalAlpha = DEFINED_ALPHA;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidth * 0.7;
+  ctx.setLineDash([segmentLength, perimeter]);
+  ctx.lineDashOffset = -perimeter * drawProgress;
+  ctx.beginPath();
+  outline.drawPath(ctx, offset);
+  ctx.stroke();
+  ctx.restore();
+};
+
 export const drawDoneBorderSweepRect = ({
   ctx,
   x,
@@ -210,20 +412,14 @@ export const drawDoneBorderSweepRect = ({
   scale: number;
   timeMs?: number;
 }): void => {
-  const progress = getSweepProgress(timeMs);
-  const glowRadius = SWEEP_GLOW_RADIUS / scale;
-  const p1 = getRoundedRectPoint(x, y, width, height, radius, progress);
-  const p2 = getRoundedRectPoint(x, y, width, height, radius, progress + 0.5);
-  drawGlow(ctx, p1.x, p1.y, glowRadius);
-  drawGlow(ctx, p2.x, p2.y, glowRadius);
-
-  ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-  ctx.lineWidth = lineWidth * 0.7;
-  ctx.beginPath();
-  ctx.roundRect(x, y, width, height, radius);
-  ctx.stroke();
-  ctx.restore();
+  const outline = createRectOutline({ x, y, width, height, radius });
+  drawDoneBorderSweep({
+    ctx,
+    outline,
+    lineWidth,
+    scale,
+    timeMs,
+  });
 };
 
 export const drawDoneBorderSweepCircle = ({
@@ -243,28 +439,14 @@ export const drawDoneBorderSweepCircle = ({
   scale: number;
   timeMs?: number;
 }): void => {
-  const progress = getSweepProgress(timeMs);
-  const glowRadius = SWEEP_GLOW_RADIUS / scale;
-  const angle1 = progress * Math.PI * 2;
-  const angle2 = angle1 + Math.PI;
-  const p1 = {
-    x: centerX + Math.cos(angle1) * radius,
-    y: centerY + Math.sin(angle1) * radius,
-  };
-  const p2 = {
-    x: centerX + Math.cos(angle2) * radius,
-    y: centerY + Math.sin(angle2) * radius,
-  };
-  drawGlow(ctx, p1.x, p1.y, glowRadius);
-  drawGlow(ctx, p2.x, p2.y, glowRadius);
-
-  ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-  ctx.lineWidth = lineWidth * 0.7;
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
+  const outline = createCircleOutline({ centerX, centerY, radius });
+  drawDoneBorderSweep({
+    ctx,
+    outline,
+    lineWidth,
+    scale,
+    timeMs,
+  });
 };
 
 export const drawInProgressPulseRect = ({
@@ -288,58 +470,14 @@ export const drawInProgressPulseRect = ({
   scale: number;
   timeMs?: number;
 }): void => {
-  const drawPulse = (progress: number): void => {
-    const alpha = getPulseAlpha(progress);
-    const expand = getPulseExpand(progress, scale);
-    const baseAlpha = alpha * 0.55;
-    const innerAlpha = Math.min(0.9, alpha * 1.4);
-    const outerRadius = clampRadius(
-      width + expand * 2,
-      height + expand * 2,
-      radius + expand
-    );
-    const innerRadius = clampRadius(width, height, radius);
-
-    ctx.save();
-    ctx.fillStyle = `rgba(${PULSE_COLOR},${baseAlpha})`;
-    ctx.beginPath();
-    ctx.roundRect(
-      x - expand,
-      y - expand,
-      width + expand * 2,
-      height + expand * 2,
-      outerRadius
-    );
-    ctx.roundRect(x, y, width, height, innerRadius);
-    ctx.fill('evenodd');
-    ctx.restore();
-
-    ctx.save();
-    ctx.strokeStyle = `rgba(${PULSE_COLOR},${innerAlpha})`;
-    ctx.lineWidth = lineWidth;
-    ctx.beginPath();
-    ctx.roundRect(x, y, width, height, innerRadius);
-    ctx.stroke();
-    ctx.restore();
-
-    ctx.save();
-    ctx.strokeStyle = `rgba(${PULSE_COLOR},${baseAlpha * 0.6})`;
-    ctx.lineWidth = lineWidth;
-    ctx.beginPath();
-    ctx.roundRect(
-      x - expand,
-      y - expand,
-      width + expand * 2,
-      height + expand * 2,
-      outerRadius
-    );
-    ctx.stroke();
-    ctx.restore();
-  };
-
-  const progress = getPulseProgress(timeMs);
-  drawPulse(progress);
-  drawPulse((progress + PULSE_OVERLAP_OFFSET) % 1);
+  const outline = createRectOutline({ x, y, width, height, radius });
+  drawInProgressPulse({
+    ctx,
+    outline,
+    lineWidth,
+    scale,
+    timeMs,
+  });
 };
 
 export const drawInProgressPulseCircle = ({
@@ -359,40 +497,14 @@ export const drawInProgressPulseCircle = ({
   scale: number;
   timeMs?: number;
 }): void => {
-  const drawPulse = (progress: number): void => {
-    const alpha = getPulseAlpha(progress);
-    const expand = getPulseExpand(progress, scale);
-    const baseAlpha = alpha * 0.55;
-    const innerAlpha = Math.min(0.9, alpha * 1.4);
-
-    ctx.save();
-    ctx.fillStyle = `rgba(${PULSE_COLOR},${baseAlpha})`;
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius + expand, 0, Math.PI * 2);
-    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2, true);
-    ctx.fill('evenodd');
-    ctx.restore();
-
-    ctx.save();
-    ctx.strokeStyle = `rgba(${PULSE_COLOR},${innerAlpha})`;
-    ctx.lineWidth = lineWidth;
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-
-    ctx.save();
-    ctx.strokeStyle = `rgba(${PULSE_COLOR},${baseAlpha * 0.6})`;
-    ctx.lineWidth = lineWidth;
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius + expand, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-  };
-
-  const progress = getPulseProgress(timeMs);
-  drawPulse(progress);
-  drawPulse((progress + PULSE_OVERLAP_OFFSET) % 1);
+  const outline = createCircleOutline({ centerX, centerY, radius });
+  drawInProgressPulse({
+    ctx,
+    outline,
+    lineWidth,
+    scale,
+    timeMs,
+  });
 };
 
 export const drawPendingMarchingAntsRect = ({
@@ -418,23 +530,15 @@ export const drawPendingMarchingAntsRect = ({
   color: string;
   timeMs?: number;
 }): void => {
-  const offset = ANTS_OFFSET / scale;
-  ctx.save();
-  ctx.globalAlpha = ANTS_ALPHA;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = lineWidth * ANTS_LINE_MULTIPLIER;
-  ctx.setLineDash([ANTS_DASH / scale, ANTS_GAP / scale]);
-  ctx.lineDashOffset = getAntsOffset(timeMs, scale);
-  ctx.beginPath();
-  ctx.roundRect(
-    x - offset,
-    y - offset,
-    width + offset * 2,
-    height + offset * 2,
-    radius + offset
-  );
-  ctx.stroke();
-  ctx.restore();
+  const outline = createRectOutline({ x, y, width, height, radius });
+  drawPendingMarchingAnts({
+    ctx,
+    outline,
+    lineWidth,
+    scale,
+    color,
+    timeMs,
+  });
 };
 
 export const drawPendingMarchingAntsCircle = ({
@@ -456,217 +560,82 @@ export const drawPendingMarchingAntsCircle = ({
   color: string;
   timeMs?: number;
 }): void => {
-  const offset = ANTS_OFFSET / scale;
-  ctx.save();
-  ctx.globalAlpha = ANTS_ALPHA;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = lineWidth * ANTS_LINE_MULTIPLIER;
-  ctx.setLineDash([ANTS_DASH / scale, ANTS_GAP / scale]);
-  ctx.lineDashOffset = getAntsOffset(timeMs, scale);
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, radius + offset, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
+  const outline = createCircleOutline({ centerX, centerY, radius });
+  drawPendingMarchingAnts({
+    ctx,
+    outline,
+    lineWidth,
+    scale,
+    color,
+    timeMs,
+  });
 };
 
-const STATUS_RECT_ANIMATIONS: Partial<
-  Record<ElementStatus, (params: RectAnimationParams) => void>
+const STATUS_ANIMATIONS: Partial<
+  Record<ElementStatus, (params: OutlineAnimationParams) => void>
 > = {
-  [ElementStatus.Done]: ({
-    ctx,
-    x,
-    y,
-    width,
-    height,
-    radius,
-    lineWidth,
-    scale,
-    timeMs,
-  }) =>
-    drawDoneBorderSweepRect({
-      ctx,
-      x,
-      y,
-      width,
-      height,
-      radius,
-      lineWidth,
-      scale,
-      timeMs,
-    }),
-  [ElementStatus.InProgress]: ({
-    ctx,
-    x,
-    y,
-    width,
-    height,
-    radius,
-    lineWidth,
-    scale,
-    timeMs,
-  }) =>
-    drawInProgressPulseRect({
-      ctx,
-      x,
-      y,
-      width,
-      height,
-      radius,
-      lineWidth,
-      scale,
-      timeMs,
-    }),
-  [ElementStatus.Pending]: ({
-    ctx,
-    x,
-    y,
-    width,
-    height,
-    radius,
-    lineWidth,
-    scale,
-    color,
-    timeMs,
-  }) => {
-    if (!color) return;
-    drawPendingMarchingAntsRect({
-      ctx,
-      x,
-      y,
-      width,
-      height,
-      radius,
-      lineWidth,
-      scale,
-      color,
-      timeMs,
-    });
-  },
-  [ElementStatus.Defined]: ({
-    ctx,
-    x,
-    y,
-    width,
-    height,
-    radius,
-    lineWidth,
-    scale,
-    color,
-    timeMs,
-  }) => {
-    if (!color) return;
-    drawDefinedBorderRect({
-      ctx,
-      x,
-      y,
-      width,
-      height,
-      radius,
-      lineWidth,
-      scale,
-      color,
-      timeMs,
-    });
-  },
+  [ElementStatus.Done]: drawDoneBorderSweep,
+  [ElementStatus.InProgress]: drawInProgressPulse,
+  [ElementStatus.Pending]: drawPendingMarchingAnts,
+  [ElementStatus.Defined]: drawDefinedBorder,
 };
 
-const STATUS_CIRCLE_ANIMATIONS: Partial<
-  Record<ElementStatus, (params: CircleAnimationParams) => void>
-> = {
-  [ElementStatus.Done]: ({
-    ctx,
-    centerX,
-    centerY,
-    radius,
-    lineWidth,
-    scale,
-    timeMs,
-  }) =>
-    drawDoneBorderSweepCircle({
-      ctx,
-      centerX,
-      centerY,
-      radius,
-      lineWidth,
-      scale,
-      timeMs,
-    }),
-  [ElementStatus.InProgress]: ({
-    ctx,
-    centerX,
-    centerY,
-    radius,
-    lineWidth,
-    scale,
-    timeMs,
-  }) =>
-    drawInProgressPulseCircle({
-      ctx,
-      centerX,
-      centerY,
-      radius,
-      lineWidth,
-      scale,
-      timeMs,
-    }),
-  [ElementStatus.Pending]: ({
-    ctx,
-    centerX,
-    centerY,
-    radius,
-    lineWidth,
-    scale,
-    color,
-    timeMs,
-  }) => {
-    if (!color) return;
-    drawPendingMarchingAntsCircle({
-      ctx,
-      centerX,
-      centerY,
-      radius,
-      lineWidth,
-      scale,
-      color,
-      timeMs,
-    });
-  },
-  [ElementStatus.Defined]: ({
-    ctx,
-    centerX,
-    centerY,
-    radius,
-    lineWidth,
-    scale,
-    color,
-    timeMs,
-  }) => {
-    if (!color) return;
-    drawDefinedBorderCircle({
-      ctx,
-      centerX,
-      centerY,
-      radius,
-      lineWidth,
-      scale,
-      color,
-      timeMs,
-    });
-  },
+const drawStatusAnimation = (params: OutlineAnimationParams): void => {
+  const handler = STATUS_ANIMATIONS[params.status];
+  if (!handler) return;
+  handler(params);
 };
 
 export const drawStatusAnimationRect = (params: RectAnimationParams): void => {
-  const handler = STATUS_RECT_ANIMATIONS[params.status];
-  if (!handler) return;
-  handler(params);
+  const {
+    status,
+    ctx,
+    x,
+    y,
+    width,
+    height,
+    radius,
+    lineWidth,
+    scale,
+    color,
+    timeMs,
+  } = params;
+  const outline = createRectOutline({ x, y, width, height, radius });
+  drawStatusAnimation({
+    status,
+    ctx,
+    outline,
+    lineWidth,
+    scale,
+    color,
+    timeMs,
+  });
 };
 
 export const drawStatusAnimationCircle = (
   params: CircleAnimationParams
 ): void => {
-  const handler = STATUS_CIRCLE_ANIMATIONS[params.status];
-  if (!handler) return;
-  handler(params);
+  const {
+    status,
+    ctx,
+    centerX,
+    centerY,
+    radius,
+    lineWidth,
+    scale,
+    color,
+    timeMs,
+  } = params;
+  const outline = createCircleOutline({ centerX, centerY, radius });
+  drawStatusAnimation({
+    status,
+    ctx,
+    outline,
+    lineWidth,
+    scale,
+    color,
+    timeMs,
+  });
 };
 
 export const drawDefinedBorderRect = ({
@@ -692,35 +661,15 @@ export const drawDefinedBorderRect = ({
   color: string;
   timeMs?: number;
 }): void => {
-  const cycleProgress = getDefinedProgress(timeMs);
-  const activePortion = DEFINED_DRAW_DURATION_MS / DEFINED_CYCLE_MS;
-  if (cycleProgress <= 0 || cycleProgress > activePortion) return;
-  const drawProgress = cycleProgress / activePortion;
-  const offset = DEFINED_OFFSET / scale;
-  const perimeter = getRoundedRectPerimeter(
-    width + offset * 2,
-    height + offset * 2,
-    radius + offset
-  );
-  const segmentFactor = getDefinedSegmentFactor(drawProgress);
-  const segmentLength = perimeter * DEFINED_SEGMENT_RATIO * segmentFactor;
-
-  ctx.save();
-  ctx.globalAlpha = DEFINED_ALPHA;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = lineWidth * 0.7;
-  ctx.setLineDash([segmentLength, perimeter]);
-  ctx.lineDashOffset = -perimeter * drawProgress;
-  ctx.beginPath();
-  ctx.roundRect(
-    x - offset,
-    y - offset,
-    width + offset * 2,
-    height + offset * 2,
-    radius + offset
-  );
-  ctx.stroke();
-  ctx.restore();
+  const outline = createRectOutline({ x, y, width, height, radius });
+  drawDefinedBorder({
+    ctx,
+    outline,
+    lineWidth,
+    scale,
+    color,
+    timeMs,
+  });
 };
 
 export const drawDefinedBorderCircle = ({
@@ -742,23 +691,13 @@ export const drawDefinedBorderCircle = ({
   color: string;
   timeMs?: number;
 }): void => {
-  const cycleProgress = getDefinedProgress(timeMs);
-  const activePortion = DEFINED_DRAW_DURATION_MS / DEFINED_CYCLE_MS;
-  if (cycleProgress <= 0 || cycleProgress > activePortion) return;
-  const drawProgress = cycleProgress / activePortion;
-  const offset = DEFINED_OFFSET / scale;
-  const perimeter = Math.PI * 2 * (radius + offset);
-  const segmentFactor = getDefinedSegmentFactor(drawProgress);
-  const segmentLength = perimeter * DEFINED_SEGMENT_RATIO * segmentFactor;
-
-  ctx.save();
-  ctx.globalAlpha = DEFINED_ALPHA;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = lineWidth * 0.7;
-  ctx.setLineDash([segmentLength, perimeter]);
-  ctx.lineDashOffset = -perimeter * drawProgress;
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, radius + offset, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
+  const outline = createCircleOutline({ centerX, centerY, radius });
+  drawDefinedBorder({
+    ctx,
+    outline,
+    lineWidth,
+    scale,
+    color,
+    timeMs,
+  });
 };
