@@ -10,7 +10,7 @@ const PULSE_EXPAND_MAX = 22;
 const PULSE_COLOR = '24,144,255';
 const PULSE_OVERLAP_OFFSET = 0.55;
 const ANTS_DURATION_MS = 2400;
-const ANTS_DASH = 12;
+const ANTS_DASH = 24;
 const ANTS_GAP = 12;
 const ANTS_OFFSET = 4;
 const ANTS_ALPHA = 0.5;
@@ -19,7 +19,7 @@ const DEFINED_DRAW_DURATION_MS = 9600;
 const DEFINED_CYCLE_MS = 9600;
 const DEFINED_ALPHA = 0.6;
 const DEFINED_OFFSET = 4;
-const DEFINED_SEGMENT_RATIO = 0.1;
+const DEFINED_SEGMENT_RATIO = 0.2;
 
 const getSweepProgress = (timeMs: number): number =>
   (timeMs % SWEEP_DURATION_MS) / SWEEP_DURATION_MS;
