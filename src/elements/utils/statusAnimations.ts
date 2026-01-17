@@ -69,7 +69,7 @@ type RectAnimationParams = {
   lineWidth: number;
   scale: number;
   color?: string;
-  timeMs?: number;
+  timeMs: number;
 };
 
 type CircleAnimationParams = {
@@ -81,7 +81,7 @@ type CircleAnimationParams = {
   lineWidth: number;
   scale: number;
   color?: string;
-  timeMs?: number;
+  timeMs: number;
 };
 
 type OutlinePath = {
@@ -97,7 +97,7 @@ type OutlineAnimationParams = {
   lineWidth: number;
   scale: number;
   color?: string;
-  timeMs?: number;
+  timeMs: number;
 };
 
 type OutlineEffectParams = Omit<OutlineAnimationParams, 'status'>;
@@ -278,7 +278,7 @@ const drawDoneBorderSweep = ({
   outline,
   lineWidth,
   scale,
-  timeMs = performance.now(),
+  timeMs,
 }: OutlineEffectParams): void => {
   const progress = getSweepProgress(timeMs);
   const glowRadius = SWEEP_GLOW_RADIUS / scale;
@@ -301,7 +301,7 @@ const drawInProgressPulse = ({
   outline,
   lineWidth,
   scale,
-  timeMs = performance.now(),
+  timeMs,
 }: OutlineEffectParams): void => {
   const drawPulse = (progress: number): void => {
     const alpha = getPulseAlpha(progress);
@@ -345,7 +345,7 @@ const drawPendingMarchingAnts = ({
   lineWidth,
   scale,
   color,
-  timeMs = performance.now(),
+  timeMs,
 }: OutlineEffectParams): void => {
   if (!color) return;
   const offset = ANTS_OFFSET / scale;
@@ -367,7 +367,7 @@ const drawDefinedBorder = ({
   lineWidth,
   scale,
   color,
-  timeMs = performance.now(),
+  timeMs,
 }: OutlineEffectParams): void => {
   if (!color) return;
   const cycleProgress = getDefinedProgress(timeMs);
@@ -400,7 +400,7 @@ export const drawDoneBorderSweepRect = ({
   radius,
   lineWidth,
   scale,
-  timeMs = performance.now(),
+  timeMs,
 }: {
   ctx: CanvasRenderingContext2D;
   x: number;
@@ -410,7 +410,7 @@ export const drawDoneBorderSweepRect = ({
   radius: number;
   lineWidth: number;
   scale: number;
-  timeMs?: number;
+  timeMs: number;
 }): void => {
   const outline = createRectOutline({ x, y, width, height, radius });
   drawDoneBorderSweep({
@@ -429,7 +429,7 @@ export const drawDoneBorderSweepCircle = ({
   radius,
   lineWidth,
   scale,
-  timeMs = performance.now(),
+  timeMs,
 }: {
   ctx: CanvasRenderingContext2D;
   centerX: number;
@@ -437,7 +437,7 @@ export const drawDoneBorderSweepCircle = ({
   radius: number;
   lineWidth: number;
   scale: number;
-  timeMs?: number;
+  timeMs: number;
 }): void => {
   const outline = createCircleOutline({ centerX, centerY, radius });
   drawDoneBorderSweep({
@@ -458,7 +458,7 @@ export const drawInProgressPulseRect = ({
   radius,
   lineWidth,
   scale,
-  timeMs = performance.now(),
+  timeMs,
 }: {
   ctx: CanvasRenderingContext2D;
   x: number;
@@ -468,7 +468,7 @@ export const drawInProgressPulseRect = ({
   radius: number;
   lineWidth: number;
   scale: number;
-  timeMs?: number;
+  timeMs: number;
 }): void => {
   const outline = createRectOutline({ x, y, width, height, radius });
   drawInProgressPulse({
@@ -487,7 +487,7 @@ export const drawInProgressPulseCircle = ({
   radius,
   lineWidth,
   scale,
-  timeMs = performance.now(),
+  timeMs,
 }: {
   ctx: CanvasRenderingContext2D;
   centerX: number;
@@ -495,7 +495,7 @@ export const drawInProgressPulseCircle = ({
   radius: number;
   lineWidth: number;
   scale: number;
-  timeMs?: number;
+  timeMs: number;
 }): void => {
   const outline = createCircleOutline({ centerX, centerY, radius });
   drawInProgressPulse({
@@ -517,7 +517,7 @@ export const drawPendingMarchingAntsRect = ({
   lineWidth,
   scale,
   color,
-  timeMs = performance.now(),
+  timeMs,
 }: {
   ctx: CanvasRenderingContext2D;
   x: number;
@@ -528,7 +528,7 @@ export const drawPendingMarchingAntsRect = ({
   lineWidth: number;
   scale: number;
   color: string;
-  timeMs?: number;
+  timeMs: number;
 }): void => {
   const outline = createRectOutline({ x, y, width, height, radius });
   drawPendingMarchingAnts({
@@ -549,7 +549,7 @@ export const drawPendingMarchingAntsCircle = ({
   lineWidth,
   scale,
   color,
-  timeMs = performance.now(),
+  timeMs,
 }: {
   ctx: CanvasRenderingContext2D;
   centerX: number;
@@ -558,7 +558,7 @@ export const drawPendingMarchingAntsCircle = ({
   lineWidth: number;
   scale: number;
   color: string;
-  timeMs?: number;
+  timeMs: number;
 }): void => {
   const outline = createCircleOutline({ centerX, centerY, radius });
   drawPendingMarchingAnts({
@@ -648,7 +648,7 @@ export const drawDefinedBorderRect = ({
   lineWidth,
   scale,
   color,
-  timeMs = performance.now(),
+  timeMs,
 }: {
   ctx: CanvasRenderingContext2D;
   x: number;
@@ -659,7 +659,7 @@ export const drawDefinedBorderRect = ({
   lineWidth: number;
   scale: number;
   color: string;
-  timeMs?: number;
+  timeMs: number;
 }): void => {
   const outline = createRectOutline({ x, y, width, height, radius });
   drawDefinedBorder({
@@ -680,7 +680,7 @@ export const drawDefinedBorderCircle = ({
   lineWidth,
   scale,
   color,
-  timeMs = performance.now(),
+  timeMs,
 }: {
   ctx: CanvasRenderingContext2D;
   centerX: number;
@@ -689,7 +689,7 @@ export const drawDefinedBorderCircle = ({
   lineWidth: number;
   scale: number;
   color: string;
-  timeMs?: number;
+  timeMs: number;
 }): void => {
   const outline = createCircleOutline({ centerX, centerY, radius });
   drawDefinedBorder({
