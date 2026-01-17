@@ -10,6 +10,8 @@ export class PanZoomManager {
   virtualWidth: number = 20000;
   virtualHeight: number = 12000;
   scrollbarWidth: number = 6;
+  /** Shared frame time for animation syncing */
+  timeMs: number = 0;
 
   /** Emits on any view (scroll/zoom) change */
   public viewChanges: Subject<IViewState> = new Subject<IViewState>();

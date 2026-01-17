@@ -121,6 +121,7 @@ export class GoalElement extends PlanningElement {
       lineWidth: this.lineWidth / panZoom.scale,
       scale: panZoom.scale,
       color: style.borderColor,
+      timeMs: panZoom.timeMs,
     });
 
     // Title with wrapping

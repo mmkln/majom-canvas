@@ -132,6 +132,7 @@ export class CanvasManager {
   }
 
   draw(): void {
+    this.panZoom.timeMs = performance.now();
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.ctx.save();
     this.ctx.translate(-this.panZoom.scrollX, -this.panZoom.scrollY);
