@@ -8,6 +8,12 @@ export interface CanvasSummary {
   created_at: string;
 }
 
+export interface ContentTypeInfo {
+  id: number;
+  app_label: string;
+  model: string;
+}
+
 export class CanvasApiService {
   /** http client with JWT interceptor */
   constructor(private http: HttpInterceptorClient) {}
@@ -20,6 +26,11 @@ export class CanvasApiService {
   /** Load canvas details by id */
   loadCanvas(id: string): Observable<CanvasSummary> {
     return this.http.get<CanvasSummary>(`/canvas/${id}/`);
+  }
+
+  /** Load content types for canvas layouts */
+  loadContentTypes(): Observable<ContentTypeInfo[]> {
+    return this.http.get<ContentTypeInfo[]>('/canvas/layouts/content-types/');
   }
 
   /** Load all canvas positions */

@@ -22,3 +22,20 @@ export function mapStatus(status: Status): ElementStatus {
       return ElementStatus.Defined;
   }
 }
+
+/**
+ * Map UI ElementStatus to backend Status enum
+ */
+export function mapStatusToBackend(status: ElementStatus): Status {
+  switch (status) {
+    case ElementStatus.InProgress:
+      return Status.Active;
+    case ElementStatus.Done:
+      return Status.Completed;
+    case ElementStatus.Pending:
+      return Status.Described;
+    case ElementStatus.Defined:
+    default:
+      return Status.Draft;
+  }
+}

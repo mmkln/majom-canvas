@@ -54,6 +54,12 @@ export class HttpInterceptorClient {
     return from(res.json() as Promise<T>);
   }
 
+  private normalizeBody(body: any): any {
+    if (body === undefined || body === null) return body;
+    if (Array.isArray(body)) return JSON.stringify(body);
+    return body;
+  }
+
   public get<T>(path: string, options: any = {}): Observable<T> {
     const authService = this.authService;
     let headers = this.attachAuth(options.headers);
@@ -95,6 +101,7 @@ export class HttpInterceptorClient {
     const authService = this.authService;
     const baseHeaders = { 'Content-Type': 'application/json', ...options.headers };
     let headers = this.attachAuth(baseHeaders);
+    const normalizedBody = this.normalizeBody(body);
     const accessToken = authService.getAuthToken();
     const request$ =
       accessToken && authService.isTokenExpired(accessToken)
@@ -103,14 +110,14 @@ export class HttpInterceptorClient {
               headers = this.attachAuth(baseHeaders);
               return this.client.post<T>(`${this.baseUrl}${path}`, {
                 ...options,
-                body,
+                body: normalizedBody,
                 headers,
               });
             })
           )
         : this.client.post<T>(`${this.baseUrl}${path}`, {
             ...options,
-            body,
+            body: normalizedBody,
             headers,
           });
     return request$.pipe(
@@ -122,7 +129,7 @@ export class HttpInterceptorClient {
               headers = this.attachAuth(baseHeaders);
               return this.client.post<T>(`${this.baseUrl}${path}`, {
                 ...options,
-                body,
+                body: normalizedBody,
                 headers,
               });
             }),
@@ -139,6 +146,7 @@ export class HttpInterceptorClient {
     const authService = this.authService;
     const baseHeaders = { 'Content-Type': 'application/json', ...options.headers };
     let headers = this.attachAuth(baseHeaders);
+    const normalizedBody = this.normalizeBody(body);
     const accessToken = authService.getAuthToken();
     const request$ =
       accessToken && authService.isTokenExpired(accessToken)
@@ -147,14 +155,14 @@ export class HttpInterceptorClient {
               headers = this.attachAuth(baseHeaders);
               return this.client.put<T>(`${this.baseUrl}${path}`, {
                 ...options,
-                body,
+                body: normalizedBody,
                 headers,
               });
             })
           )
         : this.client.put<T>(`${this.baseUrl}${path}`, {
             ...options,
-            body,
+            body: normalizedBody,
             headers,
           });
     return request$.pipe(
@@ -166,7 +174,7 @@ export class HttpInterceptorClient {
               headers = this.attachAuth(baseHeaders);
               return this.client.put<T>(`${this.baseUrl}${path}`, {
                 ...options,
-                body,
+                body: normalizedBody,
                 headers,
               });
             }),
@@ -183,6 +191,7 @@ export class HttpInterceptorClient {
     const authService = this.authService;
     const baseHeaders = { 'Content-Type': 'application/json', ...options.headers };
     let headers = this.attachAuth(baseHeaders);
+    const normalizedBody = this.normalizeBody(body);
     const accessToken = authService.getAuthToken();
     const request$ =
       accessToken && authService.isTokenExpired(accessToken)
@@ -191,14 +200,14 @@ export class HttpInterceptorClient {
               headers = this.attachAuth(baseHeaders);
               return this.client.patch<T>(`${this.baseUrl}${path}`, {
                 ...options,
-                body,
+                body: normalizedBody,
                 headers,
               });
             })
           )
         : this.client.patch<T>(`${this.baseUrl}${path}`, {
             ...options,
-            body,
+            body: normalizedBody,
             headers,
           });
     return request$.pipe(
@@ -210,7 +219,7 @@ export class HttpInterceptorClient {
               headers = this.attachAuth(baseHeaders);
               return this.client.patch<T>(`${this.baseUrl}${path}`, {
                 ...options,
-                body,
+                body: normalizedBody,
                 headers,
               });
             }),

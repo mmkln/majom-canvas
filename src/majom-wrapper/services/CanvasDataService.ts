@@ -7,6 +7,7 @@ import { GoalsApiService } from '../data-access/goals-api-service.ts';
 import {
   CanvasApiService,
   CanvasSummary,
+  ContentTypeInfo,
 } from '../data-access/canvas-api-service.ts';
 import { mapTask } from '../mappers/task-mapper.ts';
 import { mapStory } from '../mappers/story-mapper.ts';
@@ -14,6 +15,9 @@ import { mapGoal } from '../mappers/goal-mapper.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
 import { StoryElement } from '../../elements/StoryElement.ts';
 import { GoalElement } from '../../elements/GoalElement.ts';
+import { mapStatusToBackend } from '../utils/statusMapping.ts';
+import { mapPriorityToBackend } from '../utils/priorityMapping.ts';
+import type { PlatformTask, Story, Goal } from '../interfaces/index.ts';
 
 /**
  * Service to load and persist canvas elements and layout.
@@ -21,6 +25,7 @@ import { GoalElement } from '../../elements/GoalElement.ts';
 export class CanvasDataService {
   private canvasId: string | null = null;
   private canvasName: string | null = null;
+  private contentTypeMap$?: Observable<Record<string, number>>;
 
   constructor(
     private tasksApi: TasksApiService,
@@ -98,6 +103,82 @@ export class CanvasDataService {
         return canvas;
       })
     );
+  }
+
+  public loadContentTypeMap(): Observable<Record<string, number>> {
+    if (!this.contentTypeMap$) {
+      this.contentTypeMap$ = this.canvasApi.loadContentTypes().pipe(
+        map((items: ContentTypeInfo[]) => {
+          const mapByModel: Record<string, number> = {};
+          items.forEach((item) => {
+            mapByModel[item.model] = item.id;
+          });
+          return mapByModel;
+        }),
+        shareReplay(1)
+      );
+    }
+    return this.contentTypeMap$;
+  }
+
+  public ensureElementsPersisted(
+    elements: Array<TaskElement | StoryElement | GoalElement>
+  ): Observable<void> {
+    const toCreate = elements.filter((el) => !Number.isFinite(Number(el.id)));
+    if (toCreate.length === 0) return of(undefined);
+    const creates: Observable<any>[] = [];
+
+    toCreate.forEach((el) => {
+      if (el instanceof TaskElement) {
+        const payload: Partial<PlatformTask> = {
+          title: el.title,
+          description: el.description,
+          status: mapStatusToBackend(el.status),
+          priority: mapPriorityToBackend(el.priority),
+        };
+        creates.push(
+          this.tasksApi.createTask(payload).pipe(
+            map((created) => {
+              el.id = created.id.toString();
+              return created;
+            })
+          )
+        );
+      } else if (el instanceof StoryElement) {
+        const payload: Partial<Story> = {
+          title: el.title,
+          description: el.description,
+          status: mapStatusToBackend(el.status),
+          priority: mapPriorityToBackend(el.priority),
+        };
+        creates.push(
+          this.storiesApi.createStory(payload).pipe(
+            map((created) => {
+              el.id = created.id.toString();
+              return created;
+            })
+          )
+        );
+      } else if (el instanceof GoalElement) {
+        const payload: Partial<Goal> = {
+          title: el.title,
+          description: el.description,
+          status: mapStatusToBackend(el.status),
+          priority: mapPriorityToBackend(el.priority),
+        };
+        creates.push(
+          this.goalsApi.createGoal(payload).pipe(
+            map((created) => {
+              el.id = created.id.toString();
+              return created;
+            })
+          )
+        );
+      }
+    });
+
+    if (creates.length === 0) return of(undefined);
+    return forkJoin(creates).pipe(map(() => undefined));
   }
 
   public setActiveCanvas(canvas: Pick<CanvasSummary, 'id' | 'name'>): void {

@@ -208,17 +208,51 @@ export class App {
       window.dispatchEvent(new CustomEvent('showLoginModal'));
       return;
     }
+    this.canvasDataService.loadContentTypeMap().subscribe({
+      next: (contentTypeMap) => {
+        this.saveLayoutWithContentTypes(contentTypeMap);
+      },
+      error: (err) => {
+        console.error('Failed to load content types', err);
+        const fallbackMap = this.getFallbackContentTypeMap();
+        if (Object.keys(fallbackMap).length === 0) {
+          notify('Missing content type mapping', 'error');
+          return;
+        }
+        this.saveLayoutWithContentTypes(fallbackMap);
+      },
+    });
+  }
+
+  private saveLayoutWithContentTypes(
+    contentTypeMap: Record<string, number>
+  ): void {
     const elements = this.scene
       .getElements()
       .filter(isPlanningElement) as Array<
       TaskElement | StoryElement | GoalElement
     >;
+    this.canvasDataService.ensureElementsPersisted(elements).subscribe({
+      next: () => {
+        this.saveLayoutPositions(elements, contentTypeMap);
+      },
+      error: (err) => {
+        console.error('Failed to create elements', err);
+        notify('Failed to create elements', 'error');
+      },
+    });
+  }
+
+  private saveLayoutPositions(
+    elements: Array<TaskElement | StoryElement | GoalElement>,
+    contentTypeMap: Record<string, number>
+  ): void {
     const positions: CanvasPositionDTO[] = [];
     const missingTypes = new Set<string>();
     const missingIds: string[] = [];
 
     elements.forEach((el) => {
-      const contentType = this.getContentTypeId(el);
+      const contentType = this.getContentTypeId(contentTypeMap, el);
       if (!contentType) {
         missingTypes.add(
           el instanceof TaskElement
@@ -234,11 +268,16 @@ export class App {
         missingIds.push(String((el as any).id));
         return;
       }
+      const meta =
+        el instanceof StoryElement
+          ? { width: el.width, height: el.height }
+          : undefined;
       positions.push({
         content_type: contentType,
         object_id: objectId,
         x: el.x,
         y: el.y,
+        meta,
       });
     });
 
@@ -310,11 +349,30 @@ export class App {
   }
 
   private getContentTypeId(
+    contentTypeMap: Record<string, number>,
     element: TaskElement | StoryElement | GoalElement
   ): number | null {
-    if (element instanceof TaskElement) return CONTENT_TYPE_IDS.task;
-    if (element instanceof StoryElement) return CONTENT_TYPE_IDS.story;
-    return CONTENT_TYPE_IDS.goal;
+    if (element instanceof TaskElement) {
+      return contentTypeMap.task ?? CONTENT_TYPE_IDS.task ?? null;
+    }
+    if (element instanceof StoryElement) {
+      return contentTypeMap.story ?? CONTENT_TYPE_IDS.story ?? null;
+    }
+    return contentTypeMap.goal ?? CONTENT_TYPE_IDS.goal ?? null;
+  }
+
+  private getFallbackContentTypeMap(): Record<string, number> {
+    const map: Record<string, number> = {};
+    if (typeof CONTENT_TYPE_IDS.task === 'number') {
+      map.task = CONTENT_TYPE_IDS.task;
+    }
+    if (typeof CONTENT_TYPE_IDS.story === 'number') {
+      map.story = CONTENT_TYPE_IDS.story;
+    }
+    if (typeof CONTENT_TYPE_IDS.goal === 'number') {
+      map.goal = CONTENT_TYPE_IDS.goal;
+    }
+    return map;
   }
 
   private setCanvasTitle(title: string): void {
