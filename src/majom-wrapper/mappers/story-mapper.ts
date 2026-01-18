@@ -18,10 +18,17 @@ export function mapStory(
       l.element_type === 'story' &&
       (l.element_id ?? l.object_id) === dto.id
   );
+  const meta = pos?.meta as
+    | { width?: number; height?: number; w?: number; h?: number }
+    | undefined;
+  const width = meta?.width ?? meta?.w;
+  const height = meta?.height ?? meta?.h;
   return new StoryElement({
     id: dto.id.toString(),
     x: pos?.x ?? DEFAULT_X,
     y: pos?.y ?? DEFAULT_Y,
+    width: typeof width === 'number' ? width : undefined,
+    height: typeof height === 'number' ? height : undefined,
     title: dto.title,
     status: mapStatus(dto.status),
     description: dto.description,
