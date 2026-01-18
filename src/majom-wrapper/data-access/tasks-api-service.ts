@@ -1,7 +1,8 @@
-import { from, Observable } from 'rxjs';
-import { mergeMap, toArray } from 'rxjs/operators';
+import { from, Observable, of } from 'rxjs';
+import { map, mergeMap, toArray } from 'rxjs/operators';
 import { HttpInterceptorClient } from './http-interceptor.js';
 import { PlatformTask, Subtask, Tag } from '../interfaces/index.js';
+import { PaginatedResponse } from './paginated-response.js';
 
 interface TasksFilterParams {
   is_standalone?: boolean;
@@ -13,52 +14,35 @@ interface TasksFilterParams {
   // TODO: add a filter param that will be used to filter tasks by flow, or return tasks that are not in any flow
 }
 
+interface TaskListParams extends TasksFilterParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+}
+
 export class TasksApiService {
   constructor(private http: HttpInterceptorClient) {}
+
+  public fetchTasks(
+    params: TaskListParams = {}
+  ): Observable<PaginatedResponse<PlatformTask>> {
+    const queryString = this.buildQuery(params);
+    return this.http.get<PaginatedResponse<PlatformTask>>(`/tasks/${queryString}`);
+  }
+
+  public fetchTasksByIds(ids: number[]): Observable<PlatformTask[]> {
+    if (!ids.length) return of([]);
+    const encodedIds = encodeURIComponent(ids.join(','));
+    return this.http.get<PlatformTask[]>(`/tasks/?ids=${encodedIds}`);
+  }
 
   public getTasks(
     filterParams?: TasksFilterParams
   ): Observable<PlatformTask[]> {
-    let queryString = '';
-
-    if (filterParams) {
-      const params: string[] = [];
-
-      if (filterParams.is_standalone !== undefined) {
-        params.push(
-          `is_standalone=${encodeURIComponent(filterParams.is_standalone.toString())}`
-        );
-      }
-      if (filterParams.project !== undefined) {
-        params.push(
-          `project=${encodeURIComponent(filterParams.project.toString())}`
-        );
-      }
-      if (filterParams.stage !== undefined) {
-        params.push(
-          `stage=${encodeURIComponent(filterParams.stage.toString())}`
-        );
-      }
-      if (filterParams.goal !== undefined) {
-        params.push(`goal=${encodeURIComponent(filterParams.goal.toString())}`);
-      }
-      if (filterParams.resolvedDateAfter) {
-        params.push(
-          `resolved_date_range_after=${encodeURIComponent(filterParams.resolvedDateAfter)}`
-        );
-      }
-      if (filterParams.resolvedDateBefore) {
-        params.push(
-          `resolved_date_range_before=${encodeURIComponent(filterParams.resolvedDateBefore)}`
-        );
-      }
-
-      if (params.length) {
-        queryString = `?${params.join('&')}`;
-      }
-    }
-
-    return this.http.get<PlatformTask[]>(`/tasks/${queryString}`);
+    const queryString = this.buildQuery(filterParams);
+    return this.http
+      .get<PaginatedResponse<PlatformTask> | PlatformTask[]>(`/tasks/${queryString}`)
+      .pipe(map((res) => (Array.isArray(res) ? res : res.results)));
   }
 
   public getTask(id: number): Observable<PlatformTask> {
@@ -107,5 +91,46 @@ export class TasksApiService {
       }),
       toArray()
     );
+  }
+
+  private buildQuery(params?: TaskListParams): string {
+    if (!params) return '';
+    const query: string[] = [];
+
+    if (params.is_standalone !== undefined) {
+      query.push(
+        `is_standalone=${encodeURIComponent(params.is_standalone.toString())}`
+      );
+    }
+    if (params.project !== undefined) {
+      query.push(`project=${encodeURIComponent(params.project.toString())}`);
+    }
+    if (params.stage !== undefined) {
+      query.push(`stage=${encodeURIComponent(params.stage.toString())}`);
+    }
+    if (params.goal !== undefined) {
+      query.push(`goal=${encodeURIComponent(params.goal.toString())}`);
+    }
+    if (params.resolvedDateAfter) {
+      query.push(
+        `resolved_date_range_after=${encodeURIComponent(params.resolvedDateAfter)}`
+      );
+    }
+    if (params.resolvedDateBefore) {
+      query.push(
+        `resolved_date_range_before=${encodeURIComponent(params.resolvedDateBefore)}`
+      );
+    }
+    if (params.page !== undefined) {
+      query.push(`page=${encodeURIComponent(params.page.toString())}`);
+    }
+    if (params.pageSize !== undefined) {
+      query.push(`page_size=${encodeURIComponent(params.pageSize.toString())}`);
+    }
+    if (params.search) {
+      query.push(`search=${encodeURIComponent(params.search)}`);
+    }
+
+    return query.length ? `?${query.join('&')}` : '';
   }
 }

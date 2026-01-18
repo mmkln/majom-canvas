@@ -147,70 +147,58 @@ export class PaletteMenu {
       goal: this.panel.querySelector('.palette-goal') as HTMLUListElement,
     };
 
-    tasksApi.getTasks().subscribe((tasks) => {
-      console.log('tasks response:', tasks);
-      tasks.forEach((t) => {
-        const li = document.createElement('li');
-        li.textContent = t.title;
-        li.draggable = true;
-        li.addEventListener('dragstart', (e: DragEvent) => {
-          const dt = e.dataTransfer;
-          if (!dt) return;
-          dt.setData(
-            'application/json',
-            JSON.stringify({ type: 'task', dto: t })
-          );
-          dt.effectAllowed = 'copy';
-        });
-        listMap.task.appendChild(li);
+    const PAGE_SIZE = 50;
+    let searchTimer: number | null = null;
+    const clearLists = () => {
+      listMap.task.innerHTML = '';
+      listMap.story.innerHTML = '';
+      listMap.goal.innerHTML = '';
+    };
+    const renderListItem = (
+      list: HTMLUListElement,
+      type: 'task' | 'story' | 'goal',
+      dto: any
+    ) => {
+      const li = document.createElement('li');
+      li.textContent = dto.title;
+      li.draggable = true;
+      li.addEventListener('dragstart', (e: DragEvent) => {
+        const dt = e.dataTransfer;
+        if (!dt) return;
+        dt.setData('application/json', JSON.stringify({ type, dto }));
+        dt.effectAllowed = 'copy';
       });
-    });
-    storiesApi.getStories().subscribe((stories) => {
-      console.log('stories response:', stories);
-      stories.forEach((s) => {
-        const li = document.createElement('li');
-        li.textContent = s.title;
-        li.draggable = true;
-        li.addEventListener('dragstart', (e: DragEvent) => {
-          const dt = e.dataTransfer;
-          if (!dt) return;
-          dt.setData(
-            'application/json',
-            JSON.stringify({ type: 'story', dto: s })
-          );
-          dt.effectAllowed = 'copy';
+      list.appendChild(li);
+    };
+    const loadPalette = (term: string = '') => {
+      const searchTerm = term.trim();
+      clearLists();
+      tasksApi
+        .fetchTasks({ page: 1, pageSize: PAGE_SIZE, search: searchTerm || undefined })
+        .subscribe((res) => {
+          res.results.forEach((t) => renderListItem(listMap.task, 'task', t));
         });
-        listMap.story.appendChild(li);
-      });
-    });
-    goalsApi.getGoals().subscribe((goals) => {
-      console.log('goals response:', goals);
-      goals.forEach((g) => {
-        const li = document.createElement('li');
-        li.textContent = g.title;
-        li.draggable = true;
-        li.addEventListener('dragstart', (e: DragEvent) => {
-          const dt = e.dataTransfer;
-          if (!dt) return;
-          dt.setData(
-            'application/json',
-            JSON.stringify({ type: 'goal', dto: g })
-          );
-          dt.effectAllowed = 'copy';
+      storiesApi
+        .fetchStories({ page: 1, pageSize: PAGE_SIZE, search: searchTerm || undefined })
+        .subscribe((res) => {
+          res.results.forEach((s) => renderListItem(listMap.story, 'story', s));
         });
-        listMap.goal.appendChild(li);
-      });
-    });
+      goalsApi
+        .fetchGoals({ page: 1, pageSize: PAGE_SIZE, search: searchTerm || undefined })
+        .subscribe((res) => {
+          res.results.forEach((g) => renderListItem(listMap.goal, 'goal', g));
+        });
+    };
+    loadPalette();
 
     search.addEventListener('input', () => {
-      const term = search.value.toLowerCase();
-      [listMap.task, listMap.story, listMap.goal].forEach((list) => {
-        Array.from(list.children).forEach((child) => {
-          const el = child as HTMLElement;
-          const text = el.textContent || '';
-          el.style.display = text.toLowerCase().includes(term) ? '' : 'none';
-        });
-      });
+      const term = search.value;
+      if (searchTimer) {
+        window.clearTimeout(searchTimer);
+      }
+      searchTimer = window.setTimeout(() => {
+        loadPalette(term);
+      }, 300);
     });
   }
 

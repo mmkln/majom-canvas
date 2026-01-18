@@ -82,26 +82,19 @@ export class CanvasDataService {
   public loadElements(): Observable<
     Array<TaskElement | StoryElement | GoalElement>
   > {
-    return forkJoin({
-      tasks: this.loadTasksCached(),
-      stories: this.loadStoriesCached(),
-      goals: this.loadGoalsCached(),
-      layout: this.canvasId
-        ? this.canvasApi.fetchCanvasPositions(this.canvasId)
-        : of([]),
-    }).pipe(
+    const canvasId = this.canvasId;
+    if (!canvasId) {
+      return of([]);
+    }
+    return this.canvasApi.fetchCanvasPositions(canvasId).pipe(
       retry(2),
-      map(({ tasks, stories, goals, layout }) => {
-        const targetCanvas = this.canvasId;
-        const effectiveLayout = targetCanvas
-          ? layout.filter((pos) => pos.canvas === targetCanvas)
-          : layout;
+      switchMap((layout) => {
         const layoutIds = {
           task: new Set<number>(),
           story: new Set<number>(),
           goal: new Set<number>(),
         };
-        effectiveLayout.forEach((pos) => {
+        layout.forEach((pos) => {
           const type = pos.element_type;
           const id = pos.element_id ?? pos.object_id;
           if (!type || !id) return;
@@ -109,26 +102,21 @@ export class CanvasDataService {
             layoutIds[type as keyof typeof layoutIds].add(id);
           }
         });
-        const firstCanvas = effectiveLayout[0]?.canvas;
-        if (firstCanvas) {
-          this.canvasId = firstCanvas;
-        }
+        const taskIds = Array.from(layoutIds.task);
+        const storyIds = Array.from(layoutIds.story);
+        const goalIds = Array.from(layoutIds.goal);
+        return forkJoin({
+          tasks: this.fetchTasksByIdsCached(taskIds),
+          stories: this.fetchStoriesByIdsCached(storyIds),
+          goals: this.fetchGoalsByIdsCached(goalIds),
+          layout: of(layout),
+        });
+      }),
+      map(({ tasks, stories, goals, layout }) => {
         const elems: Array<TaskElement | StoryElement | GoalElement> = [];
-        elems.push(
-          ...tasks
-            .filter((t) => layoutIds.task.has(t.id))
-            .map((t) => mapTask(t, effectiveLayout))
-        );
-        elems.push(
-          ...stories
-            .filter((s) => layoutIds.story.has(s.id))
-            .map((s) => mapStory(s, effectiveLayout))
-        );
-        elems.push(
-          ...goals
-            .filter((g) => layoutIds.goal.has(g.id))
-            .map((g) => mapGoal(g, effectiveLayout))
-        );
+        elems.push(...tasks.map((t) => mapTask(t, layout)));
+        elems.push(...stories.map((s) => mapStory(s, layout)));
+        elems.push(...goals.map((g) => mapGoal(g, layout)));
         return elems;
       }),
       shareReplay(1)
@@ -383,43 +371,134 @@ export class CanvasDataService {
     return forkJoin(creates).pipe(map(() => undefined));
   }
 
+  private fetchTasksByIdsCached(ids: number[]): Observable<PlatformTask[]> {
+    if (ids.length === 0) return of([]);
+    const { cached, missing } = this.getCachedByIds(this.tasksCache, ids);
+    if (missing.length === 0) {
+      return of(this.orderByIds(cached, ids));
+    }
+    return this.tasksApi.fetchTasksByIds(missing).pipe(
+      map((fetched) => {
+        this.tasksCache = this.mergeCache(this.tasksCache, fetched);
+        return this.orderByIds([...cached, ...fetched], ids);
+      })
+    );
+  }
+
+  private fetchStoriesByIdsCached(ids: number[]): Observable<Story[]> {
+    if (ids.length === 0) return of([]);
+    const { cached, missing } = this.getCachedByIds(this.storiesCache, ids);
+    if (missing.length === 0) {
+      return of(this.orderByIds(cached, ids));
+    }
+    return this.storiesApi.fetchStoriesByIds(missing).pipe(
+      map((fetched) => {
+        this.storiesCache = this.mergeCache(this.storiesCache, fetched);
+        return this.orderByIds([...cached, ...fetched], ids);
+      })
+    );
+  }
+
+  private fetchGoalsByIdsCached(ids: number[]): Observable<Goal[]> {
+    if (ids.length === 0) return of([]);
+    const { cached, missing } = this.getCachedByIds(this.goalsCache, ids);
+    if (missing.length === 0) {
+      return of(this.orderByIds(cached, ids));
+    }
+    return this.goalsApi.fetchGoalsByIds(missing).pipe(
+      map((fetched) => {
+        this.goalsCache = this.mergeCache(this.goalsCache, fetched);
+        return this.orderByIds([...cached, ...fetched], ids);
+      })
+    );
+  }
+
   private loadTasksCached(force: boolean = false): Observable<PlatformTask[]> {
     if (!force && this.tasksCache) return of(this.tasksCache);
     if (!force && this.tasks$) return this.tasks$;
-    this.tasks$ = this.tasksApi.getTasks().pipe(
-      map((tasks) => {
-        this.tasksCache = tasks;
-        return tasks;
-      }),
-      shareReplay(1)
-    );
+    this.tasks$ = this.tasksApi
+      .fetchTasks({ page: 1, pageSize: 100 })
+      .pipe(
+        map((res) => {
+          this.tasksCache = res.results;
+          return res.results;
+        }),
+        shareReplay(1)
+      );
     return this.tasks$;
   }
 
   private loadStoriesCached(force: boolean = false): Observable<Story[]> {
     if (!force && this.storiesCache) return of(this.storiesCache);
     if (!force && this.stories$) return this.stories$;
-    this.stories$ = this.storiesApi.getStories().pipe(
-      map((stories) => {
-        this.storiesCache = stories;
-        return stories;
-      }),
-      shareReplay(1)
-    );
+    this.stories$ = this.storiesApi
+      .fetchStories({ page: 1, pageSize: 100 })
+      .pipe(
+        map((res) => {
+          this.storiesCache = res.results;
+          return res.results;
+        }),
+        shareReplay(1)
+      );
     return this.stories$;
   }
 
   private loadGoalsCached(force: boolean = false): Observable<Goal[]> {
     if (!force && this.goalsCache) return of(this.goalsCache);
     if (!force && this.goals$) return this.goals$;
-    this.goals$ = this.goalsApi.getGoals().pipe(
-      map((goals) => {
-        this.goalsCache = goals;
-        return goals;
-      }),
-      shareReplay(1)
-    );
+    this.goals$ = this.goalsApi
+      .fetchGoals({ page: 1, pageSize: 100 })
+      .pipe(
+        map((res) => {
+          this.goalsCache = res.results;
+          return res.results;
+        }),
+        shareReplay(1)
+      );
     return this.goals$;
+  }
+
+  private getCachedByIds<T extends { id: number }>(
+    cache: T[] | null,
+    ids: number[]
+  ): { cached: T[]; missing: number[] } {
+    if (!cache || cache.length === 0) {
+      return { cached: [], missing: ids };
+    }
+    const cacheMap = new Map<number, T>();
+    cache.forEach((item) => cacheMap.set(item.id, item));
+    const cached: T[] = [];
+    const missing: number[] = [];
+    ids.forEach((id) => {
+      const item = cacheMap.get(id);
+      if (item) cached.push(item);
+      else missing.push(id);
+    });
+    return { cached, missing };
+  }
+
+  private mergeCache<T extends { id: number }>(
+    cache: T[] | null,
+    items: T[]
+  ): T[] {
+    const next = cache ? [...cache] : [];
+    items.forEach((item) => {
+      const idx = next.findIndex((entry) => entry.id === item.id);
+      if (idx >= 0) next[idx] = item;
+      else next.push(item);
+    });
+    return next;
+  }
+
+  private orderByIds<T extends { id: number }>(
+    items: T[],
+    ids: number[]
+  ): T[] {
+    const mapById = new Map<number, T>();
+    items.forEach((item) => mapById.set(item.id, item));
+    return ids
+      .map((id) => mapById.get(id))
+      .filter((item): item is T => Boolean(item));
   }
 
   private upsertTaskCache(task: PlatformTask): void {
