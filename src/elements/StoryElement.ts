@@ -128,7 +128,7 @@ export class StoryElement extends PlanningElement {
       maxTitleWidth,
       lineHeight,
       3, // Max 2 lines for Story title
-      fontSize,
+      fontSize
     );
     // Draw anchors via base class
     super.drawAnchors(ctx, panZoom);

@@ -27,7 +27,9 @@ export class TasksApiService {
     params: TaskListParams = {}
   ): Observable<PaginatedResponse<PlatformTask>> {
     const queryString = this.buildQuery(params);
-    return this.http.get<PaginatedResponse<PlatformTask>>(`/tasks/${queryString}`);
+    return this.http.get<PaginatedResponse<PlatformTask>>(
+      `/tasks/${queryString}`
+    );
   }
 
   public fetchTasksByIds(ids: number[]): Observable<PlatformTask[]> {
@@ -41,7 +43,9 @@ export class TasksApiService {
   ): Observable<PlatformTask[]> {
     const queryString = this.buildQuery(filterParams);
     return this.http
-      .get<PaginatedResponse<PlatformTask> | PlatformTask[]>(`/tasks/${queryString}`)
+      .get<
+        PaginatedResponse<PlatformTask> | PlatformTask[]
+      >(`/tasks/${queryString}`)
       .pipe(map((res) => (Array.isArray(res) ? res : res.results)));
   }
 

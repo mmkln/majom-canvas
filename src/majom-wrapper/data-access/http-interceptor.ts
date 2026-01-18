@@ -103,7 +103,10 @@ export class HttpInterceptorClient {
   public post<T>(path: string, body: any, options: any = {}): Observable<T> {
     requestTracker.start();
     const authService = this.authService;
-    const baseHeaders = { 'Content-Type': 'application/json', ...options.headers };
+    const baseHeaders = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    };
     let headers = this.attachAuth(baseHeaders);
     const normalizedBody = this.normalizeBody(body);
     const accessToken = authService.getAuthToken();
@@ -150,7 +153,10 @@ export class HttpInterceptorClient {
   public put<T>(path: string, body: any, options: any = {}): Observable<T> {
     requestTracker.start();
     const authService = this.authService;
-    const baseHeaders = { 'Content-Type': 'application/json', ...options.headers };
+    const baseHeaders = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    };
     let headers = this.attachAuth(baseHeaders);
     const normalizedBody = this.normalizeBody(body);
     const accessToken = authService.getAuthToken();
@@ -197,7 +203,10 @@ export class HttpInterceptorClient {
   public patch<T>(path: string, body: any, options: any = {}): Observable<T> {
     requestTracker.start();
     const authService = this.authService;
-    const baseHeaders = { 'Content-Type': 'application/json', ...options.headers };
+    const baseHeaders = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    };
     let headers = this.attachAuth(baseHeaders);
     const normalizedBody = this.normalizeBody(body);
     const accessToken = authService.getAuthToken();

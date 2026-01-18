@@ -15,8 +15,7 @@ export function mapStory(
 ): StoryElement {
   const pos = layout.find(
     (l) =>
-      l.element_type === 'story' &&
-      (l.element_id ?? l.object_id) === dto.id
+      l.element_type === 'story' && (l.element_id ?? l.object_id) === dto.id
   );
   const meta = pos?.meta as
     | { width?: number; height?: number; w?: number; h?: number }

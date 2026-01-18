@@ -89,7 +89,9 @@ export class App {
       cmd.keys.forEach((k) => commandManager.bindShortcut(cmd.name, k));
     });
 
-    window.addEventListener('refreshCanvasData', () => this.loadCanvasFromApi());
+    window.addEventListener('refreshCanvasData', () =>
+      this.loadCanvasFromApi()
+    );
     window.addEventListener('saveCanvasLayout', () => {
       const tokenAtStart = historyService.getStateToken();
       this.saveCanvasLayout(true).subscribe({
@@ -286,7 +288,9 @@ export class App {
     });
   }
 
-  private saveCanvasLayout(showNotifications: boolean = true): Observable<boolean> {
+  private saveCanvasLayout(
+    showNotifications: boolean = true
+  ): Observable<boolean> {
     if (!this.authService.isLoggedIn()) {
       if (showNotifications) {
         window.dispatchEvent(new CustomEvent('showLoginModal'));
@@ -498,7 +502,8 @@ export class App {
     }
     this.canvasDataService.loadCanvases().subscribe({
       next: (canvases) => {
-        const selectedId = activeId || this.canvasDataService.getActiveCanvasId();
+        const selectedId =
+          activeId || this.canvasDataService.getActiveCanvasId();
         this.emitCanvasList(canvases, selectedId ?? null);
       },
       error: (err) => {

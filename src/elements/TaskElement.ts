@@ -113,7 +113,7 @@ export class TaskElement extends PlanningElement {
       maxTitleWidth,
       lineHeight,
       3, // Max 3 lines of text
-      fontSize,
+      fontSize
     );
 
     // Status badge

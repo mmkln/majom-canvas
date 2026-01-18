@@ -174,17 +174,29 @@ export class PaletteMenu {
       const searchTerm = term.trim();
       clearLists();
       tasksApi
-        .fetchTasks({ page: 1, pageSize: PAGE_SIZE, search: searchTerm || undefined })
+        .fetchTasks({
+          page: 1,
+          pageSize: PAGE_SIZE,
+          search: searchTerm || undefined,
+        })
         .subscribe((res) => {
           res.results.forEach((t) => renderListItem(listMap.task, 'task', t));
         });
       storiesApi
-        .fetchStories({ page: 1, pageSize: PAGE_SIZE, search: searchTerm || undefined })
+        .fetchStories({
+          page: 1,
+          pageSize: PAGE_SIZE,
+          search: searchTerm || undefined,
+        })
         .subscribe((res) => {
           res.results.forEach((s) => renderListItem(listMap.story, 'story', s));
         });
       goalsApi
-        .fetchGoals({ page: 1, pageSize: PAGE_SIZE, search: searchTerm || undefined })
+        .fetchGoals({
+          page: 1,
+          pageSize: PAGE_SIZE,
+          search: searchTerm || undefined,
+        })
         .subscribe((res) => {
           res.results.forEach((g) => renderListItem(listMap.goal, 'goal', g));
         });

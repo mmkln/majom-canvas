@@ -1,6 +1,6 @@
 // src/utils/TextRenderer.ts
 
-import { FONT_FAMILY } from "../core/constants.ts";
+import { FONT_FAMILY } from '../core/constants.ts';
 
 /**
  * Utility class for rendering text on canvas with word wrapping and truncation

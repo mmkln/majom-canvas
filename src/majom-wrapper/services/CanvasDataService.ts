@@ -144,11 +144,12 @@ export class CanvasDataService {
   private getElementUpdateKey(
     element: TaskElement | StoryElement | GoalElement
   ): string {
-    const type = element instanceof TaskElement
-      ? 'task'
-      : element instanceof StoryElement
-        ? 'story'
-        : 'goal';
+    const type =
+      element instanceof TaskElement
+        ? 'task'
+        : element instanceof StoryElement
+          ? 'story'
+          : 'goal';
     return `${type}:${element.id}`;
   }
 
@@ -165,7 +166,8 @@ export class CanvasDataService {
       priority: string;
     }> = {};
     if (patch.title !== undefined) payload.title = patch.title;
-    if (patch.description !== undefined) payload.description = patch.description;
+    if (patch.description !== undefined)
+      payload.description = patch.description;
     if (patch.status !== undefined) {
       payload.status = mapStatusToBackend(patch.status);
     }
@@ -175,9 +177,7 @@ export class CanvasDataService {
     return payload;
   }
 
-  private persistElementUpdate(
-    req: ElementUpdateRequest
-  ): Observable<void> {
+  private persistElementUpdate(req: ElementUpdateRequest): Observable<void> {
     if (this.pendingElementUpdates === 0) {
       this.failedElementUpdates = false;
     }
@@ -236,9 +236,9 @@ export class CanvasDataService {
     task: TaskElement,
     story: StoryElement | null
   ): Observable<void> {
-    const elementsToPersist = [task, story].filter(
-      Boolean
-    ) as Array<TaskElement | StoryElement | GoalElement>;
+    const elementsToPersist = [task, story].filter(Boolean) as Array<
+      TaskElement | StoryElement | GoalElement
+    >;
     return this.ensureElementsPersisted(elementsToPersist).pipe(
       switchMap(() => {
         const taskId = Number(task.id);
@@ -420,15 +420,13 @@ export class CanvasDataService {
   private loadTasksCached(force: boolean = false): Observable<PlatformTask[]> {
     if (!force && this.tasksCache) return of(this.tasksCache);
     if (!force && this.tasks$) return this.tasks$;
-    this.tasks$ = this.tasksApi
-      .fetchTasks({ page: 1, pageSize: 100 })
-      .pipe(
-        map((res) => {
-          this.tasksCache = res.results;
-          return res.results;
-        }),
-        shareReplay(1)
-      );
+    this.tasks$ = this.tasksApi.fetchTasks({ page: 1, pageSize: 100 }).pipe(
+      map((res) => {
+        this.tasksCache = res.results;
+        return res.results;
+      }),
+      shareReplay(1)
+    );
     return this.tasks$;
   }
 
@@ -450,15 +448,13 @@ export class CanvasDataService {
   private loadGoalsCached(force: boolean = false): Observable<Goal[]> {
     if (!force && this.goalsCache) return of(this.goalsCache);
     if (!force && this.goals$) return this.goals$;
-    this.goals$ = this.goalsApi
-      .fetchGoals({ page: 1, pageSize: 100 })
-      .pipe(
-        map((res) => {
-          this.goalsCache = res.results;
-          return res.results;
-        }),
-        shareReplay(1)
-      );
+    this.goals$ = this.goalsApi.fetchGoals({ page: 1, pageSize: 100 }).pipe(
+      map((res) => {
+        this.goalsCache = res.results;
+        return res.results;
+      }),
+      shareReplay(1)
+    );
     return this.goals$;
   }
 
@@ -494,10 +490,7 @@ export class CanvasDataService {
     return next;
   }
 
-  private orderByIds<T extends { id: number }>(
-    items: T[],
-    ids: number[]
-  ): T[] {
+  private orderByIds<T extends { id: number }>(items: T[], ids: number[]): T[] {
     const mapById = new Map<number, T>();
     items.forEach((item) => mapById.set(item.id, item));
     return ids
@@ -641,7 +634,9 @@ export class CanvasDataService {
   public deletePositions(positionIds: string[]): Observable<void> {
     const ids = positionIds.filter(Boolean);
     if (ids.length === 0) return of(undefined);
-    return forkJoin(ids.map((id) => this.canvasApi.deleteCanvasPosition(id))).pipe(
+    return forkJoin(
+      ids.map((id) => this.canvasApi.deleteCanvasPosition(id))
+    ).pipe(
       tap(() => this.removePositionsFromRegistry(ids)),
       map(() => undefined)
     );
@@ -775,7 +770,10 @@ export class CanvasDataService {
     );
   }
 
-  private removePositionByKey(type: 'task' | 'story' | 'goal', id: number): void {
+  private removePositionByKey(
+    type: 'task' | 'story' | 'goal',
+    id: number
+  ): void {
     this.positionRegistry.delete(this.buildPositionKey(type, id));
   }
 

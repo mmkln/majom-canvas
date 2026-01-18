@@ -544,7 +544,7 @@ export class InteractionManager {
           const nextStoryId = nextStoryMap.get(task.id) ?? null;
           if (prevStoryId === nextStoryId) return;
           const nextStory = nextStoryId
-            ? stories.find((story) => story.id === nextStoryId) ?? null
+            ? (stories.find((story) => story.id === nextStoryId) ?? null)
             : null;
           window.dispatchEvent(
             new CustomEvent('taskStoryLinkChanged', {

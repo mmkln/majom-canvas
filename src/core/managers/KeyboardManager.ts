@@ -97,5 +97,4 @@ export class KeyboardManager {
       this.scene.removeElements(selectedElements);
     }
   }
-
 }

@@ -40,10 +40,7 @@ export class StoriesApiService {
     return this.http.put<StoryDto>(`/stories/${id}/`, data);
   }
 
-  public patchStory(
-    id: number,
-    data: Partial<StoryDto>
-  ): Observable<StoryDto> {
+  public patchStory(id: number, data: Partial<StoryDto>): Observable<StoryDto> {
     return this.http.patch<StoryDto>(`/stories/${id}/`, data);
   }
 

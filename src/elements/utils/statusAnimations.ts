@@ -53,7 +53,10 @@ const getRoundedRectPerimeter = (
 };
 
 const isRectVisible = (
-  viewBounds: { minX: number; minY: number; maxX: number; maxY: number } | null | undefined,
+  viewBounds:
+    | { minX: number; minY: number; maxX: number; maxY: number }
+    | null
+    | undefined,
   x: number,
   y: number,
   width: number,
@@ -71,7 +74,10 @@ const isRectVisible = (
 };
 
 const isCircleVisible = (
-  viewBounds: { minX: number; minY: number; maxX: number; maxY: number } | null | undefined,
+  viewBounds:
+    | { minX: number; minY: number; maxX: number; maxY: number }
+    | null
+    | undefined,
   centerX: number,
   centerY: number,
   radius: number
@@ -107,7 +113,12 @@ type RectAnimationParams = {
   scale: number;
   color?: string;
   timeMs: number;
-  viewBounds?: { minX: number; minY: number; maxX: number; maxY: number } | null;
+  viewBounds?: {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+  } | null;
 };
 
 type CircleAnimationParams = {
@@ -120,7 +131,12 @@ type CircleAnimationParams = {
   scale: number;
   color?: string;
   timeMs: number;
-  viewBounds?: { minX: number; minY: number; maxX: number; maxY: number } | null;
+  viewBounds?: {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+  } | null;
 };
 
 type OutlinePath = {
@@ -137,7 +153,12 @@ type OutlineAnimationParams = {
   scale: number;
   color?: string;
   timeMs: number;
-  viewBounds?: { minX: number; minY: number; maxX: number; maxY: number } | null;
+  viewBounds?: {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+  } | null;
 };
 
 type OutlineEffectParams = Omit<OutlineAnimationParams, 'status'>;
@@ -157,9 +178,8 @@ const getRoundedRectPoint = (
   const straightX = Math.max(0, width - 2 * r);
   const straightY = Math.max(0, height - 2 * r);
   const arcLen = (Math.PI / 2) * r;
-  const perimeter =
-    2 * (straightX + straightY) + (r > 0 ? 2 * Math.PI * r : 0);
-  const d = ((t % 1) + 1) % 1 * perimeter;
+  const perimeter = 2 * (straightX + straightY) + (r > 0 ? 2 * Math.PI * r : 0);
+  const d = (((t % 1) + 1) % 1) * perimeter;
 
   let remaining = d;
 

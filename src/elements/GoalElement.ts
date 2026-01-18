@@ -77,13 +77,17 @@ export class GoalElement extends PlanningElement {
     // Progress ring (outside the main circle) - segmented
     const progressRingWidth = 12;
     const progressRingOffset = 8; // Space between main circle and progress ring
-    const progressRingRadius = radius + progressRingOffset + (progressRingWidth / 2);
+    const progressRingRadius =
+      radius + progressRingOffset + progressRingWidth / 2;
     const segmentCount = 100;
-    const gapAngle = (Math.PI * 2) * 0.004; // Small gap between segments
+    const gapAngle = Math.PI * 2 * 0.004; // Small gap between segments
     const totalAngle = Math.PI * 2;
-    const segmentAngle = (totalAngle / segmentCount) - gapAngle;
+    const segmentAngle = totalAngle / segmentCount - gapAngle;
     const startAngle = -Math.PI / 2;
-    const filledSegments = Math.max(0, Math.min(segmentCount, Math.round(progress * segmentCount)));
+    const filledSegments = Math.max(
+      0,
+      Math.min(segmentCount, Math.round(progress * segmentCount))
+    );
 
     ctx.lineWidth = progressRingWidth;
     ctx.lineCap = 'butt';
@@ -93,7 +97,13 @@ export class GoalElement extends PlanningElement {
     for (let i = 0; i < segmentCount; i += 1) {
       const segStart = startAngle + i * (segmentAngle + gapAngle);
       ctx.beginPath();
-      ctx.arc(centerX, centerY, progressRingRadius, segStart, segStart + segmentAngle);
+      ctx.arc(
+        centerX,
+        centerY,
+        progressRingRadius,
+        segStart,
+        segStart + segmentAngle
+      );
       ctx.stroke();
     }
 
@@ -102,7 +112,13 @@ export class GoalElement extends PlanningElement {
     for (let i = 0; i < filledSegments; i += 1) {
       const segStart = startAngle + i * (segmentAngle + gapAngle);
       ctx.beginPath();
-      ctx.arc(centerX, centerY, progressRingRadius, segStart, segStart + segmentAngle);
+      ctx.arc(
+        centerX,
+        centerY,
+        progressRingRadius,
+        segStart,
+        segStart + segmentAngle
+      );
       ctx.stroke();
     }
 
@@ -130,17 +146,17 @@ export class GoalElement extends PlanningElement {
     const fontSize = 26;
     const lineHeight = 1.3;
     const maxTitleWidth = width * 0.8; // Use 80% of the circle's width
-    
+
     // Center the text vertically and horizontally
     TextRenderer.drawWrappedText(
       ctx,
       title,
-      centerX - maxTitleWidth/2,
-      centerY - fontSize,  // Offset up by half the font size
+      centerX - maxTitleWidth / 2,
+      centerY - fontSize, // Offset up by half the font size
       maxTitleWidth,
       lineHeight,
       3, // Max 3 lines for Goal title
-      fontSize,
+      fontSize
     );
 
     // Percentage text
@@ -162,13 +178,13 @@ export class GoalElement extends PlanningElement {
     const progressRingWidth = 12;
     const progressRingOffset = 8;
     const maxRadius = radius + progressRingOffset + progressRingWidth;
-    
+
     const dx = px - centerX;
     const dy = py - centerY;
     const distanceSquared = dx * dx + dy * dy;
-    
+
     // Check if point is within the outer boundary (including progress ring)
-    return distanceSquared <= (maxRadius * maxRadius);
+    return distanceSquared <= maxRadius * maxRadius;
   }
 
   getBoundaryPoint(angle: number): { x: number; y: number } {
