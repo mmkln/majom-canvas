@@ -6,6 +6,8 @@ import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
 import { notify } from '../core/services/NotificationService.ts';
+import { historyService } from '../core/services/HistoryService.ts';
+import { AddElementCommand } from '../core/commands/AddElementCommand.ts';
 
 /**
  * Canvas toolbar component with buttons for creating tasks, stories, and goals
@@ -117,7 +119,7 @@ export class CanvasToolbar {
     const task = new TaskElement({ x: sceneX, y: sceneY });
 
     // Add the adapter to the scene
-    this.scene.addElement(task);
+    historyService.execute(new AddElementCommand(this.scene, task));
     this.scene.setSelected([task]);
     this.canvasManager.draw();
     notify('Task created', 'success');
@@ -136,7 +138,7 @@ export class CanvasToolbar {
     const sceneY =
       (centerY + panZoom.scrollY) / panZoom.scale - StoryElement.height / 2;
     const story = new StoryElement({ x: sceneX, y: sceneY });
-    this.scene.addElement(story);
+    historyService.execute(new AddElementCommand(this.scene, story));
     this.scene.setSelected([story]);
     this.canvasManager.draw();
     notify('Story created', 'success');
@@ -152,7 +154,7 @@ export class CanvasToolbar {
     const sceneX = (centerX + panZoom.scrollX) / panZoom.scale - 100;
     const sceneY = (centerY + panZoom.scrollY) / panZoom.scale - 60;
     const goal = new GoalElement({ x: sceneX, y: sceneY });
-    this.scene.addElement(goal);
+    historyService.execute(new AddElementCommand(this.scene, goal));
     this.scene.setSelected([goal]);
     this.canvasManager.draw();
     notify('Goal created', 'success');

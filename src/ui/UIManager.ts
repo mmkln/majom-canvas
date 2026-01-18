@@ -14,6 +14,8 @@ import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
 import { mapStatus } from '../majom-wrapper/utils/statusMapping.ts';
+import { historyService } from '../core/services/HistoryService.ts';
+import { AddElementCommand } from '../core/commands/AddElementCommand.ts';
 
 export class UIManager {
   private readonly components: {
@@ -93,7 +95,9 @@ export class UIManager {
           y,
         });
       }
-      if (element) this.scene.addElement(element);
+      if (element) {
+        historyService.execute(new AddElementCommand(this.scene, element));
+      }
     });
   }
 
