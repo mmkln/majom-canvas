@@ -114,10 +114,20 @@ export class App {
         return;
       }
       const name = customEvent.detail?.name || 'New canvas';
-      this.canvasDataService.setActiveCanvas({ id, name });
-      this.setCanvasTitle(name);
-      this.loadActiveCanvasElements();
-      this.refreshCanvasList(id);
+      this.canvasDataService.loadCanvasDetails(id).subscribe({
+        next: (canvas) => {
+          this.setCanvasTitle(canvas.name);
+          this.loadActiveCanvasElements();
+          this.refreshCanvasList(canvas.id);
+        },
+        error: (err) => {
+          console.error('Failed to load canvas details', err);
+          this.canvasDataService.setActiveCanvas({ id, name });
+          this.setCanvasTitle(name);
+          this.loadActiveCanvasElements();
+          this.refreshCanvasList(id);
+        },
+      });
     });
     window.addEventListener('canvasCreateRequested', () => {
       if (!this.authService.isLoggedIn()) {
@@ -171,10 +181,20 @@ export class App {
     }
     this.canvasDataService.ensureCanvas().subscribe({
       next: (canvas) => {
-        this.canvasDataService.setActiveCanvas(canvas);
-        this.setCanvasTitle(canvas.name);
-        this.refreshCanvasList(canvas.id);
-        this.loadActiveCanvasElements();
+        this.canvasDataService.loadCanvasDetails(canvas.id).subscribe({
+          next: (details) => {
+            this.setCanvasTitle(details.name);
+            this.refreshCanvasList(details.id);
+            this.loadActiveCanvasElements();
+          },
+          error: (err) => {
+            console.error('Failed to load canvas details', err);
+            this.canvasDataService.setActiveCanvas(canvas);
+            this.setCanvasTitle(canvas.name);
+            this.refreshCanvasList(canvas.id);
+            this.loadActiveCanvasElements();
+          },
+        });
       },
       error: (err) => {
         console.error('Failed to ensure canvas', err);

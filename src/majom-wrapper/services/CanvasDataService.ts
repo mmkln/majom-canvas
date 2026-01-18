@@ -90,6 +90,16 @@ export class CanvasDataService {
     return this.canvasApi.loadCanvases();
   }
 
+  public loadCanvasDetails(id: string): Observable<CanvasSummary> {
+    return this.canvasApi.loadCanvas(id).pipe(
+      map((canvas) => {
+        this.canvasId = canvas.id;
+        this.canvasName = canvas.name;
+        return canvas;
+      })
+    );
+  }
+
   public setActiveCanvas(canvas: Pick<CanvasSummary, 'id' | 'name'>): void {
     this.canvasId = canvas.id;
     this.canvasName = canvas.name;

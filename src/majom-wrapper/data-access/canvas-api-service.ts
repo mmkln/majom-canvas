@@ -17,6 +17,11 @@ export class CanvasApiService {
     return this.http.get<CanvasSummary[]>('/canvas/');
   }
 
+  /** Load canvas details by id */
+  loadCanvas(id: string): Observable<CanvasSummary> {
+    return this.http.get<CanvasSummary>(`/canvas/${id}/`);
+  }
+
   /** Load all canvas positions */
   loadLayout(): Observable<CanvasPositionDTO[]> {
     return this.http.get<CanvasPositionDTO[]>('/canvas/layouts/');
