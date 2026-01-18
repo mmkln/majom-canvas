@@ -86,7 +86,9 @@ export class CanvasDataService {
       tasks: this.loadTasksCached(),
       stories: this.loadStoriesCached(),
       goals: this.loadGoalsCached(),
-      layout: this.canvasApi.loadLayout(),
+      layout: this.canvasId
+        ? this.canvasApi.fetchCanvasPositions(this.canvasId)
+        : of([]),
     }).pipe(
       retry(2),
       map(({ tasks, stories, goals, layout }) => {
@@ -498,32 +500,14 @@ export class CanvasDataService {
    * Batch update canvas layout positions.
    */
   public updateLayoutBatch(changes: CanvasPositionDTO[]): Observable<void> {
-    return this.ensureCanvasId(changes).pipe(
-      switchMap((finalChanges) => this.canvasApi.saveLayoutBatch(finalChanges))
-    );
-  }
-
-  private ensureCanvasId(
-    changes: CanvasPositionDTO[]
-  ): Observable<CanvasPositionDTO[]> {
-    if (changes.length === 0) return of(changes);
-    const hasCanvas = changes.every((c) => Boolean(c.canvas));
-    if (hasCanvas) return of(changes);
+    if (changes.length === 0) return of(undefined);
     if (this.canvasId) {
-      return of(
-        changes.map((c) => ({
-          ...c,
-          canvas: this.canvasId as string,
-        }))
-      );
+      return this.canvasApi.saveCanvasPositions(this.canvasId, changes);
     }
     return this.canvasApi.createCanvas().pipe(
-      map(({ id }) => {
+      switchMap(({ id }) => {
         this.canvasId = id;
-        return changes.map((c) => ({
-          ...c,
-          canvas: id,
-        }));
+        return this.canvasApi.saveCanvasPositions(id, changes);
       })
     );
   }

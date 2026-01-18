@@ -30,17 +30,23 @@ export class CanvasApiService {
 
   /** Load content types for canvas layouts */
   loadContentTypes(): Observable<ContentTypeInfo[]> {
-    return this.http.get<ContentTypeInfo[]>('/canvas/layouts/content-types/');
+    return this.http.get<ContentTypeInfo[]>('/canvas/positions/content-types/');
   }
 
-  /** Load all canvas positions */
-  loadLayout(): Observable<CanvasPositionDTO[]> {
-    return this.http.get<CanvasPositionDTO[]>('/canvas/layouts/');
+  /** Load positions for a specific canvas */
+  fetchCanvasPositions(canvasId: string): Observable<CanvasPositionDTO[]> {
+    return this.http.get<CanvasPositionDTO[]>(`/canvas/${canvasId}/positions/`);
   }
 
-  /** Batch update or create canvas positions */
-  saveLayoutBatch(changes: CanvasPositionDTO[]): Observable<void> {
-    return this.http.patch<void>('/canvas/layouts/batch/', changes);
+  /** Batch update or create canvas positions for a canvas */
+  saveCanvasPositions(
+    canvasId: string,
+    changes: CanvasPositionDTO[]
+  ): Observable<void> {
+    return this.http.patch<void>(
+      `/canvas/${canvasId}/positions/bulk/`,
+      changes
+    );
   }
 
   /** Create a new canvas container */

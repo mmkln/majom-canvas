@@ -1,7 +1,7 @@
 export interface CanvasPositionDTO {
   /** Optional UUID returned by backend */
   id?: string;
-  /** Canvas UUID (required for write) */
+  /** Canvas UUID (required for /canvas/positions/ write, omitted for bulk) */
   canvas?: string;
   /** ContentType ID (Django) for write */
   content_type?: number;
