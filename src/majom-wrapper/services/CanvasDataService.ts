@@ -1,5 +1,16 @@
-import { forkJoin, Observable, of } from 'rxjs';
-import { map, retry, shareReplay, switchMap } from 'rxjs/operators';
+import { forkJoin, Observable, of, Subject } from 'rxjs';
+import {
+  catchError,
+  debounceTime,
+  finalize,
+  groupBy,
+  map,
+  mergeMap,
+  retry,
+  shareReplay,
+  switchMap,
+  tap,
+} from 'rxjs/operators';
 import { CanvasPositionDTO } from '../data-access/canvas-position-dto.ts';
 import { TasksApiService } from '../data-access/tasks-api-service.ts';
 import { StoriesApiService } from '../data-access/stories-api-service.ts';
@@ -18,6 +29,25 @@ import { GoalElement } from '../../elements/GoalElement.ts';
 import { mapStatusToBackend } from '../utils/statusMapping.ts';
 import { mapPriorityToBackend } from '../utils/priorityMapping.ts';
 import type { PlatformTask, Story, Goal } from '../interfaces/index.ts';
+import { ElementStatus } from '../../elements/ElementStatus.ts';
+
+type ElementPatch = Partial<{
+  title: string;
+  description: string;
+  status: ElementStatus;
+  priority: 'low' | 'medium' | 'high';
+}>;
+
+type ElementUpdateStatus = {
+  status: 'saving' | 'saved' | 'failed';
+  error?: unknown;
+};
+
+type ElementUpdateRequest = {
+  key: string;
+  element: TaskElement | StoryElement | GoalElement;
+  patch: ElementPatch;
+};
 
 /**
  * Service to load and persist canvas elements and layout.
@@ -26,13 +56,25 @@ export class CanvasDataService {
   private canvasId: string | null = null;
   private canvasName: string | null = null;
   private contentTypeMap$?: Observable<Record<string, number>>;
+  private tasks$?: Observable<PlatformTask[]>;
+  private stories$?: Observable<Story[]>;
+  private goals$?: Observable<Goal[]>;
+  private tasksCache: PlatformTask[] | null = null;
+  private storiesCache: Story[] | null = null;
+  private goalsCache: Goal[] | null = null;
+  private elementUpdate$ = new Subject<ElementUpdateRequest>();
+  private elementUpdateStatus$ = new Subject<ElementUpdateStatus>();
+  private pendingElementUpdates = 0;
+  private failedElementUpdates = false;
 
   constructor(
     private tasksApi: TasksApiService,
     private storiesApi: StoriesApiService,
     private goalsApi: GoalsApiService,
     private canvasApi: CanvasApiService
-  ) {}
+  ) {
+    this.initElementUpdatePipeline();
+  }
 
   /**
    * Load tasks, stories, goals along with their canvas positions.
@@ -41,9 +83,9 @@ export class CanvasDataService {
     Array<TaskElement | StoryElement | GoalElement>
   > {
     return forkJoin({
-      tasks: this.tasksApi.getTasks(),
-      stories: this.storiesApi.getStories(),
-      goals: this.goalsApi.getGoals(),
+      tasks: this.loadTasksCached(),
+      stories: this.loadStoriesCached(),
+      goals: this.loadGoalsCached(),
       layout: this.canvasApi.loadLayout(),
     }).pipe(
       retry(2),
@@ -91,6 +133,126 @@ export class CanvasDataService {
     );
   }
 
+  private initElementUpdatePipeline(): void {
+    this.elementUpdate$
+      .pipe(
+        groupBy((req) => req.key),
+        mergeMap((group$) =>
+          group$.pipe(
+            debounceTime(800),
+            switchMap((req) => this.persistElementUpdate(req))
+          )
+        )
+      )
+      .subscribe();
+  }
+
+  private getElementUpdateKey(
+    element: TaskElement | StoryElement | GoalElement
+  ): string {
+    const type = element instanceof TaskElement
+      ? 'task'
+      : element instanceof StoryElement
+        ? 'story'
+        : 'goal';
+    return `${type}:${element.id}`;
+  }
+
+  private buildBackendPatch(patch: ElementPatch): Partial<{
+    title: string;
+    description: string;
+    status: string;
+    priority: string;
+  }> {
+    const payload: Partial<{
+      title: string;
+      description: string;
+      status: string;
+      priority: string;
+    }> = {};
+    if (patch.title !== undefined) payload.title = patch.title;
+    if (patch.description !== undefined) payload.description = patch.description;
+    if (patch.status !== undefined) {
+      payload.status = mapStatusToBackend(patch.status);
+    }
+    if (patch.priority !== undefined) {
+      payload.priority = mapPriorityToBackend(patch.priority);
+    }
+    return payload;
+  }
+
+  private persistElementUpdate(
+    req: ElementUpdateRequest
+  ): Observable<void> {
+    if (this.pendingElementUpdates === 0) {
+      this.failedElementUpdates = false;
+    }
+    this.pendingElementUpdates += 1;
+    this.elementUpdateStatus$.next({ status: 'saving' });
+
+    return this.ensureElementsPersisted([req.element]).pipe(
+      switchMap(() => {
+        const id = Number(req.element.id);
+        if (!Number.isFinite(id)) {
+          this.failedElementUpdates = true;
+          this.elementUpdateStatus$.next({ status: 'failed' });
+          return of(undefined);
+        }
+        const payload = this.buildBackendPatch(req.patch);
+        if (Object.keys(payload).length === 0) {
+          return of(undefined);
+        }
+        if (req.element instanceof TaskElement) {
+          return this.tasksApi.patchTask(id, payload as Partial<PlatformTask>);
+        }
+        if (req.element instanceof StoryElement) {
+          return this.storiesApi.patchStory(id, payload as Partial<Story>);
+        }
+        return this.goalsApi.patchGoal(id, payload as Partial<Goal>);
+      }),
+      tap((updated) => {
+        if (!updated) return;
+        if (updated && req.element instanceof TaskElement) {
+          this.upsertTaskCache(updated as PlatformTask);
+        } else if (updated && req.element instanceof StoryElement) {
+          this.upsertStoryCache(updated as Story);
+        } else if (updated) {
+          this.upsertGoalCache(updated as Goal);
+        }
+      }),
+      map(() => undefined),
+      catchError((err) => {
+        this.failedElementUpdates = true;
+        this.elementUpdateStatus$.next({ status: 'failed', error: err });
+        return of(undefined);
+      }),
+      finalize(() => {
+        this.pendingElementUpdates = Math.max(
+          0,
+          this.pendingElementUpdates - 1
+        );
+        if (this.pendingElementUpdates === 0 && !this.failedElementUpdates) {
+          this.elementUpdateStatus$.next({ status: 'saved' });
+        }
+      })
+    );
+  }
+
+  public readonly elementUpdateStatusChanges =
+    this.elementUpdateStatus$.asObservable();
+
+  public queueElementUpdate(
+    element: TaskElement | StoryElement | GoalElement,
+    patch: ElementPatch
+  ): void {
+    if (!patch || Object.keys(patch).length === 0) return;
+    this.elementUpdate$.next({
+      key: this.getElementUpdateKey(element),
+      element,
+      patch,
+    });
+  }
+
   public loadCanvases(): Observable<CanvasSummary[]> {
     return this.canvasApi.loadCanvases();
   }
@@ -121,6 +283,15 @@ export class CanvasDataService {
     return this.contentTypeMap$;
   }
 
+  public clearElementCache(): void {
+    this.tasksCache = null;
+    this.storiesCache = null;
+    this.goalsCache = null;
+    this.tasks$ = undefined;
+    this.stories$ = undefined;
+    this.goals$ = undefined;
+  }
+
   public ensureElementsPersisted(
     elements: Array<TaskElement | StoryElement | GoalElement>
   ): Observable<void> {
@@ -140,6 +311,7 @@ export class CanvasDataService {
           this.tasksApi.createTask(payload).pipe(
             map((created) => {
               el.id = created.id.toString();
+              this.upsertTaskCache(created);
               return created;
             })
           )
@@ -155,6 +327,7 @@ export class CanvasDataService {
           this.storiesApi.createStory(payload).pipe(
             map((created) => {
               el.id = created.id.toString();
+              this.upsertStoryCache(created);
               return created;
             })
           )
@@ -170,6 +343,7 @@ export class CanvasDataService {
           this.goalsApi.createGoal(payload).pipe(
             map((created) => {
               el.id = created.id.toString();
+              this.upsertGoalCache(created);
               return created;
             })
           )
@@ -179,6 +353,84 @@ export class CanvasDataService {
 
     if (creates.length === 0) return of(undefined);
     return forkJoin(creates).pipe(map(() => undefined));
+  }
+
+  private loadTasksCached(force: boolean = false): Observable<PlatformTask[]> {
+    if (!force && this.tasksCache) return of(this.tasksCache);
+    if (!force && this.tasks$) return this.tasks$;
+    this.tasks$ = this.tasksApi.getTasks().pipe(
+      map((tasks) => {
+        this.tasksCache = tasks;
+        return tasks;
+      }),
+      shareReplay(1)
+    );
+    return this.tasks$;
+  }
+
+  private loadStoriesCached(force: boolean = false): Observable<Story[]> {
+    if (!force && this.storiesCache) return of(this.storiesCache);
+    if (!force && this.stories$) return this.stories$;
+    this.stories$ = this.storiesApi.getStories().pipe(
+      map((stories) => {
+        this.storiesCache = stories;
+        return stories;
+      }),
+      shareReplay(1)
+    );
+    return this.stories$;
+  }
+
+  private loadGoalsCached(force: boolean = false): Observable<Goal[]> {
+    if (!force && this.goalsCache) return of(this.goalsCache);
+    if (!force && this.goals$) return this.goals$;
+    this.goals$ = this.goalsApi.getGoals().pipe(
+      map((goals) => {
+        this.goalsCache = goals;
+        return goals;
+      }),
+      shareReplay(1)
+    );
+    return this.goals$;
+  }
+
+  private upsertTaskCache(task: PlatformTask): void {
+    if (!this.tasksCache) {
+      this.tasksCache = [task];
+      return;
+    }
+    const idx = this.tasksCache.findIndex((t) => t.id === task.id);
+    if (idx >= 0) {
+      this.tasksCache[idx] = task;
+    } else {
+      this.tasksCache.push(task);
+    }
+  }
+
+  private upsertStoryCache(story: Story): void {
+    if (!this.storiesCache) {
+      this.storiesCache = [story];
+      return;
+    }
+    const idx = this.storiesCache.findIndex((s) => s.id === story.id);
+    if (idx >= 0) {
+      this.storiesCache[idx] = story;
+    } else {
+      this.storiesCache.push(story);
+    }
+  }
+
+  private upsertGoalCache(goal: Goal): void {
+    if (!this.goalsCache) {
+      this.goalsCache = [goal];
+      return;
+    }
+    const idx = this.goalsCache.findIndex((g) => g.id === goal.id);
+    if (idx >= 0) {
+      this.goalsCache[idx] = goal;
+    } else {
+      this.goalsCache.push(goal);
+    }
   }
 
   public setActiveCanvas(canvas: Pick<CanvasSummary, 'id' | 'name'>): void {

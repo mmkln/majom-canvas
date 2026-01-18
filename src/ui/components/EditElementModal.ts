@@ -3,7 +3,6 @@ import { StoryElement } from '../../elements/StoryElement.ts';
 import { GoalElement } from '../../elements/GoalElement.ts';
 import { Scene } from '../../core/scene/Scene.ts';
 import { ComponentFactory } from '../../ui-lib/src/core/ComponentFactory.ts';
-import { notify } from '../../core/services/NotificationService.ts';
 import { createModalShell } from '../../ui-lib/src/components/Modal.js';
 import {
   ELEMENT_STATUS_OPTIONS,
@@ -30,10 +29,14 @@ export class EditElementModal {
     });
 
     // Local temp state
-    let tempTitle = this.element.title;
-    let tempDescription = this.element.description;
-    let tempStatus: ElementStatus = this.element.status;
-    let tempPriority = this.element.priority;
+    const originalTitle = this.element.title;
+    const originalDescription = this.element.description;
+    const originalStatus: ElementStatus = this.element.status;
+    const originalPriority = this.element.priority;
+    let tempTitle = originalTitle;
+    let tempDescription = originalDescription;
+    let tempStatus: ElementStatus = originalStatus;
+    let tempPriority = originalPriority;
 
     // Title input with label
     const titleDiv = document.createElement('div');
@@ -115,12 +118,30 @@ export class EditElementModal {
 
     // Save function
     const saveAndClose = () => {
+      const patch: Partial<{
+        title: string;
+        description: string;
+        status: ElementStatus;
+        priority: 'low' | 'medium' | 'high';
+      }> = {};
+      if (tempTitle !== originalTitle) patch.title = tempTitle;
+      if (tempDescription !== originalDescription) {
+        patch.description = tempDescription;
+      }
+      if (tempStatus !== originalStatus) patch.status = tempStatus;
+      if (tempPriority !== originalPriority) patch.priority = tempPriority;
       this.element.title = tempTitle;
       this.element.description = tempDescription;
       this.element.status = tempStatus;
       this.element.priority = tempPriority;
       this.scene.changes.next();
-      notify('Saved!', 'success');
+      if (Object.keys(patch).length > 0) {
+        window.dispatchEvent(
+          new CustomEvent('elementDetailsEdited', {
+            detail: { element: this.element, patch },
+          })
+        );
+      }
       this.close();
     };
 

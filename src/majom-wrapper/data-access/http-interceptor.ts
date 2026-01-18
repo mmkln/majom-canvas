@@ -10,6 +10,7 @@ import {
 } from 'rxjs/operators';
 import { AuthService } from './auth-service.js';
 import { ACCESS_TOKEN_KEY } from '../../config/storage-keys.js';
+import { requestTracker } from './request-tracker.js';
 
 /**
  * HTTP client wrapper: automatically attaches JWT and handles errors.
@@ -61,6 +62,7 @@ export class HttpInterceptorClient {
   }
 
   public get<T>(path: string, options: any = {}): Observable<T> {
+    requestTracker.start();
     const authService = this.authService;
     let headers = this.attachAuth(options.headers);
     const accessToken = authService.getAuthToken();
@@ -93,11 +95,13 @@ export class HttpInterceptorClient {
         }
         console.error('GET Error:', err);
         return throwError(() => err);
-      })
+      }),
+      finalize(() => requestTracker.end())
     );
   }
 
   public post<T>(path: string, body: any, options: any = {}): Observable<T> {
+    requestTracker.start();
     const authService = this.authService;
     const baseHeaders = { 'Content-Type': 'application/json', ...options.headers };
     let headers = this.attachAuth(baseHeaders);
@@ -138,11 +142,13 @@ export class HttpInterceptorClient {
         }
         console.error('POST Error:', err);
         return throwError(() => err);
-      })
+      }),
+      finalize(() => requestTracker.end())
     );
   }
 
   public put<T>(path: string, body: any, options: any = {}): Observable<T> {
+    requestTracker.start();
     const authService = this.authService;
     const baseHeaders = { 'Content-Type': 'application/json', ...options.headers };
     let headers = this.attachAuth(baseHeaders);
@@ -183,11 +189,13 @@ export class HttpInterceptorClient {
         }
         console.error('PUT Error:', err);
         return throwError(() => err);
-      })
+      }),
+      finalize(() => requestTracker.end())
     );
   }
 
   public patch<T>(path: string, body: any, options: any = {}): Observable<T> {
+    requestTracker.start();
     const authService = this.authService;
     const baseHeaders = { 'Content-Type': 'application/json', ...options.headers };
     let headers = this.attachAuth(baseHeaders);
@@ -228,11 +236,13 @@ export class HttpInterceptorClient {
         }
         console.error('PATCH Error:', err);
         return throwError(() => err);
-      })
+      }),
+      finalize(() => requestTracker.end())
     );
   }
 
   public delete<T>(path: string, options: any = {}): Observable<T> {
+    requestTracker.start();
     const authService = this.authService;
     let headers = this.attachAuth(options.headers);
     const accessToken = authService.getAuthToken();
@@ -268,7 +278,8 @@ export class HttpInterceptorClient {
         }
         console.error('DELETE Error:', err);
         return throwError(() => err);
-      })
+      }),
+      finalize(() => requestTracker.end())
     );
   }
 }

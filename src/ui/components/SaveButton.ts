@@ -15,8 +15,7 @@ export class SaveButton {
   constructor(private scene: Scene) {
     // Container overlay
     this.container = document.createElement('div');
-    this.container.className = 'absolute top-5 right-20 z-20';
-    this.container.style.display = 'none';
+    this.container.className = 'flex items-center';
 
     // UI-lib Save button
     this.button = new Button({
@@ -43,12 +42,9 @@ export class SaveButton {
 
   private updateButton(): void {
     const canSave = historyService.canUndo();
-    // Show button only when there are unsaved history commands
-    this.container.style.display = this.authService.isLoggedIn()
-      ? 'block'
-      : 'none';
-    // Always text 'Save'; disable if not logged in
-    this.button.disabled = !canSave;
+    const isLoggedIn = this.authService.isLoggedIn();
+    // Always text 'Save'; disable if not logged in or no changes
+    this.button.disabled = !isLoggedIn || !canSave;
   }
 
   mount(parent: HTMLElement = document.body): void {

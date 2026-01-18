@@ -73,6 +73,13 @@ export class TasksApiService {
     return this.http.put<PlatformTask>(`/tasks/${id}/`, data);
   }
 
+  public patchTask(
+    id: number,
+    data: Partial<PlatformTask>
+  ): Observable<PlatformTask> {
+    return this.http.patch<PlatformTask>(`/tasks/${id}/`, data);
+  }
+
   public deleteTask(id: number): Observable<any> {
     return this.http.delete(`/tasks/${id}/`);
   }

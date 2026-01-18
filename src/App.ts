@@ -26,6 +26,7 @@ import { TaskElement } from './elements/TaskElement.ts';
 import { StoryElement } from './elements/StoryElement.ts';
 import { GoalElement } from './elements/GoalElement.ts';
 import { isPlanningElement } from './elements/utils/typeGuards.ts';
+import { ElementStatus } from './elements/ElementStatus.ts';
 import { CanvasPositionDTO } from './majom-wrapper/data-access/canvas-position-dto.ts';
 import { notify } from './core/services/NotificationService.ts';
 
@@ -71,6 +72,12 @@ export class App {
     // Використовуємо UIManager для монтування UI-компонентів
     this.uiManager = new UIManager(this.canvasManager, this.scene);
     this.uiManager.mountAll(document.body);
+
+    this.canvasDataService.elementUpdateStatusChanges.subscribe((status) => {
+      window.dispatchEvent(
+        new CustomEvent('elementAutosaveStatus', { detail: status })
+      );
+    });
 
     // Register commands from config
     getCommandConfigs(this.scene, this.canvasManager).forEach((cmd) => {
@@ -146,6 +153,25 @@ export class App {
         },
       });
     });
+
+    window.addEventListener('elementDetailsEdited', (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        element?: TaskElement | StoryElement | GoalElement;
+        patch?: Partial<{
+          title: string;
+          description: string;
+          status: ElementStatus;
+          priority: 'low' | 'medium' | 'high';
+        }>;
+      }>;
+      const element = customEvent.detail?.element;
+      const patch = customEvent.detail?.patch;
+      if (!element || !patch) return;
+      if (!this.authService.isLoggedIn()) {
+        return;
+      }
+      this.canvasDataService.queueElementUpdate(element, patch);
+    });
   }
 
   public async init(): Promise<void> {
@@ -179,6 +205,7 @@ export class App {
       this.refreshCanvasList(null);
       return;
     }
+    this.canvasDataService.clearElementCache();
     this.canvasDataService.ensureCanvas().subscribe({
       next: (canvas) => {
         this.canvasDataService.loadCanvasDetails(canvas.id).subscribe({
@@ -297,7 +324,8 @@ export class App {
       return;
     }
 
-    this.canvasDataService.updateLayoutBatch(positions).subscribe({
+    const uniquePositions = this.dedupeLayoutPositions(positions);
+    this.canvasDataService.updateLayoutBatch(uniquePositions).subscribe({
       next: () => {
         notify('Layout saved', 'success');
       },
@@ -306,6 +334,17 @@ export class App {
         notify('Failed to save layout', 'error');
       },
     });
+  }
+
+  private dedupeLayoutPositions(
+    positions: CanvasPositionDTO[]
+  ): CanvasPositionDTO[] {
+    const map = new Map<string, CanvasPositionDTO>();
+    positions.forEach((pos) => {
+      const key = `${pos.content_type ?? 'na'}:${pos.object_id ?? 'na'}`;
+      map.set(key, pos);
+    });
+    return Array.from(map.values());
   }
 
   private loadActiveCanvasElements(): void {

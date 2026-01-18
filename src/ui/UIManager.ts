@@ -9,7 +9,7 @@ import { Scene } from '../core/scene/Scene.ts';
 import { editElement$ } from '../core/eventBus.ts';
 import { UndoRedoControls } from './UndoRedoControls.ts';
 import { PaletteMenu } from './components/PaletteMenu.ts';
-import { SaveButton } from './components/SaveButton.ts';
+import { SaveControls } from './components/SaveControls.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
@@ -39,14 +39,14 @@ export class UIManager {
 
     // Initialize palette menu
     const paletteMenu = new PaletteMenu(this.scene);
-    const saveButton = new SaveButton(this.scene);
+    const saveControls = new SaveControls(this.scene);
 
     // Add controls to components list
     this.components.push(
       this.canvasControls,
       this.zoomIndicator,
       paletteMenu,
-      saveButton,
+      saveControls,
       this.canvasToolbar,
       this.undoRedoControls
     );

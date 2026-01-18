@@ -21,6 +21,10 @@ export class GoalsApiService {
     return this.http.put<Goal>(`/goals/${id}/`, data);
   }
 
+  public patchGoal(id: number, data: Partial<Goal>): Observable<Goal> {
+    return this.http.patch<Goal>(`/goals/${id}/`, data);
+  }
+
   public deleteGoal(id: number): Observable<any> {
     return this.http.delete(`/goals/${id}/`);
   }

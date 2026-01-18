@@ -21,6 +21,13 @@ export class StoriesApiService {
     return this.http.put<StoryDto>(`/stories/${id}/`, data);
   }
 
+  public patchStory(
+    id: number,
+    data: Partial<StoryDto>
+  ): Observable<StoryDto> {
+    return this.http.patch<StoryDto>(`/stories/${id}/`, data);
+  }
+
   public deleteStory(id: number): Observable<any> {
     return this.http.delete(`/stories/${id}/`);
   }
