@@ -19,7 +19,7 @@ const DEFINED_DRAW_DURATION_MS = 9600;
 const DEFINED_CYCLE_MS = 9600;
 const DEFINED_ALPHA = 0.6;
 const DEFINED_OFFSET = 4;
-const DEFINED_SEGMENT_RATIO = 0.2;
+const DEFINED_SEGMENT_RATIO = 0.1;
 
 const getSweepProgress = (timeMs: number): number =>
   (timeMs % SWEEP_DURATION_MS) / SWEEP_DURATION_MS;
