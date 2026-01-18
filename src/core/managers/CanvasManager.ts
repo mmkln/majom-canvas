@@ -39,6 +39,11 @@ export class CanvasManager {
   dragStartY: number = 0;
   dragStartScrollX: number = 0;
   dragStartScrollY: number = 0;
+  private isRightPanning = false;
+  private rightPanStartX: number = 0;
+  private rightPanStartY: number = 0;
+  private rightPanStartScrollX: number = 0;
+  private rightPanStartScrollY: number = 0;
   private lastMouseCoords: { x: number; y: number } | null = null;
 
   // Multi-touch pinch-to-resize state
@@ -103,6 +108,7 @@ export class CanvasManager {
     this.canvas.addEventListener('mouseup', this.onMouseUp.bind(this));
     this.canvas.addEventListener('dblclick', this.onDoubleClick.bind(this));
     this.canvas.addEventListener('contextmenu', this.onRightClick.bind(this));
+    window.addEventListener('mouseup', this.onWindowMouseUp.bind(this));
 
     // Pointer events for touch/mobile support
     this.canvas.addEventListener('pointerdown', this.onPointerDown.bind(this));
@@ -413,6 +419,12 @@ export class CanvasManager {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
+    if (e.button === 2) {
+      e.preventDefault();
+      this.startRightPan(mouseX, mouseY);
+      return;
+    }
+
     const hit = this.scrollbarManager.hitTestScrollbars(mouseX, mouseY);
     if (hit === 'horizontal') {
       this.draggingScrollbar = 'horizontal';
@@ -438,6 +450,16 @@ export class CanvasManager {
     const rect = this.canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
+
+    if (this.isRightPanning) {
+      const deltaX = mouseX - this.rightPanStartX;
+      const deltaY = mouseY - this.rightPanStartY;
+      this.panZoom.scrollX = this.rightPanStartScrollX - deltaX;
+      this.panZoom.scrollY = this.rightPanStartScrollY - deltaY;
+      this.panZoom.clampScroll();
+      this.draw();
+      return;
+    }
 
     if (this.draggingScrollbar === 'horizontal') {
       const viewportWidth = this.canvas.width - this.panZoom.scrollbarWidth;
@@ -468,6 +490,12 @@ export class CanvasManager {
   }
 
   onMouseUp(e: MouseEvent): void {
+    if (this.isRightPanning) {
+      e.preventDefault();
+      this.endRightPan();
+      this.draw();
+      return;
+    }
     this.draggingScrollbar = null;
     this.interactionManager.handleMouseUp();
     this.draw();
@@ -480,9 +508,7 @@ export class CanvasManager {
   }
 
   onRightClick(e: MouseEvent): void {
-    const { sceneX, sceneY } = this.getSceneCoords(e);
-    this.interactionManager.handleRightClick(e, sceneX, sceneY);
-    this.draw();
+    e.preventDefault();
   }
 
   onClick(e: MouseEvent): void {
@@ -543,6 +569,27 @@ export class CanvasManager {
 
   public getInteractionManager(): InteractionManager {
     return this.interactionManager;
+  }
+
+  private startRightPan(mouseX: number, mouseY: number): void {
+    this.isRightPanning = true;
+    this.rightPanStartX = mouseX;
+    this.rightPanStartY = mouseY;
+    this.rightPanStartScrollX = this.panZoom.scrollX;
+    this.rightPanStartScrollY = this.panZoom.scrollY;
+    this.canvas.style.cursor = 'grab';
+  }
+
+  private endRightPan(): void {
+    this.isRightPanning = false;
+    this.canvas.style.cursor = 'default';
+  }
+
+  private onWindowMouseUp(e: MouseEvent): void {
+    if (!this.isRightPanning) return;
+    if (e.button !== 2) return;
+    this.endRightPan();
+    this.draw();
   }
 
   // --- Touch / Pointer event handlers ---
