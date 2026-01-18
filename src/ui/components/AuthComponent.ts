@@ -89,7 +89,7 @@ export class AuthComponent extends Component<any> {
     } else {
       this.avatarContainer.innerHTML = '';
       // Show login prompt if there are unsaved changes
-      const canSave = historyService.canUndo();
+      const canSave = historyService.hasUnsavedChanges();
       this.loginButton.textContent = canSave ? 'Login to Save' : 'Login';
       this.avatarContainer.appendChild(this.loginButton);
     }

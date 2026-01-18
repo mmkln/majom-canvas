@@ -29,6 +29,8 @@ import { isPlanningElement } from './elements/utils/typeGuards.ts';
 import { ElementStatus } from './elements/ElementStatus.ts';
 import { CanvasPositionDTO } from './majom-wrapper/data-access/canvas-position-dto.ts';
 import { notify } from './core/services/NotificationService.ts';
+import { Observable, of, throwError } from 'rxjs';
+import { catchError, finalize, map, switchMap } from 'rxjs/operators';
 
 export class App {
   private readonly dataProvider: IDataProvider;
@@ -41,6 +43,8 @@ export class App {
   private readonly uiManager: UIManager;
   private readonly canvasDataService: CanvasDataService;
   private canvasTitle: string = 'New canvas';
+  private autosaveTimer: number | null = null;
+  private autosaveInFlight = false;
 
   constructor(dataProvider: IDataProvider) {
     this.dataProvider = dataProvider;
@@ -86,7 +90,19 @@ export class App {
     });
 
     window.addEventListener('refreshCanvasData', () => this.loadCanvasFromApi());
-    window.addEventListener('saveCanvasLayout', () => this.saveCanvasLayout());
+    window.addEventListener('saveCanvasLayout', () => {
+      const tokenAtStart = historyService.getStateToken();
+      this.saveCanvasLayout(true).subscribe({
+        next: (saved) => {
+          if (saved && historyService.isTokenCurrent(tokenAtStart)) {
+            historyService.markSaved(tokenAtStart);
+          }
+        },
+        error: (err) => {
+          console.error('Failed to save layout', err);
+        },
+      });
+    });
     window.addEventListener('canvasTitleEdited', (event: Event) => {
       const customEvent = event as CustomEvent<{ title?: string }>;
       const title = customEvent.detail?.title;
@@ -214,6 +230,7 @@ export class App {
     this.scene.changes.subscribe(() =>
       this.diagramRepository.saveDiagram(this.scene)
     );
+    this.startAutosave();
     // AuthComponent does not have an init method, initialization happens in constructor
   }
 
@@ -249,50 +266,59 @@ export class App {
     });
   }
 
-  private saveCanvasLayout(): void {
+  private saveCanvasLayout(showNotifications: boolean = true): Observable<boolean> {
     if (!this.authService.isLoggedIn()) {
-      window.dispatchEvent(new CustomEvent('showLoginModal'));
-      return;
+      if (showNotifications) {
+        window.dispatchEvent(new CustomEvent('showLoginModal'));
+      }
+      return of(false);
     }
-    this.canvasDataService.loadContentTypeMap().subscribe({
-      next: (contentTypeMap) => {
-        this.saveLayoutWithContentTypes(contentTypeMap);
-      },
-      error: (err) => {
+    return this.canvasDataService.loadContentTypeMap().pipe(
+      catchError((err) => {
         console.error('Failed to load content types', err);
         const fallbackMap = this.getFallbackContentTypeMap();
         if (Object.keys(fallbackMap).length === 0) {
-          notify('Missing content type mapping', 'error');
-          return;
+          if (showNotifications) {
+            notify('Missing content type mapping', 'error');
+          }
+          return throwError(() => err);
         }
-        this.saveLayoutWithContentTypes(fallbackMap);
-      },
-    });
+        return of(fallbackMap);
+      }),
+      switchMap((contentTypeMap) =>
+        this.saveLayoutWithContentTypes(contentTypeMap, showNotifications)
+      )
+    );
   }
 
   private saveLayoutWithContentTypes(
-    contentTypeMap: Record<string, number>
-  ): void {
+    contentTypeMap: Record<string, number>,
+    showNotifications: boolean
+  ): Observable<boolean> {
     const elements = this.scene
       .getElements()
       .filter(isPlanningElement) as Array<
       TaskElement | StoryElement | GoalElement
     >;
-    this.canvasDataService.ensureElementsPersisted(elements).subscribe({
-      next: () => {
-        this.saveLayoutPositions(elements, contentTypeMap);
-      },
-      error: (err) => {
+    return this.canvasDataService.ensureElementsPersisted(elements).pipe(
+      switchMap(() =>
+        this.saveLayoutPositions(elements, contentTypeMap, showNotifications)
+      ),
+      catchError((err) => {
         console.error('Failed to create elements', err);
-        notify('Failed to create elements', 'error');
-      },
-    });
+        if (showNotifications) {
+          notify('Failed to create elements', 'error');
+        }
+        return throwError(() => err);
+      })
+    );
   }
 
   private saveLayoutPositions(
     elements: Array<TaskElement | StoryElement | GoalElement>,
-    contentTypeMap: Record<string, number>
-  ): void {
+    contentTypeMap: Record<string, number>,
+    showNotifications: boolean
+  ): Observable<boolean> {
     const positions: CanvasPositionDTO[] = [];
     const missingTypes = new Set<string>();
     const missingIds: string[] = [];
@@ -328,31 +354,46 @@ export class App {
     });
 
     if (missingTypes.size > 0) {
-      notify(
-        `Missing content type IDs for: ${Array.from(missingTypes).join(', ')}`,
-        'error'
-      );
-      return;
+      if (showNotifications) {
+        notify(
+          `Missing content type IDs for: ${Array.from(missingTypes).join(', ')}`,
+          'error'
+        );
+      }
+      return of(false);
     }
     if (missingIds.length > 0) {
-      notify('Some elements have no backend IDs; cannot save layout.', 'error');
-      return;
+      if (showNotifications) {
+        notify(
+          'Some elements have no backend IDs; cannot save layout.',
+          'error'
+        );
+      }
+      return of(false);
     }
     if (positions.length === 0) {
-      notify('No elements to save.', 'info');
-      return;
+      if (showNotifications) {
+        notify('No elements to save.', 'info');
+      }
+      return of(false);
     }
 
     const uniquePositions = this.dedupeLayoutPositions(positions);
-    this.canvasDataService.updateLayoutBatch(uniquePositions).subscribe({
-      next: () => {
-        notify('Layout saved', 'success');
-      },
-      error: (err) => {
+    return this.canvasDataService.updateLayoutBatch(uniquePositions).pipe(
+      map(() => {
+        if (showNotifications) {
+          notify('Layout saved', 'success');
+        }
+        return true;
+      }),
+      catchError((err) => {
         console.error('Failed to save layout', err);
-        notify('Failed to save layout', 'error');
-      },
-    });
+        if (showNotifications) {
+          notify('Failed to save layout', 'error');
+        }
+        return throwError(() => err);
+      })
+    );
   }
 
   private dedupeLayoutPositions(
@@ -364,6 +405,37 @@ export class App {
       map.set(key, pos);
     });
     return Array.from(map.values());
+  }
+
+  private startAutosave(): void {
+    if (this.autosaveTimer) return;
+    this.autosaveTimer = window.setInterval(() => {
+      this.runAutosaveTick();
+    }, 5000);
+  }
+
+  private runAutosaveTick(): void {
+    if (!this.authService.isLoggedIn()) return;
+    if (this.autosaveInFlight) return;
+    if (!historyService.hasUnsavedChanges()) return;
+    const tokenAtStart = historyService.getStateToken();
+    this.autosaveInFlight = true;
+    this.saveCanvasLayout(false)
+      .pipe(
+        finalize(() => {
+          this.autosaveInFlight = false;
+        })
+      )
+      .subscribe({
+        next: (saved) => {
+          if (saved && historyService.isTokenCurrent(tokenAtStart)) {
+            historyService.markSaved(tokenAtStart);
+          }
+        },
+        error: (err) => {
+          console.error('Autosave failed', err);
+        },
+      });
   }
 
   private loadActiveCanvasElements(): void {

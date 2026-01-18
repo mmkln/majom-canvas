@@ -41,7 +41,7 @@ export class SaveButton {
   }
 
   private updateButton(): void {
-    const canSave = historyService.canUndo();
+    const canSave = historyService.hasUnsavedChanges();
     const isLoggedIn = this.authService.isLoggedIn();
     // Always text 'Save'; disable if not logged in or no changes
     this.button.disabled = !isLoggedIn || !canSave;
