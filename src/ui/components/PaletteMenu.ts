@@ -13,6 +13,8 @@ export class PaletteMenu {
   private panel: HTMLElement;
   private titleEl: HTMLElement;
   private titleInput: HTMLInputElement | null = null;
+  private canvasSelect: HTMLSelectElement;
+  private canvasListListener: ((event: Event) => void) | null = null;
   private isOpen = false;
   private titleListener: ((event: Event) => void) | null = null;
   private isEditingTitle = false;
@@ -27,6 +29,18 @@ export class PaletteMenu {
       'text-lg font-semibold text-gray-900 leading-tight mb-1 cursor-text';
     this.titleEl.textContent = this.currentTitle;
     this.container.appendChild(this.titleEl);
+    const canvasRow = document.createElement('div');
+    canvasRow.className = 'flex items-center gap-2 mt-1';
+    this.canvasSelect = document.createElement('select');
+    this.canvasSelect.className =
+      'w-full text-sm border border-gray-200 rounded px-2 py-1 bg-white';
+    this.canvasSelect.disabled = true;
+    const createBtn = document.createElement('button');
+    createBtn.textContent = 'New';
+    createBtn.className =
+      'bg-gray-100 text-gray-800 px-2 py-1 rounded border border-gray-200 hover:bg-gray-200';
+    canvasRow.append(this.canvasSelect, createBtn);
+    this.container.appendChild(canvasRow);
     // Toggle button
     const toggle = document.createElement('button');
     toggle.textContent = '+ Add Element';
@@ -68,6 +82,18 @@ export class PaletteMenu {
       this.panel.style.display = this.isOpen ? 'block' : 'none';
     });
     this.titleEl.addEventListener('click', () => this.startTitleEdit());
+    this.canvasSelect.addEventListener('change', () => {
+      const id = this.canvasSelect.value;
+      const name =
+        this.canvasSelect.selectedOptions[0]?.textContent || 'New canvas';
+      if (!id) return;
+      window.dispatchEvent(
+        new CustomEvent('canvasSelected', { detail: { id, name } })
+      );
+    });
+    createBtn.addEventListener('click', () => {
+      window.dispatchEvent(new CustomEvent('canvasCreateRequested'));
+    });
 
     this.titleListener = (event: Event) => {
       const customEvent = event as CustomEvent<{ title?: string }>;
@@ -81,6 +107,34 @@ export class PaletteMenu {
       }
     };
     window.addEventListener('canvasTitleChanged', this.titleListener);
+    this.canvasListListener = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        canvases?: Array<{ id: string; name: string }>;
+        activeId?: string | null;
+      }>;
+      const canvases = customEvent.detail?.canvases || [];
+      const activeId = customEvent.detail?.activeId || null;
+      this.canvasSelect.innerHTML = '';
+      if (canvases.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'No canvases';
+        this.canvasSelect.appendChild(opt);
+        this.canvasSelect.disabled = true;
+        return;
+      }
+      canvases.forEach((canvas) => {
+        const opt = document.createElement('option');
+        opt.value = canvas.id;
+        opt.textContent = canvas.name;
+        this.canvasSelect.appendChild(opt);
+      });
+      this.canvasSelect.disabled = false;
+      if (activeId) {
+        this.canvasSelect.value = activeId;
+      }
+    };
+    window.addEventListener('canvasListUpdated', this.canvasListListener);
 
     const http = new HttpInterceptorClient(environment.apiUrl);
     const tasksApi = new TasksApiService(http);
@@ -168,6 +222,10 @@ export class PaletteMenu {
     if (this.titleListener) {
       window.removeEventListener('canvasTitleChanged', this.titleListener);
       this.titleListener = null;
+    }
+    if (this.canvasListListener) {
+      window.removeEventListener('canvasListUpdated', this.canvasListListener);
+      this.canvasListListener = null;
     }
     this.container.remove();
   }

@@ -47,17 +47,67 @@ export class CanvasDataService {
         const effectiveLayout = targetCanvas
           ? layout.filter((pos) => pos.canvas === targetCanvas)
           : layout;
+        const layoutIds = {
+          task: new Set<number>(),
+          story: new Set<number>(),
+          goal: new Set<number>(),
+        };
+        effectiveLayout.forEach((pos) => {
+          const type = pos.element_type;
+          const id = pos.element_id ?? pos.object_id;
+          if (!type || !id) return;
+          if (type in layoutIds) {
+            layoutIds[type as keyof typeof layoutIds].add(id);
+          }
+        });
         const firstCanvas = effectiveLayout[0]?.canvas;
         if (firstCanvas) {
           this.canvasId = firstCanvas;
         }
         const elems: Array<TaskElement | StoryElement | GoalElement> = [];
-        elems.push(...tasks.map((t) => mapTask(t, effectiveLayout)));
-        elems.push(...stories.map((s) => mapStory(s, effectiveLayout)));
-        elems.push(...goals.map((g) => mapGoal(g, effectiveLayout)));
+        elems.push(
+          ...tasks
+            .filter((t) => layoutIds.task.has(t.id))
+            .map((t) => mapTask(t, effectiveLayout))
+        );
+        elems.push(
+          ...stories
+            .filter((s) => layoutIds.story.has(s.id))
+            .map((s) => mapStory(s, effectiveLayout))
+        );
+        elems.push(
+          ...goals
+            .filter((g) => layoutIds.goal.has(g.id))
+            .map((g) => mapGoal(g, effectiveLayout))
+        );
         return elems;
       }),
       shareReplay(1)
+    );
+  }
+
+  public loadCanvases(): Observable<CanvasSummary[]> {
+    return this.canvasApi.loadCanvases();
+  }
+
+  public setActiveCanvas(canvas: Pick<CanvasSummary, 'id' | 'name'>): void {
+    this.canvasId = canvas.id;
+    this.canvasName = canvas.name;
+  }
+
+  public getActiveCanvasId(): string | null {
+    return this.canvasId;
+  }
+
+  public createCanvas(
+    name: string = 'New canvas'
+  ): Observable<Pick<CanvasSummary, 'id' | 'name'>> {
+    return this.canvasApi.createCanvas(name).pipe(
+      map((canvas) => {
+        this.canvasId = canvas.id;
+        this.canvasName = canvas.name;
+        return canvas;
+      })
     );
   }
 
