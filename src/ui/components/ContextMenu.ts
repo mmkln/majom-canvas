@@ -2,6 +2,7 @@ import { historyService } from '../../core/services/HistoryService.ts';
 import { DeleteCommand } from '../../core/commands/DeleteCommand.ts';
 import { CopyCommand } from '../../core/commands/CopyCommand.ts';
 import { PasteCommand } from '../../core/commands/PasteCommand.ts';
+import { AddElementCommand } from '../../core/commands/AddElementCommand.ts';
 import { Scene } from '../../core/scene/Scene.ts';
 import type { CanvasManager } from '../../core/managers/CanvasManager.ts';
 import type { ICanvasElement } from '../../core/interfaces/canvasElement.ts';
@@ -14,6 +15,16 @@ type ContextMenuDetail = {
   sceneX: number;
   sceneY: number;
 };
+
+type ContextMenuItem =
+  | { kind: 'divider' }
+  | { kind: 'header'; label: string }
+  | {
+      kind?: 'button';
+      label: string;
+      action: () => 'keep-open' | void;
+      tone?: 'danger' | 'warning';
+    };
 
 export class ContextMenu {
   private menu: HTMLDivElement;
@@ -74,19 +85,27 @@ export class ContextMenu {
   private render(): void {
     if (!this.lastDetail) return;
     this.menu.innerHTML = '';
-    const items = this.getItems(this.lastDetail.element);
+    const items = this.getItems(this.lastDetail);
     items.forEach((item) => {
-      if (item.dividerBefore) {
+      if (item.kind === 'divider') {
         const divider = document.createElement('div');
         divider.className = 'my-1 border-t border-gray-200';
         this.menu.appendChild(divider);
+        return;
+      }
+      if (item.kind === 'header') {
+        const header = document.createElement('div');
+        header.className =
+          'px-3 pt-2 text-xs font-semibold uppercase text-gray-400';
+        header.textContent = item.label;
+        this.menu.appendChild(header);
+        return;
       }
       const btn = document.createElement('button');
       btn.type = 'button';
       const baseClasses =
         'w-full text-left px-3 py-2 hover:bg-gray-100 active:bg-gray-200';
-      const dangerClasses =
-        'text-red-600 hover:bg-red-50 active:bg-red-100';
+      const dangerClasses = 'text-red-600 hover:bg-red-50 active:bg-red-100';
       const warningClasses =
         'text-orange-600 hover:bg-orange-50 active:bg-orange-100';
       btn.className =
@@ -129,12 +148,8 @@ export class ContextMenu {
     window.addEventListener('mousedown', this.outsideHandler);
   }
 
-  private getItems(element: ICanvasElement | null): Array<{
-    label: string;
-    action: () => 'keep-open' | void;
-    tone?: 'danger' | 'warning';
-    dividerBefore?: boolean;
-  }> {
+  private getItems(detail: ContextMenuDetail): ContextMenuItem[] {
+    const { element, sceneX, sceneY } = detail;
     if (!element) {
       return [
         {
@@ -143,6 +158,25 @@ export class ContextMenu {
             historyService.execute(
               new PasteCommand(this.scene, this.canvasManager)
             ),
+        },
+        {
+          kind: 'divider',
+        },
+        {
+          kind: 'header',
+          label: 'Create new',
+        },
+        {
+          label: 'Task',
+          action: () => this.createTaskAt(sceneX, sceneY),
+        },
+        {
+          label: 'Story',
+          action: () => this.createStoryAt(sceneX, sceneY),
+        },
+        {
+          label: 'Goal',
+          action: () => this.createGoalAt(sceneX, sceneY),
         },
       ];
     }
@@ -169,8 +203,7 @@ export class ContextMenu {
       },
       {
         label: 'Copy',
-        action: () =>
-          historyService.execute(new CopyCommand(this.scene)),
+        action: () => historyService.execute(new CopyCommand(this.scene)),
       },
       {
         label: 'Remove from canvas',
@@ -179,10 +212,10 @@ export class ContextMenu {
       },
       ...(isPlanningElement
         ? [
+            { kind: 'divider' as const },
             {
               label: deleteLabel,
               tone: isConfirming ? ('warning' as const) : ('danger' as const),
-              dividerBefore: true,
               action: () => {
                 if (!confirmKey) return;
                 if (!isConfirming) {
@@ -202,7 +235,10 @@ export class ContextMenu {
     ];
   }
 
-  private getScreenCoords(sceneX: number, sceneY: number): { x: number; y: number } {
+  private getScreenCoords(
+    sceneX: number,
+    sceneY: number
+  ): { x: number; y: number } {
     const panZoom = this.canvasManager.getPanZoomManager();
     const rect = this.canvasManager.getCanvas().getBoundingClientRect();
     const x = sceneX * panZoom.scale - panZoom.scrollX + rect.left;
@@ -216,5 +252,35 @@ export class ContextMenu {
     if (element instanceof StoryElement) return `story:${element.id}`;
     if (element instanceof GoalElement) return `goal:${element.id}`;
     return null;
+  }
+
+  private createTaskAt(sceneX: number, sceneY: number): void {
+    const task = new TaskElement({
+      x: sceneX - TaskElement.width / 2,
+      y: sceneY - TaskElement.height / 2,
+    });
+    historyService.execute(new AddElementCommand(this.scene, task));
+    this.scene.setSelected([task]);
+    this.canvasManager.draw();
+  }
+
+  private createStoryAt(sceneX: number, sceneY: number): void {
+    const story = new StoryElement({
+      x: sceneX - StoryElement.width / 2,
+      y: sceneY - StoryElement.height / 2,
+    });
+    historyService.execute(new AddElementCommand(this.scene, story));
+    this.scene.setSelected([story]);
+    this.canvasManager.draw();
+  }
+
+  private createGoalAt(sceneX: number, sceneY: number): void {
+    const goal = new GoalElement({
+      x: sceneX - GoalElement.width / 2,
+      y: sceneY - GoalElement.height / 2,
+    });
+    historyService.execute(new AddElementCommand(this.scene, goal));
+    this.scene.setSelected([goal]);
+    this.canvasManager.draw();
   }
 }
