@@ -62,6 +62,7 @@ export class CanvasDataService {
   private tasksCache: PlatformTask[] | null = null;
   private storiesCache: Story[] | null = null;
   private goalsCache: Goal[] | null = null;
+  private positionRegistry: Map<string, CanvasPositionDTO> = new Map();
   private elementUpdate$ = new Subject<ElementUpdateRequest>();
   private elementUpdateStatus$ = new Subject<ElementUpdateStatus>();
   private pendingElementUpdates = 0;
@@ -87,6 +88,9 @@ export class CanvasDataService {
       return of([]);
     }
     return this.canvasApi.fetchCanvasPositions(canvasId).pipe(
+      tap((layout) => {
+        this.updatePositionRegistry(layout);
+      }),
       retry(2),
       switchMap((layout) => {
         const layoutIds = {
@@ -276,8 +280,7 @@ export class CanvasDataService {
   public loadCanvasDetails(id: string): Observable<CanvasSummary> {
     return this.canvasApi.loadCanvas(id).pipe(
       map((canvas) => {
-        this.canvasId = canvas.id;
-        this.canvasName = canvas.name;
+        this.setActiveCanvas(canvas);
         return canvas;
       })
     );
@@ -306,6 +309,7 @@ export class CanvasDataService {
     this.tasks$ = undefined;
     this.stories$ = undefined;
     this.goals$ = undefined;
+    this.positionRegistry.clear();
   }
 
   public ensureElementsPersisted(
@@ -541,6 +545,9 @@ export class CanvasDataService {
   }
 
   public setActiveCanvas(canvas: Pick<CanvasSummary, 'id' | 'name'>): void {
+    if (this.canvasId !== canvas.id) {
+      this.positionRegistry.clear();
+    }
     this.canvasId = canvas.id;
     this.canvasName = canvas.name;
   }
@@ -554,8 +561,7 @@ export class CanvasDataService {
   ): Observable<Pick<CanvasSummary, 'id' | 'name'>> {
     return this.canvasApi.createCanvas(name).pipe(
       map((canvas) => {
-        this.canvasId = canvas.id;
-        this.canvasName = canvas.name;
+        this.setActiveCanvas(canvas);
         return canvas;
       })
     );
@@ -571,8 +577,7 @@ export class CanvasDataService {
         return this.canvasApi.createCanvas('New canvas');
       }),
       map((canvas) => {
-        this.canvasId = canvas.id;
-        this.canvasName = canvas.name;
+        this.setActiveCanvas(canvas);
         return canvas;
       })
     );
@@ -585,8 +590,7 @@ export class CanvasDataService {
     if (this.canvasId) {
       return this.canvasApi.updateCanvas(this.canvasId, safeName).pipe(
         map((updated) => {
-          this.canvasId = updated.id;
-          this.canvasName = updated.name;
+          this.setActiveCanvas(updated);
           return updated;
         })
       );
@@ -594,10 +598,98 @@ export class CanvasDataService {
     return this.ensureCanvas().pipe(
       switchMap((canvas) => this.canvasApi.updateCanvas(canvas.id, safeName)),
       map((updated) => {
-        this.canvasId = updated.id;
-        this.canvasName = updated.name;
+        this.setActiveCanvas(updated);
         return updated;
       })
+    );
+  }
+
+  public getRemovedPositionIds(
+    elements: Array<TaskElement | StoryElement | GoalElement>
+  ): string[] {
+    if (this.positionRegistry.size === 0) return [];
+    const activeKeys = this.getElementKeys(elements);
+    const removed: string[] = [];
+    this.positionRegistry.forEach((pos, key) => {
+      if (!activeKeys.has(key) && pos.id) {
+        removed.push(pos.id);
+      }
+    });
+    return removed;
+  }
+
+  public needsPositionRefresh(
+    elements: Array<TaskElement | StoryElement | GoalElement>
+  ): boolean {
+    const keys = this.getElementKeys(elements);
+    for (const key of keys) {
+      if (!this.positionRegistry.has(key)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  public refreshPositions(): Observable<void> {
+    if (!this.canvasId) return of(undefined);
+    return this.canvasApi.fetchCanvasPositions(this.canvasId).pipe(
+      tap((layout) => this.updatePositionRegistry(layout)),
+      map(() => undefined)
+    );
+  }
+
+  public deletePositions(positionIds: string[]): Observable<void> {
+    const ids = positionIds.filter(Boolean);
+    if (ids.length === 0) return of(undefined);
+    return forkJoin(ids.map((id) => this.canvasApi.deleteCanvasPosition(id))).pipe(
+      tap(() => this.removePositionsFromRegistry(ids)),
+      map(() => undefined)
+    );
+  }
+
+  public getPositionIdForElement(
+    element: TaskElement | StoryElement | GoalElement
+  ): string | null {
+    const type = this.getElementType(element);
+    if (!type) return null;
+    const id = Number(element.id);
+    if (!Number.isFinite(id)) return null;
+    const key = this.buildPositionKey(type, id);
+    return this.positionRegistry.get(key)?.id ?? null;
+  }
+
+  public deleteElement(
+    element: TaskElement | StoryElement | GoalElement
+  ): Observable<void> {
+    const type = this.getElementType(element);
+    if (!type) return of(undefined);
+    const id = Number(element.id);
+    if (!Number.isFinite(id)) {
+      return this.deletePositionForElement(type, id);
+    }
+    const deleteEntity$ =
+      element instanceof TaskElement
+        ? this.tasksApi.deleteTask(id)
+        : element instanceof StoryElement
+          ? this.storiesApi.deleteStory(id)
+          : this.goalsApi.deleteGoal(id);
+    return deleteEntity$.pipe(
+      switchMap(() =>
+        this.deletePositionForElement(type, id).pipe(
+          map(() => true),
+          catchError((err) => {
+            console.error('Failed to delete canvas position', err);
+            return of(false);
+          })
+        )
+      ),
+      tap((positionDeleted) => {
+        if (positionDeleted) {
+          this.removePositionByKey(type, id);
+        }
+        this.removeElementFromCache(type, id);
+      }),
+      map(() => undefined)
     );
   }
 
@@ -615,5 +707,88 @@ export class CanvasDataService {
         return this.canvasApi.saveCanvasPositions(id, changes);
       })
     );
+  }
+
+  private updatePositionRegistry(layout: CanvasPositionDTO[]): void {
+    this.positionRegistry.clear();
+    layout.forEach((pos) => {
+      const type = pos.element_type;
+      const elementId = pos.element_id ?? pos.object_id;
+      if (!type || !elementId || !pos.id) return;
+      this.positionRegistry.set(this.buildPositionKey(type, elementId), pos);
+    });
+  }
+
+  private removePositionsFromRegistry(positionIds: string[]): void {
+    if (positionIds.length === 0) return;
+    const idSet = new Set(positionIds);
+    Array.from(this.positionRegistry.entries()).forEach(([key, pos]) => {
+      if (pos.id && idSet.has(pos.id)) {
+        this.positionRegistry.delete(key);
+      }
+    });
+  }
+
+  private getElementKeys(
+    elements: Array<TaskElement | StoryElement | GoalElement>
+  ): Set<string> {
+    const keys = new Set<string>();
+    elements.forEach((el) => {
+      const type = this.getElementType(el);
+      if (!type) return;
+      const id = Number(el.id);
+      if (!Number.isFinite(id)) return;
+      keys.add(this.buildPositionKey(type, id));
+    });
+    return keys;
+  }
+
+  private getElementType(
+    element: TaskElement | StoryElement | GoalElement
+  ): 'task' | 'story' | 'goal' | null {
+    if (element instanceof TaskElement) return 'task';
+    if (element instanceof StoryElement) return 'story';
+    if (element instanceof GoalElement) return 'goal';
+    return null;
+  }
+
+  private buildPositionKey(type: string, id: number): string {
+    return `${type}:${id}`;
+  }
+
+  private deletePositionForElement(
+    type: 'task' | 'story' | 'goal',
+    id: number
+  ): Observable<void> {
+    if (!Number.isFinite(id)) return of(undefined);
+    const key = this.buildPositionKey(type, id);
+    const positionId = this.positionRegistry.get(key)?.id;
+    if (positionId) {
+      return this.deletePositions([positionId]);
+    }
+    return this.refreshPositions().pipe(
+      switchMap(() => {
+        const refreshedId = this.positionRegistry.get(key)?.id;
+        if (!refreshedId) return of(undefined);
+        return this.deletePositions([refreshedId]);
+      })
+    );
+  }
+
+  private removePositionByKey(type: 'task' | 'story' | 'goal', id: number): void {
+    this.positionRegistry.delete(this.buildPositionKey(type, id));
+  }
+
+  private removeElementFromCache(
+    type: 'task' | 'story' | 'goal',
+    id: number
+  ): void {
+    if (type === 'task' && this.tasksCache) {
+      this.tasksCache = this.tasksCache.filter((task) => task.id !== id);
+    } else if (type === 'story' && this.storiesCache) {
+      this.storiesCache = this.storiesCache.filter((story) => story.id !== id);
+    } else if (type === 'goal' && this.goalsCache) {
+      this.goalsCache = this.goalsCache.filter((goal) => goal.id !== id);
+    }
   }
 }

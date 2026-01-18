@@ -49,6 +49,11 @@ export class CanvasApiService {
     );
   }
 
+  /** Delete a canvas position by id */
+  deleteCanvasPosition(positionId: string): Observable<void> {
+    return this.http.delete<void>(`/canvas/positions/${positionId}/`);
+  }
+
   /** Create a new canvas container */
   createCanvas(
     name: string = 'New canvas'

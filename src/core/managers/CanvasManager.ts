@@ -40,10 +40,14 @@ export class CanvasManager {
   dragStartScrollX: number = 0;
   dragStartScrollY: number = 0;
   private isRightPanning = false;
+  private rightPanActive = false;
   private rightPanStartX: number = 0;
   private rightPanStartY: number = 0;
   private rightPanStartScrollX: number = 0;
   private rightPanStartScrollY: number = 0;
+  private rightPanStartSceneX: number = 0;
+  private rightPanStartSceneY: number = 0;
+  private suppressContextMenu = false;
   private lastMouseCoords: { x: number; y: number } | null = null;
 
   // Multi-touch pinch-to-resize state
@@ -421,7 +425,10 @@ export class CanvasManager {
 
     if (e.button === 2) {
       e.preventDefault();
+      this.interactionManager.handleMouseDown(e, sceneX, sceneY);
       this.startRightPan(mouseX, mouseY);
+      this.rightPanStartSceneX = sceneX;
+      this.rightPanStartSceneY = sceneY;
       return;
     }
 
@@ -454,6 +461,15 @@ export class CanvasManager {
     if (this.isRightPanning) {
       const deltaX = mouseX - this.rightPanStartX;
       const deltaY = mouseY - this.rightPanStartY;
+      if (!this.rightPanActive) {
+        const distance = Math.hypot(deltaX, deltaY);
+        if (distance >= 4) {
+          this.rightPanActive = true;
+          this.canvas.style.cursor = 'grabbing';
+        } else {
+          return;
+        }
+      }
       this.panZoom.scrollX = this.rightPanStartScrollX - deltaX;
       this.panZoom.scrollY = this.rightPanStartScrollY - deltaY;
       this.panZoom.clampScroll();
@@ -492,6 +508,16 @@ export class CanvasManager {
   onMouseUp(e: MouseEvent): void {
     if (this.isRightPanning) {
       e.preventDefault();
+      if (!this.rightPanActive) {
+        this.interactionManager.handleRightClick(
+          e,
+          this.rightPanStartSceneX,
+          this.rightPanStartSceneY
+        );
+        this.suppressContextMenu = true;
+      } else {
+        this.suppressContextMenu = true;
+      }
       this.endRightPan();
       this.draw();
       return;
@@ -509,6 +535,15 @@ export class CanvasManager {
 
   onRightClick(e: MouseEvent): void {
     e.preventDefault();
+    if (this.suppressContextMenu) {
+      this.suppressContextMenu = false;
+      return;
+    }
+    if (!this.isRightPanning) {
+      const { sceneX, sceneY } = this.getSceneCoords(e);
+      this.interactionManager.handleRightClick(e, sceneX, sceneY);
+      this.draw();
+    }
   }
 
   onClick(e: MouseEvent): void {
@@ -573,6 +608,7 @@ export class CanvasManager {
 
   private startRightPan(mouseX: number, mouseY: number): void {
     this.isRightPanning = true;
+    this.rightPanActive = false;
     this.rightPanStartX = mouseX;
     this.rightPanStartY = mouseY;
     this.rightPanStartScrollX = this.panZoom.scrollX;
@@ -582,12 +618,21 @@ export class CanvasManager {
 
   private endRightPan(): void {
     this.isRightPanning = false;
+    this.rightPanActive = false;
     this.canvas.style.cursor = 'default';
   }
 
   private onWindowMouseUp(e: MouseEvent): void {
     if (!this.isRightPanning) return;
     if (e.button !== 2) return;
+    if (!this.rightPanActive) {
+      this.interactionManager.handleRightClick(
+        e,
+        this.rightPanStartSceneX,
+        this.rightPanStartSceneY
+      );
+    }
+    this.suppressContextMenu = true;
     this.endRightPan();
     this.draw();
   }

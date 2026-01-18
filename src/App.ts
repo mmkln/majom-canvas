@@ -189,6 +189,26 @@ export class App {
       this.canvasDataService.queueElementUpdate(element, patch);
     });
 
+    window.addEventListener('elementDeleteRequested', (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        element?: TaskElement | StoryElement | GoalElement;
+      }>;
+      const element = customEvent.detail?.element;
+      if (!element) return;
+      if (!this.authService.isLoggedIn()) {
+        window.dispatchEvent(new CustomEvent('showLoginModal'));
+        return;
+      }
+      this.scene.removeElements([element]);
+      this.canvasDataService.deleteElement(element).subscribe({
+        error: (err) => {
+          console.error('Failed to delete element', err);
+          notify('Failed to delete element', 'error');
+          this.scene.addElement(element);
+        },
+      });
+    });
+
     window.addEventListener('taskStoryLinkChanged', (event: Event) => {
       const customEvent = event as CustomEvent<{
         task?: TaskElement;
@@ -371,7 +391,11 @@ export class App {
       }
       return of(false);
     }
-    if (positions.length === 0) {
+    const removedPositionIds =
+      this.canvasDataService.getRemovedPositionIds(elements);
+    const needsPositionRefresh =
+      this.canvasDataService.needsPositionRefresh(elements);
+    if (positions.length === 0 && removedPositionIds.length === 0) {
       if (showNotifications) {
         notify('No elements to save.', 'info');
       }
@@ -379,7 +403,23 @@ export class App {
     }
 
     const uniquePositions = this.dedupeLayoutPositions(positions);
-    return this.canvasDataService.updateLayoutBatch(uniquePositions).pipe(
+    const save$ =
+      uniquePositions.length > 0
+        ? this.canvasDataService.updateLayoutBatch(uniquePositions)
+        : of(undefined);
+    return save$.pipe(
+      switchMap(() =>
+        this.canvasDataService.deletePositions(removedPositionIds)
+      ),
+      switchMap(() => {
+        if (!needsPositionRefresh) return of(undefined);
+        return this.canvasDataService.refreshPositions().pipe(
+          catchError((err) => {
+            console.error('Failed to refresh positions', err);
+            return of(undefined);
+          })
+        );
+      }),
       map(() => {
         if (showNotifications) {
           notify('Layout saved', 'success');

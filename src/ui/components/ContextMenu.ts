@@ -1,0 +1,220 @@
+import { historyService } from '../../core/services/HistoryService.ts';
+import { DeleteCommand } from '../../core/commands/DeleteCommand.ts';
+import { CopyCommand } from '../../core/commands/CopyCommand.ts';
+import { PasteCommand } from '../../core/commands/PasteCommand.ts';
+import { Scene } from '../../core/scene/Scene.ts';
+import type { CanvasManager } from '../../core/managers/CanvasManager.ts';
+import type { ICanvasElement } from '../../core/interfaces/canvasElement.ts';
+import { TaskElement } from '../../elements/TaskElement.ts';
+import { StoryElement } from '../../elements/StoryElement.ts';
+import { GoalElement } from '../../elements/GoalElement.ts';
+
+type ContextMenuDetail = {
+  element: ICanvasElement | null;
+  sceneX: number;
+  sceneY: number;
+};
+
+export class ContextMenu {
+  private menu: HTMLDivElement;
+  private visible = false;
+  private handler: ((event: Event) => void) | null = null;
+  private outsideHandler: ((event: MouseEvent) => void) | null = null;
+  private pendingDeleteConfirmKey: string | null = null;
+  private lastDetail: ContextMenuDetail | null = null;
+
+  constructor(
+    private scene: Scene,
+    private canvasManager: CanvasManager
+  ) {
+    this.menu = document.createElement('div');
+    this.menu.className =
+      'fixed z-50 min-w-[180px] rounded-md border border-gray-200 bg-white shadow-lg text-sm text-gray-800';
+    this.menu.style.display = 'none';
+  }
+
+  mount(parent: HTMLElement = document.body): void {
+    parent.appendChild(this.menu);
+    this.handler = (event: Event) => {
+      const customEvent = event as CustomEvent<ContextMenuDetail>;
+      this.show(customEvent.detail);
+    };
+    window.addEventListener('contextMenuRequested', this.handler);
+  }
+
+  unmount(): void {
+    if (this.handler) {
+      window.removeEventListener('contextMenuRequested', this.handler);
+      this.handler = null;
+    }
+    this.hide();
+    this.menu.remove();
+  }
+
+  private show(detail: ContextMenuDetail): void {
+    const nextKey = this.getElementConfirmKey(detail.element);
+    if (
+      this.pendingDeleteConfirmKey &&
+      this.pendingDeleteConfirmKey !== nextKey
+    ) {
+      this.pendingDeleteConfirmKey = null;
+    }
+    this.lastDetail = detail;
+    this.render();
+
+    const { x, y } = this.getScreenCoords(detail.sceneX, detail.sceneY);
+    this.menu.style.left = `${x}px`;
+    this.menu.style.top = `${y}px`;
+    this.menu.style.display = 'block';
+    this.visible = true;
+
+    this.attachOutsideHandler();
+  }
+
+  private render(): void {
+    if (!this.lastDetail) return;
+    this.menu.innerHTML = '';
+    const items = this.getItems(this.lastDetail.element);
+    items.forEach((item) => {
+      if (item.dividerBefore) {
+        const divider = document.createElement('div');
+        divider.className = 'my-1 border-t border-gray-200';
+        this.menu.appendChild(divider);
+      }
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      const baseClasses =
+        'w-full text-left px-3 py-2 hover:bg-gray-100 active:bg-gray-200';
+      const dangerClasses =
+        'text-red-600 hover:bg-red-50 active:bg-red-100';
+      const warningClasses =
+        'text-orange-600 hover:bg-orange-50 active:bg-orange-100';
+      btn.className =
+        item.tone === 'danger'
+          ? `${baseClasses} ${dangerClasses}`
+          : item.tone === 'warning'
+            ? `${baseClasses} ${warningClasses}`
+            : baseClasses;
+      btn.textContent = item.label;
+      btn.addEventListener('click', () => {
+        const result = item.action();
+        if (result === 'keep-open') {
+          this.render();
+          return;
+        }
+        this.hide();
+      });
+      this.menu.appendChild(btn);
+    });
+  }
+
+  private hide(): void {
+    if (!this.visible) return;
+    this.menu.style.display = 'none';
+    this.visible = false;
+    this.pendingDeleteConfirmKey = null;
+    if (this.outsideHandler) {
+      window.removeEventListener('mousedown', this.outsideHandler);
+      this.outsideHandler = null;
+    }
+  }
+
+  private attachOutsideHandler(): void {
+    if (this.outsideHandler) return;
+    this.outsideHandler = (event: MouseEvent) => {
+      if (!this.menu.contains(event.target as Node)) {
+        this.hide();
+      }
+    };
+    window.addEventListener('mousedown', this.outsideHandler);
+  }
+
+  private getItems(element: ICanvasElement | null): Array<{
+    label: string;
+    action: () => 'keep-open' | void;
+    tone?: 'danger' | 'warning';
+    dividerBefore?: boolean;
+  }> {
+    if (!element) {
+      return [
+        {
+          label: 'Paste',
+          action: () =>
+            historyService.execute(
+              new PasteCommand(this.scene, this.canvasManager)
+            ),
+        },
+      ];
+    }
+    const isPlanningElement =
+      element instanceof TaskElement ||
+      element instanceof StoryElement ||
+      element instanceof GoalElement;
+    const confirmKey = this.getElementConfirmKey(element);
+    const isConfirming =
+      Boolean(confirmKey) && this.pendingDeleteConfirmKey === confirmKey;
+    const deleteLabel = isConfirming ? 'Confirm delete' : 'Delete element';
+    return [
+      {
+        label: 'Edit',
+        action: () => {
+          if (
+            element instanceof TaskElement ||
+            element instanceof StoryElement ||
+            element instanceof GoalElement
+          ) {
+            (element as any).onDoubleClick?.();
+          }
+        },
+      },
+      {
+        label: 'Copy',
+        action: () =>
+          historyService.execute(new CopyCommand(this.scene)),
+      },
+      {
+        label: 'Remove from canvas',
+        action: () =>
+          historyService.execute(new DeleteCommand(this.scene, [element])),
+      },
+      ...(isPlanningElement
+        ? [
+            {
+              label: deleteLabel,
+              tone: isConfirming ? ('warning' as const) : ('danger' as const),
+              dividerBefore: true,
+              action: () => {
+                if (!confirmKey) return;
+                if (!isConfirming) {
+                  this.pendingDeleteConfirmKey = confirmKey;
+                  return 'keep-open';
+                }
+                this.pendingDeleteConfirmKey = null;
+                window.dispatchEvent(
+                  new CustomEvent('elementDeleteRequested', {
+                    detail: { element },
+                  })
+                );
+              },
+            },
+          ]
+        : []),
+    ];
+  }
+
+  private getScreenCoords(sceneX: number, sceneY: number): { x: number; y: number } {
+    const panZoom = this.canvasManager.getPanZoomManager();
+    const rect = this.canvasManager.getCanvas().getBoundingClientRect();
+    const x = sceneX * panZoom.scale - panZoom.scrollX + rect.left;
+    const y = sceneY * panZoom.scale - panZoom.scrollY + rect.top;
+    return { x, y };
+  }
+
+  private getElementConfirmKey(element: ICanvasElement | null): string | null {
+    if (!element) return null;
+    if (element instanceof TaskElement) return `task:${element.id}`;
+    if (element instanceof StoryElement) return `story:${element.id}`;
+    if (element instanceof GoalElement) return `goal:${element.id}`;
+    return null;
+  }
+}

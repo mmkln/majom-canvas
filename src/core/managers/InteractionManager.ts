@@ -45,6 +45,9 @@ export class InteractionManager {
   private draggingGroup: ICanvasElement[] | null = null;
   private groupDragStartX: number = 0;
   private groupDragStartY: number = 0;
+  private rightClickTarget: ICanvasElement | null = null;
+  private rightClickSceneX: number = 0;
+  private rightClickSceneY: number = 0;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -134,6 +137,12 @@ export class InteractionManager {
   }
 
   handleMouseDown(e: MouseEvent, sceneX: number, sceneY: number): boolean {
+    if (e.button === 2) {
+      this.rightClickTarget = this.findTopElementAt(sceneX, sceneY);
+      this.rightClickSceneX = sceneX;
+      this.rightClickSceneY = sceneY;
+      return false;
+    }
     if (e.button !== 0) return false;
     const rawShapes = this.scene.getShapes();
     const planningEls = this.scene
@@ -162,53 +171,9 @@ export class InteractionManager {
       }
     }
 
-    // Task → Story → Other planning → Shape click order
-    // Task priority
-    const taskEls = planningEls.filter(
-      (el): el is TaskElement => el instanceof TaskElement
-    );
-    for (let i = taskEls.length - 1; i >= 0; i--) {
-      if (taskEls[i].contains(sceneX, sceneY)) {
-        clickedItem = taskEls[i];
-        break;
-      }
-    }
-    // Story next
-    if (!clickedItem) {
-      const storyEls = planningEls.filter(
-        (el): el is StoryElement => el instanceof StoryElement
-      );
-      for (let i = storyEls.length - 1; i >= 0; i--) {
-        if (storyEls[i].contains(sceneX, sceneY)) {
-          clickedItem = storyEls[i];
-          break;
-        }
-      }
-    }
-    // Other planning elements
-    if (!clickedItem) {
-      for (let i = planningEls.length - 1; i >= 0; i--) {
-        const pl = planningEls[i] as any as ICanvasElement & IDraggable;
-        if (
-          !(pl instanceof TaskElement) &&
-          !(pl instanceof StoryElement) &&
-          pl.contains(sceneX, sceneY)
-        ) {
-          clickedItem = pl;
-          break;
-        }
-      }
-    }
-    // Shape fallback
-    if (!clickedItem) {
-      for (let i = rawShapes.length - 1; i >= 0; i--) {
-        const shape = rawShapes[i] as any as ICanvasElement & IDraggable;
-        if (shape.contains(sceneX, sceneY)) {
-          clickedItem = shape;
-          break;
-        }
-      }
-    }
+    clickedItem = this.findTopElementAt(sceneX, sceneY) as
+      | (ICanvasElement & IDraggable)
+      | null;
 
     // service-based connection selection
     const existingConn = this.connectionService.hitTest(sceneX, sceneY);
@@ -667,14 +632,14 @@ export class InteractionManager {
 
   handleRightClick(e: MouseEvent, sceneX: number, sceneY: number): void {
     e.preventDefault();
-    const rawShapes = this.scene.getShapes();
-    for (let i = rawShapes.length - 1; i >= 0; i--) {
-      const shape = rawShapes[i];
-      if (shape.contains(sceneX, sceneY) && shape.onRightClick) {
-        shape.onRightClick();
-        break;
-      }
-    }
+    const target =
+      this.rightClickTarget ?? this.findTopElementAt(sceneX, sceneY);
+    window.dispatchEvent(
+      new CustomEvent('contextMenuRequested', {
+        detail: { element: target ?? null, sceneX, sceneY },
+      })
+    );
+    this.rightClickTarget = null;
   }
 
   // Public getter for connection creation state
@@ -687,6 +652,44 @@ export class InteractionManager {
    */
   public get isDraggingTask(): boolean {
     return this.draggingItem instanceof TaskElement;
+  }
+
+  private findTopElementAt(
+    sceneX: number,
+    sceneY: number
+  ): ICanvasElement | null {
+    const rawShapes = this.scene.getShapes();
+    const planningEls = this.scene
+      .getElements()
+      .filter(isPlanningElement) as IPlanningElement[];
+    // Task → Story → Other planning → Shape
+    const taskEls = planningEls.filter(
+      (el): el is TaskElement => el instanceof TaskElement
+    );
+    for (let i = taskEls.length - 1; i >= 0; i--) {
+      if (taskEls[i].contains(sceneX, sceneY)) return taskEls[i];
+    }
+    const storyEls = planningEls.filter(
+      (el): el is StoryElement => el instanceof StoryElement
+    );
+    for (let i = storyEls.length - 1; i >= 0; i--) {
+      if (storyEls[i].contains(sceneX, sceneY)) return storyEls[i];
+    }
+    for (let i = planningEls.length - 1; i >= 0; i--) {
+      const pl = planningEls[i] as any as ICanvasElement;
+      if (
+        !(pl instanceof TaskElement) &&
+        !(pl instanceof StoryElement) &&
+        pl.contains(sceneX, sceneY)
+      ) {
+        return pl;
+      }
+    }
+    for (let i = rawShapes.length - 1; i >= 0; i--) {
+      const shape = rawShapes[i] as any as ICanvasElement;
+      if (shape.contains(sceneX, sceneY)) return shape;
+    }
+    return null;
   }
 
   private getTaskStoryMap(stories: StoryElement[]): Map<string, string> {
