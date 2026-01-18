@@ -566,11 +566,26 @@ export class InteractionManager {
           .getElements()
           .filter(isPlanningElement)
           .filter((el): el is StoryElement => el instanceof StoryElement);
+        const prevStoryMap = this.getTaskStoryMap(stories);
         stories.forEach((story) => {
           tasks.forEach((task) => {
             if (story.contains(task.x, task.y)) story.addTask(task);
             else story.removeTask(task.id);
           });
+        });
+        const nextStoryMap = this.getTaskStoryMap(stories);
+        tasks.forEach((task) => {
+          const prevStoryId = prevStoryMap.get(task.id) ?? null;
+          const nextStoryId = nextStoryMap.get(task.id) ?? null;
+          if (prevStoryId === nextStoryId) return;
+          const nextStory = nextStoryId
+            ? stories.find((story) => story.id === nextStoryId) ?? null
+            : null;
+          window.dispatchEvent(
+            new CustomEvent('taskStoryLinkChanged', {
+              detail: { task, story: nextStory },
+            })
+          );
         });
       }
       if (this.draggingItem.onDragEnd) this.draggingItem.onDragEnd();
@@ -672,5 +687,17 @@ export class InteractionManager {
    */
   public get isDraggingTask(): boolean {
     return this.draggingItem instanceof TaskElement;
+  }
+
+  private getTaskStoryMap(stories: StoryElement[]): Map<string, string> {
+    const map = new Map<string, string>();
+    stories.forEach((story) => {
+      story.tasks.forEach((task) => {
+        if (!map.has(task.id)) {
+          map.set(task.id, story.id);
+        }
+      });
+    });
+    return map;
   }
 }

@@ -172,6 +172,25 @@ export class App {
       }
       this.canvasDataService.queueElementUpdate(element, patch);
     });
+
+    window.addEventListener('taskStoryLinkChanged', (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        task?: TaskElement;
+        story?: StoryElement | null;
+      }>;
+      const task = customEvent.detail?.task;
+      const story = customEvent.detail?.story ?? null;
+      if (!task) return;
+      if (!this.authService.isLoggedIn()) {
+        return;
+      }
+      this.canvasDataService.updateTaskStoryLink(task, story).subscribe({
+        error: (err) => {
+          console.error('Failed to update task story link', err);
+          notify('Failed to update task link', 'error');
+        },
+      });
+    });
   }
 
   public async init(): Promise<void> {

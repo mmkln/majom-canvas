@@ -240,6 +240,32 @@ export class CanvasDataService {
     );
   }
 
+  public updateTaskStoryLink(
+    task: TaskElement,
+    story: StoryElement | null
+  ): Observable<void> {
+    const elementsToPersist = [task, story].filter(
+      Boolean
+    ) as Array<TaskElement | StoryElement | GoalElement>;
+    return this.ensureElementsPersisted(elementsToPersist).pipe(
+      switchMap(() => {
+        const taskId = Number(task.id);
+        if (!Number.isFinite(taskId)) return of(undefined);
+        const storyId = story ? Number(story.id) : null;
+        if (story && !Number.isFinite(storyId)) return of(undefined);
+        return this.tasksApi.patchTask(taskId, {
+          story_id: storyId ?? null,
+        } as Partial<PlatformTask>);
+      }),
+      tap((updated) => {
+        if (updated) {
+          this.upsertTaskCache(updated as PlatformTask);
+        }
+      }),
+      map(() => undefined)
+    );
+  }
+
   public readonly elementUpdateStatusChanges =
     this.elementUpdateStatus$.asObservable();
 
