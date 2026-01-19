@@ -13,6 +13,7 @@
     "start": "npm run start:8080",
     "start:8080": "vite --port=8080",
     "start:4200": "vite --port=4200",
+    "lint": "eslint .",
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,css,scss,md}\"",
     "deploy:build": "npm run build && npm run deploy"
   },
@@ -25,10 +26,14 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "copyfiles": "^2.4.1",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
     "gh-pages": "^5.0.0",
     "prettier": "^3.5.1",
     "typescript": "^5.0.0",
+    "typescript-eslint": "^8.53.1",
     "vite": "^6.2.3"
   },
   "dependencies": {
