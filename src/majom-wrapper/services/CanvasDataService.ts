@@ -117,11 +117,11 @@ export class CanvasDataService {
         });
       }),
       map(({ tasks, stories, goals, layout }) => {
-        const elems: Array<TaskElement | StoryElement | GoalElement> = [];
-        elems.push(...tasks.map((t) => mapTask(t, layout)));
-        elems.push(...stories.map((s) => mapStory(s, layout)));
-        elems.push(...goals.map((g) => mapGoal(g, layout)));
-        return elems;
+        const taskElements = tasks.map((t) => mapTask(t, layout));
+        const storyElements = stories.map((s) => mapStory(s, layout));
+        const goalElements = goals.map((g) => mapGoal(g, layout));
+        this.linkTasksToStories(taskElements, storyElements, tasks);
+        return [...taskElements, ...storyElements, ...goalElements];
       }),
       shareReplay(1)
     );
@@ -543,6 +543,36 @@ export class CanvasDataService {
     }
     this.canvasId = canvas.id;
     this.canvasName = canvas.name;
+  }
+
+  private linkTasksToStories(
+    taskElements: TaskElement[],
+    storyElements: StoryElement[],
+    taskDtos: PlatformTask[]
+  ): void {
+    if (taskElements.length === 0 || storyElements.length === 0) return;
+    const taskById = new Map<number, TaskElement>();
+    taskElements.forEach((task) => {
+      const id = Number(task.id);
+      if (Number.isFinite(id)) {
+        taskById.set(id, task);
+      }
+    });
+    const storyById = new Map<number, StoryElement>();
+    storyElements.forEach((story) => {
+      const id = Number(story.id);
+      if (Number.isFinite(id)) {
+        storyById.set(id, story);
+      }
+    });
+    taskDtos.forEach((task) => {
+      const storyId = task.story_id ?? task.story?.id;
+      if (!storyId) return;
+      const taskEl = taskById.get(task.id);
+      const storyEl = storyById.get(storyId);
+      if (!taskEl || !storyEl) return;
+      storyEl.addTask(taskEl);
+    });
   }
 
   public getActiveCanvasId(): string | null {
