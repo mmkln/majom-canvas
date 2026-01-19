@@ -10,6 +10,7 @@ import { CopyCommand } from '../core/commands/CopyCommand.ts';
 import { MoveCommand } from '../core/commands/MoveCommand.ts';
 import { ResizeCommand } from '../core/commands/ResizeCommand.ts';
 import { StoryLayoutService } from '../core/services/StoryLayoutService.ts';
+import { createIcon, IconName, IconOptions } from './icons.ts';
 
 export class SelectionActionMenu {
   private readonly container: HTMLDivElement;
@@ -41,25 +42,37 @@ export class SelectionActionMenu {
     this.container.style.zIndex = '40';
     this.container.style.transform = 'translate(-50%, 10px)';
 
-    this.editBtn = this.createIconButton('Edit', this.handleEdit.bind(this));
+    this.editBtn = this.createIconButton(
+      'Edit',
+      'edit',
+      this.handleEdit.bind(this)
+    );
     this.addRelatedBtn = this.createIconButton(
       'Add related',
+      'add-related',
       this.handleAddRelated.bind(this)
     );
     this.alignBtn = this.createIconButton(
       'Align',
-      this.handleAlign.bind(this)
+      'align',
+      this.handleAlign.bind(this),
+      { iconOptions: { strokeWidth: 1.5 } }
     );
     this.addRelatedDivider = document.createElement('div');
     this.addRelatedDivider.style.width = '1px';
     this.addRelatedDivider.style.height = '20px';
     this.addRelatedDivider.style.background = '#e5e7eb';
     this.addRelatedDivider.style.margin = '0 4px';
-    this.copyBtn = this.createIconButton('Copy', this.handleCopy.bind(this));
+    this.copyBtn = this.createIconButton(
+      'Copy',
+      'copy',
+      this.handleCopy.bind(this)
+    );
     this.deleteBtn = this.createIconButton(
       'Delete element',
+      'delete',
       this.handleDelete.bind(this),
-      true
+      { isDanger: true }
     );
 
     this.container.appendChild(this.addRelatedBtn);
@@ -171,9 +184,11 @@ export class SelectionActionMenu {
 
   private createIconButton(
     title: string,
+    icon: IconName,
     handler: () => void,
-    isDanger: boolean = false
+    options: { isDanger?: boolean; iconOptions?: IconOptions } = {}
   ): HTMLButtonElement {
+    const { isDanger = false, iconOptions } = options;
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.title = title;
@@ -201,70 +216,8 @@ export class SelectionActionMenu {
       e.stopPropagation();
       handler();
     });
-    const icon = this.createIcon(title);
-    btn.appendChild(icon);
+    btn.appendChild(createIcon(icon, iconOptions));
     return btn;
-  }
-
-  private createIcon(name: string): SVGSVGElement {
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('width', '16');
-    svg.setAttribute('height', '16');
-    svg.setAttribute('viewBox', '0 0 24 24');
-    svg.setAttribute('fill', 'none');
-    svg.setAttribute('stroke', 'currentColor');
-    svg.setAttribute('stroke-width', '2');
-    svg.setAttribute('stroke-linecap', 'round');
-    svg.setAttribute('stroke-linejoin', 'round');
-    if (name === 'Edit') {
-      svg.appendChild(this.makePath('M3 17.25V21h3.75L17.8 9.95l-3.75-3.75L3 17.25z'));
-      svg.appendChild(this.makePath('M20.7 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'));
-      return svg;
-    }
-    if (name === 'Copy') {
-      svg.appendChild(this.makeRect(9, 9, 11, 11, 2));
-      svg.appendChild(this.makeRect(4, 4, 11, 11, 2));
-      return svg;
-    }
-    if (name === 'Add related') {
-      svg.appendChild(this.makePath('M12 5v14'));
-      svg.appendChild(this.makePath('M5 12h14'));
-      return svg;
-    }
-    if (name === 'Align') {
-      svg.appendChild(
-        this.makePath(
-          'M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z'
-        )
-      );
-      return svg;
-    }
-    svg.appendChild(this.makePath('M3 6h18'));
-    svg.appendChild(this.makePath('M8 6V4h8v2'));
-    svg.appendChild(this.makeRect(6, 6, 12, 14, 2));
-    return svg;
-  }
-
-  private makePath(d: string): SVGPathElement {
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', d);
-    return path;
-  }
-
-  private makeRect(
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    rx: number
-  ): SVGRectElement {
-    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    rect.setAttribute('x', x.toString());
-    rect.setAttribute('y', y.toString());
-    rect.setAttribute('width', width.toString());
-    rect.setAttribute('height', height.toString());
-    rect.setAttribute('rx', rx.toString());
-    return rect;
   }
 
   private handleEdit(): void {
