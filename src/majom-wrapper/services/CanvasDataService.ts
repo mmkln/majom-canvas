@@ -105,10 +105,6 @@ export class CanvasDataService {
           if (uuid) {
             layoutRefs[type as keyof typeof layoutRefs].uuids.add(uuid);
           }
-          const id = pos.element_id ?? pos.object_id;
-          if (id) {
-            layoutRefs[type as keyof typeof layoutRefs].ids.add(id);
-          }
         });
         const taskIds = Array.from(layoutRefs.task.ids);
         const storyIds = Array.from(layoutRefs.story.ids);
