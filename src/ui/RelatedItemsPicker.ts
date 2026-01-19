@@ -26,7 +26,7 @@ export class RelatedItemsPicker {
   private readonly searchInput: HTMLInputElement;
   private readonly list: HTMLDivElement;
   private visible = false;
-  private activeElement: ICanvasElement | null = null;
+  private activeElement: TaskElement | StoryElement | GoalElement | null = null;
   private allItems: RelatedItem[] = [];
   private filteredItems: RelatedItem[] = [];
   private subscriptions: Subscription[] = [];
@@ -204,16 +204,14 @@ export class RelatedItemsPicker {
     this.allItems = [];
     this.filteredItems = [];
     this.renderList(true);
-    const id = this.getBackendId(
-      this.activeElement as TaskElement | StoryElement | GoalElement
-    );
-    if (!Number.isFinite(id)) {
+    const ref = this.getBackendRef(this.activeElement);
+    if (!ref) {
       this.renderEmpty('No related items');
       return;
     }
     if (this.activeElement instanceof StoryElement) {
       this.titleEl.textContent = 'Add story tasks';
-      this.storiesApi.getStory(id).subscribe({
+      this.storiesApi.getStory(ref).subscribe({
         next: (story: Story) => {
           const tasks = story.tasks || [];
           this.allItems = this.filterMissingTasks(tasks);
@@ -227,7 +225,7 @@ export class RelatedItemsPicker {
     }
     if (this.activeElement instanceof GoalElement) {
       this.titleEl.textContent = 'Add goal tasks';
-      this.goalsApi.getGoal(id).subscribe({
+      this.goalsApi.getGoal(ref).subscribe({
         next: (goal: Goal) => {
           const tasks = goal.tasks || [];
           this.allItems = this.filterMissingTasks(tasks);
@@ -258,15 +256,18 @@ export class RelatedItemsPicker {
   }
 
   private filterMissingTasks(tasks: PlatformTask[]): PlatformTask[] {
-    const existingIds = new Set<number>();
+    const existingRefs = new Set<string>();
     this.scene
       .getElements()
       .filter((el) => el instanceof TaskElement)
       .forEach((el) => {
-        const id = this.getBackendId(el as TaskElement);
-        if (Number.isFinite(id)) existingIds.add(id);
+        const ref = this.getBackendRef(el as TaskElement);
+        if (ref) existingRefs.add(ref);
       });
-    return tasks.filter((task) => !existingIds.has(task.id));
+    return tasks.filter((task) => {
+      if (!task.uuid) return true;
+      return !existingRefs.has(task.uuid);
+    });
   }
 
   private renderList(loading: boolean = false): void {
@@ -392,38 +393,35 @@ export class RelatedItemsPicker {
 
   private getInsertPosition(index: number): { x: number; y: number } {
     if (!this.activeElement) return { x: 0, y: 0 };
-    const el = this.activeElement as any;
     if (this.activeElement instanceof StoryElement) {
-      return { x: el.x + 16, y: el.y + 56 };
+      return { x: this.activeElement.x + 16, y: this.activeElement.y + 56 };
     }
-    const startX = el.x + (el.width ?? 0) / 2 - TaskElement.width / 2;
-    const startY = el.y + (el.height ?? 0) + 24;
+    const startX =
+      this.activeElement.x +
+      this.activeElement.width / 2 -
+      TaskElement.width / 2;
+    const startY = this.activeElement.y + this.activeElement.height + 24;
     const gap = 12;
     return { x: startX, y: startY + index * (TaskElement.height + gap) };
   }
 
-  private getElementBounds(element: ICanvasElement): {
+  private getElementBounds(element: TaskElement | StoryElement | GoalElement): {
     x: number;
     y: number;
     width: number;
     height: number;
   } {
-    const el = element as any;
-    if (typeof el.width === 'number' && typeof el.height === 'number') {
-      return { x: el.x, y: el.y, width: el.width, height: el.height };
-    }
-    if (typeof el.radius === 'number') {
-      return {
-        x: el.x - el.radius,
-        y: el.y - el.radius,
-        width: el.radius * 2,
-        height: el.radius * 2,
-      };
-    }
-    return { x: el.x, y: el.y, width: 0, height: 0 };
+    return {
+      x: element.x,
+      y: element.y,
+      width: element.width,
+      height: element.height,
+    };
   }
 
-  private isPlanningElement(element: ICanvasElement): boolean {
+  private isPlanningElement(
+    element: ICanvasElement
+  ): element is TaskElement | StoryElement | GoalElement {
     return (
       element instanceof TaskElement ||
       element instanceof StoryElement ||
@@ -431,14 +429,9 @@ export class RelatedItemsPicker {
     );
   }
 
-  private getBackendId(
+  private getBackendRef(
     element: TaskElement | StoryElement | GoalElement
-  ): number | null {
-    if (Number.isFinite(element.backendId)) {
-      return element.backendId ?? null;
-    }
-    const legacyId = Number(element.id);
-    if (Number.isFinite(legacyId)) return legacyId;
-    return null;
+  ): string | null {
+    return element.uuid ?? null;
   }
 }
