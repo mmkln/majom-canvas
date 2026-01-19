@@ -7,6 +7,8 @@ import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
 import { historyService } from '../core/services/HistoryService.ts';
 import { AddElementCommand } from '../core/commands/AddElementCommand.ts';
+import { ResizeCommand } from '../core/commands/ResizeCommand.ts';
+import { StoryLayoutService } from '../core/services/StoryLayoutService.ts';
 import { environment } from '../config/environment.ts';
 import { HttpInterceptorClient } from '../majom-wrapper/data-access/http-interceptor.ts';
 import { StoriesApiService } from '../majom-wrapper/data-access/stories-api-service.ts';
@@ -30,6 +32,7 @@ export class RelatedItemsPicker {
   private subscriptions: Subscription[] = [];
   private outsideHandler: ((event: MouseEvent) => void) | null = null;
   private eventHandler: ((event: Event) => void) | null = null;
+  private layoutService = new StoryLayoutService();
 
   private readonly storiesApi: StoriesApiService;
   private readonly goalsApi: GoalsApiService;
@@ -343,6 +346,38 @@ export class RelatedItemsPicker {
       status: mapStatus(item.status),
       priority: 'medium',
     });
+    if (this.activeElement instanceof StoryElement) {
+      const story = this.activeElement;
+      const tasks = this.scene
+        .getElements()
+        .filter((el) => el instanceof TaskElement) as TaskElement[];
+      const plan = this.layoutService.planAddTask(story, tasks);
+      task.x = plan.position.x;
+      task.y = plan.position.y;
+      if (plan.nextHeight > story.height) {
+        const initial = new Map<
+          string,
+          { x: number; y: number; width: number; height: number }
+        >();
+        initial.set(story.id, {
+          x: story.x,
+          y: story.y,
+          width: story.width,
+          height: story.height,
+        });
+        const final = new Map<
+          string,
+          { x: number; y: number; width: number; height: number }
+        >();
+        final.set(story.id, {
+          x: story.x,
+          y: story.y,
+          width: story.width,
+          height: plan.nextHeight,
+        });
+        historyService.execute(new ResizeCommand(this.scene, initial, final));
+      }
+    }
     historyService.execute(new AddElementCommand(this.scene, task));
     if (this.activeElement instanceof StoryElement) {
       this.activeElement.addTask(task);
@@ -355,11 +390,7 @@ export class RelatedItemsPicker {
     if (!this.activeElement) return { x: 0, y: 0 };
     const el = this.activeElement as any;
     if (this.activeElement instanceof StoryElement) {
-      const startX = el.x + 16;
-      const startY = el.y + 56;
-      const gap = 12;
-      const offsetY = index * (TaskElement.height + gap);
-      return { x: startX, y: startY + offsetY };
+      return { x: el.x + 16, y: el.y + 56 };
     }
     const startX = el.x + (el.width ?? 0) / 2 - TaskElement.width / 2;
     const startY = el.y + (el.height ?? 0) + 24;
