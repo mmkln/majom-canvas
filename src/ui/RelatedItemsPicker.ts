@@ -204,7 +204,9 @@ export class RelatedItemsPicker {
     this.allItems = [];
     this.filteredItems = [];
     this.renderList(true);
-    const id = Number((this.activeElement as any).id);
+    const id = this.getBackendId(
+      this.activeElement as TaskElement | StoryElement | GoalElement
+    );
     if (!Number.isFinite(id)) {
       this.renderEmpty('No related items');
       return;
@@ -261,7 +263,7 @@ export class RelatedItemsPicker {
       .getElements()
       .filter((el) => el instanceof TaskElement)
       .forEach((el) => {
-        const id = Number((el as any).id);
+        const id = this.getBackendId(el as TaskElement);
         if (Number.isFinite(id)) existingIds.add(id);
       });
     return tasks.filter((task) => !existingIds.has(task.id));
@@ -338,9 +340,11 @@ export class RelatedItemsPicker {
     if (!this.activeElement) return;
     const position = this.getInsertPosition(index);
     const task = new TaskElement({
-      id: item.id.toString(),
+      id: item.uuid ?? item.id.toString(),
       x: position.x,
       y: position.y,
+      backendId: item.id,
+      uuid: item.uuid,
       title: item.title,
       description: item.description,
       status: mapStatus(item.status),
@@ -425,5 +429,16 @@ export class RelatedItemsPicker {
       element instanceof StoryElement ||
       element instanceof GoalElement
     );
+  }
+
+  private getBackendId(
+    element: TaskElement | StoryElement | GoalElement
+  ): number | null {
+    if (Number.isFinite(element.backendId)) {
+      return element.backendId ?? null;
+    }
+    const legacyId = Number(element.id);
+    if (Number.isFinite(legacyId)) return legacyId;
+    return null;
   }
 }

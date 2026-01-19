@@ -359,8 +359,8 @@ export class App {
         );
         return;
       }
-      const objectId = Number((el as any).id);
-      if (!Number.isFinite(objectId)) {
+      const objectUuid = el.uuid;
+      if (!objectUuid) {
         missingIds.push(String((el as any).id));
         return;
       }
@@ -370,7 +370,7 @@ export class App {
           : undefined;
       positions.push({
         content_type: contentType,
-        object_id: objectId,
+        object_uuid: objectUuid,
         x: el.x,
         y: el.y,
         meta,
@@ -445,7 +445,10 @@ export class App {
   ): CanvasPositionDTO[] {
     const map = new Map<string, CanvasPositionDTO>();
     positions.forEach((pos) => {
-      const key = `${pos.content_type ?? 'na'}:${pos.object_id ?? 'na'}`;
+      const ref =
+        pos.object_uuid ??
+        (Number.isFinite(pos.object_id) ? `id:${pos.object_id}` : 'na');
+      const key = `${pos.content_type ?? 'na'}:${ref}`;
       map.set(key, pos);
     });
     return Array.from(map.values());

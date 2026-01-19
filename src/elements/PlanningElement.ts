@@ -18,6 +18,10 @@ export abstract class PlanningElement
   description: string;
   dueDate?: Date;
   tags?: string[];
+  /** Backend numeric id (legacy) */
+  backendId?: number;
+  /** Backend UUID (new) */
+  uuid?: string;
 
   constructor({
     id,
@@ -31,6 +35,8 @@ export abstract class PlanningElement
     description = '',
     dueDate,
     tags,
+    backendId,
+    uuid,
   }: {
     id?: string;
     x?: number;
@@ -43,9 +49,13 @@ export abstract class PlanningElement
     description?: string;
     dueDate?: Date;
     tags?: string[];
+    backendId?: number;
+    uuid?: string;
   }) {
     super(x, y);
     if (id) this.id = id;
+    this.backendId = backendId;
+    this.uuid = uuid;
     this.width = width;
     this.height = height;
     this.fillColor = fillColor;

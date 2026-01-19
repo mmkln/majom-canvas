@@ -93,26 +93,33 @@ export class CanvasDataService {
       }),
       retry(2),
       switchMap((layout) => {
-        const layoutIds = {
-          task: new Set<number>(),
-          story: new Set<number>(),
-          goal: new Set<number>(),
+        const layoutRefs = {
+          task: { ids: new Set<number>(), uuids: new Set<string>() },
+          story: { ids: new Set<number>(), uuids: new Set<string>() },
+          goal: { ids: new Set<number>(), uuids: new Set<string>() },
         };
         layout.forEach((pos) => {
           const type = pos.element_type;
+          if (!type || !(type in layoutRefs)) return;
+          const uuid = pos.element_uuid ?? pos.object_uuid;
+          if (uuid) {
+            layoutRefs[type as keyof typeof layoutRefs].uuids.add(uuid);
+          }
           const id = pos.element_id ?? pos.object_id;
-          if (!type || !id) return;
-          if (type in layoutIds) {
-            layoutIds[type as keyof typeof layoutIds].add(id);
+          if (id) {
+            layoutRefs[type as keyof typeof layoutRefs].ids.add(id);
           }
         });
-        const taskIds = Array.from(layoutIds.task);
-        const storyIds = Array.from(layoutIds.story);
-        const goalIds = Array.from(layoutIds.goal);
+        const taskIds = Array.from(layoutRefs.task.ids);
+        const storyIds = Array.from(layoutRefs.story.ids);
+        const goalIds = Array.from(layoutRefs.goal.ids);
+        const taskUuids = Array.from(layoutRefs.task.uuids);
+        const storyUuids = Array.from(layoutRefs.story.uuids);
+        const goalUuids = Array.from(layoutRefs.goal.uuids);
         return forkJoin({
-          tasks: this.fetchTasksByIdsCached(taskIds),
-          stories: this.fetchStoriesByIdsCached(storyIds),
-          goals: this.fetchGoalsByIdsCached(goalIds),
+          tasks: this.fetchTasksByRefsCached(taskIds, taskUuids),
+          stories: this.fetchStoriesByRefsCached(storyIds, storyUuids),
+          goals: this.fetchGoalsByRefsCached(goalIds, goalUuids),
           layout: of(layout),
         });
       }),
@@ -186,7 +193,7 @@ export class CanvasDataService {
 
     return this.ensureElementsPersisted([req.element]).pipe(
       switchMap(() => {
-        const id = Number(req.element.id);
+        const id = this.getBackendId(req.element);
         if (!Number.isFinite(id)) {
           this.failedElementUpdates = true;
           this.elementUpdateStatus$.next({ status: 'failed' });
@@ -241,9 +248,9 @@ export class CanvasDataService {
     >;
     return this.ensureElementsPersisted(elementsToPersist).pipe(
       switchMap(() => {
-        const taskId = Number(task.id);
+        const taskId = this.getBackendId(task);
         if (!Number.isFinite(taskId)) return of(undefined);
-        const storyId = story ? Number(story.id) : null;
+        const storyId = story ? this.getBackendId(story) : null;
         if (story && !Number.isFinite(storyId)) return of(undefined);
         return this.tasksApi.patchTask(taskId, {
           story_id: storyId ?? null,
@@ -315,7 +322,9 @@ export class CanvasDataService {
   public ensureElementsPersisted(
     elements: Array<TaskElement | StoryElement | GoalElement>
   ): Observable<void> {
-    const toCreate = elements.filter((el) => !Number.isFinite(Number(el.id)));
+    const toCreate = elements.filter(
+      (el) => !Number.isFinite(this.getBackendId(el))
+    );
     if (toCreate.length === 0) return of(undefined);
     const creates: Observable<any>[] = [];
 
@@ -330,7 +339,10 @@ export class CanvasDataService {
         creates.push(
           this.tasksApi.createTask(payload).pipe(
             map((created) => {
-              el.id = created.id.toString();
+              el.backendId = created.id;
+              if (created.uuid) {
+                el.uuid = created.uuid;
+              }
               this.upsertTaskCache(created);
               return created;
             })
@@ -346,7 +358,10 @@ export class CanvasDataService {
         creates.push(
           this.storiesApi.createStory(payload).pipe(
             map((created) => {
-              el.id = created.id.toString();
+              el.backendId = created.id;
+              if (created.uuid) {
+                el.uuid = created.uuid;
+              }
               this.upsertStoryCache(created);
               return created;
             })
@@ -362,7 +377,10 @@ export class CanvasDataService {
         creates.push(
           this.goalsApi.createGoal(payload).pipe(
             map((created) => {
-              el.id = created.id.toString();
+              el.backendId = created.id;
+              if (created.uuid) {
+                el.uuid = created.uuid;
+              }
               this.upsertGoalCache(created);
               return created;
             })
@@ -389,6 +407,40 @@ export class CanvasDataService {
     );
   }
 
+  private fetchTasksByRefsCached(
+    ids: number[],
+    uuids: string[]
+  ): Observable<PlatformTask[]> {
+    if (ids.length === 0 && uuids.length === 0) return of([]);
+    const { cached: cachedByIds, missing: missingIds } = this.getCachedByIds(
+      this.tasksCache,
+      ids
+    );
+    const { cached: cachedByUuids, missing: missingUuids } =
+      this.getCachedByUuids(this.tasksCache, uuids);
+    const cachedCombined = this.dedupeById([
+      ...cachedByIds,
+      ...cachedByUuids,
+    ]);
+    const requests: Observable<PlatformTask[]>[] = [];
+    if (missingIds.length > 0) {
+      requests.push(this.tasksApi.fetchTasksByIds(missingIds));
+    }
+    if (missingUuids.length > 0) {
+      requests.push(this.tasksApi.fetchTasksByUuids(missingUuids));
+    }
+    if (requests.length === 0) {
+      return of(cachedCombined);
+    }
+    return forkJoin(requests).pipe(
+      map((results) => {
+        const fetched = results.flat();
+        this.tasksCache = this.mergeCache(this.tasksCache, fetched);
+        return this.dedupeById([...cachedCombined, ...fetched]);
+      })
+    );
+  }
+
   private fetchStoriesByIdsCached(ids: number[]): Observable<Story[]> {
     if (ids.length === 0) return of([]);
     const { cached, missing } = this.getCachedByIds(this.storiesCache, ids);
@@ -403,6 +455,40 @@ export class CanvasDataService {
     );
   }
 
+  private fetchStoriesByRefsCached(
+    ids: number[],
+    uuids: string[]
+  ): Observable<Story[]> {
+    if (ids.length === 0 && uuids.length === 0) return of([]);
+    const { cached: cachedByIds, missing: missingIds } = this.getCachedByIds(
+      this.storiesCache,
+      ids
+    );
+    const { cached: cachedByUuids, missing: missingUuids } =
+      this.getCachedByUuids(this.storiesCache, uuids);
+    const cachedCombined = this.dedupeById([
+      ...cachedByIds,
+      ...cachedByUuids,
+    ]);
+    const requests: Observable<Story[]>[] = [];
+    if (missingIds.length > 0) {
+      requests.push(this.storiesApi.fetchStoriesByIds(missingIds));
+    }
+    if (missingUuids.length > 0) {
+      requests.push(this.storiesApi.fetchStoriesByUuids(missingUuids));
+    }
+    if (requests.length === 0) {
+      return of(cachedCombined);
+    }
+    return forkJoin(requests).pipe(
+      map((results) => {
+        const fetched = results.flat();
+        this.storiesCache = this.mergeCache(this.storiesCache, fetched);
+        return this.dedupeById([...cachedCombined, ...fetched]);
+      })
+    );
+  }
+
   private fetchGoalsByIdsCached(ids: number[]): Observable<Goal[]> {
     if (ids.length === 0) return of([]);
     const { cached, missing } = this.getCachedByIds(this.goalsCache, ids);
@@ -413,6 +499,40 @@ export class CanvasDataService {
       map((fetched) => {
         this.goalsCache = this.mergeCache(this.goalsCache, fetched);
         return this.orderByIds([...cached, ...fetched], ids);
+      })
+    );
+  }
+
+  private fetchGoalsByRefsCached(
+    ids: number[],
+    uuids: string[]
+  ): Observable<Goal[]> {
+    if (ids.length === 0 && uuids.length === 0) return of([]);
+    const { cached: cachedByIds, missing: missingIds } = this.getCachedByIds(
+      this.goalsCache,
+      ids
+    );
+    const { cached: cachedByUuids, missing: missingUuids } =
+      this.getCachedByUuids(this.goalsCache, uuids);
+    const cachedCombined = this.dedupeById([
+      ...cachedByIds,
+      ...cachedByUuids,
+    ]);
+    const requests: Observable<Goal[]>[] = [];
+    if (missingIds.length > 0) {
+      requests.push(this.goalsApi.fetchGoalsByIds(missingIds));
+    }
+    if (missingUuids.length > 0) {
+      requests.push(this.goalsApi.fetchGoalsByUuids(missingUuids));
+    }
+    if (requests.length === 0) {
+      return of(cachedCombined);
+    }
+    return forkJoin(requests).pipe(
+      map((results) => {
+        const fetched = results.flat();
+        this.goalsCache = this.mergeCache(this.goalsCache, fetched);
+        return this.dedupeById([...cachedCombined, ...fetched]);
       })
     );
   }
@@ -477,6 +597,29 @@ export class CanvasDataService {
     return { cached, missing };
   }
 
+  private getCachedByUuids<T extends { uuid?: string }>(
+    cache: T[] | null,
+    uuids: string[]
+  ): { cached: T[]; missing: string[] } {
+    if (!cache || cache.length === 0) {
+      return { cached: [], missing: uuids };
+    }
+    const cacheMap = new Map<string, T>();
+    cache.forEach((item) => {
+      if (item.uuid) {
+        cacheMap.set(item.uuid, item);
+      }
+    });
+    const cached: T[] = [];
+    const missing: string[] = [];
+    uuids.forEach((uuid) => {
+      const item = cacheMap.get(uuid);
+      if (item) cached.push(item);
+      else missing.push(uuid);
+    });
+    return { cached, missing };
+  }
+
   private mergeCache<T extends { id: number }>(
     cache: T[] | null,
     items: T[]
@@ -496,6 +639,12 @@ export class CanvasDataService {
     return ids
       .map((id) => mapById.get(id))
       .filter((item): item is T => Boolean(item));
+  }
+
+  private dedupeById<T extends { id: number }>(items: T[]): T[] {
+    const mapById = new Map<number, T>();
+    items.forEach((item) => mapById.set(item.id, item));
+    return Array.from(mapById.values());
   }
 
   private upsertTaskCache(task: PlatformTask): void {
@@ -553,17 +702,13 @@ export class CanvasDataService {
     if (taskElements.length === 0 || storyElements.length === 0) return;
     const taskById = new Map<number, TaskElement>();
     taskElements.forEach((task) => {
-      const id = Number(task.id);
-      if (Number.isFinite(id)) {
-        taskById.set(id, task);
-      }
+      const id = this.getBackendId(task);
+      if (Number.isFinite(id)) taskById.set(id, task);
     });
     const storyById = new Map<number, StoryElement>();
     storyElements.forEach((story) => {
-      const id = Number(story.id);
-      if (Number.isFinite(id)) {
-        storyById.set(id, story);
-      }
+      const id = this.getBackendId(story);
+      if (Number.isFinite(id)) storyById.set(id, story);
     });
     taskDtos.forEach((task) => {
       const storyId = task.story_id ?? task.story?.id;
@@ -675,11 +820,8 @@ export class CanvasDataService {
   public getPositionIdForElement(
     element: TaskElement | StoryElement | GoalElement
   ): string | null {
-    const type = this.getElementType(element);
-    if (!type) return null;
-    const id = Number(element.id);
-    if (!Number.isFinite(id)) return null;
-    const key = this.buildPositionKey(type, id);
+    const key = this.getPositionKeyForElement(element);
+    if (!key) return null;
     return this.positionRegistry.get(key)?.id ?? null;
   }
 
@@ -688,9 +830,9 @@ export class CanvasDataService {
   ): Observable<void> {
     const type = this.getElementType(element);
     if (!type) return of(undefined);
-    const id = Number(element.id);
+    const id = this.getBackendId(element);
     if (!Number.isFinite(id)) {
-      return this.deletePositionForElement(type, id);
+      return this.deletePositionForElement(element);
     }
     const deleteEntity$ =
       element instanceof TaskElement
@@ -700,7 +842,7 @@ export class CanvasDataService {
           : this.goalsApi.deleteGoal(id);
     return deleteEntity$.pipe(
       switchMap(() =>
-        this.deletePositionForElement(type, id).pipe(
+        this.deletePositionForElement(element).pipe(
           map(() => true),
           catchError((err) => {
             console.error('Failed to delete canvas position', err);
@@ -710,9 +852,11 @@ export class CanvasDataService {
       ),
       tap((positionDeleted) => {
         if (positionDeleted) {
-          this.removePositionByKey(type, id);
+          this.removePositionByKey(element);
         }
-        this.removeElementFromCache(type, id);
+        if (Number.isFinite(id)) {
+          this.removeElementFromCache(type, id);
+        }
       }),
       map(() => undefined)
     );
@@ -737,10 +881,9 @@ export class CanvasDataService {
   private updatePositionRegistry(layout: CanvasPositionDTO[]): void {
     this.positionRegistry.clear();
     layout.forEach((pos) => {
-      const type = pos.element_type;
-      const elementId = pos.element_id ?? pos.object_id;
-      if (!type || !elementId || !pos.id) return;
-      this.positionRegistry.set(this.buildPositionKey(type, elementId), pos);
+      const key = this.getPositionKeyFromDto(pos);
+      if (!key || !pos.id) return;
+      this.positionRegistry.set(key, pos);
     });
   }
 
@@ -759,11 +902,8 @@ export class CanvasDataService {
   ): Set<string> {
     const keys = new Set<string>();
     elements.forEach((el) => {
-      const type = this.getElementType(el);
-      if (!type) return;
-      const id = Number(el.id);
-      if (!Number.isFinite(id)) return;
-      keys.add(this.buildPositionKey(type, id));
+      const key = this.getPositionKeyForElement(el);
+      if (key) keys.add(key);
     });
     return keys;
   }
@@ -777,16 +917,54 @@ export class CanvasDataService {
     return null;
   }
 
-  private buildPositionKey(type: string, id: number): string {
-    return `${type}:${id}`;
+  private getBackendId(
+    element: TaskElement | StoryElement | GoalElement
+  ): number | null {
+    if (Number.isFinite(element.backendId)) {
+      return element.backendId ?? null;
+    }
+    const legacyId = Number(element.id);
+    if (Number.isFinite(legacyId)) return legacyId;
+    return null;
+  }
+
+  private getPositionKeyForElement(
+    element: TaskElement | StoryElement | GoalElement
+  ): string | null {
+    const type = this.getElementType(element);
+    if (!type) return null;
+    const uuidKey = element.uuid
+      ? this.buildPositionKey(type, `uuid:${element.uuid}`)
+      : null;
+    if (uuidKey && this.positionRegistry.has(uuidKey)) {
+      return uuidKey;
+    }
+    const backendId = this.getBackendId(element);
+    if (Number.isFinite(backendId)) {
+      return this.buildPositionKey(type, `id:${backendId}`);
+    }
+    return uuidKey;
+  }
+
+  private getPositionKeyFromDto(pos: CanvasPositionDTO): string | null {
+    const type = pos.element_type;
+    if (!type) return null;
+    const uuid = pos.element_uuid ?? pos.object_uuid;
+    if (uuid) return this.buildPositionKey(type, `uuid:${uuid}`);
+    const id = pos.element_id ?? pos.object_id;
+    if (!id) return null;
+    return this.buildPositionKey(type, `id:${id}`);
+  }
+
+  private buildPositionKey(type: string, key: string): string {
+    return `${type}:${key}`;
   }
 
   private deletePositionForElement(
-    type: 'task' | 'story' | 'goal',
-    id: number
+    element: TaskElement | StoryElement | GoalElement
   ): Observable<void> {
-    if (!Number.isFinite(id)) return of(undefined);
-    const key = this.buildPositionKey(type, id);
+    const key = this.getPositionKeyForElement(element);
+    if (!key) return of(undefined);
     const positionId = this.positionRegistry.get(key)?.id;
     if (positionId) {
       return this.deletePositions([positionId]);
@@ -801,10 +979,12 @@ export class CanvasDataService {
   }
 
   private removePositionByKey(
-    type: 'task' | 'story' | 'goal',
-    id: number
+    element: TaskElement | StoryElement | GoalElement
   ): void {
-    this.positionRegistry.delete(this.buildPositionKey(type, id));
+    const key = this.getPositionKeyForElement(element);
+    if (key) {
+      this.positionRegistry.delete(key);
+    }
   }
 
   private removeElementFromCache(

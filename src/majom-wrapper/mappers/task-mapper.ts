@@ -13,13 +13,19 @@ export function mapTask(
   dto: PlatformTask,
   layout: CanvasPositionDTO[]
 ): TaskElement {
-  const pos = layout.find(
-    (l) => l.element_type === 'task' && (l.element_id ?? l.object_id) === dto.id
-  );
+  const pos = layout.find((l) => {
+    if (l.element_type !== 'task') return false;
+    if (dto.uuid && (l.element_uuid === dto.uuid || l.object_uuid === dto.uuid)) {
+      return true;
+    }
+    return (l.element_id ?? l.object_id) === dto.id;
+  });
   return new TaskElement({
-    id: dto.id.toString(),
+    id: dto.uuid ?? dto.id.toString(),
     x: pos?.x ?? DEFAULT_X,
     y: pos?.y ?? DEFAULT_Y,
+    backendId: dto.id,
+    uuid: dto.uuid,
     title: dto.title,
     status: mapStatus(dto.status),
     description: dto.description,

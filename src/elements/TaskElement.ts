@@ -32,6 +32,8 @@ export class TaskElement extends PlanningElement {
     selected = false,
     priority = 'medium',
     dueDate = new Date(),
+    backendId,
+    uuid,
   }: {
     id?: string;
     x?: number;
@@ -42,6 +44,8 @@ export class TaskElement extends PlanningElement {
     selected?: boolean;
     priority?: 'low' | 'medium' | 'high';
     dueDate?: Date;
+    backendId?: number;
+    uuid?: string;
   }) {
     super({
       id,
@@ -53,6 +57,8 @@ export class TaskElement extends PlanningElement {
       lineWidth: 1,
       title,
       description,
+      backendId,
+      uuid,
     });
     this.zIndex = 2;
     this.title = title;

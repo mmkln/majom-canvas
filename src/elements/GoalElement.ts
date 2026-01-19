@@ -34,6 +34,8 @@ export class GoalElement extends PlanningElement {
     priority = 'medium',
     selected = false,
     description = '',
+    backendId,
+    uuid,
   }: {
     id?: string;
     x?: number;
@@ -43,6 +45,8 @@ export class GoalElement extends PlanningElement {
     priority?: 'low' | 'medium' | 'high';
     selected?: boolean;
     description?: string;
+    backendId?: number;
+    uuid?: string;
   }) {
     super({
       id,
@@ -53,6 +57,8 @@ export class GoalElement extends PlanningElement {
       fillColor: goalStyles[status].fillColor,
       lineWidth: 2,
       title,
+      backendId,
+      uuid,
     });
     this.zIndex = 3;
     this.status = status;

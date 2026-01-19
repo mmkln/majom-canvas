@@ -186,6 +186,9 @@ export class InteractionManager {
       return true;
     }
     if (clickedItem) {
+      if (isPlanningElement(clickedItem)) {
+        console.log('Canvas element clicked', { id: (clickedItem as any).id });
+      }
       this.updateSelectionOnClick(clickedItem, e.shiftKey);
       const selected = this.scene.getSelectedElements();
       const dragGroup = SelectionService.getDragGroup(selected);
@@ -676,7 +679,7 @@ export class InteractionManager {
       if (storyEls[i].contains(sceneX, sceneY)) return storyEls[i];
     }
     for (let i = planningEls.length - 1; i >= 0; i--) {
-      const pl = planningEls[i] as any as ICanvasElement;
+      const pl = planningEls[i];
       if (
         !(pl instanceof TaskElement) &&
         !(pl instanceof StoryElement) &&
@@ -686,7 +689,7 @@ export class InteractionManager {
       }
     }
     for (let i = rawShapes.length - 1; i >= 0; i--) {
-      const shape = rawShapes[i] as any as ICanvasElement;
+      const shape = rawShapes[i];
       if (shape.contains(sceneX, sceneY)) return shape;
     }
     return null;

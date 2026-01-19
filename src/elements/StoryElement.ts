@@ -47,6 +47,8 @@ export class StoryElement extends PlanningElement {
     priority = 'medium',
     tasks = [],
     selected = false,
+    backendId,
+    uuid,
   }: {
     id?: string;
     x?: number;
@@ -59,6 +61,8 @@ export class StoryElement extends PlanningElement {
     priority?: 'low' | 'medium' | 'high';
     tasks?: TaskElement[];
     selected?: boolean;
+    backendId?: number;
+    uuid?: string;
   }) {
     // determine style by status
     const style = storyStyles[status];
@@ -72,6 +76,8 @@ export class StoryElement extends PlanningElement {
       lineWidth: 2,
       title,
       description,
+      backendId,
+      uuid,
     });
     // layer ordering: draw stories below tasks
     this.zIndex = 1;

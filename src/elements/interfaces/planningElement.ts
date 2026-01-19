@@ -28,6 +28,10 @@ export interface IPlanningElement extends ICanvasElement, IConnectable {
   dueDate?: Date;
   /** optional tags/categories */
   tags?: string[];
+  /** backend numeric id (legacy) */
+  backendId?: number;
+  /** backend uuid */
+  uuid?: string;
   /** Layer index for draw ordering; lower draws first */
   zIndex: number;
   /** clone the planning element */

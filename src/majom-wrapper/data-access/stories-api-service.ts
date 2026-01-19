@@ -22,6 +22,12 @@ export class StoriesApiService {
     return this.http.get<StoryDto[]>(`/stories/?ids=${encodedIds}`);
   }
 
+  public fetchStoriesByUuids(uuids: string[]): Observable<StoryDto[]> {
+    if (!uuids.length) return of([]);
+    const encoded = encodeURIComponent(uuids.join(','));
+    return this.http.get<StoryDto[]>(`/stories/?uuids=${encoded}`);
+  }
+
   public getStories(): Observable<StoryDto[]> {
     return this.http
       .get<PaginatedResponse<StoryDto> | StoryDto[]>('/stories/')

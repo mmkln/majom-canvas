@@ -66,6 +66,7 @@ export interface PlatformEvent {
 
 export interface Goal {
   readonly id: number;
+  uuid?: string;
   title: string;
   description: string;
   created_at: Date;
@@ -140,6 +141,7 @@ export interface Flow {
 
 export interface Story {
   readonly id: number;
+  uuid?: string;
   title: string;
   description: string;
   status: Status;
@@ -149,6 +151,7 @@ export interface Story {
 
 export interface PlatformTask {
   readonly id: number;
+  uuid?: string;
   title: string;
   description: string;
   created_at: Date;

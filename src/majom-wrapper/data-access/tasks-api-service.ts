@@ -38,6 +38,12 @@ export class TasksApiService {
     return this.http.get<PlatformTask[]>(`/tasks/?ids=${encodedIds}`);
   }
 
+  public fetchTasksByUuids(uuids: string[]): Observable<PlatformTask[]> {
+    if (!uuids.length) return of([]);
+    const encoded = encodeURIComponent(uuids.join(','));
+    return this.http.get<PlatformTask[]>(`/tasks/?uuids=${encoded}`);
+  }
+
   public getTasks(
     filterParams?: TasksFilterParams
   ): Observable<PlatformTask[]> {

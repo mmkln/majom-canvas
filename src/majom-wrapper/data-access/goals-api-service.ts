@@ -22,6 +22,12 @@ export class GoalsApiService {
     return this.http.get<Goal[]>(`/goals/?ids=${encodedIds}`);
   }
 
+  public fetchGoalsByUuids(uuids: string[]): Observable<Goal[]> {
+    if (!uuids.length) return of([]);
+    const encoded = encodeURIComponent(uuids.join(','));
+    return this.http.get<Goal[]>(`/goals/?uuids=${encoded}`);
+  }
+
   public getGoals(): Observable<Goal[]> {
     return this.http
       .get<PaginatedResponse<Goal> | Goal[]>('/goals/')

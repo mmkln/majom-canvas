@@ -11,6 +11,10 @@ export interface CanvasPositionDTO {
   object_id?: number;
   /** Read-only alias of object_id (read) */
   element_id?: number;
+  /** Optional UUID of the element (read) */
+  element_uuid?: string;
+  /** UUID of the element (write) */
+  object_uuid?: string;
   /** X coordinate on canvas */
   x: number;
   /** Y coordinate on canvas */
