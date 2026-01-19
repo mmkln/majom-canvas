@@ -3,6 +3,7 @@ import { DeleteCommand } from '../core/commands/DeleteCommand.ts';
 import { CopyCommand } from '../core/commands/CopyCommand.ts';
 import { PasteCommand } from '../core/commands/PasteCommand.ts';
 import { AddElementCommand } from '../core/commands/AddElementCommand.ts';
+import { ResizeCommand } from '../core/commands/ResizeCommand.ts';
 import { Scene } from '../core/scene/Scene.ts';
 import { clipboardService } from '../core/services/ClipboardService.ts';
 import type { CanvasManager } from '../core/managers/CanvasManager.ts';
@@ -10,6 +11,7 @@ import type { ICanvasElement } from '../core/interfaces/canvasElement.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
+import { StoryLayoutService } from '../core/services/StoryLayoutService.ts';
 
 type ContextMenuDetail = {
   element: ICanvasElement | null;
@@ -34,6 +36,7 @@ export class ContextMenu {
   private outsideHandler: ((event: MouseEvent) => void) | null = null;
   private pendingDeleteConfirmKey: string | null = null;
   private lastDetail: ContextMenuDetail | null = null;
+  private layoutService = new StoryLayoutService();
 
   constructor(
     private scene: Scene,
@@ -187,8 +190,18 @@ export class ContextMenu {
     const confirmKey = this.getElementConfirmKey(element);
     const isConfirming =
       Boolean(confirmKey) && this.pendingDeleteConfirmKey === confirmKey;
-    const deleteLabel = isConfirming ? 'Confirm delete' : 'Delete element';
-    return [
+    const elementLabel =
+      element instanceof TaskElement
+        ? 'task'
+        : element instanceof StoryElement
+          ? 'story'
+          : element instanceof GoalElement
+            ? 'goal'
+            : 'element';
+    const deleteLabel = isConfirming
+      ? 'Confirm delete'
+      : `Delete ${elementLabel}`;
+    const items: ContextMenuItem[] = [
       {
         label: 'Edit',
         action: () => {
@@ -211,29 +224,46 @@ export class ContextMenu {
         action: () =>
           historyService.execute(new DeleteCommand(this.scene, [element])),
       },
-      ...(isPlanningElement
-        ? [
-            { kind: 'divider' as const },
-            {
-              label: deleteLabel,
-              tone: isConfirming ? ('warning' as const) : ('danger' as const),
-              action: () => {
-                if (!confirmKey) return;
-                if (!isConfirming) {
-                  this.pendingDeleteConfirmKey = confirmKey;
-                  return 'keep-open';
-                }
-                this.pendingDeleteConfirmKey = null;
-                window.dispatchEvent(
-                  new CustomEvent('elementDeleteRequested', {
-                    detail: { element },
-                  })
-                );
-              },
-            },
-          ]
-        : []),
     ];
+    if (element instanceof StoryElement) {
+      items.push(
+        { kind: 'divider' as const },
+        { kind: 'header' as const, label: 'Story' },
+        {
+          label: 'Add task',
+          action: () => this.createTaskInStory(element),
+        },
+        {
+          label: 'Related tasks',
+          action: () => {
+            this.openRelatedItemsPicker(element);
+          },
+        }
+      );
+    }
+    if (isPlanningElement) {
+      items.push(
+        { kind: 'divider' as const },
+        {
+          label: deleteLabel,
+          tone: isConfirming ? ('warning' as const) : ('danger' as const),
+          action: () => {
+            if (!confirmKey) return;
+            if (!isConfirming) {
+              this.pendingDeleteConfirmKey = confirmKey;
+              return 'keep-open';
+            }
+            this.pendingDeleteConfirmKey = null;
+            window.dispatchEvent(
+              new CustomEvent('elementDeleteRequested', {
+                detail: { element },
+              })
+            );
+          },
+        }
+      );
+    }
+    return items;
   }
 
   private getScreenCoords(
@@ -263,6 +293,57 @@ export class ContextMenu {
     historyService.execute(new AddElementCommand(this.scene, task));
     this.scene.setSelected([task]);
     this.canvasManager.draw();
+  }
+
+  private createTaskInStory(story: StoryElement): void {
+    const tasks = this.scene
+      .getElements()
+      .filter((el) => el instanceof TaskElement) as TaskElement[];
+    const plan = this.layoutService.planAddTask(story, tasks);
+    const task = new TaskElement({
+      x: plan.position.x,
+      y: plan.position.y,
+    });
+    if (plan.nextHeight > story.height) {
+      const initial = new Map<
+        string,
+        { x: number; y: number; width: number; height: number }
+      >();
+      initial.set(story.id, {
+        x: story.x,
+        y: story.y,
+        width: story.width,
+        height: story.height,
+      });
+      const final = new Map<
+        string,
+        { x: number; y: number; width: number; height: number }
+      >();
+      final.set(story.id, {
+        x: story.x,
+        y: story.y,
+        width: story.width,
+        height: plan.nextHeight,
+      });
+      historyService.execute(new ResizeCommand(this.scene, initial, final));
+    }
+    historyService.execute(new AddElementCommand(this.scene, task));
+    story.addTask(task);
+    this.scene.setSelected([task]);
+    this.canvasManager.draw();
+    window.dispatchEvent(
+      new CustomEvent('taskStoryLinkChanged', {
+        detail: { task, story },
+      })
+    );
+  }
+
+  private openRelatedItemsPicker(element: StoryElement | GoalElement): void {
+    window.dispatchEvent(
+      new CustomEvent('relatedItemsPickerRequested', {
+        detail: { element },
+      })
+    );
   }
 
   private createStoryAt(sceneX: number, sceneY: number): void {
