@@ -55,27 +55,34 @@ export class TasksApiService {
       .pipe(map((res) => (Array.isArray(res) ? res : res.results)));
   }
 
-  public getTask(id: number): Observable<PlatformTask> {
-    return this.http.get<PlatformTask>(`/tasks/${id}/`);
+  public getTask(id: string | number): Observable<PlatformTask> {
+    const encodedId = encodeURIComponent(String(id));
+    return this.http.get<PlatformTask>(`/tasks/${encodedId}/`);
   }
 
   public createTask(data: Partial<PlatformTask>): Observable<PlatformTask> {
     return this.http.post<PlatformTask>('/tasks/', data);
   }
 
-  public updateTask(id: number, data: PlatformTask): Observable<PlatformTask> {
-    return this.http.put<PlatformTask>(`/tasks/${id}/`, data);
+  public updateTask(
+    id: string | number,
+    data: PlatformTask
+  ): Observable<PlatformTask> {
+    const encodedId = encodeURIComponent(String(id));
+    return this.http.put<PlatformTask>(`/tasks/${encodedId}/`, data);
   }
 
   public patchTask(
-    id: number,
+    id: string | number,
     data: Partial<PlatformTask>
   ): Observable<PlatformTask> {
-    return this.http.patch<PlatformTask>(`/tasks/${id}/`, data);
+    const encodedId = encodeURIComponent(String(id));
+    return this.http.patch<PlatformTask>(`/tasks/${encodedId}/`, data);
   }
 
-  public deleteTask(id: number): Observable<any> {
-    return this.http.delete(`/tasks/${id}/`);
+  public deleteTask(id: string | number): Observable<any> {
+    const encodedId = encodeURIComponent(String(id));
+    return this.http.delete(`/tasks/${encodedId}/`);
   }
 
   public getTags(): Observable<Tag[]> {

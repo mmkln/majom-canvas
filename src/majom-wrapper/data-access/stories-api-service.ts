@@ -34,24 +34,34 @@ export class StoriesApiService {
       .pipe(map((res) => (Array.isArray(res) ? res : res.results)));
   }
 
-  public getStory(id: number): Observable<StoryDto> {
-    return this.http.get<StoryDto>(`/stories/${id}/`);
+  public getStory(id: string | number): Observable<StoryDto> {
+    const encodedId = encodeURIComponent(String(id));
+    return this.http.get<StoryDto>(`/stories/${encodedId}/`);
   }
 
   public createStory(data: Partial<StoryDto>): Observable<StoryDto> {
     return this.http.post<StoryDto>('/stories/', data);
   }
 
-  public updateStory(id: number, data: StoryDto): Observable<StoryDto> {
-    return this.http.put<StoryDto>(`/stories/${id}/`, data);
+  public updateStory(
+    id: string | number,
+    data: StoryDto
+  ): Observable<StoryDto> {
+    const encodedId = encodeURIComponent(String(id));
+    return this.http.put<StoryDto>(`/stories/${encodedId}/`, data);
   }
 
-  public patchStory(id: number, data: Partial<StoryDto>): Observable<StoryDto> {
-    return this.http.patch<StoryDto>(`/stories/${id}/`, data);
+  public patchStory(
+    id: string | number,
+    data: Partial<StoryDto>
+  ): Observable<StoryDto> {
+    const encodedId = encodeURIComponent(String(id));
+    return this.http.patch<StoryDto>(`/stories/${encodedId}/`, data);
   }
 
-  public deleteStory(id: number): Observable<any> {
-    return this.http.delete(`/stories/${id}/`);
+  public deleteStory(id: string | number): Observable<any> {
+    const encodedId = encodeURIComponent(String(id));
+    return this.http.delete(`/stories/${encodedId}/`);
   }
 
   private buildQuery(params?: {

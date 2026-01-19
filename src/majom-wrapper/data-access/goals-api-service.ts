@@ -34,24 +34,28 @@ export class GoalsApiService {
       .pipe(map((res) => (Array.isArray(res) ? res : res.results)));
   }
 
-  public getGoal(id: number): Observable<Goal> {
-    return this.http.get<Goal>(`/goals/${id}/`);
+  public getGoal(id: string | number): Observable<Goal> {
+    const encodedId = encodeURIComponent(String(id));
+    return this.http.get<Goal>(`/goals/${encodedId}/`);
   }
 
   public createGoal(data: Partial<Goal>): Observable<Goal> {
     return this.http.post<Goal>('/goals/', data);
   }
 
-  public updateGoal(id: number, data: Goal): Observable<Goal> {
-    return this.http.put<Goal>(`/goals/${id}/`, data);
+  public updateGoal(id: string | number, data: Goal): Observable<Goal> {
+    const encodedId = encodeURIComponent(String(id));
+    return this.http.put<Goal>(`/goals/${encodedId}/`, data);
   }
 
-  public patchGoal(id: number, data: Partial<Goal>): Observable<Goal> {
-    return this.http.patch<Goal>(`/goals/${id}/`, data);
+  public patchGoal(id: string | number, data: Partial<Goal>): Observable<Goal> {
+    const encodedId = encodeURIComponent(String(id));
+    return this.http.patch<Goal>(`/goals/${encodedId}/`, data);
   }
 
-  public deleteGoal(id: number): Observable<any> {
-    return this.http.delete(`/goals/${id}/`);
+  public deleteGoal(id: string | number): Observable<any> {
+    const encodedId = encodeURIComponent(String(id));
+    return this.http.delete(`/goals/${encodedId}/`);
   }
 
   private buildQuery(params?: {

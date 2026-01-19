@@ -193,8 +193,8 @@ export class CanvasDataService {
 
     return this.ensureElementsPersisted([req.element]).pipe(
       switchMap(() => {
-        const id = this.getBackendId(req.element);
-        if (!Number.isFinite(id)) {
+        const ref = this.getBackendRef(req.element);
+        if (!ref) {
           this.failedElementUpdates = true;
           this.elementUpdateStatus$.next({ status: 'failed' });
           return of(undefined);
@@ -204,12 +204,12 @@ export class CanvasDataService {
           return of(undefined);
         }
         if (req.element instanceof TaskElement) {
-          return this.tasksApi.patchTask(id, payload as Partial<PlatformTask>);
+          return this.tasksApi.patchTask(ref, payload as Partial<PlatformTask>);
         }
         if (req.element instanceof StoryElement) {
-          return this.storiesApi.patchStory(id, payload as Partial<Story>);
+          return this.storiesApi.patchStory(ref, payload as Partial<Story>);
         }
-        return this.goalsApi.patchGoal(id, payload as Partial<Goal>);
+        return this.goalsApi.patchGoal(ref, payload as Partial<Goal>);
       }),
       tap((updated) => {
         if (!updated) return;
@@ -248,11 +248,11 @@ export class CanvasDataService {
     >;
     return this.ensureElementsPersisted(elementsToPersist).pipe(
       switchMap(() => {
-        const taskId = this.getBackendId(task);
-        if (!Number.isFinite(taskId)) return of(undefined);
+        const taskRef = this.getBackendRef(task);
+        if (!taskRef) return of(undefined);
         const storyId = story ? this.getBackendId(story) : null;
         if (story && !Number.isFinite(storyId)) return of(undefined);
-        return this.tasksApi.patchTask(taskId, {
+        return this.tasksApi.patchTask(taskRef, {
           story_id: storyId ?? null,
         } as Partial<PlatformTask>);
       }),
@@ -830,16 +830,16 @@ export class CanvasDataService {
   ): Observable<void> {
     const type = this.getElementType(element);
     if (!type) return of(undefined);
-    const id = this.getBackendId(element);
-    if (!Number.isFinite(id)) {
+    const ref = this.getBackendRef(element);
+    if (!ref) {
       return this.deletePositionForElement(element);
     }
     const deleteEntity$ =
       element instanceof TaskElement
-        ? this.tasksApi.deleteTask(id)
+        ? this.tasksApi.deleteTask(ref)
         : element instanceof StoryElement
-          ? this.storiesApi.deleteStory(id)
-          : this.goalsApi.deleteGoal(id);
+          ? this.storiesApi.deleteStory(ref)
+          : this.goalsApi.deleteGoal(ref);
     return deleteEntity$.pipe(
       switchMap(() =>
         this.deletePositionForElement(element).pipe(
@@ -850,16 +850,16 @@ export class CanvasDataService {
           })
         )
       ),
-      tap((positionDeleted) => {
-        if (positionDeleted) {
-          this.removePositionByKey(element);
-        }
-        if (Number.isFinite(id)) {
-          this.removeElementFromCache(type, id);
-        }
-      }),
-      map(() => undefined)
-    );
+        tap((positionDeleted) => {
+          if (positionDeleted) {
+            this.removePositionByKey(element);
+          }
+          if (element.uuid) {
+            this.removeElementFromCache(type, element.uuid);
+          }
+        }),
+        map(() => undefined)
+      );
   }
 
   /**
@@ -928,6 +928,16 @@ export class CanvasDataService {
     return null;
   }
 
+  private getBackendRef(
+    element: TaskElement | StoryElement | GoalElement
+  ): string | null {
+    if (element.uuid) return element.uuid;
+    if (Number.isFinite(element.backendId)) {
+      return String(element.backendId);
+    }
+    return null;
+  }
+
   private getPositionKeyForElement(
     element: TaskElement | StoryElement | GoalElement
   ): string | null {
@@ -989,14 +999,16 @@ export class CanvasDataService {
 
   private removeElementFromCache(
     type: 'task' | 'story' | 'goal',
-    id: number
+    uuid: string
   ): void {
     if (type === 'task' && this.tasksCache) {
-      this.tasksCache = this.tasksCache.filter((task) => task.id !== id);
+      this.tasksCache = this.tasksCache.filter((task) => task.uuid !== uuid);
     } else if (type === 'story' && this.storiesCache) {
-      this.storiesCache = this.storiesCache.filter((story) => story.id !== id);
+      this.storiesCache = this.storiesCache.filter(
+        (story) => story.uuid !== uuid
+      );
     } else if (type === 'goal' && this.goalsCache) {
-      this.goalsCache = this.goalsCache.filter((goal) => goal.id !== id);
+      this.goalsCache = this.goalsCache.filter((goal) => goal.uuid !== uuid);
     }
   }
 }
