@@ -18,7 +18,7 @@ export class StatusPicker {
   private readonly container: HTMLDivElement;
   private readonly list: HTMLDivElement;
   private visible = false;
-  private activeElement: ICanvasElement | null = null;
+  private activeElement: PlanningElement | null = null;
   private activeElements: PlanningElement[] = [];
   private subscriptions: Subscription[] = [];
   private outsideHandler: ((event: MouseEvent) => void) | null = null;
@@ -219,25 +219,18 @@ export class StatusPicker {
     }
   }
 
-  private getElementBounds(element: ICanvasElement): {
+  private getElementBounds(element: PlanningElement): {
     x: number;
     y: number;
     width: number;
     height: number;
   } {
-    const el = element as any;
-    if (typeof el.width === 'number' && typeof el.height === 'number') {
-      return { x: el.x, y: el.y, width: el.width, height: el.height };
-    }
-    if (typeof el.radius === 'number') {
-      return {
-        x: el.x - el.radius,
-        y: el.y - el.radius,
-        width: el.radius * 2,
-        height: el.radius * 2,
-      };
-    }
-    return { x: el.x, y: el.y, width: 0, height: 0 };
+    return {
+      x: element.x,
+      y: element.y,
+      width: element.width,
+      height: element.height,
+    };
   }
 
 }
