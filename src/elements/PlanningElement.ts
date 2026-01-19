@@ -50,7 +50,7 @@ export abstract class PlanningElement
     dueDate?: Date;
     tags?: string[];
     backendId?: number;
-    uuid: string;
+    uuid?: string;
   }) {
     super(x, y);
     if (id) this.id = id;
