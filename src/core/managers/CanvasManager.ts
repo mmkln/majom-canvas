@@ -470,9 +470,10 @@ export class CanvasManager {
           return;
         }
       }
-      this.panZoom.scrollX = this.rightPanStartScrollX - deltaX;
-      this.panZoom.scrollY = this.rightPanStartScrollY - deltaY;
-      this.panZoom.clampScroll();
+      this.panZoom.setScroll(
+        this.rightPanStartScrollX - deltaX,
+        this.rightPanStartScrollY - deltaY
+      );
       this.draw();
       return;
     }
@@ -483,10 +484,11 @@ export class CanvasManager {
       const scrollRange = contentWidth - viewportWidth;
       const deltaX = mouseX - this.dragStartX;
       const scrollRatio = scrollRange / viewportWidth;
-      this.panZoom.scrollX = Math.max(
+      const nextScrollX = Math.max(
         0,
         Math.min(this.dragStartScrollX + deltaX * scrollRatio, scrollRange)
       );
+      this.panZoom.setScroll(nextScrollX, this.panZoom.scrollY);
       this.draw();
     } else if (this.draggingScrollbar === 'vertical') {
       const viewportHeight = this.canvas.height - this.panZoom.scrollbarWidth;
@@ -494,10 +496,11 @@ export class CanvasManager {
       const scrollRange = contentHeight - viewportHeight;
       const deltaY = mouseY - this.dragStartY;
       const scrollRatio = scrollRange / viewportHeight;
-      this.panZoom.scrollY = Math.max(
+      const nextScrollY = Math.max(
         0,
         Math.min(this.dragStartScrollY + deltaY * scrollRatio, scrollRange)
       );
+      this.panZoom.setScroll(this.panZoom.scrollX, nextScrollY);
       this.draw();
     } else {
       this.interactionManager.handleMouseMove(sceneX, sceneY);

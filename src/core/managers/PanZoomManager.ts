@@ -40,6 +40,13 @@ export class PanZoomManager {
     this.scrollY = Math.min(Math.max(0, this.scrollY), maxScrollY);
   }
 
+  public setScroll(scrollX: number, scrollY: number): void {
+    this.scrollX = scrollX;
+    this.scrollY = scrollY;
+    this.clampScroll();
+    this.emitZoomChange();
+  }
+
   // --- Canvas controls logic ---
   public zoomIn(canvas: HTMLCanvasElement): void {
     // Zoom relative to canvas center

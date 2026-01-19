@@ -23,9 +23,7 @@ export class PanCommand extends Command {
       scrollY: panZoom.scrollY,
       scale: panZoom.scale,
     };
-    panZoom.scrollX += this.dx;
-    panZoom.scrollY += this.dy;
-    panZoom.clampScroll();
+    panZoom.setScroll(panZoom.scrollX + this.dx, panZoom.scrollY + this.dy);
     this.canvasManager.draw();
   }
 

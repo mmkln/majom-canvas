@@ -11,6 +11,7 @@ import { UndoRedoControls } from './UndoRedoControls.ts';
 import { PaletteMenu } from './components/PaletteMenu.ts';
 import { SaveControls } from './components/SaveControls.ts';
 import { ContextMenu } from './components/ContextMenu.ts';
+import { SelectionActionMenu } from './components/SelectionActionMenu.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
@@ -42,6 +43,10 @@ export class UIManager {
     const paletteMenu = new PaletteMenu(this.scene);
     const saveControls = new SaveControls(this.scene);
     const contextMenu = new ContextMenu(this.scene, this.canvasManager);
+    const selectionActions = new SelectionActionMenu(
+      this.scene,
+      this.canvasManager
+    );
 
     // Add controls to components list
     this.components.push(
@@ -49,6 +54,7 @@ export class UIManager {
       this.zoomIndicator,
       paletteMenu,
       contextMenu,
+      selectionActions,
       saveControls,
       this.canvasToolbar,
       this.undoRedoControls
