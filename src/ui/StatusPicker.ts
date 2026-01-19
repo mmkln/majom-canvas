@@ -20,6 +20,10 @@ export class StatusPicker {
   private readonly list: HTMLDivElement;
   private visible = false;
   private activeElement: ICanvasElement | null = null;
+  private activeElements: Array<TaskElement | StoryElement | GoalElement> = [];
+  private anchorBounds:
+    | { x: number; y: number; width: number; height: number }
+    | null = null;
   private subscriptions: Subscription[] = [];
   private outsideHandler: ((event: MouseEvent) => void) | null = null;
   private eventHandler: ((event: Event) => void) | null = null;
@@ -55,10 +59,25 @@ export class StatusPicker {
       )
     );
     this.eventHandler = (event: Event) => {
-      const customEvent = event as CustomEvent<{ element?: ICanvasElement }>;
+      const customEvent = event as CustomEvent<{
+        element?: ICanvasElement;
+        elements?: Array<TaskElement | StoryElement | GoalElement>;
+        bounds?: { x: number; y: number; width: number; height: number };
+      }>;
+      const elements = customEvent.detail?.elements ?? [];
       const element = customEvent.detail?.element ?? null;
-      if (!element || !this.isPlanningElement(element)) return;
-      this.activeElement = element;
+      const bounds = customEvent.detail?.bounds ?? null;
+      if (elements.length > 0) {
+        if (!elements.every((el) => this.isPlanningElement(el))) return;
+        this.activeElements = elements;
+        this.activeElement = elements[0];
+        this.anchorBounds = bounds;
+      } else {
+        if (!element || !this.isPlanningElement(element)) return;
+        this.activeElements = [element];
+        this.activeElement = element;
+        this.anchorBounds = bounds;
+      }
       this.renderList();
       this.show();
     };
@@ -79,11 +98,11 @@ export class StatusPicker {
   private onSceneChange(): void {
     if (!this.visible) return;
     const selected = this.scene.getSelectedElements();
-    if (
-      !this.activeElement ||
-      selected.length !== 1 ||
-      selected[0] !== this.activeElement
-    ) {
+    if (this.activeElements.length === 0) {
+      this.hide();
+      return;
+    }
+    if (!this.isSelectionValid(selected)) {
       this.hide();
       return;
     }
@@ -102,6 +121,8 @@ export class StatusPicker {
     this.visible = false;
     this.container.style.display = 'none';
     this.activeElement = null;
+    this.activeElements = [];
+    this.anchorBounds = null;
     this.list.innerHTML = '';
     this.detachOutsideHandler();
   }
@@ -126,7 +147,10 @@ export class StatusPicker {
     if (!this.visible || !this.activeElement) return;
     const panZoom = this.canvasManager.getPanZoomManager();
     const rect = this.canvasManager.getCanvas().getBoundingClientRect();
-    const bounds = this.getElementBounds(this.activeElement);
+    const bounds =
+      this.activeElements.length > 1
+        ? this.getSelectionBounds(this.activeElements)
+        : this.anchorBounds ?? this.getElementBounds(this.activeElement);
     const anchorX = bounds.x + bounds.width / 2;
     const anchorY = bounds.y + bounds.height;
     const screenX = anchorX * panZoom.scale - panZoom.scrollX + rect.left;
@@ -138,9 +162,8 @@ export class StatusPicker {
 
   private renderList(): void {
     this.list.innerHTML = '';
-    if (!this.activeElement) return;
-    const currentStatus = (this.activeElement as TaskElement | StoryElement | GoalElement)
-      .status;
+    if (this.activeElements.length === 0) return;
+    const currentStatus = this.getCurrentStatus();
     ELEMENT_STATUS_OPTIONS.forEach((option: StatusOption) => {
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -156,16 +179,16 @@ export class StatusPicker {
       btn.style.fontSize = '13px';
       const styles = this.getStatusStyles(option.value);
       btn.style.color = styles.text;
-      btn.style.background = option.value === currentStatus ? styles.bg : 'white';
-      btn.style.borderColor =
-        option.value === currentStatus ? styles.border : 'transparent';
+      const isActive = currentStatus === option.value;
+      btn.style.background = isActive ? styles.bg : 'white';
+      btn.style.borderColor = isActive ? styles.border : 'transparent';
       btn.addEventListener('mouseenter', () => {
-        if (option.value !== currentStatus) {
+        if (!isActive) {
           btn.style.background = '#f3f4f6';
         }
       });
       btn.addEventListener('mouseleave', () => {
-        if (option.value !== currentStatus) {
+        if (!isActive) {
           btn.style.background = 'white';
         }
       });
@@ -175,22 +198,23 @@ export class StatusPicker {
   }
 
   private applyStatus(status: ElementStatus): void {
-    if (!this.activeElement) return;
-    const element = this.activeElement as
-      | TaskElement
-      | StoryElement
-      | GoalElement;
-    if (element.status === status) {
+    if (this.activeElements.length === 0) return;
+    const currentStatus = this.getCurrentStatus();
+    if (currentStatus === status) {
       this.hide();
       return;
     }
-    element.status = status;
+    // TODO: replace per-element PATCH with bulk endpoints:
+    // /tasks/bulk/, /stories/bulk/, /goals/bulk/ (ids + patch payload).
+    this.activeElements.forEach((element) => {
+      element.status = status;
+      window.dispatchEvent(
+        new CustomEvent('elementDetailsEdited', {
+          detail: { element, patch: { status } },
+        })
+      );
+    });
     this.scene.changes.next();
-    window.dispatchEvent(
-      new CustomEvent('elementDetailsEdited', {
-        detail: { element, patch: { status } },
-      })
-    );
     this.hide();
   }
 
@@ -233,11 +257,47 @@ export class StatusPicker {
     return { x: el.x, y: el.y, width: 0, height: 0 };
   }
 
-  private isPlanningElement(element: ICanvasElement): boolean {
+  private isPlanningElement(
+    element: ICanvasElement
+  ): element is TaskElement | StoryElement | GoalElement {
     return (
       element instanceof TaskElement ||
       element instanceof StoryElement ||
       element instanceof GoalElement
     );
+  }
+
+  private getCurrentStatus(): ElementStatus | null {
+    if (this.activeElements.length === 0) return null;
+    const statusSet = new Set(this.activeElements.map((el) => el.status));
+    if (statusSet.size !== 1) return null;
+    return this.activeElements[0].status;
+  }
+
+  private isSelectionValid(selected: ICanvasElement[]): boolean {
+    if (this.activeElements.length === 0) return false;
+    if (selected.length !== this.activeElements.length) return false;
+    const selectedIds = new Set(selected.map((el) => (el as any).id));
+    return this.activeElements.every((el) => selectedIds.has(el.id));
+  }
+
+  private getSelectionBounds(
+    elements: Array<TaskElement | StoryElement | GoalElement>
+  ): { x: number; y: number; width: number; height: number } {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    elements.forEach((el) => {
+      const bounds = this.getElementBounds(el);
+      minX = Math.min(minX, bounds.x);
+      minY = Math.min(minY, bounds.y);
+      maxX = Math.max(maxX, bounds.x + bounds.width);
+      maxY = Math.max(maxY, bounds.y + bounds.height);
+    });
+    if (!Number.isFinite(minX)) {
+      return { x: 0, y: 0, width: 0, height: 0 };
+    }
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
   }
 }

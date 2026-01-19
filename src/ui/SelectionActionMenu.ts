@@ -18,6 +18,12 @@ import {
 
 type PlanningElement = TaskElement | StoryElement | GoalElement;
 
+type ActionContext = {
+  elements: PlanningElement[];
+  primary: PlanningElement;
+  isMulti: boolean;
+};
+
 type ActionNode =
   | {
       kind: 'action';
@@ -27,13 +33,13 @@ type ActionNode =
       iconOptions?: IconOptions;
       variant?: 'icon' | 'status';
       isDanger?: boolean;
-      isVisible?: (element: PlanningElement) => boolean;
+      isVisible?: (context: ActionContext) => boolean;
       onClick: () => void;
     }
   | {
       kind: 'divider';
       id: string;
-      isVisible?: (element: PlanningElement) => boolean;
+      isVisible?: (context: ActionContext) => boolean;
     };
 
 export class SelectionActionMenu {
@@ -48,6 +54,7 @@ export class SelectionActionMenu {
   private subscriptions: Subscription[] = [];
   private resizeHandler = () => this.update();
   private activeElement: ICanvasElement | null = null;
+  private selectedElements: PlanningElement[] = [];
   private layoutService = new StoryLayoutService();
 
   constructor(
@@ -93,19 +100,28 @@ export class SelectionActionMenu {
 
   private update(): void {
     const selected = this.scene.getSelectedElements();
-    if (selected.length !== 1) {
+    if (selected.length === 0) {
       this.hide();
       return;
     }
-    const element = selected[0];
-    if (!this.isPlanningElement(element)) {
+    const planningSelected = selected.filter((el) =>
+      this.isPlanningElement(el)
+    ) as PlanningElement[];
+    if (planningSelected.length !== selected.length) {
       this.hide();
       return;
     }
-    this.activeElement = element;
-    this.updateActionVisibility(element);
-    this.updateStatusButton(element);
-    this.positionUnderElement(element);
+    this.selectedElements = planningSelected;
+    const primary = planningSelected[0];
+    this.activeElement = primary;
+    const context: ActionContext = {
+      elements: planningSelected,
+      primary,
+      isMulti: planningSelected.length > 1,
+    };
+    this.updateActionVisibility(context);
+    this.updateStatusButton(planningSelected);
+    this.positionUnderElement(primary, planningSelected);
     this.show();
   }
 
@@ -117,6 +133,7 @@ export class SelectionActionMenu {
 
   private hide(): void {
     this.activeElement = null;
+    this.selectedElements = [];
     if (this.container.style.display !== 'none') {
       this.container.style.display = 'none';
     }
@@ -158,11 +175,11 @@ export class SelectionActionMenu {
     });
   }
 
-  private updateActionVisibility(element: PlanningElement): void {
+  private updateActionVisibility(context: ActionContext): void {
     this.actionNodes.forEach((node) => {
       const el = this.actionElements.get(node.id);
       if (!el) return;
-      const visible = node.isVisible ? node.isVisible(element) : true;
+      const visible = node.isVisible ? node.isVisible(context) : true;
       const display =
         node.kind === 'divider' ? 'block' : 'inline-flex';
       el.style.display = visible ? display : 'none';
@@ -170,10 +187,13 @@ export class SelectionActionMenu {
   }
 
   private buildActionNodes(): ActionNode[] {
-    const isStory = (element: PlanningElement): boolean =>
-      element instanceof StoryElement;
-    const isStoryOrGoal = (element: PlanningElement): boolean =>
-      element instanceof StoryElement || element instanceof GoalElement;
+    const isSingle = (context: ActionContext): boolean => !context.isMulti;
+    const isMulti = (context: ActionContext): boolean => context.isMulti;
+    const isStory = (context: ActionContext): boolean =>
+      context.primary instanceof StoryElement;
+    const isStoryOrGoal = (context: ActionContext): boolean =>
+      context.primary instanceof StoryElement ||
+      context.primary instanceof GoalElement;
     return [
       {
         kind: 'action',
@@ -184,15 +204,37 @@ export class SelectionActionMenu {
       },
       {
         kind: 'divider',
+        id: 'divider-status',
+        isVisible: isMulti,
+      },
+      {
+        kind: 'action',
+        id: 'copy-bulk',
+        title: 'Copy',
+        icon: 'copy',
+        isVisible: isMulti,
+        onClick: () => this.handleCopy(),
+      },
+      {
+        kind: 'action',
+        id: 'delete-bulk',
+        title: 'Delete element',
+        icon: 'delete',
+        isDanger: true,
+        isVisible: isMulti,
+        onClick: () => this.handleDelete(),
+      },
+      {
+        kind: 'divider',
         id: 'divider-related',
-        isVisible: isStoryOrGoal,
+        isVisible: (context) => isSingle(context) && isStoryOrGoal(context),
       },
       {
         kind: 'action',
         id: 'add-related',
         title: 'Add related',
         icon: 'add-related',
-        isVisible: isStoryOrGoal,
+        isVisible: (context) => isSingle(context) && isStoryOrGoal(context),
         onClick: () => this.handleAddRelated(),
       },
       {
@@ -201,18 +243,20 @@ export class SelectionActionMenu {
         title: 'Align',
         icon: 'align',
         iconOptions: { strokeWidth: 1.5 },
-        isVisible: isStory,
+        isVisible: (context) => isSingle(context) && isStory(context),
         onClick: () => this.handleAlign(),
       },
       {
         kind: 'divider',
         id: 'divider-main',
+        isVisible: isSingle,
       },
       {
         kind: 'action',
         id: 'edit',
         title: 'Edit',
         icon: 'edit',
+        isVisible: isSingle,
         onClick: () => this.handleEdit(),
       },
       {
@@ -220,6 +264,7 @@ export class SelectionActionMenu {
         id: 'copy',
         title: 'Copy',
         icon: 'copy',
+        isVisible: isSingle,
         onClick: () => this.handleCopy(),
       },
       {
@@ -228,15 +273,22 @@ export class SelectionActionMenu {
         title: 'Delete element',
         icon: 'delete',
         isDanger: true,
+        isVisible: isSingle,
         onClick: () => this.handleDelete(),
       },
     ];
   }
 
-  private positionUnderElement(element: ICanvasElement): void {
+  private positionUnderElement(
+    element: ICanvasElement,
+    elements: PlanningElement[]
+  ): void {
     const panZoom = this.canvasManager.getPanZoomManager();
     const rect = this.canvasManager.getCanvas().getBoundingClientRect();
-    const bounds = this.getElementBounds(element);
+    const bounds =
+      elements.length > 1
+        ? this.getSelectionBounds(elements)
+        : this.getElementBounds(element);
     const anchorX = bounds.x + bounds.width / 2;
     const anchorY = bounds.y + bounds.height;
     const screenX = anchorX * panZoom.scale - panZoom.scrollX + rect.left;
@@ -345,10 +397,14 @@ export class SelectionActionMenu {
   }
 
   private handleStatus(): void {
-    if (!this.activeElement) return;
+    if (this.selectedElements.length === 0) return;
+    const bounds =
+      this.selectedElements.length > 1
+        ? this.getSelectionBounds(this.selectedElements)
+        : this.getElementBounds(this.selectedElements[0]);
     window.dispatchEvent(
       new CustomEvent('statusPickerRequested', {
-        detail: { element: this.activeElement },
+        detail: { elements: this.selectedElements, bounds },
       })
     );
   }
@@ -359,8 +415,8 @@ export class SelectionActionMenu {
   }
 
   private handleCopy(): void {
-    if (!this.activeElement) return;
-    historyService.execute(new CopyCommand(this.scene, [this.activeElement]));
+    if (this.selectedElements.length === 0) return;
+    historyService.execute(new CopyCommand(this.scene, this.selectedElements));
   }
 
   private handleAddRelated(): void {
@@ -430,12 +486,14 @@ export class SelectionActionMenu {
   }
 
   private handleDelete(): void {
-    if (!this.activeElement) return;
-    window.dispatchEvent(
-      new CustomEvent('elementDeleteRequested', {
-        detail: { element: this.activeElement },
-      })
-    );
+    if (this.selectedElements.length === 0) return;
+    this.selectedElements.forEach((element) => {
+      window.dispatchEvent(
+        new CustomEvent('elementDeleteRequested', {
+          detail: { element },
+        })
+      );
+    });
   }
 
   private isPlanningElement(
@@ -448,9 +506,18 @@ export class SelectionActionMenu {
     );
   }
 
-  private updateStatusButton(element: PlanningElement): void {
-    if (!this.statusControls) return;
-    const status = element.status;
+  private updateStatusButton(elements: PlanningElement[]): void {
+    if (!this.statusControls || elements.length === 0) return;
+    const statuses = new Set(elements.map((el) => el.status));
+    if (statuses.size > 1) {
+      this.statusControls.label.textContent = 'Mixed';
+      this.statusControls.button.style.background = '#f3f4f6';
+      this.statusControls.button.style.borderColor = '#e5e7eb';
+      this.statusControls.button.style.color = '#6b7280';
+      this.statusControls.dot.style.background = '#9ca3af';
+      return;
+    }
+    const status = elements[0].status;
     const label =
       ELEMENT_STATUS_OPTIONS.find((option) => option.value === status)?.label ??
       'Status';
@@ -478,5 +545,28 @@ export class SelectionActionMenu {
       default:
         return { bg: '#f3f4f6', border: '#e5e7eb', text: '#4b5563' };
     }
+  }
+
+  private getSelectionBounds(elements: PlanningElement[]): {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    elements.forEach((el) => {
+      const bounds = this.getElementBounds(el);
+      minX = Math.min(minX, bounds.x);
+      minY = Math.min(minY, bounds.y);
+      maxX = Math.max(maxX, bounds.x + bounds.width);
+      maxY = Math.max(maxY, bounds.y + bounds.height);
+    });
+    if (!Number.isFinite(minX)) {
+      return { x: 0, y: 0, width: 0, height: 0 };
+    }
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
   }
 }
