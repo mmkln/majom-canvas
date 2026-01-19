@@ -203,7 +203,10 @@ export class ContextMenu {
       },
       {
         label: 'Copy',
-        action: () => historyService.execute(new CopyCommand(this.scene)),
+        action: () =>
+          historyService.execute(
+            new CopyCommand(this.scene, [element])
+          ),
       },
       {
         label: 'Remove from canvas',
