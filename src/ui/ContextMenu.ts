@@ -19,24 +19,28 @@ type ContextMenuDetail = {
   sceneY: number;
 };
 
-type ContextMenuItem =
-  | { kind: 'divider' }
-  | { kind: 'header'; label: string }
-  | {
-      kind?: 'button';
-      label: string;
-      action: () => 'keep-open' | void;
-      tone?: 'danger' | 'warning';
-    };
+type MenuActionResult = 'keep-open' | void;
+
+type ContextMenuItem = {
+  label: string;
+  action: () => MenuActionResult;
+  tone?: 'danger' | 'warning';
+};
+
+type ContextMenuSection = {
+  title?: string;
+  items: ContextMenuItem[];
+};
 
 export class ContextMenu {
   private menu: HTMLDivElement;
   private visible = false;
   private handler: ((event: Event) => void) | null = null;
   private outsideHandler: ((event: MouseEvent) => void) | null = null;
-  private pendingDeleteConfirmKey: string | null = null;
+  private confirmState: { key: string; expiresAt: number } | null = null;
   private lastDetail: ContextMenuDetail | null = null;
   private layoutService = new StoryLayoutService();
+  private readonly confirmTimeoutMs = 4000;
 
   constructor(
     private scene: Scene,
@@ -67,13 +71,7 @@ export class ContextMenu {
   }
 
   private show(detail: ContextMenuDetail): void {
-    const nextKey = this.getElementConfirmKey(detail.element);
-    if (
-      this.pendingDeleteConfirmKey &&
-      this.pendingDeleteConfirmKey !== nextKey
-    ) {
-      this.pendingDeleteConfirmKey = null;
-    }
+    this.syncConfirmState(detail.element);
     this.lastDetail = detail;
     this.render();
 
@@ -88,54 +86,15 @@ export class ContextMenu {
 
   private render(): void {
     if (!this.lastDetail) return;
-    this.menu.innerHTML = '';
-    const items = this.getItems(this.lastDetail);
-    items.forEach((item) => {
-      if (item.kind === 'divider') {
-        const divider = document.createElement('div');
-        divider.className = 'my-1 border-t border-gray-200';
-        this.menu.appendChild(divider);
-        return;
-      }
-      if (item.kind === 'header') {
-        const header = document.createElement('div');
-        header.className =
-          'px-3 pt-2 text-xs font-semibold uppercase text-gray-400';
-        header.textContent = item.label;
-        this.menu.appendChild(header);
-        return;
-      }
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      const baseClasses =
-        'w-full text-left px-3 py-2 hover:bg-gray-100 active:bg-gray-200';
-      const dangerClasses = 'text-red-600 hover:bg-red-50 active:bg-red-100';
-      const warningClasses =
-        'text-orange-600 hover:bg-orange-50 active:bg-orange-100';
-      btn.className =
-        item.tone === 'danger'
-          ? `${baseClasses} ${dangerClasses}`
-          : item.tone === 'warning'
-            ? `${baseClasses} ${warningClasses}`
-            : baseClasses;
-      btn.textContent = item.label;
-      btn.addEventListener('click', () => {
-        const result = item.action();
-        if (result === 'keep-open') {
-          this.render();
-          return;
-        }
-        this.hide();
-      });
-      this.menu.appendChild(btn);
-    });
+    const sections = this.buildSections(this.lastDetail);
+    this.renderSections(sections);
   }
 
   private hide(): void {
     if (!this.visible) return;
     this.menu.style.display = 'none';
     this.visible = false;
-    this.pendingDeleteConfirmKey = null;
+    this.confirmState = null;
     if (this.outsideHandler) {
       window.removeEventListener('mousedown', this.outsideHandler);
       this.outsideHandler = null;
@@ -152,68 +111,66 @@ export class ContextMenu {
     window.addEventListener('mousedown', this.outsideHandler);
   }
 
-  private getItems(detail: ContextMenuDetail): ContextMenuItem[] {
+  private buildSections(detail: ContextMenuDetail): ContextMenuSection[] {
     const { element, sceneX, sceneY } = detail;
     if (!element) {
-      const items: ContextMenuItem[] = [];
+      const sections: ContextMenuSection[] = [];
       if (clipboardService.getItems().length > 0) {
-        items.push({
-          label: 'Paste',
-          action: () =>
-            historyService.execute(
-              new PasteCommand(this.scene, this.canvasManager)
-            ),
+        sections.push({
+          title: 'Clipboard',
+          items: [
+            {
+              label: 'Paste',
+              action: () =>
+                historyService.execute(
+                  new PasteCommand(this.scene, this.canvasManager)
+                ),
+            },
+          ],
         });
-        items.push({ kind: 'divider' });
       }
-      items.push(
-        { kind: 'header', label: 'Create new' },
-        {
-          label: 'Task',
-          action: () => this.createTaskAt(sceneX, sceneY),
-        },
-        {
-          label: 'Story',
-          action: () => this.createStoryAt(sceneX, sceneY),
-        },
-        {
-          label: 'Goal',
-          action: () => this.createGoalAt(sceneX, sceneY),
-        }
-      );
-      return items;
+      sections.push({
+        title: 'Create new',
+        items: [
+          {
+            label: 'Task',
+            action: () => this.createTaskAt(sceneX, sceneY),
+          },
+          {
+            label: 'Story',
+            action: () => this.createStoryAt(sceneX, sceneY),
+          },
+          {
+            label: 'Goal',
+            action: () => this.createGoalAt(sceneX, sceneY),
+          },
+        ],
+      });
+      return sections;
     }
+
     const isPlanningElement =
       element instanceof TaskElement ||
       element instanceof StoryElement ||
       element instanceof GoalElement;
     const confirmKey = this.getElementConfirmKey(element);
-    const isConfirming =
-      Boolean(confirmKey) && this.pendingDeleteConfirmKey === confirmKey;
-    const elementLabel =
-      element instanceof TaskElement
-        ? 'task'
-        : element instanceof StoryElement
-          ? 'story'
-          : element instanceof GoalElement
-            ? 'goal'
-            : 'element';
+    const isConfirming = this.isConfirmingDelete(confirmKey);
+    const elementLabel = this.getElementLabel(element);
     const deleteLabel = isConfirming
       ? 'Confirm delete'
       : `Delete ${elementLabel}`;
-    const items: ContextMenuItem[] = [
-      {
-        label: 'Edit',
+
+    const sections: ContextMenuSection[] = [];
+    const actionItems: ContextMenuItem[] = [];
+    if (isPlanningElement) {
+      actionItems.push({
+        label: "Edit",
         action: () => {
-          if (
-            element instanceof TaskElement ||
-            element instanceof StoryElement ||
-            element instanceof GoalElement
-          ) {
-            (element as any).onDoubleClick?.();
-          }
+          (element as any).onDoubleClick?.();
         },
-      },
+      });
+    }
+    actionItems.push(
       {
         label: 'Copy',
         action: () =>
@@ -223,47 +180,124 @@ export class ContextMenu {
         label: 'Remove from canvas',
         action: () =>
           historyService.execute(new DeleteCommand(this.scene, [element])),
-      },
-    ];
+      }
+    );
+    sections.push({items: actionItems});
+
     if (element instanceof StoryElement) {
-      items.push(
-        { kind: 'divider' as const },
-        { kind: 'header' as const, label: 'Story' },
-        {
-          label: 'Add task',
-          action: () => this.createTaskInStory(element),
-        },
-        {
-          label: 'Related tasks',
-          action: () => {
-            this.openRelatedItemsPicker(element);
+      sections.push({
+        title: 'Story',
+        items: [
+          {
+            label: 'Add task',
+            action: () => this.createTaskInStory(element),
           },
-        }
-      );
+          {
+            label: 'Related tasks',
+            action: () => {
+              this.openRelatedItemsPicker(element);
+            },
+          },
+        ],
+      });
     }
+
     if (isPlanningElement) {
-      items.push(
-        { kind: 'divider' as const },
-        {
-          label: deleteLabel,
-          tone: isConfirming ? ('warning' as const) : ('danger' as const),
-          action: () => {
-            if (!confirmKey) return;
-            if (!isConfirming) {
-              this.pendingDeleteConfirmKey = confirmKey;
-              return 'keep-open';
-            }
-            this.pendingDeleteConfirmKey = null;
-            window.dispatchEvent(
-              new CustomEvent('elementDeleteRequested', {
-                detail: { element },
-              })
-            );
+      sections.push({
+        items: [
+          {
+            label: deleteLabel,
+            tone: isConfirming ? ('warning' as const) : ('danger' as const),
+            action: () => {
+              if (!confirmKey) return;
+              const stillConfirming = this.isConfirmingDelete(confirmKey);
+              if (!stillConfirming) {
+                this.confirmState = {
+                  key: confirmKey,
+                  expiresAt: Date.now() + this.confirmTimeoutMs,
+                };
+                return 'keep-open';
+              }
+              this.confirmState = null;
+              window.dispatchEvent(
+                new CustomEvent('elementDeleteRequested', {
+                  detail: { element },
+                })
+              );
+            },
           },
-        }
-      );
+        ],
+      });
     }
-    return items;
+
+    return sections;
+  }
+
+  private renderSections(sections: ContextMenuSection[]): void {
+    this.menu.innerHTML = '';
+    const visibleSections = sections.filter(
+      (section) => section.items.length > 0
+    );
+    visibleSections.forEach((section, index) => {
+      if (index > 0) {
+        const divider = document.createElement('div');
+        divider.className = 'my-1 border-t border-gray-200';
+        this.menu.appendChild(divider);
+      }
+      if (section.title) {
+        const header = document.createElement('div');
+        header.className =
+          'px-3 pt-2 text-xs font-semibold uppercase text-gray-400';
+        header.textContent = section.title;
+        this.menu.appendChild(header);
+      }
+      section.items.forEach((item) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        const baseClasses =
+          'w-full text-left px-3 py-2 hover:bg-gray-100 active:bg-gray-200';
+        const dangerClasses = 'text-red-600 hover:bg-red-50 active:bg-red-100';
+        const warningClasses =
+          'text-orange-600 hover:bg-orange-50 active:bg-orange-100';
+        btn.className =
+          item.tone === 'danger'
+            ? `${baseClasses} ${dangerClasses}`
+            : item.tone === 'warning'
+              ? `${baseClasses} ${warningClasses}`
+              : baseClasses;
+        btn.textContent = item.label;
+        btn.addEventListener('click', () => {
+          const result = item.action();
+          if (result === 'keep-open') {
+            this.render();
+            return;
+          }
+          this.hide();
+        });
+        this.menu.appendChild(btn);
+      });
+    });
+  }
+
+  private syncConfirmState(element: ICanvasElement | null): void {
+    if (!this.confirmState) return;
+    if (Date.now() > this.confirmState.expiresAt) {
+      this.confirmState = null;
+      return;
+    }
+    const nextKey = this.getElementConfirmKey(element);
+    if (!nextKey || this.confirmState.key !== nextKey) {
+      this.confirmState = null;
+    }
+  }
+
+  private isConfirmingDelete(confirmKey: string | null): boolean {
+    if (!confirmKey || !this.confirmState) return false;
+    if (Date.now() > this.confirmState.expiresAt) {
+      this.confirmState = null;
+      return false;
+    }
+    return this.confirmState.key === confirmKey;
   }
 
   private getScreenCoords(
@@ -283,6 +317,13 @@ export class ContextMenu {
     if (element instanceof StoryElement) return `story:${element.id}`;
     if (element instanceof GoalElement) return `goal:${element.id}`;
     return null;
+  }
+
+  private getElementLabel(element: ICanvasElement): string {
+    if (element instanceof TaskElement) return 'task';
+    if (element instanceof StoryElement) return 'story';
+    if (element instanceof GoalElement) return 'goal';
+    return 'element';
   }
 
   private createTaskAt(sceneX: number, sceneY: number): void {
