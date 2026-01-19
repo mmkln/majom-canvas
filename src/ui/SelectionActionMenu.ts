@@ -11,6 +11,8 @@ import { CopyCommand } from '../core/commands/CopyCommand.ts';
 export class SelectionActionMenu {
   private readonly container: HTMLDivElement;
   private readonly editBtn: HTMLButtonElement;
+  private readonly addRelatedBtn: HTMLButtonElement;
+  private readonly addRelatedDivider: HTMLDivElement;
   private readonly copyBtn: HTMLButtonElement;
   private readonly deleteBtn: HTMLButtonElement;
   private subscriptions: Subscription[] = [];
@@ -31,10 +33,19 @@ export class SelectionActionMenu {
     this.container.style.border = '1px solid #e5e7eb';
     this.container.style.borderRadius = '9999px';
     this.container.style.boxShadow = '0 6px 18px rgba(0,0,0,0.12)';
-    this.container.style.zIndex = '120';
+    this.container.style.zIndex = '40';
     this.container.style.transform = 'translate(-50%, 10px)';
 
     this.editBtn = this.createIconButton('Edit', this.handleEdit.bind(this));
+    this.addRelatedBtn = this.createIconButton(
+      'Add related',
+      this.handleAddRelated.bind(this)
+    );
+    this.addRelatedDivider = document.createElement('div');
+    this.addRelatedDivider.style.width = '1px';
+    this.addRelatedDivider.style.height = '20px';
+    this.addRelatedDivider.style.background = '#e5e7eb';
+    this.addRelatedDivider.style.margin = '0 4px';
     this.copyBtn = this.createIconButton('Copy', this.handleCopy.bind(this));
     this.deleteBtn = this.createIconButton(
       'Delete element',
@@ -42,6 +53,8 @@ export class SelectionActionMenu {
       true
     );
 
+    this.container.appendChild(this.addRelatedBtn);
+    this.container.appendChild(this.addRelatedDivider);
     this.container.appendChild(this.editBtn);
     this.container.appendChild(this.copyBtn);
     this.container.appendChild(this.deleteBtn);
@@ -78,6 +91,13 @@ export class SelectionActionMenu {
       return;
     }
     this.activeElement = element;
+    if (element instanceof StoryElement || element instanceof GoalElement) {
+      this.addRelatedBtn.style.display = 'inline-flex';
+      this.addRelatedDivider.style.display = 'block';
+    } else {
+      this.addRelatedBtn.style.display = 'none';
+      this.addRelatedDivider.style.display = 'none';
+    }
     this.positionUnderElement(element);
     this.show();
   }
@@ -185,6 +205,11 @@ export class SelectionActionMenu {
       svg.appendChild(this.makeRect(4, 4, 11, 11, 2));
       return svg;
     }
+    if (name === 'Add related') {
+      svg.appendChild(this.makePath('M12 5v14'));
+      svg.appendChild(this.makePath('M5 12h14'));
+      return svg;
+    }
     svg.appendChild(this.makePath('M3 6h18'));
     svg.appendChild(this.makePath('M8 6V4h8v2'));
     svg.appendChild(this.makeRect(6, 6, 12, 14, 2));
@@ -221,6 +246,21 @@ export class SelectionActionMenu {
   private handleCopy(): void {
     if (!this.activeElement) return;
     historyService.execute(new CopyCommand(this.scene, [this.activeElement]));
+  }
+
+  private handleAddRelated(): void {
+    if (!this.activeElement) return;
+    if (
+      !(this.activeElement instanceof StoryElement) &&
+      !(this.activeElement instanceof GoalElement)
+    ) {
+      return;
+    }
+    window.dispatchEvent(
+      new CustomEvent('relatedItemsPickerRequested', {
+        detail: { element: this.activeElement },
+      })
+    );
   }
 
   private handleDelete(): void {

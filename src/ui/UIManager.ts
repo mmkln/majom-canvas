@@ -12,6 +12,7 @@ import { PaletteMenu } from './components/PaletteMenu.ts';
 import { SaveControls } from './components/SaveControls.ts';
 import { ContextMenu } from './ContextMenu.ts';
 import { SelectionActionMenu } from './SelectionActionMenu.ts';
+import { RelatedItemsPicker } from './RelatedItemsPicker.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
@@ -47,6 +48,10 @@ export class UIManager {
       this.scene,
       this.canvasManager
     );
+    const relatedItemsPicker = new RelatedItemsPicker(
+      this.scene,
+      this.canvasManager
+    );
 
     // Add controls to components list
     this.components.push(
@@ -55,6 +60,7 @@ export class UIManager {
       paletteMenu,
       contextMenu,
       selectionActions,
+      relatedItemsPicker,
       saveControls,
       this.canvasToolbar,
       this.undoRedoControls
