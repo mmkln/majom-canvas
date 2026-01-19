@@ -16,16 +16,35 @@ import {
   ELEMENT_STATUS_OPTIONS,
 } from '../elements/ElementStatus.ts';
 
+type PlanningElement = TaskElement | StoryElement | GoalElement;
+
+type ActionNode =
+  | {
+      kind: 'action';
+      id: string;
+      title: string;
+      icon?: IconName;
+      iconOptions?: IconOptions;
+      variant?: 'icon' | 'status';
+      isDanger?: boolean;
+      isVisible?: (element: PlanningElement) => boolean;
+      onClick: () => void;
+    }
+  | {
+      kind: 'divider';
+      id: string;
+      isVisible?: (element: PlanningElement) => boolean;
+    };
+
 export class SelectionActionMenu {
   private readonly container: HTMLDivElement;
-  private readonly statusBtn: HTMLButtonElement;
-  private readonly statusLabel: HTMLSpanElement;
-  private readonly editBtn: HTMLButtonElement;
-  private readonly addRelatedBtn: HTMLButtonElement;
-  private readonly alignBtn: HTMLButtonElement;
-  private readonly addRelatedDivider: HTMLDivElement;
-  private readonly copyBtn: HTMLButtonElement;
-  private readonly deleteBtn: HTMLButtonElement;
+  private actionNodes: ActionNode[] = [];
+  private actionElements: Map<string, HTMLElement> = new Map();
+  private statusControls: {
+    button: HTMLButtonElement;
+    label: HTMLSpanElement;
+    dot: HTMLSpanElement;
+  } | null = null;
   private subscriptions: Subscription[] = [];
   private resizeHandler = () => this.update();
   private activeElement: ICanvasElement | null = null;
@@ -49,50 +68,8 @@ export class SelectionActionMenu {
     this.container.style.zIndex = '40';
     this.container.style.transform = 'translate(-50%, 10px)';
 
-    const statusButton = this.createStatusButton();
-    this.statusBtn = statusButton.button;
-    this.statusLabel = statusButton.label;
-    this.editBtn = this.createIconButton(
-      'Edit',
-      'edit',
-      this.handleEdit.bind(this)
-    );
-    this.addRelatedBtn = this.createIconButton(
-      'Add related',
-      'add-related',
-      this.handleAddRelated.bind(this)
-    );
-    this.alignBtn = this.createIconButton(
-      'Align',
-      'align',
-      this.handleAlign.bind(this),
-      { iconOptions: { strokeWidth: 1.5 } }
-    );
-    this.addRelatedDivider = document.createElement('div');
-    this.addRelatedDivider.style.width = '1px';
-    this.addRelatedDivider.style.height = '20px';
-    this.addRelatedDivider.style.background = '#e5e7eb';
-    this.addRelatedDivider.style.margin = '0 4px';
-    this.copyBtn = this.createIconButton(
-      'Copy',
-      'copy',
-      this.handleCopy.bind(this)
-    );
-    this.deleteBtn = this.createIconButton(
-      'Delete element',
-      'delete',
-      this.handleDelete.bind(this),
-      { isDanger: true }
-    );
-
-    this.container.appendChild(this.statusBtn);
-    this.container.appendChild(this.addRelatedDivider.cloneNode());
-    this.container.appendChild(this.addRelatedBtn);
-    this.container.appendChild(this.alignBtn);
-    this.container.appendChild(this.addRelatedDivider.cloneNode());
-    this.container.appendChild(this.editBtn);
-    this.container.appendChild(this.copyBtn);
-    this.container.appendChild(this.deleteBtn);
+    this.actionNodes = this.buildActionNodes();
+    this.renderActions();
   }
 
   public mount(parent: HTMLElement = document.body): void {
@@ -126,24 +103,7 @@ export class SelectionActionMenu {
       return;
     }
     this.activeElement = element;
-    const showAddRelated =
-      element instanceof StoryElement || element instanceof GoalElement;
-    const showAlign = element instanceof StoryElement;
-    if (showAddRelated) {
-      this.addRelatedBtn.style.display = 'inline-flex';
-    } else {
-      this.addRelatedBtn.style.display = 'none';
-    }
-    if (showAlign) {
-      this.alignBtn.style.display = 'inline-flex';
-    } else {
-      this.alignBtn.style.display = 'none';
-    }
-    if (showAddRelated || showAlign) {
-      this.addRelatedDivider.style.display = 'block';
-    } else {
-      this.addRelatedDivider.style.display = 'none';
-    }
+    this.updateActionVisibility(element);
     this.updateStatusButton(element);
     this.positionUnderElement(element);
     this.show();
@@ -160,6 +120,117 @@ export class SelectionActionMenu {
     if (this.container.style.display !== 'none') {
       this.container.style.display = 'none';
     }
+  }
+
+  private renderActions(): void {
+    this.container.innerHTML = '';
+    this.actionElements.clear();
+    this.statusControls = null;
+    this.actionNodes.forEach((node) => {
+      if (node.kind === 'divider') {
+        const divider = document.createElement('div');
+        divider.style.width = '1px';
+        divider.style.height = '20px';
+        divider.style.background = '#e5e7eb';
+        divider.style.margin = '0 4px';
+        this.actionElements.set(node.id, divider);
+        this.container.appendChild(divider);
+        return;
+      }
+      if (node.variant === 'status') {
+        const status = this.createStatusButton(node.onClick);
+        this.statusControls = status;
+        this.actionElements.set(node.id, status.button);
+        this.container.appendChild(status.button);
+        return;
+      }
+      const btn = this.createIconButton(
+        node.title,
+        node.icon ?? 'copy',
+        node.onClick,
+        {
+          isDanger: node.isDanger,
+          iconOptions: node.iconOptions,
+        }
+      );
+      this.actionElements.set(node.id, btn);
+      this.container.appendChild(btn);
+    });
+  }
+
+  private updateActionVisibility(element: PlanningElement): void {
+    this.actionNodes.forEach((node) => {
+      const el = this.actionElements.get(node.id);
+      if (!el) return;
+      const visible = node.isVisible ? node.isVisible(element) : true;
+      const display =
+        node.kind === 'divider' ? 'block' : 'inline-flex';
+      el.style.display = visible ? display : 'none';
+    });
+  }
+
+  private buildActionNodes(): ActionNode[] {
+    const isStory = (element: PlanningElement): boolean =>
+      element instanceof StoryElement;
+    const isStoryOrGoal = (element: PlanningElement): boolean =>
+      element instanceof StoryElement || element instanceof GoalElement;
+    return [
+      {
+        kind: 'action',
+        id: 'status',
+        title: 'Change status',
+        variant: 'status',
+        onClick: () => this.handleStatus(),
+      },
+      {
+        kind: 'divider',
+        id: 'divider-related',
+        isVisible: isStoryOrGoal,
+      },
+      {
+        kind: 'action',
+        id: 'add-related',
+        title: 'Add related',
+        icon: 'add-related',
+        isVisible: isStoryOrGoal,
+        onClick: () => this.handleAddRelated(),
+      },
+      {
+        kind: 'action',
+        id: 'align',
+        title: 'Align',
+        icon: 'align',
+        iconOptions: { strokeWidth: 1.5 },
+        isVisible: isStory,
+        onClick: () => this.handleAlign(),
+      },
+      {
+        kind: 'divider',
+        id: 'divider-main',
+      },
+      {
+        kind: 'action',
+        id: 'edit',
+        title: 'Edit',
+        icon: 'edit',
+        onClick: () => this.handleEdit(),
+      },
+      {
+        kind: 'action',
+        id: 'copy',
+        title: 'Copy',
+        icon: 'copy',
+        onClick: () => this.handleCopy(),
+      },
+      {
+        kind: 'action',
+        id: 'delete',
+        title: 'Delete element',
+        icon: 'delete',
+        isDanger: true,
+        onClick: () => this.handleDelete(),
+      },
+    ];
   }
 
   private positionUnderElement(element: ICanvasElement): void {
@@ -233,9 +304,10 @@ export class SelectionActionMenu {
     return btn;
   }
 
-  private createStatusButton(): {
+  private createStatusButton(handler: () => void): {
     button: HTMLButtonElement;
     label: HTMLSpanElement;
+    dot: HTMLSpanElement;
   } {
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -252,7 +324,6 @@ export class SelectionActionMenu {
     btn.style.fontSize = '12px';
     btn.style.fontWeight = '600';
     btn.style.cursor = 'pointer';
-    btn.style.transition = 'background 150ms ease, border-color 150ms ease';
 
     const dot = document.createElement('span');
     dot.style.width = '8px';
@@ -260,7 +331,6 @@ export class SelectionActionMenu {
     dot.style.borderRadius = '999px';
     dot.style.background = '#d1d5db';
     dot.style.display = 'inline-block';
-    dot.dataset.role = 'status-dot';
 
     const label = document.createElement('span');
     label.textContent = 'Status';
@@ -269,14 +339,18 @@ export class SelectionActionMenu {
     btn.appendChild(label);
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (!this.activeElement) return;
-      window.dispatchEvent(
-        new CustomEvent('statusPickerRequested', {
-          detail: { element: this.activeElement },
-        })
-      );
+      handler();
     });
-    return { button: btn, label };
+    return { button: btn, label, dot };
+  }
+
+  private handleStatus(): void {
+    if (!this.activeElement) return;
+    window.dispatchEvent(
+      new CustomEvent('statusPickerRequested', {
+        detail: { element: this.activeElement },
+      })
+    );
   }
 
   private handleEdit(): void {
@@ -366,7 +440,7 @@ export class SelectionActionMenu {
 
   private isPlanningElement(
     element: ICanvasElement
-  ): element is TaskElement | StoryElement | GoalElement {
+  ): element is PlanningElement {
     return (
       element instanceof TaskElement ||
       element instanceof StoryElement ||
@@ -374,24 +448,18 @@ export class SelectionActionMenu {
     );
   }
 
-  private updateStatusButton(
-    element: TaskElement | StoryElement | GoalElement
-  ): void {
+  private updateStatusButton(element: PlanningElement): void {
+    if (!this.statusControls) return;
     const status = element.status;
     const label =
       ELEMENT_STATUS_OPTIONS.find((option) => option.value === status)?.label ??
       'Status';
-    this.statusLabel.textContent = label;
-    const dot = this.statusBtn.querySelector(
-      '[data-role="status-dot"]'
-    ) as HTMLSpanElement | null;
     const { bg, border, text } = this.getStatusStyles(status);
-    this.statusBtn.style.background = bg;
-    this.statusBtn.style.borderColor = border;
-    this.statusBtn.style.color = text;
-    if (dot) {
-      dot.style.background = text;
-    }
+    this.statusControls.label.textContent = label;
+    this.statusControls.button.style.background = bg;
+    this.statusControls.button.style.borderColor = border;
+    this.statusControls.button.style.color = text;
+    this.statusControls.dot.style.background = text;
   }
 
   private getStatusStyles(status: ElementStatus): {
