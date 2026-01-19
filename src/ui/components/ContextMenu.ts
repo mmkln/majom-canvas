@@ -4,6 +4,7 @@ import { CopyCommand } from '../../core/commands/CopyCommand.ts';
 import { PasteCommand } from '../../core/commands/PasteCommand.ts';
 import { AddElementCommand } from '../../core/commands/AddElementCommand.ts';
 import { Scene } from '../../core/scene/Scene.ts';
+import { clipboardService } from '../../core/services/ClipboardService.ts';
 import type { CanvasManager } from '../../core/managers/CanvasManager.ts';
 import type { ICanvasElement } from '../../core/interfaces/canvasElement.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
@@ -96,7 +97,7 @@ export class ContextMenu {
       if (item.kind === 'header') {
         const header = document.createElement('div');
         header.className =
-          'px-3 pt-2 text-xs font-semibold uppercase text-gray-400';
+          'px-3 pt-2 pb-1 text-xs font-semibold uppercase text-gray-400';
         header.textContent = item.label;
         this.menu.appendChild(header);
         return;
@@ -151,21 +152,19 @@ export class ContextMenu {
   private getItems(detail: ContextMenuDetail): ContextMenuItem[] {
     const { element, sceneX, sceneY } = detail;
     if (!element) {
-      return [
-        {
+      const items: ContextMenuItem[] = [];
+      if (clipboardService.getItems().length > 0) {
+        items.push({
           label: 'Paste',
           action: () =>
             historyService.execute(
               new PasteCommand(this.scene, this.canvasManager)
             ),
-        },
-        {
-          kind: 'divider',
-        },
-        {
-          kind: 'header',
-          label: 'Create new',
-        },
+        });
+        items.push({ kind: 'divider' });
+      }
+      items.push(
+        { kind: 'header', label: 'Create new' },
         {
           label: 'Task',
           action: () => this.createTaskAt(sceneX, sceneY),
@@ -177,8 +176,9 @@ export class ContextMenu {
         {
           label: 'Goal',
           action: () => this.createGoalAt(sceneX, sceneY),
-        },
-      ];
+        }
+      );
+      return items;
     }
     const isPlanningElement =
       element instanceof TaskElement ||
