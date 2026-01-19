@@ -1,15 +1,15 @@
-import { historyService } from '../../core/services/HistoryService.ts';
-import { DeleteCommand } from '../../core/commands/DeleteCommand.ts';
-import { CopyCommand } from '../../core/commands/CopyCommand.ts';
-import { PasteCommand } from '../../core/commands/PasteCommand.ts';
-import { AddElementCommand } from '../../core/commands/AddElementCommand.ts';
-import { Scene } from '../../core/scene/Scene.ts';
-import { clipboardService } from '../../core/services/ClipboardService.ts';
-import type { CanvasManager } from '../../core/managers/CanvasManager.ts';
-import type { ICanvasElement } from '../../core/interfaces/canvasElement.ts';
-import { TaskElement } from '../../elements/TaskElement.ts';
-import { StoryElement } from '../../elements/StoryElement.ts';
-import { GoalElement } from '../../elements/GoalElement.ts';
+import { historyService } from '../core/services/HistoryService.ts';
+import { DeleteCommand } from '../core/commands/DeleteCommand.ts';
+import { CopyCommand } from '../core/commands/CopyCommand.ts';
+import { PasteCommand } from '../core/commands/PasteCommand.ts';
+import { AddElementCommand } from '../core/commands/AddElementCommand.ts';
+import { Scene } from '../core/scene/Scene.ts';
+import { clipboardService } from '../core/services/ClipboardService.ts';
+import type { CanvasManager } from '../core/managers/CanvasManager.ts';
+import type { ICanvasElement } from '../core/interfaces/canvasElement.ts';
+import { TaskElement } from '../elements/TaskElement.ts';
+import { StoryElement } from '../elements/StoryElement.ts';
+import { GoalElement } from '../elements/GoalElement.ts';
 
 type ContextMenuDetail = {
   element: ICanvasElement | null;
@@ -97,7 +97,7 @@ export class ContextMenu {
       if (item.kind === 'header') {
         const header = document.createElement('div');
         header.className =
-          'px-3 pt-2 pb-1 text-xs font-semibold uppercase text-gray-400';
+          'px-3 pt-2 text-xs font-semibold uppercase text-gray-400';
         header.textContent = item.label;
         this.menu.appendChild(header);
         return;
@@ -204,9 +204,7 @@ export class ContextMenu {
       {
         label: 'Copy',
         action: () =>
-          historyService.execute(
-            new CopyCommand(this.scene, [element])
-          ),
+          historyService.execute(new CopyCommand(this.scene, [element])),
       },
       {
         label: 'Remove from canvas',

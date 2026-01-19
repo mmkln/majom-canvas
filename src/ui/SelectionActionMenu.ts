@@ -1,12 +1,12 @@
 import { Subscription } from 'rxjs';
-import { Scene } from '../../core/scene/Scene.ts';
-import type { CanvasManager } from '../../core/managers/CanvasManager.ts';
-import type { ICanvasElement } from '../../core/interfaces/canvasElement.ts';
-import { TaskElement } from '../../elements/TaskElement.ts';
-import { StoryElement } from '../../elements/StoryElement.ts';
-import { GoalElement } from '../../elements/GoalElement.ts';
-import { historyService } from '../../core/services/HistoryService.ts';
-import { CopyCommand } from '../../core/commands/CopyCommand.ts';
+import { Scene } from '../core/scene/Scene.ts';
+import type { CanvasManager } from '../core/managers/CanvasManager.ts';
+import type { ICanvasElement } from '../core/interfaces/canvasElement.ts';
+import { TaskElement } from '../elements/TaskElement.ts';
+import { StoryElement } from '../elements/StoryElement.ts';
+import { GoalElement } from '../elements/GoalElement.ts';
+import { historyService } from '../core/services/HistoryService.ts';
+import { CopyCommand } from '../core/commands/CopyCommand.ts';
 
 export class SelectionActionMenu {
   private readonly container: HTMLDivElement;
