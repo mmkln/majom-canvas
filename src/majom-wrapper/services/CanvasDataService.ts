@@ -258,7 +258,7 @@ export class CanvasDataService {
       }),
       tap((updated) => {
         if (updated) {
-          this.upsertTaskCache(updated as PlatformTask);
+          this.upsertTaskCache(updated);
         }
       }),
       map(() => undefined)
@@ -433,8 +433,11 @@ export class CanvasDataService {
       return of(cachedCombined);
     }
     return forkJoin(requests).pipe(
-      map((results) => {
-        const fetched = results.flat();
+      map((results: PlatformTask[][]) => {
+        const fetched = results.reduce<PlatformTask[]>(
+          (acc, batch) => acc.concat(batch),
+          []
+        );
         this.tasksCache = this.mergeCache(this.tasksCache, fetched);
         return this.dedupeById([...cachedCombined, ...fetched]);
       })
@@ -481,8 +484,11 @@ export class CanvasDataService {
       return of(cachedCombined);
     }
     return forkJoin(requests).pipe(
-      map((results) => {
-        const fetched = results.flat();
+      map((results: Story[][]) => {
+        const fetched = results.reduce<Story[]>(
+          (acc, batch) => acc.concat(batch),
+          []
+        );
         this.storiesCache = this.mergeCache(this.storiesCache, fetched);
         return this.dedupeById([...cachedCombined, ...fetched]);
       })
@@ -529,8 +535,11 @@ export class CanvasDataService {
       return of(cachedCombined);
     }
     return forkJoin(requests).pipe(
-      map((results) => {
-        const fetched = results.flat();
+      map((results: Goal[][]) => {
+        const fetched = results.reduce<Goal[]>(
+          (acc, batch) => acc.concat(batch),
+          []
+        );
         this.goalsCache = this.mergeCache(this.goalsCache, fetched);
         return this.dedupeById([...cachedCombined, ...fetched]);
       })
@@ -700,21 +709,34 @@ export class CanvasDataService {
     taskDtos: PlatformTask[]
   ): void {
     if (taskElements.length === 0 || storyElements.length === 0) return;
-    const taskById = new Map<number, TaskElement>();
+    const taskByRef = new Map<string, TaskElement>();
     taskElements.forEach((task) => {
-      const id = this.getBackendId(task);
-      if (Number.isFinite(id)) taskById.set(id, task);
+      if (task.uuid) {
+        taskByRef.set(task.uuid, task);
+      }
+      if (Number.isFinite(task.backendId)) {
+        taskByRef.set(String(task.backendId), task);
+      }
     });
-    const storyById = new Map<number, StoryElement>();
+    const storyByRef = new Map<string, StoryElement>();
     storyElements.forEach((story) => {
-      const id = this.getBackendId(story);
-      if (Number.isFinite(id)) storyById.set(id, story);
+      if (story.uuid) {
+        storyByRef.set(story.uuid, story);
+      }
+      if (Number.isFinite(story.backendId)) {
+        storyByRef.set(String(story.backendId), story);
+      }
     });
     taskDtos.forEach((task) => {
-      const storyId = task.story_id ?? task.story?.id;
-      if (!storyId) return;
-      const taskEl = taskById.get(task.id);
-      const storyEl = storyById.get(storyId);
+      const storyRef =
+        task.story?.uuid ??
+        (task.story_id !== null && task.story_id !== undefined
+          ? String(task.story_id)
+          : null);
+      if (!storyRef) return;
+      const taskRef = task.uuid ?? String(task.id);
+      const taskEl = taskByRef.get(taskRef);
+      const storyEl = storyByRef.get(storyRef);
       if (!taskEl || !storyEl) return;
       storyEl.addTask(taskEl);
     });

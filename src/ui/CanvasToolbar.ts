@@ -48,15 +48,6 @@ export class CanvasToolbar {
    * Add buttons to the toolbar
    */
   private addButtons(): void {
-    // Select button
-    const selectBtn = ComponentFactory.createButton({
-      text: 'Select',
-      variant: 'secondary',
-      onClick: () => this.handleSelectMode(),
-      tooltip: 'Select elements on canvas',
-      size: 'lg',
-    }).createElement();
-
     // Create Task button
     const createTaskBtn = ComponentFactory.createButton({
       text: 'Task',
@@ -89,15 +80,6 @@ export class CanvasToolbar {
     this.container.appendChild(createTaskBtn);
     this.container.appendChild(createStoryBtn);
     this.container.appendChild(createGoalBtn);
-  }
-
-  /**
-   * Handle select mode
-   */
-  private handleSelectMode(): void {
-    // Set mode to select (default interaction mode)
-    console.log('Select mode activated');
-    // Any specific logic for select mode can be implemented here
   }
 
   /**
