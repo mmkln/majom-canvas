@@ -14,6 +14,7 @@ import { ContextMenu } from './ContextMenu.ts';
 import { SelectionActionMenu } from './SelectionActionMenu.ts';
 import { RelatedItemsPicker } from './RelatedItemsPicker.ts';
 import { StatusPicker } from './StatusPicker.ts';
+import { BulkActionsController } from '../core/services/BulkActionsController.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
@@ -45,15 +46,21 @@ export class UIManager {
     const paletteMenu = new PaletteMenu(this.scene);
     const saveControls = new SaveControls(this.scene);
     const contextMenu = new ContextMenu(this.scene, this.canvasManager);
+    const bulkActions = new BulkActionsController(this.scene);
     const selectionActions = new SelectionActionMenu(
       this.scene,
-      this.canvasManager
+      this.canvasManager,
+      bulkActions
     );
     const relatedItemsPicker = new RelatedItemsPicker(
       this.scene,
       this.canvasManager
     );
-    const statusPicker = new StatusPicker(this.scene, this.canvasManager);
+    const statusPicker = new StatusPicker(
+      this.scene,
+      this.canvasManager,
+      bulkActions
+    );
 
     // Add controls to components list
     this.components.push(

@@ -5,18 +5,17 @@ import type { ICanvasElement } from '../core/interfaces/canvasElement.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
-import { historyService } from '../core/services/HistoryService.ts';
-import { CopyCommand } from '../core/commands/CopyCommand.ts';
 import { MoveCommand } from '../core/commands/MoveCommand.ts';
 import { ResizeCommand } from '../core/commands/ResizeCommand.ts';
+import { historyService } from '../core/services/HistoryService.ts';
 import { StoryLayoutService } from '../core/services/StoryLayoutService.ts';
+import { SelectionContext, PlanningElement } from '../core/services/SelectionContext.ts';
+import { BulkActionsController } from '../core/services/BulkActionsController.ts';
 import { createIcon, IconName, IconOptions } from './icons.ts';
 import {
   ElementStatus,
   ELEMENT_STATUS_OPTIONS,
 } from '../elements/ElementStatus.ts';
-
-type PlanningElement = TaskElement | StoryElement | GoalElement;
 
 type ActionContext = {
   elements: PlanningElement[];
@@ -59,7 +58,8 @@ export class SelectionActionMenu {
 
   constructor(
     private readonly scene: Scene,
-    private readonly canvasManager: CanvasManager
+    private readonly canvasManager: CanvasManager,
+    private readonly bulkActions: BulkActionsController
   ) {
     this.container = document.createElement('div');
     this.container.style.position = 'fixed';
@@ -104,9 +104,7 @@ export class SelectionActionMenu {
       this.hide();
       return;
     }
-    const planningSelected = selected.filter((el) =>
-      this.isPlanningElement(el)
-    ) as PlanningElement[];
+    const planningSelected = SelectionContext.getPlanningSelection(this.scene);
     if (planningSelected.length !== selected.length) {
       this.hide();
       return;
@@ -121,7 +119,7 @@ export class SelectionActionMenu {
     };
     this.updateActionVisibility(context);
     this.updateStatusButton(planningSelected);
-    this.positionUnderElement(primary, planningSelected);
+    this.positionUnderElement(planningSelected);
     this.show();
   }
 
@@ -279,43 +277,16 @@ export class SelectionActionMenu {
     ];
   }
 
-  private positionUnderElement(
-    element: ICanvasElement,
-    elements: PlanningElement[]
-  ): void {
+  private positionUnderElement(elements: PlanningElement[]): void {
     const panZoom = this.canvasManager.getPanZoomManager();
     const rect = this.canvasManager.getCanvas().getBoundingClientRect();
-    const bounds =
-      elements.length > 1
-        ? this.getSelectionBounds(elements)
-        : this.getElementBounds(element);
+    const bounds = SelectionContext.getSelectionBounds(elements);
     const anchorX = bounds.x + bounds.width / 2;
     const anchorY = bounds.y + bounds.height;
     const screenX = anchorX * panZoom.scale - panZoom.scrollX + rect.left;
     const screenY = anchorY * panZoom.scale - panZoom.scrollY + rect.top;
     this.container.style.left = `${screenX}px`;
     this.container.style.top = `${screenY}px`;
-  }
-
-  private getElementBounds(element: ICanvasElement): {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } {
-    const el = element as any;
-    if (typeof el.width === 'number' && typeof el.height === 'number') {
-      return { x: el.x, y: el.y, width: el.width, height: el.height };
-    }
-    if (typeof el.radius === 'number') {
-      return {
-        x: el.x - el.radius,
-        y: el.y - el.radius,
-        width: el.radius * 2,
-        height: el.radius * 2,
-      };
-    }
-    return { x: el.x, y: el.y, width: 0, height: 0 };
   }
 
   private createIconButton(
@@ -398,10 +369,7 @@ export class SelectionActionMenu {
 
   private handleStatus(): void {
     if (this.selectedElements.length === 0) return;
-    const bounds =
-      this.selectedElements.length > 1
-        ? this.getSelectionBounds(this.selectedElements)
-        : this.getElementBounds(this.selectedElements[0]);
+    const bounds = SelectionContext.getSelectionBounds(this.selectedElements);
     window.dispatchEvent(
       new CustomEvent('statusPickerRequested', {
         detail: { elements: this.selectedElements, bounds },
@@ -415,8 +383,7 @@ export class SelectionActionMenu {
   }
 
   private handleCopy(): void {
-    if (this.selectedElements.length === 0) return;
-    historyService.execute(new CopyCommand(this.scene, this.selectedElements));
+    this.bulkActions.copy(this.selectedElements);
   }
 
   private handleAddRelated(): void {
@@ -486,30 +453,13 @@ export class SelectionActionMenu {
   }
 
   private handleDelete(): void {
-    if (this.selectedElements.length === 0) return;
-    this.selectedElements.forEach((element) => {
-      window.dispatchEvent(
-        new CustomEvent('elementDeleteRequested', {
-          detail: { element },
-        })
-      );
-    });
-  }
-
-  private isPlanningElement(
-    element: ICanvasElement
-  ): element is PlanningElement {
-    return (
-      element instanceof TaskElement ||
-      element instanceof StoryElement ||
-      element instanceof GoalElement
-    );
+    this.bulkActions.delete(this.selectedElements);
   }
 
   private updateStatusButton(elements: PlanningElement[]): void {
     if (!this.statusControls || elements.length === 0) return;
-    const statuses = new Set(elements.map((el) => el.status));
-    if (statuses.size > 1) {
+    const status = SelectionContext.getMixedStatus(elements);
+    if (!status) {
       this.statusControls.label.textContent = 'Mixed';
       this.statusControls.button.style.background = '#f3f4f6';
       this.statusControls.button.style.borderColor = '#e5e7eb';
@@ -517,7 +467,6 @@ export class SelectionActionMenu {
       this.statusControls.dot.style.background = '#9ca3af';
       return;
     }
-    const status = elements[0].status;
     const label =
       ELEMENT_STATUS_OPTIONS.find((option) => option.value === status)?.label ??
       'Status';
@@ -545,28 +494,5 @@ export class SelectionActionMenu {
       default:
         return { bg: '#f3f4f6', border: '#e5e7eb', text: '#4b5563' };
     }
-  }
-
-  private getSelectionBounds(elements: PlanningElement[]): {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } {
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-    elements.forEach((el) => {
-      const bounds = this.getElementBounds(el);
-      minX = Math.min(minX, bounds.x);
-      minY = Math.min(minY, bounds.y);
-      maxX = Math.max(maxX, bounds.x + bounds.width);
-      maxY = Math.max(maxY, bounds.y + bounds.height);
-    });
-    if (!Number.isFinite(minX)) {
-      return { x: 0, y: 0, width: 0, height: 0 };
-    }
-    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
   }
 }
