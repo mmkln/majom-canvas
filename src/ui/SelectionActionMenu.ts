@@ -11,9 +11,15 @@ import { MoveCommand } from '../core/commands/MoveCommand.ts';
 import { ResizeCommand } from '../core/commands/ResizeCommand.ts';
 import { StoryLayoutService } from '../core/services/StoryLayoutService.ts';
 import { createIcon, IconName, IconOptions } from './icons.ts';
+import {
+  ElementStatus,
+  ELEMENT_STATUS_OPTIONS,
+} from '../elements/ElementStatus.ts';
 
 export class SelectionActionMenu {
   private readonly container: HTMLDivElement;
+  private readonly statusBtn: HTMLButtonElement;
+  private readonly statusLabel: HTMLSpanElement;
   private readonly editBtn: HTMLButtonElement;
   private readonly addRelatedBtn: HTMLButtonElement;
   private readonly alignBtn: HTMLButtonElement;
@@ -35,6 +41,7 @@ export class SelectionActionMenu {
     this.container.style.alignItems = 'center';
     this.container.style.gap = '6px';
     this.container.style.padding = '6px';
+    this.container.style.paddingRight = '12px';
     this.container.style.background = 'rgba(255,255,255,0.96)';
     this.container.style.border = '1px solid #e5e7eb';
     this.container.style.borderRadius = '9999px';
@@ -42,6 +49,9 @@ export class SelectionActionMenu {
     this.container.style.zIndex = '40';
     this.container.style.transform = 'translate(-50%, 10px)';
 
+    const statusButton = this.createStatusButton();
+    this.statusBtn = statusButton.button;
+    this.statusLabel = statusButton.label;
     this.editBtn = this.createIconButton(
       'Edit',
       'edit',
@@ -75,9 +85,11 @@ export class SelectionActionMenu {
       { isDanger: true }
     );
 
+    this.container.appendChild(this.statusBtn);
+    this.container.appendChild(this.addRelatedDivider.cloneNode());
     this.container.appendChild(this.addRelatedBtn);
     this.container.appendChild(this.alignBtn);
-    this.container.appendChild(this.addRelatedDivider);
+    this.container.appendChild(this.addRelatedDivider.cloneNode());
     this.container.appendChild(this.editBtn);
     this.container.appendChild(this.copyBtn);
     this.container.appendChild(this.deleteBtn);
@@ -132,6 +144,7 @@ export class SelectionActionMenu {
     } else {
       this.addRelatedDivider.style.display = 'none';
     }
+    this.updateStatusButton(element);
     this.positionUnderElement(element);
     this.show();
   }
@@ -220,6 +233,52 @@ export class SelectionActionMenu {
     return btn;
   }
 
+  private createStatusButton(): {
+    button: HTMLButtonElement;
+    label: HTMLSpanElement;
+  } {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.setAttribute('aria-label', 'Change status');
+    btn.style.display = 'inline-flex';
+    btn.style.alignItems = 'center';
+    btn.style.gap = '6px';
+    btn.style.height = '32px';
+    btn.style.padding = '0 10px';
+    btn.style.borderRadius = '999px';
+    btn.style.border = '1px solid #e5e7eb';
+    btn.style.background = '#f9fafb';
+    btn.style.color = '#374151';
+    btn.style.fontSize = '12px';
+    btn.style.fontWeight = '600';
+    btn.style.cursor = 'pointer';
+    btn.style.transition = 'background 150ms ease, border-color 150ms ease';
+
+    const dot = document.createElement('span');
+    dot.style.width = '8px';
+    dot.style.height = '8px';
+    dot.style.borderRadius = '999px';
+    dot.style.background = '#d1d5db';
+    dot.style.display = 'inline-block';
+    dot.dataset.role = 'status-dot';
+
+    const label = document.createElement('span');
+    label.textContent = 'Status';
+
+    btn.appendChild(dot);
+    btn.appendChild(label);
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!this.activeElement) return;
+      window.dispatchEvent(
+        new CustomEvent('statusPickerRequested', {
+          detail: { element: this.activeElement },
+        })
+      );
+    });
+    return { button: btn, label };
+  }
+
   private handleEdit(): void {
     if (!this.activeElement) return;
     (this.activeElement as any).onDoubleClick?.();
@@ -305,11 +364,51 @@ export class SelectionActionMenu {
     );
   }
 
-  private isPlanningElement(element: ICanvasElement): boolean {
+  private isPlanningElement(
+    element: ICanvasElement
+  ): element is TaskElement | StoryElement | GoalElement {
     return (
       element instanceof TaskElement ||
       element instanceof StoryElement ||
       element instanceof GoalElement
     );
+  }
+
+  private updateStatusButton(
+    element: TaskElement | StoryElement | GoalElement
+  ): void {
+    const status = element.status;
+    const label =
+      ELEMENT_STATUS_OPTIONS.find((option) => option.value === status)?.label ??
+      'Status';
+    this.statusLabel.textContent = label;
+    const dot = this.statusBtn.querySelector(
+      '[data-role="status-dot"]'
+    ) as HTMLSpanElement | null;
+    const { bg, border, text } = this.getStatusStyles(status);
+    this.statusBtn.style.background = bg;
+    this.statusBtn.style.borderColor = border;
+    this.statusBtn.style.color = text;
+    if (dot) {
+      dot.style.background = text;
+    }
+  }
+
+  private getStatusStyles(status: ElementStatus): {
+    bg: string;
+    border: string;
+    text: string;
+  } {
+    switch (status) {
+      case ElementStatus.InProgress:
+        return { bg: '#dbeafe', border: '#93c5fd', text: '#1d4ed8' };
+      case ElementStatus.Pending:
+        return { bg: '#fef3c7', border: '#fcd34d', text: '#b45309' };
+      case ElementStatus.Done:
+        return { bg: '#dcfce7', border: '#86efac', text: '#15803d' };
+      case ElementStatus.Defined:
+      default:
+        return { bg: '#f3f4f6', border: '#e5e7eb', text: '#4b5563' };
+    }
   }
 }

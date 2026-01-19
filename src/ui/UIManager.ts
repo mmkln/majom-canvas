@@ -13,6 +13,7 @@ import { SaveControls } from './components/SaveControls.ts';
 import { ContextMenu } from './ContextMenu.ts';
 import { SelectionActionMenu } from './SelectionActionMenu.ts';
 import { RelatedItemsPicker } from './RelatedItemsPicker.ts';
+import { StatusPicker } from './StatusPicker.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
@@ -52,6 +53,7 @@ export class UIManager {
       this.scene,
       this.canvasManager
     );
+    const statusPicker = new StatusPicker(this.scene, this.canvasManager);
 
     // Add controls to components list
     this.components.push(
@@ -61,6 +63,7 @@ export class UIManager {
       contextMenu,
       selectionActions,
       relatedItemsPicker,
+      statusPicker,
       saveControls,
       this.canvasToolbar,
       this.undoRedoControls
