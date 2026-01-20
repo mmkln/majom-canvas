@@ -51,7 +51,7 @@ export class ConnectionInteractionService {
         conn.relationType === ConnectionRelationType.ParentChild
           ? Math.max(baseTol, 8 / this.panZoom.scale)
           : baseTol;
-      if (conn.isNearPoint(x, y, connectables, tol)) {
+      if (conn.isNearPoint(x, y, connectables, tol, this.panZoom.scale)) {
         return conn;
       }
     }

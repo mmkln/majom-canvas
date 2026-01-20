@@ -11,7 +11,8 @@ export interface IConnection extends ICanvasElement {
     px: number,
     py: number,
     elements: IConnectable[],
-    tolerance?: number
+    tolerance?: number,
+    scale?: number
   ): boolean;
   setLineType(type: ConnectionLineType): void;
 }

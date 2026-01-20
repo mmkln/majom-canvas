@@ -9,6 +9,7 @@ import {
 import { PanZoomManager } from '../managers/PanZoomManager.ts';
 import { v4 } from 'uuid';
 import { connectionRenderer } from '../utils/ConnectionRenderer.ts';
+import { buildCyberPath } from '../utils/connectionPathUtils.ts';
 
 export default class Connection implements IConnection {
   id: string;
@@ -183,7 +184,8 @@ export default class Connection implements IConnection {
     px: number,
     py: number,
     elements: IConnectable[],
-    tolerance: number = 5
+    tolerance: number = 5,
+    scale: number = 1
   ): boolean {
     const from = this.findConnectable(elements, this.fromId);
     const to = this.findConnectable(elements, this.toId);
@@ -192,6 +194,23 @@ export default class Connection implements IConnection {
     }
 
     const { start, end } = this.getClosestConnectionPoints(from, to);
+
+    if (
+      this.relationType === ConnectionRelationType.LeadsTo ||
+      this.relationType === ConnectionRelationType.ParentChild
+    ) {
+      const { path } = buildCyberPath(start, end, scale);
+      let minDistance = Infinity;
+      for (let i = 0; i < path.length - 1; i += 1) {
+        const p1 = path[i];
+        const p2 = path[i + 1];
+        const d = this.distanceToLineSegment(px, py, p1.x, p1.y, p2.x, p2.y);
+        if (d < minDistance) {
+          minDistance = d;
+        }
+      }
+      return minDistance <= tolerance;
+    }
 
     if (this.lineType === ConnectionLineType.Straight) {
       // Пряме з'єднання – використання існуючого методу для відрізка
