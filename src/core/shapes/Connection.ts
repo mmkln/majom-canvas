@@ -426,9 +426,9 @@ export default class Connection implements IConnection {
       const t = (time * speed + rand) % 1;
       const flow = this.sampleCurveWithTangent(curve, t);
 
-      const midTightness = 2;
+      const midTightness = 3;
       const spreadProfile =
-        0.18 + 0.82 * Math.pow(Math.sin(Math.PI * t), midTightness);
+        0.12 + 0.55 * Math.pow(Math.sin(Math.PI * t), midTightness);
       const spread = spreadProfile * spreadMax;
       const side = rand > 0.5 ? 1 : -1;
       const wobble =
