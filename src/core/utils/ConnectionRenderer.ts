@@ -38,11 +38,10 @@ class ConnectionRenderer {
     from: IConnectable,
     to: IConnectable
   ): void {
-    if (
-      connection.relationType === ConnectionRelationType.LeadsTo ||
-      connection.relationType === ConnectionRelationType.ParentChild
-    ) {
+    if (connection.relationType === ConnectionRelationType.LeadsTo) {
       this.drawCyberLine(connection, ctx, from, to, panZoom);
+    } else if (connection.relationType === ConnectionRelationType.ParentChild) {
+      this.drawCyberLine(connection, ctx, from, to, panZoom, true);
     } else {
       this.drawLine(connection, ctx, from, to);
     }
@@ -128,12 +127,13 @@ class ConnectionRenderer {
     const coreWidth = (1.4 + pulse * 1.0) / scale;
     const glowWidth = (3 + pulse * 2) / scale;
     const baseAlpha = 0.25 + pulse * 0.35;
-    const fallbackColor =
-      this.parseColor(this.getRelationColor(connection)) ?? {
-        r: 14,
-        g: 165,
-        b: 233,
-      };
+    const fallbackColor = this.parseColor(
+      this.getRelationColor(connection)
+    ) ?? {
+      r: 14,
+      g: 165,
+      b: 233,
+    };
     const startColor = this.getElementSwarmColor(from) ?? fallbackColor;
     const endColor = this.getElementSwarmColor(to) ?? fallbackColor;
     const midColor = this.mixColor(startColor, endColor, 0.5);
@@ -172,7 +172,8 @@ class ConnectionRenderer {
     ctx: CanvasRenderingContext2D,
     from: IConnectable,
     to: IConnectable,
-    panZoom: PanZoomManager
+    panZoom: PanZoomManager,
+    reverceAnimation: boolean = false
   ): void {
     const scale = panZoom.scale ?? 1;
     const timeMs = panZoom.timeMs ?? performance.now();
@@ -180,23 +181,20 @@ class ConnectionRenderer {
     const { path, corners } = this.buildCyberPath(start, end, scale);
     const dash = 18 / scale;
     const gap = 10 / scale;
-    const offset = -(timeMs * 0.02) / scale;
+    const direction = reverceAnimation ? -1 : 1;
+    const offset = -(direction * timeMs * 0.02) / scale;
     const baseAlpha = 0.55;
-    const fallbackColor =
-      this.parseColor(this.getRelationColor(connection)) ?? {
-        r: 139,
-        g: 92,
-        b: 246,
-      };
+    const fallbackColor = this.parseColor(
+      this.getRelationColor(connection)
+    ) ?? {
+      r: 139,
+      g: 92,
+      b: 246,
+    };
     const startColor = this.getElementSwarmColor(from) ?? fallbackColor;
     const endColor = this.getElementSwarmColor(to) ?? fallbackColor;
     const midColor = this.mixColor(startColor, endColor, 0.5);
-    const gradient = ctx.createLinearGradient(
-      start.x,
-      start.y,
-      end.x,
-      end.y
-    );
+    const gradient = ctx.createLinearGradient(start.x, start.y, end.x, end.y);
     gradient.addColorStop(0, this.toRgba(startColor, baseAlpha));
     gradient.addColorStop(0.5, this.toRgba(midColor, baseAlpha));
     gradient.addColorStop(1, this.toRgba(endColor, baseAlpha));
@@ -437,16 +435,12 @@ class ConnectionRenderer {
       const midY = startStub.y + (endStub.y - startStub.y) * 0.5;
 
       pathPoints.push({ x: start.x, y: start.y }, startStub);
-      if (Math.abs(endStub.x - startStub.x) >= Math.abs(endStub.y - startStub.y)) {
-        pathPoints.push(
-          { x: midX, y: startStub.y },
-          { x: midX, y: endStub.y }
-        );
+      if (
+        Math.abs(endStub.x - startStub.x) >= Math.abs(endStub.y - startStub.y)
+      ) {
+        pathPoints.push({ x: midX, y: startStub.y }, { x: midX, y: endStub.y });
       } else {
-        pathPoints.push(
-          { x: startStub.x, y: midY },
-          { x: endStub.x, y: midY }
-        );
+        pathPoints.push({ x: startStub.x, y: midY }, { x: endStub.x, y: midY });
       }
       pathPoints.push(endStub, { x: end.x, y: end.y });
     }
@@ -512,7 +506,6 @@ class ConnectionRenderer {
   ): number {
     return Math.hypot(a.x - b.x, a.y - b.y);
   }
-
 }
 
 export const connectionRenderer = new ConnectionRenderer();
