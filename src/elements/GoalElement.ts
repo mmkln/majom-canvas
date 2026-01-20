@@ -70,6 +70,7 @@ export class GoalElement extends PlanningElement {
   draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
     const { x, y, width, height, title, progress } = this;
     const style = goalStyles[this.status];
+    this.fillColor = style.fillColor;
     const centerX = x + width / 2;
     const centerY = y + height / 2;
     const radius = width / 2;
