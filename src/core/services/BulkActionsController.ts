@@ -1,6 +1,7 @@
 import { Scene } from '../scene/Scene.ts';
 import { historyService } from './HistoryService.ts';
 import { CopyCommand } from '../commands/CopyCommand.ts';
+import { DeleteCommand } from '../commands/DeleteCommand.ts';
 import { ElementStatus } from '../../elements/ElementStatus.ts';
 import type { PlanningElement } from './SelectionContext.ts';
 
@@ -12,7 +13,12 @@ export class BulkActionsController {
     historyService.execute(new CopyCommand(this.scene, elements));
   }
 
-  public delete(elements: PlanningElement[]): void {
+  public removeFromCanvas(elements: PlanningElement[]): void {
+    if (elements.length === 0) return;
+    historyService.execute(new DeleteCommand(this.scene, elements));
+  }
+
+  public deletePermanently(elements: PlanningElement[]): void {
     if (elements.length === 0) return;
     elements.forEach((element) => {
       window.dispatchEvent(

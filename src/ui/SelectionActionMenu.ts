@@ -218,7 +218,7 @@ export class SelectionActionMenu {
       {
         kind: 'action',
         id: 'delete-bulk',
-        title: 'Delete element',
+        title: 'Remove from canvas',
         icon: 'delete',
         isDanger: true,
         isVisible: isMulti,
@@ -270,7 +270,7 @@ export class SelectionActionMenu {
       {
         kind: 'action',
         id: 'delete',
-        title: 'Delete element',
+        title: 'Remove from canvas',
         icon: 'delete',
         isDanger: true,
         isVisible: isSingle,
@@ -453,7 +453,7 @@ export class SelectionActionMenu {
   }
 
   private handleDelete(): void {
-    this.bulkActions.delete(this.selectedElements);
+    this.bulkActions.removeFromCanvas(this.selectedElements);
   }
 
   private updateStatusButton(elements: PlanningElement[]): void {
