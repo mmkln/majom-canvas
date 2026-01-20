@@ -1,7 +1,11 @@
 // core/shapes/Connection.ts
 import { ConnectionPoint } from '../interfaces/shape.ts';
 import type { IConnectable } from '../interfaces/connectable.ts';
-import { ConnectionLineType, IConnection } from '../interfaces/connection.ts';
+import {
+  ConnectionLineType,
+  ConnectionRelationType,
+  IConnection,
+} from '../interfaces/connection.ts';
 import { PanZoomManager } from '../managers/PanZoomManager.ts';
 import { v4 } from 'uuid';
 
@@ -11,6 +15,8 @@ export default class Connection implements IConnection {
   toId: string;
   selected: boolean = false;
   public lineType: ConnectionLineType = ConnectionLineType.SShaped;
+  public relationType: ConnectionRelationType =
+    ConnectionRelationType.RelatesTo;
   public zIndex: number = 1;
   private tangentAngle: number = 0;
 
@@ -18,13 +24,17 @@ export default class Connection implements IConnection {
     fromId: string,
     toId: string,
     id: string = v4(),
-    lineType?: ConnectionLineType
+    lineType?: ConnectionLineType,
+    relationType?: ConnectionRelationType
   ) {
     this.fromId = fromId;
     this.toId = toId;
     this.id = id;
     if (lineType) {
       this.lineType = lineType;
+    }
+    if (relationType) {
+      this.relationType = relationType;
     }
   }
 
@@ -61,7 +71,8 @@ export default class Connection implements IConnection {
   ): void {
     // Ensure solid line for permanent connections
     ctx.setLineDash([]);
-    ctx.strokeStyle = this.selected ? '#008dff' : '#000';
+    const baseColor = this.getRelationColor();
+    ctx.strokeStyle = this.selected ? '#008dff' : baseColor;
     ctx.lineWidth = 2;
   }
 
@@ -141,7 +152,8 @@ export default class Connection implements IConnection {
       end.y - headLength * Math.sin(angle + Math.PI / 6)
     );
     ctx.closePath();
-    ctx.fillStyle = this.selected ? '#008dff' : '#000';
+    const baseColor = this.getRelationColor();
+    ctx.fillStyle = this.selected ? '#008dff' : baseColor;
     ctx.fill();
   }
 
@@ -150,8 +162,8 @@ export default class Connection implements IConnection {
     panZoom: PanZoomManager,
     elements: IConnectable[] = []
   ): void {
-    const from = elements.find((el) => el.id === this.fromId);
-    const to = elements.find((el) => el.id === this.toId);
+    const from = this.findConnectable(elements, this.fromId);
+    const to = this.findConnectable(elements, this.toId);
     if (from && to) {
       this.drawLine(ctx, from, to, panZoom);
       this.drawArrowHead(ctx, from, to, panZoom);
@@ -187,8 +199,8 @@ export default class Connection implements IConnection {
     elements: IConnectable[],
     tolerance: number = 5
   ): boolean {
-    const from = elements.find((el) => el.id === this.fromId);
-    const to = elements.find((el) => el.id === this.toId);
+    const from = this.findConnectable(elements, this.fromId);
+    const to = this.findConnectable(elements, this.toId);
     if (!from || !to) {
       return false;
     }
@@ -255,5 +267,29 @@ export default class Connection implements IConnection {
 
   public setLineType(type: ConnectionLineType): void {
     this.lineType = type;
+  }
+
+  private getRelationColor(): string {
+    switch (this.relationType) {
+      case ConnectionRelationType.LeadsTo:
+        return '#0ea5e9';
+      case ConnectionRelationType.Blocks:
+        return '#ef4444';
+      case ConnectionRelationType.ParentChild:
+        return '#8b5cf6';
+      case ConnectionRelationType.RelatesTo:
+      default:
+        return '#111827';
+    }
+  }
+
+  private findConnectable(
+    elements: IConnectable[],
+    ref: string
+  ): IConnectable | undefined {
+    return elements.find((el) => {
+      const uuid = (el as { uuid?: string }).uuid;
+      return el.id === ref || uuid === ref;
+    });
   }
 }

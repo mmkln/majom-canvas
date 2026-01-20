@@ -7,8 +7,12 @@ import type { IPlanningElement } from '../../elements/interfaces/planningElement
 import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
 import { StoryElement } from '../../elements/StoryElement.ts';
+import { GoalElement } from '../../elements/GoalElement.ts';
 import { getOrderedConnectables } from '../utils/connectableUtils.ts';
-import type { IConnection } from '../interfaces/connection.ts';
+import {
+  ConnectionRelationType,
+  type IConnection,
+} from '../interfaces/connection.ts';
 import { historyService } from './HistoryService.ts';
 import { ConnectCommand } from '../commands/ConnectCommand.ts';
 
@@ -107,7 +111,18 @@ export class ConnectionInteractionService {
           dst instanceof StoryElement &&
           dst.tasks.some((t) => t.id === src.id));
       if (!invalid) {
-        historyService.execute(new ConnectCommand(this.scene, src.id, dst.id));
+        const relationType =
+          src instanceof GoalElement && dst instanceof GoalElement
+            ? ConnectionRelationType.LeadsTo
+            : ConnectionRelationType.RelatesTo;
+        historyService.execute(
+          new ConnectCommand(
+            this.scene,
+            this.getElementRef(src),
+            this.getElementRef(dst),
+            relationType
+          )
+        );
       }
     }
     this.creating = false;
@@ -161,5 +176,10 @@ export class ConnectionInteractionService {
       }
     }
     return null;
+  }
+
+  private getElementRef(element: IConnectable): string {
+    const uuid = (element as { uuid?: string }).uuid;
+    return uuid ?? element.id;
   }
 }
