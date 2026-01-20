@@ -246,18 +246,10 @@ export default class Connection implements IConnection {
     point: ConnectionPoint,
     offset: number
   ): { x: number; y: number } {
-    switch (point.direction) {
-      case 'left':
-        return { x: point.x - offset, y: point.y };
-      case 'right':
-        return { x: point.x + offset, y: point.y };
-      case 'top':
-        return { x: point.x, y: point.y - offset };
-      case 'bottom':
-        return { x: point.x, y: point.y + offset };
-      default:
-        return { x: point.x, y: point.y };
-    }
+    return {
+      x: point.x + Math.cos(point.angle) * offset,
+      y: point.y + Math.sin(point.angle) * offset,
+    };
   }
 
   private drawArrowHead(
