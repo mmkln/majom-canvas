@@ -203,11 +203,13 @@ export class CanvasManager {
       (el) => 'status' in el && hasStatusAnimation((el as any).status)
     );
     const animatedVisible = animatedElements.filter((el) => isVisible(el));
-      const hasAnimatedStatus = animatedVisible.length > 0;
-      const hasEnergyConnections = connections.some(
-        (conn) => conn.relationType === ConnectionRelationType.LeadsTo
-      );
-      this.updateAnimationLoop(hasAnimatedStatus || hasEnergyConnections);
+    const hasAnimatedStatus = animatedVisible.length > 0;
+    const hasAnimatedConnections = connections.some(
+      (conn) =>
+        conn.relationType === ConnectionRelationType.LeadsTo ||
+        conn.relationType === ConnectionRelationType.ParentChild
+    );
+    this.updateAnimationLoop(hasAnimatedStatus || hasAnimatedConnections);
 
       // Update goal links and progress (only track task relations)
       planningEls

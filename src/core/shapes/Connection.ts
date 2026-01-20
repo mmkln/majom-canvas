@@ -157,6 +157,38 @@ export default class Connection implements IConnection {
     ctx.stroke();
   }
 
+  private drawWaveLine(
+    ctx: CanvasRenderingContext2D,
+    from: IConnectable,
+    to: IConnectable,
+    panZoom: PanZoomManager
+  ): void {
+    const curve = this.getCurvePoints(from, to);
+    const scale = panZoom.scale ?? 1;
+    const timeMs = (panZoom.timeMs ?? performance.now()) * 0.02;
+    const baseColor = this.selected ? '#008dff' : this.getRelationColor();
+    const dash = 24 / scale;
+    const gap = 12 / scale;
+    const offset = -(timeMs) / scale;
+
+    ctx.save();
+    this.buildPath(ctx, curve);
+    ctx.setLineDash([dash, gap]);
+    ctx.lineDashOffset = offset;
+    ctx.strokeStyle = baseColor;
+    ctx.lineWidth = 0.8 / scale;
+    ctx.globalAlpha = 0.6;
+    ctx.stroke();
+
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.shadowBlur = 4 / scale;
+    ctx.shadowColor = baseColor;
+    ctx.lineWidth = 2.4 / scale;
+    ctx.globalAlpha = 0.28;
+    ctx.stroke();
+    ctx.restore();
+  }
+
   private drawSwarmLine(
     ctx: CanvasRenderingContext2D,
     from: IConnectable,
@@ -271,10 +303,14 @@ export default class Connection implements IConnection {
     if (from && to) {
       if (this.relationType === ConnectionRelationType.LeadsTo) {
         this.drawSwarmLine(ctx, from, to, panZoom);
+      } else if (this.relationType === ConnectionRelationType.ParentChild) {
+        this.drawWaveLine(ctx, from, to, panZoom);
       } else {
         this.drawLine(ctx, from, to, panZoom);
       }
-      this.drawArrowHead(ctx, from, to, panZoom);
+      if (this.relationType !== ConnectionRelationType.ParentChild) {
+        this.drawArrowHead(ctx, from, to, panZoom);
+      }
     }
   }
 
