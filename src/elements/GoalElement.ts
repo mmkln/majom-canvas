@@ -13,7 +13,7 @@ import { v4 } from 'uuid';
 import { goalStyles } from './styles/goalStyles.ts';
 import { ElementStatus } from './ElementStatus.ts';
 import { TextRenderer } from '../utils/TextRenderer.ts';
-import { drawStatusAnimationCircle } from './utils/statusAnimations.ts';
+import { drawStatusAnimationHex } from './utils/statusAnimations.ts';
 
 export class GoalElement extends PlanningElement {
   links: string[] = [];
@@ -21,7 +21,7 @@ export class GoalElement extends PlanningElement {
   public status: ElementStatus = ElementStatus.Defined;
   public priority: 'low' | 'medium' | 'high' = 'medium';
 
-  static diameter: number = 320;
+  static diameter: number = 400;
   static width: number = GoalElement.diameter;
   static height: number = GoalElement.diameter;
 
@@ -73,23 +73,19 @@ export class GoalElement extends PlanningElement {
     const centerX = x + width / 2;
     const centerY = y + height / 2;
     const radius = width / 2;
+    const hexVertices = this.getHexVertices(centerX, centerY, radius);
 
-    // Background circle
+    // Background hex
     ctx.fillStyle = style.fillColor;
     ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    this.drawHexPath(ctx, hexVertices);
     ctx.fill();
 
-    // Progress ring (outside the main circle) - segmented
+    // Progress ring (outside the main hex) - segmented
     const progressRingWidth = 12;
     const progressRingOffset = 8; // Space between main circle and progress ring
-    const progressRingRadius =
-      radius + progressRingOffset + progressRingWidth / 2;
     const segmentCount = 100;
-    const gapAngle = Math.PI * 2 * 0.004; // Small gap between segments
-    const totalAngle = Math.PI * 2;
-    const segmentAngle = totalAngle / segmentCount - gapAngle;
-    const startAngle = -Math.PI / 2;
+    const segmentFillRatio = 0.6;
     const filledSegments = Math.max(
       0,
       Math.min(segmentCount, Math.round(progress * segmentCount))
@@ -100,41 +96,35 @@ export class GoalElement extends PlanningElement {
 
     // Background segments (unfilled)
     ctx.strokeStyle = 'rgba(224,224,224,0.5)';
-    for (let i = 0; i < segmentCount; i += 1) {
-      const segStart = startAngle + i * (segmentAngle + gapAngle);
-      ctx.beginPath();
-      ctx.arc(
-        centerX,
-        centerY,
-        progressRingRadius,
-        segStart,
-        segStart + segmentAngle
-      );
-      ctx.stroke();
-    }
+    this.drawHexRingSegments(
+      ctx,
+      centerX,
+      centerY,
+      radius + progressRingOffset + progressRingWidth / 2,
+      segmentCount,
+      segmentFillRatio,
+      segmentCount
+    );
 
     // Filled segments
     ctx.strokeStyle = style.borderColor;
-    for (let i = 0; i < filledSegments; i += 1) {
-      const segStart = startAngle + i * (segmentAngle + gapAngle);
-      ctx.beginPath();
-      ctx.arc(
-        centerX,
-        centerY,
-        progressRingRadius,
-        segStart,
-        segStart + segmentAngle
-      );
-      ctx.stroke();
-    }
+    this.drawHexRingSegments(
+      ctx,
+      centerX,
+      centerY,
+      radius + progressRingOffset + progressRingWidth / 2,
+      segmentCount,
+      segmentFillRatio,
+      filledSegments
+    );
 
     // Border
     ctx.strokeStyle = this.selected ? SELECT_COLOR : style.borderColor;
     ctx.lineWidth = this.lineWidth / panZoom.scale;
     ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    this.drawHexPath(ctx, hexVertices);
     ctx.stroke();
-    drawStatusAnimationCircle({
+    drawStatusAnimationHex({
       status: this.status,
       ctx,
       centerX,
@@ -184,56 +174,67 @@ export class GoalElement extends PlanningElement {
     const progressRingWidth = 12;
     const progressRingOffset = 8;
     const maxRadius = radius + progressRingOffset + progressRingWidth;
-
-    const dx = px - centerX;
-    const dy = py - centerY;
-    const distanceSquared = dx * dx + dy * dy;
-
-    // Check if point is within the outer boundary (including progress ring)
-    return distanceSquared <= maxRadius * maxRadius;
+    const vertices = this.getHexVertices(centerX, centerY, maxRadius);
+    return this.isPointInPolygon(vertices, px, py);
   }
 
   getBoundaryPoint(angle: number): { x: number; y: number } {
+    const centerX = this.x + this.width / 2;
+    const centerY = this.y + this.height / 2;
     const radius = this.width / 2;
-    return {
-      x: this.x + this.width / 2 + Math.cos(angle) * radius,
-      y: this.y + this.height / 2 + Math.sin(angle) * radius,
-    };
+    const vertices = this.getHexVertices(centerX, centerY, radius);
+    const ray = { x: Math.cos(angle), y: Math.sin(angle) };
+    let closest: { x: number; y: number } | null = null;
+    let minT = Infinity;
+
+    for (let i = 0; i < vertices.length; i += 1) {
+      const a = vertices[i];
+      const b = vertices[(i + 1) % vertices.length];
+      const edge = { x: b.x - a.x, y: b.y - a.y };
+      const denom = ray.x * edge.y - ray.y * edge.x;
+      if (Math.abs(denom) < 1e-6) continue;
+      const ax = a.x - centerX;
+      const ay = a.y - centerY;
+      const t = (ax * edge.y - ay * edge.x) / denom;
+      const u = (ax * ray.y - ay * ray.x) / denom;
+      if (t >= 0 && u >= 0 && u <= 1 && t < minT) {
+        minT = t;
+        closest = {
+          x: centerX + ray.x * t,
+          y: centerY + ray.y * t,
+        };
+      }
+    }
+
+    return (
+      closest ?? {
+        x: centerX + Math.cos(angle) * radius,
+        y: centerY + Math.sin(angle) * radius,
+      }
+    );
   }
 
   getConnectionPoints(): ConnectionPoint[] {
-    const w = this.width,
-      h = this.height;
-    return [
-      {
-        x: this.x + w / 2,
-        y: this.y,
-        angle: -Math.PI / 2,
+    const centerX = this.x + this.width / 2;
+    const centerY = this.y + this.height / 2;
+    const vertices = this.getHexVertices(centerX, centerY, this.width / 2);
+    const points: ConnectionPoint[] = [];
+    for (let i = 0; i < vertices.length; i += 1) {
+      const a = vertices[i];
+      const b = vertices[(i + 1) % vertices.length];
+      const x = (a.x + b.x) / 2;
+      const y = (a.y + b.y) / 2;
+      const angle = Math.atan2(y - centerY, x - centerX);
+      const direction = this.getDirectionFromAngle(angle);
+      points.push({
+        x,
+        y,
+        angle,
         isHovered: false,
-        direction: 'top',
-      },
-      {
-        x: this.x + w,
-        y: this.y + h / 2,
-        angle: 0,
-        isHovered: false,
-        direction: 'right',
-      },
-      {
-        x: this.x + w / 2,
-        y: this.y + h,
-        angle: Math.PI / 2,
-        isHovered: false,
-        direction: 'bottom',
-      },
-      {
-        x: this.x,
-        y: this.y + h / 2,
-        angle: Math.PI,
-        isHovered: false,
-        direction: 'left',
-      },
-    ];
+        direction,
+      });
+    }
+    return points;
   }
 
   clone(): PlanningElement {
@@ -254,5 +255,200 @@ export class GoalElement extends PlanningElement {
    */
   public onDoubleClick(): void {
     editElement$.next(this);
+  }
+
+  private getHexVertices(
+    centerX: number,
+    centerY: number,
+    radius: number
+  ): Array<{ x: number; y: number }> {
+    const vertices: Array<{ x: number; y: number }> = [];
+    const angleOffset = -Math.PI / 2;
+    for (let i = 0; i < 6; i += 1) {
+      const angle = angleOffset + (Math.PI / 3) * i;
+      vertices.push({
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle),
+      });
+    }
+    return vertices;
+  }
+
+  private drawHexPath(
+    ctx: CanvasRenderingContext2D,
+    vertices: Array<{ x: number; y: number }>
+  ): void {
+    vertices.forEach((point, index) => {
+      if (index === 0) ctx.moveTo(point.x, point.y);
+      else ctx.lineTo(point.x, point.y);
+    });
+    ctx.closePath();
+  }
+
+  private drawHexRingSegments(
+    ctx: CanvasRenderingContext2D,
+    centerX: number,
+    centerY: number,
+    radius: number,
+    segmentCount: number,
+    segmentFillRatio: number,
+    segmentsToDraw: number
+  ): void {
+    if (segmentsToDraw <= 0) return;
+    const vertices = this.getHexVertices(centerX, centerY, radius);
+    const edgeLengths: number[] = [];
+    const edgeStarts: number[] = [];
+    let total = 0;
+    for (let i = 0; i < vertices.length; i += 1) {
+      const a = vertices[i];
+      const b = vertices[(i + 1) % vertices.length];
+      edgeStarts.push(total);
+      const len = Math.hypot(b.x - a.x, b.y - a.y);
+      edgeLengths.push(len);
+      total += len;
+    }
+    const segmentLength = total / segmentCount;
+    const drawLength = segmentLength * segmentFillRatio;
+    const startOffset = edgeLengths[0] + edgeLengths[1] / 2;
+    for (let i = 0; i < segmentsToDraw; i += 1) {
+      const start = (startOffset + i * segmentLength) % total;
+      const end = start + drawLength;
+      this.drawPerimeterSegment(
+        ctx,
+        vertices,
+        edgeStarts,
+        edgeLengths,
+        start,
+        end,
+        total
+      );
+    }
+  }
+
+  private drawPerimeterSegment(
+    ctx: CanvasRenderingContext2D,
+    vertices: Array<{ x: number; y: number }>,
+    edgeStarts: number[],
+    edgeLengths: number[],
+    startDist: number,
+    endDist: number,
+    totalLength: number
+  ): void {
+    if (endDist <= totalLength) {
+      this.drawPerimeterRange(
+        ctx,
+        vertices,
+        edgeStarts,
+        edgeLengths,
+        startDist,
+        endDist
+      );
+      return;
+    }
+    this.drawPerimeterRange(
+      ctx,
+      vertices,
+      edgeStarts,
+      edgeLengths,
+      startDist,
+      totalLength
+    );
+    this.drawPerimeterRange(
+      ctx,
+      vertices,
+      edgeStarts,
+      edgeLengths,
+      0,
+      endDist - totalLength
+    );
+  }
+
+  private drawPerimeterRange(
+    ctx: CanvasRenderingContext2D,
+    vertices: Array<{ x: number; y: number }>,
+    edgeStarts: number[],
+    edgeLengths: number[],
+    startDist: number,
+    endDist: number
+  ): void {
+    let cursor = startDist;
+    const epsilon = 1e-6;
+    while (cursor < endDist) {
+      const edgeIndex = this.getEdgeIndex(
+        edgeStarts,
+        edgeLengths,
+        cursor
+      );
+      const edgeStart = edgeStarts[edgeIndex];
+      const edgeLength = edgeLengths[edgeIndex];
+      const edgeEnd = edgeStart + edgeLength;
+      const segEnd = Math.min(endDist, edgeEnd);
+      if (segEnd - cursor <= epsilon) {
+        cursor = Math.min(endDist, segEnd + epsilon);
+        continue;
+      }
+      const t0 = (cursor - edgeStart) / edgeLength;
+      const t1 = (segEnd - edgeStart) / edgeLength;
+      const a = vertices[edgeIndex];
+      const b = vertices[(edgeIndex + 1) % vertices.length];
+      const x0 = a.x + (b.x - a.x) * t0;
+      const y0 = a.y + (b.y - a.y) * t0;
+      const x1 = a.x + (b.x - a.x) * t1;
+      const y1 = a.y + (b.y - a.y) * t1;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.stroke();
+      cursor = segEnd;
+    }
+  }
+
+  private getEdgeIndex(
+    edgeStarts: number[],
+    edgeLengths: number[],
+    distance: number
+  ): number {
+    for (let i = 0; i < edgeStarts.length; i += 1) {
+      if (distance <= edgeStarts[i] + edgeLengths[i]) {
+        return i;
+      }
+    }
+    return 0;
+  }
+
+  private isPointInPolygon(
+    vertices: Array<{ x: number; y: number }>,
+    px: number,
+    py: number
+  ): boolean {
+    let inside = false;
+    for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
+      const xi = vertices[i].x;
+      const yi = vertices[i].y;
+      const xj = vertices[j].x;
+      const yj = vertices[j].y;
+      const intersect =
+        yi > py !== yj > py &&
+        px < ((xj - xi) * (py - yi)) / (yj - yi) + xi;
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
+
+  private getDirectionFromAngle(
+    angle: number
+  ): 'top' | 'right' | 'bottom' | 'left' {
+    const normalized =
+      ((angle + Math.PI) % (Math.PI * 2)) - Math.PI;
+    if (normalized >= -Math.PI / 4 && normalized < Math.PI / 4) {
+      return 'right';
+    }
+    if (normalized >= Math.PI / 4 && normalized < (3 * Math.PI) / 4) {
+      return 'bottom';
+    }
+    if (normalized < -Math.PI / 4 && normalized >= (-3 * Math.PI) / 4) {
+      return 'top';
+    }
+    return 'left';
   }
 }

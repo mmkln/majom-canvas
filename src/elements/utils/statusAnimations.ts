@@ -139,6 +139,24 @@ type CircleAnimationParams = {
   } | null;
 };
 
+type HexAnimationParams = {
+  status: ElementStatus;
+  ctx: CanvasRenderingContext2D;
+  centerX: number;
+  centerY: number;
+  radius: number;
+  lineWidth: number;
+  scale: number;
+  color?: string;
+  timeMs: number;
+  viewBounds?: {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+  } | null;
+};
+
 type OutlinePath = {
   drawPath: (ctx: CanvasRenderingContext2D, offset: number) => void;
   perimeter: (offset: number) => number;
@@ -302,6 +320,59 @@ const createCircleOutline = ({
       return {
         x: centerX + Math.cos(angle) * r,
         y: centerY + Math.sin(angle) * r,
+      };
+    },
+  };
+};
+
+const createHexOutline = ({
+  centerX,
+  centerY,
+  radius,
+}: {
+  centerX: number;
+  centerY: number;
+  radius: number;
+}): OutlinePath => {
+  const angleOffset = -Math.PI / 2;
+  const getRadius = (offset: number) => Math.max(0, radius + offset);
+  const getVertices = (offset: number) => {
+    const r = getRadius(offset);
+    const vertices: Array<{ x: number; y: number }> = [];
+    for (let i = 0; i < 6; i += 1) {
+      const angle = angleOffset + (Math.PI / 3) * i;
+      vertices.push({
+        x: centerX + r * Math.cos(angle),
+        y: centerY + r * Math.sin(angle),
+      });
+    }
+    return vertices;
+  };
+
+  return {
+    drawPath: (ctx, offset) => {
+      const vertices = getVertices(offset);
+      vertices.forEach((point, index) => {
+        if (index === 0) ctx.moveTo(point.x, point.y);
+        else ctx.lineTo(point.x, point.y);
+      });
+      ctx.closePath();
+    },
+    perimeter: (offset) => 6 * getRadius(offset),
+    pointAt: (t, offset) => {
+      const progress = ((t % 1) + 1) % 1;
+      const r = getRadius(offset);
+      const edgeLength = r;
+      const perim = edgeLength * 6;
+      const dist = progress * perim;
+      const edgeIndex = Math.floor(dist / edgeLength) % 6;
+      const edgeT = (dist - edgeIndex * edgeLength) / edgeLength;
+      const vertices = getVertices(offset);
+      const a = vertices[edgeIndex];
+      const b = vertices[(edgeIndex + 1) % 6];
+      return {
+        x: a.x + (b.x - a.x) * edgeT,
+        y: a.y + (b.y - a.y) * edgeT,
       };
     },
   };
@@ -692,6 +763,33 @@ export const drawStatusAnimationCircle = (
   } = params;
   if (!isCircleVisible(viewBounds, centerX, centerY, radius)) return;
   const outline = createCircleOutline({ centerX, centerY, radius });
+  drawStatusAnimation({
+    status,
+    ctx,
+    outline,
+    lineWidth,
+    scale,
+    color,
+    timeMs,
+    viewBounds,
+  });
+};
+
+export const drawStatusAnimationHex = (params: HexAnimationParams): void => {
+  const {
+    status,
+    ctx,
+    centerX,
+    centerY,
+    radius,
+    lineWidth,
+    scale,
+    color,
+    timeMs,
+    viewBounds,
+  } = params;
+  if (!isCircleVisible(viewBounds, centerX, centerY, radius)) return;
+  const outline = createHexOutline({ centerX, centerY, radius });
   drawStatusAnimation({
     status,
     ctx,
