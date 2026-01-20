@@ -114,7 +114,9 @@ export class ConnectionInteractionService {
         const relationType =
           src instanceof GoalElement && dst instanceof GoalElement
             ? ConnectionRelationType.LeadsTo
-            : ConnectionRelationType.RelatesTo;
+            : this.isParentChildPair(src, dst)
+              ? ConnectionRelationType.ParentChild
+              : ConnectionRelationType.RelatesTo;
         historyService.execute(
           new ConnectCommand(
             this.scene,
@@ -181,5 +183,16 @@ export class ConnectionInteractionService {
   private getElementRef(element: IConnectable): string {
     const uuid = (element as { uuid?: string }).uuid;
     return uuid ?? element.id;
+  }
+
+  private isParentChildPair(
+    a: IConnectable,
+    b: IConnectable
+  ): boolean {
+    return (
+      (a instanceof GoalElement && b instanceof StoryElement) ||
+      (a instanceof StoryElement && b instanceof GoalElement) ||
+      (a instanceof GoalElement && b instanceof GoalElement)
+    );
   }
 }
