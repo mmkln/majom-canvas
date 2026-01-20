@@ -10,6 +10,7 @@ import { TasksApiService } from './majom-wrapper/data-access/tasks-api-service.t
 import { StoriesApiService } from './majom-wrapper/data-access/stories-api-service.ts';
 import { GoalsApiService } from './majom-wrapper/data-access/goals-api-service.ts';
 import { CanvasApiService } from './majom-wrapper/data-access/canvas-api-service.ts';
+import { CanvasRelationsApiService } from './majom-wrapper/data-access/canvas-relations-api-service.ts';
 import { CanvasDataService } from './majom-wrapper/services/CanvasDataService.ts';
 import { UIManager } from './ui/UIManager.ts';
 import type { IViewState } from './core/interfaces/interfaces.ts';
@@ -68,7 +69,8 @@ export class App {
       new TasksApiService(http),
       new StoriesApiService(http),
       new GoalsApiService(http),
-      new CanvasApiService(http)
+      new CanvasApiService(http),
+      new CanvasRelationsApiService(http)
     );
     // Створюємо компонент для авторизації
     const appContainer = document.getElementById('app') || document.body;
@@ -399,7 +401,16 @@ export class App {
       this.canvasDataService.getRemovedPositionIds(elements);
     const needsPositionRefresh =
       this.canvasDataService.needsPositionRefresh(elements);
-    if (positions.length === 0 && removedPositionIds.length === 0) {
+    const hasRelationChanges =
+      this.canvasDataService.hasRelationChanges(
+        this.scene.getConnections(),
+        elements
+      );
+    if (
+      positions.length === 0 &&
+      removedPositionIds.length === 0 &&
+      !hasRelationChanges
+    ) {
       if (showNotifications) {
         notify('No elements to save.', 'info');
       }
@@ -424,6 +435,19 @@ export class App {
           })
         );
       }),
+      switchMap(() =>
+        this.canvasDataService
+          .updateCanvasRelations(this.scene.getConnections(), elements)
+          .pipe(
+            catchError((err) => {
+              console.error('Failed to save relations', err);
+              if (showNotifications) {
+                notify('Failed to save relations', 'error');
+              }
+              return throwError(() => err);
+            })
+          )
+      ),
       map(() => {
         if (showNotifications) {
           notify('Layout saved', 'success');
@@ -490,10 +514,22 @@ export class App {
       next: (elements) => {
         this.scene.clear();
         elements.forEach((el) => this.scene.addElement(el));
+        this.loadActiveCanvasRelations();
       },
       error: (err) => {
         console.error('Failed to load canvas data', err);
         notify('Failed to load canvas data', 'error');
+      },
+    });
+  }
+
+  private loadActiveCanvasRelations(): void {
+    this.canvasDataService.loadRelations().subscribe({
+      next: (connections) => {
+        connections.forEach((conn) => this.scene.addElement(conn));
+      },
+      error: (err) => {
+        console.error('Failed to load canvas relations', err);
       },
     });
   }

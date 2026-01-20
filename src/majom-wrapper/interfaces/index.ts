@@ -194,6 +194,37 @@ export interface TaskRelationship {
   relationship_type: TaskRelationshipType;
 }
 
+export type CanvasRelationElementType = 'task' | 'story' | 'goal' | 'subgoal';
+export type CanvasRelationType =
+  | 'parent_child'
+  | 'blocks'
+  | 'leads_to'
+  | 'relates_to';
+
+export interface CanvasRelation {
+  id: string;
+  canvas: string;
+  from_type: CanvasRelationElementType;
+  from_uuid: string;
+  to_type: CanvasRelationElementType;
+  to_uuid: string;
+  relation_type: CanvasRelationType;
+  meta: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type CanvasRelationCreate = Omit<
+  CanvasRelation,
+  'id' | 'created_at' | 'updated_at'
+>;
+
+export type CanvasRelationUpdate = {
+  id: string;
+  relation_type?: CanvasRelationType;
+  meta?: Record<string, unknown> | null;
+};
+
 export interface Subtask {
   readonly id: number;
   title: string;

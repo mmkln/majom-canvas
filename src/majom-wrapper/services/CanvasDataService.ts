@@ -15,6 +15,7 @@ import { CanvasPositionDTO } from '../data-access/canvas-position-dto.ts';
 import { TasksApiService } from '../data-access/tasks-api-service.ts';
 import { StoriesApiService } from '../data-access/stories-api-service.ts';
 import { GoalsApiService } from '../data-access/goals-api-service.ts';
+import { CanvasRelationsApiService } from '../data-access/canvas-relations-api-service.ts';
 import {
   CanvasApiService,
   CanvasSummary,
@@ -28,8 +29,20 @@ import { StoryElement } from '../../elements/StoryElement.ts';
 import { GoalElement } from '../../elements/GoalElement.ts';
 import { mapStatusToBackend } from '../utils/statusMapping.ts';
 import { mapPriorityToBackend } from '../utils/priorityMapping.ts';
-import type { PlatformTask, Story, Goal } from '../interfaces/index.ts';
+import type {
+  CanvasRelation,
+  CanvasRelationCreate,
+  CanvasRelationType,
+  PlatformTask,
+  Story,
+  Goal,
+} from '../interfaces/index.ts';
 import { ElementStatus } from '../../elements/ElementStatus.ts';
+import Connection from '../../core/shapes/Connection.ts';
+import {
+  ConnectionRelationType,
+  type IConnection,
+} from '../../core/interfaces/connection.ts';
 
 type ElementPatch = Partial<{
   title: string;
@@ -37,6 +50,8 @@ type ElementPatch = Partial<{
   status: ElementStatus;
   priority: 'low' | 'medium' | 'high';
 }>;
+
+type RelationElementType = 'task' | 'story' | 'goal';
 
 type ElementUpdateStatus = {
   status: 'saving' | 'saved' | 'failed';
@@ -63,6 +78,7 @@ export class CanvasDataService {
   private storiesCache: Story[] | null = null;
   private goalsCache: Goal[] | null = null;
   private positionRegistry: Map<string, CanvasPositionDTO> = new Map();
+  private relationRegistry: Map<string, CanvasRelation> = new Map();
   private elementUpdate$ = new Subject<ElementUpdateRequest>();
   private elementUpdateStatus$ = new Subject<ElementUpdateStatus>();
   private pendingElementUpdates = 0;
@@ -72,7 +88,8 @@ export class CanvasDataService {
     private tasksApi: TasksApiService,
     private storiesApi: StoriesApiService,
     private goalsApi: GoalsApiService,
-    private canvasApi: CanvasApiService
+    private canvasApi: CanvasApiService,
+    private relationsApi: CanvasRelationsApiService
   ) {
     this.initElementUpdatePipeline();
   }
@@ -128,6 +145,109 @@ export class CanvasDataService {
       }),
       shareReplay(1)
     );
+  }
+
+  public loadRelations(): Observable<Connection[]> {
+    if (!this.canvasId) {
+      return of([]);
+    }
+    return this.relationsApi.fetchCanvasRelations(this.canvasId).pipe(
+      tap((relations) => this.updateRelationRegistry(relations)),
+      map((relations) => this.mapRelationsToConnections(relations))
+    );
+  }
+
+  public updateCanvasRelations(
+    connections: IConnection[],
+    elements: Array<TaskElement | StoryElement | GoalElement>
+  ): Observable<void> {
+    if (!this.canvasId) return of(undefined);
+    const elementRefs = this.buildElementRefMap(elements);
+    const activeKeys = new Set<string>();
+    const creates: CanvasRelationCreate[] = [];
+
+    connections.forEach((conn) => {
+      const relationType = this.mapRelationTypeToBackend(conn.relationType);
+      if (!relationType) return;
+      const fromRef = this.resolveElementRef(conn.fromId, elementRefs);
+      const toRef = this.resolveElementRef(conn.toId, elementRefs);
+      if (!fromRef || !toRef) return;
+      const key = this.buildRelationKey({
+        from_type: fromRef.type,
+        from_uuid: fromRef.uuid,
+        to_type: toRef.type,
+        to_uuid: toRef.uuid,
+        relation_type: relationType,
+      });
+      if (activeKeys.has(key)) return;
+      activeKeys.add(key);
+      if (!this.relationRegistry.has(key)) {
+        creates.push({
+          canvas: this.canvasId,
+          from_type: fromRef.type,
+          from_uuid: fromRef.uuid,
+          to_type: toRef.type,
+          to_uuid: toRef.uuid,
+          relation_type: relationType,
+          meta: null,
+        });
+      }
+    });
+
+    const deletes: string[] = [];
+    this.relationRegistry.forEach((relation, key) => {
+      if (!activeKeys.has(key)) {
+        deletes.push(relation.id);
+      }
+    });
+
+    const create$ = creates.length
+      ? this.relationsApi.batchCreate(creates).pipe(
+          tap((created) => this.mergeRelationRegistry(created))
+        )
+      : of([]);
+    return create$.pipe(
+      switchMap(() =>
+        deletes.length
+          ? this.relationsApi.batchDelete(deletes).pipe(
+              tap(() => this.removeRelationsById(deletes))
+            )
+          : of(undefined)
+      ),
+      map(() => undefined)
+    );
+  }
+
+  public hasRelationChanges(
+    connections: IConnection[],
+    elements: Array<TaskElement | StoryElement | GoalElement>
+  ): boolean {
+    if (!this.canvasId) return connections.length > 0;
+    const elementRefs = this.buildElementRefMap(elements);
+    const activeKeys = new Set<string>();
+    connections.forEach((conn) => {
+      const relationType = this.mapRelationTypeToBackend(conn.relationType);
+      if (!relationType) return;
+      const fromRef = this.resolveElementRef(conn.fromId, elementRefs);
+      const toRef = this.resolveElementRef(conn.toId, elementRefs);
+      if (!fromRef || !toRef) return;
+      const key = this.buildRelationKey({
+        from_type: fromRef.type,
+        from_uuid: fromRef.uuid,
+        to_type: toRef.type,
+        to_uuid: toRef.uuid,
+        relation_type: relationType,
+      });
+      activeKeys.add(key);
+    });
+
+    for (const key of activeKeys) {
+      if (!this.relationRegistry.has(key)) return true;
+    }
+    for (const key of this.relationRegistry.keys()) {
+      if (!activeKeys.has(key)) return true;
+    }
+    return false;
   }
 
   private initElementUpdatePipeline(): void {
@@ -313,6 +433,7 @@ export class CanvasDataService {
     this.stories$ = undefined;
     this.goals$ = undefined;
     this.positionRegistry.clear();
+    this.relationRegistry.clear();
   }
 
   public ensureElementsPersisted(
@@ -694,6 +815,7 @@ export class CanvasDataService {
   public setActiveCanvas(canvas: Pick<CanvasSummary, 'id' | 'name'>): void {
     if (this.canvasId !== canvas.id) {
       this.positionRegistry.clear();
+      this.relationRegistry.clear();
     }
     this.canvasId = canvas.id;
     this.canvasName = canvas.name;
@@ -905,6 +1027,31 @@ export class CanvasDataService {
     });
   }
 
+  private updateRelationRegistry(relations: CanvasRelation[]): void {
+    this.relationRegistry.clear();
+    relations.forEach((relation) => {
+      const key = this.buildRelationKey(relation);
+      this.relationRegistry.set(key, relation);
+    });
+  }
+
+  private mergeRelationRegistry(relations: CanvasRelation[]): void {
+    relations.forEach((relation) => {
+      const key = this.buildRelationKey(relation);
+      this.relationRegistry.set(key, relation);
+    });
+  }
+
+  private removeRelationsById(ids: string[]): void {
+    if (ids.length === 0) return;
+    const idSet = new Set(ids);
+    Array.from(this.relationRegistry.entries()).forEach(([key, relation]) => {
+      if (idSet.has(relation.id)) {
+        this.relationRegistry.delete(key);
+      }
+    });
+  }
+
   private removePositionsFromRegistry(positionIds: string[]): void {
     if (positionIds.length === 0) return;
     const idSet = new Set(positionIds);
@@ -913,6 +1060,26 @@ export class CanvasDataService {
         this.positionRegistry.delete(key);
       }
     });
+  }
+
+  private mapRelationsToConnections(relations: CanvasRelation[]): Connection[] {
+    const connections: Connection[] = [];
+    relations.forEach((relation) => {
+      const relationType = this.mapRelationTypeToConnection(
+        relation.relation_type
+      );
+      if (!relationType) return;
+      connections.push(
+        new Connection(
+          relation.from_uuid,
+          relation.to_uuid,
+          relation.id,
+          undefined,
+          relationType
+        )
+      );
+    });
+    return connections;
   }
 
   private getElementKeys(
@@ -928,11 +1095,75 @@ export class CanvasDataService {
 
   private getElementType(
     element: TaskElement | StoryElement | GoalElement
-  ): 'task' | 'story' | 'goal' | null {
+  ): RelationElementType | null {
     if (element instanceof TaskElement) return 'task';
     if (element instanceof StoryElement) return 'story';
     if (element instanceof GoalElement) return 'goal';
     return null;
+  }
+
+  private buildRelationKey(relation: {
+    from_type: string;
+    from_uuid: string;
+    to_type: string;
+    to_uuid: string;
+    relation_type: string;
+  }): string {
+    return `${relation.from_type}:${relation.from_uuid}->${relation.to_type}:${relation.to_uuid}:${relation.relation_type}`;
+  }
+
+  private mapRelationTypeToConnection(
+    relationType: CanvasRelationType
+  ): ConnectionRelationType | null {
+    switch (relationType) {
+      case 'parent_child':
+        return ConnectionRelationType.ParentChild;
+      case 'blocks':
+        return ConnectionRelationType.Blocks;
+      case 'leads_to':
+        return ConnectionRelationType.LeadsTo;
+      case 'relates_to':
+        return ConnectionRelationType.RelatesTo;
+      default:
+        return null;
+    }
+  }
+
+  private mapRelationTypeToBackend(
+    relationType: ConnectionRelationType
+  ): CanvasRelationType | null {
+    switch (relationType) {
+      case ConnectionRelationType.ParentChild:
+        return 'parent_child';
+      case ConnectionRelationType.Blocks:
+        return 'blocks';
+      case ConnectionRelationType.LeadsTo:
+        return 'leads_to';
+      case ConnectionRelationType.RelatesTo:
+        return 'relates_to';
+      default:
+        return null;
+    }
+  }
+
+  private buildElementRefMap(
+    elements: Array<TaskElement | StoryElement | GoalElement>
+  ): Map<string, { uuid: string; type: RelationElementType }> {
+    const map = new Map<string, { uuid: string; type: RelationElementType }>();
+    elements.forEach((element) => {
+      const type = this.getElementType(element);
+      if (!type || !element.uuid) return;
+      map.set(element.uuid, { uuid: element.uuid, type });
+      map.set(element.id, { uuid: element.uuid, type });
+    });
+    return map;
+  }
+
+  private resolveElementRef(
+    ref: string,
+    map: Map<string, { uuid: string; type: RelationElementType }>
+  ): { uuid: string; type: RelationElementType } | null {
+    return map.get(ref) ?? null;
   }
 
   private getBackendId(

@@ -116,21 +116,28 @@ export class ConnectionInteractionService {
           dst instanceof StoryElement &&
           dst.tasks.some((t) => t.id === src.id));
       if (!invalid) {
-        const relationType =
-          src instanceof GoalElement && dst instanceof GoalElement
-            ? ConnectionRelationType.LeadsTo
-            : this.isParentChildPair(src, dst)
-              ? ConnectionRelationType.ParentChild
-              : ConnectionRelationType.RelatesTo;
+      const relationType =
+        src instanceof GoalElement && dst instanceof GoalElement
+          ? ConnectionRelationType.LeadsTo
+          : this.isParentChildPair(src, dst)
+            ? ConnectionRelationType.ParentChild
+            : ConnectionRelationType.RelatesTo;
+      const normalized = this.normalizeConnectionRefs(
+        relationType,
+        src,
+        dst
+      );
+      if (normalized) {
         historyService.execute(
           new ConnectCommand(
             this.scene,
-            this.getElementRef(src),
-            this.getElementRef(dst),
+            this.getElementRef(normalized.from),
+            this.getElementRef(normalized.to),
             relationType
           )
         );
       }
+    }
     }
     this.creating = false;
     this.startShape = null;
@@ -196,8 +203,24 @@ export class ConnectionInteractionService {
   ): boolean {
     return (
       (a instanceof GoalElement && b instanceof StoryElement) ||
-      (a instanceof StoryElement && b instanceof GoalElement) ||
-      (a instanceof GoalElement && b instanceof GoalElement)
+      (a instanceof StoryElement && b instanceof GoalElement)
     );
+  }
+
+  private normalizeConnectionRefs(
+    relationType: ConnectionRelationType,
+    from: IConnectable,
+    to: IConnectable
+  ): { from: IConnectable; to: IConnectable } | null {
+    if (relationType !== ConnectionRelationType.ParentChild) {
+      return { from, to };
+    }
+    if (from instanceof GoalElement && to instanceof StoryElement) {
+      return { from, to };
+    }
+    if (from instanceof StoryElement && to instanceof GoalElement) {
+      return { from: to, to: from };
+    }
+    return null;
   }
 }
