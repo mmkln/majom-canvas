@@ -401,11 +401,10 @@ export class App {
       this.canvasDataService.getRemovedPositionIds(elements);
     const needsPositionRefresh =
       this.canvasDataService.needsPositionRefresh(elements);
-    const hasRelationChanges =
-      this.canvasDataService.hasRelationChanges(
-        this.scene.getConnections(),
-        elements
-      );
+    const hasRelationChanges = this.canvasDataService.hasRelationChanges(
+      this.scene.getConnections(),
+      elements
+    );
     if (
       positions.length === 0 &&
       removedPositionIds.length === 0 &&

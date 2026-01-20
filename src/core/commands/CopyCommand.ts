@@ -19,8 +19,7 @@ export class CopyCommand extends Command {
   }
 
   execute(): void {
-    const candidates =
-      this.sourceElements ?? this.scene.getSelectedElements();
+    const candidates = this.sourceElements ?? this.scene.getSelectedElements();
     this.elements = candidates.filter(
       (el): el is PlanningElement => el instanceof PlanningElement
     );

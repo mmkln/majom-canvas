@@ -375,11 +375,7 @@ export class GoalElement extends PlanningElement {
     let cursor = startDist;
     const epsilon = 1e-6;
     while (cursor < endDist) {
-      const edgeIndex = this.getEdgeIndex(
-        edgeStarts,
-        edgeLengths,
-        cursor
-      );
+      const edgeIndex = this.getEdgeIndex(edgeStarts, edgeLengths, cursor);
       const edgeStart = edgeStarts[edgeIndex];
       const edgeLength = edgeLengths[edgeIndex];
       const edgeEnd = edgeStart + edgeLength;
@@ -429,8 +425,7 @@ export class GoalElement extends PlanningElement {
       const xj = vertices[j].x;
       const yj = vertices[j].y;
       const intersect =
-        yi > py !== yj > py &&
-        px < ((xj - xi) * (py - yi)) / (yj - yi) + xi;
+        yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi;
       if (intersect) inside = !inside;
     }
     return inside;
@@ -439,8 +434,7 @@ export class GoalElement extends PlanningElement {
   private getDirectionFromAngle(
     angle: number
   ): 'top' | 'right' | 'bottom' | 'left' {
-    const normalized =
-      ((angle + Math.PI) % (Math.PI * 2)) - Math.PI;
+    const normalized = ((angle + Math.PI) % (Math.PI * 2)) - Math.PI;
     if (normalized >= -Math.PI / 4 && normalized < Math.PI / 4) {
       return 'right';
     }

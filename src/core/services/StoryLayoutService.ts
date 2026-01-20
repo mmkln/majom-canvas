@@ -80,8 +80,7 @@ export class StoryLayoutService {
     row: number,
     col: number
   ): { x: number; y: number } {
-    const x =
-      story.x + this.padding + col * (TaskElement.width + this.gap);
+    const x = story.x + this.padding + col * (TaskElement.width + this.gap);
     const y =
       story.y +
       this.header +

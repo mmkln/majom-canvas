@@ -116,28 +116,24 @@ export class ConnectionInteractionService {
           dst instanceof StoryElement &&
           dst.tasks.some((t) => t.id === src.id));
       if (!invalid) {
-      const relationType =
-        src instanceof GoalElement && dst instanceof GoalElement
-          ? ConnectionRelationType.LeadsTo
-          : this.isParentChildPair(src, dst)
-            ? ConnectionRelationType.ParentChild
-            : ConnectionRelationType.RelatesTo;
-      const normalized = this.normalizeConnectionRefs(
-        relationType,
-        src,
-        dst
-      );
-      if (normalized) {
-        historyService.execute(
-          new ConnectCommand(
-            this.scene,
-            this.getElementRef(normalized.from),
-            this.getElementRef(normalized.to),
-            relationType
-          )
-        );
+        const relationType =
+          src instanceof GoalElement && dst instanceof GoalElement
+            ? ConnectionRelationType.LeadsTo
+            : this.isParentChildPair(src, dst)
+              ? ConnectionRelationType.ParentChild
+              : ConnectionRelationType.RelatesTo;
+        const normalized = this.normalizeConnectionRefs(relationType, src, dst);
+        if (normalized) {
+          historyService.execute(
+            new ConnectCommand(
+              this.scene,
+              this.getElementRef(normalized.from),
+              this.getElementRef(normalized.to),
+              relationType
+            )
+          );
+        }
       }
-    }
     }
     this.creating = false;
     this.startShape = null;
@@ -197,10 +193,7 @@ export class ConnectionInteractionService {
     return uuid ?? element.id;
   }
 
-  private isParentChildPair(
-    a: IConnectable,
-    b: IConnectable
-  ): boolean {
+  private isParentChildPair(a: IConnectable, b: IConnectable): boolean {
     return (
       (a instanceof GoalElement && b instanceof StoryElement) ||
       (a instanceof StoryElement && b instanceof GoalElement)

@@ -14,7 +14,11 @@ import { HttpInterceptorClient } from '../majom-wrapper/data-access/http-interce
 import { StoriesApiService } from '../majom-wrapper/data-access/stories-api-service.ts';
 import { GoalsApiService } from '../majom-wrapper/data-access/goals-api-service.ts';
 import { mapStatus } from '../majom-wrapper/utils/statusMapping.ts';
-import type { PlatformTask, Story, Goal } from '../majom-wrapper/interfaces/index.ts';
+import type {
+  PlatformTask,
+  Story,
+  Goal,
+} from '../majom-wrapper/interfaces/index.ts';
 
 type RelatedItem = PlatformTask;
 
@@ -107,11 +111,13 @@ export class RelatedItemsPicker {
 
   public mount(parent: HTMLElement = document.body): void {
     parent.appendChild(this.container);
-    this.subscriptions.push(this.scene.changes.subscribe(() => this.onSceneChange()));
     this.subscriptions.push(
-      this.canvasManager.getPanZoomManager().viewChanges.subscribe(() =>
-        this.updatePosition()
-      )
+      this.scene.changes.subscribe(() => this.onSceneChange())
+    );
+    this.subscriptions.push(
+      this.canvasManager
+        .getPanZoomManager()
+        .viewChanges.subscribe(() => this.updatePosition())
     );
     this.eventHandler = (event: Event) => {
       const customEvent = event as CustomEvent<{ element?: ICanvasElement }>;
@@ -130,7 +136,10 @@ export class RelatedItemsPicker {
     this.subscriptions.forEach((sub) => sub.unsubscribe());
     this.subscriptions = [];
     if (this.eventHandler) {
-      window.removeEventListener('relatedItemsPickerRequested', this.eventHandler);
+      window.removeEventListener(
+        'relatedItemsPickerRequested',
+        this.eventHandler
+      );
       this.eventHandler = null;
     }
     this.detachOutsideHandler();
@@ -303,7 +312,9 @@ export class RelatedItemsPicker {
       title.style.fontSize = '13px';
       title.style.fontWeight = '600';
       const meta = document.createElement('span');
-      meta.textContent = item.description ? item.description : `Task #${item.id}`;
+      meta.textContent = item.description
+        ? item.description
+        : `Task #${item.id}`;
       meta.style.fontSize = '11px';
       meta.style.color = '#6b7280';
       label.appendChild(title);

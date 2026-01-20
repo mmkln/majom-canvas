@@ -15,7 +15,10 @@ export function mapGoal(
 ): GoalElement {
   const pos = layout.find((l) => {
     if (l.element_type !== 'goal') return false;
-    if (dto.uuid && (l.element_uuid === dto.uuid || l.object_uuid === dto.uuid)) {
+    if (
+      dto.uuid &&
+      (l.element_uuid === dto.uuid || l.object_uuid === dto.uuid)
+    ) {
       return true;
     }
     return (l.element_id ?? l.object_id) === dto.id;

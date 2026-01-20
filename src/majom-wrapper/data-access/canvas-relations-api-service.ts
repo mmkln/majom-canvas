@@ -20,9 +20,7 @@ export class CanvasRelationsApiService {
 
   public fetchCanvasRelations(canvasId: string): Observable<CanvasRelation[]> {
     const encoded = encodeURIComponent(canvasId);
-    return this.http.get<CanvasRelation[]>(
-      `/canvas/${encoded}/relations/`
-    );
+    return this.http.get<CanvasRelation[]>(`/canvas/${encoded}/relations/`);
   }
 
   public listRelations(
@@ -88,9 +86,7 @@ export class CanvasRelationsApiService {
       query.push(`to_uuid=${encodeURIComponent(params.to_uuid)}`);
     }
     if (params.relation_type) {
-      query.push(
-        `relation_type=${encodeURIComponent(params.relation_type)}`
-      );
+      query.push(`relation_type=${encodeURIComponent(params.relation_type)}`);
     }
     if (params.uuids && params.uuids.length > 0) {
       query.push(`uuids=${encodeURIComponent(params.uuids.join(','))}`);

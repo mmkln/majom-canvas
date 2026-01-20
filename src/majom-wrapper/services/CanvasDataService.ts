@@ -202,16 +202,16 @@ export class CanvasDataService {
     });
 
     const create$ = creates.length
-      ? this.relationsApi.batchCreate(creates).pipe(
-          tap((created) => this.mergeRelationRegistry(created))
-        )
+      ? this.relationsApi
+          .batchCreate(creates)
+          .pipe(tap((created) => this.mergeRelationRegistry(created)))
       : of([]);
     return create$.pipe(
       switchMap(() =>
         deletes.length
-          ? this.relationsApi.batchDelete(deletes).pipe(
-              tap(() => this.removeRelationsById(deletes))
-            )
+          ? this.relationsApi
+              .batchDelete(deletes)
+              .pipe(tap(() => this.removeRelationsById(deletes)))
           : of(undefined)
       ),
       map(() => undefined)
@@ -535,10 +535,7 @@ export class CanvasDataService {
     );
     const { cached: cachedByUuids, missing: missingUuids } =
       this.getCachedByUuids(this.tasksCache, uuids);
-    const cachedCombined = this.dedupeById([
-      ...cachedByIds,
-      ...cachedByUuids,
-    ]);
+    const cachedCombined = this.dedupeById([...cachedByIds, ...cachedByUuids]);
     const requests: Observable<PlatformTask[]>[] = [];
     if (missingIds.length > 0) {
       requests.push(this.tasksApi.fetchTasksByIds(missingIds));
@@ -586,10 +583,7 @@ export class CanvasDataService {
     );
     const { cached: cachedByUuids, missing: missingUuids } =
       this.getCachedByUuids(this.storiesCache, uuids);
-    const cachedCombined = this.dedupeById([
-      ...cachedByIds,
-      ...cachedByUuids,
-    ]);
+    const cachedCombined = this.dedupeById([...cachedByIds, ...cachedByUuids]);
     const requests: Observable<Story[]>[] = [];
     if (missingIds.length > 0) {
       requests.push(this.storiesApi.fetchStoriesByIds(missingIds));
@@ -637,10 +631,7 @@ export class CanvasDataService {
     );
     const { cached: cachedByUuids, missing: missingUuids } =
       this.getCachedByUuids(this.goalsCache, uuids);
-    const cachedCombined = this.dedupeById([
-      ...cachedByIds,
-      ...cachedByUuids,
-    ]);
+    const cachedCombined = this.dedupeById([...cachedByIds, ...cachedByUuids]);
     const requests: Observable<Goal[]>[] = [];
     if (missingIds.length > 0) {
       requests.push(this.goalsApi.fetchGoalsByIds(missingIds));
@@ -990,16 +981,16 @@ export class CanvasDataService {
           })
         )
       ),
-        tap((positionDeleted) => {
-          if (positionDeleted) {
-            this.removePositionByKey(element);
-          }
-          if (element.uuid) {
-            this.removeElementFromCache(type, element.uuid);
-          }
-        }),
-        map(() => undefined)
-      );
+      tap((positionDeleted) => {
+        if (positionDeleted) {
+          this.removePositionByKey(element);
+        }
+        if (element.uuid) {
+          this.removeElementFromCache(type, element.uuid);
+        }
+      }),
+      map(() => undefined)
+    );
   }
 
   /**

@@ -11,7 +11,9 @@ export class SelectionContext {
   public static getPlanningSelection(scene: Scene): PlanningElement[] {
     return scene
       .getSelectedElements()
-      .filter((el) => SelectionContext.isPlanningElement(el)) as PlanningElement[];
+      .filter((el) =>
+        SelectionContext.isPlanningElement(el)
+      ) as PlanningElement[];
   }
 
   public static isPlanningElement(

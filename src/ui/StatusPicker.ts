@@ -6,7 +6,10 @@ import {
   ElementStatus,
   ELEMENT_STATUS_OPTIONS,
 } from '../elements/ElementStatus.ts';
-import { SelectionContext, PlanningElement } from '../core/services/SelectionContext.ts';
+import {
+  SelectionContext,
+  PlanningElement,
+} from '../core/services/SelectionContext.ts';
 import { BulkActionsController } from '../core/services/BulkActionsController.ts';
 
 type StatusOption = {
@@ -49,11 +52,13 @@ export class StatusPicker {
 
   public mount(parent: HTMLElement = document.body): void {
     parent.appendChild(this.container);
-    this.subscriptions.push(this.scene.changes.subscribe(() => this.onSceneChange()));
     this.subscriptions.push(
-      this.canvasManager.getPanZoomManager().viewChanges.subscribe(() =>
-        this.updatePosition()
-      )
+      this.scene.changes.subscribe(() => this.onSceneChange())
+    );
+    this.subscriptions.push(
+      this.canvasManager
+        .getPanZoomManager()
+        .viewChanges.subscribe(() => this.updatePosition())
     );
     this.eventHandler = (event: Event) => {
       const customEvent = event as CustomEvent<{
@@ -64,7 +69,8 @@ export class StatusPicker {
       const elements = customEvent.detail?.elements ?? [];
       const element = customEvent.detail?.element ?? null;
       if (elements.length > 0) {
-        if (!elements.every((el) => SelectionContext.isPlanningElement(el))) return;
+        if (!elements.every((el) => SelectionContext.isPlanningElement(el)))
+          return;
         this.activeElements = elements;
         this.activeElement = elements[0];
       } else {
@@ -232,5 +238,4 @@ export class StatusPicker {
       height: element.height,
     };
   }
-
 }

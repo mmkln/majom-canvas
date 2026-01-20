@@ -211,27 +211,27 @@ export class CanvasManager {
     );
     this.updateAnimationLoop(hasAnimatedStatus || hasAnimatedConnections);
 
-      // Update goal links and progress (only track task relations)
-      planningEls
-        .filter((el) => el instanceof GoalElement)
-        .forEach((goal: GoalElement) => {
-          const linkedIds = connections
-            .map((c) => ({
-              from: c.fromId,
-              to: c.toId,
-            }))
-            .filter((c) => c.from === goal.id || c.to === goal.id)
-            .map((c) => (c.from === goal.id ? c.to : c.from));
-          const taskEls = planningEls.filter(
-            (el) => el instanceof TaskElement
-          ) as TaskElement[];
-          const taskIds = new Set(taskEls.map((t) => t.id));
-          goal.links = Array.from(new Set(linkedIds)).filter((id) =>
-            taskIds.has(id)
-          );
-          const linkedTasks = taskEls.filter(
-            (t) => goal.links.indexOf(t.id) !== -1
-          );
+    // Update goal links and progress (only track task relations)
+    planningEls
+      .filter((el) => el instanceof GoalElement)
+      .forEach((goal: GoalElement) => {
+        const linkedIds = connections
+          .map((c) => ({
+            from: c.fromId,
+            to: c.toId,
+          }))
+          .filter((c) => c.from === goal.id || c.to === goal.id)
+          .map((c) => (c.from === goal.id ? c.to : c.from));
+        const taskEls = planningEls.filter(
+          (el) => el instanceof TaskElement
+        ) as TaskElement[];
+        const taskIds = new Set(taskEls.map((t) => t.id));
+        goal.links = Array.from(new Set(linkedIds)).filter((id) =>
+          taskIds.has(id)
+        );
+        const linkedTasks = taskEls.filter(
+          (t) => goal.links.indexOf(t.id) !== -1
+        );
         goal.progress = linkedTasks.length
           ? linkedTasks.filter((t) => t.status === 'done').length /
             linkedTasks.length

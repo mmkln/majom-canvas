@@ -24,9 +24,7 @@ export function createIcon(
   svg.setAttribute('stroke-linejoin', 'round');
 
   if (name === 'edit') {
-    svg.appendChild(
-      makePath('M3 17.25V21h3.75L17.8 9.95l-3.75-3.75L3 17.25z')
-    );
+    svg.appendChild(makePath('M3 17.25V21h3.75L17.8 9.95l-3.75-3.75L3 17.25z'));
     svg.appendChild(
       makePath(
         'M20.7 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'

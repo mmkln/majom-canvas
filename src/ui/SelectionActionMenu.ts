@@ -9,7 +9,10 @@ import { MoveCommand } from '../core/commands/MoveCommand.ts';
 import { ResizeCommand } from '../core/commands/ResizeCommand.ts';
 import { historyService } from '../core/services/HistoryService.ts';
 import { StoryLayoutService } from '../core/services/StoryLayoutService.ts';
-import { SelectionContext, PlanningElement } from '../core/services/SelectionContext.ts';
+import {
+  SelectionContext,
+  PlanningElement,
+} from '../core/services/SelectionContext.ts';
 import { BulkActionsController } from '../core/services/BulkActionsController.ts';
 import { createIcon, IconName, IconOptions } from './icons.ts';
 import {
@@ -83,9 +86,9 @@ export class SelectionActionMenu {
     parent.appendChild(this.container);
     this.subscriptions.push(this.scene.changes.subscribe(() => this.update()));
     this.subscriptions.push(
-      this.canvasManager.getPanZoomManager().viewChanges.subscribe(() =>
-        this.update()
-      )
+      this.canvasManager
+        .getPanZoomManager()
+        .viewChanges.subscribe(() => this.update())
     );
     window.addEventListener('resize', this.resizeHandler);
     this.update();
@@ -178,8 +181,7 @@ export class SelectionActionMenu {
       const el = this.actionElements.get(node.id);
       if (!el) return;
       const visible = node.isVisible ? node.isVisible(context) : true;
-      const display =
-        node.kind === 'divider' ? 'block' : 'inline-flex';
+      const display = node.kind === 'divider' ? 'block' : 'inline-flex';
       el.style.display = visible ? display : 'none';
     });
   }
@@ -408,9 +410,7 @@ export class SelectionActionMenu {
       .getElements()
       .filter((el) => el instanceof TaskElement) as TaskElement[];
     const plan = this.layoutService.planAlignTasks(story, tasks);
-    const alignedTasks = tasks.filter((task) =>
-      plan.positions.has(task.id)
-    );
+    const alignedTasks = tasks.filter((task) => plan.positions.has(task.id));
     story.tasks = [];
     alignedTasks.forEach((task) => story.addTask(task));
     if (plan.positions.size === 0) return;

@@ -164,7 +164,7 @@ export class ContextMenu {
     const actionItems: ContextMenuItem[] = [];
     if (isPlanningElement) {
       actionItems.push({
-        label: "Edit",
+        label: 'Edit',
         action: () => {
           (element as any).onDoubleClick?.();
         },
@@ -182,7 +182,7 @@ export class ContextMenu {
           historyService.execute(new DeleteCommand(this.scene, [element])),
       }
     );
-    sections.push({items: actionItems});
+    sections.push({ items: actionItems });
 
     if (element instanceof StoryElement) {
       sections.push({
