@@ -8,7 +8,10 @@ import { KeyboardManager } from './KeyboardManager.ts';
 import { isShape } from '../utils/typeGuards.ts';
 import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
 import type { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
-import type { IConnection } from '../interfaces/connection.ts';
+import {
+  ConnectionRelationType,
+  type IConnection,
+} from '../interfaces/connection.ts';
 import {
   SELECT_COLOR,
   HOVER_OVERLAY_FILL,
@@ -200,8 +203,11 @@ export class CanvasManager {
       (el) => 'status' in el && hasStatusAnimation((el as any).status)
     );
     const animatedVisible = animatedElements.filter((el) => isVisible(el));
-    const hasAnimatedStatus = animatedVisible.length > 0;
-    this.updateAnimationLoop(hasAnimatedStatus);
+      const hasAnimatedStatus = animatedVisible.length > 0;
+      const hasEnergyConnections = connections.some(
+        (conn) => conn.relationType === ConnectionRelationType.LeadsTo
+      );
+      this.updateAnimationLoop(hasAnimatedStatus || hasEnergyConnections);
 
       // Update goal links and progress (only track task relations)
       planningEls
