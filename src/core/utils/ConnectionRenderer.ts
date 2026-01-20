@@ -407,30 +407,44 @@ class ConnectionRenderer {
     start: ConnectionPoint,
     end: ConnectionPoint,
     scale: number
-  ): { path: Array<{ x: number; y: number }>; corners: Array<{ x: number; y: number }> } {
+  ): {
+    path: Array<{ x: number; y: number }>;
+    corners: Array<{ x: number; y: number }>;
+  } {
     const dx = end.x - start.x;
     const dy = end.y - start.y;
+    const distance = Math.hypot(dx, dy);
+    const stubBase = 26 / scale;
+    const stubLen = Math.min(stubBase, distance * 0.3);
     const pathPoints: Array<{ x: number; y: number }> = [];
-    if (Math.abs(dx) < 0.5 || Math.abs(dy) < 0.5) {
+
+    if (distance <= stubLen * 2 || Math.abs(dx) < 0.5 || Math.abs(dy) < 0.5) {
       pathPoints.push({ x: start.x, y: start.y }, { x: end.x, y: end.y });
     } else {
-      const midX = start.x + dx * 0.5;
-      const midY = start.y + dy * 0.5;
-      if (Math.abs(dx) >= Math.abs(dy)) {
+      const startStub = {
+        x: start.x + Math.cos(start.angle) * stubLen,
+        y: start.y + Math.sin(start.angle) * stubLen,
+      };
+      const endStub = {
+        x: end.x + Math.cos(end.angle) * stubLen,
+        y: end.y + Math.sin(end.angle) * stubLen,
+      };
+      const midX = startStub.x + (endStub.x - startStub.x) * 0.5;
+      const midY = startStub.y + (endStub.y - startStub.y) * 0.5;
+
+      pathPoints.push({ x: start.x, y: start.y }, startStub);
+      if (Math.abs(endStub.x - startStub.x) >= Math.abs(endStub.y - startStub.y)) {
         pathPoints.push(
-          { x: start.x, y: start.y },
-          { x: midX, y: start.y },
-          { x: midX, y: end.y },
-          { x: end.x, y: end.y }
+          { x: midX, y: startStub.y },
+          { x: midX, y: endStub.y }
         );
       } else {
         pathPoints.push(
-          { x: start.x, y: start.y },
-          { x: start.x, y: midY },
-          { x: end.x, y: midY },
-          { x: end.x, y: end.y }
+          { x: startStub.x, y: midY },
+          { x: endStub.x, y: midY }
         );
       }
+      pathPoints.push(endStub, { x: end.x, y: end.y });
     }
 
     const filtered = pathPoints.filter((point, index, arr) => {
@@ -443,7 +457,7 @@ class ConnectionRenderer {
     }
 
     const cornerBase = 14 / scale;
-    const corners = filtered.slice(1, -1);
+    const corners = filtered.slice(2, -2);
     const path: Array<{ x: number; y: number }> = [{ ...filtered[0] }];
     for (let i = 1; i < filtered.length - 1; i += 1) {
       const prev = filtered[i - 1];
