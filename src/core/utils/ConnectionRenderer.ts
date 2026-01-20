@@ -38,16 +38,20 @@ class ConnectionRenderer {
     from: IConnectable,
     to: IConnectable
   ): void {
-    if (connection.relationType === ConnectionRelationType.LeadsTo) {
+    if (
+      connection.relationType === ConnectionRelationType.LeadsTo ||
+      connection.relationType === ConnectionRelationType.ParentChild
+    ) {
       this.drawCyberLine(connection, ctx, from, to, panZoom);
-    } else if (connection.relationType === ConnectionRelationType.ParentChild) {
-      this.drawWaveLine(connection, ctx, from, to, panZoom);
     } else {
       this.drawLine(connection, ctx, from, to);
     }
 
     if (connection.selected) {
-      if (connection.relationType === ConnectionRelationType.LeadsTo) {
+      if (
+        connection.relationType === ConnectionRelationType.LeadsTo ||
+        connection.relationType === ConnectionRelationType.ParentChild
+      ) {
         this.drawCyberSelection(connection, ctx, from, to, panZoom);
       } else {
         const curve = connection.getCurvePoints(from, to);
