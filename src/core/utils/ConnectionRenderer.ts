@@ -39,7 +39,7 @@ class ConnectionRenderer {
     to: IConnectable
   ): void {
     if (connection.relationType === ConnectionRelationType.LeadsTo) {
-      this.drawPulseLine(connection, ctx, from, to, panZoom);
+      this.drawCyberLine(connection, ctx, from, to, panZoom);
     } else if (connection.relationType === ConnectionRelationType.ParentChild) {
       this.drawWaveLine(connection, ctx, from, to, panZoom);
     } else {
@@ -47,8 +47,12 @@ class ConnectionRenderer {
     }
 
     if (connection.selected) {
-      const curve = connection.getCurvePoints(from, to);
-      this.drawSelectionOutline(connection, ctx, curve, panZoom);
+      if (connection.relationType === ConnectionRelationType.LeadsTo) {
+        this.drawCyberSelection(connection, ctx, from, to, panZoom);
+      } else {
+        const curve = connection.getCurvePoints(from, to);
+        this.drawSelectionOutline(connection, ctx, curve, panZoom);
+      }
     }
 
     if (
@@ -156,6 +160,91 @@ class ConnectionRenderer {
     ctx.beginPath();
     connection.buildPath(ctx, curve);
     ctx.stroke();
+    ctx.restore();
+  }
+
+  private drawCyberLine(
+    connection: RenderableConnection,
+    ctx: CanvasRenderingContext2D,
+    from: IConnectable,
+    to: IConnectable,
+    panZoom: PanZoomManager
+  ): void {
+    const scale = panZoom.scale ?? 1;
+    const timeMs = panZoom.timeMs ?? performance.now();
+    const { start, end } = connection.getClosestConnectionPoints(from, to);
+    const { path, corners } = this.buildCyberPath(start, end, scale);
+    const dash = 18 / scale;
+    const gap = 10 / scale;
+    const offset = -(timeMs * 0.02) / scale;
+    const baseAlpha = 0.55;
+    const fallbackColor =
+      this.parseColor(this.getRelationColor(connection)) ?? {
+        r: 139,
+        g: 92,
+        b: 246,
+      };
+    const startColor = this.getElementSwarmColor(from) ?? fallbackColor;
+    const endColor = this.getElementSwarmColor(to) ?? fallbackColor;
+    const midColor = this.mixColor(startColor, endColor, 0.5);
+    const gradient = ctx.createLinearGradient(
+      start.x,
+      start.y,
+      end.x,
+      end.y
+    );
+    gradient.addColorStop(0, this.toRgba(startColor, baseAlpha));
+    gradient.addColorStop(0.5, this.toRgba(midColor, baseAlpha));
+    gradient.addColorStop(1, this.toRgba(endColor, baseAlpha));
+
+    ctx.save();
+    ctx.setLineDash([dash, gap]);
+    ctx.lineDashOffset = offset;
+    ctx.lineWidth = 1.6 / scale;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = gradient;
+    ctx.globalAlpha = 0.9;
+    this.strokePath(ctx, path);
+
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.shadowBlur = 8 / scale;
+    ctx.shadowColor = this.toRgba(midColor, 0.75);
+    ctx.lineWidth = 3 / scale;
+    ctx.globalAlpha = 0.35;
+    this.strokePath(ctx, path);
+
+    const nodeRadius = 2.4 / scale;
+    for (const corner of corners) {
+      ctx.beginPath();
+      ctx.fillStyle = this.toRgba(midColor, 0.85);
+      ctx.shadowBlur = 6 / scale;
+      ctx.shadowColor = this.toRgba(midColor, 0.8);
+      ctx.arc(corner.x, corner.y, nodeRadius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  private drawCyberSelection(
+    connection: RenderableConnection,
+    ctx: CanvasRenderingContext2D,
+    from: IConnectable,
+    to: IConnectable,
+    panZoom: PanZoomManager
+  ): void {
+    const scale = panZoom.scale ?? 1;
+    const { start, end } = connection.getClosestConnectionPoints(from, to);
+    const { path } = this.buildCyberPath(start, end, scale);
+    ctx.save();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = SELECT_COLOR;
+    ctx.lineWidth = 3 / scale;
+    ctx.shadowBlur = 10 / scale;
+    ctx.shadowColor = SELECT_COLOR;
+    ctx.globalAlpha = 0.9;
+    this.strokePath(ctx, path);
     ctx.restore();
   }
 
@@ -312,6 +401,98 @@ class ConnectionRenderer {
 
   private toRgba(color: RGBColor, alpha: number): string {
     return `rgba(${color.r}, ${color.g}, ${color.b}, ${alpha})`;
+  }
+
+  private buildCyberPath(
+    start: ConnectionPoint,
+    end: ConnectionPoint,
+    scale: number
+  ): { path: Array<{ x: number; y: number }>; corners: Array<{ x: number; y: number }> } {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const pathPoints: Array<{ x: number; y: number }> = [];
+    if (Math.abs(dx) < 0.5 || Math.abs(dy) < 0.5) {
+      pathPoints.push({ x: start.x, y: start.y }, { x: end.x, y: end.y });
+    } else {
+      const midX = start.x + dx * 0.5;
+      const midY = start.y + dy * 0.5;
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        pathPoints.push(
+          { x: start.x, y: start.y },
+          { x: midX, y: start.y },
+          { x: midX, y: end.y },
+          { x: end.x, y: end.y }
+        );
+      } else {
+        pathPoints.push(
+          { x: start.x, y: start.y },
+          { x: start.x, y: midY },
+          { x: end.x, y: midY },
+          { x: end.x, y: end.y }
+        );
+      }
+    }
+
+    const filtered = pathPoints.filter((point, index, arr) => {
+      if (index === 0) return true;
+      return this.distance(point, arr[index - 1]) > 0.5;
+    });
+
+    if (filtered.length <= 2) {
+      return { path: filtered, corners: [] };
+    }
+
+    const cornerBase = 14 / scale;
+    const corners = filtered.slice(1, -1);
+    const path: Array<{ x: number; y: number }> = [{ ...filtered[0] }];
+    for (let i = 1; i < filtered.length - 1; i += 1) {
+      const prev = filtered[i - 1];
+      const curr = filtered[i];
+      const next = filtered[i + 1];
+      const v1 = this.normalize(prev.x - curr.x, prev.y - curr.y);
+      const v2 = this.normalize(next.x - curr.x, next.y - curr.y);
+      const maxCorner = Math.min(
+        cornerBase,
+        this.distance(curr, prev) * 0.5,
+        this.distance(curr, next) * 0.5
+      );
+      const p1 = {
+        x: curr.x + v1.x * maxCorner,
+        y: curr.y + v1.y * maxCorner,
+      };
+      const p2 = {
+        x: curr.x + v2.x * maxCorner,
+        y: curr.y + v2.y * maxCorner,
+      };
+      path.push(p1, p2);
+    }
+    path.push({ ...filtered[filtered.length - 1] });
+    return { path, corners };
+  }
+
+  private strokePath(
+    ctx: CanvasRenderingContext2D,
+    points: Array<{ x: number; y: number }>
+  ): void {
+    if (points.length < 2) return;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i += 1) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.stroke();
+  }
+
+  private normalize(x: number, y: number): { x: number; y: number } {
+    const len = Math.hypot(x, y) || 1;
+    return { x: x / len, y: y / len };
+  }
+
+  private distance(
+    a: { x: number; y: number },
+    b: { x: number; y: number }
+  ): number {
+    return Math.hypot(a.x - b.x, a.y - b.y);
   }
 
 }
