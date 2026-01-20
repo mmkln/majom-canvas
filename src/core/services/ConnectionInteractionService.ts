@@ -45,7 +45,12 @@ export class ConnectionInteractionService {
     for (let i = connections.length - 1; i >= 0; i--) {
       const conn = connections[i];
       // use fixed screen-pixel tolerance (5px)
-      const tol = 5 / this.panZoom.scale;
+      const baseTol = 5 / this.panZoom.scale;
+      const tol =
+        conn.relationType === ConnectionRelationType.LeadsTo ||
+        conn.relationType === ConnectionRelationType.ParentChild
+          ? Math.max(baseTol, 8 / this.panZoom.scale)
+          : baseTol;
       if (conn.isNearPoint(x, y, connectables, tol)) {
         return conn;
       }

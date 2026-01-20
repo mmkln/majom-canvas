@@ -7,6 +7,7 @@ import {
   IConnection,
 } from '../interfaces/connection.ts';
 import { PanZoomManager } from '../managers/PanZoomManager.ts';
+import { SELECT_COLOR } from '../constants.ts';
 import { v4 } from 'uuid';
 
 type RGBColor = {
@@ -309,6 +310,10 @@ export default class Connection implements IConnection {
       } else {
         this.drawLine(ctx, from, to, panZoom);
       }
+      if (this.selected) {
+        const curve = this.getCurvePoints(from, to);
+        this.drawSelectionOutline(ctx, curve, panZoom);
+      }
       if (
         this.relationType !== ConnectionRelationType.ParentChild &&
         this.relationType !== ConnectionRelationType.LeadsTo
@@ -378,7 +383,11 @@ export default class Connection implements IConnection {
       const cp2 = this.getControlPoint(end, offset);
 
       // Апроксимуємо криву, вибираючи, наприклад, 20 точок
-      const sampleCount = 20;
+      const sampleCount =
+        this.relationType === ConnectionRelationType.LeadsTo ||
+        this.relationType === ConnectionRelationType.ParentChild
+          ? 40
+          : 20;
       const samples: { x: number; y: number }[] = [];
       for (let i = 0; i <= sampleCount; i++) {
         const t = i / sampleCount;
@@ -651,6 +660,30 @@ export default class Connection implements IConnection {
       }
     }
     ctx.closePath();
+  }
+
+  private drawSelectionOutline(
+    ctx: CanvasRenderingContext2D,
+    curve: {
+      start: ConnectionPoint;
+      end: ConnectionPoint;
+      cp1: { x: number; y: number };
+      cp2: { x: number; y: number };
+      isBezier: boolean;
+    },
+    panZoom: PanZoomManager
+  ): void {
+    const scale = panZoom.scale ?? 1;
+    ctx.save();
+    ctx.setLineDash([]);
+    this.buildPath(ctx, curve);
+    ctx.strokeStyle = SELECT_COLOR;
+    ctx.lineWidth = 3 / scale;
+    ctx.shadowBlur = 10 / scale;
+    ctx.shadowColor = SELECT_COLOR;
+    ctx.globalAlpha = 0.9;
+    ctx.stroke();
+    ctx.restore();
   }
 
   private drawTaperedStroke(
