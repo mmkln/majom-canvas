@@ -2,7 +2,8 @@ import { Component } from '../../ui-lib/src/core/Component.ts';
 import { Button } from '../../ui-lib/src/components/Button.ts';
 import { Input } from '../../ui-lib/src/components/Input.ts';
 import { AuthService } from '../../majom-wrapper/data-access/auth-service.ts';
-import { LoginCredentials } from '../../majom-wrapper/interfaces/auth-interfaces.ts';
+import { UserApiService } from '../../majom-wrapper/data-access/user-api-service.ts';
+import { LoginCredentials, User } from '../../majom-wrapper/interfaces/auth-interfaces.ts';
 import { createModalShell } from '../../ui-lib/src/components/Modal.ts';
 import { notify } from '../../core/services/NotificationService.ts';
 import { historyService } from '../../core/services/HistoryService.ts';
@@ -13,6 +14,8 @@ import { ComponentFactory } from '../../ui-lib/src/index.js';
  */
 export class AuthComponent extends Component<any> {
   private authService: AuthService;
+  private userApiService: UserApiService;
+  private currentUser: User | null = null;
   private avatarContainer: HTMLElement;
   private loginButton: HTMLButtonElement;
   private logoutButton: HTMLButtonElement;
@@ -23,9 +26,10 @@ export class AuthComponent extends Component<any> {
   private authGuardOverlay: HTMLElement | null = null;
   private showLoginModalHandler: () => void;
 
-  constructor(container: HTMLElement, authService: AuthService) {
+  constructor(container: HTMLElement, authService: AuthService, userApiService: UserApiService) {
     super(container);
     this.authService = authService;
+    this.userApiService = userApiService;
     this.avatarContainer = document.createElement('div');
     this.avatarContainer.className = 'absolute top-5 right-4';
 
@@ -47,7 +51,12 @@ export class AuthComponent extends Component<any> {
 
     this.dropdownMenu = document.createElement('div');
     this.dropdownMenu.className =
-      'absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 hidden';
+      'absolute right-0 mt-2 w-64 bg-white rounded-md shadow-lg z-10 hidden';
+    
+    // Build user details section
+    this.buildUserDetailsSection();
+    
+    // Add logout button
     this.dropdownMenu.appendChild(this.logoutButton);
     this.avatarContainer.appendChild(this.dropdownMenu);
 
@@ -79,7 +88,7 @@ export class AuthComponent extends Component<any> {
 
   private updateUI(): void {
     if (this.authService.isLoggedIn()) {
-      const user = this.authService.getAuthToken(); // Assuming user data is part of token or stored separately
+      this.loadUserData();
       this.avatarContainer.innerHTML =
         '<img src="https://cdn.thegreatprojects.com/thegreatprojects/images/c/c/c/d/9/cccd9ab3a8832417497e233c1cb92b9e.jpg?width=364&height=364&format=jpg" alt="User Avatar" class="w-10 h-10 bg-gray-100 rounded-full cursor-pointer">';
       this.avatarContainer.firstChild?.addEventListener('click', () =>
@@ -87,6 +96,7 @@ export class AuthComponent extends Component<any> {
       );
       this.avatarContainer.appendChild(this.dropdownMenu);
     } else {
+      this.currentUser = null;
       this.avatarContainer.innerHTML = '';
       // Show login prompt if there are unsaved changes
       const canSave = historyService.hasUnsavedChanges();
@@ -103,6 +113,71 @@ export class AuthComponent extends Component<any> {
     } else {
       this.dropdownMenu.classList.add('hidden');
     }
+  }
+
+  private loadUserData(): void {
+    this.userApiService.getUser().subscribe({
+      next: (user: User) => {
+        this.currentUser = user;
+        this.buildUserDetailsSection();
+      },
+      error: (error: any) => {
+        console.error('Failed to load user data:', error);
+      }
+    });
+  }
+
+  private buildUserDetailsSection(): void {
+    // Clear existing content except logout button
+    const logoutButton = this.logoutButton;
+    this.dropdownMenu.innerHTML = '';
+    
+    if (this.currentUser) {
+      // User details section
+      const userDetailsDiv = document.createElement('div');
+      userDetailsDiv.className = 'px-4 py-3 border-b border-gray-200';
+      
+      // User avatar and name
+      const userInfoDiv = document.createElement('div');
+      userInfoDiv.className = 'flex items-center space-x-3';
+      
+      const avatar = document.createElement('img');
+      avatar.src = 'https://cdn.thegreatprojects.com/thegreatprojects/images/c/c/c/d/9/cccd9ab3a8832417497e233c1cb92b9e.jpg?width=364&height=364&format=jpg';
+      avatar.alt = 'User Avatar';
+      avatar.className = 'w-8 h-8 rounded-full';
+      
+      const userTextDiv = document.createElement('div');
+      userTextDiv.className = 'flex-1';
+      
+      const userName = document.createElement('div');
+      userName.className = 'text-sm font-medium text-gray-900';
+      userName.textContent = this.currentUser.username;
+      
+      const userEmail = document.createElement('div');
+      userEmail.className = 'text-xs text-gray-500';
+      userEmail.textContent = this.currentUser.email;
+      
+      userTextDiv.appendChild(userName);
+      userTextDiv.appendChild(userEmail);
+      userInfoDiv.appendChild(avatar);
+      userInfoDiv.appendChild(userTextDiv);
+      userDetailsDiv.appendChild(userInfoDiv);
+      
+      // Additional user info
+      const additionalInfoDiv = document.createElement('div');
+      additionalInfoDiv.className = 'mt-2 text-xs text-gray-600';
+      additionalInfoDiv.innerHTML = `
+        <div>ID: ${this.currentUser.id}</div>
+        <div>Language: ${this.currentUser.language}</div>
+        ${this.currentUser.deletion_requested_at ? '<div class="text-red-500">Deletion requested</div>' : ''}
+      `;
+      userDetailsDiv.appendChild(additionalInfoDiv);
+      
+      this.dropdownMenu.appendChild(userDetailsDiv);
+    }
+    
+    // Add logout button back
+    this.dropdownMenu.appendChild(logoutButton);
   }
 
   private showLoginModal(force: boolean = false): void {

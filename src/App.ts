@@ -1,10 +1,10 @@
-// app/App.ts
 import { CanvasManager } from './core/managers/CanvasManager.ts';
 import { Scene } from './core/scene/Scene.ts';
 import { DiagramRepository } from './core/data/DiagramRepository.ts';
 import { IDataProvider } from './core/interfaces/dataProvider.ts';
 import { AuthComponent } from './ui/components/AuthComponent.ts';
 import { AuthService } from './majom-wrapper/data-access/auth-service.ts';
+import { UserApiService } from './majom-wrapper/data-access/user-api-service.ts';
 import { HttpInterceptorClient } from './majom-wrapper/data-access/http-interceptor.ts';
 import { TasksApiService } from './majom-wrapper/data-access/tasks-api-service.ts';
 import { StoriesApiService } from './majom-wrapper/data-access/stories-api-service.ts';
@@ -64,6 +64,7 @@ export class App {
     // Ініціалізація сервісу аутентифікації
     this.authService = new AuthService();
     const http = new HttpInterceptorClient(environment.apiUrl);
+    const userApiService = new UserApiService(http);
     this.canvasDataService = new CanvasDataService(
       new TasksApiService(http),
       new StoriesApiService(http),
@@ -73,7 +74,7 @@ export class App {
     );
     // Створюємо компонент для авторизації
     const appContainer = document.getElementById('app') || document.body;
-    this.authComponent = new AuthComponent(appContainer, this.authService);
+    this.authComponent = new AuthComponent(appContainer, this.authService, userApiService);
     // Використовуємо UIManager для монтування UI-компонентів
     this.uiManager = new UIManager(this.canvasManager, this.scene);
     this.uiManager.mountAll(document.body);
