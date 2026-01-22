@@ -7,8 +7,8 @@ export class PanZoomManager {
   scrollY: number = 0;
   scale: number = 1.4;
   // Virtual content dimensions (can be adjusted or passed in)
-  virtualWidth: number = 20000;
-  virtualHeight: number = 12000;
+  virtualWidth: number = 40000;
+  virtualHeight: number = 24000;
   scrollbarWidth: number = 6;
   /** Shared frame time for animation syncing */
   timeMs: number = 0;
@@ -55,7 +55,7 @@ export class PanZoomManager {
     const centerY = canvas.height / 2;
     const contentX = (centerX + this.scrollX) / oldScale;
     const contentY = (centerY + this.scrollY) / oldScale;
-    const maxScale = 3;
+    const maxScale = 1.25;
     this.scale = Math.min(oldScale * 1.15, maxScale);
     // adjust scroll to keep center fixed
     this.scrollX = contentX * this.scale - centerX;
@@ -111,7 +111,7 @@ export class PanZoomManager {
         viewportWidth / this.virtualWidth,
         viewportHeight / this.virtualHeight
       );
-      const maxScale = 3;
+      const maxScale = 1.25;
       newScale = Math.min(Math.max(newScale, minScale), maxScale);
       const contentX = (mouseX + this.scrollX) / oldScale;
       const contentY = (mouseY + this.scrollY) / oldScale;
