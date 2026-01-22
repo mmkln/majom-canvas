@@ -175,13 +175,25 @@ export class InteractionManager {
       | (ICanvasElement & IDraggable)
       | null;
 
-    // service-based connection selection
+    // Check for connection point first to prioritize connection creation
+    const connectables = [...this.scene.getShapes(), ...planningEls] as IConnectable[];
+    const connectionPointHit = this.findConnectionPointAt(sceneX, sceneY, connectables);
+    
+    if (connectionPointHit) {
+      // If clicking on a connection point, prioritize connection creation over existing connection selection
+      if (this.connectionService.start(sceneX, sceneY)) {
+        return true;
+      }
+    }
+
+    // service-based connection selection (only if not on a connection point)
     const existingConn = this.connectionService.hitTest(sceneX, sceneY);
     if (existingConn) {
       this.updateSelectionOnClick(existingConn, e.shiftKey);
       return true;
     }
-    // service-based connection creation start
+    
+    // service-based connection creation start (fallback)
     if (this.connectionService.start(sceneX, sceneY)) {
       return true;
     }
