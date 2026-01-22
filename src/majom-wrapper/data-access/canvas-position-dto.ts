@@ -1,24 +1,31 @@
-export interface CanvasPositionDTO {
-  /** Optional UUID returned by backend */
-  id?: string;
-  /** Canvas UUID (required for /canvas/positions/ write, omitted for bulk) */
-  canvas?: string;
-  /** ContentType ID (Django) for write */
-  content_type?: number;
+export interface CanvasPositionReadDTO {
+  /** UUID returned by backend */
+  id: string;
+  /** Canvas UUID */
+  canvas: string;
   /** Model name of the element ('task','story','goal', etc.) */
-  element_type?: string;
-  /** Primary key of the element instance (write) */
-  object_id?: number;
-  /** Read-only alias of object_id (read) */
-  element_id?: number;
-  /** Optional UUID of the element (read) */
-  element_uuid?: string;
-  /** UUID of the element (write) */
-  object_uuid?: string;
+  element_type: string;
+  /** UUID of the element */
+  element_uuid: string;
   /** X coordinate on canvas */
   x: number;
   /** Y coordinate on canvas */
   y: number;
   /** Optional metadata (size, color, grouping, etc.) */
-  meta?: Record<string, any>;
+  meta?: Record<string, any> | null;
+}
+
+export interface CanvasPositionWriteDTO {
+  /** Canvas UUID (required for /canvas/positions/batch/, omitted for bulk) */
+  canvas?: string;
+  /** Model name of the element ('task','story','goal', etc.) */
+  element_type: string;
+  /** UUID of the element */
+  element_uuid: string;
+  /** X coordinate on canvas */
+  x?: number;
+  /** Y coordinate on canvas */
+  y?: number;
+  /** Optional metadata (size, color, grouping, etc.) */
+  meta?: Record<string, any> | null;
 }

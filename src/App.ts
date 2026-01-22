@@ -22,13 +22,12 @@ import { DeleteCommand } from './core/commands/DeleteCommand.ts';
 import { CutCommand } from './core/commands/CutCommand.ts';
 import { getCommandConfigs } from './core/config/commandConfigs.ts';
 import { environment } from './config/environment.ts';
-import { CONTENT_TYPE_IDS } from './config/env/index.ts';
 import { TaskElement } from './elements/TaskElement.ts';
 import { StoryElement } from './elements/StoryElement.ts';
 import { GoalElement } from './elements/GoalElement.ts';
 import { isPlanningElement } from './elements/utils/typeGuards.ts';
 import { ElementStatus } from './elements/ElementStatus.ts';
-import { CanvasPositionDTO } from './majom-wrapper/data-access/canvas-position-dto.ts';
+import { CanvasPositionWriteDTO } from './majom-wrapper/data-access/canvas-position-dto.ts';
 import { notify } from './core/services/NotificationService.ts';
 import { Observable, of, throwError } from 'rxjs';
 import { catchError, finalize, map, switchMap } from 'rxjs/operators';
@@ -299,37 +298,13 @@ export class App {
       }
       return of(false);
     }
-    return this.canvasDataService.loadContentTypeMap().pipe(
-      catchError((err) => {
-        console.error('Failed to load content types', err);
-        const fallbackMap = this.getFallbackContentTypeMap();
-        if (Object.keys(fallbackMap).length === 0) {
-          if (showNotifications) {
-            notify('Missing content type mapping', 'error');
-          }
-          return throwError(() => err);
-        }
-        return of(fallbackMap);
-      }),
-      switchMap((contentTypeMap) =>
-        this.saveLayoutWithContentTypes(contentTypeMap, showNotifications)
-      )
-    );
-  }
-
-  private saveLayoutWithContentTypes(
-    contentTypeMap: Record<string, number>,
-    showNotifications: boolean
-  ): Observable<boolean> {
     const elements = this.scene
       .getElements()
       .filter(isPlanningElement) as Array<
       TaskElement | StoryElement | GoalElement
     >;
     return this.canvasDataService.ensureElementsPersisted(elements).pipe(
-      switchMap(() =>
-        this.saveLayoutPositions(elements, contentTypeMap, showNotifications)
-      ),
+      switchMap(() => this.saveLayoutPositions(elements, showNotifications)),
       catchError((err) => {
         console.error('Failed to create elements', err);
         if (showNotifications) {
@@ -339,30 +314,22 @@ export class App {
       })
     );
   }
-
   private saveLayoutPositions(
     elements: Array<TaskElement | StoryElement | GoalElement>,
-    contentTypeMap: Record<string, number>,
     showNotifications: boolean
   ): Observable<boolean> {
-    const positions: CanvasPositionDTO[] = [];
-    const missingTypes = new Set<string>();
+    const positions: CanvasPositionWriteDTO[] = [];
     const missingIds: string[] = [];
 
     elements.forEach((el) => {
-      const contentType = this.getContentTypeId(contentTypeMap, el);
-      if (!contentType) {
-        missingTypes.add(
-          el instanceof TaskElement
-            ? 'task'
-            : el instanceof StoryElement
-              ? 'story'
-              : 'goal'
-        );
-        return;
-      }
-      const objectUuid = el.uuid;
-      if (!objectUuid) {
+      const elementType =
+        el instanceof TaskElement
+          ? 'task'
+          : el instanceof StoryElement
+            ? 'story'
+            : 'goal';
+      const elementUuid = el.uuid;
+      if (!elementUuid) {
         missingIds.push(String((el as any).id));
         return;
       }
@@ -371,23 +338,14 @@ export class App {
           ? { width: el.width, height: el.height }
           : undefined;
       positions.push({
-        content_type: contentType,
-        object_uuid: objectUuid,
+        element_type: elementType,
+        element_uuid: elementUuid,
         x: el.x,
         y: el.y,
         meta,
       });
     });
 
-    if (missingTypes.size > 0) {
-      if (showNotifications) {
-        notify(
-          `Missing content type IDs for: ${Array.from(missingTypes).join(', ')}`,
-          'error'
-        );
-      }
-      return of(false);
-    }
     if (missingIds.length > 0) {
       if (showNotifications) {
         notify(
@@ -462,16 +420,13 @@ export class App {
       })
     );
   }
-
   private dedupeLayoutPositions(
-    positions: CanvasPositionDTO[]
-  ): CanvasPositionDTO[] {
-    const map = new Map<string, CanvasPositionDTO>();
+    positions: CanvasPositionWriteDTO[]
+  ): CanvasPositionWriteDTO[] {
+    const map = new Map<string, CanvasPositionWriteDTO>();
     positions.forEach((pos) => {
-      const ref =
-        pos.object_uuid ??
-        (Number.isFinite(pos.object_id) ? `id:${pos.object_id}` : 'na');
-      const key = `${pos.content_type ?? 'na'}:${ref}`;
+      const ref = pos.element_uuid ?? 'na';
+      const key = `${pos.element_type ?? 'na'}:${ref}`;
       map.set(key, pos);
     });
     return Array.from(map.values());
@@ -561,33 +516,6 @@ export class App {
     );
   }
 
-  private getContentTypeId(
-    contentTypeMap: Record<string, number>,
-    element: TaskElement | StoryElement | GoalElement
-  ): number | null {
-    if (element instanceof TaskElement) {
-      return contentTypeMap.task ?? CONTENT_TYPE_IDS.task ?? null;
-    }
-    if (element instanceof StoryElement) {
-      return contentTypeMap.story ?? CONTENT_TYPE_IDS.story ?? null;
-    }
-    return contentTypeMap.goal ?? CONTENT_TYPE_IDS.goal ?? null;
-  }
-
-  private getFallbackContentTypeMap(): Record<string, number> {
-    const map: Record<string, number> = {};
-    if (typeof CONTENT_TYPE_IDS.task === 'number') {
-      map.task = CONTENT_TYPE_IDS.task;
-    }
-    if (typeof CONTENT_TYPE_IDS.story === 'number') {
-      map.story = CONTENT_TYPE_IDS.story;
-    }
-    if (typeof CONTENT_TYPE_IDS.goal === 'number') {
-      map.goal = CONTENT_TYPE_IDS.goal;
-    }
-    return map;
-  }
-
   private setCanvasTitle(title: string): void {
     this.canvasTitle = title;
     window.dispatchEvent(
@@ -595,3 +523,14 @@ export class App {
     );
   }
 }
+
+
+
+
+
+
+
+
+
+
+

@@ -11,16 +11,12 @@ import {
   switchMap,
   tap,
 } from 'rxjs/operators';
-import { CanvasPositionDTO } from '../data-access/canvas-position-dto.ts';
+import { CanvasPositionReadDTO, CanvasPositionWriteDTO } from '../data-access/canvas-position-dto.ts';
 import { TasksApiService } from '../data-access/tasks-api-service.ts';
 import { StoriesApiService } from '../data-access/stories-api-service.ts';
 import { GoalsApiService } from '../data-access/goals-api-service.ts';
 import { CanvasRelationsApiService } from '../data-access/canvas-relations-api-service.ts';
-import {
-  CanvasApiService,
-  CanvasSummary,
-  ContentTypeInfo,
-} from '../data-access/canvas-api-service.ts';
+import { CanvasApiService, CanvasSummary } from '../data-access/canvas-api-service.ts';
 import { mapTask } from '../mappers/task-mapper.ts';
 import { mapStory } from '../mappers/story-mapper.ts';
 import { mapGoal } from '../mappers/goal-mapper.ts';
@@ -70,14 +66,13 @@ type ElementUpdateRequest = {
 export class CanvasDataService {
   private canvasId: string | null = null;
   private canvasName: string | null = null;
-  private contentTypeMap$?: Observable<Record<string, number>>;
   private tasks$?: Observable<PlatformTask[]>;
   private stories$?: Observable<Story[]>;
   private goals$?: Observable<Goal[]>;
   private tasksCache: PlatformTask[] | null = null;
   private storiesCache: Story[] | null = null;
   private goalsCache: Goal[] | null = null;
-  private positionRegistry: Map<string, CanvasPositionDTO> = new Map();
+  private positionRegistry: Map<string, CanvasPositionReadDTO> = new Map();
   private relationRegistry: Map<string, CanvasRelation> = new Map();
   private elementUpdate$ = new Subject<ElementUpdateRequest>();
   private elementUpdateStatus$ = new Subject<ElementUpdateStatus>();
@@ -118,7 +113,7 @@ export class CanvasDataService {
         layout.forEach((pos) => {
           const type = pos.element_type;
           if (!type || !(type in layoutRefs)) return;
-          const uuid = pos.element_uuid ?? pos.object_uuid;
+          const uuid = pos.element_uuid;
           if (uuid) {
             layoutRefs[type as keyof typeof layoutRefs].uuids.add(uuid);
           }
@@ -407,22 +402,6 @@ export class CanvasDataService {
         return canvas;
       })
     );
-  }
-
-  public loadContentTypeMap(): Observable<Record<string, number>> {
-    if (!this.contentTypeMap$) {
-      this.contentTypeMap$ = this.canvasApi.loadContentTypes().pipe(
-        map((items: ContentTypeInfo[]) => {
-          const mapByModel: Record<string, number> = {};
-          items.forEach((item) => {
-            mapByModel[item.model] = item.id;
-          });
-          return mapByModel;
-        }),
-        shareReplay(1)
-      );
-    }
-    return this.contentTypeMap$;
   }
 
   public clearElementCache(): void {
@@ -996,7 +975,7 @@ export class CanvasDataService {
   /**
    * Batch update canvas layout positions.
    */
-  public updateLayoutBatch(changes: CanvasPositionDTO[]): Observable<void> {
+  public updateLayoutBatch(changes: CanvasPositionWriteDTO[]): Observable<void> {
     if (changes.length === 0) return of(undefined);
     if (this.canvasId) {
       return this.canvasApi.saveCanvasPositions(this.canvasId, changes);
@@ -1009,7 +988,7 @@ export class CanvasDataService {
     );
   }
 
-  private updatePositionRegistry(layout: CanvasPositionDTO[]): void {
+  private updatePositionRegistry(layout: CanvasPositionReadDTO[]): void {
     this.positionRegistry.clear();
     layout.forEach((pos) => {
       const key = this.getPositionKeyFromDto(pos);
@@ -1182,28 +1161,16 @@ export class CanvasDataService {
     element: TaskElement | StoryElement | GoalElement
   ): string | null {
     const type = this.getElementType(element);
-    if (!type) return null;
-    const uuidKey = element.uuid
-      ? this.buildPositionKey(type, `uuid:${element.uuid}`)
-      : null;
-    if (uuidKey && this.positionRegistry.has(uuidKey)) {
-      return uuidKey;
-    }
-    const backendId = this.getBackendId(element);
-    if (Number.isFinite(backendId)) {
-      return this.buildPositionKey(type, `id:${backendId}`);
-    }
-    return uuidKey;
+    if (!type || !element.uuid) return null;
+    return this.buildPositionKey(type, `uuid:${element.uuid}`);
   }
 
-  private getPositionKeyFromDto(pos: CanvasPositionDTO): string | null {
+  private getPositionKeyFromDto(pos: CanvasPositionReadDTO): string | null {
     const type = pos.element_type;
     if (!type) return null;
-    const uuid = pos.element_uuid ?? pos.object_uuid;
-    if (uuid) return this.buildPositionKey(type, `uuid:${uuid}`);
-    const id = pos.element_id ?? pos.object_id;
-    if (!id) return null;
-    return this.buildPositionKey(type, `id:${id}`);
+    const uuid = pos.element_uuid;
+    if (!uuid) return null;
+    return this.buildPositionKey(type, `uuid:${uuid}`);
   }
 
   private buildPositionKey(type: string, key: string): string {
@@ -1252,3 +1219,12 @@ export class CanvasDataService {
     }
   }
 }
+
+
+
+
+
+
+
+
+

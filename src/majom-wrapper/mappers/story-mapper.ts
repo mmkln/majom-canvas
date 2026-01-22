@@ -1,5 +1,5 @@
 import { Story as StoryDto } from '../interfaces/index.ts';
-import { CanvasPositionDTO } from '../data-access/canvas-position-dto.ts';
+import { CanvasPositionReadDTO } from '../data-access/canvas-position-dto.ts';
 import { StoryElement } from '../../elements/StoryElement.ts';
 import { mapStatus } from '../utils/statusMapping.ts';
 
@@ -11,17 +11,12 @@ const DEFAULT_Y = 0;
  */
 export function mapStory(
   dto: StoryDto,
-  layout: CanvasPositionDTO[]
+  layout: CanvasPositionReadDTO[]
 ): StoryElement {
   const pos = layout.find((l) => {
     if (l.element_type !== 'story') return false;
-    if (
-      dto.uuid &&
-      (l.element_uuid === dto.uuid || l.object_uuid === dto.uuid)
-    ) {
-      return true;
-    }
-    return (l.element_id ?? l.object_id) === dto.id;
+    if (!dto.uuid) return false;
+    return l.element_uuid === dto.uuid;
   });
   const meta = pos?.meta as
     | { width?: number; height?: number; w?: number; h?: number }
@@ -41,3 +36,5 @@ export function mapStory(
     description: dto.description,
   });
 }
+
+

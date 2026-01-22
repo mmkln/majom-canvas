@@ -1,17 +1,14 @@
 import { Observable } from 'rxjs';
 import { HttpInterceptorClient } from './http-interceptor.js';
-import { CanvasPositionDTO } from './canvas-position-dto.js';
+import {
+  CanvasPositionReadDTO,
+  CanvasPositionWriteDTO,
+} from './canvas-position-dto.js';
 
 export interface CanvasSummary {
   id: string;
   name: string;
   created_at: string;
-}
-
-export interface ContentTypeInfo {
-  id: number;
-  app_label: string;
-  model: string;
 }
 
 export class CanvasApiService {
@@ -28,20 +25,17 @@ export class CanvasApiService {
     return this.http.get<CanvasSummary>(`/canvas/${id}/`);
   }
 
-  /** Load content types for canvas layouts */
-  loadContentTypes(): Observable<ContentTypeInfo[]> {
-    return this.http.get<ContentTypeInfo[]>('/canvas/positions/content-types/');
-  }
-
   /** Load positions for a specific canvas */
-  fetchCanvasPositions(canvasId: string): Observable<CanvasPositionDTO[]> {
-    return this.http.get<CanvasPositionDTO[]>(`/canvas/${canvasId}/positions/`);
+  fetchCanvasPositions(canvasId: string): Observable<CanvasPositionReadDTO[]> {
+    return this.http.get<CanvasPositionReadDTO[]>(
+      `/canvas/${canvasId}/positions/`
+    );
   }
 
   /** Batch update or create canvas positions for a canvas */
   saveCanvasPositions(
     canvasId: string,
-    changes: CanvasPositionDTO[]
+    changes: CanvasPositionWriteDTO[]
   ): Observable<void> {
     return this.http.patch<void>(
       `/canvas/${canvasId}/positions/bulk/`,

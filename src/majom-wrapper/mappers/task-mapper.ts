@@ -1,5 +1,5 @@
 import { PlatformTask } from '../interfaces/index.ts';
-import { CanvasPositionDTO } from '../data-access/canvas-position-dto.ts';
+import { CanvasPositionReadDTO } from '../data-access/canvas-position-dto.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
 import { mapStatus } from '../utils/statusMapping.ts';
 
@@ -11,17 +11,12 @@ const DEFAULT_Y = 0;
  */
 export function mapTask(
   dto: PlatformTask,
-  layout: CanvasPositionDTO[]
+  layout: CanvasPositionReadDTO[]
 ): TaskElement {
   const pos = layout.find((l) => {
     if (l.element_type !== 'task') return false;
-    if (
-      dto.uuid &&
-      (l.element_uuid === dto.uuid || l.object_uuid === dto.uuid)
-    ) {
-      return true;
-    }
-    return (l.element_id ?? l.object_id) === dto.id;
+    if (!dto.uuid) return false;
+    return l.element_uuid === dto.uuid;
   });
   return new TaskElement({
     id: dto.uuid ?? dto.id.toString(),
@@ -34,3 +29,5 @@ export function mapTask(
     description: dto.description,
   });
 }
+
+

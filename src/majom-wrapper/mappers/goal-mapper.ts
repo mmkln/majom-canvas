@@ -1,5 +1,5 @@
 import { Goal as GoalDto } from '../interfaces/index.ts';
-import { CanvasPositionDTO } from '../data-access/canvas-position-dto.ts';
+import { CanvasPositionReadDTO } from '../data-access/canvas-position-dto.ts';
 import { GoalElement } from '../../elements/GoalElement.ts';
 import { mapStatus } from '../utils/statusMapping.ts';
 
@@ -11,17 +11,12 @@ const DEFAULT_Y = 0;
  */
 export function mapGoal(
   dto: GoalDto,
-  layout: CanvasPositionDTO[]
+  layout: CanvasPositionReadDTO[]
 ): GoalElement {
   const pos = layout.find((l) => {
     if (l.element_type !== 'goal') return false;
-    if (
-      dto.uuid &&
-      (l.element_uuid === dto.uuid || l.object_uuid === dto.uuid)
-    ) {
-      return true;
-    }
-    return (l.element_id ?? l.object_id) === dto.id;
+    if (!dto.uuid) return false;
+    return l.element_uuid === dto.uuid;
   });
   return new GoalElement({
     id: dto.uuid ?? dto.id.toString(),
@@ -34,3 +29,5 @@ export function mapGoal(
     description: dto.description,
   });
 }
+
+
