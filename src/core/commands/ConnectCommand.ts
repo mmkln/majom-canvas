@@ -32,6 +32,6 @@ export class ConnectCommand extends Command {
 
   /** Remove connection */
   public undo(): void {
-    this.scene.removeElement(this.connection);
+    this.scene.removeElements([this.connection]);
   }
 }

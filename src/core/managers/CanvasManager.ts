@@ -110,7 +110,8 @@ export class CanvasManager {
     this.canvas.addEventListener('wheel', this.onWheel.bind(this));
     window.addEventListener('resize', this.onResize.bind(this));
 
-    this.canvas.addEventListener('mousedown', this.onMouseDown.bind(this));
+    // Comment out mouse events if using pointer events, to avoid conflicts
+    // this.canvas.addEventListener('mousedown', this.onMouseDown.bind(this));
     this.canvas.addEventListener('mousemove', this.onMouseMove.bind(this));
     this.canvas.addEventListener('mouseup', this.onMouseUp.bind(this));
     this.canvas.addEventListener('dblclick', this.onDoubleClick.bind(this));

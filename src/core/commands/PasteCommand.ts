@@ -33,7 +33,7 @@ export class PasteCommand extends Command {
   }
 
   undo(): void {
-    this.clones.forEach((el) => this.scene.removeElement(el));
+    this.scene.removeElements(this.clones);
     notify(`Undid paste of ${this.clones.length} items`, 'info');
   }
 }

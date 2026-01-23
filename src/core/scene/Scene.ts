@@ -7,28 +7,31 @@ import { IConnection } from '../interfaces/connection.ts';
 
 export class Scene {
   private elements: ICanvasElement[] = [];
+  private selectedMap: Map<string, ICanvasElement> = new Map<string, ICanvasElement>();
   public changes: Subject<void> = new Subject<void>();
 
   constructor() {}
 
+  // TODO: change to addElements
   public addElement(element: ICanvasElement): void {
     this.elements.push(element);
+    if (element.selected) {
+      this.selectedMap.set(element.id, element);
+    }
     this.changes.next();
   }
 
-  public removeElement(element: ICanvasElement): void {
-    const index = this.elements.indexOf(element);
-    if (index > -1) {
-      this.elements.splice(index, 1);
-      this.changes.next();
-    }
-  }
 
   public removeElements(elements: ICanvasElement[]): void {
     elements.forEach((element) => {
       const index = this.elements.indexOf(element);
+      const elementId = element.id;
       if (index > -1) {
         this.elements.splice(index, 1);
+      }
+      if (this.selectedMap.has(elementId)) {
+        this.selectedMap.delete(elementId);
+        // element.selected = false; TODO: check if this is needed or not
       }
     });
     this.changes.next();
@@ -47,17 +50,79 @@ export class Scene {
   }
 
   public setSelected(elements: ICanvasElement[]): void {
-    this.getElements().forEach((element) => {
-      element.selected = false;
-    });
+    this.clearSelected();
+
     elements.forEach((selectable) => {
       selectable.selected = true;
+      this.selectedMap.set(selectable.id, selectable);
     });
+
     this.changes.next();
   }
 
+  public addToSelected(elements: ICanvasElement[]): void {
+    let changed = false;
+    elements.forEach((selectable) => {
+      if (!selectable.selected) {
+        selectable.selected = true;
+        this.selectedMap.set(selectable.id, selectable);
+        changed = true;
+      } else if (!this.selectedMap.has(selectable.id)) {
+        // keep map in sync if selection was changed outside Scene APIs
+        this.selectedMap.set(selectable.id, selectable);
+      }
+    });
+    if (changed) {
+      this.changes.next();
+    }
+  }
+
+  public removeFromSelected(elements: ICanvasElement[]): void {
+    let changed = false;
+    elements.forEach((selectable) => {
+      if (selectable.selected) {
+        selectable.selected = false;
+        this.selectedMap.delete(selectable.id);
+        changed = true;
+      } else if (this.selectedMap.has(selectable.id)) {
+        // keep map in sync if selection was changed outside Scene APIs
+        this.selectedMap.delete(selectable.id);
+      }
+    });
+    if (changed) {
+      this.changes.next();
+    }
+  }
+
+  public clearSelected(): void {
+    for (const [_, el] of this.selectedMap) {
+      el.selected = false;
+    }
+    this.selectedMap.clear();
+    this.changes.next();
+  }
+
+  public toggleSelected(elements: ICanvasElement[]): void {
+    console.log({elements});
+    let changed = false;
+    elements.forEach((selectable) => {
+      if (selectable.selected) {
+        selectable.selected = false;
+        this.selectedMap.delete(selectable.id);
+        changed = true;
+      } else {
+        selectable.selected = true;
+        this.selectedMap.set(selectable.id, selectable);
+        changed = true;
+      }
+    });
+    if (changed) {
+      this.changes.next();
+    }
+  }
+
   public getSelectedElements(): ICanvasElement[] {
-    return this.getElements().filter((element) => element.selected);
+    return Array.from(this.selectedMap.values());
   }
 
   public getSelectedShapes(): IShape[] {
@@ -66,6 +131,7 @@ export class Scene {
 
   public clear(): void {
     this.elements = [];
+    this.selectedMap.clear();
     this.changes.next();
   }
 }

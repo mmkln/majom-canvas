@@ -66,7 +66,7 @@ export class KeyboardManager {
           );
         }
 
-        this.scene.getShapes().forEach((shape) => (shape.selected = false));
+        this.scene.clearSelected();
 
         this.clipboard.forEach((shape) => {
           const clonedShape = shape.clone();

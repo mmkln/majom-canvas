@@ -120,16 +120,11 @@ export class InteractionManager {
     target: ICanvasElement | null,
     shiftKey: boolean
   ): void {
-    const current = this.scene.getSelectedElements();
     if (target) {
       if (shiftKey) {
-        if (current.indexOf(target) === -1) {
-          this.scene.setSelected([...current, target]);
-        }
+        this.scene.toggleSelected([target]);
       } else {
-        if (!(current.length > 1 && current.indexOf(target) !== -1)) {
-          this.scene.setSelected([target]);
-        }
+        this.scene.setSelected([target]);
       }
     } else {
       this.scene.setSelected([]);
