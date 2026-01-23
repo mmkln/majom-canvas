@@ -25,6 +25,7 @@ import { StoryElement } from '../../elements/StoryElement.ts';
 import { getBoundingBox } from '../utils/geometryUtils.ts';
 import { hasStatusAnimation } from '../../elements/utils/statusAnimations.ts';
 import { CANVAS_PERF_LOG } from '../../config/env/index.ts';
+import { isCircleVisible, isRectVisible } from '../utils/viewBounds.ts';
 
 export class CanvasManager {
   canvas: HTMLCanvasElement;
@@ -51,6 +52,9 @@ export class CanvasManager {
   private rightPanStartSceneX: number = 0;
   private rightPanStartSceneY: number = 0;
   private suppressContextMenu = false;
+  private suppressNativeContextMenu = false;
+  private suppressNativeContextMenuTimer: number | null = null;
+  private readonly suppressNativeContextMenuMs = 2000;
   private lastMouseCoords: { x: number; y: number } | null = null;
 
   // Multi-touch pinch-to-resize state
@@ -116,6 +120,11 @@ export class CanvasManager {
     this.canvas.addEventListener('mouseup', this.onMouseUp.bind(this));
     this.canvas.addEventListener('dblclick', this.onDoubleClick.bind(this));
     this.canvas.addEventListener('contextmenu', this.onRightClick.bind(this));
+    window.addEventListener(
+      'contextmenu',
+      this.onWindowContextMenu.bind(this),
+      true
+    );
     window.addEventListener('mouseup', this.onWindowMouseUp.bind(this));
 
     // Pointer events for touch/mobile support
@@ -189,14 +198,10 @@ export class CanvasManager {
     const isVisible = (el: any): boolean => {
       if (!viewBounds) return true;
       if (typeof el.width === 'number' && typeof el.height === 'number') {
-        const right = el.x + el.width;
-        const bottom = el.y + el.height;
-        return (
-          right >= viewBounds.minX &&
-          el.x <= viewBounds.maxX &&
-          bottom >= viewBounds.minY &&
-          el.y <= viewBounds.maxY
-        );
+        return isRectVisible(viewBounds, el.x, el.y, el.width, el.height);
+      }
+      if (typeof el.radius === 'number') {
+        return isCircleVisible(viewBounds, el.x, el.y, el.radius);
       }
       return true;
     };
@@ -440,6 +445,7 @@ export class CanvasManager {
     const mouseY = e.clientY - rect.top;
 
     if (e.button === 2) {
+      this.armNativeContextMenuBlocker();
       e.preventDefault();
       this.interactionManager.handleMouseDown(e, sceneX, sceneY);
       this.startRightPan(mouseX, mouseY);
@@ -639,6 +645,27 @@ export class CanvasManager {
     this.isRightPanning = false;
     this.rightPanActive = false;
     this.canvas.style.cursor = 'default';
+  }
+
+  private armNativeContextMenuBlocker(): void {
+    this.suppressNativeContextMenu = true;
+    if (this.suppressNativeContextMenuTimer !== null) {
+      window.clearTimeout(this.suppressNativeContextMenuTimer);
+    }
+    this.suppressNativeContextMenuTimer = window.setTimeout(() => {
+      this.suppressNativeContextMenu = false;
+      this.suppressNativeContextMenuTimer = null;
+    }, this.suppressNativeContextMenuMs);
+  }
+
+  private onWindowContextMenu(e: MouseEvent): void {
+    if (!this.suppressNativeContextMenu) return;
+    e.preventDefault();
+    this.suppressNativeContextMenu = false;
+    if (this.suppressNativeContextMenuTimer !== null) {
+      window.clearTimeout(this.suppressNativeContextMenuTimer);
+      this.suppressNativeContextMenuTimer = null;
+    }
   }
 
   private onWindowMouseUp(e: MouseEvent): void {

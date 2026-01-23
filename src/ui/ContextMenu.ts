@@ -1,3 +1,4 @@
+import { Subscription } from 'rxjs';
 import { historyService } from '../core/services/HistoryService.ts';
 import { DeleteCommand } from '../core/commands/DeleteCommand.ts';
 import { CopyCommand } from '../core/commands/CopyCommand.ts';
@@ -12,6 +13,7 @@ import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
 import { StoryLayoutService } from '../core/services/StoryLayoutService.ts';
+import { positionFixedElement } from './overlayPosition.ts';
 
 type ContextMenuDetail = {
   element: ICanvasElement | null;
@@ -37,6 +39,7 @@ export class ContextMenu {
   private visible = false;
   private handler: ((event: Event) => void) | null = null;
   private outsideHandler: ((event: MouseEvent) => void) | null = null;
+  private viewSubscription: Subscription | null = null;
   private confirmState: { key: string; expiresAt: number } | null = null;
   private lastDetail: ContextMenuDetail | null = null;
   private layoutService = new StoryLayoutService();
@@ -59,12 +62,19 @@ export class ContextMenu {
       this.show(customEvent.detail);
     };
     window.addEventListener('contextMenuRequested', this.handler);
+    this.viewSubscription = this.canvasManager
+      .getPanZoomManager()
+      .viewChanges.subscribe(() => this.onViewportChange());
   }
 
   unmount(): void {
     if (this.handler) {
       window.removeEventListener('contextMenuRequested', this.handler);
       this.handler = null;
+    }
+    if (this.viewSubscription) {
+      this.viewSubscription.unsubscribe();
+      this.viewSubscription = null;
     }
     this.hide();
     this.menu.remove();
@@ -76,9 +86,10 @@ export class ContextMenu {
     this.render();
 
     const { x, y } = this.getScreenCoords(detail.sceneX, detail.sceneY);
-    this.menu.style.left = `${x}px`;
-    this.menu.style.top = `${y}px`;
     this.menu.style.display = 'block';
+    this.menu.style.visibility = 'hidden';
+    this.positionMenu({ x, y });
+    this.menu.style.visibility = 'visible';
     this.visible = true;
 
     this.attachOutsideHandler();
@@ -88,6 +99,13 @@ export class ContextMenu {
     if (!this.lastDetail) return;
     const sections = this.buildSections(this.lastDetail);
     this.renderSections(sections);
+    if (this.visible && this.lastDetail) {
+      const { x, y } = this.getScreenCoords(
+        this.lastDetail.sceneX,
+        this.lastDetail.sceneY
+      );
+      this.positionMenu({ x, y });
+    }
   }
 
   private hide(): void {
@@ -98,6 +116,12 @@ export class ContextMenu {
     if (this.outsideHandler) {
       window.removeEventListener('mousedown', this.outsideHandler);
       this.outsideHandler = null;
+    }
+  }
+
+  private onViewportChange(): void {
+    if (this.visible) {
+      this.hide();
     }
   }
 
@@ -309,6 +333,15 @@ export class ContextMenu {
     const x = sceneX * panZoom.scale - panZoom.scrollX + rect.left;
     const y = sceneY * panZoom.scale - panZoom.scrollY + rect.top;
     return { x, y };
+  }
+
+  private positionMenu(coords: { x: number; y: number }): void {
+    positionFixedElement(this.menu, {
+      anchorX: coords.x,
+      anchorY: coords.y,
+      alignX: 'left',
+      alignY: 'top',
+    });
   }
 
   private getElementConfirmKey(element: ICanvasElement | null): string | null {

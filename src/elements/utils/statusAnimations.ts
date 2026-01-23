@@ -1,4 +1,8 @@
 import { ElementStatus } from '../ElementStatus.ts';
+import {
+  isCircleVisible,
+  isRectVisible,
+} from '../../core/utils/viewBounds.ts';
 
 const SWEEP_DURATION_MS = 9600;
 const SWEEP_GLOW_RADIUS = 14;
@@ -52,48 +56,7 @@ const getRoundedRectPerimeter = (
   return straight + curved;
 };
 
-const isRectVisible = (
-  viewBounds:
-    | { minX: number; minY: number; maxX: number; maxY: number }
-    | null
-    | undefined,
-  x: number,
-  y: number,
-  width: number,
-  height: number
-): boolean => {
-  if (!viewBounds) return true;
-  const right = x + width;
-  const bottom = y + height;
-  return (
-    right >= viewBounds.minX &&
-    x <= viewBounds.maxX &&
-    bottom >= viewBounds.minY &&
-    y <= viewBounds.maxY
-  );
-};
-
-const isCircleVisible = (
-  viewBounds:
-    | { minX: number; minY: number; maxX: number; maxY: number }
-    | null
-    | undefined,
-  centerX: number,
-  centerY: number,
-  radius: number
-): boolean => {
-  if (!viewBounds) return true;
-  const left = centerX - radius;
-  const right = centerX + radius;
-  const top = centerY - radius;
-  const bottom = centerY + radius;
-  return (
-    right >= viewBounds.minX &&
-    left <= viewBounds.maxX &&
-    bottom >= viewBounds.minY &&
-    top <= viewBounds.maxY
-  );
-};
+ 
 
 export const hasStatusAnimation = (status?: ElementStatus): boolean =>
   status === ElementStatus.Done ||

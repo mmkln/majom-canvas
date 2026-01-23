@@ -19,6 +19,8 @@ import {
   ElementStatus,
   ELEMENT_STATUS_OPTIONS,
 } from '../elements/ElementStatus.ts';
+import { positionFixedElement } from './overlayPosition.ts';
+import { getViewBounds, isRectVisible } from '../core/utils/viewBounds.ts';
 
 type ActionContext = {
   elements: PlanningElement[];
@@ -76,7 +78,7 @@ export class SelectionActionMenu {
     this.container.style.borderRadius = '9999px';
     this.container.style.boxShadow = '0 6px 18px rgba(0,0,0,0.12)';
     this.container.style.zIndex = '40';
-    this.container.style.transform = 'translate(-50%, 10px)';
+    this.container.style.transform = 'translate(0, 0)';
 
     this.actionNodes = this.buildActionNodes();
     this.renderActions();
@@ -115,6 +117,11 @@ export class SelectionActionMenu {
     this.selectedElements = planningSelected;
     const primary = planningSelected[0];
     this.activeElement = primary;
+    const bounds = SelectionContext.getSelectionBounds(planningSelected);
+    if (!this.isBoundsVisible(bounds)) {
+      this.hide();
+      return;
+    }
     const context: ActionContext = {
       elements: planningSelected,
       primary,
@@ -122,7 +129,7 @@ export class SelectionActionMenu {
     };
     this.updateActionVisibility(context);
     this.updateStatusButton(planningSelected);
-    this.positionUnderElement(planningSelected);
+    this.positionUnderBounds(bounds);
     this.show();
   }
 
@@ -279,16 +286,43 @@ export class SelectionActionMenu {
     ];
   }
 
-  private positionUnderElement(elements: PlanningElement[]): void {
+  private positionUnderBounds(bounds: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }): void {
     const panZoom = this.canvasManager.getPanZoomManager();
     const rect = this.canvasManager.getCanvas().getBoundingClientRect();
-    const bounds = SelectionContext.getSelectionBounds(elements);
     const anchorX = bounds.x + bounds.width / 2;
     const anchorY = bounds.y + bounds.height;
     const screenX = anchorX * panZoom.scale - panZoom.scrollX + rect.left;
     const screenY = anchorY * panZoom.scale - panZoom.scrollY + rect.top;
-    this.container.style.left = `${screenX}px`;
-    this.container.style.top = `${screenY}px`;
+    positionFixedElement(this.container, {
+      anchorX: screenX,
+      anchorY: screenY,
+      alignX: 'center',
+      alignY: 'top',
+      offsetY: 10,
+    });
+  }
+
+  private isBoundsVisible(bounds: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }): boolean {
+    const panZoom = this.canvasManager.getPanZoomManager();
+    const canvas = this.canvasManager.getCanvas();
+    const viewBounds = panZoom.viewBounds ?? getViewBounds(panZoom, canvas);
+    return isRectVisible(
+      viewBounds,
+      bounds.x,
+      bounds.y,
+      bounds.width,
+      bounds.height
+    );
   }
 
   private createIconButton(

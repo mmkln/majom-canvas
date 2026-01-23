@@ -19,6 +19,7 @@ import type {
   Story,
   Goal,
 } from '../majom-wrapper/interfaces/index.ts';
+import { positionFixedElement } from './overlayPosition.ts';
 
 type RelatedItem = PlatformTask;
 
@@ -184,6 +185,7 @@ export class RelatedItemsPicker {
       if (!this.container.contains(event.target as Node)) {
         this.hide();
       }
+      event.stopPropagation();
     };
     window.addEventListener('mousedown', this.outsideHandler);
   }
@@ -202,10 +204,14 @@ export class RelatedItemsPicker {
     const anchorX = bounds.x + bounds.width / 2;
     const anchorY = bounds.y + bounds.height;
     const screenX = anchorX * panZoom.scale - panZoom.scrollX + rect.left;
-    const screenY = anchorY * panZoom.scale - panZoom.scrollY + rect.top + 46;
-    this.container.style.left = `${screenX}px`;
-    this.container.style.top = `${screenY}px`;
-    this.container.style.transform = 'translate(-50%, 0)';
+    const screenY = anchorY * panZoom.scale - panZoom.scrollY + rect.top;
+    positionFixedElement(this.container, {
+      anchorX: screenX,
+      anchorY: screenY,
+      alignX: 'center',
+      alignY: 'top',
+      offsetY: 46,
+    });
   }
 
   private loadRelatedItems(): void {

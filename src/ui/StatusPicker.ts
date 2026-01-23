@@ -11,6 +11,7 @@ import {
   PlanningElement,
 } from '../core/services/SelectionContext.ts';
 import { BulkActionsController } from '../core/services/BulkActionsController.ts';
+import { positionFixedElement } from './overlayPosition.ts';
 
 type StatusOption = {
   value: ElementStatus;
@@ -153,10 +154,14 @@ export class StatusPicker {
     const anchorX = bounds.x + bounds.width / 2;
     const anchorY = bounds.y + bounds.height;
     const screenX = anchorX * panZoom.scale - panZoom.scrollX + rect.left;
-    const screenY = anchorY * panZoom.scale - panZoom.scrollY + rect.top + 52;
-    this.container.style.left = `${screenX}px`;
-    this.container.style.top = `${screenY}px`;
-    this.container.style.transform = 'translate(-50%, 0)';
+    const screenY = anchorY * panZoom.scale - panZoom.scrollY + rect.top;
+    positionFixedElement(this.container, {
+      anchorX: screenX,
+      anchorY: screenY,
+      alignX: 'center',
+      alignY: 'top',
+      offsetY: 52,
+    });
   }
 
   private renderList(): void {
