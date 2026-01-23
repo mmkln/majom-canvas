@@ -206,11 +206,21 @@ export class ContextMenu {
           historyService.execute(new DeleteCommand(this.scene, [element])),
       }
     );
-    sections.push({ items: actionItems });
+
+    const getTitlteByElement = (el: ICanvasElement): string | undefined => {
+      if (el instanceof TaskElement) return 'Task';
+      if (el instanceof StoryElement) return 'Story';
+      if (el instanceof GoalElement) return 'Goal';
+      return undefined;
+    }
+
+    sections.push({ 
+      title: getTitlteByElement(element),
+      items: actionItems 
+    });
 
     if (element instanceof StoryElement) {
       sections.push({
-        title: 'Story',
         items: [
           {
             label: 'Add task',
