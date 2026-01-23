@@ -77,6 +77,7 @@ export class TaskElement extends PlanningElement {
     const h = TaskElement.height;
     // Background
     const style = taskStyles[this.status];
+    this.fillColor = style.fillColor;
     // Draw background and uniform 2px rounded border
     const radius = 24;
     ctx.fillStyle = style.fillColor;

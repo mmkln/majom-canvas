@@ -93,6 +93,7 @@ export class StoryElement extends PlanningElement {
   draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
     // Apply fill and border based on status
     const style = storyStyles[this.status];
+    this.fillColor = style.fillColor;
     const radius = 8 * panZoom.scale;
     ctx.fillStyle = style.fillColor;
     ctx.beginPath();
