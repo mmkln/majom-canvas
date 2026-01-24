@@ -230,11 +230,11 @@ export class ContextMenu {
       sections.push({
         items: [
           {
-            label: 'Add task',
+            label: 'Create Task',
             action: () => this.createTaskInStory(element),
           },
           {
-            label: 'Related tasks',
+            label: 'Related Tasks',
             action: () => {
               this.openRelatedItemsPicker(element);
             },
