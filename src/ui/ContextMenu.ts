@@ -208,7 +208,7 @@ export class ContextMenu {
           historyService.execute(new CopyCommand(this.scene, [element])),
       },
       {
-        label: 'Remove from canvas',
+        label: 'Remove from Canvas',
         action: () =>
           historyService.execute(new DeleteCommand(this.scene, [element])),
       }

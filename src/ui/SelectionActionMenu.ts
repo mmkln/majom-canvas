@@ -284,7 +284,7 @@ export class SelectionActionMenu {
       {
         kind: 'action',
         id: 'delete-bulk',
-        title: 'Remove from canvas',
+        title: 'Remove from Canvas',
         icon: 'delete',
         isDanger: true,
         isVisible: isMulti,
@@ -336,7 +336,7 @@ export class SelectionActionMenu {
       {
         kind: 'action',
         id: 'delete',
-        title: 'Remove from canvas',
+        title: 'Remove from Canvas',
         icon: 'delete',
         isDanger: true,
         isVisible: isSingle,
