@@ -23,6 +23,7 @@ type SingleSelectGroupOptions<T> = {
   buttonWidth?: number;
   expandedActiveWidth?: number;
   buttonPadding?: string;
+  disableAnimations?: boolean;
 };
 
 type OptionEntry<T> = {
@@ -43,6 +44,7 @@ export class SingleSelectGroup<T> {
   private readonly buttonWidth: number | null;
   private readonly expandedActiveWidth: number | null;
   private readonly buttonPadding: string;
+  private readonly disableAnimations: boolean;
   private isExpanded: boolean;
   private activeValue: T | null = null;
 
@@ -59,6 +61,7 @@ export class SingleSelectGroup<T> {
     this.expandedActiveWidth =
       options.expandedActiveWidth ?? this.buttonWidth;
     this.buttonPadding = options.buttonPadding ?? '0 10px';
+    this.disableAnimations = options.disableAnimations ?? false;
     this.isExpanded = this.collapseMode === 'none';
 
     this.element = document.createElement('div');
@@ -95,8 +98,9 @@ export class SingleSelectGroup<T> {
       button.style.alignItems = 'center';
       button.style.justifyContent = 'center';
       button.style.cursor = 'pointer';
-      button.style.transition =
-        'background 150ms ease, border-color 150ms ease, opacity 200ms ease, max-width 220ms ease, width 220ms ease, transform 220ms ease, padding 220ms ease';
+      button.style.transition = this.disableAnimations
+        ? 'none'
+        : 'background 150ms ease, border-color 150ms ease, opacity 200ms ease, max-width 220ms ease, width 220ms ease, transform 220ms ease, padding 220ms ease';
       button.style.overflow = 'hidden';
       button.style.transformOrigin = 'center';
       button.style.borderLeft = isFirst ? 'none' : '1px solid #e5e7eb';

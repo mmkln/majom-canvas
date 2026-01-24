@@ -37,10 +37,10 @@ const STATUS_ORDER: ElementStatus[] = [
 ];
 
 const STATUS_ICON_MAP: Record<ElementStatus, IconName> = {
-  [ElementStatus.Done]: 'status-done',
-  [ElementStatus.InProgress]: 'status-in-progress',
+  [ElementStatus.Done]: 'check',
+  [ElementStatus.InProgress]: 'arrow-path',
   [ElementStatus.Pending]: 'status-pending',
-  [ElementStatus.Defined]: 'status-defined',
+  [ElementStatus.Defined]: 'map-pin',
 };
 
 type ActionNode =
@@ -185,6 +185,7 @@ export class SelectionActionMenu {
           })),
           onSelect: (status) => this.applyStatus(status),
           collapseMode: 'expand-active',
+          disableAnimations: true,
           buttonWidth: 32,
           buttonPadding: '0 8px',
           renderContent: (option) => {
@@ -285,10 +286,23 @@ export class SelectionActionMenu {
         kind: 'action',
         id: 'delete-bulk',
         title: 'Remove from Canvas',
-        icon: 'delete',
+        icon: 'minus',
+        isVisible: isMulti,
+        onClick: () => this.handleRemove(),
+      },
+      {        kind: 'divider',
+        id: 'divider-delete-bulk',
+        isVisible: isMulti,
+      },
+      {        kind: 'action',
+        id: 'delete-bulk-danger',
+        title: 'Delete permanently',
+        icon: 'trash',
         isDanger: true,
         isVisible: isMulti,
-        onClick: () => this.handleDelete(),
+        onClick: () => {
+          console.log('Delete permanently bulk action clicked');
+        }
       },
       {
         kind: 'divider',
@@ -297,17 +311,32 @@ export class SelectionActionMenu {
       },
       {
         kind: 'action',
+        id: 'create-task',
+        title: 'Create Task',
+        icon: 'plus',
+        isVisible: (context) => isSingle(context) && isStory(context),
+        onClick: () => {
+          console.log('Create Task action clicked');
+        },
+      },
+      {
+        kind: 'action',
         id: 'add-related',
         title: 'Add related',
-        icon: 'add-related',
+        icon: 'squares-plus',
         isVisible: (context) => isSingle(context) && isStoryOrGoal(context),
         onClick: () => this.handleAddRelated(),
+      },
+      {
+        kind: 'divider',
+        id: 'divider-align',
+        isVisible: (context) => isSingle(context) && isStory(context),
       },
       {
         kind: 'action',
         id: 'align',
         title: 'Align',
-        icon: 'align',
+        icon: 'squares-2x2',
         iconOptions: { strokeWidth: 1.5 },
         isVisible: (context) => isSingle(context) && isStory(context),
         onClick: () => this.handleAlign(),
@@ -321,7 +350,7 @@ export class SelectionActionMenu {
         kind: 'action',
         id: 'edit',
         title: 'Edit',
-        icon: 'edit',
+        icon: 'pencil',
         isVisible: isSingle,
         onClick: () => this.handleEdit(),
       },
@@ -329,7 +358,7 @@ export class SelectionActionMenu {
         kind: 'action',
         id: 'copy',
         title: 'Copy',
-        icon: 'copy',
+        icon: 'square-2-stack',
         isVisible: isSingle,
         onClick: () => this.handleCopy(),
       },
@@ -337,10 +366,25 @@ export class SelectionActionMenu {
         kind: 'action',
         id: 'delete',
         title: 'Remove from Canvas',
-        icon: 'delete',
+        icon: 'minus',
+        isVisible: isSingle,
+        onClick: () => this.handleRemove(),
+      },
+      {
+        kind: 'divider',
+        id: 'divider-delete',
+        isVisible: isSingle,
+      },
+      {        
+        kind: 'action',
+        id: 'delete-danger',
+        title: 'Delete permanently',
+        icon: 'trash',
         isDanger: true,
         isVisible: isSingle,
-        onClick: () => this.handleDelete(),
+        onClick: () => {
+          console.log('Delete permanently action clicked');
+        },
       },
     ];
   }
@@ -500,7 +544,7 @@ export class SelectionActionMenu {
     }
   }
 
-  private handleDelete(): void {
+  private handleRemove(): void {
     this.bulkActions.removeFromCanvas(this.selectedElements);
   }
 
