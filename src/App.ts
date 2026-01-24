@@ -193,6 +193,20 @@ export class App {
       this.canvasDataService.queueElementUpdate(element, patch);
     });
 
+    window.addEventListener('canvasPositionsDirty', (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        elements?: Array<TaskElement | StoryElement | GoalElement>;
+      }>;
+      const elements = (customEvent.detail?.elements ?? []).filter(
+        (el): el is TaskElement | StoryElement | GoalElement =>
+          el instanceof TaskElement ||
+          el instanceof StoryElement ||
+          el instanceof GoalElement
+      );
+      if (elements.length === 0) return;
+      this.canvasDataService.markPositionsDirty(elements);
+    });
+
     window.addEventListener('elementDeleteRequested', (event: Event) => {
       const customEvent = event as CustomEvent<{
         element?: TaskElement | StoryElement | GoalElement;
@@ -364,21 +378,23 @@ export class App {
       this.scene.getConnections(),
       elements
     );
+    const uniquePositions = this.dedupeLayoutPositions(positions);
+    const changedPositions =
+      this.canvasDataService.filterPositionUpdates(uniquePositions);
     if (
-      positions.length === 0 &&
+      changedPositions.length === 0 &&
       removedPositionIds.length === 0 &&
       !hasRelationChanges
     ) {
       if (showNotifications) {
-        notify('No elements to save.', 'info');
+        notify('No changes to save.', 'info');
       }
       return of(false);
     }
 
-    const uniquePositions = this.dedupeLayoutPositions(positions);
     const save$ =
-      uniquePositions.length > 0
-        ? this.canvasDataService.updateLayoutBatch(uniquePositions)
+      changedPositions.length > 0
+        ? this.canvasDataService.updateLayoutBatch(changedPositions)
         : of(undefined);
     return save$.pipe(
       switchMap(() =>

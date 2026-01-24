@@ -789,6 +789,13 @@ export class CanvasManager {
   }
 
   private onPointerUp(e: PointerEvent): void {
+    const pinchElement = this.pinchElement;
+    const pinchInitialRect = this.pinchInitialRect;
+    if (pinchElement && pinchInitialRect) {
+      if (this.hasPinchChange(pinchElement, pinchInitialRect)) {
+        this.notifyPositionsDirty([pinchElement]);
+      }
+    }
     // clear story-resize pinch
     this.pinchInitialDist = null;
     this.pinchInitialRect = null;
@@ -804,6 +811,29 @@ export class CanvasManager {
     if (e.pointerType === 'touch') {
       this.onClick(e as unknown as MouseEvent);
     }
+  }
+
+  private notifyPositionsDirty(elements: StoryElement[]): void {
+    if (typeof window === 'undefined') return;
+    if (elements.length === 0) return;
+    window.dispatchEvent(
+      new CustomEvent('canvasPositionsDirty', {
+        detail: { elements },
+      })
+    );
+  }
+
+  private hasPinchChange(
+    element: StoryElement,
+    rect: { x: number; y: number; width: number; height: number }
+  ): boolean {
+    const epsilon = 0.01;
+    return (
+      Math.abs(element.x - rect.x) > epsilon ||
+      Math.abs(element.y - rect.y) > epsilon ||
+      Math.abs(element.width - rect.width) > epsilon ||
+      Math.abs(element.height - rect.height) > epsilon
+    );
   }
 
   // --- Gesture event handlers for Safari pinch ---

@@ -60,6 +60,16 @@ type ElementUpdateRequest = {
   patch: ElementPatch;
 };
 
+type PositionSnapshot = {
+  id?: string;
+  canvas?: string;
+  element_type: string;
+  element_uuid: string;
+  x: number;
+  y: number;
+  meta?: Record<string, any> | null;
+};
+
 /**
  * Service to load and persist canvas elements and layout.
  */
@@ -72,12 +82,14 @@ export class CanvasDataService {
   private tasksCache: PlatformTask[] | null = null;
   private storiesCache: Story[] | null = null;
   private goalsCache: Goal[] | null = null;
-  private positionRegistry: Map<string, CanvasPositionReadDTO> = new Map();
+  private positionRegistry: Map<string, PositionSnapshot> = new Map();
+  private positionDirtyKeys = new Set<string>();
   private relationRegistry: Map<string, CanvasRelation> = new Map();
   private elementUpdate$ = new Subject<ElementUpdateRequest>();
   private elementUpdateStatus$ = new Subject<ElementUpdateStatus>();
   private pendingElementUpdates = 0;
   private failedElementUpdates = false;
+  private readonly positionPrecision = 2;
 
   constructor(
     private tasksApi: TasksApiService,
@@ -412,7 +424,20 @@ export class CanvasDataService {
     this.stories$ = undefined;
     this.goals$ = undefined;
     this.positionRegistry.clear();
+    this.positionDirtyKeys.clear();
     this.relationRegistry.clear();
+  }
+
+  public markPositionsDirty(
+    elements: Array<TaskElement | StoryElement | GoalElement>
+  ): void {
+    if (elements.length === 0) return;
+    elements.forEach((el) => {
+      const key = this.getPositionKeyForElement(el);
+      if (key) {
+        this.positionDirtyKeys.add(key);
+      }
+    });
   }
 
   public ensureElementsPersisted(
@@ -785,6 +810,7 @@ export class CanvasDataService {
   public setActiveCanvas(canvas: Pick<CanvasSummary, 'id' | 'name'>): void {
     if (this.canvasId !== canvas.id) {
       this.positionRegistry.clear();
+      this.positionDirtyKeys.clear();
       this.relationRegistry.clear();
     }
     this.canvasId = canvas.id;
@@ -901,7 +927,8 @@ export class CanvasDataService {
   ): boolean {
     const keys = this.getElementKeys(elements);
     for (const key of keys) {
-      if (!this.positionRegistry.has(key)) {
+      const snapshot = this.positionRegistry.get(key);
+      if (!snapshot || !snapshot.id) {
         return true;
       }
     }
@@ -975,25 +1002,101 @@ export class CanvasDataService {
   /**
    * Batch update canvas layout positions.
    */
+  public filterPositionUpdates(
+    changes: CanvasPositionWriteDTO[]
+  ): CanvasPositionWriteDTO[] {
+    if (changes.length === 0) return [];
+    if (this.positionDirtyKeys.size === 0) {
+      return changes.filter((pos) => this.isPositionChanged(pos));
+    }
+    return changes.filter((pos) => {
+      const key = this.getPositionKeyFromWrite(pos);
+      if (!key) return false;
+      if (!this.positionRegistry.has(key)) return true;
+      if (!this.positionDirtyKeys.has(key)) return false;
+      const changed = this.isPositionChanged(pos);
+      if (!changed) {
+        this.positionDirtyKeys.delete(key);
+      }
+      return changed;
+    });
+  }
+
   public updateLayoutBatch(changes: CanvasPositionWriteDTO[]): Observable<void> {
     if (changes.length === 0) return of(undefined);
+    const normalizedChanges = this.normalizePositionChanges(changes);
     if (this.canvasId) {
-      return this.canvasApi.saveCanvasPositions(this.canvasId, changes);
+      return this.canvasApi
+        .saveCanvasPositions(this.canvasId, normalizedChanges)
+        .pipe(tap(() => this.mergePositionUpdates(normalizedChanges)));
     }
     return this.canvasApi.createCanvas().pipe(
       switchMap(({ id }) => {
         this.canvasId = id;
-        return this.canvasApi.saveCanvasPositions(id, changes);
+        return this.canvasApi
+          .saveCanvasPositions(id, normalizedChanges)
+          .pipe(tap(() => this.mergePositionUpdates(normalizedChanges)));
       })
     );
   }
 
+  private isPositionChanged(pos: CanvasPositionWriteDTO): boolean {
+    const key = this.getPositionKeyFromWrite(pos);
+    if (!key) return false;
+    const existing = this.positionRegistry.get(key);
+    if (!existing) return true;
+    const xChanged =
+      pos.x !== undefined &&
+      this.normalizeCoord(pos.x) !== this.normalizeCoord(existing.x);
+    const yChanged =
+      pos.y !== undefined &&
+      this.normalizeCoord(pos.y) !== this.normalizeCoord(existing.y);
+    const metaChanged = this.isMetaSizeChanged(pos.meta, existing.meta);
+    return xChanged || yChanged || metaChanged;
+  }
+
+  private mergePositionUpdates(changes: CanvasPositionWriteDTO[]): void {
+    if (changes.length === 0) return;
+    changes.forEach((pos) => {
+      const key = this.getPositionKeyFromWrite(pos);
+      if (!key) return;
+      const existing = this.positionRegistry.get(key);
+      if (!existing && (pos.x === undefined || pos.y === undefined)) {
+        return;
+      }
+      const nextX =
+        pos.x !== undefined
+          ? this.normalizeCoord(pos.x)
+          : existing?.x ?? 0;
+      const nextY =
+        pos.y !== undefined
+          ? this.normalizeCoord(pos.y)
+          : existing?.y ?? 0;
+      this.positionRegistry.set(key, {
+        id: existing?.id,
+        canvas: existing?.canvas ?? this.canvasId ?? undefined,
+        element_type: pos.element_type,
+        element_uuid: pos.element_uuid,
+        x: nextX,
+        y: nextY,
+        meta: pos.meta ?? existing?.meta ?? null,
+      });
+      this.positionDirtyKeys.delete(key);
+    });
+  }
+
   private updatePositionRegistry(layout: CanvasPositionReadDTO[]): void {
     this.positionRegistry.clear();
+    this.positionDirtyKeys.clear();
     layout.forEach((pos) => {
       const key = this.getPositionKeyFromDto(pos);
       if (!key || !pos.id) return;
-      this.positionRegistry.set(key, pos);
+      this.positionRegistry.set(key, {
+        ...pos,
+        x: this.normalizeCoord(pos.x),
+        y: this.normalizeCoord(pos.y),
+        meta: this.normalizeMetaSize(pos.meta),
+      });
     });
   }
 
@@ -1028,6 +1131,7 @@ export class CanvasDataService {
     Array.from(this.positionRegistry.entries()).forEach(([key, pos]) => {
       if (pos.id && idSet.has(pos.id)) {
         this.positionRegistry.delete(key);
+        this.positionDirtyKeys.delete(key);
       }
     });
   }
@@ -1165,12 +1269,98 @@ export class CanvasDataService {
     return this.buildPositionKey(type, `uuid:${element.uuid}`);
   }
 
+  private getPositionKeyFromWrite(pos: CanvasPositionWriteDTO): string | null {
+    if (!pos.element_type || !pos.element_uuid) return null;
+    return this.buildPositionKey(pos.element_type, `uuid:${pos.element_uuid}`);
+  }
+
   private getPositionKeyFromDto(pos: CanvasPositionReadDTO): string | null {
     const type = pos.element_type;
     if (!type) return null;
     const uuid = pos.element_uuid;
     if (!uuid) return null;
     return this.buildPositionKey(type, `uuid:${uuid}`);
+  }
+
+  private normalizeCoord(value: number): number {
+    const factor = 10 ** this.positionPrecision;
+    return Math.round(value * factor) / factor;
+  }
+
+  private normalizePositionChanges(
+    changes: CanvasPositionWriteDTO[]
+  ): CanvasPositionWriteDTO[] {
+    return changes.map((pos) => ({
+      ...pos,
+      x: pos.x !== undefined ? this.normalizeCoord(pos.x) : pos.x,
+      y: pos.y !== undefined ? this.normalizeCoord(pos.y) : pos.y,
+      meta: this.normalizeMetaSize(pos.meta),
+    }));
+  }
+
+  private normalizeMetaSize(
+    meta: Record<string, any> | null | undefined
+  ): Record<string, any> | null | undefined {
+    if (!meta) return meta;
+    let changed = false;
+    const next = { ...meta };
+    (['width', 'height', 'w', 'h'] as const).forEach((key) => {
+      const value = meta[key];
+      if (typeof value !== 'number') return;
+      const normalized = this.normalizeCoord(value);
+      if (normalized !== value) {
+        changed = true;
+      }
+      next[key] = normalized;
+    });
+    return changed ? next : meta;
+  }
+
+  private isMetaSizeChanged(
+    meta: Record<string, any> | null | undefined,
+    existingMeta: Record<string, any> | null | undefined
+  ): boolean {
+    if (meta === undefined) return false;
+    const next = this.getMetaSize(meta);
+    if (!next) return false;
+    const prev = this.getMetaSize(existingMeta);
+    if (next.width !== undefined) {
+      if (prev?.width === undefined) return true;
+      if (
+        this.normalizeCoord(next.width) !== this.normalizeCoord(prev.width)
+      ) {
+        return true;
+      }
+    }
+    if (next.height !== undefined) {
+      if (prev?.height === undefined) return true;
+      if (
+        this.normalizeCoord(next.height) !== this.normalizeCoord(prev.height)
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private getMetaSize(
+    meta: Record<string, any> | null | undefined
+  ): { width?: number; height?: number } | null {
+    if (!meta) return null;
+    const width =
+      typeof meta.width === 'number'
+        ? meta.width
+        : typeof meta.w === 'number'
+          ? meta.w
+          : undefined;
+    const height =
+      typeof meta.height === 'number'
+        ? meta.height
+        : typeof meta.h === 'number'
+          ? meta.h
+          : undefined;
+    if (width === undefined && height === undefined) return null;
+    return { width, height };
   }
 
   private buildPositionKey(type: string, key: string): string {
@@ -1201,6 +1391,7 @@ export class CanvasDataService {
     const key = this.getPositionKeyForElement(element);
     if (key) {
       this.positionRegistry.delete(key);
+      this.positionDirtyKeys.delete(key);
     }
   }
 

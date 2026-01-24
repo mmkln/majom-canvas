@@ -1,6 +1,8 @@
 // src/core/commands/ResizeCommand.ts
 import { Command } from './Command.ts';
 import { Scene } from '../scene/Scene.ts';
+import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
+import type { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
 
 /**
  * Command to resize elements: supports undo/redo of size and position changes.
@@ -32,11 +34,13 @@ export class ResizeCommand extends Command {
 
   public execute(): void {
     this.apply(this.final);
+    this.notifyPositionsDirty(this.final.keys());
     this.scene.changes.next();
   }
 
   public undo(): void {
     this.apply(this.initial);
+    this.notifyPositionsDirty(this.initial.keys());
     this.scene.changes.next();
   }
 
@@ -52,5 +56,20 @@ export class ResizeCommand extends Command {
         el.height = val.height;
       }
     });
+  }
+
+  private notifyPositionsDirty(ids: Iterable<string>): void {
+    if (typeof window === 'undefined') return;
+    const elements = Array.from(ids)
+      .map((id) => this.scene.getElements().find((e) => e.id === id))
+      .filter(
+        (el): el is IPlanningElement => Boolean(el) && isPlanningElement(el)
+      );
+    if (elements.length === 0) return;
+    window.dispatchEvent(
+      new CustomEvent('canvasPositionsDirty', {
+        detail: { elements },
+      })
+    );
   }
 }
