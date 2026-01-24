@@ -1,4 +1,13 @@
-export type IconName = 'edit' | 'copy' | 'add-related' | 'align' | 'delete';
+export type IconName =
+  | 'edit'
+  | 'copy'
+  | 'add-related'
+  | 'align'
+  | 'delete'
+  | 'status-done'
+  | 'status-in-progress'
+  | 'status-pending'
+  | 'status-defined';
 
 export type IconOptions = {
   size?: number;
@@ -54,6 +63,33 @@ export function createIcon(
     return svg;
   }
 
+  if (name === 'status-done') {
+    svg.appendChild(makeCircle(12, 12, 9));
+    svg.appendChild(makePath('M8 12.5l2.5 2.5 5-5'));
+    return svg;
+  }
+
+  if (name === 'status-in-progress') {
+    svg.appendChild(makeCircle(12, 12, 9));
+    const play = makePath('M10 8l6 4-6 4z');
+    play.setAttribute('fill', 'currentColor');
+    play.setAttribute('stroke', 'none');
+    svg.appendChild(play);
+    return svg;
+  }
+
+  if (name === 'status-pending') {
+    svg.appendChild(makeCircle(12, 12, 9));
+    svg.appendChild(makePath('M12 7v5l3 2'));
+    return svg;
+  }
+
+  if (name === 'status-defined') {
+    svg.appendChild(makeCircle(12, 12, 8));
+    svg.appendChild(makeCircle(12, 12, 2, true));
+    return svg;
+  }
+
   svg.appendChild(makePath('M3 6h18'));
   svg.appendChild(makePath('M8 6V4h8v2'));
   svg.appendChild(makeRect(6, 6, 12, 14, 2));
@@ -80,4 +116,21 @@ function makeRect(
   rect.setAttribute('height', height.toString());
   rect.setAttribute('rx', rx.toString());
   return rect;
+}
+
+function makeCircle(
+  cx: number,
+  cy: number,
+  r: number,
+  filled: boolean = false
+): SVGCircleElement {
+  const circle = document.createElementNS(SVG_NS, 'circle');
+  circle.setAttribute('cx', cx.toString());
+  circle.setAttribute('cy', cy.toString());
+  circle.setAttribute('r', r.toString());
+  if (filled) {
+    circle.setAttribute('fill', 'currentColor');
+    circle.setAttribute('stroke', 'none');
+  }
+  return circle;
 }

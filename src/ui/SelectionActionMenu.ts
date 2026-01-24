@@ -21,11 +21,26 @@ import {
 } from '../elements/ElementStatus.ts';
 import { positionFixedElement } from './overlayPosition.ts';
 import { getViewBounds, isRectVisible } from '../core/utils/viewBounds.ts';
+import { SingleSelectGroup } from './components/SingleSelectGroup.ts';
 
 type ActionContext = {
   elements: PlanningElement[];
   primary: PlanningElement;
   isMulti: boolean;
+};
+
+const STATUS_ORDER: ElementStatus[] = [
+  ElementStatus.Defined,
+  ElementStatus.Pending,
+  ElementStatus.InProgress,
+  ElementStatus.Done,
+];
+
+const STATUS_ICON_MAP: Record<ElementStatus, IconName> = {
+  [ElementStatus.Done]: 'status-done',
+  [ElementStatus.InProgress]: 'status-in-progress',
+  [ElementStatus.Pending]: 'status-pending',
+  [ElementStatus.Defined]: 'status-defined',
 };
 
 type ActionNode =
@@ -38,7 +53,7 @@ type ActionNode =
       variant?: 'icon' | 'status';
       isDanger?: boolean;
       isVisible?: (context: ActionContext) => boolean;
-      onClick: () => void;
+      onClick?: () => void;
     }
   | {
       kind: 'divider';
@@ -50,11 +65,7 @@ export class SelectionActionMenu {
   private readonly container: HTMLDivElement;
   private actionNodes: ActionNode[] = [];
   private actionElements: Map<string, HTMLElement> = new Map();
-  private statusControls: {
-    button: HTMLButtonElement;
-    label: HTMLSpanElement;
-    dot: HTMLSpanElement;
-  } | null = null;
+  private statusSelector: SingleSelectGroup<ElementStatus> | null = null;
   private subscriptions: Subscription[] = [];
   private resizeHandler = () => this.update();
   private activeElement: ICanvasElement | null = null;
@@ -128,7 +139,7 @@ export class SelectionActionMenu {
       isMulti: planningSelected.length > 1,
     };
     this.updateActionVisibility(context);
-    this.updateStatusButton(planningSelected);
+    this.updateStatusSelector(planningSelected);
     this.positionUnderBounds(bounds);
     this.show();
   }
@@ -150,7 +161,7 @@ export class SelectionActionMenu {
   private renderActions(): void {
     this.container.innerHTML = '';
     this.actionElements.clear();
-    this.statusControls = null;
+    this.statusSelector = null;
     this.actionNodes.forEach((node) => {
       if (node.kind === 'divider') {
         const divider = document.createElement('div');
@@ -163,16 +174,64 @@ export class SelectionActionMenu {
         return;
       }
       if (node.variant === 'status') {
-        const status = this.createStatusButton(node.onClick);
-        this.statusControls = status;
-        this.actionElements.set(node.id, status.button);
-        this.container.appendChild(status.button);
+        const statusLabels = new Map(
+          ELEMENT_STATUS_OPTIONS.map((option) => [option.value, option.label])
+        );
+        const selector = new SingleSelectGroup<ElementStatus>({
+          options: STATUS_ORDER.map((value) => ({
+            id: value,
+            value,
+            label: statusLabels.get(value) ?? value,
+          })),
+          onSelect: (status) => this.applyStatus(status),
+          collapseMode: 'expand-active',
+          buttonWidth: 32,
+          buttonPadding: '0 8px',
+          renderContent: (option) => {
+            const wrapper = document.createElement('span');
+            wrapper.style.display = 'inline-flex';
+            wrapper.style.alignItems = 'center';
+            wrapper.style.gap = '6px';
+            const icon = createIcon(STATUS_ICON_MAP[option.value], {
+              size: 16,
+              strokeWidth: 2,
+            });
+            icon.setAttribute('aria-hidden', 'true');
+            icon.style.display = 'block';
+            const label = document.createElement('span');
+            label.textContent = option.label;
+            label.setAttribute('data-role', 'label');
+            label.style.fontSize = '12px';
+            label.style.fontWeight = '600';
+            label.style.whiteSpace = 'nowrap';
+            wrapper.appendChild(icon);
+            wrapper.appendChild(label);
+            return wrapper;
+          },
+          applyStyles: ({ option, button, content, active, expanded }) => {
+            const styles = this.getStatusStyles(option.value);
+            content.style.color = styles.text;
+            button.style.background = active ? styles.bg : 'transparent';
+            button.style.borderColor = active ? styles.border : 'transparent';
+            button.style.color = styles.text;
+            button.style.opacity = active ? '1' : '0.7';
+            const label = content.querySelector(
+              '[data-role="label"]'
+            ) as HTMLElement | null;
+            if (label) {
+              label.style.display = !expanded && active ? 'inline' : 'none';
+            }
+          },
+        });
+        this.statusSelector = selector;
+        this.actionElements.set(node.id, selector.element);
+        this.container.appendChild(selector.element);
         return;
       }
       const btn = this.createIconButton(
         node.title,
         node.icon ?? 'copy',
-        node.onClick,
+        node.onClick ?? (() => {}),
         {
           isDanger: node.isDanger,
           iconOptions: node.iconOptions,
@@ -207,7 +266,7 @@ export class SelectionActionMenu {
         id: 'status',
         title: 'Change status',
         variant: 'status',
-        onClick: () => this.handleStatus(),
+        onClick: () => {},
       },
       {
         kind: 'divider',
@@ -363,54 +422,9 @@ export class SelectionActionMenu {
     return btn;
   }
 
-  private createStatusButton(handler: () => void): {
-    button: HTMLButtonElement;
-    label: HTMLSpanElement;
-    dot: HTMLSpanElement;
-  } {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.setAttribute('aria-label', 'Change status');
-    btn.style.display = 'inline-flex';
-    btn.style.alignItems = 'center';
-    btn.style.gap = '6px';
-    btn.style.height = '32px';
-    btn.style.padding = '0 10px';
-    btn.style.borderRadius = '999px';
-    btn.style.border = '1px solid #e5e7eb';
-    btn.style.background = '#f9fafb';
-    btn.style.color = '#374151';
-    btn.style.fontSize = '12px';
-    btn.style.fontWeight = '600';
-    btn.style.cursor = 'pointer';
-
-    const dot = document.createElement('span');
-    dot.style.width = '8px';
-    dot.style.height = '8px';
-    dot.style.borderRadius = '999px';
-    dot.style.background = '#d1d5db';
-    dot.style.display = 'inline-block';
-
-    const label = document.createElement('span');
-    label.textContent = 'Status';
-
-    btn.appendChild(dot);
-    btn.appendChild(label);
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      handler();
-    });
-    return { button: btn, label, dot };
-  }
-
-  private handleStatus(): void {
+  private applyStatus(status: ElementStatus): void {
     if (this.selectedElements.length === 0) return;
-    const bounds = SelectionContext.getSelectionBounds(this.selectedElements);
-    window.dispatchEvent(
-      new CustomEvent('statusPickerRequested', {
-        detail: { elements: this.selectedElements, bounds },
-      })
-    );
+    this.bulkActions.updateStatus(this.selectedElements, status);
   }
 
   private handleEdit(): void {
@@ -490,26 +504,10 @@ export class SelectionActionMenu {
     this.bulkActions.removeFromCanvas(this.selectedElements);
   }
 
-  private updateStatusButton(elements: PlanningElement[]): void {
-    if (!this.statusControls || elements.length === 0) return;
+  private updateStatusSelector(elements: PlanningElement[]): void {
+    if (!this.statusSelector || elements.length === 0) return;
     const status = SelectionContext.getMixedStatus(elements);
-    if (!status) {
-      this.statusControls.label.textContent = 'Mixed';
-      this.statusControls.button.style.background = '#f3f4f6';
-      this.statusControls.button.style.borderColor = '#e5e7eb';
-      this.statusControls.button.style.color = '#6b7280';
-      this.statusControls.dot.style.background = '#9ca3af';
-      return;
-    }
-    const label =
-      ELEMENT_STATUS_OPTIONS.find((option) => option.value === status)?.label ??
-      'Status';
-    const { bg, border, text } = this.getStatusStyles(status);
-    this.statusControls.label.textContent = label;
-    this.statusControls.button.style.background = bg;
-    this.statusControls.button.style.borderColor = border;
-    this.statusControls.button.style.color = text;
-    this.statusControls.dot.style.background = text;
+    this.statusSelector.setActive(status ?? null);
   }
 
   private getStatusStyles(status: ElementStatus): {
@@ -526,7 +524,7 @@ export class SelectionActionMenu {
         return { bg: '#dcfce7', border: '#86efac', text: '#15803d' };
       case ElementStatus.Defined:
       default:
-        return { bg: '#f3f4f6', border: '#e5e7eb', text: '#4b5563' };
+        return { bg: '#ecfeff', border: '#67e8f9', text: '#0e7490' };
     }
   }
 }

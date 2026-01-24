@@ -14,6 +14,11 @@ import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
 import { StoryLayoutService } from '../core/services/StoryLayoutService.ts';
 import { positionFixedElement } from './overlayPosition.ts';
+import { BulkActionsController } from '../core/services/BulkActionsController.ts';
+import {
+  ElementStatus,
+  ELEMENT_STATUS_OPTIONS,
+} from '../elements/ElementStatus.ts';
 
 type ContextMenuDetail = {
   element: ICanvasElement | null;
@@ -43,12 +48,14 @@ export class ContextMenu {
   private confirmState: { key: string; expiresAt: number } | null = null;
   private lastDetail: ContextMenuDetail | null = null;
   private layoutService = new StoryLayoutService();
+  private bulkActions: BulkActionsController;
   private readonly confirmTimeoutMs = 4000;
 
   constructor(
     private scene: Scene,
     private canvasManager: CanvasManager
   ) {
+    this.bulkActions = new BulkActionsController(scene);
     this.menu = document.createElement('div');
     this.menu.className =
       'fixed z-50 min-w-[180px] rounded-md border border-gray-200 bg-white shadow-lg text-sm text-gray-800';
@@ -237,6 +244,26 @@ export class ContextMenu {
     }
 
     if (isPlanningElement) {
+      const planningElement = element as TaskElement | StoryElement | GoalElement;
+      const statusLabels = new Map(
+        ELEMENT_STATUS_OPTIONS.map((option) => [option.value, option.label])
+      );
+      const statusOrder: ElementStatus[] = [
+        ElementStatus.Done,
+        ElementStatus.InProgress,
+        ElementStatus.Pending,
+        ElementStatus.Defined,
+      ];
+      sections.push({
+        title: 'Set status',
+        items: statusOrder.map((status) => ({
+          label: statusLabels.get(status) ?? status,
+          action: () => {
+            if (planningElement.status === status) return;
+            this.bulkActions.updateStatus([planningElement], status);
+          },
+        })),
+      });
       sections.push({
         items: [
           {
@@ -299,9 +326,9 @@ export class ContextMenu {
             : item.tone === 'warning'
               ? `${baseClasses} ${warningClasses}`
               : baseClasses;
-        btn.textContent = item.label;
+        btn.textContent = item.label ?? '';
         btn.addEventListener('click', () => {
-          const result = item.action();
+          const result = item.action ? item.action() : undefined;
           if (result === 'keep-open') {
             this.render();
             return;
