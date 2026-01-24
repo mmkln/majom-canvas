@@ -64,29 +64,31 @@ export function createIcon(
   }
 
   if (name === 'status-done') {
-    svg.appendChild(makeCircle(12, 12, 9));
-    svg.appendChild(makePath('M8 12.5l2.5 2.5 5-5'));
+    svg.appendChild(makePath('m4.5 12.75 6 6 9-13.5'));
     return svg;
   }
 
   if (name === 'status-in-progress') {
-    svg.appendChild(makeCircle(12, 12, 9));
-    const play = makePath('M10 8l6 4-6 4z');
-    play.setAttribute('fill', 'currentColor');
-    play.setAttribute('stroke', 'none');
-    svg.appendChild(play);
+    svg.appendChild(
+      makePath(
+        'M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99'
+      )
+    );
     return svg;
   }
 
   if (name === 'status-pending') {
-    svg.appendChild(makeCircle(12, 12, 9));
-    svg.appendChild(makePath('M12 7v5l3 2'));
+    svg.appendChild(makePath('M12 4.5h8l-8 9h8'));
+    svg.appendChild(makePath('M4 10.5h7.5l-7.5 9h7.5'));
     return svg;
   }
 
   if (name === 'status-defined') {
-    svg.appendChild(makeCircle(12, 12, 8));
-    svg.appendChild(makeCircle(12, 12, 2, true));
+    svg.appendChild(
+      makePath(
+        'M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z'
+      )
+    );
     return svg;
   }
 

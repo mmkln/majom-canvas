@@ -194,7 +194,7 @@ export class SelectionActionMenu {
             wrapper.style.gap = '6px';
             const icon = createIcon(STATUS_ICON_MAP[option.value], {
               size: 16,
-              strokeWidth: 2,
+              strokeWidth: 1.5,
             });
             icon.setAttribute('aria-hidden', 'true');
             icon.style.display = 'block';
@@ -524,7 +524,7 @@ export class SelectionActionMenu {
         return { bg: '#dcfce7', border: '#86efac', text: '#15803d' };
       case ElementStatus.Defined:
       default:
-        return { bg: '#ecfeff', border: '#67e8f9', text: '#0e7490' };
+        return { bg: '#f5f3ff', border: '#c4b5fd', text: '#6b5b95' };
     }
   }
 }
