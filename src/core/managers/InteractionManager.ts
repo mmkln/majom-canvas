@@ -76,6 +76,20 @@ export class InteractionManager {
     this.scene.changes.next();
   }
 
+  private notifyInteractionStart(kind: 'drag' | 'resize'): void {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(
+      new CustomEvent('canvasInteractionStart', { detail: { kind } })
+    );
+  }
+
+  private notifyInteractionEnd(kind: 'drag' | 'resize'): void {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(
+      new CustomEvent('canvasInteractionEnd', { detail: { kind } })
+    );
+  }
+
   /**
    * Return the active region-select rect (scene coords) or null
    */
@@ -162,6 +176,7 @@ export class InteractionManager {
         this.initialWidth = el.width;
         this.initialHeight = el.height;
         this.updateSelectionOnClick(el, e.shiftKey);
+        this.notifyInteractionStart('resize');
         return true;
       }
     }
@@ -210,6 +225,7 @@ export class InteractionManager {
       this.dragOffsetX = sceneX - (clickedItem as any).x;
       this.dragOffsetY = sceneY - (clickedItem as any).y;
       if (clickedItem.onDragStart) clickedItem.onDragStart();
+      this.notifyInteractionStart('drag');
       return true;
     }
     // start group drag when clicking inside bounding box of multi-selected elements
@@ -246,6 +262,7 @@ export class InteractionManager {
         );
         this.groupDragStartX = sceneX;
         this.groupDragStartY = sceneY;
+        this.notifyInteractionStart('drag');
         return true;
       }
     }
@@ -526,6 +543,7 @@ export class InteractionManager {
       this.initialPositions.clear();
       this.draggingGroup = null;
       this.scene.changes.next();
+      this.notifyInteractionEnd('drag');
       return;
     }
 
@@ -578,6 +596,7 @@ export class InteractionManager {
       this.initialPositions.clear();
       this.draggingItem = null;
       this.scene.changes.next();
+      this.notifyInteractionEnd('drag');
     }
     // finish resize
     if (this.resizingElement) {
@@ -614,6 +633,7 @@ export class InteractionManager {
         .filter((el): el is StoryElement => el instanceof StoryElement)
         .forEach((s) => (s.hoveredResizeHandle = null));
       this.scene.changes.next();
+      this.notifyInteractionEnd('resize');
       return;
     }
   }
@@ -662,6 +682,14 @@ export class InteractionManager {
    */
   public get isDraggingTask(): boolean {
     return this.draggingItem instanceof TaskElement;
+  }
+
+  public get isDraggingElements(): boolean {
+    return this.draggingItem !== null || this.draggingGroup !== null;
+  }
+
+  public get isResizingStory(): boolean {
+    return this.resizingElement !== null;
   }
 
   private findTopElementAt(

@@ -67,7 +67,26 @@ export class SelectionActionMenu {
   private actionElements: Map<string, HTMLElement> = new Map();
   private statusSelector: SingleSelectGroup<ElementStatus> | null = null;
   private subscriptions: Subscription[] = [];
-  private resizeHandler = () => this.update();
+  private suspendUpdates = false;
+  private activeInteractions = new Set<'drag' | 'resize'>();
+  private resizeHandler = () => this.requestUpdate();
+  private interactionStartHandler = (event: Event): void => {
+    const detail = (event as CustomEvent<{ kind?: 'drag' | 'resize' }>).detail;
+    const kind = detail?.kind;
+    if (!kind) return;
+    this.activeInteractions.add(kind);
+    this.suspendUpdates = true;
+    this.hide();
+  };
+  private interactionEndHandler = (event: Event): void => {
+    const detail = (event as CustomEvent<{ kind?: 'drag' | 'resize' }>).detail;
+    const kind = detail?.kind;
+    if (!kind) return;
+    this.activeInteractions.delete(kind);
+    if (this.activeInteractions.size > 0) return;
+    this.suspendUpdates = false;
+    this.update();
+  };
   private activeElement: ICanvasElement | null = null;
   private selectedElements: PlanningElement[] = [];
   private layoutService = new StoryLayoutService();
@@ -97,24 +116,53 @@ export class SelectionActionMenu {
 
   public mount(parent: HTMLElement = document.body): void {
     parent.appendChild(this.container);
-    this.subscriptions.push(this.scene.changes.subscribe(() => this.update()));
+    this.subscriptions.push(
+      this.scene.changes.subscribe(() => this.requestUpdate())
+    );
     this.subscriptions.push(
       this.canvasManager
         .getPanZoomManager()
-        .viewChanges.subscribe(() => this.update())
+        .viewChanges.subscribe(() => this.requestUpdate())
     );
     window.addEventListener('resize', this.resizeHandler);
-    this.update();
+    window.addEventListener(
+      'canvasInteractionStart',
+      this.interactionStartHandler
+    );
+    window.addEventListener(
+      'canvasInteractionEnd',
+      this.interactionEndHandler
+    );
+    this.requestUpdate();
   }
 
   public unmount(): void {
     this.subscriptions.forEach((sub) => sub.unsubscribe());
     this.subscriptions = [];
     window.removeEventListener('resize', this.resizeHandler);
+    window.removeEventListener(
+      'canvasInteractionStart',
+      this.interactionStartHandler
+    );
+    window.removeEventListener(
+      'canvasInteractionEnd',
+      this.interactionEndHandler
+    );
     this.container.remove();
   }
 
+  private requestUpdate(): void {
+    if (this.suspendUpdates) {
+      return;
+    }
+    this.update();
+  }
+
   private update(): void {
+    if (this.canvasManager.isDraggingElements || this.canvasManager.isResizingStory) {
+      this.hide();
+      return;
+    }
     const selected = this.scene.getSelectedElements();
     if (selected.length === 0) {
       this.hide();
@@ -140,8 +188,8 @@ export class SelectionActionMenu {
     };
     this.updateActionVisibility(context);
     this.updateStatusSelector(planningSelected);
-    this.positionUnderBounds(bounds);
     this.show();
+    this.positionUnderBounds(bounds);
   }
 
   private show(): void {

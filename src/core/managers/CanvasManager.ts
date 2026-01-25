@@ -631,6 +631,28 @@ export class CanvasManager {
     return this.interactionManager;
   }
 
+  public get isDraggingElements(): boolean {
+    return this.interactionManager.isDraggingElements;
+  }
+
+  public get isResizingStory(): boolean {
+    return this.interactionManager.isResizingStory || this.pinchElement !== null;
+  }
+
+  private notifyInteractionStart(kind: 'drag' | 'resize'): void {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(
+      new CustomEvent('canvasInteractionStart', { detail: { kind } })
+    );
+  }
+
+  private notifyInteractionEnd(kind: 'drag' | 'resize'): void {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(
+      new CustomEvent('canvasInteractionEnd', { detail: { kind } })
+    );
+  }
+
   private startRightPan(mouseX: number, mouseY: number): void {
     this.isRightPanning = true;
     this.rightPanActive = false;
@@ -711,6 +733,7 @@ export class CanvasManager {
           x: (midX + this.panZoom.scrollX) / this.panZoom.scale,
           y: (midY + this.panZoom.scrollY) / this.panZoom.scale,
         };
+        this.notifyInteractionStart('resize');
       } else {
         // pinch-to-zoom
         this.pinchZoomInitialDist = dist;
@@ -791,6 +814,7 @@ export class CanvasManager {
   private onPointerUp(e: PointerEvent): void {
     const pinchElement = this.pinchElement;
     const pinchInitialRect = this.pinchInitialRect;
+    const hadPinchResize = this.pinchElement !== null;
     if (pinchElement && pinchInitialRect) {
       if (this.hasPinchChange(pinchElement, pinchInitialRect)) {
         this.notifyPositionsDirty([pinchElement]);
@@ -806,6 +830,9 @@ export class CanvasManager {
     this.pinchZoomInitialScale = 1;
     this.pinchZoomCenterScene = null;
     this.onMouseUp(e as unknown as MouseEvent);
+    if (hadPinchResize) {
+      this.notifyInteractionEnd('resize');
+    }
     this.canvas.releasePointerCapture(e.pointerId);
     // on mobile, treat tap as edit-modal open
     if (e.pointerType === 'touch') {
