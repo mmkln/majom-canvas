@@ -514,7 +514,7 @@ export class GoalElement extends PlanningElement {
   private static closestScaleForFactor(factor: number): GoalScale {
     let best: GoalScale = DEFAULT_GOAL_SCALE;
     let bestDiff = Infinity;
-    (Object.keys(GOAL_SCALE_FACTORS) as Array<keyof typeof GOAL_SCALE_FACTORS>)
+    Object.keys(GOAL_SCALE_FACTORS)
       .map((key) => Number(key) as GoalScale)
       .forEach((scale) => {
         const diff = Math.abs(GOAL_SCALE_FACTORS[scale] - factor);
