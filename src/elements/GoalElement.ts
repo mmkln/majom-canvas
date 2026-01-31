@@ -19,9 +19,9 @@ export type GoalScale = 1 | 2 | 3;
 
 const DEFAULT_GOAL_SCALE: GoalScale = 1;
 const GOAL_SCALE_FACTORS: Record<GoalScale, number> = {
-  1: 0.8,
+  1: 0.7,
   2: 1,
-  3: 1.2,
+  3: 1.4,
 };
 
 export class GoalElement extends PlanningElement {
