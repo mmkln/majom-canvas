@@ -351,7 +351,9 @@ export class App {
       const meta =
         el instanceof StoryElement
           ? { width: el.width, height: el.height }
-          : undefined;
+          : el instanceof GoalElement
+            ? { goalScale: el.scale }
+            : undefined;
       positions.push({
         element_type: elementType,
         element_uuid: elementUuid,

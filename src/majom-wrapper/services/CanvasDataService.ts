@@ -1052,7 +1052,12 @@ export class CanvasDataService {
       pos.y !== undefined &&
       this.normalizeCoord(pos.y) !== this.normalizeCoord(existing.y);
     const metaChanged = this.isMetaSizeChanged(pos.meta, existing.meta);
-    return xChanged || yChanged || metaChanged;
+    const metaScaleChanged = this.isMetaValueChanged(
+      pos.meta,
+      existing.meta,
+      'goalScale'
+    );
+    return xChanged || yChanged || metaChanged || metaScaleChanged;
   }
 
   private mergePositionUpdates(changes: CanvasPositionWriteDTO[]): void {
@@ -1341,6 +1346,18 @@ export class CanvasDataService {
       }
     }
     return false;
+  }
+
+  private isMetaValueChanged(
+    meta: Record<string, any> | null | undefined,
+    existingMeta: Record<string, any> | null | undefined,
+    key: string
+  ): boolean {
+    if (meta === undefined) return false;
+    const next = meta ? meta[key] : undefined;
+    if (next === undefined) return false;
+    const prev = existingMeta ? existingMeta[key] : undefined;
+    return next !== prev;
   }
 
   private getMetaSize(

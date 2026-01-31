@@ -11,7 +11,7 @@ export interface CanvasPositionReadDTO {
   x: number;
   /** Y coordinate on canvas */
   y: number;
-  /** Optional metadata (size, color, grouping, etc.) */
+  /** Optional metadata (size, color, grouping, goalScale, etc.) */
   meta?: Record<string, any> | null;
 }
 
@@ -26,6 +26,6 @@ export interface CanvasPositionWriteDTO {
   x?: number;
   /** Y coordinate on canvas */
   y?: number;
-  /** Optional metadata (size, color, grouping, etc.) */
+  /** Optional metadata (size, color, grouping, goalScale, etc.) */
   meta?: Record<string, any> | null;
 }

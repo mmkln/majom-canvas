@@ -1,6 +1,6 @@
 import { TaskElement } from '../../elements/TaskElement.ts';
 import { StoryElement } from '../../elements/StoryElement.ts';
-import { GoalElement } from '../../elements/GoalElement.ts';
+import { GoalElement, GoalScale } from '../../elements/GoalElement.ts';
 import { Scene } from '../../core/scene/Scene.ts';
 import { ComponentFactory } from '../../ui-lib/src/core/ComponentFactory.ts';
 import { createModalShell } from '../../ui-lib/src/components/Modal.js';
@@ -33,10 +33,16 @@ export class EditElementModal {
     const originalDescription = this.element.description;
     const originalStatus: ElementStatus = this.element.status;
     const originalPriority = this.element.priority;
+    const goalElement = this.element instanceof GoalElement
+      ? this.element
+      : null;
+    const isGoal = goalElement !== null;
+    const originalScale: GoalScale | null = goalElement ? goalElement.scale : null;
     let tempTitle = originalTitle;
     let tempDescription = originalDescription;
     let tempStatus: ElementStatus = originalStatus;
     let tempPriority = originalPriority;
+    let tempScale: GoalScale = originalScale ?? 1;
 
     // Title input with label
     const titleDiv = document.createElement('div');
@@ -116,6 +122,29 @@ export class EditElementModal {
     prioritySelect.render(priorityDiv);
     container.appendChild(priorityDiv);
 
+    if (isGoal) {
+      const scaleDiv = document.createElement('div');
+      scaleDiv.className = 'mb-4';
+      const scaleLabelEl = document.createElement('label');
+      scaleLabelEl.className = 'block text-sm font-medium text-gray-700';
+      scaleLabelEl.textContent = 'Масштаб';
+      scaleDiv.appendChild(scaleLabelEl);
+      const scaleSelect = ComponentFactory.createSelect({
+        items: [
+          { value: '1', label: 'Малий' },
+          { value: '2', label: 'Середній' },
+          { value: '3', label: 'Великий' },
+        ],
+        selectedValue: tempScale.toString(),
+        onChange: (v: string) => {
+          tempScale = Number(v) as GoalScale;
+        },
+        className: 'w-full',
+      });
+      scaleSelect.render(scaleDiv);
+      container.appendChild(scaleDiv);
+    }
+
     // Save function
     const saveAndClose = () => {
       const patch: Partial<{
@@ -134,11 +163,25 @@ export class EditElementModal {
       this.element.description = tempDescription;
       this.element.status = tempStatus;
       this.element.priority = tempPriority;
+      let scaleChanged = false;
+      if (this.element instanceof GoalElement) {
+        if (originalScale !== tempScale) {
+          this.element.setScale(tempScale);
+          scaleChanged = true;
+        }
+      }
       this.scene.changes.next();
       if (Object.keys(patch).length > 0) {
         window.dispatchEvent(
           new CustomEvent('elementDetailsEdited', {
             detail: { element: this.element, patch },
+          })
+        );
+      }
+      if (scaleChanged) {
+        window.dispatchEvent(
+          new CustomEvent('canvasPositionsDirty', {
+            detail: { elements: [this.element] },
           })
         );
       }

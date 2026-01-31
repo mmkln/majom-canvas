@@ -15,15 +15,26 @@ import { ElementStatus } from './ElementStatus.ts';
 import { TextRenderer } from '../utils/TextRenderer.ts';
 import { drawStatusAnimationHex } from './utils/statusAnimations.ts';
 
+export type GoalScale = 1 | 2 | 3;
+
+const DEFAULT_GOAL_SCALE: GoalScale = 1;
+const GOAL_SCALE_FACTORS: Record<GoalScale, number> = {
+  1: 0.8,
+  2: 1,
+  3: 1.2,
+};
+
 export class GoalElement extends PlanningElement {
   links: string[] = [];
   progress: number = 0;
   public status: ElementStatus = ElementStatus.Defined;
   public priority: 'low' | 'medium' | 'high' = 'medium';
+  public scale: GoalScale = DEFAULT_GOAL_SCALE;
 
-  static diameter: number = 400;
-  static width: number = GoalElement.diameter;
-  static height: number = GoalElement.diameter;
+  static baseDiameter: number = 400;
+  static width: number =
+    GoalElement.baseDiameter * GOAL_SCALE_FACTORS[DEFAULT_GOAL_SCALE];
+  static height: number = GoalElement.width;
 
   constructor({
     id = v4(),
@@ -34,6 +45,9 @@ export class GoalElement extends PlanningElement {
     priority = 'medium',
     selected = false,
     description = '',
+    scale,
+    width,
+    height,
     backendId,
     uuid,
   }: {
@@ -45,15 +59,21 @@ export class GoalElement extends PlanningElement {
     priority?: 'low' | 'medium' | 'high';
     selected?: boolean;
     description?: string;
+    scale?: number;
+    width?: number;
+    height?: number;
     backendId?: number;
     uuid?: string;
   }) {
+    const normalizedScale = GoalElement.normalizeScale(scale, width, height);
+    const diameter =
+      GoalElement.baseDiameter * GOAL_SCALE_FACTORS[normalizedScale];
     super({
       id,
       x,
       y,
-      width: GoalElement.width,
-      height: GoalElement.height,
+      width: diameter,
+      height: diameter,
       fillColor: goalStyles[status].fillColor,
       lineWidth: 2,
       title,
@@ -65,6 +85,7 @@ export class GoalElement extends PlanningElement {
     this.priority = priority;
     this.selected = selected;
     this.description = description;
+    this.scale = normalizedScale;
   }
 
   draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
@@ -168,6 +189,20 @@ export class GoalElement extends PlanningElement {
     super.drawAnchors(ctx, panZoom);
   }
 
+  public setScale(scale: number): void {
+    const normalized = GoalElement.normalizeScale(scale);
+    if (normalized === this.scale) return;
+    const centerX = this.x + this.width / 2;
+    const centerY = this.y + this.height / 2;
+    const diameter =
+      GoalElement.baseDiameter * GOAL_SCALE_FACTORS[normalized];
+    this.width = diameter;
+    this.height = diameter;
+    this.x = centerX - diameter / 2;
+    this.y = centerY - diameter / 2;
+    this.scale = normalized;
+  }
+
   contains(px: number, py: number): boolean {
     const centerX = this.x + this.width / 2;
     const centerY = this.y + this.height / 2;
@@ -245,6 +280,7 @@ export class GoalElement extends PlanningElement {
       title: this.title,
       status: this.status,
       priority: this.priority,
+      scale: this.scale,
     });
     clone.progress = this.progress;
     clone.links = [...this.links];
@@ -445,5 +481,48 @@ export class GoalElement extends PlanningElement {
       return 'top';
     }
     return 'left';
+  }
+
+  private static normalizeScale(
+    scale?: number,
+    width?: number,
+    height?: number
+  ): GoalScale {
+    if (typeof scale === 'number' && Number.isFinite(scale)) {
+      return GoalElement.clampScale(scale);
+    }
+    const size =
+      typeof width === 'number' && Number.isFinite(width)
+        ? width
+        : typeof height === 'number' && Number.isFinite(height)
+          ? height
+          : undefined;
+    if (typeof size === 'number' && size > 0) {
+      const factor = size / GoalElement.baseDiameter;
+      return GoalElement.closestScaleForFactor(factor);
+    }
+    return DEFAULT_GOAL_SCALE;
+  }
+
+  private static clampScale(value: number): GoalScale {
+    const rounded = Math.round(value);
+    if (rounded <= 1) return 1;
+    if (rounded >= 3) return 3;
+    return rounded as GoalScale;
+  }
+
+  private static closestScaleForFactor(factor: number): GoalScale {
+    let best: GoalScale = DEFAULT_GOAL_SCALE;
+    let bestDiff = Infinity;
+    (Object.keys(GOAL_SCALE_FACTORS) as Array<keyof typeof GOAL_SCALE_FACTORS>)
+      .map((key) => Number(key) as GoalScale)
+      .forEach((scale) => {
+        const diff = Math.abs(GOAL_SCALE_FACTORS[scale] - factor);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          best = scale;
+        }
+      });
+    return best;
   }
 }
