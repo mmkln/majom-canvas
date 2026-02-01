@@ -45,9 +45,17 @@ export class InteractionManager {
   private draggingGroup: ICanvasElement[] | null = null;
   private groupDragStartX: number = 0;
   private groupDragStartY: number = 0;
+  private pendingDragItem: (ICanvasElement & IDraggable) | null = null;
+  private pendingDragGroup: ICanvasElement[] | null = null;
+  private pendingDragStartX: number = 0;
+  private pendingDragStartY: number = 0;
+  private pendingDragOffsetX: number = 0;
+  private pendingDragOffsetY: number = 0;
+  private pendingDragClickTarget: ICanvasElement | null = null;
   private rightClickTarget: ICanvasElement | null = null;
   private rightClickSceneX: number = 0;
   private rightClickSceneY: number = 0;
+  private readonly dragStartThresholdPx: number = 4;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -145,6 +153,19 @@ export class InteractionManager {
     }
   }
 
+  private shouldStartDrag(sceneX: number, sceneY: number): boolean {
+    const dx = sceneX - this.pendingDragStartX;
+    const dy = sceneY - this.pendingDragStartY;
+    const threshold = this.dragStartThresholdPx / this.panZoom.scale;
+    return dx * dx + dy * dy >= threshold * threshold;
+  }
+
+  private clearPendingDrag(): void {
+    this.pendingDragItem = null;
+    this.pendingDragGroup = null;
+    this.pendingDragClickTarget = null;
+  }
+
   handleMouseDown(e: MouseEvent, sceneX: number, sceneY: number): boolean {
     if (e.button === 2) {
       this.rightClickTarget = this.findTopElementAt(sceneX, sceneY);
@@ -208,24 +229,35 @@ export class InteractionManager {
       return true;
     }
     if (clickedItem) {
+      const selectedBeforeClick = this.scene.getSelectedElements();
+      const clickedAlreadySelected = selectedBeforeClick.some(
+        (el) => el.id === clickedItem.id
+      );
+      const shouldDragSelectionGroup =
+        clickedAlreadySelected &&
+        selectedBeforeClick.length > 1 &&
+        !e.shiftKey;
+
+      if (shouldDragSelectionGroup) {
+        this.pendingDragGroup = SelectionService.getDragGroup(
+          selectedBeforeClick
+        );
+        this.pendingDragStartX = sceneX;
+        this.pendingDragStartY = sceneY;
+        this.pendingDragClickTarget = clickedItem;
+        return true;
+      }
+
       if (isPlanningElement(clickedItem)) {
         console.log('Canvas element clicked', { id: (clickedItem as any).id });
       }
       this.updateSelectionOnClick(clickedItem, e.shiftKey);
-      const selected = this.scene.getSelectedElements();
-      const dragGroup = SelectionService.getDragGroup(selected);
-      this.initialPositions.clear();
-      dragGroup.forEach((elem) =>
-        this.initialPositions.set(elem.id, {
-          x: (elem as any).x,
-          y: (elem as any).y,
-        })
-      );
-      this.draggingItem = clickedItem;
-      this.dragOffsetX = sceneX - (clickedItem as any).x;
-      this.dragOffsetY = sceneY - (clickedItem as any).y;
-      if (clickedItem.onDragStart) clickedItem.onDragStart();
-      this.notifyInteractionStart('drag');
+      this.pendingDragItem = clickedItem;
+      this.pendingDragStartX = sceneX;
+      this.pendingDragStartY = sceneY;
+      this.pendingDragOffsetX = sceneX - (clickedItem as any).x;
+      this.pendingDragOffsetY = sceneY - (clickedItem as any).y;
+      this.pendingDragClickTarget = clickedItem;
       return true;
     }
     // start group drag when clicking inside bounding box of multi-selected elements
@@ -252,17 +284,9 @@ export class InteractionManager {
         sceneY >= minY &&
         sceneY <= maxY
       ) {
-        this.draggingGroup = SelectionService.getDragGroup(selected);
-        this.initialPositions.clear();
-        this.draggingGroup.forEach((el) =>
-          this.initialPositions.set(el.id, {
-            x: (el as any).x,
-            y: (el as any).y,
-          })
-        );
-        this.groupDragStartX = sceneX;
-        this.groupDragStartY = sceneY;
-        this.notifyInteractionStart('drag');
+        this.pendingDragGroup = SelectionService.getDragGroup(selected);
+        this.pendingDragStartX = sceneX;
+        this.pendingDragStartY = sceneY;
         return true;
       }
     }
@@ -362,6 +386,40 @@ export class InteractionManager {
           this.canvas.style.cursor = `${hovered.hoveredResizeHandle}-resize`;
       } else {
         this.canvas.style.cursor = 'default';
+      }
+    }
+
+    // arm drag only after threshold (prevents micro-moves on click)
+    if ((this.pendingDragItem || this.pendingDragGroup) && this.shouldStartDrag(sceneX, sceneY)) {
+      if (this.pendingDragGroup) {
+        this.draggingGroup = this.pendingDragGroup;
+        this.initialPositions.clear();
+        this.draggingGroup.forEach((el) =>
+          this.initialPositions.set(el.id, {
+            x: (el as any).x,
+            y: (el as any).y,
+          })
+        );
+        this.groupDragStartX = this.pendingDragStartX;
+        this.groupDragStartY = this.pendingDragStartY;
+        this.clearPendingDrag();
+        this.notifyInteractionStart('drag');
+      } else if (this.pendingDragItem) {
+        this.draggingItem = this.pendingDragItem;
+        this.dragOffsetX = this.pendingDragOffsetX;
+        this.dragOffsetY = this.pendingDragOffsetY;
+        const selected = this.scene.getSelectedElements();
+        const dragGroup = SelectionService.getDragGroup(selected);
+        this.initialPositions.clear();
+        dragGroup.forEach((elem) =>
+          this.initialPositions.set(elem.id, {
+            x: (elem as any).x,
+            y: (elem as any).y,
+          })
+        );
+        if (this.draggingItem.onDragStart) this.draggingItem.onDragStart();
+        this.clearPendingDrag();
+        this.notifyInteractionStart('drag');
       }
     }
 
@@ -492,6 +550,17 @@ export class InteractionManager {
     if (this.connectionService.isCreating()) {
       this.connectionService.finish();
       return;
+    }
+
+    if (
+      (this.pendingDragItem || this.pendingDragGroup) &&
+      !this.draggingItem &&
+      !this.draggingGroup
+    ) {
+      if (this.pendingDragGroup && this.pendingDragClickTarget) {
+        this.scene.setSelected([this.pendingDragClickTarget]);
+      }
+      this.clearPendingDrag();
     }
 
     // complete region-select
