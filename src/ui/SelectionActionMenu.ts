@@ -69,13 +69,13 @@ export class SelectionActionMenu {
   private statusSelector: SingleSelectGroup<ElementStatus> | null = null;
   private subscriptions: Subscription[] = [];
   private suspendUpdates = false;
-  private activeInteractions = new Set<'drag' | 'resize'>();
+  private activeInteractions = new Set<'drag' | 'resize' | 'select'>();
   private deleteConfirmState: { key: string; expiresAt: number } | null = null;
   private deleteConfirmTimer: number | null = null;
   private readonly confirmTimeoutMs = 4000;
   private resizeHandler = () => this.requestUpdate();
   private interactionStartHandler = (event: Event): void => {
-    const detail = (event as CustomEvent<{ kind?: 'drag' | 'resize' }>).detail;
+    const detail = (event as CustomEvent<{ kind?: 'drag' | 'resize' | 'select' }>).detail;
     const kind = detail?.kind;
     if (!kind) return;
     this.activeInteractions.add(kind);
@@ -83,7 +83,7 @@ export class SelectionActionMenu {
     this.hide();
   };
   private interactionEndHandler = (event: Event): void => {
-    const detail = (event as CustomEvent<{ kind?: 'drag' | 'resize' }>).detail;
+    const detail = (event as CustomEvent<{ kind?: 'drag' | 'resize' | 'select' }>).detail;
     const kind = detail?.kind;
     if (!kind) return;
     this.activeInteractions.delete(kind);

@@ -84,14 +84,14 @@ export class InteractionManager {
     this.scene.changes.next();
   }
 
-  private notifyInteractionStart(kind: 'drag' | 'resize'): void {
+  private notifyInteractionStart(kind: 'drag' | 'resize' | 'select'): void {
     if (typeof window === 'undefined') return;
     window.dispatchEvent(
       new CustomEvent('canvasInteractionStart', { detail: { kind } })
     );
   }
 
-  private notifyInteractionEnd(kind: 'drag' | 'resize'): void {
+  private notifyInteractionEnd(kind: 'drag' | 'resize' | 'select'): void {
     if (typeof window === 'undefined') return;
     window.dispatchEvent(
       new CustomEvent('canvasInteractionEnd', { detail: { kind } })
@@ -331,6 +331,7 @@ export class InteractionManager {
       this.regionCurrentX = sceneX;
       this.regionCurrentY = sceneY;
       this.updateSelectionOnClick(null, false);
+      this.notifyInteractionStart('select');
       return true;
     }
     this.updateSelectionOnClick(null, false);
@@ -627,6 +628,7 @@ export class InteractionManager {
       this.scene.setSelected(inRect);
       this.isRegionSelecting = false;
       this.scene.changes.next();
+      this.notifyInteractionEnd('select');
       return;
     }
 
