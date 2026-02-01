@@ -78,6 +78,7 @@ export class EditElementModal {
       className: 'w-full',
     });
     titleInput.render(titleDiv);
+    const titleInputEl = titleInput.getElement() as HTMLInputElement;
     container.appendChild(titleDiv);
 
     // Description textarea with label
@@ -245,6 +246,9 @@ export class EditElementModal {
       variant: 'default',
     }).render(btnRow);
     container.appendChild(btnRow);
+
+    // Ensure title input receives focus when the modal opens.
+    titleInputEl.focus();
 
     // Keyboard: handle modal shortcuts
     container.addEventListener('keydown', (e) => {
