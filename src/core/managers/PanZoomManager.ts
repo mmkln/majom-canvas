@@ -2,6 +2,14 @@
 import { Subject } from 'rxjs';
 import type { IViewState } from '../interfaces/interfaces.ts';
 
+export type RenderFlags = {
+  showDetails: boolean;
+  showTaskText: boolean;
+  showStoryText: boolean;
+  showGoalText: boolean;
+  showAnim: boolean;
+};
+
 export class PanZoomManager {
   scrollX: number = 0;
   scrollY: number = 0;
@@ -19,6 +27,8 @@ export class PanZoomManager {
     maxX: number;
     maxY: number;
   } | null = null;
+  /** Render feature flags for LOD */
+  renderFlags: RenderFlags | null = null;
 
   /** Emits on any view (scroll/zoom) change */
   public viewChanges: Subject<IViewState> = new Subject<IViewState>();

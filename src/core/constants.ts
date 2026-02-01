@@ -11,3 +11,9 @@ export const REGION_SELECT_FILL = 'rgba(29,78,216,0.2)';
 export const FONT_FAMILY = 'Arial';
 export const TITLE_FONT_SIZE = 14; // px
 export const SMALL_FONT_SIZE = 12; // px
+// Render LOD thresholds (scale values)
+export const SHOW_DETAILS_SCALE = 0.55;
+export const SHOW_TASK_TEXT_SCALE = 0.25;
+export const SHOW_STORY_TEXT_SCALE = 0.15;
+export const SHOW_GOAL_TEXT_SCALE = 0.15;
+export const SHOW_ANIM_SCALE = 0.2;

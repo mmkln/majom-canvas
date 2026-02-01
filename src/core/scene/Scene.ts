@@ -7,6 +7,7 @@ import { IConnection } from '../interfaces/connection.ts';
 
 export class Scene {
   private elements: ICanvasElement[] = [];
+  private elementsVersion = 0;
   private selectedMap: Map<string, ICanvasElement> = new Map<string, ICanvasElement>();
   public changes: Subject<void> = new Subject<void>();
 
@@ -15,6 +16,7 @@ export class Scene {
   // TODO: change to addElements
   public addElement(element: ICanvasElement): void {
     this.elements.push(element);
+    this.elementsVersion += 1;
     if (element.selected) {
       this.selectedMap.set(element.id, element);
     }
@@ -34,11 +36,18 @@ export class Scene {
         // element.selected = false; TODO: check if this is needed or not
       }
     });
+    if (elements.length > 0) {
+      this.elementsVersion += 1;
+    }
     this.changes.next();
   }
 
   public getElements(): ICanvasElement[] {
     return this.elements;
+  }
+
+  public getElementsVersion(): number {
+    return this.elementsVersion;
   }
 
   public getShapes(): IShape[] {
@@ -132,6 +141,7 @@ export class Scene {
   public clear(): void {
     this.elements = [];
     this.selectedMap.clear();
+    this.elementsVersion += 1;
     this.changes.next();
   }
 }

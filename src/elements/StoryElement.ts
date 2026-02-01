@@ -8,6 +8,9 @@ import {
   FONT_FAMILY,
   TITLE_FONT_SIZE,
   SMALL_FONT_SIZE,
+  SHOW_ANIM_SCALE,
+  SHOW_DETAILS_SCALE,
+  SHOW_STORY_TEXT_SCALE,
 } from '../core/constants.ts';
 import { editElement$ } from '../core/eventBus.ts';
 import { storyStyles } from './styles/storyStyles.ts';
@@ -91,6 +94,12 @@ export class StoryElement extends PlanningElement {
    * Draw the story container on canvas
    */
   draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
+    const renderFlags = panZoom.renderFlags;
+    const showDetails =
+      renderFlags?.showDetails ?? panZoom.scale >= SHOW_DETAILS_SCALE;
+    const showText =
+      renderFlags?.showStoryText ?? panZoom.scale >= SHOW_STORY_TEXT_SCALE;
+    const showAnim = renderFlags?.showAnim ?? panZoom.scale >= SHOW_ANIM_SCALE;
     // Apply fill and border based on status
     const style = storyStyles[this.status];
     this.fillColor = style.fillColor;
@@ -106,41 +115,45 @@ export class StoryElement extends PlanningElement {
     ctx.strokeStyle = this.selected ? SELECT_COLOR : style.borderColor;
     ctx.lineWidth = this.lineWidth / panZoom.scale;
     ctx.stroke();
-    drawStatusAnimationRect({
-      status: this.status,
-      ctx,
-      x: this.x,
-      y: this.y,
-      width: this.width,
-      height: this.height,
-      radius,
-      lineWidth: this.lineWidth / panZoom.scale,
-      scale: panZoom.scale,
-      color: style.borderColor,
-      timeMs: panZoom.timeMs,
-      viewBounds: panZoom.viewBounds,
-    });
-    // Title text with word wrapping
-    ctx.fillStyle = '#000000';
-    ctx.font = `bold ${TITLE_FONT_SIZE}px ${FONT_FAMILY}`;
-    // Calculate max width for title, accounting for potential buttons
-    const maxTitleWidth = this.width - 90; // Leave space for buttons on the right
-    const fontSize = 24;
-    const lineHeight = 1.3;
-    TextRenderer.drawWrappedText(
-      ctx,
-      this.title,
-      this.x + 16,
-      this.y + 32,
-      maxTitleWidth,
-      lineHeight,
-      3, // Max 2 lines for Story title
-      fontSize
-    );
+    if (showAnim) {
+      drawStatusAnimationRect({
+        status: this.status,
+        ctx,
+        x: this.x,
+        y: this.y,
+        width: this.width,
+        height: this.height,
+        radius,
+        lineWidth: this.lineWidth / panZoom.scale,
+        scale: panZoom.scale,
+        color: style.borderColor,
+        timeMs: panZoom.timeMs,
+        viewBounds: panZoom.viewBounds,
+      });
+    }
+    if (showText) {
+      // Title text with word wrapping
+      ctx.fillStyle = '#000000';
+      ctx.font = `bold ${TITLE_FONT_SIZE}px ${FONT_FAMILY}`;
+      // Calculate max width for title, accounting for potential buttons
+      const maxTitleWidth = this.width - 90; // Leave space for buttons on the right
+      const fontSize = 24;
+      const lineHeight = 1.3;
+      TextRenderer.drawWrappedText(
+        ctx,
+        this.title,
+        this.x + 16,
+        this.y + 32,
+        maxTitleWidth,
+        lineHeight,
+        3, // Max 2 lines for Story title
+        fontSize
+      );
+    }
     // Draw anchors via base class
     super.drawAnchors(ctx, panZoom);
     // Draw resize handles when selected or hovered
-    if (this.selected || this.isHovered) {
+    if (showDetails && (this.selected || this.isHovered)) {
       this.getResizeHandles(panZoom).forEach((h) => {
         const isHandleHovered = this.hoveredResizeHandle === h.direction;
         const size = StoryElement.HANDLE_SIZE / panZoom.scale;

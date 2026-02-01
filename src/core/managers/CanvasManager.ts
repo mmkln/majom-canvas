@@ -8,6 +8,7 @@ import { KeyboardManager } from './KeyboardManager.ts';
 import { isShape } from '../utils/typeGuards.ts';
 import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
 import type { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
+import type { IShape } from '../interfaces/shape.ts';
 import {
   ConnectionRelationType,
   type IConnection,
@@ -18,6 +19,11 @@ import {
   HOVER_OUTLINE_COLOR,
   REGION_SELECT_BORDER_COLOR,
   REGION_SELECT_FILL,
+  SHOW_DETAILS_SCALE,
+  SHOW_GOAL_TEXT_SCALE,
+  SHOW_STORY_TEXT_SCALE,
+  SHOW_TASK_TEXT_SCALE,
+  SHOW_ANIM_SCALE,
 } from '../constants.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
 import { GoalElement } from '../../elements/GoalElement.ts';
@@ -75,6 +81,9 @@ export class CanvasManager {
   private pinchZoomCenterScene: { x: number; y: number } | null = null;
   private animationFrameId: number | null = null;
   private isAnimationRunning: boolean = false;
+  private drawQueued: boolean = false;
+  private animationTimeMs: number = 0;
+  private lastAnimationFrameMs: number = 0;
   private readonly enablePerfLogging: boolean = CANVAS_PERF_LOG;
   private readonly perfLogIntervalMs: number = 1000;
   private perfStats = {
@@ -84,6 +93,10 @@ export class CanvasManager {
     animatedTotal: 0,
     animatedVisible: 0,
   };
+  private cachedElementsVersion = -1;
+  private cachedShapes: IShape[] = [];
+  private cachedPlanningElements: IPlanningElement[] = [];
+  private cachedPlanningElementsSorted: IPlanningElement[] = [];
 
   constructor(canvas: HTMLCanvasElement, scene: Scene) {
     this.canvas = canvas;
@@ -109,7 +122,7 @@ export class CanvasManager {
     );
     this.keyboardManager = new KeyboardManager(scene, this);
 
-    this.scene.changes.subscribe(() => this.draw());
+    this.scene.changes.subscribe(() => this.requestDraw());
 
     this.canvas.addEventListener('wheel', this.onWheel.bind(this));
     window.addEventListener('resize', this.onResize.bind(this));
@@ -151,13 +164,13 @@ export class CanvasManager {
   }
 
   init(): void {
-    this.draw();
+    this.requestDraw();
   }
 
   resizeCanvas(): void {
     this.canvas.width = window.innerWidth - 2;
     this.canvas.height = window.innerHeight - 2;
-    this.draw();
+    this.requestDraw();
   }
 
   onResize(): void {
@@ -166,7 +179,7 @@ export class CanvasManager {
 
   draw(): void {
     const frameStartMs = performance.now();
-    this.panZoom.timeMs = frameStartMs;
+    this.panZoom.timeMs = this.getAnimationTimeMs(frameStartMs);
     const viewMinX = this.panZoom.scrollX / this.panZoom.scale;
     const viewMinY = this.panZoom.scrollY / this.panZoom.scale;
     const viewMaxX =
@@ -179,6 +192,13 @@ export class CanvasManager {
       maxX: viewMaxX,
       maxY: viewMaxY,
     };
+    this.panZoom.renderFlags = {
+      showDetails: this.panZoom.scale >= SHOW_DETAILS_SCALE,
+      showTaskText: this.panZoom.scale >= SHOW_TASK_TEXT_SCALE,
+      showStoryText: this.panZoom.scale >= SHOW_STORY_TEXT_SCALE,
+      showGoalText: this.panZoom.scale >= SHOW_GOAL_TEXT_SCALE,
+      showAnim: this.panZoom.scale >= SHOW_ANIM_SCALE,
+    };
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.ctx.save();
     this.ctx.translate(-this.panZoom.scrollX, -this.panZoom.scrollY);
@@ -186,11 +206,21 @@ export class CanvasManager {
 
     this.renderer.drawContent();
 
-    const elements = this.scene.getElements();
-    const shapes = this.scene.getShapes();
-    const planningEls = elements.filter(
-      isPlanningElement
-    ) as IPlanningElement[];
+    const elementsVersion = this.scene.getElementsVersion();
+    if (elementsVersion !== this.cachedElementsVersion) {
+      const elements = this.scene.getElements();
+      this.cachedShapes = this.scene.getShapes();
+      this.cachedPlanningElements = elements.filter(
+        isPlanningElement
+      ) as IPlanningElement[];
+      this.cachedPlanningElementsSorted = [...this.cachedPlanningElements].sort(
+        (a, b) => a.zIndex - b.zIndex
+      );
+      this.cachedElementsVersion = elementsVersion;
+    }
+    const shapes = this.cachedShapes;
+    const planningEls = this.cachedPlanningElements;
+    const planningElsSorted = this.cachedPlanningElementsSorted;
     const connectables = [...shapes, ...planningEls];
 
     const connections = this.scene.getConnections();
@@ -215,7 +245,10 @@ export class CanvasManager {
         conn.relationType === ConnectionRelationType.LeadsTo ||
         conn.relationType === ConnectionRelationType.ParentChild
     );
-    this.updateAnimationLoop(hasAnimatedStatus || hasAnimatedConnections);
+    const shouldAnimate =
+      hasAnimatedConnections ||
+      (this.panZoom.renderFlags.showAnim && hasAnimatedStatus);
+    this.updateAnimationLoop(shouldAnimate);
 
     // Update goal links and progress (only track task relations)
     planningEls
@@ -248,9 +281,7 @@ export class CanvasManager {
     shapes.forEach((shape) => shape.draw(this.ctx, this.panZoom));
 
     // draw planning elements in layer order
-    planningEls
-      .sort((a, b) => a.zIndex - b.zIndex)
-      .forEach((el) => el.draw(this.ctx, this.panZoom));
+    planningElsSorted.forEach((el) => el.draw(this.ctx, this.panZoom));
 
     // highlight drop target when dragging connection
     if (this.interactionManager.isCreatingConnection) {
@@ -360,6 +391,16 @@ export class CanvasManager {
     );
   }
 
+  private requestDraw(): void {
+    if (this.isAnimationRunning) return;
+    if (this.drawQueued) return;
+    this.drawQueued = true;
+    requestAnimationFrame(() => {
+      this.drawQueued = false;
+      this.draw();
+    });
+  }
+
   private updatePerfStats(
     frameMs: number,
     animatedTotal: number,
@@ -391,6 +432,19 @@ export class CanvasManager {
     this.perfStats.lastLogMs = now;
     this.perfStats.frameCount = 0;
     this.perfStats.totalDrawMs = 0;
+  }
+
+  private getAnimationTimeMs(now: number): number {
+    if (this.lastAnimationFrameMs === 0) {
+      this.lastAnimationFrameMs = now;
+      this.animationTimeMs = now;
+      return this.animationTimeMs;
+    }
+    const speed = Math.min(1.5, Math.max(0.5, this.panZoom.scale * 1.2));
+    const delta = now - this.lastAnimationFrameMs;
+    this.animationTimeMs += delta * speed;
+    this.lastAnimationFrameMs = now;
+    return this.animationTimeMs;
   }
 
   private startAnimationLoop(): void {
@@ -468,7 +522,7 @@ export class CanvasManager {
     }
 
     if (this.interactionManager.handleMouseDown(e, sceneX, sceneY)) {
-      this.draw();
+      this.requestDraw();
     }
   }
 
@@ -496,7 +550,7 @@ export class CanvasManager {
         this.rightPanStartScrollX - deltaX,
         this.rightPanStartScrollY - deltaY
       );
-      this.draw();
+      this.requestDraw();
       return;
     }
 
@@ -511,7 +565,7 @@ export class CanvasManager {
         Math.min(this.dragStartScrollX + deltaX * scrollRatio, scrollRange)
       );
       this.panZoom.setScroll(nextScrollX, this.panZoom.scrollY);
-      this.draw();
+      this.requestDraw();
     } else if (this.draggingScrollbar === 'vertical') {
       const viewportHeight = this.canvas.height - this.panZoom.scrollbarWidth;
       const contentHeight = this.panZoom.virtualHeight * this.panZoom.scale;
@@ -523,10 +577,10 @@ export class CanvasManager {
         Math.min(this.dragStartScrollY + deltaY * scrollRatio, scrollRange)
       );
       this.panZoom.setScroll(this.panZoom.scrollX, nextScrollY);
-      this.draw();
+      this.requestDraw();
     } else {
       this.interactionManager.handleMouseMove(sceneX, sceneY);
-      this.draw();
+      this.requestDraw();
     }
   }
 
@@ -544,18 +598,18 @@ export class CanvasManager {
         this.suppressContextMenu = true;
       }
       this.endRightPan();
-      this.draw();
+      this.requestDraw();
       return;
     }
     this.draggingScrollbar = null;
     this.interactionManager.handleMouseUp();
-    this.draw();
+    this.requestDraw();
   }
 
   onDoubleClick(e: MouseEvent): void {
     const { sceneX, sceneY } = this.getSceneCoords(e);
     this.interactionManager.handleDoubleClick(sceneX, sceneY);
-    this.draw();
+    this.requestDraw();
   }
 
   onRightClick(e: MouseEvent): void {
@@ -567,14 +621,14 @@ export class CanvasManager {
     if (!this.isRightPanning) {
       const { sceneX, sceneY } = this.getSceneCoords(e);
       this.interactionManager.handleRightClick(e, sceneX, sceneY);
-      this.draw();
+      this.requestDraw();
     }
   }
 
   onClick(e: MouseEvent): void {
     const { sceneX, sceneY } = this.getSceneCoords(e);
     this.interactionManager.handleDoubleClick(sceneX, sceneY);
-    this.draw();
+    this.requestDraw();
   }
 
   onWheel(e: WheelEvent): void {
@@ -583,21 +637,21 @@ export class CanvasManager {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
     this.panZoom.handleWheelEvent(e, this.canvas, mouseX, mouseY);
-    this.draw();
+    this.requestDraw();
   }
 
   // --- CanvasControls integration methods ---
   public zoomIn(): void {
     this.panZoom.zoomIn(this.canvas);
-    this.draw();
+    this.requestDraw();
   }
   public zoomOut(): void {
     this.panZoom.zoomOut(this.canvas);
-    this.draw();
+    this.requestDraw();
   }
   public centerCanvas(): void {
     this.panZoom.center(this.canvas);
-    this.draw();
+    this.requestDraw();
   }
 
   /**
@@ -615,7 +669,7 @@ export class CanvasManager {
       item.y = coords.y;
     }
     this.scene.addElement(item);
-    this.draw();
+    this.requestDraw();
     console.log('Added item to canvas:', item);
   }
 
@@ -702,7 +756,7 @@ export class CanvasManager {
     }
     this.suppressContextMenu = true;
     this.endRightPan();
-    this.draw();
+    this.requestDraw();
   }
 
   // --- Touch / Pointer event handlers ---
@@ -783,7 +837,7 @@ export class CanvasManager {
       this.panZoom.scrollX = this.pinchZoomCenterScene.x * newScale - midX;
       this.panZoom.scrollY = this.pinchZoomCenterScene.y * newScale - midY;
       this.panZoom.clampScroll();
-      this.draw();
+      this.requestDraw();
       return;
     }
     // then handle story pinch-resize
@@ -886,7 +940,7 @@ export class CanvasManager {
     this.panZoom.scale = newScale;
     this.panZoom.scrollX = contentX * newScale - centerX;
     this.panZoom.scrollY = contentY * newScale - centerY;
-    this.draw();
+    this.requestDraw();
   }
   private onGestureEnd(e: any): void {
     e.preventDefault();

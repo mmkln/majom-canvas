@@ -7,6 +7,9 @@ import {
   FONT_FAMILY,
   TITLE_FONT_SIZE,
   SMALL_FONT_SIZE,
+  SHOW_ANIM_SCALE,
+  SHOW_DETAILS_SCALE,
+  SHOW_GOAL_TEXT_SCALE,
 } from '../core/constants.ts';
 import { editElement$ } from '../core/eventBus.ts';
 import { v4 } from 'uuid';
@@ -89,6 +92,12 @@ export class GoalElement extends PlanningElement {
   }
 
   draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
+    const renderFlags = panZoom.renderFlags;
+    const showDetails =
+      renderFlags?.showDetails ?? panZoom.scale >= SHOW_DETAILS_SCALE;
+    const showText =
+      renderFlags?.showGoalText ?? panZoom.scale >= SHOW_GOAL_TEXT_SCALE;
+    const showAnim = renderFlags?.showAnim ?? panZoom.scale >= SHOW_ANIM_SCALE;
     const { x, y, width, height, title, progress } = this;
     const style = goalStyles[this.status];
     this.fillColor = style.fillColor;
@@ -103,42 +112,44 @@ export class GoalElement extends PlanningElement {
     this.drawHexPath(ctx, hexVertices);
     ctx.fill();
 
-    // Progress ring (outside the main hex) - segmented
-    const progressRingWidth = 12;
-    const progressRingOffset = 8; // Space between main circle and progress ring
-    const segmentCount = 100;
-    const segmentFillRatio = 0.6;
-    const filledSegments = Math.max(
-      0,
-      Math.min(segmentCount, Math.round(progress * segmentCount))
-    );
+    if (showDetails) {
+      // Progress ring (outside the main hex) - segmented
+      const progressRingWidth = 12;
+      const progressRingOffset = 8; // Space between main circle and progress ring
+      const segmentCount = 100;
+      const segmentFillRatio = 0.6;
+      const filledSegments = Math.max(
+        0,
+        Math.min(segmentCount, Math.round(progress * segmentCount))
+      );
 
-    ctx.lineWidth = progressRingWidth;
-    ctx.lineCap = 'butt';
+      ctx.lineWidth = progressRingWidth;
+      ctx.lineCap = 'butt';
 
-    // Background segments (unfilled)
-    ctx.strokeStyle = 'rgba(224,224,224,0.5)';
-    this.drawHexRingSegments(
-      ctx,
-      centerX,
-      centerY,
-      radius + progressRingOffset + progressRingWidth / 2,
-      segmentCount,
-      segmentFillRatio,
-      segmentCount
-    );
+      // Background segments (unfilled)
+      ctx.strokeStyle = 'rgba(224,224,224,0.5)';
+      this.drawHexRingSegments(
+        ctx,
+        centerX,
+        centerY,
+        radius + progressRingOffset + progressRingWidth / 2,
+        segmentCount,
+        segmentFillRatio,
+        segmentCount
+      );
 
-    // Filled segments
-    ctx.strokeStyle = style.borderColor;
-    this.drawHexRingSegments(
-      ctx,
-      centerX,
-      centerY,
-      radius + progressRingOffset + progressRingWidth / 2,
-      segmentCount,
-      segmentFillRatio,
-      filledSegments
-    );
+      // Filled segments
+      ctx.strokeStyle = style.borderColor;
+      this.drawHexRingSegments(
+        ctx,
+        centerX,
+        centerY,
+        radius + progressRingOffset + progressRingWidth / 2,
+        segmentCount,
+        segmentFillRatio,
+        filledSegments
+      );
+    }
 
     // Border
     ctx.strokeStyle = this.selected ? SELECT_COLOR : style.borderColor;
@@ -146,36 +157,40 @@ export class GoalElement extends PlanningElement {
     ctx.beginPath();
     this.drawHexPath(ctx, hexVertices);
     ctx.stroke();
-    drawStatusAnimationHex({
-      status: this.status,
-      ctx,
-      centerX,
-      centerY,
-      radius,
-      lineWidth: this.lineWidth / panZoom.scale,
-      scale: panZoom.scale,
-      color: style.borderColor,
-      timeMs: panZoom.timeMs,
-      viewBounds: panZoom.viewBounds,
-    });
+    if (showAnim) {
+      drawStatusAnimationHex({
+        status: this.status,
+        ctx,
+        centerX,
+        centerY,
+        radius,
+        lineWidth: this.lineWidth / panZoom.scale,
+        scale: panZoom.scale,
+        color: style.borderColor,
+        timeMs: panZoom.timeMs,
+        viewBounds: panZoom.viewBounds,
+      });
+    }
 
-    // Title with wrapping
-    ctx.fillStyle = '#000000';
-    const fontSize = 26;
-    const lineHeight = 1.3;
-    const maxTitleWidth = width * 0.8; // Use 80% of the circle's width
+    if (showText) {
+      // Title with wrapping
+      ctx.fillStyle = '#000000';
+      const fontSize = 26;
+      const lineHeight = 1.3;
+      const maxTitleWidth = width * 0.8; // Use 80% of the circle's width
 
-    // Center the text vertically and horizontally
-    TextRenderer.drawWrappedText(
-      ctx,
-      title,
-      centerX - maxTitleWidth / 2,
-      centerY - fontSize, // Offset up by half the font size
-      maxTitleWidth,
-      lineHeight,
-      3, // Max 3 lines for Goal title
-      fontSize
-    );
+      // Center the text vertically and horizontally
+      TextRenderer.drawWrappedText(
+        ctx,
+        title,
+        centerX - maxTitleWidth / 2,
+        centerY - fontSize, // Offset up by half the font size
+        maxTitleWidth,
+        lineHeight,
+        3, // Max 3 lines for Goal title
+        fontSize
+      );
+    }
 
     // Percentage text
     // ctx.fillStyle = '#000000';

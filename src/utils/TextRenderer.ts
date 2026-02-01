@@ -6,6 +6,9 @@ import { FONT_FAMILY } from '../core/constants.ts';
  * Utility class for rendering text on canvas with word wrapping and truncation
  */
 export class TextRenderer {
+  private static wrapCache = new Map<string, string[]>();
+  private static readonly wrapCacheLimit = 2000;
+
   /**
    * Wraps text to fit within a specified width, returns an array of lines
    *
@@ -21,8 +24,14 @@ export class TextRenderer {
     maxWidth: number,
     maxLines: number = 3
   ): string[] {
+    const cacheKey = `${ctx.font}|${maxWidth}|${maxLines}|${text}`;
+    const cached = this.wrapCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
     // Handle empty text
     if (!text || !text.trim()) {
+      this.wrapCache.set(cacheKey, []);
       return [];
     }
 
@@ -105,6 +114,10 @@ export class TextRenderer {
       lines[lines.length - 1] = truncatedLastLine + ellipsis;
     }
 
+    this.wrapCache.set(cacheKey, lines);
+    if (this.wrapCache.size > this.wrapCacheLimit) {
+      this.wrapCache.clear();
+    }
     return lines;
   }
 

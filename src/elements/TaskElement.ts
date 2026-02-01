@@ -2,7 +2,12 @@
 import { PlanningElement } from './PlanningElement.ts';
 import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
-import { SELECT_COLOR } from '../core/constants.ts';
+import {
+  SELECT_COLOR,
+  SHOW_ANIM_SCALE,
+  SHOW_DETAILS_SCALE,
+  SHOW_TASK_TEXT_SCALE,
+} from '../core/constants.ts';
 import { taskStyles } from './styles/taskStyles.ts';
 import { ElementStatus } from './ElementStatus.ts';
 import { editElement$ } from '../core/eventBus.ts';
@@ -69,6 +74,12 @@ export class TaskElement extends PlanningElement {
   }
 
   draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
+    const renderFlags = panZoom.renderFlags;
+    const showDetails =
+      renderFlags?.showDetails ?? panZoom.scale >= SHOW_DETAILS_SCALE;
+    const showText =
+      renderFlags?.showTaskText ?? panZoom.scale >= SHOW_TASK_TEXT_SCALE;
+    const showAnim = renderFlags?.showAnim ?? panZoom.scale >= SHOW_ANIM_SCALE;
     // Ensure solid border for Task
     ctx.setLineDash([]);
     const x = this.x;
@@ -88,41 +99,46 @@ export class TaskElement extends PlanningElement {
     ctx.lineWidth = 2 / panZoom.scale;
     ctx.lineJoin = 'round';
     ctx.stroke();
-    drawStatusAnimationRect({
-      status: this.status,
-      ctx,
-      x,
-      y,
-      width: w,
-      height: h,
-      radius,
-      lineWidth: 2 / panZoom.scale,
-      scale: panZoom.scale,
-      color: style.borderColor,
-      timeMs: panZoom.timeMs,
-      viewBounds: panZoom.viewBounds,
-    });
-    // Title with word wrapping
-    ctx.fillStyle = '#000000';
-    ctx.font = `bold 14px Arial`;
+    if (showAnim) {
+      drawStatusAnimationRect({
+        status: this.status,
+        ctx,
+        x,
+        y,
+        width: w,
+        height: h,
+        radius,
+        lineWidth: 2 / panZoom.scale,
+        scale: panZoom.scale,
+        color: style.borderColor,
+        timeMs: panZoom.timeMs,
+        viewBounds: panZoom.viewBounds,
+      });
+    }
+    if (showText) {
+      // Title with word wrapping
+      ctx.fillStyle = '#000000';
+      ctx.font = `bold 14px Arial`;
 
-    // Calculate maximum width for text (accounting for padding and buttons)
-    const maxTitleWidth = w - 48; // Leaving space for buttons on right side
+      // Calculate maximum width for text (accounting for padding and buttons)
+      const maxTitleWidth = w - 48; // Leaving space for buttons on right side
 
-    // Draw title with word wrapping (font is already set)
-    const fontSize = 20;
-    const lineHeight = 1.3;
-    TextRenderer.drawWrappedText(
-      ctx,
-      this.title,
-      x + 16,
-      y + 32,
-      maxTitleWidth,
-      lineHeight,
-      3, // Max 3 lines of text
-      fontSize
-    );
+      // Draw title with word wrapping (font is already set)
+      const fontSize = 20;
+      const lineHeight = 1.3;
+      TextRenderer.drawWrappedText(
+        ctx,
+        this.title,
+        x + 16,
+        y + 32,
+        maxTitleWidth,
+        lineHeight,
+        3, // Max 3 lines of text
+        fontSize
+      );
+    }
 
+    if (showDetails) {
     // Status badge
     ctx.fillStyle = style.borderColor;
     ctx.beginPath();
@@ -133,6 +149,7 @@ export class TaskElement extends PlanningElement {
     this.drawButton(ctx, panZoom, x + w - 32, y + 10, '✏️');
     // Delete button
     this.drawButton(ctx, panZoom, x + w - 16, y + 10, '🗑️');
+    }
     // Draw connection anchors: show only when shape hovered/selected or specific port hovered
     const points = this.getConnectionPoints();
     const hoveredPort: ConnectionPoint | undefined = (this as any).hoveredPort;
