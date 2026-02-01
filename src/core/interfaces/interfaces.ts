@@ -9,7 +9,7 @@ export interface ITask {
   description: string; // Короткий опис задачі
   status: ElementStatus; // Статус виконання
   priority: 'low' | 'medium' | 'high'; // Пріоритет задачі
-  dueDate: Date; // Кінцевий термін виконання
+  dueDate: Date | null; // Кінцевий термін виконання
   x: number; // Координата X на полотні
   y: number; // Координата Y на полотні
 }

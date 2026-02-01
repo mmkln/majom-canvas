@@ -25,7 +25,7 @@ export interface IPlanningElement extends ICanvasElement, IConnectable {
   /** detailed description */
   description: string;
   /** optional due date for this element */
-  dueDate?: Date;
+  dueDate?: Date | null;
   /** optional tags/categories */
   tags?: string[];
   /** backend numeric id (legacy) */

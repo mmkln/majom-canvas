@@ -17,7 +17,7 @@ export class TaskElement extends PlanningElement {
   title: string;
   status: ElementStatus = ElementStatus.Defined;
   priority: 'low' | 'medium' | 'high';
-  dueDate: Date;
+  dueDate: Date | null = null;
 
   static width: number = 272;
   static height: number = 112;
@@ -31,7 +31,7 @@ export class TaskElement extends PlanningElement {
     status = ElementStatus.Defined,
     selected = false,
     priority = 'medium',
-    dueDate = new Date(),
+    dueDate = null,
     backendId,
     uuid,
   }: {
@@ -43,7 +43,7 @@ export class TaskElement extends PlanningElement {
     status?: ElementStatus;
     selected?: boolean;
     priority?: 'low' | 'medium' | 'high';
-    dueDate?: Date;
+    dueDate?: Date | null;
     backendId?: number;
     uuid?: string;
   }) {
@@ -65,7 +65,7 @@ export class TaskElement extends PlanningElement {
     this.status = status;
     this.selected = selected;
     this.priority = priority;
-    this.dueDate = dueDate;
+    this.dueDate = dueDate ?? null;
   }
 
   draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {

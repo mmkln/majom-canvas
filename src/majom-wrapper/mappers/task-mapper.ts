@@ -18,6 +18,12 @@ export function mapTask(
     if (!dto.uuid) return false;
     return l.element_uuid === dto.uuid;
   });
+  const dueDate =
+    dto.due_date instanceof Date
+      ? dto.due_date
+      : dto.due_date
+        ? new Date(dto.due_date)
+        : null;
   return new TaskElement({
     id: dto.uuid ?? dto.id.toString(),
     x: pos?.x ?? DEFAULT_X,
@@ -27,6 +33,7 @@ export function mapTask(
     title: dto.title,
     status: mapStatus(dto.status),
     description: dto.description,
+    dueDate: Number.isNaN(dueDate?.getTime()) ? null : dueDate,
   });
 }
 

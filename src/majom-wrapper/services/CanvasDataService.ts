@@ -45,6 +45,7 @@ type ElementPatch = Partial<{
   description: string;
   status: ElementStatus;
   priority: 'low' | 'medium' | 'high';
+  dueDate: Date | null;
 }>;
 
 type RelationElementType = 'task' | 'story' | 'goal';
@@ -288,12 +289,14 @@ export class CanvasDataService {
     description: string;
     status: string;
     priority: string;
+    due_date: string | null;
   }> {
     const payload: Partial<{
       title: string;
       description: string;
       status: string;
       priority: string;
+      due_date: string | null;
     }> = {};
     if (patch.title !== undefined) payload.title = patch.title;
     if (patch.description !== undefined)
@@ -305,6 +308,17 @@ export class CanvasDataService {
       payload.priority = mapPriorityToBackend(patch.priority);
     }
     return payload;
+  }
+
+  private serializeDueDate(
+    dueDate: Date | null | undefined
+  ): string | null | undefined {
+    if (dueDate === undefined) return undefined;
+    if (dueDate === null) return null;
+    if (!(dueDate instanceof Date) || Number.isNaN(dueDate.getTime())) {
+      return null;
+    }
+    return dueDate.toISOString();
   }
 
   private persistElementUpdate(req: ElementUpdateRequest): Observable<void> {
@@ -323,6 +337,12 @@ export class CanvasDataService {
           return of(undefined);
         }
         const payload = this.buildBackendPatch(req.patch);
+        if (req.element instanceof TaskElement && 'dueDate' in req.patch) {
+          const dueDate = this.serializeDueDate(req.patch.dueDate);
+          if (dueDate !== undefined) {
+            payload.due_date = dueDate;
+          }
+        }
         if (Object.keys(payload).length === 0) {
           return of(undefined);
         }
@@ -457,6 +477,10 @@ export class CanvasDataService {
           status: mapStatusToBackend(el.status),
           priority: mapPriorityToBackend(el.priority),
         };
+        const dueDate = this.serializeDueDate(el.dueDate);
+        if (dueDate !== undefined) {
+          payload.due_date = dueDate;
+        }
         creates.push(
           this.tasksApi.createTask(payload).pipe(
             map((created) => {

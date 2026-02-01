@@ -24,6 +24,17 @@ export class EditElementModal {
         : this.element instanceof StoryElement
           ? 'Story'
           : 'Goal';
+    const formatDateInputValue = (value: Date | null | undefined): string => {
+      if (!value || !(value instanceof Date) || Number.isNaN(value.getTime())) {
+        return '';
+      }
+      return value.toISOString().slice(0, 10);
+    };
+    const parseDateInputValue = (value: string): Date | null => {
+      if (!value) return null;
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    };
     const { overlay, container } = createModalShell(`Edit ${typeLabel}`, {
       onClose: () => this.close(),
     });
@@ -33,16 +44,23 @@ export class EditElementModal {
     const originalDescription = this.element.description;
     const originalStatus: ElementStatus = this.element.status;
     const originalPriority = this.element.priority;
+    const taskElement =
+      this.element instanceof TaskElement ? this.element : null;
+    const isTask = taskElement !== null;
     const goalElement = this.element instanceof GoalElement
       ? this.element
       : null;
     const isGoal = goalElement !== null;
     const originalScale: GoalScale | null = goalElement ? goalElement.scale : null;
+    const originalDueDateValue = isTask
+      ? formatDateInputValue(taskElement?.dueDate ?? null)
+      : '';
     let tempTitle = originalTitle;
     let tempDescription = originalDescription;
     let tempStatus: ElementStatus = originalStatus;
     let tempPriority = originalPriority;
     let tempScale: GoalScale = originalScale ?? 1;
+    let tempDueDateValue = originalDueDateValue;
 
     // Title input with label
     const titleDiv = document.createElement('div');
@@ -122,6 +140,25 @@ export class EditElementModal {
     prioritySelect.render(priorityDiv);
     container.appendChild(priorityDiv);
 
+    if (isTask) {
+      const dueDateDiv = document.createElement('div');
+      dueDateDiv.className = 'mb-4';
+      const dueDateLabelEl = document.createElement('label');
+      dueDateLabelEl.className = 'block text-sm font-medium text-gray-700';
+      dueDateLabelEl.textContent = 'Due date';
+      dueDateDiv.appendChild(dueDateLabelEl);
+      const dueDateInput = ComponentFactory.createInput({
+        value: tempDueDateValue,
+        onChange: (v: string) => {
+          tempDueDateValue = v;
+        },
+        className: 'w-full',
+        type: 'date',
+      });
+      dueDateInput.render(dueDateDiv);
+      container.appendChild(dueDateDiv);
+    }
+
     if (isGoal) {
       const scaleDiv = document.createElement('div');
       scaleDiv.className = 'mb-4';
@@ -152,6 +189,7 @@ export class EditElementModal {
         description: string;
         status: ElementStatus;
         priority: 'low' | 'medium' | 'high';
+        dueDate: Date | null;
       }> = {};
       if (tempTitle !== originalTitle) patch.title = tempTitle;
       if (tempDescription !== originalDescription) {
@@ -159,6 +197,11 @@ export class EditElementModal {
       }
       if (tempStatus !== originalStatus) patch.status = tempStatus;
       if (tempPriority !== originalPriority) patch.priority = tempPriority;
+      if (isTask && tempDueDateValue !== originalDueDateValue) {
+        const nextDueDate = parseDateInputValue(tempDueDateValue);
+        patch.dueDate = nextDueDate;
+        (this.element as TaskElement).dueDate = nextDueDate;
+      }
       this.element.title = tempTitle;
       this.element.description = tempDescription;
       this.element.status = tempStatus;

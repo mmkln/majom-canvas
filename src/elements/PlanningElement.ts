@@ -16,7 +16,7 @@ export abstract class PlanningElement
   lineWidth: number;
   title: string;
   description: string;
-  dueDate?: Date;
+  dueDate?: Date | null;
   tags?: string[];
   /** Backend numeric id (legacy) */
   backendId?: number;
@@ -47,7 +47,7 @@ export abstract class PlanningElement
     lineWidth?: number;
     title?: string;
     description?: string;
-    dueDate?: Date;
+    dueDate?: Date | null;
     tags?: string[];
     backendId?: number;
     uuid?: string;
@@ -62,7 +62,7 @@ export abstract class PlanningElement
     this.lineWidth = lineWidth;
     this.title = title;
     this.description = description;
-    this.dueDate = dueDate;
+    this.dueDate = dueDate ?? null;
     this.tags = tags;
   }
 

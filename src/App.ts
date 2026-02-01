@@ -182,6 +182,7 @@ export class App {
           description: string;
           status: ElementStatus;
           priority: 'low' | 'medium' | 'high';
+          dueDate: Date | null;
         }>;
       }>;
       const element = customEvent.detail?.element;

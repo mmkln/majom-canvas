@@ -26,6 +26,12 @@ export class DiagramRepository {
       await this.dataProvider.loadDependencies();
 
     tasks.forEach((task) => {
+      const dueDate =
+        task.dueDate instanceof Date
+          ? task.dueDate
+          : task.dueDate
+            ? new Date(task.dueDate)
+            : null;
       const taskElement = new TaskElement({
         id: task.id,
         x: task.x,
@@ -34,8 +40,7 @@ export class DiagramRepository {
         description: task.description,
         status: task.status,
         priority: task.priority,
-        dueDate:
-          task.dueDate instanceof Date ? task.dueDate : new Date(task.dueDate),
+        dueDate,
       });
       scene.addElement(taskElement);
     });
@@ -112,7 +117,7 @@ export class DiagramRepository {
         description: t.description,
         status: t.status,
         priority: t.priority,
-        dueDate: t.dueDate,
+        dueDate: t.dueDate ?? null,
       }));
     await this.dataProvider.saveTasks(tasks);
     // serialize dependencies
