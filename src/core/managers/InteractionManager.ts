@@ -98,6 +98,36 @@ export class InteractionManager {
     );
   }
 
+  private updateTaskStoryAssignments(tasks: TaskElement[]): void {
+    if (tasks.length === 0) return;
+    const stories = this.scene
+      .getElements()
+      .filter(isPlanningElement)
+      .filter((el): el is StoryElement => el instanceof StoryElement);
+    const prevStoryMap = this.getTaskStoryMap(stories);
+    stories.forEach((story) => {
+      tasks.forEach((task) => {
+        if (story.contains(task.x, task.y)) story.addTask(task);
+        else story.removeTask(task.id);
+      });
+    });
+    const nextStoryMap = this.getTaskStoryMap(stories);
+    if (typeof window === 'undefined') return;
+    tasks.forEach((task) => {
+      const prevStoryId = prevStoryMap.get(task.id) ?? null;
+      const nextStoryId = nextStoryMap.get(task.id) ?? null;
+      if (prevStoryId === nextStoryId) return;
+      const nextStory = nextStoryId
+        ? (stories.find((story) => story.id === nextStoryId) ?? null)
+        : null;
+      window.dispatchEvent(
+        new CustomEvent('taskStoryLinkChanged', {
+          detail: { task, story: nextStory },
+        })
+      );
+    });
+  }
+
   /**
    * Return the active region-select rect (scene coords) or null
    */
@@ -608,6 +638,11 @@ export class InteractionManager {
         const e = el as any;
         finalPos.set(el.id, { x: e.x, y: e.y });
       });
+      const selectedEls = this.scene.getSelectedElements();
+      const tasks = selectedEls.filter(
+        (el): el is TaskElement => el instanceof TaskElement
+      );
+      this.updateTaskStoryAssignments(tasks);
       historyService.execute(new MoveCommand(this.scene, initial, finalPos));
       this.initialPositions.clear();
       this.draggingGroup = null;
@@ -624,31 +659,7 @@ export class InteractionManager {
         const tasks = selectedEls.filter(
           (el) => el instanceof TaskElement
         ) as TaskElement[];
-        const stories = this.scene
-          .getElements()
-          .filter(isPlanningElement)
-          .filter((el): el is StoryElement => el instanceof StoryElement);
-        const prevStoryMap = this.getTaskStoryMap(stories);
-        stories.forEach((story) => {
-          tasks.forEach((task) => {
-            if (story.contains(task.x, task.y)) story.addTask(task);
-            else story.removeTask(task.id);
-          });
-        });
-        const nextStoryMap = this.getTaskStoryMap(stories);
-        tasks.forEach((task) => {
-          const prevStoryId = prevStoryMap.get(task.id) ?? null;
-          const nextStoryId = nextStoryMap.get(task.id) ?? null;
-          if (prevStoryId === nextStoryId) return;
-          const nextStory = nextStoryId
-            ? (stories.find((story) => story.id === nextStoryId) ?? null)
-            : null;
-          window.dispatchEvent(
-            new CustomEvent('taskStoryLinkChanged', {
-              detail: { task, story: nextStory },
-            })
-          );
-        });
+        this.updateTaskStoryAssignments(tasks);
       }
       if (this.draggingItem.onDragEnd) this.draggingItem.onDragEnd();
       const initial = new Map(this.initialPositions);
