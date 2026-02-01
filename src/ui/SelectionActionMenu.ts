@@ -22,6 +22,7 @@ import {
 import { positionFixedElement } from './overlayPosition.ts';
 import { getViewBounds, isRectVisible } from '../core/utils/viewBounds.ts';
 import { SingleSelectGroup } from './components/SingleSelectGroup.ts';
+import { addTaskToStory } from './storyTaskActions.ts';
 
 type ActionContext = {
   elements: PlanningElement[];
@@ -69,6 +70,9 @@ export class SelectionActionMenu {
   private subscriptions: Subscription[] = [];
   private suspendUpdates = false;
   private activeInteractions = new Set<'drag' | 'resize'>();
+  private deleteConfirmState: { key: string; expiresAt: number } | null = null;
+  private deleteConfirmTimer: number | null = null;
+  private readonly confirmTimeoutMs = 4000;
   private resizeHandler = () => this.requestUpdate();
   private interactionStartHandler = (event: Event): void => {
     const detail = (event as CustomEvent<{ kind?: 'drag' | 'resize' }>).detail;
@@ -187,6 +191,7 @@ export class SelectionActionMenu {
       isMulti: planningSelected.length > 1,
     };
     this.updateActionVisibility(context);
+    this.updateDeleteConfirmation(planningSelected);
     this.updateStatusSelector(planningSelected);
     this.show();
     this.positionUnderBounds(bounds);
@@ -201,6 +206,8 @@ export class SelectionActionMenu {
   private hide(): void {
     this.activeElement = null;
     this.selectedElements = [];
+    this.deleteConfirmState = null;
+    this.clearDeleteConfirmTimer();
     if (this.container.style.display !== 'none') {
       this.container.style.display = 'none';
     }
@@ -349,7 +356,7 @@ export class SelectionActionMenu {
         isDanger: true,
         isVisible: isMulti,
         onClick: () => {
-          console.log('Delete permanently bulk action clicked');
+          this.handleDeletePermanently();
         }
       },
       {
@@ -364,7 +371,7 @@ export class SelectionActionMenu {
         icon: 'plus',
         isVisible: (context) => isSingle(context) && isStory(context),
         onClick: () => {
-          console.log('Create Task action clicked');
+          this.handleCreateTask();
         },
       },
       {
@@ -431,7 +438,7 @@ export class SelectionActionMenu {
         isDanger: true,
         isVisible: isSingle,
         onClick: () => {
-          console.log('Delete permanently action clicked');
+          this.handleDeletePermanently();
         },
       },
     ];
@@ -491,20 +498,25 @@ export class SelectionActionMenu {
     btn.style.height = '32px';
     btn.style.borderRadius = '10px';
     btn.style.border = '1px solid transparent';
-    btn.style.background = isDanger ? '#fee2e2' : '#f3f4f6';
-    btn.style.color = isDanger ? '#dc2626' : '#111827';
     btn.style.display = 'inline-flex';
     btn.style.alignItems = 'center';
     btn.style.justifyContent = 'center';
     btn.style.cursor = 'pointer';
     btn.style.transition = 'background 150ms ease, border-color 150ms ease';
+    this.setButtonVariant(btn, isDanger ? 'danger' : 'default');
     btn.addEventListener('mouseenter', () => {
-      btn.style.borderColor = isDanger ? '#fca5a5' : '#d1d5db';
-      btn.style.background = isDanger ? '#fecaca' : '#e5e7eb';
+      const variant = (btn.dataset.variant ?? 'default') as
+        | 'default'
+        | 'danger'
+        | 'warning';
+      this.applyButtonStyle(btn, variant, 'hover');
     });
     btn.addEventListener('mouseleave', () => {
-      btn.style.borderColor = 'transparent';
-      btn.style.background = isDanger ? '#fee2e2' : '#f3f4f6';
+      const variant = (btn.dataset.variant ?? 'default') as
+        | 'default'
+        | 'danger'
+        | 'warning';
+      this.applyButtonStyle(btn, variant, 'base');
     });
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -592,6 +604,41 @@ export class SelectionActionMenu {
     }
   }
 
+  private handleCreateTask(): void {
+    if (!(this.activeElement instanceof StoryElement)) return;
+    addTaskToStory({
+      story: this.activeElement,
+      scene: this.scene,
+      canvasManager: this.canvasManager,
+      layoutService: this.layoutService,
+    });
+  }
+
+  private handleDeletePermanently(): void {
+    const confirmKey = this.getDeleteConfirmKey(this.selectedElements);
+    if (!confirmKey) return;
+    if (!this.isConfirmingDelete(confirmKey)) {
+      this.deleteConfirmState = {
+        key: confirmKey,
+        expiresAt: Date.now() + this.confirmTimeoutMs,
+      };
+      this.clearDeleteConfirmTimer();
+      this.deleteConfirmTimer = window.setTimeout(() => {
+        if (!this.deleteConfirmState) return;
+        if (Date.now() < this.deleteConfirmState.expiresAt) return;
+        this.deleteConfirmState = null;
+        this.deleteConfirmTimer = null;
+        this.updateDeleteButtonLabels(false);
+      }, this.confirmTimeoutMs + 50);
+      this.updateDeleteButtonLabels(true);
+      return;
+    }
+    this.deleteConfirmState = null;
+    this.clearDeleteConfirmTimer();
+    this.updateDeleteButtonLabels(false);
+    this.bulkActions.deletePermanently(this.selectedElements);
+  }
+
   private handleRemove(): void {
     this.bulkActions.removeFromCanvas(this.selectedElements);
   }
@@ -600,6 +647,133 @@ export class SelectionActionMenu {
     if (!this.statusSelector || elements.length === 0) return;
     const status = SelectionContext.getMixedStatus(elements);
     this.statusSelector.setActive(status ?? null);
+  }
+
+  private updateDeleteConfirmation(elements: PlanningElement[]): void {
+    this.syncDeleteConfirmation(elements);
+    const confirming = this.isConfirmingDelete(
+      this.getDeleteConfirmKey(elements)
+    );
+    this.updateDeleteButtonLabels(confirming);
+  }
+
+  private updateDeleteButtonLabels(confirming: boolean): void {
+    const title = confirming ? 'Confirm delete' : 'Delete permanently';
+    const icon = confirming ? 'x-mark' : 'trash';
+    const variant = confirming ? 'warning' : 'danger';
+    ['delete-danger', 'delete-bulk-danger'].forEach((id) => {
+      const el = this.actionElements.get(id);
+      if (!el || !(el instanceof HTMLButtonElement)) return;
+      el.title = title;
+      el.setAttribute('aria-label', title);
+      this.setButtonVariant(el, variant);
+      const existingIcon = el.querySelector('svg');
+      if (existingIcon) {
+        existingIcon.remove();
+      }
+      el.appendChild(createIcon(icon));
+    });
+  }
+
+  private syncDeleteConfirmation(elements: PlanningElement[]): void {
+    if (!this.deleteConfirmState) return;
+    if (Date.now() > this.deleteConfirmState.expiresAt) {
+      this.deleteConfirmState = null;
+      this.clearDeleteConfirmTimer();
+      return;
+    }
+    const key = this.getDeleteConfirmKey(elements);
+    if (!key || key !== this.deleteConfirmState.key) {
+      this.deleteConfirmState = null;
+      this.clearDeleteConfirmTimer();
+    }
+  }
+
+  private isConfirmingDelete(confirmKey: string | null): boolean {
+    if (!confirmKey || !this.deleteConfirmState) return false;
+    if (Date.now() > this.deleteConfirmState.expiresAt) return false;
+    return this.deleteConfirmState.key === confirmKey;
+  }
+
+  private getDeleteConfirmKey(elements: PlanningElement[]): string | null {
+    if (elements.length === 0) return null;
+    const keys = elements
+      .map((el) => this.getElementConfirmKey(el))
+      .filter(Boolean) as string[];
+    if (keys.length === 0) return null;
+    keys.sort();
+    return keys.join('|');
+  }
+
+  private getElementConfirmKey(element: PlanningElement): string | null {
+    if (element instanceof TaskElement) return `task:${element.id}`;
+    if (element instanceof StoryElement) return `story:${element.id}`;
+    if (element instanceof GoalElement) return `goal:${element.id}`;
+    return null;
+  }
+
+  private clearDeleteConfirmTimer(): void {
+    if (this.deleteConfirmTimer === null) return;
+    window.clearTimeout(this.deleteConfirmTimer);
+    this.deleteConfirmTimer = null;
+  }
+
+  private setButtonVariant(
+    button: HTMLButtonElement,
+    variant: 'default' | 'danger' | 'warning'
+  ): void {
+    button.dataset.variant = variant;
+    this.applyButtonStyle(button, variant, 'base');
+  }
+
+  private applyButtonStyle(
+    button: HTMLButtonElement,
+    variant: 'default' | 'danger' | 'warning',
+    state: 'base' | 'hover'
+  ): void {
+    const palette = this.getButtonPalette(variant);
+    if (state === 'hover') {
+      button.style.background = palette.hoverBg;
+      button.style.borderColor = palette.hoverBorder;
+    } else {
+      button.style.background = palette.baseBg;
+      button.style.borderColor = palette.baseBorder;
+    }
+    button.style.color = palette.text;
+  }
+
+  private getButtonPalette(variant: 'default' | 'danger' | 'warning'): {
+    baseBg: string;
+    baseBorder: string;
+    hoverBg: string;
+    hoverBorder: string;
+    text: string;
+  } {
+    if (variant === 'danger') {
+      return {
+        baseBg: '#fee2e2',
+        baseBorder: 'transparent',
+        hoverBg: '#fecaca',
+        hoverBorder: '#fca5a5',
+        text: '#dc2626',
+      };
+    }
+    if (variant === 'warning') {
+      return {
+        baseBg: '#ffedd5',
+        baseBorder: 'transparent',
+        hoverBg: '#fed7aa',
+        hoverBorder: '#fdba74',
+        text: '#c2410c',
+      };
+    }
+    return {
+      baseBg: '#f3f4f6',
+      baseBorder: 'transparent',
+      hoverBg: '#e5e7eb',
+      hoverBorder: '#d1d5db',
+      text: '#111827',
+    };
   }
 
   private getStatusStyles(status: ElementStatus): {

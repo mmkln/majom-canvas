@@ -4,7 +4,6 @@ import { DeleteCommand } from '../core/commands/DeleteCommand.ts';
 import { CopyCommand } from '../core/commands/CopyCommand.ts';
 import { PasteCommand } from '../core/commands/PasteCommand.ts';
 import { AddElementCommand } from '../core/commands/AddElementCommand.ts';
-import { ResizeCommand } from '../core/commands/ResizeCommand.ts';
 import { Scene } from '../core/scene/Scene.ts';
 import { clipboardService } from '../core/services/ClipboardService.ts';
 import type { CanvasManager } from '../core/managers/CanvasManager.ts';
@@ -19,6 +18,7 @@ import {
   ElementStatus,
   ELEMENT_STATUS_OPTIONS,
 } from '../elements/ElementStatus.ts';
+import { addTaskToStory } from './storyTaskActions.ts';
 
 type ContextMenuDetail = {
   element: ICanvasElement | null;
@@ -407,46 +407,12 @@ export class ContextMenu {
   }
 
   private createTaskInStory(story: StoryElement): void {
-    const tasks = this.scene
-      .getElements()
-      .filter((el) => el instanceof TaskElement) as TaskElement[];
-    const plan = this.layoutService.planAddTask(story, tasks);
-    const task = new TaskElement({
-      x: plan.position.x,
-      y: plan.position.y,
+    addTaskToStory({
+      story,
+      scene: this.scene,
+      canvasManager: this.canvasManager,
+      layoutService: this.layoutService,
     });
-    if (plan.nextHeight > story.height) {
-      const initial = new Map<
-        string,
-        { x: number; y: number; width: number; height: number }
-      >();
-      initial.set(story.id, {
-        x: story.x,
-        y: story.y,
-        width: story.width,
-        height: story.height,
-      });
-      const final = new Map<
-        string,
-        { x: number; y: number; width: number; height: number }
-      >();
-      final.set(story.id, {
-        x: story.x,
-        y: story.y,
-        width: story.width,
-        height: plan.nextHeight,
-      });
-      historyService.execute(new ResizeCommand(this.scene, initial, final));
-    }
-    historyService.execute(new AddElementCommand(this.scene, task));
-    story.addTask(task);
-    this.scene.setSelected([task]);
-    this.canvasManager.draw();
-    window.dispatchEvent(
-      new CustomEvent('taskStoryLinkChanged', {
-        detail: { task, story },
-      })
-    );
   }
 
   private openRelatedItemsPicker(element: StoryElement | GoalElement): void {
