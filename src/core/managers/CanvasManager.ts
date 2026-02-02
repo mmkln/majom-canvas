@@ -28,6 +28,7 @@ import {
 import { TaskElement } from '../../elements/TaskElement.ts';
 import { GoalElement } from '../../elements/GoalElement.ts';
 import { StoryElement } from '../../elements/StoryElement.ts';
+import { StoryLayoutService } from '../services/StoryLayoutService.ts';
 import { getBoundingBox } from '../utils/geometryUtils.ts';
 import { hasStatusAnimation } from '../../elements/utils/statusAnimations.ts';
 import { CANVAS_PERF_LOG } from '../../config/env/index.ts';
@@ -74,6 +75,9 @@ export class CanvasManager {
   } | null = null;
   private pinchCenter: { x: number; y: number } | null = null;
   private pinchElement: StoryElement | null = null;
+  private pinchInitialTaskPositions: Map<string, { x: number; y: number }> | null =
+    null;
+  private readonly storyLayoutService = new StoryLayoutService();
 
   // Pinch-to-zoom state
   private pinchZoomInitialDist: number | null = null;
@@ -780,6 +784,8 @@ export class CanvasManager {
           width: this.pinchElement.width,
           height: this.pinchElement.height,
         };
+        this.pinchInitialTaskPositions =
+          this.captureStoryTaskPositions(this.pinchElement);
         const rect = this.canvas.getBoundingClientRect();
         const midX = (p1.x + p2.x) / 2 - rect.left;
         const midY = (p1.y + p2.y) / 2 - rect.top;
@@ -855,10 +861,30 @@ export class CanvasManager {
       const scale = currDist / this.pinchInitialDist!;
       const newW = this.pinchInitialRect.width * scale;
       const newH = this.pinchInitialRect.height * scale;
-      this.pinchElement.width = Math.max(newW, 1);
-      this.pinchElement.height = Math.max(newH, 1);
-      this.pinchElement.x = this.pinchCenter.x - newW / 2;
-      this.pinchElement.y = this.pinchCenter.y - newH / 2;
+      const story = this.pinchElement;
+      const tasks = this.scene
+        .getElements()
+        .filter((el) => el instanceof TaskElement) as TaskElement[];
+      const plan = this.storyLayoutService.planResize(
+        story,
+        tasks,
+        Math.max(newW, 1),
+        Math.max(newH, 1)
+      );
+      story.width = plan.nextWidth;
+      story.height = plan.nextHeight;
+      story.x = this.pinchCenter.x - plan.nextWidth / 2;
+      story.y = this.pinchCenter.y - plan.nextHeight / 2;
+      if (plan.positions.size > 0) {
+        const taskById = new Map(tasks.map((task) => [task.id, task]));
+        plan.positions.forEach((pos, id) => {
+          const task = taskById.get(id);
+          if (!task) return;
+          task.x = pos.x;
+          task.y = pos.y;
+        });
+        story.tasks = plan.orderedTasks;
+      }
       this.scene.changes.next();
       return;
     }
@@ -870,8 +896,12 @@ export class CanvasManager {
     const pinchInitialRect = this.pinchInitialRect;
     const hadPinchResize = this.pinchElement !== null;
     if (pinchElement && pinchInitialRect) {
-      if (this.hasPinchChange(pinchElement, pinchInitialRect)) {
-        this.notifyPositionsDirty([pinchElement]);
+      const movedTasks = this.getPinchMovedTasks();
+      if (
+        this.hasPinchChange(pinchElement, pinchInitialRect) ||
+        movedTasks.length > 0
+      ) {
+        this.notifyPositionsDirty([pinchElement, ...movedTasks]);
       }
     }
     // clear story-resize pinch
@@ -879,6 +909,7 @@ export class CanvasManager {
     this.pinchInitialRect = null;
     this.pinchCenter = null;
     this.pinchElement = null;
+    this.pinchInitialTaskPositions = null;
     // clear pinch-to-zoom
     this.pinchZoomInitialDist = null;
     this.pinchZoomInitialScale = 1;
@@ -894,7 +925,9 @@ export class CanvasManager {
     }
   }
 
-  private notifyPositionsDirty(elements: StoryElement[]): void {
+  private notifyPositionsDirty(
+    elements: Array<StoryElement | TaskElement>
+  ): void {
     if (typeof window === 'undefined') return;
     if (elements.length === 0) return;
     window.dispatchEvent(
@@ -915,6 +948,40 @@ export class CanvasManager {
       Math.abs(element.width - rect.width) > epsilon ||
       Math.abs(element.height - rect.height) > epsilon
     );
+  }
+
+  private captureStoryTaskPositions(
+    story: StoryElement
+  ): Map<string, { x: number; y: number }> {
+    const positions = new Map<string, { x: number; y: number }>();
+    const tasks = this.scene
+      .getElements()
+      .filter((el) => el instanceof TaskElement) as TaskElement[];
+    const layoutTasks = this.storyLayoutService.getLayoutTasks(story, tasks);
+    layoutTasks.forEach((task) => {
+      positions.set(task.id, { x: task.x, y: task.y });
+    });
+    return positions;
+  }
+
+  private getPinchMovedTasks(): TaskElement[] {
+    if (!this.pinchInitialTaskPositions) return [];
+    if (this.pinchInitialTaskPositions.size === 0) return [];
+    const tasks = this.scene
+      .getElements()
+      .filter((el) => el instanceof TaskElement) as TaskElement[];
+    const taskById = new Map(tasks.map((task) => [task.id, task]));
+    const moved: TaskElement[] = [];
+    const epsilon = 0.01;
+    this.pinchInitialTaskPositions.forEach((pos, id) => {
+      const task = taskById.get(id);
+      if (!task) return;
+      const dx = Math.abs(task.x - pos.x);
+      const dy = Math.abs(task.y - pos.y);
+      if (dx <= epsilon && dy <= epsilon) return;
+      moved.push(task);
+    });
+    return moved;
   }
 
   // --- Gesture event handlers for Safari pinch ---

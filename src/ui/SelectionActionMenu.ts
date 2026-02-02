@@ -5,8 +5,6 @@ import type { ICanvasElement } from '../core/interfaces/canvasElement.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
-import { MoveCommand } from '../core/commands/MoveCommand.ts';
-import { ResizeCommand } from '../core/commands/ResizeCommand.ts';
 import { historyService } from '../core/services/HistoryService.ts';
 import { StoryLayoutService } from '../core/services/StoryLayoutService.ts';
 import {
@@ -384,20 +382,6 @@ export class SelectionActionMenu {
       },
       {
         kind: 'divider',
-        id: 'divider-align',
-        isVisible: (context) => isSingle(context) && isStory(context),
-      },
-      {
-        kind: 'action',
-        id: 'align',
-        title: 'Align',
-        icon: 'squares-2x2',
-        iconOptions: { strokeWidth: 1.5 },
-        isVisible: (context) => isSingle(context) && isStory(context),
-        onClick: () => this.handleAlign(),
-      },
-      {
-        kind: 'divider',
         id: 'divider-main',
         isVisible: isSingle,
       },
@@ -553,55 +537,6 @@ export class SelectionActionMenu {
         detail: { element: this.activeElement },
       })
     );
-  }
-
-  private handleAlign(): void {
-    if (!(this.activeElement instanceof StoryElement)) return;
-    const story = this.activeElement;
-    const tasks = this.scene
-      .getElements()
-      .filter((el) => el instanceof TaskElement) as TaskElement[];
-    const plan = this.layoutService.planAlignTasks(story, tasks);
-    const alignedTasks = tasks.filter((task) => plan.positions.has(task.id));
-    story.tasks = [];
-    alignedTasks.forEach((task) => story.addTask(task));
-    if (plan.positions.size === 0) return;
-    const initialPositions = new Map<string, { x: number; y: number }>();
-    const finalPositions = new Map<string, { x: number; y: number }>();
-    plan.positions.forEach((pos, id) => {
-      const task = tasks.find((t) => t.id === id);
-      if (!task) return;
-      initialPositions.set(id, { x: task.x, y: task.y });
-      finalPositions.set(id, pos);
-    });
-    if (finalPositions.size > 0) {
-      historyService.execute(
-        new MoveCommand(this.scene, initialPositions, finalPositions)
-      );
-    }
-    if (plan.nextHeight > story.height) {
-      const initial = new Map<
-        string,
-        { x: number; y: number; width: number; height: number }
-      >();
-      initial.set(story.id, {
-        x: story.x,
-        y: story.y,
-        width: story.width,
-        height: story.height,
-      });
-      const final = new Map<
-        string,
-        { x: number; y: number; width: number; height: number }
-      >();
-      final.set(story.id, {
-        x: story.x,
-        y: story.y,
-        width: story.width,
-        height: plan.nextHeight,
-      });
-      historyService.execute(new ResizeCommand(this.scene, initial, final));
-    }
   }
 
   private handleCreateTask(): void {

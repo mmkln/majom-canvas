@@ -17,6 +17,7 @@ import { ConnectCommand } from '../commands/ConnectCommand.ts';
 import { ResizeCommand } from '../commands/ResizeCommand.ts';
 import { SelectionService } from '../services/SelectionService.ts';
 import { ConnectionInteractionService } from '../services/ConnectionInteractionService.ts';
+import { StoryLayoutService } from '../services/StoryLayoutService.ts';
 import type { IDraggable } from '../interfaces/draggable.ts';
 import { getBoundingBox } from '../utils/geometryUtils.ts';
 
@@ -56,6 +57,9 @@ export class InteractionManager {
   private rightClickSceneX: number = 0;
   private rightClickSceneY: number = 0;
   private readonly dragStartThresholdPx: number = 4;
+  private resizeInitialTaskPositions: Map<string, { x: number; y: number }> =
+    new Map();
+  private readonly storyLayoutService = new StoryLayoutService();
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -226,6 +230,7 @@ export class InteractionManager {
         this.initialY = el.y;
         this.initialWidth = el.width;
         this.initialHeight = el.height;
+        this.captureResizeTaskPositions(el);
         this.updateSelectionOnClick(el, e.shiftKey);
         this.notifyInteractionStart('resize');
         return true;
@@ -538,8 +543,6 @@ export class InteractionManager {
     if (this.resizingElement && this.resizeDirection) {
       const dx = sceneX - this.resizeStartX;
       const dy = sceneY - this.resizeStartY;
-      let newX = this.initialX;
-      let newY = this.initialY;
       let newW = this.initialWidth;
       let newH = this.initialHeight;
       switch (this.resizeDirection) {
@@ -550,27 +553,47 @@ export class InteractionManager {
         case 'ne':
           newW += dx;
           newH -= dy;
-          newY += dy;
           break;
         case 'sw':
           newW -= dx;
           newH += dy;
-          newX += dx;
           break;
         case 'nw':
           newW -= dx;
           newH -= dy;
-          newX += dx;
-          newY += dy;
           break;
       }
       // avoid negative size
       newW = Math.max(newW, 1);
       newH = Math.max(newH, 1);
-      this.resizingElement.x = newX;
-      this.resizingElement.y = newY;
-      this.resizingElement.width = newW;
-      this.resizingElement.height = newH;
+      const story = this.resizingElement;
+      const tasks = this.scene
+        .getElements()
+        .filter((el) => el instanceof TaskElement) as TaskElement[];
+      const plan = this.storyLayoutService.planResize(
+        story,
+        tasks,
+        newW,
+        newH
+      );
+      const anchored = this.getResizeAnchoredPosition(
+        plan.nextWidth,
+        plan.nextHeight
+      );
+      story.x = anchored.x;
+      story.y = anchored.y;
+      story.width = plan.nextWidth;
+      story.height = plan.nextHeight;
+      if (plan.positions.size > 0) {
+        const taskById = new Map(tasks.map((task) => [task.id, task]));
+        plan.positions.forEach((pos, id) => {
+          const task = taskById.get(id);
+          if (!task) return;
+          task.x = pos.x;
+          task.y = pos.y;
+        });
+        story.tasks = plan.orderedTasks;
+      }
       this.scene.changes.next();
       return;
     }
@@ -635,17 +658,50 @@ export class InteractionManager {
     // finalize group drag
     if (this.draggingGroup) {
       const initial = new Map(this.initialPositions);
+      const selectedEls = this.scene.getSelectedElements();
+      const tasks = selectedEls.filter(
+        (el): el is TaskElement => el instanceof TaskElement
+      );
+      const stories = this.scene
+        .getElements()
+        .filter(isPlanningElement)
+        .filter((el): el is StoryElement => el instanceof StoryElement);
+      const prevStoryMap = this.getTaskStoryMap(stories);
+      this.updateTaskStoryAssignments(tasks);
+      const affectedStories = this.getAffectedStoriesForTasks(
+        tasks,
+        stories,
+        prevStoryMap
+      );
+      const dragIds = new Set(initial.keys());
+      const alignChanges = this.applyAutoLayoutToStories(
+        affectedStories,
+        dragIds
+      );
       const finalPos = new Map<string, { x: number; y: number }>();
       this.draggingGroup.forEach((el) => {
         const e = el as any;
         finalPos.set(el.id, { x: e.x, y: e.y });
       });
-      const selectedEls = this.scene.getSelectedElements();
-      const tasks = selectedEls.filter(
-        (el): el is TaskElement => el instanceof TaskElement
-      );
-      this.updateTaskStoryAssignments(tasks);
       historyService.execute(new MoveCommand(this.scene, initial, finalPos));
+      if (alignChanges.movedInitial.size > 0) {
+        historyService.execute(
+          new MoveCommand(
+            this.scene,
+            alignChanges.movedInitial,
+            alignChanges.movedFinal
+          )
+        );
+      }
+      if (alignChanges.resizedInitial.size > 0) {
+        historyService.execute(
+          new ResizeCommand(
+            this.scene,
+            alignChanges.resizedInitial,
+            alignChanges.resizedFinal
+          )
+        );
+      }
       this.initialPositions.clear();
       this.draggingGroup = null;
       this.scene.changes.next();
@@ -656,12 +712,36 @@ export class InteractionManager {
     // finalize drag and record history
     if (this.draggingItem) {
       // Handle Task drop into/out of Story containers
+      let alignChanges = {
+        movedInitial: new Map<string, { x: number; y: number }>(),
+        movedFinal: new Map<string, { x: number; y: number }>(),
+        resizedInitial: new Map<
+          string,
+          { x: number; y: number; width: number; height: number }
+        >(),
+        resizedFinal: new Map<
+          string,
+          { x: number; y: number; width: number; height: number }
+        >(),
+      };
       if (this.draggingItem instanceof TaskElement) {
         const selectedEls = this.scene.getSelectedElements();
         const tasks = selectedEls.filter(
           (el) => el instanceof TaskElement
         ) as TaskElement[];
+        const stories = this.scene
+          .getElements()
+          .filter(isPlanningElement)
+          .filter((el): el is StoryElement => el instanceof StoryElement);
+        const prevStoryMap = this.getTaskStoryMap(stories);
         this.updateTaskStoryAssignments(tasks);
+        const affectedStories = this.getAffectedStoriesForTasks(
+          tasks,
+          stories,
+          prevStoryMap
+        );
+        const dragIds = new Set(this.initialPositions.keys());
+        alignChanges = this.applyAutoLayoutToStories(affectedStories, dragIds);
       }
       if (this.draggingItem.onDragEnd) this.draggingItem.onDragEnd();
       const initial = new Map(this.initialPositions);
@@ -675,6 +755,24 @@ export class InteractionManager {
           new MoveCommand(this.scene, initial, finalPositions)
         );
       }
+      if (alignChanges.movedInitial.size > 0) {
+        historyService.execute(
+          new MoveCommand(
+            this.scene,
+            alignChanges.movedInitial,
+            alignChanges.movedFinal
+          )
+        );
+      }
+      if (alignChanges.resizedInitial.size > 0) {
+        historyService.execute(
+          new ResizeCommand(
+            this.scene,
+            alignChanges.resizedInitial,
+            alignChanges.resizedFinal
+          )
+        );
+      }
       this.initialPositions.clear();
       this.draggingItem = null;
       this.scene.changes.next();
@@ -684,6 +782,12 @@ export class InteractionManager {
     if (this.resizingElement) {
       // record resize in history
       const el = this.resizingElement;
+      const movedTasks = this.getResizeMovedTasks();
+      if (movedTasks.initial.size > 0) {
+        historyService.execute(
+          new MoveCommand(this.scene, movedTasks.initial, movedTasks.final)
+        );
+      }
       const initial = new Map<
         string,
         { x: number; y: number; width: number; height: number }
@@ -704,10 +808,20 @@ export class InteractionManager {
         width: el.width,
         height: el.height,
       });
-      historyService.execute(new ResizeCommand(this.scene, initial, finalMap));
+      if (
+        this.hasResizeChange({
+          x: el.x,
+          y: el.y,
+          width: el.width,
+          height: el.height,
+        })
+      ) {
+        historyService.execute(new ResizeCommand(this.scene, initial, finalMap));
+      }
       // clear resizing state
       this.resizingElement = null;
       this.resizeDirection = null;
+      this.resizeInitialTaskPositions.clear();
       this.canvas.style.cursor = 'default';
       this.scene
         .getElements()
@@ -822,5 +936,176 @@ export class InteractionManager {
       });
     });
     return map;
+  }
+
+  private getAffectedStoriesForTasks(
+    tasks: TaskElement[],
+    stories: StoryElement[],
+    prevStoryMap: Map<string, string>
+  ): StoryElement[] {
+    if (tasks.length === 0) return [];
+    const nextStoryMap = this.getTaskStoryMap(stories);
+    const storyIds = new Set<string>();
+    tasks.forEach((task) => {
+      const prevId = prevStoryMap.get(task.id);
+      const nextId = nextStoryMap.get(task.id);
+      if (prevId) storyIds.add(prevId);
+      if (nextId) storyIds.add(nextId);
+    });
+    return stories.filter((story) => storyIds.has(story.id));
+  }
+
+  private applyAutoLayoutToStories(
+    stories: StoryElement[],
+    skipTaskIds: Set<string>
+  ): {
+    movedInitial: Map<string, { x: number; y: number }>;
+    movedFinal: Map<string, { x: number; y: number }>;
+    resizedInitial: Map<string, { x: number; y: number; width: number; height: number }>;
+    resizedFinal: Map<string, { x: number; y: number; width: number; height: number }>;
+  } {
+    const movedInitial = new Map<string, { x: number; y: number }>();
+    const movedFinal = new Map<string, { x: number; y: number }>();
+    const resizedInitial = new Map<
+      string,
+      { x: number; y: number; width: number; height: number }
+    >();
+    const resizedFinal = new Map<
+      string,
+      { x: number; y: number; width: number; height: number }
+    >();
+    if (stories.length === 0) {
+      return { movedInitial, movedFinal, resizedInitial, resizedFinal };
+    }
+    const tasks = this.scene
+      .getElements()
+      .filter((el) => el instanceof TaskElement) as TaskElement[];
+    const taskById = new Map(tasks.map((task) => [task.id, task]));
+    const epsilon = 0.01;
+    stories.forEach((story) => {
+      const layoutTasks = this.storyLayoutService.getLayoutTasks(story, tasks);
+      if (layoutTasks.length === 0) return;
+      const initialTaskPositions = new Map(
+        layoutTasks.map((task) => [task.id, { x: task.x, y: task.y }])
+      );
+      const initialStory = {
+        x: story.x,
+        y: story.y,
+        width: story.width,
+        height: story.height,
+      };
+      const plan = this.storyLayoutService.planResize(
+        story,
+        tasks,
+        story.width,
+        story.height
+      );
+      story.width = plan.nextWidth;
+      story.height = plan.nextHeight;
+      if (plan.positions.size > 0) {
+        plan.positions.forEach((pos, id) => {
+          const task = taskById.get(id);
+          if (!task) return;
+          task.x = pos.x;
+          task.y = pos.y;
+        });
+        story.tasks = plan.orderedTasks;
+      }
+      if (
+        Math.abs(story.width - initialStory.width) > epsilon ||
+        Math.abs(story.height - initialStory.height) > epsilon
+      ) {
+        resizedInitial.set(story.id, initialStory);
+        resizedFinal.set(story.id, {
+          x: story.x,
+          y: story.y,
+          width: story.width,
+          height: story.height,
+        });
+      }
+      initialTaskPositions.forEach((pos, id) => {
+        const task = taskById.get(id);
+        if (!task) return;
+        const dx = Math.abs(task.x - pos.x);
+        const dy = Math.abs(task.y - pos.y);
+        if (dx <= epsilon && dy <= epsilon) return;
+        if (skipTaskIds.has(id)) return;
+        movedInitial.set(id, pos);
+        movedFinal.set(id, { x: task.x, y: task.y });
+      });
+    });
+    return { movedInitial, movedFinal, resizedInitial, resizedFinal };
+  }
+
+  private captureResizeTaskPositions(story: StoryElement): void {
+    this.resizeInitialTaskPositions.clear();
+    const tasks = this.scene
+      .getElements()
+      .filter((el) => el instanceof TaskElement) as TaskElement[];
+    const layoutTasks = this.storyLayoutService.getLayoutTasks(story, tasks);
+    layoutTasks.forEach((task) => {
+      this.resizeInitialTaskPositions.set(task.id, { x: task.x, y: task.y });
+    });
+  }
+
+  private getResizeAnchoredPosition(
+    width: number,
+    height: number
+  ): { x: number; y: number } {
+    switch (this.resizeDirection) {
+      case 'ne':
+        return { x: this.initialX, y: this.initialY + this.initialHeight - height };
+      case 'sw':
+        return { x: this.initialX + this.initialWidth - width, y: this.initialY };
+      case 'nw':
+        return {
+          x: this.initialX + this.initialWidth - width,
+          y: this.initialY + this.initialHeight - height,
+        };
+      case 'se':
+      default:
+        return { x: this.initialX, y: this.initialY };
+    }
+  }
+
+  private getResizeMovedTasks(): {
+    initial: Map<string, { x: number; y: number }>;
+    final: Map<string, { x: number; y: number }>;
+  } {
+    const initial = new Map<string, { x: number; y: number }>();
+    const final = new Map<string, { x: number; y: number }>();
+    if (this.resizeInitialTaskPositions.size === 0) {
+      return { initial, final };
+    }
+    const tasks = this.scene
+      .getElements()
+      .filter((el) => el instanceof TaskElement) as TaskElement[];
+    const taskById = new Map(tasks.map((task) => [task.id, task]));
+    const epsilon = 0.01;
+    this.resizeInitialTaskPositions.forEach((pos, id) => {
+      const task = taskById.get(id);
+      if (!task) return;
+      const dx = Math.abs(task.x - pos.x);
+      const dy = Math.abs(task.y - pos.y);
+      if (dx <= epsilon && dy <= epsilon) return;
+      initial.set(id, pos);
+      final.set(id, { x: task.x, y: task.y });
+    });
+    return { initial, final };
+  }
+
+  private hasResizeChange(next: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }): boolean {
+    const epsilon = 0.01;
+    return (
+      Math.abs(next.x - this.initialX) > epsilon ||
+      Math.abs(next.y - this.initialY) > epsilon ||
+      Math.abs(next.width - this.initialWidth) > epsilon ||
+      Math.abs(next.height - this.initialHeight) > epsilon
+    );
   }
 }

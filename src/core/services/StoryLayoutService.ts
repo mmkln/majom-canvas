@@ -11,8 +11,16 @@ type AlignLayoutPlan = {
   nextHeight: number;
 };
 
+type ResizeLayoutPlan = {
+  positions: Map<string, { x: number; y: number }>;
+  nextWidth: number;
+  nextHeight: number;
+  orderedTasks: TaskElement[];
+};
+
 export class StoryLayoutService {
-  private readonly padding = 36;
+  private readonly paddingX = 36;
+  private readonly paddingY = 36;
   private readonly gap = 28;
   private readonly header = 56;
 
@@ -20,7 +28,7 @@ export class StoryLayoutService {
     story: StoryElement,
     tasks: TaskElement[]
   ): TaskLayoutPlan {
-    const inside = this.getTasksInsideStory(story, tasks);
+    const inside = this.getLayoutTasks(story, tasks);
     const columns = this.getColumns(story);
     const occupied = inside.map((task) => this.getTaskRect(task));
 
@@ -47,14 +55,11 @@ export class StoryLayoutService {
     story: StoryElement,
     tasks: TaskElement[]
   ): AlignLayoutPlan {
-    const inside = this.getTasksInsideStory(story, tasks);
+    const inside = this.getLayoutTasks(story, tasks);
     if (inside.length === 0) {
       return { positions: new Map(), nextHeight: story.height };
     }
-    const ordered = [...inside].sort((a, b) => {
-      if (a.y === b.y) return a.x - b.x;
-      return a.y - b.y;
-    });
+    const ordered = this.getOrderedTasks(inside);
     const columns = this.getColumns(story);
     const positions = new Map<string, { x: number; y: number }>();
     ordered.forEach((task, index) => {
@@ -67,8 +72,52 @@ export class StoryLayoutService {
     return { positions, nextHeight };
   }
 
+  public planResize(
+    story: StoryElement,
+    tasks: TaskElement[],
+    nextWidth: number,
+    nextHeight: number
+  ): ResizeLayoutPlan {
+    const layoutTasks = this.getLayoutTasks(story, tasks);
+    const ordered = this.getOrderedTasks(layoutTasks);
+    const hasTasks = ordered.length > 0;
+    const minWidth = hasTasks ? this.getMinWidth() : 1;
+    const clampedWidth = Math.max(nextWidth, minWidth, 1);
+    const columns = hasTasks ? this.getColumnsForWidth(clampedWidth) : 1;
+    const rows = hasTasks ? Math.ceil(ordered.length / columns) : 0;
+    const requiredHeight = hasTasks ? this.getRequiredHeightForRows(rows) : 0;
+    const clampedHeight = Math.max(nextHeight, requiredHeight, 1);
+    const positions = new Map<string, { x: number; y: number }>();
+    ordered.forEach((task, index) => {
+      const row = Math.floor(index / columns);
+      const col = index % columns;
+      positions.set(task.id, this.getCellPosition(story, row, col));
+    });
+    return {
+      positions,
+      nextWidth: clampedWidth,
+      nextHeight: clampedHeight,
+      orderedTasks: ordered,
+    };
+  }
+
+  public getLayoutTasks(
+    story: StoryElement,
+    tasks: TaskElement[]
+  ): TaskElement[] {
+    if (story.tasks.length > 0) {
+      const ids = new Set(story.tasks.map((task) => task.id));
+      return tasks.filter((task) => ids.has(task.id));
+    }
+    return this.getTasksInsideStory(story, tasks);
+  }
+
   private getColumns(story: StoryElement): number {
-    const availableWidth = Math.max(0, story.width - this.padding * 2);
+    return this.getColumnsForWidth(story.width);
+  }
+
+  private getColumnsForWidth(width: number): number {
+    const availableWidth = Math.max(0, width - this.paddingX * 2);
     return Math.max(
       1,
       Math.floor((availableWidth + this.gap) / (TaskElement.width + this.gap))
@@ -80,21 +129,36 @@ export class StoryLayoutService {
     row: number,
     col: number
   ): { x: number; y: number } {
-    const x = story.x + this.padding + col * (TaskElement.width + this.gap);
+    const x = story.x + this.paddingX + col * (TaskElement.width + this.gap);
     const y =
       story.y +
       this.header +
-      this.padding +
+      this.paddingY +
       row * (TaskElement.height + this.gap);
     return { x, y };
   }
 
   private getRequiredHeight(story: StoryElement, rows: number): number {
+    return Math.max(story.height, this.getRequiredHeightForRows(rows));
+  }
+
+  private getRequiredHeightForRows(rows: number): number {
     const contentHeight =
       rows * TaskElement.height + Math.max(0, rows - 1) * this.gap;
     const requiredHeight =
-      this.header + this.padding + contentHeight + this.padding;
-    return Math.max(story.height, requiredHeight);
+      this.header + this.paddingY + contentHeight + this.paddingY;
+    return requiredHeight;
+  }
+
+  private getMinWidth(): number {
+    return this.paddingX * 2 + TaskElement.width;
+  }
+
+  private getOrderedTasks(tasks: TaskElement[]): TaskElement[] {
+    return [...tasks].sort((a, b) => {
+      if (a.y === b.y) return a.x - b.x;
+      return a.y - b.y;
+    });
   }
 
   private getTasksInsideStory(
