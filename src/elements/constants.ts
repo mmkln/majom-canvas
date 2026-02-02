@@ -8,7 +8,7 @@ export const STORY_STATUS_IN_PROGRESS_BORDER = '#1890ff';
 export const STORY_STATUS_PENDING_FILL = 'rgba(255,165,0,0.03)';
 export const STORY_STATUS_PENDING_BORDER = '#faad14';
 export const STORY_STATUS_DEFINED_FILL = 'rgba(156,163,175,0.04)';
-export const STORY_STATUS_DEFINED_BORDER = '#9ca3af';
+export const STORY_STATUS_DEFINED_BORDER = '#BEAEBE';
 
 // Task status colors
 export const TASK_STATUS_DONE_FILL = '#ffffff';
@@ -18,7 +18,7 @@ export const TASK_STATUS_IN_PROGRESS_BORDER = '#1890ff';
 export const TASK_STATUS_PENDING_FILL = '#ffffff';
 export const TASK_STATUS_PENDING_BORDER = '#faad14';
 export const TASK_STATUS_DEFINED_FILL = '#ffffff';
-export const TASK_STATUS_DEFINED_BORDER = '#9ca3af';
+export const TASK_STATUS_DEFINED_BORDER = '#BEAEBE';
 
 // Goal status colors
 export const GOAL_STATUS_DONE_FILL = 'rgba(82,196,26,0.1)';
@@ -28,4 +28,4 @@ export const GOAL_STATUS_IN_PROGRESS_BORDER = STORY_STATUS_IN_PROGRESS_BORDER;
 export const GOAL_STATUS_PENDING_FILL = 'rgba(255,165,0,0.1)';
 export const GOAL_STATUS_PENDING_BORDER = '#fa8c16';
 export const GOAL_STATUS_DEFINED_FILL = 'rgba(156,163,175,0.1)';
-export const GOAL_STATUS_DEFINED_BORDER = '#9ca3af';
+export const GOAL_STATUS_DEFINED_BORDER = '#BEAEBE';
