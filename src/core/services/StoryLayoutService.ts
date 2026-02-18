@@ -79,6 +79,15 @@ export class StoryLayoutService {
     nextHeight: number
   ): ResizeLayoutPlan {
     const layoutTasks = this.getLayoutTasks(story, tasks);
+    return this.planLayoutForTasks(story, layoutTasks, nextWidth, nextHeight);
+  }
+
+  public planLayoutForTasks(
+    story: StoryElement,
+    layoutTasks: TaskElement[],
+    nextWidth: number,
+    nextHeight: number
+  ): ResizeLayoutPlan {
     const ordered = this.getOrderedTasks(layoutTasks);
     const hasTasks = ordered.length > 0;
     const minWidth = hasTasks ? this.getMinWidth() : 1;
@@ -99,6 +108,33 @@ export class StoryLayoutService {
       nextHeight: clampedHeight,
       orderedTasks: ordered,
     };
+  }
+
+  public getInsertionIndex(
+    story: StoryElement,
+    existingTaskCount: number,
+    pointX: number,
+    pointY: number,
+    width: number = story.width
+  ): number {
+    const columns = this.getColumnsForWidth(width);
+    const cellWidth = TaskElement.width + this.gap;
+    const cellHeight = TaskElement.height + this.gap;
+    const startX = story.x + this.paddingX;
+    const startY = story.y + this.header + this.paddingY;
+    const col = Math.max(
+      0,
+      Math.min(
+        columns - 1,
+        Math.floor((pointX - startX + TaskElement.width / 2) / cellWidth)
+      )
+    );
+    const row = Math.max(
+      0,
+      Math.floor((pointY - startY + TaskElement.height / 2) / cellHeight)
+    );
+    const index = row * columns + col;
+    return Math.max(0, Math.min(existingTaskCount, index));
   }
 
   public getLayoutTasks(

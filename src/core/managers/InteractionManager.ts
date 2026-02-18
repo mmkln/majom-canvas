@@ -18,6 +18,13 @@ import { ResizeCommand } from '../commands/ResizeCommand.ts';
 import { SelectionService } from '../services/SelectionService.ts';
 import { ConnectionInteractionService } from '../services/ConnectionInteractionService.ts';
 import { StoryLayoutService } from '../services/StoryLayoutService.ts';
+import {
+  StoryDragPreviewService,
+  type StoryDropPlan,
+  type StoryResizePreview,
+  type TaskDropPlaceholder,
+  type TaskReflowPreview,
+} from '../services/StoryDragPreviewService.ts';
 import type { IDraggable } from '../interfaces/draggable.ts';
 import { getBoundingBox } from '../utils/geometryUtils.ts';
 
@@ -60,6 +67,13 @@ export class InteractionManager {
   private resizeInitialTaskPositions: Map<string, { x: number; y: number }> =
     new Map();
   private readonly storyLayoutService = new StoryLayoutService();
+  private readonly storyDragPreviewService = new StoryDragPreviewService(
+    this.storyLayoutService
+  );
+  private taskDropPlaceholders: TaskDropPlaceholder[] = [];
+  private storyDropPlans: Map<string, StoryDropPlan> = new Map();
+  private storyResizePreviews: StoryResizePreview[] = [];
+  private taskReflowPreviews: Map<string, TaskReflowPreview> = new Map();
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -201,6 +215,7 @@ export class InteractionManager {
   }
 
   handleMouseDown(e: MouseEvent, sceneX: number, sceneY: number): boolean {
+    this.clearTaskDropPreviewState();
     if (e.button === 2) {
       this.rightClickTarget = this.findTopElementAt(sceneX, sceneY);
       this.rightClickSceneX = sceneX;
@@ -344,6 +359,9 @@ export class InteractionManager {
   }
 
   handleMouseMove(sceneX: number, sceneY: number): void {
+    if (!this.draggingItem && !this.draggingGroup) {
+      this.clearTaskDropPreviewState();
+    }
     const rawShapes = this.scene.getShapes();
     const planningEls = this.scene
       .getElements()
@@ -392,6 +410,7 @@ export class InteractionManager {
 
     // connection creation update via service
     if (this.connectionService.isCreating()) {
+      this.clearTaskDropPreviewState();
       this.connectionService.update(sceneX, sceneY);
       return;
     }
@@ -471,12 +490,14 @@ export class InteractionManager {
           e.y = init.y + dy;
         }
       });
+      this.updateTaskDropPlaceholders(sceneX, sceneY);
       this.scene.changes.next();
       return;
     }
 
     // update region-select drag
     if (this.isRegionSelecting) {
+      this.clearTaskDropPreviewState();
       this.regionCurrentX = sceneX;
       this.regionCurrentY = sceneY;
       // compute current region rectangle
@@ -534,6 +555,7 @@ export class InteractionManager {
             if ((elem as any).onDrag) (elem as any).onDrag(newX, newY);
           }
         });
+        this.updateTaskDropPlaceholders(sceneX, sceneY);
         this.scene.changes.next();
       }
       return;
@@ -541,6 +563,7 @@ export class InteractionManager {
 
     // handle resizing
     if (this.resizingElement && this.resizeDirection) {
+      this.clearTaskDropPreviewState();
       const dx = sceneX - this.resizeStartX;
       const dy = sceneY - this.resizeStartY;
       let newW = this.initialWidth;
@@ -602,6 +625,7 @@ export class InteractionManager {
   handleMouseUp(): void {
     // finish connection via service
     if (this.connectionService.isCreating()) {
+      this.clearTaskDropPreviewState();
       this.connectionService.finish();
       return;
     }
@@ -651,6 +675,7 @@ export class InteractionManager {
       this.scene.setSelected(inRect);
       this.isRegionSelecting = false;
       this.scene.changes.next();
+      this.clearTaskDropPreviewState();
       this.notifyInteractionEnd('select');
       return;
     }
@@ -676,7 +701,8 @@ export class InteractionManager {
       const dragIds = new Set(initial.keys());
       const alignChanges = this.applyAutoLayoutToStories(
         affectedStories,
-        dragIds
+        dragIds,
+        this.storyDropPlans
       );
       const finalPos = new Map<string, { x: number; y: number }>();
       this.draggingGroup.forEach((el) => {
@@ -704,6 +730,7 @@ export class InteractionManager {
       }
       this.initialPositions.clear();
       this.draggingGroup = null;
+      this.clearTaskDropPreviewState();
       this.scene.changes.next();
       this.notifyInteractionEnd('drag');
       return;
@@ -741,7 +768,11 @@ export class InteractionManager {
           prevStoryMap
         );
         const dragIds = new Set(this.initialPositions.keys());
-        alignChanges = this.applyAutoLayoutToStories(affectedStories, dragIds);
+        alignChanges = this.applyAutoLayoutToStories(
+          affectedStories,
+          dragIds,
+          this.storyDropPlans
+        );
       }
       if (this.draggingItem.onDragEnd) this.draggingItem.onDragEnd();
       const initial = new Map(this.initialPositions);
@@ -775,6 +806,7 @@ export class InteractionManager {
       }
       this.initialPositions.clear();
       this.draggingItem = null;
+      this.clearTaskDropPreviewState();
       this.scene.changes.next();
       this.notifyInteractionEnd('drag');
     }
@@ -828,10 +860,12 @@ export class InteractionManager {
         .filter(isPlanningElement)
         .filter((el): el is StoryElement => el instanceof StoryElement)
         .forEach((s) => (s.hoveredResizeHandle = null));
+      this.clearTaskDropPreviewState();
       this.scene.changes.next();
       this.notifyInteractionEnd('resize');
       return;
     }
+    this.clearTaskDropPreviewState();
   }
 
   handleDoubleClick(sceneX: number, sceneY: number): void {
@@ -884,8 +918,70 @@ export class InteractionManager {
     return this.draggingItem !== null || this.draggingGroup !== null;
   }
 
+  public getTaskDropPlaceholders(): TaskDropPlaceholder[] {
+    return this.taskDropPlaceholders;
+  }
+
+  public getStoryResizePreviews(): StoryResizePreview[] {
+    return this.storyResizePreviews;
+  }
+
+  public getTaskReflowPreviews(): Map<string, TaskReflowPreview> {
+    return this.taskReflowPreviews;
+  }
+
   public get isResizingStory(): boolean {
     return this.resizingElement !== null;
+  }
+
+  private clearTaskDropPreviewState(): void {
+    this.taskDropPlaceholders = [];
+    this.storyDropPlans.clear();
+    this.storyResizePreviews = [];
+    this.taskReflowPreviews.clear();
+  }
+
+  private updateTaskDropPlaceholders(sceneX: number, sceneY: number): void {
+    if (this.initialPositions.size === 0) {
+      this.clearTaskDropPreviewState();
+      return;
+    }
+    const sceneElements = this.scene.getElements();
+    const draggedElementIds = Array.from(this.initialPositions.keys());
+    const hasDraggedStory = draggedElementIds.some((id) => {
+      const element = sceneElements.find((candidate) => candidate.id === id);
+      return element instanceof StoryElement;
+    });
+    if (hasDraggedStory) {
+      this.clearTaskDropPreviewState();
+      return;
+    }
+    const tasks = sceneElements.filter(
+      (element): element is TaskElement => element instanceof TaskElement
+    );
+    const draggedTasks = tasks.filter((task) => this.initialPositions.has(task.id));
+    if (draggedTasks.length === 0) {
+      this.clearTaskDropPreviewState();
+      return;
+    }
+    const stories = sceneElements
+      .filter(isPlanningElement)
+      .filter((element): element is StoryElement => element instanceof StoryElement);
+    if (stories.length === 0) {
+      this.clearTaskDropPreviewState();
+      return;
+    }
+    const preview = this.storyDragPreviewService.compute({
+      stories,
+      tasks,
+      draggedTaskIds: new Set(draggedTasks.map((task) => task.id)),
+      initialPositions: this.initialPositions,
+      pointer: { x: sceneX, y: sceneY },
+    });
+    this.taskDropPlaceholders = preview.taskDropPlaceholders;
+    this.storyDropPlans = preview.storyDropPlans;
+    this.storyResizePreviews = preview.storyResizePreviews;
+    this.taskReflowPreviews = preview.taskReflowPreviews;
   }
 
   private findTopElementAt(
@@ -957,7 +1053,8 @@ export class InteractionManager {
 
   private applyAutoLayoutToStories(
     stories: StoryElement[],
-    skipTaskIds: Set<string>
+    skipTaskIds: Set<string>,
+    dropPlans: Map<string, StoryDropPlan> = new Map()
   ): {
     movedInitial: Map<string, { x: number; y: number }>;
     movedFinal: Map<string, { x: number; y: number }>;
@@ -994,22 +1091,35 @@ export class InteractionManager {
         width: story.width,
         height: story.height,
       };
-      const plan = this.storyLayoutService.planResize(
-        story,
-        tasks,
-        story.width,
-        story.height
-      );
-      story.width = plan.nextWidth;
-      story.height = plan.nextHeight;
-      if (plan.positions.size > 0) {
-        plan.positions.forEach((pos, id) => {
+      const dropPlan = dropPlans.get(story.id);
+      if (dropPlan) {
+        story.width = dropPlan.nextWidth;
+        story.height = dropPlan.nextHeight;
+        dropPlan.positions.forEach((pos, id) => {
           const task = taskById.get(id);
           if (!task) return;
           task.x = pos.x;
           task.y = pos.y;
         });
-        story.tasks = plan.orderedTasks;
+        story.tasks = dropPlan.orderedTasks;
+      } else {
+        const plan = this.storyLayoutService.planResize(
+          story,
+          tasks,
+          story.width,
+          story.height
+        );
+        story.width = plan.nextWidth;
+        story.height = plan.nextHeight;
+        if (plan.positions.size > 0) {
+          plan.positions.forEach((pos, id) => {
+            const task = taskById.get(id);
+            if (!task) return;
+            task.x = pos.x;
+            task.y = pos.y;
+          });
+          story.tasks = plan.orderedTasks;
+        }
       }
       if (
         Math.abs(story.width - initialStory.width) > epsilon ||

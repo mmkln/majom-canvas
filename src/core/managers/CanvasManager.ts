@@ -24,6 +24,7 @@ import {
   SHOW_STORY_TEXT_SCALE,
   SHOW_TASK_TEXT_SCALE,
   SHOW_ANIM_SCALE,
+  TASK_DROP_PLACEHOLDER_FILL,
 } from '../constants.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
 import { GoalElement } from '../../elements/GoalElement.ts';
@@ -284,8 +285,56 @@ export class CanvasManager {
     // draw shapes
     shapes.forEach((shape) => shape.draw(this.ctx, this.panZoom));
 
-    // draw planning elements in layer order
-    planningElsSorted.forEach((el) => el.draw(this.ctx, this.panZoom));
+    const resizePreviewByStoryId = new Map(
+      this.interactionManager
+        .getStoryResizePreviews()
+        .map((preview) => [preview.storyId, preview] as const)
+    );
+    const taskReflowPreviewByTaskId =
+      this.interactionManager.getTaskReflowPreviews();
+
+    // draw planning elements in layer order with live drag/drop previews
+    planningElsSorted.forEach((el) => {
+      if (el instanceof StoryElement) {
+        const preview = resizePreviewByStoryId.get(el.id);
+        if (preview && preview.previewHeight > el.height) {
+          this.drawPlanningElementWithOverrides(el, {
+            height: preview.previewHeight,
+          });
+          return;
+        }
+      }
+      if (el instanceof TaskElement) {
+        const preview = taskReflowPreviewByTaskId.get(el.id);
+        if (preview) {
+          this.drawPlanningElementWithOverrides(el, {
+            x: preview.x,
+            y: preview.y,
+          });
+          return;
+        }
+      }
+      el.draw(this.ctx, this.panZoom);
+    });
+
+    const taskDropPlaceholders = this.interactionManager.getTaskDropPlaceholders();
+    if (taskDropPlaceholders.length > 0) {
+      this.ctx.save();
+      this.ctx.fillStyle = TASK_DROP_PLACEHOLDER_FILL;
+      const radius = 24;
+      taskDropPlaceholders.forEach((placeholder) => {
+        this.ctx.beginPath();
+        this.ctx.roundRect(
+          placeholder.x,
+          placeholder.y,
+          placeholder.width,
+          placeholder.height,
+          radius
+        );
+        this.ctx.fill();
+      });
+      this.ctx.restore();
+    }
 
     // highlight drop target when dragging connection
     if (this.interactionManager.isCreatingConnection) {
@@ -393,6 +442,17 @@ export class CanvasManager {
       animatedElements.length,
       animatedVisible.length
     );
+  }
+
+  private drawPlanningElementWithOverrides(
+    element: IPlanningElement,
+    overrides: Partial<{ x: number; y: number; width: number; height: number }>
+  ): void {
+    const previewElement = Object.create(
+      Object.getPrototypeOf(element)
+    ) as IPlanningElement;
+    Object.assign(previewElement, element, overrides);
+    previewElement.draw(this.ctx, this.panZoom);
   }
 
   private requestDraw(): void {
