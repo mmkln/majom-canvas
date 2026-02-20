@@ -15,7 +15,8 @@
     "start:4200": "vite --port=4200",
     "lint": "eslint .",
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,css,scss,md}\"",
-    "deploy:build": "npm run build && npm run deploy"
+    "deploy:build": "npm run build && npm run deploy",
+    "go": "npm run deploy:build"
   },
   "keywords": [
     "canvas",
