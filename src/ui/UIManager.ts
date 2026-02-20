@@ -14,6 +14,7 @@ import { ContextMenu } from './ContextMenu.ts';
 import { SelectionActionMenu } from './SelectionActionMenu.ts';
 import { RelatedItemsPicker } from './RelatedItemsPicker.ts';
 import { StatusPicker } from './StatusPicker.ts';
+import { MiniMap } from './MiniMap.ts';
 import { BulkActionsController } from '../core/services/BulkActionsController.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
@@ -39,6 +40,7 @@ export class UIManager {
     // Initialize Canvas Toolbar for creating elements
     this.canvasToolbar = new CanvasToolbar(this.scene, this.canvasManager);
     this.canvasControls = new CanvasControls(this.canvasManager);
+    const miniMap = new MiniMap(this.scene, this.canvasManager);
     this.zoomIndicator = new ZoomIndicator(this.canvasManager);
     this.undoRedoControls = new UndoRedoControls(this.canvasToolbar.container);
 
@@ -65,6 +67,7 @@ export class UIManager {
     // Add controls to components list
     this.components.push(
       this.canvasControls,
+      miniMap,
       this.zoomIndicator,
       paletteMenu,
       contextMenu,

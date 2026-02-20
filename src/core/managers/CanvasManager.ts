@@ -812,18 +812,26 @@ export class CanvasManager {
     this.requestDraw();
   }
 
+  public setScroll(scrollX: number, scrollY: number): void {
+    this.panZoom.setScroll(scrollX, scrollY);
+    this.requestDraw();
+  }
+
+  public centerOnScenePoint(sceneX: number, sceneY: number): void {
+    const targetScrollX = sceneX * this.panZoom.scale - this.canvas.width / 2;
+    const targetScrollY = sceneY * this.panZoom.scale - this.canvas.height / 2;
+    this.setScroll(targetScrollX, targetScrollY);
+  }
+
   public goToFocusedElement(): void {
     const focused = this.scene.getFocusedElement() as any;
     if (!focused) return;
     const bounds = this.getElementBounds(focused);
     if (!bounds) return;
-    this.panZoom.scale = 0.8;
+    this.panZoom.scale = 1;
     const targetX = bounds.x + bounds.width / 2;
     const targetY = bounds.y;
-    const targetScrollX = targetX * this.panZoom.scale - this.canvas.width / 2;
-    const targetScrollY = targetY * this.panZoom.scale - this.canvas.height / 2;
-    this.panZoom.setScroll(targetScrollX, targetScrollY);
-    this.requestDraw();
+    this.centerOnScenePoint(targetX, targetY);
   }
 
   /**
