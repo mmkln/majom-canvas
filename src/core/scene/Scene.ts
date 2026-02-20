@@ -9,7 +9,15 @@ export class Scene {
   private elements: ICanvasElement[] = [];
   private elementsVersion = 0;
   private selectedMap: Map<string, ICanvasElement> = new Map<string, ICanvasElement>();
+  private focusedElementId: string | null = null;
   public changes: Subject<void> = new Subject<void>();
+  public focusChanges: Subject<{
+    previousId: string | null;
+    currentId: string | null;
+  }> = new Subject<{
+    previousId: string | null;
+    currentId: string | null;
+  }>();
 
   constructor() {}
 
@@ -25,6 +33,8 @@ export class Scene {
 
 
   public removeElements(elements: ICanvasElement[]): void {
+    let focusChanged = false;
+    const previousFocusId = this.focusedElementId;
     elements.forEach((element) => {
       const index = this.elements.indexOf(element);
       const elementId = element.id;
@@ -35,11 +45,21 @@ export class Scene {
         this.selectedMap.delete(elementId);
         // element.selected = false; TODO: check if this is needed or not
       }
+      if (this.focusedElementId === elementId) {
+        this.focusedElementId = null;
+        focusChanged = true;
+      }
     });
     if (elements.length > 0) {
       this.elementsVersion += 1;
     }
     this.changes.next();
+    if (focusChanged) {
+      this.focusChanges.next({
+        previousId: previousFocusId,
+        currentId: this.focusedElementId,
+      });
+    }
   }
 
   public getElements(): ICanvasElement[] {
@@ -139,9 +159,54 @@ export class Scene {
   }
 
   public clear(): void {
+    const previousFocusId = this.focusedElementId;
     this.elements = [];
     this.selectedMap.clear();
+    this.focusedElementId = null;
     this.elementsVersion += 1;
     this.changes.next();
+    if (previousFocusId !== null) {
+      this.focusChanges.next({
+        previousId: previousFocusId,
+        currentId: null,
+      });
+    }
+  }
+
+  public setFocusedElement(element: ICanvasElement | null): void {
+    this.setFocusedElementById(element?.id ?? null);
+  }
+
+  public setFocusedElementById(id: string | null): void {
+    const normalizedId =
+      id && this.elements.some((element) => element.id === id) ? id : null;
+    const previousId = this.focusedElementId;
+    if (previousId === normalizedId) return;
+    this.focusedElementId = normalizedId;
+    this.focusChanges.next({
+      previousId,
+      currentId: normalizedId,
+    });
+  }
+
+  public clearFocusedElement(): void {
+    this.setFocusedElementById(null);
+  }
+
+  public getFocusedElementId(): string | null {
+    return this.focusedElementId;
+  }
+
+  public getFocusedElement(): ICanvasElement | null {
+    if (!this.focusedElementId) return null;
+    return (
+      this.elements.find((element) => element.id === this.focusedElementId) ??
+      null
+    );
+  }
+
+  public isFocused(element: ICanvasElement | null): boolean {
+    if (!element) return false;
+    return this.focusedElementId === element.id;
   }
 }

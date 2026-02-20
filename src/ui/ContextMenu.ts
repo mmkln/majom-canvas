@@ -4,6 +4,7 @@ import { DeleteCommand } from '../core/commands/DeleteCommand.ts';
 import { CopyCommand } from '../core/commands/CopyCommand.ts';
 import { PasteCommand } from '../core/commands/PasteCommand.ts';
 import { AddElementCommand } from '../core/commands/AddElementCommand.ts';
+import { SetFocusCommand } from '../core/commands/SetFocusCommand.ts';
 import { Scene } from '../core/scene/Scene.ts';
 import { clipboardService } from '../core/services/ClipboardService.ts';
 import type { CanvasManager } from '../core/managers/CanvasManager.ts';
@@ -194,6 +195,18 @@ export class ContextMenu {
     const sections: ContextMenuSection[] = [];
     const actionItems: ContextMenuItem[] = [];
     if (isPlanningElement) {
+      const planningElement = element as TaskElement | StoryElement | GoalElement;
+      const isFocused = this.scene.isFocused(planningElement);
+      actionItems.push({
+        label: isFocused ? 'Clear Focus' : 'Set Focus',
+        action: () =>
+          historyService.execute(
+            new SetFocusCommand(
+              this.scene,
+              isFocused ? null : planningElement.id
+            )
+          ),
+      });
       actionItems.push({
         label: 'Edit',
         action: () => {

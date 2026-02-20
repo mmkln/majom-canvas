@@ -37,18 +37,18 @@ export class CanvasControls {
       tooltip: 'Zoom Out',
     }).createElement();
 
-    const centerBtn = ComponentFactory.createButton({
-      text: '⦿',
+    const goToFocusBtn = ComponentFactory.createButton({
+      text: 'F',
       variant: buttonVariant,
       size: 'icon-lg',
-      onClick: () => this.canvasManager.centerCanvas(),
-      tooltip: 'Center Canvas',
+      onClick: () => this.canvasManager.goToFocusedElement(),
+      tooltip: 'Go to Focus',
     }).createElement();
 
-    // append controls: zoom in/out and center
+    // append controls: zoom in/out and go-to-focus
     this.container.appendChild(zoomInBtn);
     this.container.appendChild(zoomOutBtn);
-    this.container.appendChild(centerBtn);
+    this.container.appendChild(goToFocusBtn);
   }
 
   public mount(parent: HTMLElement = document.body) {

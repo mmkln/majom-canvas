@@ -351,10 +351,14 @@ export class App {
       }
       const meta =
         el instanceof StoryElement
-          ? { width: el.width, height: el.height }
+          ? {
+              width: el.width,
+              height: el.height,
+              focused: this.scene.isFocused(el),
+            }
           : el instanceof GoalElement
-            ? { goalScale: el.scale }
-            : undefined;
+            ? { goalScale: el.scale, focused: this.scene.isFocused(el) }
+            : { focused: this.scene.isFocused(el) };
       positions.push({
         element_type: elementType,
         element_uuid: elementUuid,
@@ -488,6 +492,15 @@ export class App {
       next: (elements) => {
         this.scene.clear();
         elements.forEach((el) => this.scene.addElement(el));
+        const focusedUuid = this.canvasDataService.getFocusedElementUuid();
+        const focusedElement =
+          focusedUuid !== null
+            ? elements.find(
+                (element) =>
+                  element.uuid === focusedUuid || element.id === focusedUuid
+              ) ?? null
+            : null;
+        this.scene.setFocusedElement(focusedElement);
         this.loadActiveCanvasRelations();
       },
       error: (err) => {

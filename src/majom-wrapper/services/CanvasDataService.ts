@@ -211,15 +211,15 @@ export class CanvasDataService {
 
     const create$ = creates.length
       ? this.relationsApi
-          .batchCreate(creates)
-          .pipe(tap((created) => this.mergeRelationRegistry(created)))
+        .batchCreate(creates)
+        .pipe(tap((created) => this.mergeRelationRegistry(created)))
       : of([]);
     return create$.pipe(
       switchMap(() =>
         deletes.length
           ? this.relationsApi
-              .batchDelete(deletes)
-              .pipe(tap(() => this.removeRelationsById(deletes)))
+            .batchDelete(deletes)
+            .pipe(tap(() => this.removeRelationsById(deletes)))
           : of(undefined)
       ),
       map(() => undefined)
@@ -425,6 +425,19 @@ export class CanvasDataService {
 
   public loadCanvases(): Observable<CanvasSummary[]> {
     return this.canvasApi.loadCanvases();
+  }
+
+  public getFocusedElementUuid(): string | null {
+    for (const snapshot of this.positionRegistry.values()) {
+      const isPlanningType =
+        snapshot.element_type === 'task' ||
+        snapshot.element_type === 'story' ||
+        snapshot.element_type === 'goal';
+      if (!isPlanningType) continue;
+      if (!snapshot.meta || snapshot.meta.focused !== true) continue;
+      return snapshot.element_uuid;
+    }
+    return null;
   }
 
   public loadCanvasDetails(id: string): Observable<CanvasSummary> {
@@ -1031,14 +1044,14 @@ export class CanvasDataService {
   ): CanvasPositionWriteDTO[] {
     if (changes.length === 0) return [];
     if (this.positionDirtyKeys.size === 0) {
-      return changes.filter((pos) => this.isPositionChanged(pos));
+      return changes.filter((pos) => this.isLayoutEntryChanged(pos));
     }
     return changes.filter((pos) => {
       const key = this.getPositionKeyFromWrite(pos);
       if (!key) return false;
       if (!this.positionRegistry.has(key)) return true;
       if (!this.positionDirtyKeys.has(key)) return false;
-      const changed = this.isPositionChanged(pos);
+      const changed = this.isLayoutEntryChanged(pos);
       if (!changed) {
         this.positionDirtyKeys.delete(key);
       }
@@ -1064,7 +1077,7 @@ export class CanvasDataService {
     );
   }
 
-  private isPositionChanged(pos: CanvasPositionWriteDTO): boolean {
+  private isLayoutEntryChanged(pos: CanvasPositionWriteDTO): boolean {
     const key = this.getPositionKeyFromWrite(pos);
     if (!key) return false;
     const existing = this.positionRegistry.get(key);
@@ -1081,7 +1094,12 @@ export class CanvasDataService {
       existing.meta,
       'goalScale'
     );
-    return xChanged || yChanged || metaChanged || metaScaleChanged;
+    const metaFocusChanged = this.isMetaValueChanged(
+      pos.meta,
+      existing.meta,
+      'focused'
+    );
+    return xChanged || yChanged || metaChanged || metaScaleChanged || metaFocusChanged;
   }
 
   private mergePositionUpdates(changes: CanvasPositionWriteDTO[]): void {
@@ -1108,7 +1126,7 @@ export class CanvasDataService {
         element_uuid: pos.element_uuid,
         x: nextX,
         y: nextY,
-        meta: pos.meta ?? existing?.meta ?? null,
+        meta: this.normalizeMeta(pos.meta ?? existing?.meta ?? null),
       });
       this.positionDirtyKeys.delete(key);
     });
@@ -1124,7 +1142,7 @@ export class CanvasDataService {
         ...pos,
         x: this.normalizeCoord(pos.x),
         y: this.normalizeCoord(pos.y),
-        meta: this.normalizeMetaSize(pos.meta),
+        meta: this.normalizeMeta(pos.meta),
       });
     });
   }
@@ -1323,8 +1341,21 @@ export class CanvasDataService {
       ...pos,
       x: pos.x !== undefined ? this.normalizeCoord(pos.x) : pos.x,
       y: pos.y !== undefined ? this.normalizeCoord(pos.y) : pos.y,
-      meta: this.normalizeMetaSize(pos.meta),
+      meta: this.normalizeMeta(pos.meta),
     }));
+  }
+
+  private normalizeMeta(
+    meta: Record<string, any> | null | undefined
+  ): Record<string, any> | null {
+    const base =
+      meta && typeof meta === 'object' ? this.normalizeMetaSize(meta) ?? meta : {};
+    const next =
+      base && typeof base === 'object'
+        ? { ...(base as Record<string, any>) }
+        : {};
+    next.focused = next.focused === true;
+    return next;
   }
 
   private normalizeMetaSize(
