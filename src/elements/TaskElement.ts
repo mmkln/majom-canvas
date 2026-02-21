@@ -5,7 +5,6 @@ import { ConnectionPoint } from '../core/interfaces/shape.ts';
 import {
   SELECT_COLOR,
   SHOW_ANIM_SCALE,
-  SHOW_DETAILS_SCALE,
   SHOW_TASK_TEXT_SCALE,
 } from '../core/constants.ts';
 import { taskStyles } from './styles/taskStyles.ts';
@@ -77,8 +76,6 @@ export class TaskElement extends PlanningElement {
 
   draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
     const renderFlags = panZoom.renderFlags;
-    const showDetails =
-      renderFlags?.showDetails ?? panZoom.scale >= SHOW_DETAILS_SCALE;
     const showText =
       renderFlags?.showTaskText ?? panZoom.scale >= SHOW_TASK_TEXT_SCALE;
     const showAnim = renderFlags?.showAnim ?? panZoom.scale >= SHOW_ANIM_SCALE;
@@ -123,8 +120,8 @@ export class TaskElement extends PlanningElement {
       ctx.fillStyle = '#000000';
       ctx.font = `bold 14px Arial`;
 
-      // Calculate maximum width for text (accounting for padding and buttons)
-      const maxTitleWidth = w - 48; // Leaving space for buttons on right side
+      // Calculate maximum width for text with horizontal padding.
+      const maxTitleWidth = w - 32;
 
       // Draw title with word wrapping (font is already set)
       const fontSize = 20;
@@ -141,18 +138,6 @@ export class TaskElement extends PlanningElement {
       );
     }
 
-    if (showDetails) {
-    // Status badge
-    ctx.fillStyle = style.borderColor;
-    ctx.beginPath();
-    // TODO: implement status instead on the badge
-    ctx.arc(x + w - 24, y + 24, 6, 0, 2 * Math.PI);
-    ctx.fill();
-    // Edit button
-    this.drawButton(ctx, panZoom, x + w - 32, y + 10, '✏️');
-    // Delete button
-    this.drawButton(ctx, panZoom, x + w - 16, y + 10, '🗑️');
-    }
     // Draw connection anchors: show only when shape hovered/selected or specific port hovered
     const points = this.getConnectionPoints();
     const hoveredPort: ConnectionPoint | undefined = (this as any).hoveredPort;
@@ -184,32 +169,6 @@ export class TaskElement extends PlanningElement {
       py >= this.y &&
       py <= this.y + TaskElement.height
     );
-  }
-
-  isEditButtonClicked(px: number, py: number): boolean {
-    const bx = this.x + TaskElement.width - 32;
-    const by = this.y + 10;
-    const size = 16;
-    return px >= bx && px <= bx + size && py >= by && py <= by + size;
-  }
-
-  isDeleteButtonClicked(px: number, py: number): boolean {
-    const bx = this.x + TaskElement.width - 16;
-    const by = this.y + 10;
-    const size = 16;
-    return px >= bx && px <= bx + size && py >= by && py <= by + size;
-  }
-
-  private drawButton(
-    ctx: CanvasRenderingContext2D,
-    panZoom: PanZoomManager,
-    x: number,
-    y: number,
-    icon: string
-  ): void {
-    ctx.fillStyle = 'transparent';
-    ctx.font = `14px Arial`;
-    ctx.fillText(icon, x, y + 12);
   }
 
   onRightClick?(): void {}
@@ -283,3 +242,4 @@ export class TaskElement extends PlanningElement {
     editElement$.next(this);
   }
 }
+

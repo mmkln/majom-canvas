@@ -23,7 +23,7 @@ import { drawStatusAnimationRect } from './utils/statusAnimations.ts';
  * Story representation on the canvas - a container for tasks
  */
 export class StoryElement extends PlanningElement {
-  static width: number = 320;
+  static width: number = 344;
   static height: number = 240;
   public borderColor: string = storyStyles[ElementStatus.Defined].borderColor;
   /** Size for resize handles (in px) */
@@ -43,7 +43,7 @@ export class StoryElement extends PlanningElement {
     id = v4(),
     x = 0,
     y = 0,
-    width = 320,
+    width = StoryElement.width,
     height = 240,
     title = 'New Story',
     description = '',
