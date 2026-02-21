@@ -21,6 +21,7 @@ import { drawStatusAnimationRect } from './utils/statusAnimations.ts';
 export class TaskElement extends PlanningElement {
   title: string;
   status: ElementStatus = ElementStatus.Defined;
+  public borderColor: string = taskStyles[ElementStatus.Defined].borderColor;
   priority: 'low' | 'medium' | 'high';
   dueDate: Date | null = null;
 
@@ -68,6 +69,7 @@ export class TaskElement extends PlanningElement {
     this.zIndex = 2;
     this.title = title;
     this.status = status;
+    this.borderColor = taskStyles[status].borderColor;
     this.selected = selected;
     this.priority = priority;
     this.dueDate = dueDate ?? null;
@@ -89,6 +91,7 @@ export class TaskElement extends PlanningElement {
     // Background
     const style = taskStyles[this.status];
     this.fillColor = style.fillColor;
+    this.borderColor = style.borderColor;
     // Draw background and uniform 2px rounded border
     const radius = 24;
     ctx.fillStyle = style.fillColor;

@@ -21,11 +21,11 @@ export const TASK_STATUS_DEFINED_FILL = '#ffffff';
 export const TASK_STATUS_DEFINED_BORDER = '#BEAEBE';
 
 // Goal status colors
-export const GOAL_STATUS_DONE_FILL = 'rgba(82,196,26,0.1)';
+export const GOAL_STATUS_DONE_FILL = '#eaf7df';
 export const GOAL_STATUS_DONE_BORDER = STORY_STATUS_DONE_BORDER;
-export const GOAL_STATUS_IN_PROGRESS_FILL = 'rgba(24,144,255,0.1)';
+export const GOAL_STATUS_IN_PROGRESS_FILL = '#e5f1ff';
 export const GOAL_STATUS_IN_PROGRESS_BORDER = STORY_STATUS_IN_PROGRESS_BORDER;
-export const GOAL_STATUS_PENDING_FILL = 'rgba(255,165,0,0.1)';
+export const GOAL_STATUS_PENDING_FILL = '#fff2e2';
 export const GOAL_STATUS_PENDING_BORDER = '#fa8c16';
-export const GOAL_STATUS_DEFINED_FILL = 'rgba(156,163,175,0.1)';
+export const GOAL_STATUS_DEFINED_FILL = '#eef0f3';
 export const GOAL_STATUS_DEFINED_BORDER = '#BEAEBE';

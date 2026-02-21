@@ -25,6 +25,7 @@ import { drawStatusAnimationRect } from './utils/statusAnimations.ts';
 export class StoryElement extends PlanningElement {
   static width: number = 320;
   static height: number = 240;
+  public borderColor: string = storyStyles[ElementStatus.Defined].borderColor;
   /** Size for resize handles (in px) */
   // Size in px for the circular resize handle (larger for better UX)
   static HANDLE_SIZE: number = 8;
@@ -85,6 +86,7 @@ export class StoryElement extends PlanningElement {
     // layer ordering: draw stories below tasks
     this.zIndex = 1;
     this.status = status;
+    this.borderColor = storyStyles[status].borderColor;
     this.priority = priority;
     this.tasks = tasks;
     this.selected = selected;
@@ -103,6 +105,7 @@ export class StoryElement extends PlanningElement {
     // Apply fill and border based on status
     const style = storyStyles[this.status];
     this.fillColor = style.fillColor;
+    this.borderColor = style.borderColor;
     const radius = 8 * panZoom.scale;
     ctx.fillStyle = style.fillColor;
     ctx.beginPath();

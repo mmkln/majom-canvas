@@ -356,9 +356,10 @@ class ConnectionRenderer {
   }
 
   private getElementSwarmColor(element: IConnectable): RGBColor | null {
-    const fillColor = (element as { fillColor?: string }).fillColor;
-    if (!fillColor) return null;
-    return this.parseColor(fillColor);
+    const palette = element as { borderColor?: string; fillColor?: string };
+    const color = palette.borderColor ?? palette.fillColor;
+    if (!color) return null;
+    return this.parseColor(color);
   }
 
   private parseColor(color: string): RGBColor | null {

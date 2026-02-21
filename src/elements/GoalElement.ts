@@ -31,6 +31,7 @@ export class GoalElement extends PlanningElement {
   links: string[] = [];
   progress: number = 0;
   public status: ElementStatus = ElementStatus.Defined;
+  public borderColor: string = goalStyles[ElementStatus.Defined].borderColor;
   public priority: 'low' | 'medium' | 'high' = 'medium';
   public scale: GoalScale = DEFAULT_GOAL_SCALE;
 
@@ -85,6 +86,7 @@ export class GoalElement extends PlanningElement {
     });
     this.zIndex = 3;
     this.status = status;
+    this.borderColor = goalStyles[status].borderColor;
     this.priority = priority;
     this.selected = selected;
     this.description = description;
@@ -101,6 +103,7 @@ export class GoalElement extends PlanningElement {
     const { x, y, width, height, title, progress } = this;
     const style = goalStyles[this.status];
     this.fillColor = style.fillColor;
+    this.borderColor = style.borderColor;
     const centerX = x + width / 2;
     const centerY = y + height / 2;
     const radius = width / 2;
