@@ -1,7 +1,8 @@
-import { forkJoin, Observable, of, Subject } from 'rxjs';
+import { concat, forkJoin, Observable, of, Subject } from 'rxjs';
 import {
   catchError,
   debounceTime,
+  filter,
   finalize,
   groupBy,
   map,
@@ -39,6 +40,7 @@ import {
   ConnectionRelationType,
   type IConnection,
 } from '../../core/interfaces/connection.ts';
+import type { CanvasLoadingPlaceholder } from '../../core/types/canvasLoading.ts';
 
 type ElementPatch = Partial<{
   title: string;
@@ -70,6 +72,18 @@ type PositionSnapshot = {
   y: number;
   meta?: Record<string, any> | null;
 };
+
+export type CanvasElementsLoadState =
+  | {
+      phase: 'layout-ready';
+      placeholders: CanvasLoadingPlaceholder[];
+      focusedElementUuid: string | null;
+    }
+  | {
+      phase: 'elements-ready';
+      elements: Array<TaskElement | StoryElement | GoalElement>;
+      focusedElementUuid: string | null;
+    };
 
 /**
  * Service to load and persist canvas elements and layout.
@@ -108,9 +122,24 @@ export class CanvasDataService {
   public loadElements(): Observable<
     Array<TaskElement | StoryElement | GoalElement>
   > {
+    return this.loadElementsProgressive().pipe(
+      filter(
+        (state): state is Extract<CanvasElementsLoadState, { phase: 'elements-ready' }> =>
+          state.phase === 'elements-ready'
+      ),
+      map((state) => state.elements),
+      shareReplay(1)
+    );
+  }
+
+  public loadElementsProgressive(): Observable<CanvasElementsLoadState> {
     const canvasId = this.canvasId;
     if (!canvasId) {
-      return of([]);
+      return of({
+        phase: 'elements-ready',
+        elements: [],
+        focusedElementUuid: null,
+      });
     }
     return this.canvasApi.fetchCanvasPositions(canvasId).pipe(
       tap((layout) => {
@@ -118,41 +147,123 @@ export class CanvasDataService {
       }),
       retry(2),
       switchMap((layout) => {
-        const layoutRefs = {
-          task: { ids: new Set<number>(), uuids: new Set<string>() },
-          story: { ids: new Set<number>(), uuids: new Set<string>() },
-          goal: { ids: new Set<number>(), uuids: new Set<string>() },
+        const focusedElementUuid = this.getFocusedElementUuid();
+        const layoutState: CanvasElementsLoadState = {
+          phase: 'layout-ready',
+          placeholders: this.mapLayoutToLoadingPlaceholders(layout),
+          focusedElementUuid,
         };
-        layout.forEach((pos) => {
-          const type = pos.element_type;
-          if (!type || !(type in layoutRefs)) return;
-          const uuid = pos.element_uuid;
-          if (uuid) {
-            layoutRefs[type as keyof typeof layoutRefs].uuids.add(uuid);
-          }
-        });
-        const taskIds = Array.from(layoutRefs.task.ids);
-        const storyIds = Array.from(layoutRefs.story.ids);
-        const goalIds = Array.from(layoutRefs.goal.ids);
-        const taskUuids = Array.from(layoutRefs.task.uuids);
-        const storyUuids = Array.from(layoutRefs.story.uuids);
-        const goalUuids = Array.from(layoutRefs.goal.uuids);
-        return forkJoin({
-          tasks: this.fetchTasksByRefsCached(taskIds, taskUuids),
-          stories: this.fetchStoriesByRefsCached(storyIds, storyUuids),
-          goals: this.fetchGoalsByRefsCached(goalIds, goalUuids),
-          layout: of(layout),
-        });
-      }),
+        const elementsState$ = this.loadElementsByLayout(layout).pipe(
+          map(
+            (elements): CanvasElementsLoadState => ({
+              phase: 'elements-ready',
+              elements,
+              focusedElementUuid,
+            })
+          )
+        );
+        return concat(of(layoutState), elementsState$);
+      })
+    );
+  }
+
+  private loadElementsByLayout(
+    layout: CanvasPositionReadDTO[]
+  ): Observable<Array<TaskElement | StoryElement | GoalElement>> {
+    const layoutRefs = {
+      task: { ids: new Set<number>(), uuids: new Set<string>() },
+      story: { ids: new Set<number>(), uuids: new Set<string>() },
+      goal: { ids: new Set<number>(), uuids: new Set<string>() },
+    };
+    layout.forEach((pos) => {
+      const type = pos.element_type;
+      if (!type || !(type in layoutRefs)) return;
+      const uuid = pos.element_uuid;
+      if (uuid) {
+        layoutRefs[type as keyof typeof layoutRefs].uuids.add(uuid);
+      }
+    });
+    const taskIds = Array.from(layoutRefs.task.ids);
+    const storyIds = Array.from(layoutRefs.story.ids);
+    const goalIds = Array.from(layoutRefs.goal.ids);
+    const taskUuids = Array.from(layoutRefs.task.uuids);
+    const storyUuids = Array.from(layoutRefs.story.uuids);
+    const goalUuids = Array.from(layoutRefs.goal.uuids);
+    return forkJoin({
+      tasks: this.fetchTasksByRefsCached(taskIds, taskUuids),
+      stories: this.fetchStoriesByRefsCached(storyIds, storyUuids),
+      goals: this.fetchGoalsByRefsCached(goalIds, goalUuids),
+      layout: of(layout),
+    }).pipe(
       map(({ tasks, stories, goals, layout }) => {
         const taskElements = tasks.map((t) => mapTask(t, layout));
         const storyElements = stories.map((s) => mapStory(s, layout));
         const goalElements = goals.map((g) => mapGoal(g, layout));
         this.linkTasksToStories(taskElements, storyElements, tasks);
         return [...taskElements, ...storyElements, ...goalElements];
-      }),
-      shareReplay(1)
+      })
     );
+  }
+
+  private mapLayoutToLoadingPlaceholders(
+    layout: CanvasPositionReadDTO[]
+  ): CanvasLoadingPlaceholder[] {
+    const placeholders: CanvasLoadingPlaceholder[] = [];
+    layout.forEach((entry) => {
+      if (!entry.element_uuid) return;
+      if (entry.element_type === 'task') {
+        placeholders.push({
+          elementType: 'task',
+          elementUuid: entry.element_uuid,
+          x: this.normalizeCoord(entry.x),
+          y: this.normalizeCoord(entry.y),
+          width: TaskElement.width,
+          height: TaskElement.height,
+        });
+        return;
+      }
+      if (entry.element_type === 'story') {
+        const size = this.getMetaSize(entry.meta);
+        placeholders.push({
+          elementType: 'story',
+          elementUuid: entry.element_uuid,
+          x: this.normalizeCoord(entry.x),
+          y: this.normalizeCoord(entry.y),
+          width:
+            typeof size?.width === 'number' && size.width > 0
+              ? this.normalizeCoord(size.width)
+              : StoryElement.width,
+          height:
+            typeof size?.height === 'number' && size.height > 0
+              ? this.normalizeCoord(size.height)
+              : StoryElement.height,
+        });
+        return;
+      }
+      if (entry.element_type === 'goal') {
+        const goalScale = this.getGoalScale(entry.meta);
+        const factor = goalScale === 3 ? 1.4 : goalScale === 2 ? 1 : 0.7;
+        const diameter = GoalElement.baseDiameter * factor;
+        placeholders.push({
+          elementType: 'goal',
+          elementUuid: entry.element_uuid,
+          x: this.normalizeCoord(entry.x),
+          y: this.normalizeCoord(entry.y),
+          width: this.normalizeCoord(diameter),
+          height: this.normalizeCoord(diameter),
+        });
+      }
+    });
+    return placeholders;
+  }
+
+  private getGoalScale(meta: Record<string, any> | null | undefined): 1 | 2 | 3 {
+    const value = meta ? meta.goalScale : undefined;
+    if (typeof value !== 'number' || !Number.isFinite(value)) return 1;
+    const rounded = Math.round(value);
+    if (rounded <= 1) return 1;
+    if (rounded >= 3) return 3;
+    return 2;
   }
 
   public loadRelations(): Observable<Connection[]> {
@@ -1482,9 +1593,6 @@ export class CanvasDataService {
     }
   }
 }
-
-
-
 
 
 

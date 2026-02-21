@@ -1,5 +1,8 @@
 import { Subscription } from 'rxjs';
-import type { CanvasManager } from '../core/managers/CanvasManager.ts';
+import type {
+  CanvasLoadingElementPreview,
+  CanvasManager,
+} from '../core/managers/CanvasManager.ts';
 import { Scene } from '../core/scene/Scene.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
@@ -70,6 +73,9 @@ export class MiniMap {
         .viewChanges.subscribe(() => this.render())
     );
     this.subscriptions.push(this.scene.focusChanges.subscribe(() => this.render()));
+    this.subscriptions.push(
+      this.canvasManager.loadingPlaceholdersChanges$.subscribe(() => this.render())
+    );
     this.canvasEl.addEventListener('pointerdown', this.onPointerDown);
     this.canvasEl.addEventListener('pointermove', this.onPointerMove);
     this.canvasEl.addEventListener('pointerup', this.onPointerUp);
@@ -134,18 +140,25 @@ export class MiniMap {
   }
 
   private drawElements(metrics: MiniMapMetrics): void {
+    const loadingPlaceholders = this.canvasManager.getLoadingPlaceholders();
+    const sceneElements = this.scene.getElements();
+    if (sceneElements.length === 0 && loadingPlaceholders.length > 0) {
+      this.drawLoadingElements(metrics, loadingPlaceholders);
+      return;
+    }
+
     const focusedId = this.scene.getFocusedElementId();
-    const elements = this.scene.getElements();
-    elements.forEach((element: any) => {
+    sceneElements.forEach((element: any) => {
       if (typeof element?.x !== 'number' || typeof element?.y !== 'number') return;
-      const baseColor =
+      const baseColor = this.getColorByType(
         element instanceof TaskElement
-          ? '#0ea5e9'
+          ? 'task'
           : element instanceof StoryElement
-            ? '#10b981'
+            ? 'story'
             : element instanceof GoalElement
-              ? '#f59e0b'
-              : '#94a3b8';
+              ? 'goal'
+              : 'other'
+      );
       const x = metrics.mapX + element.x * metrics.sceneToMap;
       const y = metrics.mapY + element.y * metrics.sceneToMap;
       if (
@@ -166,6 +179,29 @@ export class MiniMap {
         this.ctx.fill();
       }
     });
+  }
+
+  private drawLoadingElements(
+    metrics: MiniMapMetrics,
+    placeholders: ReadonlyArray<CanvasLoadingElementPreview>
+  ): void {
+    placeholders.forEach((placeholder) => {
+      const x = metrics.mapX + placeholder.x * metrics.sceneToMap;
+      const y = metrics.mapY + placeholder.y * metrics.sceneToMap;
+      const width = Math.max(2, placeholder.width * metrics.sceneToMap);
+      const height = Math.max(2, placeholder.height * metrics.sceneToMap);
+      this.ctx.fillStyle = placeholder.isFocused
+        ? '#8b5cf6'
+        : this.getColorByType(placeholder.elementType);
+      this.ctx.fillRect(x, y, width, height);
+    });
+  }
+
+  private getColorByType(type: 'task' | 'story' | 'goal' | 'other'): string {
+    if (type === 'task') return '#0ea5e9';
+    if (type === 'story') return '#10b981';
+    if (type === 'goal') return '#f59e0b';
+    return '#94a3b8';
   }
 
   private drawViewport(metrics: MiniMapMetrics): Rect {

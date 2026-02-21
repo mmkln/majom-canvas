@@ -38,6 +38,14 @@ import { getBoundingBox } from '../utils/geometryUtils.ts';
 import { hasStatusAnimation } from '../../elements/utils/statusAnimations.ts';
 import { CANVAS_PERF_LOG } from '../../config/env/index.ts';
 import { isCircleVisible, isRectVisible } from '../utils/viewBounds.ts';
+import { Subject } from 'rxjs';
+import type { CanvasLoadingPlaceholder } from '../types/canvasLoading.ts';
+
+type CanvasLoadingPlaceholderRenderState = CanvasLoadingPlaceholder & {
+  isFocused: boolean;
+};
+
+export type CanvasLoadingElementPreview = CanvasLoadingPlaceholderRenderState;
 
 export class CanvasManager {
   canvas: HTMLCanvasElement;
@@ -106,6 +114,11 @@ export class CanvasManager {
   private cachedShapes: IShape[] = [];
   private cachedPlanningElements: IPlanningElement[] = [];
   private cachedPlanningElementsSorted: IPlanningElement[] = [];
+  private loadingPlaceholders: CanvasLoadingPlaceholderRenderState[] = [];
+  private readonly loadingPlaceholdersChangesSubject: Subject<void> =
+    new Subject<void>();
+  public readonly loadingPlaceholdersChanges$ =
+    this.loadingPlaceholdersChangesSubject.asObservable();
 
   constructor(canvas: HTMLCanvasElement, scene: Scene) {
     this.canvas = canvas;
@@ -215,6 +228,7 @@ export class CanvasManager {
     this.ctx.scale(this.panZoom.scale, this.panZoom.scale);
 
     this.renderer.drawContent();
+    this.drawLoadingPlaceholders();
 
     const elementsVersion = this.scene.getElementsVersion();
     if (elementsVersion !== this.cachedElementsVersion) {
@@ -459,6 +473,71 @@ export class CanvasManager {
     ) as IPlanningElement;
     Object.assign(previewElement, element, overrides);
     previewElement.draw(this.ctx, this.panZoom);
+  }
+
+  private drawLoadingPlaceholders(): void {
+    if (this.loadingPlaceholders.length === 0) return;
+    const scale = this.panZoom.scale || 1;
+    this.loadingPlaceholders.forEach((placeholder) => {
+      const x = placeholder.x;
+      const y = placeholder.y;
+      const width = Math.max(1, placeholder.width);
+      const height = Math.max(1, placeholder.height);
+      this.ctx.save();
+      this.ctx.fillStyle = '#e5e7eb';
+      this.ctx.setLineDash([]);
+      if (placeholder.elementType === 'task') {
+        this.ctx.beginPath();
+        this.ctx.roundRect(x, y, width, height, 24);
+        this.ctx.fill();
+      } else if (placeholder.elementType === 'story') {
+        this.ctx.beginPath();
+        this.ctx.roundRect(x, y, width, height, 8);
+        this.ctx.fill();
+      } else {
+        const centerX = x + width / 2;
+        const centerY = y + height / 2;
+        const radius = Math.min(width, height) / 2;
+        this.ctx.beginPath();
+        this.drawHexPath(centerX, centerY, radius);
+        this.ctx.fill();
+      }
+      this.ctx.restore();
+
+      if (!placeholder.isFocused) return;
+      const offset = FOCUS_OFFSET / scale;
+      const cornerLength = Math.min(
+        FOCUS_CORNER_LENGTH / scale,
+        Math.max(8 / scale, Math.min(width, height) / 3)
+      );
+      const left = x - offset;
+      const top = y - offset;
+      const right = x + width + offset;
+      const bottom = y + height + offset;
+      this.ctx.save();
+      this.ctx.strokeStyle = FOCUS_COLOR;
+      this.ctx.lineWidth = FOCUS_LINE_WIDTH / scale;
+      this.ctx.lineCap = 'round';
+      this.ctx.lineJoin = 'round';
+      this.ctx.setLineDash([]);
+      this.drawFocusCorners(left, top, right, bottom, cornerLength);
+      this.ctx.restore();
+    });
+  }
+
+  private drawHexPath(cx: number, cy: number, radius: number): void {
+    const angleOffset = -Math.PI / 2;
+    for (let i = 0; i < 6; i += 1) {
+      const angle = angleOffset + (Math.PI / 3) * i;
+      const pointX = cx + radius * Math.cos(angle);
+      const pointY = cy + radius * Math.sin(angle);
+      if (i === 0) {
+        this.ctx.moveTo(pointX, pointY);
+      } else {
+        this.ctx.lineTo(pointX, pointY);
+      }
+    }
+    this.ctx.closePath();
   }
 
   private drawFocusOverlay(): void {
@@ -832,6 +911,31 @@ export class CanvasManager {
     const targetX = bounds.x + bounds.width / 2;
     const targetY = bounds.y;
     this.centerOnScenePoint(targetX, targetY);
+  }
+
+  public setLoadingPlaceholders(
+    placeholders: CanvasLoadingPlaceholder[],
+    focusedElementUuid: string | null = null
+  ): void {
+    const focused = focusedElementUuid ?? null;
+    this.loadingPlaceholders = placeholders.map((placeholder) => ({
+      ...placeholder,
+      isFocused:
+        Boolean(focused) && focused === placeholder.elementUuid,
+    }));
+    this.loadingPlaceholdersChangesSubject.next();
+    this.requestDraw();
+  }
+
+  public clearLoadingPlaceholders(): void {
+    if (this.loadingPlaceholders.length === 0) return;
+    this.loadingPlaceholders = [];
+    this.loadingPlaceholdersChangesSubject.next();
+    this.requestDraw();
+  }
+
+  public getLoadingPlaceholders(): ReadonlyArray<CanvasLoadingElementPreview> {
+    return this.loadingPlaceholders;
   }
 
   /**

@@ -29,7 +29,7 @@ import { isPlanningElement } from './elements/utils/typeGuards.ts';
 import { ElementStatus } from './elements/ElementStatus.ts';
 import { CanvasPositionWriteDTO } from './majom-wrapper/data-access/canvas-position-dto.ts';
 import { notify } from './core/services/NotificationService.ts';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, of, Subscription, throwError } from 'rxjs';
 import { catchError, finalize, map, switchMap } from 'rxjs/operators';
 
 export class App {
@@ -45,6 +45,8 @@ export class App {
   private canvasTitle: string = 'New canvas';
   private autosaveTimer: number | null = null;
   private autosaveInFlight = false;
+  private activeCanvasElementsSubscription: Subscription | null = null;
+  private activeCanvasRelationsSubscription: Subscription | null = null;
 
   constructor(dataProvider: IDataProvider) {
     this.dataProvider = dataProvider;
@@ -276,6 +278,7 @@ export class App {
   private loadCanvasFromApi(): void {
     if (!this.authService.isLoggedIn()) {
       this.scene.clear();
+      this.canvasManager.clearLoadingPlaceholders();
       this.setCanvasTitle('New canvas');
       this.refreshCanvasList(null);
       return;
@@ -488,30 +491,46 @@ export class App {
   }
 
   private loadActiveCanvasElements(): void {
-    this.canvasDataService.loadElements().subscribe({
-      next: (elements) => {
-        this.scene.clear();
-        elements.forEach((el) => this.scene.addElement(el));
-        const focusedUuid = this.canvasDataService.getFocusedElementUuid();
-        const focusedElement =
-          focusedUuid !== null
-            ? elements.find(
-                (element) =>
-                  element.uuid === focusedUuid || element.id === focusedUuid
-              ) ?? null
-            : null;
-        this.scene.setFocusedElement(focusedElement);
-        this.loadActiveCanvasRelations();
-      },
-      error: (err) => {
-        console.error('Failed to load canvas data', err);
-        notify('Failed to load canvas data', 'error');
-      },
-    });
+    this.activeCanvasElementsSubscription?.unsubscribe();
+    this.activeCanvasRelationsSubscription?.unsubscribe();
+    this.scene.clear();
+    this.canvasManager.clearLoadingPlaceholders();
+    this.activeCanvasElementsSubscription =
+      this.canvasDataService.loadElementsProgressive().subscribe({
+        next: (state) => {
+          if (state.phase === 'layout-ready') {
+            this.canvasManager.setLoadingPlaceholders(
+              state.placeholders,
+              state.focusedElementUuid
+            );
+            return;
+          }
+          const elements = state.elements;
+          this.canvasManager.clearLoadingPlaceholders();
+          elements.forEach((el) => this.scene.addElement(el));
+          const focusedUuid = state.focusedElementUuid;
+          const focusedElement =
+            focusedUuid !== null
+              ? elements.find(
+                  (element) =>
+                    element.uuid === focusedUuid || element.id === focusedUuid
+                ) ?? null
+              : null;
+          this.scene.setFocusedElement(focusedElement);
+          this.loadActiveCanvasRelations();
+        },
+        error: (err) => {
+          this.canvasManager.clearLoadingPlaceholders();
+          console.error('Failed to load canvas data', err);
+          notify('Failed to load canvas data', 'error');
+        },
+      });
   }
 
   private loadActiveCanvasRelations(): void {
-    this.canvasDataService.loadRelations().subscribe({
+    this.activeCanvasRelationsSubscription?.unsubscribe();
+    this.activeCanvasRelationsSubscription =
+      this.canvasDataService.loadRelations().subscribe({
       next: (connections) => {
         connections.forEach((conn) => this.scene.addElement(conn));
       },
