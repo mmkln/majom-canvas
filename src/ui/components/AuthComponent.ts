@@ -23,6 +23,7 @@ export class AuthComponent extends Component<any> {
   private modal: HTMLElement | null = null;
   private errorMessage: HTMLElement | null = null;
   private isLoading: boolean = false;
+  private isUserLoading: boolean = false;
   private authGuardOverlay: HTMLElement | null = null;
   private showLoginModalHandler: () => void;
 
@@ -88,7 +89,6 @@ export class AuthComponent extends Component<any> {
 
   private updateUI(): void {
     if (this.authService.isLoggedIn()) {
-      this.loadUserData();
       this.avatarContainer.innerHTML =
         '<img src="https://cdn.thegreatprojects.com/thegreatprojects/images/c/c/c/d/9/cccd9ab3a8832417497e233c1cb92b9e.jpg?width=364&height=364&format=jpg" alt="User Avatar" class="w-10 h-10 bg-gray-100 rounded-full cursor-pointer">';
       this.avatarContainer.firstChild?.addEventListener('click', () =>
@@ -97,6 +97,8 @@ export class AuthComponent extends Component<any> {
       this.avatarContainer.appendChild(this.dropdownMenu);
     } else {
       this.currentUser = null;
+      this.isUserLoading = false;
+      this.buildUserDetailsSection();
       this.avatarContainer.innerHTML = '';
       // Show login prompt if there are unsaved changes
       const canSave = historyService.hasUnsavedChanges();
@@ -110,18 +112,25 @@ export class AuthComponent extends Component<any> {
   private toggleDropdown(): void {
     if (this.dropdownMenu.classList.contains('hidden')) {
       this.dropdownMenu.classList.remove('hidden');
+      if (!this.currentUser && !this.isUserLoading) {
+        this.loadUserData();
+      }
     } else {
       this.dropdownMenu.classList.add('hidden');
     }
   }
 
   private loadUserData(): void {
+    if (this.currentUser || this.isUserLoading) return;
+    this.isUserLoading = true;
     this.userApiService.getUser().subscribe({
       next: (user: User) => {
         this.currentUser = user;
         this.buildUserDetailsSection();
+        this.isUserLoading = false;
       },
       error: (error: any) => {
+        this.isUserLoading = false;
         console.error('Failed to load user data:', error);
       }
     });

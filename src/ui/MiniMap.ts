@@ -3,6 +3,7 @@ import type {
   CanvasLoadingElementPreview,
   CanvasManager,
 } from '../core/managers/CanvasManager.ts';
+import type { CanvasLoadPhase } from '../core/types/canvasLoading.ts';
 import { Scene } from '../core/scene/Scene.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
@@ -27,6 +28,8 @@ export class MiniMap {
   private subscriptions: Subscription[] = [];
   private viewportRect: Rect | null = null;
   private metrics: MiniMapMetrics | null = null;
+  private progressiveLoadFrozen = false;
+  private loadingSnapshot: CanvasLoadingElementPreview[] | null = null;
   private isDraggingViewport = false;
   private dragOffsetX = 0;
   private dragOffsetY = 0;
@@ -66,7 +69,17 @@ export class MiniMap {
 
   public mount(parent: HTMLElement = document.body): void {
     parent.appendChild(this.container);
-    this.subscriptions.push(this.scene.changes.subscribe(() => this.render()));
+    this.subscriptions.push(
+      this.scene.changes.subscribe(() => {
+        if (this.progressiveLoadFrozen) return;
+        this.render();
+      })
+    );
+    this.subscriptions.push(
+      this.canvasManager.loadPhase$.subscribe((phase) =>
+        this.onLoadPhaseChanged(phase)
+      )
+    );
     this.subscriptions.push(
       this.canvasManager
         .getPanZoomManager()
@@ -74,7 +87,19 @@ export class MiniMap {
     );
     this.subscriptions.push(this.scene.focusChanges.subscribe(() => this.render()));
     this.subscriptions.push(
-      this.canvasManager.loadingPlaceholdersChanges$.subscribe(() => this.render())
+      this.canvasManager.loadingPlaceholdersChanges$.subscribe(() => {
+        const placeholders = this.canvasManager.getLoadingPlaceholders();
+        if (this.progressiveLoadFrozen) {
+          if (!this.loadingSnapshot && placeholders.length > 0) {
+            this.loadingSnapshot = placeholders.map((placeholder) => ({
+              ...placeholder,
+            }));
+            this.render();
+          }
+          return;
+        }
+        this.render();
+      })
     );
     this.canvasEl.addEventListener('pointerdown', this.onPointerDown);
     this.canvasEl.addEventListener('pointermove', this.onPointerMove);
@@ -140,9 +165,12 @@ export class MiniMap {
   }
 
   private drawElements(metrics: MiniMapMetrics): void {
-    const loadingPlaceholders = this.canvasManager.getLoadingPlaceholders();
+    const loadingPlaceholders =
+      this.progressiveLoadFrozen && this.loadingSnapshot
+        ? this.loadingSnapshot
+        : this.canvasManager.getLoadingPlaceholders();
     const sceneElements = this.scene.getElements();
-    if (sceneElements.length === 0 && loadingPlaceholders.length > 0) {
+    if (loadingPlaceholders.length > 0) {
       this.drawLoadingElements(metrics, loadingPlaceholders);
       return;
     }
@@ -291,5 +319,33 @@ export class MiniMap {
       point.y >= rect.y &&
       point.y <= rect.y + rect.height
     );
+  }
+
+  private onLoadPhaseChanged(phase: CanvasLoadPhase): void {
+    if (phase === 'loading') {
+      this.progressiveLoadFrozen = true;
+      this.loadingSnapshot = null;
+      return;
+    }
+    if (phase === 'layout-ready') {
+      this.progressiveLoadFrozen = true;
+      if (!this.loadingSnapshot) {
+        const placeholders = this.canvasManager.getLoadingPlaceholders();
+        if (placeholders.length > 0) {
+          this.loadingSnapshot = placeholders.map((placeholder) => ({
+            ...placeholder,
+          }));
+          this.render();
+        }
+      }
+      return;
+    }
+    if (phase === 'elements-partial-ready') {
+      this.progressiveLoadFrozen = true;
+      return;
+    }
+    this.progressiveLoadFrozen = false;
+    this.loadingSnapshot = null;
+    this.render();
   }
 }

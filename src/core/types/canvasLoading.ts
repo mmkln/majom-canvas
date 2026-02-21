@@ -6,3 +6,10 @@ export type CanvasLoadingPlaceholder = {
   width: number;
   height: number;
 };
+
+export type CanvasLoadPhase =
+  | 'idle'
+  | 'loading'
+  | 'layout-ready'
+  | 'elements-partial-ready'
+  | 'elements-ready';

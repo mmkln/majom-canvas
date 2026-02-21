@@ -11,15 +11,14 @@ import { StoriesApiService } from './majom-wrapper/data-access/stories-api-servi
 import { GoalsApiService } from './majom-wrapper/data-access/goals-api-service.ts';
 import { CanvasApiService } from './majom-wrapper/data-access/canvas-api-service.ts';
 import { CanvasRelationsApiService } from './majom-wrapper/data-access/canvas-relations-api-service.ts';
-import { CanvasDataService } from './majom-wrapper/services/CanvasDataService.ts';
+import {
+  CanvasDataService,
+  type CanvasElementsLoadOptions,
+} from './majom-wrapper/services/CanvasDataService.ts';
 import { UIManager } from './ui/UIManager.ts';
 import type { IViewState } from './core/interfaces/interfaces.ts';
 import { commandManager } from './core/managers/CommandManager.ts';
 import { historyService } from './core/services/HistoryService.ts';
-import { CopyCommand } from './core/commands/CopyCommand.ts';
-import { PasteCommand } from './core/commands/PasteCommand.ts';
-import { DeleteCommand } from './core/commands/DeleteCommand.ts';
-import { CutCommand } from './core/commands/CutCommand.ts';
 import { getCommandConfigs } from './core/config/commandConfigs.ts';
 import { environment } from './config/environment.ts';
 import { TaskElement } from './elements/TaskElement.ts';
@@ -45,6 +44,9 @@ export class App {
   private canvasTitle: string = 'New canvas';
   private autosaveTimer: number | null = null;
   private autosaveInFlight = false;
+  private isHydratingCanvas = false;
+  private isElementsHydrating = false;
+  private isRelationsHydrating = false;
   private activeCanvasElementsSubscription: Subscription | null = null;
   private activeCanvasRelationsSubscription: Subscription | null = null;
 
@@ -252,15 +254,15 @@ export class App {
 
   public async init(): Promise<void> {
     this.canvasManager.init();
+    // Restore last view state (scroll & zoom) via centralized setter
+    const view: IViewState = await this.dataProvider.loadViewState();
+    const panZoom = this.canvasManager.getPanZoomManager();
+    panZoom.setViewState(view);
     if (this.authService.isLoggedIn()) {
       this.loadCanvasFromApi();
     } else {
       await this.diagramRepository.loadDiagram(this.scene);
     }
-    // Restore last view state (scroll & zoom) via centralized setter
-    const view: IViewState = await this.dataProvider.loadViewState();
-    const panZoom = this.canvasManager.getPanZoomManager();
-    panZoom.setViewState(view);
     // Draw after restore and notify listeners (including ZoomIndicator)
     this.canvasManager.draw();
     // Auto-save view state on any change
@@ -268,15 +270,18 @@ export class App {
       this.dataProvider.saveViewState(state)
     );
     // Auto-save diagram on content change
-    this.scene.changes.subscribe(() =>
-      this.diagramRepository.saveDiagram(this.scene)
-    );
+    this.scene.changes.subscribe(() => {
+      if (this.isHydratingCanvas) return;
+      this.diagramRepository.saveDiagram(this.scene);
+    });
     this.startAutosave();
     // AuthComponent does not have an init method, initialization happens in constructor
   }
 
   private loadCanvasFromApi(): void {
     if (!this.authService.isLoggedIn()) {
+      this.resetHydrationState();
+      this.canvasManager.setLoadPhase('idle');
       this.scene.clear();
       this.canvasManager.clearLoadingPlaceholders();
       this.setCanvasTitle('New canvas');
@@ -284,25 +289,16 @@ export class App {
       return;
     }
     this.canvasDataService.clearElementCache();
-    this.canvasDataService.ensureCanvas().subscribe({
-      next: (canvas) => {
-        this.canvasDataService.loadCanvasDetails(canvas.id).subscribe({
-          next: (details) => {
-            this.setCanvasTitle(details.name);
-            this.refreshCanvasList(details.id);
-            this.loadActiveCanvasElements();
-          },
-          error: (err) => {
-            console.error('Failed to load canvas details', err);
-            this.canvasDataService.setActiveCanvas(canvas);
-            this.setCanvasTitle(canvas.name);
-            this.refreshCanvasList(canvas.id);
-            this.loadActiveCanvasElements();
-          },
-        });
+    // TODO(snapshot-cache): once snapshot endpoint is available,
+    // replace bootstrap + elements + relations chain with single snapshot hydration.
+    this.canvasDataService.bootstrapCanvas().subscribe({
+      next: ({ canvases, activeCanvas }) => {
+        this.setCanvasTitle(activeCanvas.name);
+        this.emitCanvasList(canvases, activeCanvas.id);
+        this.loadActiveCanvasElements();
       },
       error: (err) => {
-        console.error('Failed to ensure canvas', err);
+        console.error('Failed to bootstrap canvas', err);
         notify('Failed to load canvas', 'error');
       },
     });
@@ -493,51 +489,122 @@ export class App {
   private loadActiveCanvasElements(): void {
     this.activeCanvasElementsSubscription?.unsubscribe();
     this.activeCanvasRelationsSubscription?.unsubscribe();
+    this.setRelationsHydrating(false);
+    this.setElementsHydrating(true);
+    this.canvasManager.setLoadPhase('loading');
     this.scene.clear();
     this.canvasManager.clearLoadingPlaceholders();
+    const loadOptions = this.buildCanvasLoadOptions();
     this.activeCanvasElementsSubscription =
-      this.canvasDataService.loadElementsProgressive().subscribe({
+      this.canvasDataService.loadElementsProgressive(loadOptions).subscribe({
         next: (state) => {
           if (state.phase === 'layout-ready') {
+            this.loadActiveCanvasRelations();
             this.canvasManager.setLoadingPlaceholders(
               state.placeholders,
               state.focusedElementUuid
             );
+            this.canvasManager.setLoadPhase('layout-ready');
             return;
           }
-          const elements = state.elements;
+          if (state.phase === 'elements-partial-ready') {
+            this.replacePlanningElements(state.elements);
+            this.applyFocusedElement(state.elements, state.focusedElementUuid);
+            this.canvasManager.setLoadingPlaceholders(
+              state.placeholders,
+              state.focusedElementUuid
+            );
+            this.canvasManager.setLoadPhase('elements-partial-ready');
+            return;
+          }
           this.canvasManager.clearLoadingPlaceholders();
-          elements.forEach((el) => this.scene.addElement(el));
-          const focusedUuid = state.focusedElementUuid;
-          const focusedElement =
-            focusedUuid !== null
-              ? elements.find(
-                  (element) =>
-                    element.uuid === focusedUuid || element.id === focusedUuid
-                ) ?? null
-              : null;
-          this.scene.setFocusedElement(focusedElement);
-          this.loadActiveCanvasRelations();
+          this.replacePlanningElements(state.elements);
+          this.applyFocusedElement(state.elements, state.focusedElementUuid);
+          this.canvasManager.setLoadPhase('elements-ready');
+          this.setElementsHydrating(false);
         },
         error: (err) => {
           this.canvasManager.clearLoadingPlaceholders();
+          this.canvasManager.setLoadPhase('idle');
+          this.setElementsHydrating(false);
+          this.setRelationsHydrating(false);
           console.error('Failed to load canvas data', err);
           notify('Failed to load canvas data', 'error');
         },
       });
   }
 
+  private applyFocusedElement(
+    elements: Array<TaskElement | StoryElement | GoalElement>,
+    focusedUuid: string | null
+  ): void {
+    const focusedElement =
+      focusedUuid !== null
+        ? elements.find(
+            (element) =>
+              element.uuid === focusedUuid || element.id === focusedUuid
+          ) ?? null
+        : null;
+    this.scene.setFocusedElement(focusedElement);
+  }
+
+  private replacePlanningElements(
+    elements: Array<TaskElement | StoryElement | GoalElement>
+  ): void {
+    this.scene.replaceElements(isPlanningElement, elements);
+  }
+
+  private buildCanvasLoadOptions(): CanvasElementsLoadOptions {
+    const panZoom = this.canvasManager.getPanZoomManager();
+    const canvas = this.canvasManager.getCanvas();
+    const scale = panZoom.scale || 1;
+    const minX = panZoom.scrollX / scale;
+    const minY = panZoom.scrollY / scale;
+    const maxX = (panZoom.scrollX + canvas.width) / scale;
+    const maxY = (panZoom.scrollY + canvas.height) / scale;
+    return {
+      viewportBounds: { minX, minY, maxX, maxY },
+      viewportFirstThreshold: 250,
+    };
+  }
+
   private loadActiveCanvasRelations(): void {
     this.activeCanvasRelationsSubscription?.unsubscribe();
+    this.setRelationsHydrating(true);
     this.activeCanvasRelationsSubscription =
       this.canvasDataService.loadRelations().subscribe({
-      next: (connections) => {
-        connections.forEach((conn) => this.scene.addElement(conn));
-      },
-      error: (err) => {
-        console.error('Failed to load canvas relations', err);
-      },
-    });
+        next: (connections) => {
+          connections.forEach((conn) => this.scene.addElement(conn));
+        },
+        error: (err) => {
+          this.setRelationsHydrating(false);
+          console.error('Failed to load canvas relations', err);
+        },
+        complete: () => {
+          this.setRelationsHydrating(false);
+        },
+      });
+  }
+
+  private setElementsHydrating(value: boolean): void {
+    this.isElementsHydrating = value;
+    this.syncHydrationState();
+  }
+
+  private setRelationsHydrating(value: boolean): void {
+    this.isRelationsHydrating = value;
+    this.syncHydrationState();
+  }
+
+  private resetHydrationState(): void {
+    this.isElementsHydrating = false;
+    this.isRelationsHydrating = false;
+    this.syncHydrationState();
+  }
+
+  private syncHydrationState(): void {
+    this.isHydratingCanvas =
+      this.isElementsHydrating || this.isRelationsHydrating;
   }
 
   private refreshCanvasList(activeId?: string | null): void {

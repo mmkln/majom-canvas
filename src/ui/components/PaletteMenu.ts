@@ -76,10 +76,16 @@ export class PaletteMenu {
 
     this.container.appendChild(this.panel);
 
+    let paletteLoaded = false;
+
     // Toggle panel visibility
     toggle.addEventListener('click', () => {
       this.isOpen = !this.isOpen;
       this.panel.style.display = this.isOpen ? 'block' : 'none';
+      if (this.isOpen && !paletteLoaded) {
+        loadPalette();
+        paletteLoaded = true;
+      }
     });
     this.titleEl.addEventListener('click', () => this.startTitleEdit());
     this.canvasSelect.addEventListener('change', () => {
@@ -201,14 +207,15 @@ export class PaletteMenu {
           res.results.forEach((g) => renderListItem(listMap.goal, 'goal', g));
         });
     };
-    loadPalette();
-
     search.addEventListener('input', () => {
       const term = search.value;
       if (searchTimer) {
         window.clearTimeout(searchTimer);
       }
       searchTimer = window.setTimeout(() => {
+        if (!paletteLoaded) {
+          paletteLoaded = true;
+        }
         loadPalette(term);
       }, 300);
     });

@@ -80,10 +80,36 @@ export type CanvasElementsLoadState =
       focusedElementUuid: string | null;
     }
   | {
+      phase: 'elements-partial-ready';
+      elements: Array<TaskElement | StoryElement | GoalElement>;
+      placeholders: CanvasLoadingPlaceholder[];
+      focusedElementUuid: string | null;
+    }
+  | {
       phase: 'elements-ready';
       elements: Array<TaskElement | StoryElement | GoalElement>;
       focusedElementUuid: string | null;
     };
+
+export type CanvasListItem = Pick<CanvasSummary, 'id' | 'name'>;
+
+export type CanvasBootstrapResult = {
+  canvases: CanvasListItem[];
+  activeCanvas: CanvasListItem;
+};
+
+export type SceneViewportBounds = {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+};
+
+export type CanvasElementsLoadOptions = {
+  viewportBounds?: SceneViewportBounds;
+  viewportFirstThreshold?: number;
+  viewportBufferPx?: number;
+};
 
 /**
  * Service to load and persist canvas elements and layout.
@@ -105,6 +131,8 @@ export class CanvasDataService {
   private pendingElementUpdates = 0;
   private failedElementUpdates = false;
   private readonly positionPrecision = 2;
+  private readonly defaultViewportFirstThreshold = 250;
+  private readonly defaultViewportBufferPx = 600;
 
   constructor(
     private tasksApi: TasksApiService,
@@ -122,7 +150,9 @@ export class CanvasDataService {
   public loadElements(): Observable<
     Array<TaskElement | StoryElement | GoalElement>
   > {
-    return this.loadElementsProgressive().pipe(
+    return this.loadElementsProgressive({
+      viewportFirstThreshold: this.defaultViewportFirstThreshold,
+    }).pipe(
       filter(
         (state): state is Extract<CanvasElementsLoadState, { phase: 'elements-ready' }> =>
           state.phase === 'elements-ready'
@@ -132,7 +162,9 @@ export class CanvasDataService {
     );
   }
 
-  public loadElementsProgressive(): Observable<CanvasElementsLoadState> {
+  public loadElementsProgressive(
+    options: CanvasElementsLoadOptions = {}
+  ): Observable<CanvasElementsLoadState> {
     const canvasId = this.canvasId;
     if (!canvasId) {
       return of({
@@ -147,24 +179,161 @@ export class CanvasDataService {
       }),
       retry(2),
       switchMap((layout) => {
+        const layoutPlan = this.prepareViewportLayoutPlan(layout, options);
         const focusedElementUuid = this.getFocusedElementUuid();
         const layoutState: CanvasElementsLoadState = {
           phase: 'layout-ready',
           placeholders: this.mapLayoutToLoadingPlaceholders(layout),
           focusedElementUuid,
         };
-        const elementsState$ = this.loadElementsByLayout(layout).pipe(
-          map(
-            (elements): CanvasElementsLoadState => ({
-              phase: 'elements-ready',
-              elements,
-              focusedElementUuid,
-            })
+        if (!layoutPlan.enabled) {
+          const elementsState$ = this.loadElementsByLayout(layout).pipe(
+            map(
+              (elements): CanvasElementsLoadState => ({
+                phase: 'elements-ready',
+                elements,
+                focusedElementUuid,
+              })
+            )
+          );
+          return concat(of(layoutState), elementsState$);
+        }
+
+        const partialAndFinal$ = this.loadElementsByLayout(
+          layoutPlan.visibleLayout
+        ).pipe(
+          switchMap((visibleElements) =>
+            concat(
+              of<CanvasElementsLoadState>({
+                phase: 'elements-partial-ready',
+                elements: visibleElements,
+                placeholders: this.mapLayoutToLoadingPlaceholders(
+                  layoutPlan.remainingLayout
+                ),
+                focusedElementUuid,
+              }),
+              this.loadElementsByLayout(layoutPlan.remainingLayout).pipe(
+                map((remainingElements) =>
+                  this.mergeLoadedElements(visibleElements, remainingElements)
+                ),
+                map(
+                  (elements): CanvasElementsLoadState => ({
+                    phase: 'elements-ready',
+                    elements,
+                    focusedElementUuid,
+                  })
+                )
+              )
+            )
           )
         );
-        return concat(of(layoutState), elementsState$);
+        return concat(of(layoutState), partialAndFinal$);
       })
     );
+  }
+
+  private prepareViewportLayoutPlan(
+    layout: CanvasPositionReadDTO[],
+    options: CanvasElementsLoadOptions
+  ): {
+    enabled: boolean;
+    visibleLayout: CanvasPositionReadDTO[];
+    remainingLayout: CanvasPositionReadDTO[];
+  } {
+    const threshold =
+      options.viewportFirstThreshold ?? this.defaultViewportFirstThreshold;
+    const viewportBounds = options.viewportBounds;
+    if (!viewportBounds || layout.length <= threshold) {
+      return {
+        enabled: false,
+        visibleLayout: layout,
+        remainingLayout: [],
+      };
+    }
+    const bufferPx = options.viewportBufferPx ?? this.defaultViewportBufferPx;
+    const visibleLayout: CanvasPositionReadDTO[] = [];
+    const remainingLayout: CanvasPositionReadDTO[] = [];
+    layout.forEach((entry) => {
+      if (this.isLayoutEntryInViewport(entry, viewportBounds, bufferPx)) {
+        visibleLayout.push(entry);
+      } else {
+        remainingLayout.push(entry);
+      }
+    });
+    if (visibleLayout.length === 0 || remainingLayout.length === 0) {
+      return {
+        enabled: false,
+        visibleLayout: layout,
+        remainingLayout: [],
+      };
+    }
+    return {
+      enabled: true,
+      visibleLayout,
+      remainingLayout,
+    };
+  }
+
+  private isLayoutEntryInViewport(
+    entry: CanvasPositionReadDTO,
+    viewport: SceneViewportBounds,
+    bufferPx: number
+  ): boolean {
+    const bounds = this.getLayoutEntryBounds(entry);
+    const minX = viewport.minX - bufferPx;
+    const minY = viewport.minY - bufferPx;
+    const maxX = viewport.maxX + bufferPx;
+    const maxY = viewport.maxY + bufferPx;
+    return !(
+      bounds.maxX < minX ||
+      bounds.minX > maxX ||
+      bounds.maxY < minY ||
+      bounds.minY > maxY
+    );
+  }
+
+  private getLayoutEntryBounds(
+    entry: CanvasPositionReadDTO
+  ): { minX: number; minY: number; maxX: number; maxY: number } {
+    const x = this.normalizeCoord(entry.x);
+    const y = this.normalizeCoord(entry.y);
+    if (entry.element_type === 'task') {
+      return {
+        minX: x,
+        minY: y,
+        maxX: x + TaskElement.width,
+        maxY: y + TaskElement.height,
+      };
+    }
+    if (entry.element_type === 'story') {
+      const size = this.getMetaSize(entry.meta);
+      const width =
+        typeof size?.width === 'number' && size.width > 0
+          ? this.normalizeCoord(size.width)
+          : StoryElement.width;
+      const height =
+        typeof size?.height === 'number' && size.height > 0
+          ? this.normalizeCoord(size.height)
+          : StoryElement.height;
+      return {
+        minX: x,
+        minY: y,
+        maxX: x + width,
+        maxY: y + height,
+      };
+    }
+    if (entry.element_type === 'goal') {
+      const scale = this.getGoalScale(entry.meta);
+      const factor = scale === 3 ? 1.4 : scale === 2 ? 1 : 0.7;
+      const diameter = this.normalizeCoord(GoalElement.baseDiameter * factor);
+      return {
+        minX: x,
+        minY: y,
+        maxX: x + diameter,
+        maxY: y + diameter,
+      };
+    }
+    return { minX: x, minY: y, maxX: x, maxY: y };
   }
 
   private loadElementsByLayout(
@@ -189,20 +358,33 @@ export class CanvasDataService {
     const taskUuids = Array.from(layoutRefs.task.uuids);
     const storyUuids = Array.from(layoutRefs.story.uuids);
     const goalUuids = Array.from(layoutRefs.goal.uuids);
-    return forkJoin({
-      tasks: this.fetchTasksByRefsCached(taskIds, taskUuids),
-      stories: this.fetchStoriesByRefsCached(storyIds, storyUuids),
-      goals: this.fetchGoalsByRefsCached(goalIds, goalUuids),
-      layout: of(layout),
-    }).pipe(
-      map(({ tasks, stories, goals, layout }) => {
-        const taskElements = tasks.map((t) => mapTask(t, layout));
-        const storyElements = stories.map((s) => mapStory(s, layout));
-        const goalElements = goals.map((g) => mapGoal(g, layout));
-        this.linkTasksToStories(taskElements, storyElements, tasks);
-        return [...taskElements, ...storyElements, ...goalElements];
-      })
+    return this.fetchTasksByRefsCached(taskIds, taskUuids).pipe(
+      switchMap((tasks) =>
+        this.fetchStoriesByRefsCached(storyIds, storyUuids).pipe(
+          switchMap((stories) =>
+            this.fetchGoalsByRefsCached(goalIds, goalUuids).pipe(
+              map((goals) => {
+                const taskElements = tasks.map((t) => mapTask(t, layout));
+                const storyElements = stories.map((s) => mapStory(s, layout));
+                const goalElements = goals.map((g) => mapGoal(g, layout));
+                this.linkTasksToStories(taskElements, storyElements, tasks);
+                return [...taskElements, ...storyElements, ...goalElements];
+              })
+            )
+          )
+        )
+      )
     );
+  }
+
+  private mergeLoadedElements(
+    primary: Array<TaskElement | StoryElement | GoalElement>,
+    secondary: Array<TaskElement | StoryElement | GoalElement>
+  ): Array<TaskElement | StoryElement | GoalElement> {
+    const mergedById = new Map<string, TaskElement | StoryElement | GoalElement>();
+    primary.forEach((element) => mergedById.set(element.id, element));
+    secondary.forEach((element) => mergedById.set(element.id, element));
+    return Array.from(mergedById.values());
   }
 
   private mapLayoutToLoadingPlaceholders(
@@ -536,6 +718,39 @@ export class CanvasDataService {
 
   public loadCanvases(): Observable<CanvasSummary[]> {
     return this.canvasApi.loadCanvases();
+  }
+
+  public bootstrapCanvas(): Observable<CanvasBootstrapResult> {
+    // TODO(snapshot-cache): replace bootstrap chain with a single backend snapshot
+    // endpoint and per-canvas client cache (etag/version-based invalidation).
+    return this.canvasApi.loadCanvases().pipe(
+      switchMap((canvases) => {
+        if (canvases.length > 0) {
+          const activeCanvas = {
+            id: canvases[0].id,
+            name: canvases[0].name,
+          };
+          this.setActiveCanvas(activeCanvas);
+          return of({
+            canvases: canvases.map((canvas) => ({
+              id: canvas.id,
+              name: canvas.name,
+            })),
+            activeCanvas,
+          });
+        }
+        return this.canvasApi.createCanvas('New canvas').pipe(
+          map((created) => {
+            const activeCanvas = { id: created.id, name: created.name };
+            this.setActiveCanvas(activeCanvas);
+            return {
+              canvases: [activeCanvas],
+              activeCanvas,
+            };
+          })
+        );
+      })
+    );
   }
 
   public getFocusedElementUuid(): string | null {
@@ -1593,9 +1808,3 @@ export class CanvasDataService {
     }
   }
 }
-
-
-
-
-
-

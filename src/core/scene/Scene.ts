@@ -62,6 +62,41 @@ export class Scene {
     }
   }
 
+  public replaceElements(
+    shouldReplace: (element: ICanvasElement) => boolean,
+    replacements: ICanvasElement[]
+  ): void {
+    const keptElements = this.elements.filter((element) => !shouldReplace(element));
+    const replacedCount = this.elements.length - keptElements.length;
+    if (replacedCount === 0 && replacements.length === 0) return;
+
+    const previousFocusId = this.focusedElementId;
+    const nextElements = [...keptElements, ...replacements];
+    this.elements = nextElements;
+    this.selectedMap.clear();
+    nextElements.forEach((element) => {
+      if (element.selected) {
+        this.selectedMap.set(element.id, element);
+      }
+    });
+
+    const nextFocusId =
+      previousFocusId &&
+      nextElements.some((element) => element.id === previousFocusId)
+        ? previousFocusId
+        : null;
+    this.focusedElementId = nextFocusId;
+
+    this.elementsVersion += 1;
+    this.changes.next();
+    if (previousFocusId !== nextFocusId) {
+      this.focusChanges.next({
+        previousId: previousFocusId,
+        currentId: nextFocusId,
+      });
+    }
+  }
+
   public getElements(): ICanvasElement[] {
     return this.elements;
   }

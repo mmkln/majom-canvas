@@ -38,8 +38,11 @@ import { getBoundingBox } from '../utils/geometryUtils.ts';
 import { hasStatusAnimation } from '../../elements/utils/statusAnimations.ts';
 import { CANVAS_PERF_LOG } from '../../config/env/index.ts';
 import { isCircleVisible, isRectVisible } from '../utils/viewBounds.ts';
-import { Subject } from 'rxjs';
-import type { CanvasLoadingPlaceholder } from '../types/canvasLoading.ts';
+import { BehaviorSubject, Subject } from 'rxjs';
+import type {
+  CanvasLoadPhase,
+  CanvasLoadingPlaceholder,
+} from '../types/canvasLoading.ts';
 
 type CanvasLoadingPlaceholderRenderState = CanvasLoadingPlaceholder & {
   isFocused: boolean;
@@ -119,6 +122,8 @@ export class CanvasManager {
     new Subject<void>();
   public readonly loadingPlaceholdersChanges$ =
     this.loadingPlaceholdersChangesSubject.asObservable();
+  private readonly loadPhaseSubject = new BehaviorSubject<CanvasLoadPhase>('idle');
+  public readonly loadPhase$ = this.loadPhaseSubject.asObservable();
 
   constructor(canvas: HTMLCanvasElement, scene: Scene) {
     this.canvas = canvas;
@@ -936,6 +941,15 @@ export class CanvasManager {
 
   public getLoadingPlaceholders(): ReadonlyArray<CanvasLoadingElementPreview> {
     return this.loadingPlaceholders;
+  }
+
+  public getLoadPhase(): CanvasLoadPhase {
+    return this.loadPhaseSubject.value;
+  }
+
+  public setLoadPhase(phase: CanvasLoadPhase): void {
+    if (this.loadPhaseSubject.value === phase) return;
+    this.loadPhaseSubject.next(phase);
   }
 
   /**
