@@ -23,17 +23,20 @@ import { mapStatus } from '../majom-wrapper/utils/statusMapping.ts';
 import { historyService } from '../core/services/HistoryService.ts';
 import { AddElementCommand } from '../core/commands/AddElementCommand.ts';
 import { ExistingGoalPicker } from './components/ExistingGoalPicker.ts';
+import { ExistingStoryPicker } from './components/ExistingStoryPicker.ts';
 import { environment } from '../config/environment.ts';
 import { HttpInterceptorClient } from '../majom-wrapper/data-access/http-interceptor.ts';
 import { GoalsApiService } from '../majom-wrapper/data-access/goals-api-service.ts';
+import { StoriesApiService } from '../majom-wrapper/data-access/stories-api-service.ts';
 import { map } from 'rxjs/operators';
 import { AddExistingGoalService } from '../core/services/AddExistingGoalService.ts';
+import { AddExistingStoryService } from '../core/services/AddExistingStoryService.ts';
 import {
-  EXISTING_GOAL_EVENT_NAMES,
-  emitExistingGoalDropCompleted,
-  type ExistingGoalDragMovedDetail,
-  type ExistingGoalDragStateDetail,
-} from './events/existingGoalEvents.ts';
+  EXISTING_PICKER_EVENT_NAMES,
+  emitExistingPickerDropCompleted,
+  type ExistingPickerDragMovedDetail,
+  type ExistingPickerDragStateDetail,
+} from './events/existingPickerEvents.ts';
 
 export class UIManager {
   private readonly components: {
@@ -45,8 +48,9 @@ export class UIManager {
   private readonly zoomIndicator: ZoomIndicator;
   private readonly undoRedoControls: UndoRedoControls;
   private readonly addExistingGoalService: AddExistingGoalService;
-  private existingGoalDragStateHandler: ((event: Event) => void) | null = null;
-  private existingGoalDragMoveHandler: ((event: Event) => void) | null = null;
+  private readonly addExistingStoryService: AddExistingStoryService;
+  private existingPickerDragStateHandler: ((event: Event) => void) | null = null;
+  private existingPickerDragMoveHandler: ((event: Event) => void) | null = null;
   private externalGoalDragOverlay: HTMLDivElement | null = null;
   private externalGoalDropPreview: HTMLDivElement | null = null;
   private externalGoalDragActive = false;
@@ -75,10 +79,14 @@ export class UIManager {
     // Initialize palette menu
     const paletteMenu = new PaletteMenu(this.scene);
     const saveControls = new SaveControls(this.scene);
-    const goalsApi = new GoalsApiService(
-      new HttpInterceptorClient(environment.apiUrl)
-    );
+    const http = new HttpInterceptorClient(environment.apiUrl);
+    const goalsApi = new GoalsApiService(http);
+    const storiesApi = new StoriesApiService(http);
     this.addExistingGoalService = new AddExistingGoalService(
+      this.scene,
+      this.canvasManager
+    );
+    this.addExistingStoryService = new AddExistingStoryService(
       this.scene,
       this.canvasManager
     );
@@ -96,11 +104,27 @@ export class UIManager {
           }))
         )
     );
+    const existingStoryPicker = new ExistingStoryPicker((term, page, pageSize) =>
+      storiesApi
+        .fetchStories({
+          page,
+          pageSize,
+          search: term || undefined,
+        })
+        .pipe(
+          map((res) => ({
+            items: res.results || [],
+            hasMore: Boolean(res.next),
+          }))
+        )
+    );
     const contextMenu = new ContextMenu(
       this.scene,
       this.canvasManager,
       existingGoalPicker,
-      this.addExistingGoalService
+      existingStoryPicker,
+      this.addExistingGoalService,
+      this.addExistingStoryService
     );
     const bulkActions = new BulkActionsController(this.scene);
     const selectionActions = new SelectionActionMenu(
@@ -152,17 +176,17 @@ export class UIManager {
       this.handleCanvasDropPayload(payload, e.clientX, e.clientY);
     });
 
-    this.existingGoalDragStateHandler = (event: Event) => {
-      const customEvent = event as CustomEvent<ExistingGoalDragStateDetail>;
+    this.existingPickerDragStateHandler = (event: Event) => {
+      const customEvent = event as CustomEvent<ExistingPickerDragStateDetail>;
       if (customEvent.detail?.active) {
         this.startExternalGoalDragMode();
       } else {
         this.stopExternalGoalDragMode();
       }
     };
-    this.existingGoalDragMoveHandler = (event: Event) => {
+    this.existingPickerDragMoveHandler = (event: Event) => {
       if (!this.externalGoalDragActive) return;
-      const customEvent = event as CustomEvent<ExistingGoalDragMovedDetail>;
+      const customEvent = event as CustomEvent<ExistingPickerDragMovedDetail>;
       const clientX = customEvent.detail?.clientX;
       const clientY = customEvent.detail?.clientY;
       if (typeof clientX !== 'number' || typeof clientY !== 'number') return;
@@ -177,30 +201,30 @@ export class UIManager {
       }
     };
     window.addEventListener(
-      EXISTING_GOAL_EVENT_NAMES.dragStateChanged,
-      this.existingGoalDragStateHandler
+      EXISTING_PICKER_EVENT_NAMES.dragStateChanged,
+      this.existingPickerDragStateHandler
     );
     window.addEventListener(
-      EXISTING_GOAL_EVENT_NAMES.dragMoved,
-      this.existingGoalDragMoveHandler
+      EXISTING_PICKER_EVENT_NAMES.dragMoved,
+      this.existingPickerDragMoveHandler
     );
   }
 
   public unmountAll(): void {
     this.components.forEach((c) => c.unmount());
-    if (this.existingGoalDragStateHandler) {
+    if (this.existingPickerDragStateHandler) {
       window.removeEventListener(
-        EXISTING_GOAL_EVENT_NAMES.dragStateChanged,
-        this.existingGoalDragStateHandler
+        EXISTING_PICKER_EVENT_NAMES.dragStateChanged,
+        this.existingPickerDragStateHandler
       );
-      this.existingGoalDragStateHandler = null;
+      this.existingPickerDragStateHandler = null;
     }
-    if (this.existingGoalDragMoveHandler) {
+    if (this.existingPickerDragMoveHandler) {
       window.removeEventListener(
-        EXISTING_GOAL_EVENT_NAMES.dragMoved,
-        this.existingGoalDragMoveHandler
+        EXISTING_PICKER_EVENT_NAMES.dragMoved,
+        this.existingPickerDragMoveHandler
       );
-      this.existingGoalDragMoveHandler = null;
+      this.existingPickerDragMoveHandler = null;
     }
     this.stopExternalGoalDragMode();
   }
@@ -226,9 +250,15 @@ export class UIManager {
     const x = (clientX - rect.left + panZoom.scrollX) / panZoom.scale;
     const y = (clientY - rect.top + panZoom.scrollY) / panZoom.scale;
 
-    if (payload?.kind === 'existing-goal' && payload.goal) {
-      this.addExistingGoalService.addOrFocus(payload.goal, x, y);
-      emitExistingGoalDropCompleted();
+    const existingItem = payload?.item ?? payload?.goal ?? payload?.story;
+    if (payload?.kind === 'existing-goal' && existingItem) {
+      this.addExistingGoalService.addOrFocus(existingItem, x, y);
+      emitExistingPickerDropCompleted('existing-goal');
+      return;
+    }
+    if (payload?.kind === 'existing-story' && existingItem) {
+      this.addExistingStoryService.addOrFocus(existingItem, x, y);
+      emitExistingPickerDropCompleted('existing-story');
       return;
     }
 

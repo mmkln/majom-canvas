@@ -21,7 +21,9 @@ import {
 } from '../elements/ElementStatus.ts';
 import { addTaskToStory } from './storyTaskActions.ts';
 import { ExistingGoalPicker } from './components/ExistingGoalPicker.ts';
+import { ExistingStoryPicker } from './components/ExistingStoryPicker.ts';
 import { AddExistingGoalService } from '../core/services/AddExistingGoalService.ts';
+import { AddExistingStoryService } from '../core/services/AddExistingStoryService.ts';
 
 type ContextMenuDetail = {
   element: ICanvasElement | null;
@@ -58,7 +60,9 @@ export class ContextMenu {
     private scene: Scene,
     private canvasManager: CanvasManager,
     private existingGoalPicker: ExistingGoalPicker,
-    private addExistingGoalService: AddExistingGoalService
+    private existingStoryPicker: ExistingStoryPicker,
+    private addExistingGoalService: AddExistingGoalService,
+    private addExistingStoryService: AddExistingStoryService
   ) {
     this.bulkActions = new BulkActionsController(scene);
     this.menu = document.createElement('div');
@@ -90,6 +94,7 @@ export class ContextMenu {
     }
     this.hide();
     this.existingGoalPicker.close();
+    this.existingStoryPicker.close();
     this.menu.remove();
   }
 
@@ -189,6 +194,10 @@ export class ContextMenu {
           {
             label: 'Goal',
             action: () => this.openExistingGoalPicker(sceneX, sceneY),
+          },
+          {
+            label: 'Story',
+            action: () => this.openExistingStoryPicker(sceneX, sceneY),
           },
         ],
       });
@@ -477,6 +486,17 @@ export class ContextMenu {
       isOnCanvas: (goal) => this.addExistingGoalService.isOnCanvas(goal),
       onPick: (goal, goalX, goalY) => {
         this.addExistingGoalService.addOrFocus(goal, goalX, goalY);
+      },
+    });
+  }
+
+  private openExistingStoryPicker(sceneX: number, sceneY: number): void {
+    this.existingStoryPicker.open({
+      sceneX,
+      sceneY,
+      isOnCanvas: (story) => this.addExistingStoryService.isOnCanvas(story),
+      onPick: (story, storyX, storyY) => {
+        this.addExistingStoryService.addOrFocus(story, storyX, storyY);
       },
     });
   }
