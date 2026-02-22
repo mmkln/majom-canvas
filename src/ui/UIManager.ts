@@ -4,11 +4,11 @@ import { ZoomIndicator } from './ZoomIndicator.ts';
 import { CanvasToolbar } from './CanvasToolbar.ts';
 import { EditElementModal } from './components/EditElementModal.ts';
 import { NotificationContainer } from './components/NotificationContainer.ts';
+import { CanvasBoardSelector } from './components/CanvasBoardSelector.ts';
 import { CanvasManager } from '../core/managers/CanvasManager.ts';
 import { Scene } from '../core/scene/Scene.ts';
 import { editElement$ } from '../core/eventBus.ts';
 import { UndoRedoControls } from './UndoRedoControls.ts';
-import { PaletteMenu } from './components/PaletteMenu.ts';
 import { SaveControls } from './components/SaveControls.ts';
 import { ContextMenu } from './ContextMenu.ts';
 import { SelectionActionMenu } from './SelectionActionMenu.ts';
@@ -16,12 +16,6 @@ import { RelatedItemsPicker } from './RelatedItemsPicker.ts';
 import { StatusPicker } from './StatusPicker.ts';
 import { MiniMap } from './MiniMap.ts';
 import { BulkActionsController } from '../core/services/BulkActionsController.ts';
-import { TaskElement } from '../elements/TaskElement.ts';
-import { StoryElement } from '../elements/StoryElement.ts';
-import { GoalElement } from '../elements/GoalElement.ts';
-import { mapStatus } from '../majom-wrapper/utils/statusMapping.ts';
-import { historyService } from '../core/services/HistoryService.ts';
-import { AddElementCommand } from '../core/commands/AddElementCommand.ts';
 import { ExistingTaskPicker } from './components/ExistingTaskPicker.ts';
 import { ExistingGoalPicker } from './components/ExistingGoalPicker.ts';
 import { ExistingStoryPicker } from './components/ExistingStoryPicker.ts';
@@ -76,12 +70,11 @@ export class UIManager {
     // Initialize Canvas Toolbar for creating elements
     this.canvasToolbar = new CanvasToolbar(this.scene, this.canvasManager);
     this.canvasControls = new CanvasControls(this.canvasManager);
+    const canvasBoardSelector = new CanvasBoardSelector();
     const miniMap = new MiniMap(this.scene, this.canvasManager);
     this.zoomIndicator = new ZoomIndicator(this.canvasManager);
     this.undoRedoControls = new UndoRedoControls(this.canvasToolbar.container);
 
-    // Initialize palette menu
-    const paletteMenu = new PaletteMenu(this.scene);
     const saveControls = new SaveControls(this.scene);
     const http = new HttpInterceptorClient(environment.apiUrl);
     const tasksApi = new TasksApiService(http);
@@ -169,10 +162,10 @@ export class UIManager {
 
     // Add controls to components list
     this.components.push(
+      canvasBoardSelector,
       this.canvasControls,
       miniMap,
       this.zoomIndicator,
-      paletteMenu,
       contextMenu,
       selectionActions,
       relatedItemsPicker,
@@ -191,7 +184,7 @@ export class UIManager {
   public mountAll(parent: HTMLElement = document.body): void {
     this.components.forEach((c) => c.mount(parent));
 
-    // drag-and-drop from palette to canvas
+    // drag-and-drop from existing pickers to canvas
     const canvas = this.canvasManager.getCanvas();
     canvas.addEventListener('dragover', (e) => e.preventDefault());
     canvas.addEventListener('drop', (e: DragEvent) => {
@@ -290,35 +283,6 @@ export class UIManager {
       this.addExistingStoryService.addOrFocus(existingItem, x, y);
       emitExistingPickerDropCompleted('existing-story');
       return;
-    }
-
-    const { type, dto } = payload ?? {};
-    if (!type || !dto) return;
-    let element;
-    if (type === 'task') {
-      element = new TaskElement({
-        ...dto,
-        status: mapStatus(dto.status),
-        x,
-        y,
-      });
-    } else if (type === 'story') {
-      element = new StoryElement({
-        ...dto,
-        status: mapStatus(dto.status),
-        x,
-        y,
-      });
-    } else if (type === 'goal') {
-      element = new GoalElement({
-        ...dto,
-        status: mapStatus(dto.status),
-        x,
-        y,
-      });
-    }
-    if (element) {
-      historyService.execute(new AddElementCommand(this.scene, element));
     }
   }
 

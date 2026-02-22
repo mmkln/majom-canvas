@@ -187,7 +187,6 @@ export class App {
         },
       });
     });
-
     window.addEventListener('elementDetailsEdited', (event: Event) => {
       const customEvent = event as CustomEvent<{
         element?: TaskElement | StoryElement | GoalElement;
@@ -633,8 +632,7 @@ export class App {
     }
     this.canvasDataService.loadCanvases().subscribe({
       next: (canvases) => {
-        const selectedId =
-          activeId || this.canvasDataService.getActiveCanvasId();
+        const selectedId = activeId || this.canvasDataService.getActiveCanvasId();
         this.emitCanvasList(canvases, selectedId ?? null);
       },
       error: (err) => {
