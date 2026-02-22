@@ -41,6 +41,7 @@ import {
   type IConnection,
 } from '../../core/interfaces/connection.ts';
 import type { CanvasLoadingPlaceholder } from '../../core/types/canvasLoading.ts';
+import { CanvasClientStorage } from '../../core/services/CanvasClientStorage.ts';
 
 type ElementPatch = Partial<{
   title: string;
@@ -666,10 +667,18 @@ export class CanvasDataService {
         } else if (updated) {
           this.upsertGoalCache(updated as Goal);
         }
+        const activeCanvasId = this.canvasId;
+        if (activeCanvasId) {
+          CanvasClientStorage.removeUnsyncedDraft(
+            activeCanvasId,
+            this.getElementDraftId(req)
+          );
+        }
       }),
       map(() => undefined),
       catchError((err) => {
         this.failedElementUpdates = true;
+        this.queueElementUnsyncedDraft(req, err);
         this.elementUpdateStatus$.next({ status: 'failed', error: err });
         return of(undefined);
       }),
@@ -706,6 +715,27 @@ export class CanvasDataService {
         if (updated) {
           this.upsertTaskCache(updated);
         }
+        if (this.canvasId) {
+          CanvasClientStorage.removeUnsyncedDraft(
+            this.canvasId,
+            `task-story-link:${task.uuid ?? task.id}`
+          );
+        }
+      }),
+      catchError((err) => {
+        if (this.canvasId) {
+          CanvasClientStorage.upsertUnsyncedDraft(this.canvasId, {
+            id: `task-story-link:${task.uuid ?? task.id}`,
+            kind: 'task-story-link',
+            payload: {
+              taskId: task.id,
+              taskUuid: task.uuid ?? null,
+              storyId: story?.id ?? null,
+              storyUuid: story?.uuid ?? null,
+            },
+          });
+        }
+        return throwError(() => err);
       }),
       map(() => undefined)
     );
@@ -806,6 +836,29 @@ export class CanvasDataService {
               });
             })
         );
+      }),
+      tap((result) => {
+        if (!this.canvasId) return;
+        if (result.status === 'conflict') return;
+        CanvasClientStorage.removeUnsyncedDraft(
+          this.canvasId,
+          `story-goal-link:${story.uuid ?? story.id}`
+        );
+      }),
+      catchError((err) => {
+        if (this.canvasId) {
+          CanvasClientStorage.upsertUnsyncedDraft(this.canvasId, {
+            id: `story-goal-link:${story.uuid ?? story.id}`,
+            kind: 'story-goal-link',
+            payload: {
+              storyId: story.id,
+              storyUuid: story.uuid ?? null,
+              goalId: goal.id,
+              goalUuid: goal.uuid ?? null,
+            },
+          });
+        }
+        return throwError(() => err);
       })
     );
   }
@@ -835,9 +888,13 @@ export class CanvasDataService {
     return this.canvasApi.loadCanvases().pipe(
       switchMap((canvases) => {
         if (canvases.length > 0) {
+          const preferredCanvasId = CanvasClientStorage.getLastOpenedCanvasId();
+          const selectedCanvas =
+            canvases.find((canvas) => canvas.id === preferredCanvasId) ??
+            canvases[0];
           const activeCanvas = {
-            id: canvases[0].id,
-            name: canvases[0].name,
+            id: selectedCanvas.id,
+            name: selectedCanvas.name,
           };
           this.setActiveCanvas(activeCanvas);
           return of({
@@ -1287,6 +1344,40 @@ export class CanvasDataService {
     }
     this.canvasId = canvas.id;
     this.canvasName = canvas.name;
+    CanvasClientStorage.setLastOpenedCanvasId(canvas.id);
+  }
+
+  private getElementDraftId(req: ElementUpdateRequest): string {
+    return `element-patch:${req.key}`;
+  }
+
+  private queueElementUnsyncedDraft(
+    req: ElementUpdateRequest,
+    error: unknown
+  ): void {
+    if (!this.canvasId) return;
+    const elementType =
+      req.element instanceof TaskElement
+        ? 'task'
+        : req.element instanceof StoryElement
+          ? 'story'
+          : 'goal';
+    CanvasClientStorage.upsertUnsyncedDraft(this.canvasId, {
+      id: this.getElementDraftId(req),
+      kind: 'element-patch',
+      payload: {
+        elementType,
+        elementId: req.element.id,
+        elementUuid: req.element.uuid ?? null,
+        patch: req.patch,
+        error:
+          error instanceof Error
+            ? error.message
+            : typeof error === 'string'
+              ? error
+              : null,
+      },
+    });
   }
 
   private linkTasksToStories(

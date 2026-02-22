@@ -32,6 +32,7 @@ import {
 } from './core/interfaces/connection.ts';
 import { CanvasPositionWriteDTO } from './majom-wrapper/data-access/canvas-position-dto.ts';
 import { notify } from './core/services/NotificationService.ts';
+import { CanvasClientStorage } from './core/services/CanvasClientStorage.ts';
 import {
   CANVAS_LINK_LIFECYCLE_EVENT,
   isCanvasLinkLifecycleDetail,
@@ -158,15 +159,19 @@ export class App {
       this.canvasDataService.loadCanvasDetails(id).subscribe({
         next: (canvas) => {
           this.setCanvasTitle(canvas.name);
-          this.loadActiveCanvasElements();
-          this.refreshCanvasList(canvas.id);
+          this.restoreCanvasViewState(canvas.id).finally(() => {
+            this.loadActiveCanvasElements();
+            this.refreshCanvasList(canvas.id);
+          });
         },
         error: (err) => {
           console.error('Failed to load canvas details', err);
           this.canvasDataService.setActiveCanvas({ id, name });
           this.setCanvasTitle(name);
-          this.loadActiveCanvasElements();
-          this.refreshCanvasList(id);
+          this.restoreCanvasViewState(id).finally(() => {
+            this.loadActiveCanvasElements();
+            this.refreshCanvasList(id);
+          });
         },
       });
     });
@@ -178,8 +183,10 @@ export class App {
       this.canvasDataService.createCanvas('New canvas').subscribe({
         next: (canvas) => {
           this.setCanvasTitle(canvas.name);
-          this.refreshCanvasList(canvas.id);
-          this.loadActiveCanvasElements();
+          this.restoreCanvasViewState(canvas.id).finally(() => {
+            this.refreshCanvasList(canvas.id);
+            this.loadActiveCanvasElements();
+          });
         },
         error: (err) => {
           console.error('Failed to create canvas', err);
@@ -277,9 +284,10 @@ export class App {
     // Draw after restore and notify listeners (including ZoomIndicator)
     this.canvasManager.draw();
     // Auto-save view state on any change
-    panZoom.viewChanges.subscribe((state) =>
-      this.dataProvider.saveViewState(state)
-    );
+    panZoom.viewChanges.subscribe((state) => {
+      const activeCanvasId = this.canvasDataService.getActiveCanvasId();
+      this.dataProvider.saveViewState(state, activeCanvasId);
+    });
     // Auto-save diagram on content change
     this.scene.changes.subscribe(() => {
       if (this.isHydratingCanvas) return;
@@ -306,7 +314,9 @@ export class App {
       next: ({ canvases, activeCanvas }) => {
         this.setCanvasTitle(activeCanvas.name);
         this.emitCanvasList(canvases, activeCanvas.id);
-        this.loadActiveCanvasElements();
+        this.restoreCanvasViewState(activeCanvas.id).finally(() => {
+          this.loadActiveCanvasElements();
+        });
       },
       error: (err) => {
         console.error('Failed to bootstrap canvas', err);
@@ -404,6 +414,8 @@ export class App {
     const uniquePositions = this.dedupeLayoutPositions(positions);
     const changedPositions =
       this.canvasDataService.filterPositionUpdates(uniquePositions);
+    const layoutDraftId = 'layout-sync';
+    const relationsDraftId = 'relations-sync';
     if (
       changedPositions.length === 0 &&
       removedPositionIds.length === 0 &&
@@ -437,6 +449,10 @@ export class App {
           .updateCanvasRelations(this.scene.getConnections(), elements)
           .pipe(
             catchError((err) => {
+              this.queueUnsyncedDraft(relationsDraftId, 'relations', {
+                relationCount: this.scene.getConnections().length,
+                elementCount: elements.length,
+              });
               console.error('Failed to save relations', err);
               if (showNotifications) {
                 notify('Failed to save relations', 'error');
@@ -446,12 +462,19 @@ export class App {
           )
       ),
       map(() => {
+        this.removeUnsyncedDraft(layoutDraftId);
+        this.removeUnsyncedDraft(relationsDraftId);
         if (showNotifications) {
           notify('Layout saved', 'success');
         }
         return true;
       }),
       catchError((err) => {
+        this.queueUnsyncedDraft(layoutDraftId, 'layout', {
+          changedPositions,
+          removedPositionIds,
+          relationCount: this.scene.getConnections().length,
+        });
         console.error('Failed to save layout', err);
         if (showNotifications) {
           notify('Failed to save layout', 'error');
@@ -470,6 +493,41 @@ export class App {
       map.set(key, pos);
     });
     return Array.from(map.values());
+  }
+
+  private async restoreCanvasViewState(
+    canvasId: string | null | undefined
+  ): Promise<void> {
+    try {
+      const panZoom = this.canvasManager.getPanZoomManager();
+      const nextView = await this.dataProvider.loadViewState(
+        canvasId ?? undefined
+      );
+      panZoom.setViewState(nextView);
+      this.canvasManager.draw();
+    } catch (err) {
+      console.error('Failed to restore canvas view state', err);
+    }
+  }
+
+  private queueUnsyncedDraft(
+    draftId: string,
+    kind: 'layout' | 'relations',
+    payload: unknown
+  ): void {
+    const canvasId = this.canvasDataService.getActiveCanvasId();
+    if (!canvasId) return;
+    CanvasClientStorage.upsertUnsyncedDraft(canvasId, {
+      id: draftId,
+      kind,
+      payload,
+    });
+  }
+
+  private removeUnsyncedDraft(draftId: string): void {
+    const canvasId = this.canvasDataService.getActiveCanvasId();
+    if (!canvasId) return;
+    CanvasClientStorage.removeUnsyncedDraft(canvasId, draftId);
   }
 
   private startAutosave(): void {

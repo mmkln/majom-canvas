@@ -21,7 +21,7 @@ export interface IDataProvider {
   /** Save goals collection */
   saveGoals(goals: IGoal[]): Promise<void>;
   /** Load saved view (scroll & zoom) */
-  loadViewState(): Promise<IViewState>;
+  loadViewState(canvasId?: string | null): Promise<IViewState>;
   /** Save current view (scroll & zoom) */
-  saveViewState(state: IViewState): Promise<void>;
+  saveViewState(state: IViewState, canvasId?: string | null): Promise<void>;
 }
