@@ -1,4 +1,7 @@
-export type ExistingPickerKind = 'existing-goal' | 'existing-story';
+export type ExistingPickerKind =
+  | 'existing-goal'
+  | 'existing-story'
+  | 'existing-task';
 
 export const EXISTING_PICKER_EVENT_NAMES = {
   dragStateChanged: 'existingPickerDragStateChanged',

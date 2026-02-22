@@ -22,13 +22,16 @@ import { GoalElement } from '../elements/GoalElement.ts';
 import { mapStatus } from '../majom-wrapper/utils/statusMapping.ts';
 import { historyService } from '../core/services/HistoryService.ts';
 import { AddElementCommand } from '../core/commands/AddElementCommand.ts';
+import { ExistingTaskPicker } from './components/ExistingTaskPicker.ts';
 import { ExistingGoalPicker } from './components/ExistingGoalPicker.ts';
 import { ExistingStoryPicker } from './components/ExistingStoryPicker.ts';
 import { environment } from '../config/environment.ts';
 import { HttpInterceptorClient } from '../majom-wrapper/data-access/http-interceptor.ts';
+import { TasksApiService } from '../majom-wrapper/data-access/tasks-api-service.ts';
 import { GoalsApiService } from '../majom-wrapper/data-access/goals-api-service.ts';
 import { StoriesApiService } from '../majom-wrapper/data-access/stories-api-service.ts';
 import { map } from 'rxjs/operators';
+import { AddExistingTaskService } from '../core/services/AddExistingTaskService.ts';
 import { AddExistingGoalService } from '../core/services/AddExistingGoalService.ts';
 import { AddExistingStoryService } from '../core/services/AddExistingStoryService.ts';
 import {
@@ -47,6 +50,7 @@ export class UIManager {
   private readonly canvasControls: CanvasControls;
   private readonly zoomIndicator: ZoomIndicator;
   private readonly undoRedoControls: UndoRedoControls;
+  private readonly addExistingTaskService: AddExistingTaskService;
   private readonly addExistingGoalService: AddExistingGoalService;
   private readonly addExistingStoryService: AddExistingStoryService;
   private existingPickerDragStateHandler: ((event: Event) => void) | null = null;
@@ -80,8 +84,13 @@ export class UIManager {
     const paletteMenu = new PaletteMenu(this.scene);
     const saveControls = new SaveControls(this.scene);
     const http = new HttpInterceptorClient(environment.apiUrl);
+    const tasksApi = new TasksApiService(http);
     const goalsApi = new GoalsApiService(http);
     const storiesApi = new StoriesApiService(http);
+    this.addExistingTaskService = new AddExistingTaskService(
+      this.scene,
+      this.canvasManager
+    );
     this.addExistingGoalService = new AddExistingGoalService(
       this.scene,
       this.canvasManager
@@ -89,6 +98,20 @@ export class UIManager {
     this.addExistingStoryService = new AddExistingStoryService(
       this.scene,
       this.canvasManager
+    );
+    const existingTaskPicker = new ExistingTaskPicker((term, page, pageSize) =>
+      tasksApi
+        .fetchTasks({
+          page,
+          pageSize,
+          search: term || undefined,
+        })
+        .pipe(
+          map((res) => ({
+            items: res.results || [],
+            hasMore: Boolean(res.next),
+          }))
+        )
     );
     const existingGoalPicker = new ExistingGoalPicker((term, page, pageSize) =>
       goalsApi
@@ -121,8 +144,10 @@ export class UIManager {
     const contextMenu = new ContextMenu(
       this.scene,
       this.canvasManager,
+      existingTaskPicker,
       existingGoalPicker,
       existingStoryPicker,
+      this.addExistingTaskService,
       this.addExistingGoalService,
       this.addExistingStoryService
     );
@@ -254,6 +279,11 @@ export class UIManager {
     if (payload?.kind === 'existing-goal' && existingItem) {
       this.addExistingGoalService.addOrFocus(existingItem, x, y);
       emitExistingPickerDropCompleted('existing-goal');
+      return;
+    }
+    if (payload?.kind === 'existing-task' && existingItem) {
+      this.addExistingTaskService.addOrFocus(existingItem, x, y);
+      emitExistingPickerDropCompleted('existing-task');
       return;
     }
     if (payload?.kind === 'existing-story' && existingItem) {

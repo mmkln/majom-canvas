@@ -20,8 +20,10 @@ import {
   ELEMENT_STATUS_OPTIONS,
 } from '../elements/ElementStatus.ts';
 import { addTaskToStory } from './storyTaskActions.ts';
+import { ExistingTaskPicker } from './components/ExistingTaskPicker.ts';
 import { ExistingGoalPicker } from './components/ExistingGoalPicker.ts';
 import { ExistingStoryPicker } from './components/ExistingStoryPicker.ts';
+import { AddExistingTaskService } from '../core/services/AddExistingTaskService.ts';
 import { AddExistingGoalService } from '../core/services/AddExistingGoalService.ts';
 import { AddExistingStoryService } from '../core/services/AddExistingStoryService.ts';
 
@@ -59,8 +61,10 @@ export class ContextMenu {
   constructor(
     private scene: Scene,
     private canvasManager: CanvasManager,
+    private existingTaskPicker: ExistingTaskPicker,
     private existingGoalPicker: ExistingGoalPicker,
     private existingStoryPicker: ExistingStoryPicker,
+    private addExistingTaskService: AddExistingTaskService,
     private addExistingGoalService: AddExistingGoalService,
     private addExistingStoryService: AddExistingStoryService
   ) {
@@ -93,6 +97,7 @@ export class ContextMenu {
       this.viewSubscription = null;
     }
     this.hide();
+    this.existingTaskPicker.close();
     this.existingGoalPicker.close();
     this.existingStoryPicker.close();
     this.menu.remove();
@@ -191,6 +196,10 @@ export class ContextMenu {
       sections.push({
         title: 'Add existing',
         items: [
+          {
+            label: 'Task',
+            action: () => this.openExistingTaskPicker(sceneX, sceneY),
+          },
           {
             label: 'Goal',
             action: () => this.openExistingGoalPicker(sceneX, sceneY),
@@ -486,6 +495,17 @@ export class ContextMenu {
       isOnCanvas: (goal) => this.addExistingGoalService.isOnCanvas(goal),
       onPick: (goal, goalX, goalY) => {
         this.addExistingGoalService.addOrFocus(goal, goalX, goalY);
+      },
+    });
+  }
+
+  private openExistingTaskPicker(sceneX: number, sceneY: number): void {
+    this.existingTaskPicker.open({
+      sceneX,
+      sceneY,
+      isOnCanvas: (task) => this.addExistingTaskService.isOnCanvas(task),
+      onPick: (task, taskX, taskY) => {
+        this.addExistingTaskService.addOrFocus(task, taskX, taskY);
       },
     });
   }
