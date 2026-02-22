@@ -22,6 +22,12 @@ import { GoalElement } from '../elements/GoalElement.ts';
 import { mapStatus } from '../majom-wrapper/utils/statusMapping.ts';
 import { historyService } from '../core/services/HistoryService.ts';
 import { AddElementCommand } from '../core/commands/AddElementCommand.ts';
+import { ExistingGoalPicker } from './components/ExistingGoalPicker.ts';
+import { environment } from '../config/environment.ts';
+import { HttpInterceptorClient } from '../majom-wrapper/data-access/http-interceptor.ts';
+import { GoalsApiService } from '../majom-wrapper/data-access/goals-api-service.ts';
+import { map } from 'rxjs/operators';
+import { AddExistingGoalService } from '../core/services/AddExistingGoalService.ts';
 
 export class UIManager {
   private readonly components: {
@@ -47,7 +53,33 @@ export class UIManager {
     // Initialize palette menu
     const paletteMenu = new PaletteMenu(this.scene);
     const saveControls = new SaveControls(this.scene);
-    const contextMenu = new ContextMenu(this.scene, this.canvasManager);
+    const goalsApi = new GoalsApiService(
+      new HttpInterceptorClient(environment.apiUrl)
+    );
+    const addExistingGoalService = new AddExistingGoalService(
+      this.scene,
+      this.canvasManager
+    );
+    const existingGoalPicker = new ExistingGoalPicker((term, page, pageSize) =>
+      goalsApi
+        .fetchGoals({
+          page,
+          pageSize,
+          search: term || undefined,
+        })
+        .pipe(
+          map((res) => ({
+            items: res.results || [],
+            hasMore: Boolean(res.next),
+          }))
+        )
+    );
+    const contextMenu = new ContextMenu(
+      this.scene,
+      this.canvasManager,
+      existingGoalPicker,
+      addExistingGoalService
+    );
     const bulkActions = new BulkActionsController(this.scene);
     const selectionActions = new SelectionActionMenu(
       this.scene,

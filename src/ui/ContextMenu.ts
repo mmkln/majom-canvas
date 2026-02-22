@@ -20,6 +20,8 @@ import {
   ELEMENT_STATUS_OPTIONS,
 } from '../elements/ElementStatus.ts';
 import { addTaskToStory } from './storyTaskActions.ts';
+import { ExistingGoalPicker } from './components/ExistingGoalPicker.ts';
+import { AddExistingGoalService } from '../core/services/AddExistingGoalService.ts';
 
 type ContextMenuDetail = {
   element: ICanvasElement | null;
@@ -54,7 +56,9 @@ export class ContextMenu {
 
   constructor(
     private scene: Scene,
-    private canvasManager: CanvasManager
+    private canvasManager: CanvasManager,
+    private existingGoalPicker: ExistingGoalPicker,
+    private addExistingGoalService: AddExistingGoalService
   ) {
     this.bulkActions = new BulkActionsController(scene);
     this.menu = document.createElement('div');
@@ -85,6 +89,7 @@ export class ContextMenu {
       this.viewSubscription = null;
     }
     this.hide();
+    this.existingGoalPicker.close();
     this.menu.remove();
   }
 
@@ -128,6 +133,7 @@ export class ContextMenu {
   }
 
   private onViewportChange(): void {
+    this.existingGoalPicker.close();
     if (this.visible) {
       this.hide();
     }
@@ -175,6 +181,15 @@ export class ContextMenu {
           {
             label: 'Goal',
             action: () => this.createGoalAt(sceneX, sceneY),
+          },
+        ],
+      });
+      sections.push({
+        title: 'Add existing',
+        items: [
+          {
+            label: 'Goal',
+            action: () => this.openExistingGoalPicker(sceneX, sceneY),
           },
         ],
       });
@@ -454,5 +469,19 @@ export class ContextMenu {
     historyService.execute(new AddElementCommand(this.scene, goal));
     this.scene.setSelected([goal]);
     this.canvasManager.draw();
+  }
+
+  private openExistingGoalPicker(sceneX: number, sceneY: number): void {
+    const { x, y } = this.getScreenCoords(sceneX, sceneY);
+    this.existingGoalPicker.open({
+      anchorX: x,
+      anchorY: y,
+      sceneX,
+      sceneY,
+      isOnCanvas: (goal) => this.addExistingGoalService.isOnCanvas(goal),
+      onPick: (goal, goalX, goalY) => {
+        this.addExistingGoalService.addOrFocus(goal, goalX, goalY);
+      },
+    });
   }
 }
