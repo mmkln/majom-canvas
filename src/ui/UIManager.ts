@@ -28,6 +28,12 @@ import { HttpInterceptorClient } from '../majom-wrapper/data-access/http-interce
 import { GoalsApiService } from '../majom-wrapper/data-access/goals-api-service.ts';
 import { map } from 'rxjs/operators';
 import { AddExistingGoalService } from '../core/services/AddExistingGoalService.ts';
+import {
+  EXISTING_GOAL_EVENT_NAMES,
+  emitExistingGoalDropCompleted,
+  type ExistingGoalDragMovedDetail,
+  type ExistingGoalDragStateDetail,
+} from './events/existingGoalEvents.ts';
 
 export class UIManager {
   private readonly components: {
@@ -147,7 +153,7 @@ export class UIManager {
     });
 
     this.existingGoalDragStateHandler = (event: Event) => {
-      const customEvent = event as CustomEvent<{ active?: boolean }>;
+      const customEvent = event as CustomEvent<ExistingGoalDragStateDetail>;
       if (customEvent.detail?.active) {
         this.startExternalGoalDragMode();
       } else {
@@ -156,10 +162,7 @@ export class UIManager {
     };
     this.existingGoalDragMoveHandler = (event: Event) => {
       if (!this.externalGoalDragActive) return;
-      const customEvent = event as CustomEvent<{
-        clientX?: number;
-        clientY?: number;
-      }>;
+      const customEvent = event as CustomEvent<ExistingGoalDragMovedDetail>;
       const clientX = customEvent.detail?.clientX;
       const clientY = customEvent.detail?.clientY;
       if (typeof clientX !== 'number' || typeof clientY !== 'number') return;
@@ -174,24 +177,27 @@ export class UIManager {
       }
     };
     window.addEventListener(
-      'existingGoalDragStateChanged',
+      EXISTING_GOAL_EVENT_NAMES.dragStateChanged,
       this.existingGoalDragStateHandler
     );
-    window.addEventListener('existingGoalDragMoved', this.existingGoalDragMoveHandler);
+    window.addEventListener(
+      EXISTING_GOAL_EVENT_NAMES.dragMoved,
+      this.existingGoalDragMoveHandler
+    );
   }
 
   public unmountAll(): void {
     this.components.forEach((c) => c.unmount());
     if (this.existingGoalDragStateHandler) {
       window.removeEventListener(
-        'existingGoalDragStateChanged',
+        EXISTING_GOAL_EVENT_NAMES.dragStateChanged,
         this.existingGoalDragStateHandler
       );
       this.existingGoalDragStateHandler = null;
     }
     if (this.existingGoalDragMoveHandler) {
       window.removeEventListener(
-        'existingGoalDragMoved',
+        EXISTING_GOAL_EVENT_NAMES.dragMoved,
         this.existingGoalDragMoveHandler
       );
       this.existingGoalDragMoveHandler = null;
@@ -222,6 +228,7 @@ export class UIManager {
 
     if (payload?.kind === 'existing-goal' && payload.goal) {
       this.addExistingGoalService.addOrFocus(payload.goal, x, y);
+      emitExistingGoalDropCompleted();
       return;
     }
 

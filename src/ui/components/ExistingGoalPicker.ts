@@ -1,5 +1,11 @@
 import type { Observable, Subscription } from 'rxjs';
 import type { Goal } from '../../majom-wrapper/interfaces/index.ts';
+import {
+  EXISTING_GOAL_EVENT_NAMES,
+  emitExistingGoalDragMoved,
+  emitExistingGoalDragStateChanged,
+  type ExistingGoalDropCompletedDetail,
+} from '../events/existingGoalEvents.ts';
 
 type GoalPage = {
   items: Goal[];
@@ -16,9 +22,13 @@ type OpenOptions = {
 export class ExistingGoalPicker {
   private backdrop: HTMLDivElement | null = null;
   private container: HTMLDivElement | null = null;
+  private header: HTMLDivElement | null = null;
+  private searchInput: HTMLInputElement | null = null;
   private list: HTMLDivElement | null = null;
   private footer: HTMLDivElement | null = null;
+  private compactPanel: HTMLDivElement | null = null;
   private listScrollHandler: ((event: Event) => void) | null = null;
+  private dropCompletedHandler: ((event: Event) => void) | null = null;
   private searchDebounce: number | null = null;
   private loadSubscription: Subscription | null = null;
   private requestToken = 0;
@@ -30,6 +40,8 @@ export class ExistingGoalPicker {
   private items: Goal[] = [];
   private activeOptions: OpenOptions | null = null;
   private pickerDragActive = false;
+  private pendingDropCompleted = false;
+  private viewMode: 'full' | 'mini' = 'full';
   private suppressPickUntilTs = 0;
   private readonly pickSuppressionMs = 180;
 
@@ -59,6 +71,7 @@ export class ExistingGoalPicker {
     container.style.flexDirection = 'column';
     container.style.gap = '0';
     container.style.zIndex = '60';
+    container.style.transition = 'width 140ms ease, padding 140ms ease';
 
     const header = document.createElement('div');
     header.className = 'mb-3 flex items-center justify-between';
@@ -86,16 +99,40 @@ export class ExistingGoalPicker {
     const footer = document.createElement('div');
     footer.className = 'border-t border-gray-100 pt-2';
 
-    container.append(header, searchInput, list, footer);
+    const compactPanel = document.createElement('div');
+    compactPanel.className =
+      'hidden h-full flex-col items-center justify-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-2 py-3 text-center';
+    compactPanel.style.display = 'none';
+    const compactTitle = document.createElement('div');
+    compactTitle.className =
+      'text-[10px] font-semibold uppercase tracking-wide text-gray-600';
+    compactTitle.textContent = 'Picker minimized';
+    const compactHint = document.createElement('div');
+    compactHint.className = 'text-[10px] text-gray-500';
+    compactHint.textContent = 'Drop on canvas';
+    const expandBtn = document.createElement('button');
+    expandBtn.type = 'button';
+    expandBtn.className =
+      'rounded border border-gray-300 bg-white px-2 py-1 text-[10px] text-gray-700 hover:bg-gray-100';
+    expandBtn.textContent = 'Expand';
+    expandBtn.addEventListener('click', () => this.setViewMode('full'));
+    compactPanel.append(compactTitle, compactHint, expandBtn);
+
+    container.append(header, searchInput, list, footer, compactPanel);
     document.body.appendChild(backdrop);
     document.body.appendChild(container);
 
     this.backdrop = backdrop;
     this.container = container;
+    this.header = header;
+    this.searchInput = searchInput;
     this.list = list;
     this.footer = footer;
+    this.compactPanel = compactPanel;
     this.listScrollHandler = () => this.maybeAutoLoadMore();
     this.list.addEventListener('scroll', this.listScrollHandler);
+    this.pendingDropCompleted = false;
+    this.setViewMode('full');
 
     searchInput.addEventListener('input', () => {
       if (this.searchDebounce !== null) {
@@ -108,6 +145,20 @@ export class ExistingGoalPicker {
 
     this.resetAndLoad('');
     searchInput.focus();
+
+    this.dropCompletedHandler = (event: Event) => {
+      const customEvent = event as CustomEvent<ExistingGoalDropCompletedDetail>;
+      if (customEvent.detail?.kind !== 'existing-goal') return;
+      this.pendingDropCompleted = true;
+      if (!this.pickerDragActive) {
+        this.pendingDropCompleted = false;
+        this.setViewMode('full');
+      }
+    };
+    window.addEventListener(
+      EXISTING_GOAL_EVENT_NAMES.dropCompleted,
+      this.dropCompletedHandler
+    );
   }
 
   public close(): void {
@@ -117,10 +168,19 @@ export class ExistingGoalPicker {
     }
     this.loadSubscription?.unsubscribe();
     this.loadSubscription = null;
+    if (this.dropCompletedHandler) {
+      window.removeEventListener(
+        EXISTING_GOAL_EVENT_NAMES.dropCompleted,
+        this.dropCompletedHandler
+      );
+      this.dropCompletedHandler = null;
+    }
     if (this.pickerDragActive) {
       this.pickerDragActive = false;
       this.emitDragState(false);
     }
+    this.pendingDropCompleted = false;
+    this.setViewMode('full');
     if (this.container) {
       this.container.remove();
       this.container = null;
@@ -132,8 +192,11 @@ export class ExistingGoalPicker {
     if (this.list && this.listScrollHandler) {
       this.list.removeEventListener('scroll', this.listScrollHandler);
     }
+    this.header = null;
+    this.searchInput = null;
     this.list = null;
     this.footer = null;
+    this.compactPanel = null;
     this.listScrollHandler = null;
     this.activeOptions = null;
     this.items = [];
@@ -235,7 +298,13 @@ export class ExistingGoalPicker {
         const dataTransfer = event.dataTransfer;
         if (!dataTransfer) return;
         this.pickerDragActive = true;
+        this.pendingDropCompleted = false;
         this.suppressPickUntilTs = performance.now() + this.pickSuppressionMs;
+        requestAnimationFrame(() => {
+          if (this.pickerDragActive) {
+            this.setViewMode('mini');
+          }
+        });
         this.emitDragState(true);
         dataTransfer.effectAllowed = 'copy';
         dataTransfer.setData(
@@ -257,6 +326,12 @@ export class ExistingGoalPicker {
         this.pickerDragActive = false;
         this.suppressPickUntilTs = performance.now() + this.pickSuppressionMs;
         this.emitDragState(false);
+        if (this.pendingDropCompleted) {
+          this.pendingDropCompleted = false;
+          this.setViewMode('full');
+        } else {
+          this.setViewMode('mini');
+        }
       });
 
       const topRow = document.createElement('div');
@@ -465,24 +540,53 @@ export class ExistingGoalPicker {
   }
 
   private emitDragState(active: boolean): void {
-    if (typeof window === 'undefined') return;
-    window.dispatchEvent(
-      new CustomEvent('existingGoalDragStateChanged', {
-        detail: { active },
-      })
-    );
+    emitExistingGoalDragStateChanged(active);
   }
 
   private emitDragMove(clientX: number, clientY: number): void {
-    if (typeof window === 'undefined') return;
-    window.dispatchEvent(
-      new CustomEvent('existingGoalDragMoved', {
-        detail: { clientX, clientY },
-      })
-    );
+    emitExistingGoalDragMoved(clientX, clientY);
   }
 
   private shouldSuppressPick(): boolean {
     return this.pickerDragActive || performance.now() < this.suppressPickUntilTs;
+  }
+
+  private setViewMode(mode: 'full' | 'mini'): void {
+    this.viewMode = mode;
+    if (
+      !this.container ||
+      !this.header ||
+      !this.searchInput ||
+      !this.list ||
+      !this.footer ||
+      !this.compactPanel
+    ) {
+      return;
+    }
+
+    if (mode === 'mini') {
+      this.container.style.width = '132px';
+      this.container.style.padding = '12px 8px';
+      this.header.style.display = 'none';
+      this.searchInput.style.display = 'none';
+      this.list.style.display = 'none';
+      this.footer.style.display = 'none';
+      this.compactPanel.style.display = 'flex';
+      if (this.backdrop) {
+        this.backdrop.style.background = 'rgba(17, 24, 39, 0.05)';
+      }
+      return;
+    }
+
+    this.container.style.width = '';
+    this.container.style.padding = '16px 14px 12px 14px';
+    this.header.style.display = '';
+    this.searchInput.style.display = '';
+    this.list.style.display = '';
+    this.footer.style.display = '';
+    this.compactPanel.style.display = 'none';
+    if (this.backdrop) {
+      this.backdrop.style.background = '';
+    }
   }
 }
