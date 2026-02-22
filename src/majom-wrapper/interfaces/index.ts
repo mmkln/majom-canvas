@@ -72,6 +72,7 @@ export interface Goal {
   created_at: Date;
   completed: boolean;
   tasks: PlatformTask[];
+  stories?: Story[];
   subgoals: {
     items: Subgoal[];
     total_count: number;
@@ -146,6 +147,8 @@ export interface Story {
   description: string;
   status: Status;
   priority: Priority;
+  goal?: Goal | null;
+  goal_id?: Goal['id'] | null;
   tasks?: PlatformTask[];
 }
 
