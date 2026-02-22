@@ -1,14 +1,12 @@
 // ui/UIManager.ts
 import { CanvasControls } from './CanvasControls.ts';
 import { ZoomIndicator } from './ZoomIndicator.ts';
-import { CanvasToolbar } from './CanvasToolbar.ts';
 import { EditElementModal } from './components/EditElementModal.ts';
 import { NotificationContainer } from './components/NotificationContainer.ts';
 import { CanvasBoardSelector } from './components/CanvasBoardSelector.ts';
 import { CanvasManager } from '../core/managers/CanvasManager.ts';
 import { Scene } from '../core/scene/Scene.ts';
 import { editElement$ } from '../core/eventBus.ts';
-import { UndoRedoControls } from './UndoRedoControls.ts';
 import { SaveControls } from './components/SaveControls.ts';
 import { ContextMenu } from './ContextMenu.ts';
 import { SelectionActionMenu } from './SelectionActionMenu.ts';
@@ -40,10 +38,8 @@ export class UIManager {
     mount(parent?: HTMLElement): void;
     unmount(): void;
   }[] = [];
-  private readonly canvasToolbar: CanvasToolbar;
   private readonly canvasControls: CanvasControls;
   private readonly zoomIndicator: ZoomIndicator;
-  private readonly undoRedoControls: UndoRedoControls;
   private readonly addExistingTaskService: AddExistingTaskService;
   private readonly addExistingGoalService: AddExistingGoalService;
   private readonly addExistingStoryService: AddExistingStoryService;
@@ -67,13 +63,10 @@ export class UIManager {
     private readonly canvasManager: CanvasManager,
     private readonly scene: Scene
   ) {
-    // Initialize Canvas Toolbar for creating elements
-    this.canvasToolbar = new CanvasToolbar(this.scene, this.canvasManager);
     this.canvasControls = new CanvasControls(this.canvasManager);
     const canvasBoardSelector = new CanvasBoardSelector();
     const miniMap = new MiniMap(this.scene, this.canvasManager);
     this.zoomIndicator = new ZoomIndicator(this.canvasManager);
-    this.undoRedoControls = new UndoRedoControls(this.canvasToolbar.container);
 
     const saveControls = new SaveControls(this.scene);
     const http = new HttpInterceptorClient(environment.apiUrl);
@@ -170,9 +163,7 @@ export class UIManager {
       selectionActions,
       relatedItemsPicker,
       statusPicker,
-      saveControls,
-      this.canvasToolbar,
-      this.undoRedoControls
+      saveControls
     );
     // Notification container
     const notificationContainer = new NotificationContainer();
