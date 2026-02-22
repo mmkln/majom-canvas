@@ -133,7 +133,6 @@ export class ContextMenu {
   }
 
   private onViewportChange(): void {
-    this.existingGoalPicker.close();
     if (this.visible) {
       this.hide();
     }
@@ -472,10 +471,7 @@ export class ContextMenu {
   }
 
   private openExistingGoalPicker(sceneX: number, sceneY: number): void {
-    const { x, y } = this.getScreenCoords(sceneX, sceneY);
     this.existingGoalPicker.open({
-      anchorX: x,
-      anchorY: y,
       sceneX,
       sceneY,
       isOnCanvas: (goal) => this.addExistingGoalService.isOnCanvas(goal),

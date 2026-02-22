@@ -1,5 +1,4 @@
 import type { Observable, Subscription } from 'rxjs';
-import { positionFixedElement } from '../overlayPosition.ts';
 import type { Goal } from '../../majom-wrapper/interfaces/index.ts';
 
 type GoalPage = {
@@ -8,8 +7,6 @@ type GoalPage = {
 };
 
 type OpenOptions = {
-  anchorX: number;
-  anchorY: number;
   sceneX: number;
   sceneY: number;
   onPick: (goal: Goal, sceneX: number, sceneY: number) => void;
@@ -17,10 +14,10 @@ type OpenOptions = {
 };
 
 export class ExistingGoalPicker {
+  private backdrop: HTMLDivElement | null = null;
   private container: HTMLDivElement | null = null;
   private list: HTMLDivElement | null = null;
   private footer: HTMLDivElement | null = null;
-  private outsideHandler: ((event: MouseEvent) => void) | null = null;
   private listScrollHandler: ((event: Event) => void) | null = null;
   private searchDebounce: number | null = null;
   private loadSubscription: Subscription | null = null;
@@ -32,6 +29,9 @@ export class ExistingGoalPicker {
   private hasMore = false;
   private items: Goal[] = [];
   private activeOptions: OpenOptions | null = null;
+  private pickerDragActive = false;
+  private suppressPickUntilTs = 0;
+  private readonly pickSuppressionMs = 180;
 
   constructor(
     private readonly loadGoalsPage: (
@@ -46,16 +46,24 @@ export class ExistingGoalPicker {
     this.close();
     this.activeOptions = options;
 
+    const backdrop = document.createElement('div');
+    backdrop.className = 'fixed inset-0 bg-black/12';
+    backdrop.style.zIndex = '55';
+    backdrop.style.pointerEvents = 'none';
+
     const container = document.createElement('div');
     container.className =
-      'fixed w-[360px] rounded-md border border-gray-200 bg-white shadow-xl text-sm text-gray-800';
-    container.style.padding = '10px';
+      'fixed right-0 top-0 h-full w-[520px] max-w-[96vw] border-l border-gray-200 bg-white shadow-2xl text-sm text-gray-800';
+    container.style.padding = '16px 14px 12px 14px';
+    container.style.display = 'flex';
+    container.style.flexDirection = 'column';
+    container.style.gap = '0';
     container.style.zIndex = '60';
 
     const header = document.createElement('div');
-    header.className = 'mb-2 flex items-center justify-between';
+    header.className = 'mb-3 flex items-center justify-between';
     const title = document.createElement('div');
-    title.className = 'font-semibold text-gray-900';
+    title.className = 'text-base font-semibold text-gray-900';
     title.textContent = 'Add existing goal';
 
     const closeBtn = document.createElement('button');
@@ -70,30 +78,24 @@ export class ExistingGoalPicker {
     searchInput.type = 'search';
     searchInput.placeholder = 'Search goals...';
     searchInput.className =
-      'mb-2 w-full rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-300 focus:outline-none';
+      'mb-3 w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-blue-300 focus:outline-none';
 
     const list = document.createElement('div');
-    list.className = 'max-h-[300px] overflow-auto';
+    list.className = 'min-h-0 flex-1 overflow-auto pr-1';
 
     const footer = document.createElement('div');
-    footer.className = 'pt-2';
+    footer.className = 'border-t border-gray-100 pt-2';
 
     container.append(header, searchInput, list, footer);
+    document.body.appendChild(backdrop);
     document.body.appendChild(container);
 
+    this.backdrop = backdrop;
     this.container = container;
     this.list = list;
     this.footer = footer;
     this.listScrollHandler = () => this.maybeAutoLoadMore();
     this.list.addEventListener('scroll', this.listScrollHandler);
-
-    positionFixedElement(container, {
-      anchorX: options.anchorX,
-      anchorY: options.anchorY,
-      alignX: 'left',
-      alignY: 'top',
-      offsetY: 6,
-    });
 
     searchInput.addEventListener('input', () => {
       if (this.searchDebounce !== null) {
@@ -103,14 +105,6 @@ export class ExistingGoalPicker {
         this.resetAndLoad(searchInput.value.trim());
       }, 250);
     });
-
-    this.outsideHandler = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (this.container && !this.container.contains(target)) {
-        this.close();
-      }
-    };
-    window.addEventListener('mousedown', this.outsideHandler);
 
     this.resetAndLoad('');
     searchInput.focus();
@@ -123,13 +117,17 @@ export class ExistingGoalPicker {
     }
     this.loadSubscription?.unsubscribe();
     this.loadSubscription = null;
-    if (this.outsideHandler) {
-      window.removeEventListener('mousedown', this.outsideHandler);
-      this.outsideHandler = null;
+    if (this.pickerDragActive) {
+      this.pickerDragActive = false;
+      this.emitDragState(false);
     }
     if (this.container) {
       this.container.remove();
       this.container = null;
+    }
+    if (this.backdrop) {
+      this.backdrop.remove();
+      this.backdrop = null;
     }
     if (this.list && this.listScrollHandler) {
       this.list.removeEventListener('scroll', this.listScrollHandler);
@@ -144,6 +142,7 @@ export class ExistingGoalPicker {
     this.currentTerm = '';
     this.isLoading = false;
     this.loadMoreError = false;
+    this.suppressPickUntilTs = 0;
   }
 
   private resetAndLoad(term: string): void {
@@ -210,35 +209,63 @@ export class ExistingGoalPicker {
       const onCanvas = this.activeOptions?.isOnCanvas(goal) ?? false;
       const row = document.createElement('div');
       row.className =
-        'mb-1 cursor-pointer rounded border px-2 py-2 transition-colors hover:bg-gray-50';
-      row.style.borderColor = onCanvas ? '#bbf7d0' : '#f3f4f6';
+        'mb-2 cursor-pointer rounded-lg border px-3 py-2 transition-colors hover:bg-gray-50';
+      row.style.borderColor = onCanvas ? '#bbf7d0' : '#e5e7eb';
       row.style.background = onCanvas ? '#f0fdf4' : '#ffffff';
       row.setAttribute('role', 'button');
       row.tabIndex = 0;
+      row.draggable = true;
 
-      const handlePick = (): void => {
+      const handlePick = (force: boolean = false): void => {
+        if (!force && this.shouldSuppressPick()) return;
         this.activeOptions?.onPick(
           goal,
           this.activeOptions.sceneX,
           this.activeOptions.sceneY
         );
-        this.close();
       };
 
       row.addEventListener('click', handlePick);
       row.addEventListener('keydown', (event: KeyboardEvent) => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
         event.preventDefault();
-        handlePick();
+        handlePick(true);
+      });
+      row.addEventListener('dragstart', (event: DragEvent) => {
+        const dataTransfer = event.dataTransfer;
+        if (!dataTransfer) return;
+        this.pickerDragActive = true;
+        this.suppressPickUntilTs = performance.now() + this.pickSuppressionMs;
+        this.emitDragState(true);
+        dataTransfer.effectAllowed = 'copy';
+        dataTransfer.setData(
+          'application/json',
+          JSON.stringify({
+            kind: 'existing-goal',
+            goal,
+          })
+        );
+        dataTransfer.setData('text/plain', goal.title || 'Goal');
+      });
+      row.addEventListener('drag', (event: DragEvent) => {
+        if (!this.pickerDragActive) return;
+        if (event.clientX === 0 && event.clientY === 0) return;
+        this.emitDragMove(event.clientX, event.clientY);
+      });
+      row.addEventListener('dragend', () => {
+        if (!this.pickerDragActive) return;
+        this.pickerDragActive = false;
+        this.suppressPickUntilTs = performance.now() + this.pickSuppressionMs;
+        this.emitDragState(false);
       });
 
       const topRow = document.createElement('div');
       topRow.className = 'flex items-start justify-between gap-2';
 
       const textWrap = document.createElement('div');
-      textWrap.className = 'min-w-0';
+      textWrap.className = 'min-w-0 flex-1';
       const title = document.createElement('div');
-      title.className = 'truncate font-medium text-gray-900';
+      title.className = 'truncate text-[15px] font-semibold leading-5 text-gray-900';
       title.textContent = goal.title || 'Untitled goal';
       textWrap.appendChild(title);
 
@@ -253,33 +280,41 @@ export class ExistingGoalPicker {
       const actionBtn = document.createElement('button');
       actionBtn.type = 'button';
       actionBtn.className =
-        'shrink-0 rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-100';
+        'shrink-0 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-100';
       actionBtn.textContent = onCanvas ? 'Find' : 'Add';
       actionBtn.addEventListener('click', (event: MouseEvent) => {
         event.stopPropagation();
-        handlePick();
+        handlePick(true);
       });
 
       topRow.append(textWrap, actionBtn);
 
       const meta = document.createElement('div');
-      meta.className = 'mt-1 text-xs text-gray-500';
-      const metaParts = [
-        `Status: ${this.formatEnum(goal.status)}`,
-        `Priority: ${this.formatEnum(goal.priority)}`,
-      ];
+      meta.className =
+        'mt-1 flex items-center gap-2 overflow-hidden text-[11px] text-gray-500';
+      const statusChip = this.createChip(
+        this.formatEnum(goal.status),
+        this.getStatusChipPalette(goal.status)
+      );
+      const priorityChip = this.createChip(
+        this.formatEnum(goal.priority),
+        this.getPriorityChipPalette(goal.priority)
+      );
+      meta.append(statusChip, priorityChip);
       const updatedAt = this.getUpdatedAtLabel(goal);
       if (updatedAt) {
-        metaParts.push(`Updated: ${updatedAt}`);
+        const updated = document.createElement('span');
+        updated.className = 'truncate text-[11px] text-gray-500';
+        updated.textContent = `Updated ${updatedAt}`;
+        meta.appendChild(updated);
       }
-      meta.textContent = metaParts.join(' | ');
 
       row.append(topRow, meta);
 
       const shortDescription = this.truncateDescription(goal.description);
       if (shortDescription.length > 0) {
         const description = document.createElement('div');
-        description.className = 'mt-1 text-xs text-gray-600';
+        description.className = 'mt-1 truncate text-xs text-gray-600';
         description.textContent = shortDescription;
         row.appendChild(description);
       }
@@ -341,9 +376,60 @@ export class ExistingGoalPicker {
     if (!this.list) return;
     this.list.innerHTML = '';
     const row = document.createElement('div');
-    row.className = 'px-1 py-2 text-xs text-gray-500';
+    row.className = 'px-1 py-4 text-center text-xs text-gray-500';
     row.textContent = message;
     this.list.appendChild(row);
+  }
+
+  private createChip(
+    label: string,
+    palette: { bg: string; border: string; text: string }
+  ): HTMLSpanElement {
+    const chip = document.createElement('span');
+    chip.className =
+      'inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide';
+    chip.textContent = label;
+    chip.style.background = palette.bg;
+    chip.style.borderColor = palette.border;
+    chip.style.color = palette.text;
+    return chip;
+  }
+
+  private getStatusChipPalette(status: unknown): {
+    bg: string;
+    border: string;
+    text: string;
+  } {
+    const normalized = typeof status === 'string' ? status.toLowerCase() : '';
+    if (normalized.includes('done')) {
+      return { bg: '#dcfce7', border: '#86efac', text: '#166534' };
+    }
+    if (normalized.includes('progress')) {
+      return { bg: '#dbeafe', border: '#93c5fd', text: '#1d4ed8' };
+    }
+    if (normalized.includes('pending')) {
+      return { bg: '#fef3c7', border: '#fcd34d', text: '#b45309' };
+    }
+    return { bg: '#f3f4f6', border: '#d1d5db', text: '#374151' };
+  }
+
+  private getPriorityChipPalette(priority: unknown): {
+    bg: string;
+    border: string;
+    text: string;
+  } {
+    const normalized =
+      typeof priority === 'string' ? priority.toLowerCase() : '';
+    if (normalized === 'high') {
+      return { bg: '#fee2e2', border: '#fca5a5', text: '#991b1b' };
+    }
+    if (normalized === 'medium') {
+      return { bg: '#ffedd5', border: '#fdba74', text: '#9a3412' };
+    }
+    if (normalized === 'low') {
+      return { bg: '#dcfce7', border: '#86efac', text: '#166534' };
+    }
+    return { bg: '#f3f4f6', border: '#d1d5db', text: '#374151' };
   }
 
   private formatEnum(value: unknown): string {
@@ -376,5 +462,27 @@ export class ExistingGoalPicker {
       month: 'short',
       day: '2-digit',
     }).format(date);
+  }
+
+  private emitDragState(active: boolean): void {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(
+      new CustomEvent('existingGoalDragStateChanged', {
+        detail: { active },
+      })
+    );
+  }
+
+  private emitDragMove(clientX: number, clientY: number): void {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(
+      new CustomEvent('existingGoalDragMoved', {
+        detail: { clientX, clientY },
+      })
+    );
+  }
+
+  private shouldSuppressPick(): boolean {
+    return this.pickerDragActive || performance.now() < this.suppressPickUntilTs;
   }
 }
