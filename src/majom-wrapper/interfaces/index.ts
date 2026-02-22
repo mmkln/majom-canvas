@@ -159,7 +159,7 @@ export interface PlatformTask {
   description: string;
   created_at: Date;
   start_date: Date | null;
-  due_date: Date | null;
+  due_date: Date | string | null;
   resolved_date: Date | null;
   estimate: number;
   subtasks: Subtask[];

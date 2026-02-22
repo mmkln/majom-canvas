@@ -26,13 +26,17 @@ import { StoryElement } from './elements/StoryElement.ts';
 import { GoalElement } from './elements/GoalElement.ts';
 import { isPlanningElement } from './elements/utils/typeGuards.ts';
 import { ElementStatus } from './elements/ElementStatus.ts';
+import {
+  ConnectionRelationType,
+  type IConnection,
+} from './core/interfaces/connection.ts';
 import { CanvasPositionWriteDTO } from './majom-wrapper/data-access/canvas-position-dto.ts';
 import { notify } from './core/services/NotificationService.ts';
-import { ConnectionRelationType } from './core/interfaces/connection.ts';
 import {
-  CANVAS_RELATION_LIFECYCLE_EVENT,
-  isCanvasRelationLifecycleDetail,
-} from './core/canvasRelationLifecycle.ts';
+  CANVAS_LINK_LIFECYCLE_EVENT,
+  isCanvasLinkLifecycleDetail,
+} from './core/canvasLinkLifecycle.ts';
+import { confirmReplaceStoryGoalModal } from './ui/components/ConfirmReplaceStoryGoalModal.ts';
 import { Observable, of, Subscription, throwError } from 'rxjs';
 import { catchError, finalize, map, switchMap } from 'rxjs/operators';
 
@@ -49,6 +53,7 @@ export class App {
   private canvasTitle: string = 'New canvas';
   private autosaveTimer: number | null = null;
   private autosaveInFlight = false;
+  private pendingLinkDecisions = 0;
   private isHydratingCanvas = false;
   private isElementsHydrating = false;
   private isRelationsHydrating = false;
@@ -237,57 +242,25 @@ export class App {
       });
     });
 
-    window.addEventListener('taskStoryLinkChanged', (event: Event) => {
-      const customEvent = event as CustomEvent<{
-        task?: TaskElement;
-        story?: StoryElement | null;
-      }>;
-      const task = customEvent.detail?.task;
-      const story = customEvent.detail?.story ?? null;
-      if (!task) return;
-      if (!this.authService.isLoggedIn()) {
-        return;
-      }
-      this.canvasDataService.updateTaskStoryLink(task, story).subscribe({
-        error: (err) => {
-          console.error('Failed to update task story link', err);
-          notify('Failed to update task link', 'error');
-        },
-      });
-    });
-
-    window.addEventListener(CANVAS_RELATION_LIFECYCLE_EVENT, (event: Event) => {
+    window.addEventListener(CANVAS_LINK_LIFECYCLE_EVENT, (event: Event) => {
       const customEvent = event as CustomEvent<unknown>;
-      if (!isCanvasRelationLifecycleDetail(customEvent.detail)) return;
+      if (!isCanvasLinkLifecycleDetail(customEvent.detail)) return;
       const detail = customEvent.detail;
-      if (detail.action !== 'created') return;
-      if (detail.relationType !== ConnectionRelationType.ParentChild) return;
-      if (detail.from.elementType !== 'goal' || detail.to.elementType !== 'story') {
-        return;
-      }
-      const goal = detail.from.element;
-      const story = detail.to.element;
-      if (!(goal instanceof GoalElement) || !(story instanceof StoryElement)) {
-        return;
-      }
       if (!this.authService.isLoggedIn()) {
         return;
       }
-      // TODO(relation-policy): when replace-confirm flow is implemented,
-      // route this through a single policy orchestrator instead of direct sync.
-      this.canvasDataService.updateStoryGoalLink(story, goal).subscribe({
-        next: (result) => {
-          if (result.status !== 'conflict') return;
-          notify(
-            'Story already has another goal. Cannot link to this goal.',
-            'error'
-          );
-        },
-        error: (err) => {
-          console.error('Failed to update story goal link', err);
-          notify('Failed to update story goal link', 'error');
-        },
-      });
+      if (detail.kind === 'task-story') {
+        this.canvasDataService
+          .updateTaskStoryLink(detail.task, detail.story)
+          .subscribe({
+            error: (err) => {
+              console.error('Failed to update task story link', err);
+              notify('Failed to update task link', 'error');
+            },
+          });
+        return;
+      }
+      this.handleStoryGoalLinkSet(detail.story, detail.goal);
     });
   }
 
@@ -346,6 +319,12 @@ export class App {
   private saveCanvasLayout(
     showNotifications: boolean = true
   ): Observable<boolean> {
+    if (this.isLinkDecisionPending()) {
+      if (showNotifications) {
+        notify('Please finish relation confirmation first.', 'info');
+      }
+      return of(false);
+    }
     if (!this.authService.isLoggedIn()) {
       if (showNotifications) {
         window.dispatchEvent(new CustomEvent('showLoginModal'));
@@ -504,6 +483,7 @@ export class App {
   private runAutosaveTick(): void {
     if (!this.authService.isLoggedIn()) return;
     if (this.autosaveInFlight) return;
+    if (this.isLinkDecisionPending()) return;
     if (!historyService.hasUnsavedChanges()) return;
     const tokenAtStart = historyService.getStateToken();
     this.autosaveInFlight = true;
@@ -679,6 +659,172 @@ export class App {
     window.dispatchEvent(
       new CustomEvent('canvasTitleChanged', { detail: { title } })
     );
+  }
+
+  private async handleStoryGoalLinkSet(
+    story: StoryElement,
+    goal: GoalElement
+  ): Promise<void> {
+    this.beginLinkDecision();
+    // TODO(relation-policy): extract this branch into a dedicated policy orchestrator.
+    const storyRef = this.getLinkElementRef(story);
+    const goalRef = this.getLinkElementRef(goal);
+    const currentGoalId = Number.isFinite(story.goalBackendId)
+      ? Number(story.goalBackendId)
+      : null;
+    const requestedGoalId = this.getLinkElementBackendId(goal);
+    const shouldConfirmReplace =
+      Number.isFinite(currentGoalId) &&
+      (requestedGoalId === null || requestedGoalId !== currentGoalId);
+
+    if (shouldConfirmReplace) {
+      const confirmed = await confirmReplaceStoryGoalModal({
+        storyTitle: story.title,
+      });
+      if (!confirmed) {
+        this.rollbackCreatedStoryGoalRelation(storyRef, goalRef);
+        this.endLinkDecision();
+        return;
+      }
+    }
+
+    this.canvasDataService
+      .updateStoryGoalLink(story, goal, {
+        allowReplace: shouldConfirmReplace,
+      })
+      .pipe(
+        finalize(() => {
+          this.endLinkDecision();
+        })
+      )
+      .subscribe({
+        next: (result) => {
+          if (result.status === 'conflict') {
+            this.rollbackCreatedStoryGoalRelation(storyRef, goalRef);
+            notify(
+              'Story already has another goal. Cannot link to this goal.',
+              'error'
+            );
+            return;
+          }
+          this.enforceSingleStoryGoalCanvasRelation(storyRef, goalRef);
+          this.syncCanvasRelationsNow();
+        },
+        error: (err) => {
+          this.rollbackCreatedStoryGoalRelation(storyRef, goalRef);
+          console.error('Failed to update story goal link', err);
+          notify('Failed to update story goal link', 'error');
+        },
+      });
+  }
+
+  private beginLinkDecision(): void {
+    this.pendingLinkDecisions += 1;
+  }
+
+  private endLinkDecision(): void {
+    this.pendingLinkDecisions = Math.max(0, this.pendingLinkDecisions - 1);
+  }
+
+  private isLinkDecisionPending(): boolean {
+    return this.pendingLinkDecisions > 0;
+  }
+
+  private syncCanvasRelationsNow(): void {
+    if (!this.authService.isLoggedIn()) return;
+    const elements = this.scene
+      .getElements()
+      .filter(isPlanningElement) as Array<
+      TaskElement | StoryElement | GoalElement
+    >;
+    if (
+      !this.canvasDataService.hasRelationChanges(
+        this.scene.getConnections(),
+        elements
+      )
+    ) {
+      return;
+    }
+    this.canvasDataService
+      .updateCanvasRelations(this.scene.getConnections(), elements)
+      .subscribe({
+        error: (err) => {
+          console.error('Failed to sync canvas relations', err);
+          notify('Failed to sync canvas relations', 'error');
+        },
+      });
+  }
+
+  private getLinkElementRef(element: {
+    id: string;
+    uuid?: string;
+  }): string {
+    return element.uuid ?? element.id;
+  }
+
+  private getLinkElementBackendId(element: {
+    id: string;
+    backendId?: number | null;
+  }): number | null {
+    if (Number.isFinite(element.backendId)) {
+      return Number(element.backendId);
+    }
+    const legacyId = Number(element.id);
+    if (Number.isFinite(legacyId)) return legacyId;
+    return null;
+  }
+
+  private getStoryGoalConnections(storyRef: string): IConnection[] {
+    return this.scene
+      .getConnections()
+      .filter(
+        (conn) =>
+          conn.relationType === ConnectionRelationType.ParentChild &&
+          conn.toId === storyRef
+      );
+  }
+
+  private findLatestStoryGoalConnection(
+    storyRef: string,
+    goalRef: string
+  ): IConnection | null {
+    const connections = this.scene.getConnections();
+    for (let i = connections.length - 1; i >= 0; i -= 1) {
+      const conn = connections[i];
+      if (conn.relationType !== ConnectionRelationType.ParentChild) continue;
+      if (conn.toId !== storyRef) continue;
+      if (conn.fromId !== goalRef) continue;
+      return conn;
+    }
+    return null;
+  }
+
+  private removeCanvasConnections(connections: IConnection[]): void {
+    if (connections.length === 0) return;
+    this.scene.removeElements(connections);
+  }
+
+  private rollbackCreatedStoryGoalRelation(
+    storyRef: string,
+    goalRef: string
+  ): void {
+    const created = this.findLatestStoryGoalConnection(storyRef, goalRef);
+    if (!created) return;
+    this.removeCanvasConnections([created]);
+  }
+
+  private enforceSingleStoryGoalCanvasRelation(
+    storyRef: string,
+    goalRef: string
+  ): void {
+    const all = this.getStoryGoalConnections(storyRef);
+    if (all.length <= 1) return;
+
+    const keep =
+      this.findLatestStoryGoalConnection(storyRef, goalRef) ??
+      all[all.length - 1];
+    const duplicates = all.filter((conn) => conn !== keep);
+    this.removeCanvasConnections(duplicates);
   }
 }
 

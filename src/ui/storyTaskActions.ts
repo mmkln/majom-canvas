@@ -6,6 +6,7 @@ import { StoryLayoutService } from '../core/services/StoryLayoutService.ts';
 import { historyService } from '../core/services/HistoryService.ts';
 import { AddElementCommand } from '../core/commands/AddElementCommand.ts';
 import { ResizeCommand } from '../core/commands/ResizeCommand.ts';
+import { emitTaskStoryLinkSet } from '../core/canvasLinkLifecycle.ts';
 
 type AddTaskToStoryArgs = {
   story: StoryElement;
@@ -55,10 +56,6 @@ export const addTaskToStory = ({
   story.addTask(task);
   scene.setSelected([task]);
   canvasManager.draw();
-  window.dispatchEvent(
-    new CustomEvent('taskStoryLinkChanged', {
-      detail: { task, story },
-    })
-  );
+  emitTaskStoryLinkSet(task, story);
   return task;
 };

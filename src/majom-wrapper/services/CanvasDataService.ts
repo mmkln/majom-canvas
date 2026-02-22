@@ -117,6 +117,10 @@ export type StoryGoalLinkResult =
   | { status: 'conflict'; currentGoalId: number; requestedGoalId: number }
   | { status: 'skipped' };
 
+export type StoryGoalLinkOptions = {
+  allowReplace?: boolean;
+};
+
 /**
  * Service to load and persist canvas elements and layout.
  */
@@ -488,7 +492,7 @@ export class CanvasDataService {
       });
       if (activeKeys.has(key)) return;
       activeKeys.add(key);
-      if (!this.relationRegistry.has(key)) {
+      if (!this.relationRegistry.has(key) && this.canvasId) {
         creates.push({
           canvas: this.canvasId,
           from_type: fromRef.type,
@@ -508,18 +512,18 @@ export class CanvasDataService {
       }
     });
 
-    const create$ = creates.length
+    const delete$ = deletes.length
       ? this.relationsApi
-        .batchCreate(creates)
-        .pipe(tap((created) => this.mergeRelationRegistry(created)))
-      : of([]);
-    return create$.pipe(
+        .batchDelete(deletes)
+        .pipe(tap(() => this.removeRelationsById(deletes)))
+      : of(undefined);
+    return delete$.pipe(
       switchMap(() =>
-        deletes.length
+        creates.length
           ? this.relationsApi
-            .batchDelete(deletes)
-            .pipe(tap(() => this.removeRelationsById(deletes)))
-          : of(undefined)
+            .batchCreate(creates)
+            .pipe(tap((created) => this.mergeRelationRegistry(created)))
+          : of([])
       ),
       map(() => undefined)
     );
@@ -709,7 +713,8 @@ export class CanvasDataService {
 
   public updateStoryGoalLink(
     story: StoryElement,
-    goal: GoalElement
+    goal: GoalElement,
+    options: StoryGoalLinkOptions = {}
   ): Observable<StoryGoalLinkResult> {
     const elementsToPersist = [story, goal].filter(Boolean) as Array<
       TaskElement | StoryElement | GoalElement
@@ -725,7 +730,11 @@ export class CanvasDataService {
         const currentGoalId = Number.isFinite(story.goalBackendId)
           ? Number(story.goalBackendId)
           : null;
-        if (Number.isFinite(currentGoalId) && currentGoalId !== goalId) {
+        if (
+          Number.isFinite(currentGoalId) &&
+          currentGoalId !== goalId &&
+          !options.allowReplace
+        ) {
           return of<StoryGoalLinkResult>({
             status: 'conflict',
             currentGoalId: Number(currentGoalId),

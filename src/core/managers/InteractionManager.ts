@@ -27,6 +27,7 @@ import {
 } from '../services/StoryDragPreviewService.ts';
 import type { IDraggable } from '../interfaces/draggable.ts';
 import { getBoundingBox } from '../utils/geometryUtils.ts';
+import { emitTaskStoryLinkSet } from '../canvasLinkLifecycle.ts';
 
 export class InteractionManager {
   private draggingItem: (ICanvasElement & IDraggable) | null = null;
@@ -138,11 +139,7 @@ export class InteractionManager {
       const nextStory = nextStoryId
         ? (stories.find((story) => story.id === nextStoryId) ?? null)
         : null;
-      window.dispatchEvent(
-        new CustomEvent('taskStoryLinkChanged', {
-          detail: { task, story: nextStory },
-        })
-      );
+      emitTaskStoryLinkSet(task, nextStory);
     });
   }
 

@@ -19,6 +19,7 @@ import {
   buildCanvasRelationEndpoint,
   emitCanvasRelationLifecycle,
 } from '../canvasRelationLifecycle.ts';
+import { emitStoryGoalLinkSet } from '../canvasLinkLifecycle.ts';
 
 export class ConnectionInteractionService {
   private creating = false;
@@ -147,17 +148,9 @@ export class ConnectionInteractionService {
           if (
             relationType === ConnectionRelationType.ParentChild &&
             normalized.from instanceof GoalElement &&
-            normalized.to instanceof StoryElement &&
-            typeof window !== 'undefined'
+            normalized.to instanceof StoryElement
           ) {
-            window.dispatchEvent(
-              new CustomEvent('storyGoalRelationCreated', {
-                detail: {
-                  story: normalized.to,
-                  goal: normalized.from,
-                },
-              })
-            );
+            emitStoryGoalLinkSet(normalized.to, normalized.from);
           }
         }
       }
