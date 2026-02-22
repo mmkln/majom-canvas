@@ -137,10 +137,13 @@ export class PanZoomManager {
   }
 
   // --- Event system ---
-  private zoomListeners: (() => void)[] = [];
+  private zoomListeners = new Set<() => void>();
 
-  public onZoomChange(listener: () => void) {
-    this.zoomListeners.push(listener);
+  public onZoomChange(listener: () => void): () => void {
+    this.zoomListeners.add(listener);
+    return () => {
+      this.zoomListeners.delete(listener);
+    };
   }
 
   private emitZoomChange() {

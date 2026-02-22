@@ -26,6 +26,10 @@ import { map } from 'rxjs/operators';
 import { AddExistingTaskService } from '../core/services/AddExistingTaskService.ts';
 import { AddExistingGoalService } from '../core/services/AddExistingGoalService.ts';
 import { AddExistingStoryService } from '../core/services/AddExistingStoryService.ts';
+import { AuthService } from '../majom-wrapper/data-access/auth-service.ts';
+import { UserApiService } from '../majom-wrapper/data-access/user-api-service.ts';
+import { AuthComponent } from './components/AuthComponent.ts';
+import { HUD_PRIMARY_BUTTON_CLASS } from './primitives/hudClassNames.ts';
 import {
   EXISTING_PICKER_EVENT_NAMES,
   emitExistingPickerDropCompleted,
@@ -58,21 +62,31 @@ export class UIManager {
     | null = null;
   private externalGoalGlobalDropHandler: ((event: DragEvent) => void) | null =
     null;
+  private canvasDragOverHandler: ((event: DragEvent) => void) | null = null;
+  private canvasDropHandler: ((event: DragEvent) => void) | null = null;
+  private uiRoot: HTMLDivElement | null = null;
 
   constructor(
     private readonly canvasManager: CanvasManager,
-    private readonly scene: Scene
+    private readonly scene: Scene,
+    private readonly authService: AuthService
   ) {
-    this.canvasControls = new CanvasControls(this.canvasManager);
+    this.canvasControls = new CanvasControls(this.canvasManager, this.scene);
     const canvasBoardSelector = new CanvasBoardSelector();
     const miniMap = new MiniMap(this.scene, this.canvasManager);
     this.zoomIndicator = new ZoomIndicator(this.canvasManager);
 
-    const saveControls = new SaveControls(this.scene);
     const http = new HttpInterceptorClient(environment.apiUrl);
     const tasksApi = new TasksApiService(http);
     const goalsApi = new GoalsApiService(http);
     const storiesApi = new StoriesApiService(http);
+    const userApi = new UserApiService(http);
+    const authComponent = new AuthComponent(this.authService, userApi, {
+      containerClassName: 'relative z-30 flex items-center',
+      loginButtonClassName:
+        `h-10 min-w-[108px] px-4 ${HUD_PRIMARY_BUTTON_CLASS}`,
+    });
+    const saveControls = new SaveControls(authComponent);
     this.addExistingTaskService = new AddExistingTaskService(
       this.scene,
       this.canvasManager
@@ -173,17 +187,28 @@ export class UIManager {
   }
 
   public mountAll(parent: HTMLElement = document.body): void {
-    this.components.forEach((c) => c.mount(parent));
+    if (this.uiRoot) return;
+    this.uiRoot = this.createUiRoot();
+    parent.appendChild(this.uiRoot);
+
+    this.components.forEach((c) => c.mount(this.uiRoot!));
+    Array.from(this.uiRoot.children).forEach((child) => {
+      if (child instanceof HTMLElement) {
+        child.style.pointerEvents = 'auto';
+      }
+    });
 
     // drag-and-drop from existing pickers to canvas
     const canvas = this.canvasManager.getCanvas();
-    canvas.addEventListener('dragover', (e) => e.preventDefault());
-    canvas.addEventListener('drop', (e: DragEvent) => {
-      e.preventDefault();
-      const payload = this.parseDragPayload(e.dataTransfer);
+    this.canvasDragOverHandler = (event: DragEvent) => event.preventDefault();
+    this.canvasDropHandler = (event: DragEvent) => {
+      event.preventDefault();
+      const payload = this.parseDragPayload(event.dataTransfer);
       if (!payload) return;
-      this.handleCanvasDropPayload(payload, e.clientX, e.clientY);
-    });
+      this.handleCanvasDropPayload(payload, event.clientX, event.clientY);
+    };
+    canvas.addEventListener('dragover', this.canvasDragOverHandler);
+    canvas.addEventListener('drop', this.canvasDropHandler);
 
     this.existingPickerDragStateHandler = (event: Event) => {
       const customEvent = event as CustomEvent<ExistingPickerDragStateDetail>;
@@ -235,7 +260,33 @@ export class UIManager {
       );
       this.existingPickerDragMoveHandler = null;
     }
+    const canvas = this.canvasManager.getCanvas();
+    if (this.canvasDragOverHandler) {
+      canvas.removeEventListener('dragover', this.canvasDragOverHandler);
+      this.canvasDragOverHandler = null;
+    }
+    if (this.canvasDropHandler) {
+      canvas.removeEventListener('drop', this.canvasDropHandler);
+      this.canvasDropHandler = null;
+    }
     this.stopExternalGoalDragMode();
+    if (this.uiRoot) {
+      this.uiRoot.remove();
+      this.uiRoot = null;
+    }
+  }
+
+  private createUiRoot(): HTMLDivElement {
+    const root = document.createElement('div');
+    root.id = 'canvas-ui-root';
+    root.style.position = 'fixed';
+    root.style.left = '0';
+    root.style.top = '0';
+    root.style.width = '100vw';
+    root.style.height = '100vh';
+    root.style.zIndex = '40';
+    root.style.pointerEvents = 'none';
+    return root;
   }
 
   private parseDragPayload(dataTransfer: DataTransfer | null): any | null {
@@ -325,9 +376,8 @@ export class UIManager {
     overlay.addEventListener('drop', (event: DragEvent) => {
       event.preventDefault();
       const payload = this.parseDragPayload(event.dataTransfer);
-      if (payload) {
-        this.handleCanvasDropPayload(payload, event.clientX, event.clientY);
-      }
+      if (!payload) return;
+      this.handleCanvasDropPayload(payload, event.clientX, event.clientY);
       this.stopExternalGoalDragMode();
     });
 
@@ -353,7 +403,7 @@ export class UIManager {
       if (!this.externalGoalDropPreview) return;
       if (this.isInsideExternalGoalOverlay(event.clientX, event.clientY)) {
         this.updateExternalGoalDropPreview(event.clientX, event.clientY);
-      } else {
+      } else if (this.externalGoalDropPreview) {
         this.externalGoalDropPreview.style.display = 'none';
       }
     };

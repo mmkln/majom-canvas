@@ -2,9 +2,7 @@ import { CanvasManager } from './core/managers/CanvasManager.ts';
 import { Scene } from './core/scene/Scene.ts';
 import { DiagramRepository } from './core/data/DiagramRepository.ts';
 import { IDataProvider } from './core/interfaces/dataProvider.ts';
-import { AuthComponent } from './ui/components/AuthComponent.ts';
 import { AuthService } from './majom-wrapper/data-access/auth-service.ts';
-import { UserApiService } from './majom-wrapper/data-access/user-api-service.ts';
 import { HttpInterceptorClient } from './majom-wrapper/data-access/http-interceptor.ts';
 import { TasksApiService } from './majom-wrapper/data-access/tasks-api-service.ts';
 import { StoriesApiService } from './majom-wrapper/data-access/stories-api-service.ts';
@@ -37,6 +35,11 @@ import {
   CANVAS_LINK_LIFECYCLE_EVENT,
   isCanvasLinkLifecycleDetail,
 } from './core/canvasLinkLifecycle.ts';
+import {
+  emitCanvasSaveFinished,
+  emitCanvasSaveStarted,
+  type CanvasSaveSource,
+} from './core/canvasSaveLifecycle.ts';
 import { confirmReplaceStoryGoalModal } from './ui/components/ConfirmReplaceStoryGoalModal.ts';
 import { Observable, of, Subscription, throwError } from 'rxjs';
 import { catchError, finalize, map, switchMap } from 'rxjs/operators';
@@ -48,7 +51,6 @@ export class App {
   private readonly canvasManager: CanvasManager;
   private readonly diagramRepository: DiagramRepository;
   private readonly authService: AuthService;
-  private readonly authComponent: AuthComponent;
   private readonly uiManager: UIManager;
   private readonly canvasDataService: CanvasDataService;
   private canvasTitle: string = 'New canvas';
@@ -79,7 +81,6 @@ export class App {
     // Ініціалізація сервісу аутентифікації
     this.authService = new AuthService();
     const http = new HttpInterceptorClient(environment.apiUrl);
-    const userApiService = new UserApiService(http);
     this.canvasDataService = new CanvasDataService(
       new TasksApiService(http),
       new StoriesApiService(http),
@@ -88,10 +89,12 @@ export class App {
       new CanvasRelationsApiService(http)
     );
     // Створюємо компонент для авторизації
-    const appContainer = document.getElementById('app') || document.body;
-    this.authComponent = new AuthComponent(appContainer, this.authService, userApiService);
     // Використовуємо UIManager для монтування UI-компонентів
-    this.uiManager = new UIManager(this.canvasManager, this.scene);
+    this.uiManager = new UIManager(
+      this.canvasManager,
+      this.scene,
+      this.authService
+    );
     this.uiManager.mountAll(document.body);
 
     this.canvasDataService.elementUpdateStatusChanges.subscribe((status) => {
@@ -294,7 +297,6 @@ export class App {
       this.diagramRepository.saveDiagram(this.scene);
     });
     this.startAutosave();
-    // AuthComponent does not have an init method, initialization happens in constructor
   }
 
   private loadCanvasFromApi(): void {
@@ -345,6 +347,10 @@ export class App {
       .filter(isPlanningElement) as Array<
       TaskElement | StoryElement | GoalElement
     >;
+    const saveSource: CanvasSaveSource = showNotifications
+      ? 'manual'
+      : 'autosave';
+    emitCanvasSaveStarted(saveSource);
     return this.canvasDataService.ensureElementsPersisted(elements).pipe(
       switchMap(() => this.saveLayoutPositions(elements, showNotifications)),
       catchError((err) => {
@@ -353,7 +359,8 @@ export class App {
           notify('Failed to create elements', 'error');
         }
         return throwError(() => err);
-      })
+      }),
+      finalize(() => emitCanvasSaveFinished(saveSource))
     );
   }
   private saveLayoutPositions(

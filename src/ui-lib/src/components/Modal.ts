@@ -50,24 +50,37 @@ export function createModalShell(
   const titleId = `modal-title-${Math.random().toString(36).substr(2, 9)}`;
   headerEl.id = titleId;
   container.setAttribute('aria-labelledby', titleId);
-  container.focus();
   // Focus trap inside modal
   const focusable =
     'a[href], area[href], input, select, textarea, button, iframe, object, embed, [tabindex]:not([tabindex="-1"])';
-  const elements = Array.from(
-    container.querySelectorAll<HTMLElement>(focusable)
-  ).filter((el) => !el.hasAttribute('disabled'));
-  const first = elements[0];
-  const last = elements[elements.length - 1];
+  const getFocusableElements = (): HTMLElement[] =>
+    Array.from(container.querySelectorAll<HTMLElement>(focusable)).filter(
+      (el) =>
+        !el.hasAttribute('disabled') &&
+        el.getAttribute('aria-hidden') !== 'true'
+    );
+  requestAnimationFrame(() => {
+    const elements = getFocusableElements();
+    (elements[0] ?? container).focus();
+  });
   container.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key !== 'Tab') return;
+    const elements = getFocusableElements();
+    if (elements.length === 0) {
+      e.preventDefault();
+      container.focus();
+      return;
+    }
+    const first = elements[0];
+    const last = elements[elements.length - 1];
+    const active = document.activeElement as HTMLElement | null;
     if (e.shiftKey) {
-      if (document.activeElement === first) {
+      if (active === first || active === container) {
         e.preventDefault();
         last.focus();
       }
     } else {
-      if (document.activeElement === last) {
+      if (active === last || active === container) {
         e.preventDefault();
         first.focus();
       }

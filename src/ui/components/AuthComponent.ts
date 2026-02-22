@@ -1,6 +1,4 @@
-import { Component } from '../../ui-lib/src/core/Component.ts';
-import { Button } from '../../ui-lib/src/components/Button.ts';
-import { Input } from '../../ui-lib/src/components/Input.ts';
+import { Subscription } from 'rxjs';
 import { AuthService } from '../../majom-wrapper/data-access/auth-service.ts';
 import { UserApiService } from '../../majom-wrapper/data-access/user-api-service.ts';
 import { LoginCredentials, User } from '../../majom-wrapper/interfaces/auth-interfaces.ts';
@@ -8,51 +6,71 @@ import { createModalShell } from '../../ui-lib/src/components/Modal.ts';
 import { notify } from '../../core/services/NotificationService.ts';
 import { historyService } from '../../core/services/HistoryService.ts';
 import { ComponentFactory } from '../../ui-lib/src/index.js';
+import {
+  HUD_DROPDOWN_CLASS,
+  HUD_PRIMARY_BUTTON_CLASS,
+} from '../primitives/hudClassNames.ts';
+import { createHudDropdownItem, HudDropdown } from '../primitives/index.ts';
+
+type AuthComponentOptions = {
+  containerClassName?: string;
+  loginButtonClassName?: string;
+};
 
 /**
  * AuthComponent manages the UI for user authentication, including login/logout buttons and modal for credentials.
  */
-export class AuthComponent extends Component<any> {
-  private authService: AuthService;
-  private userApiService: UserApiService;
+export class AuthComponent {
+  private readonly authService: AuthService;
+  private readonly userApiService: UserApiService;
   private currentUser: User | null = null;
-  private avatarContainer: HTMLElement;
-  private loginButton: HTMLButtonElement;
-  private logoutButton: HTMLButtonElement;
-  private dropdownMenu: HTMLElement;
+  private readonly avatarContainer: HTMLDivElement;
+  private readonly loginButton: HTMLButtonElement;
+  private readonly logoutButton: HTMLButtonElement;
+  private readonly dropdownMenu: HTMLDivElement;
   private modal: HTMLElement | null = null;
   private errorMessage: HTMLElement | null = null;
-  private isLoading: boolean = false;
-  private isUserLoading: boolean = false;
+  private isLoading = false;
+  private isUserLoading = false;
   private authGuardOverlay: HTMLElement | null = null;
-  private showLoginModalHandler: () => void;
+  private readonly showLoginModalHandler: () => void;
+  private readonly refreshHandler: () => void;
+  private readonly dropdownController: HudDropdown;
+  private historySubscription: Subscription | null = null;
+  private mounted = false;
+  private readonly options: AuthComponentOptions;
 
-  constructor(container: HTMLElement, authService: AuthService, userApiService: UserApiService) {
-    super(container);
+  constructor(
+    authService: AuthService,
+    userApiService: UserApiService,
+    options: AuthComponentOptions = {}
+  ) {
     this.authService = authService;
     this.userApiService = userApiService;
+    this.options = options;
     this.avatarContainer = document.createElement('div');
-    this.avatarContainer.className = 'absolute top-5 right-4';
+    this.avatarContainer.className =
+      this.options.containerClassName ?? 'absolute top-4 right-4 z-30';
 
     // Use Button component from UI library for login and logout buttons
     this.loginButton = ComponentFactory.createButton({
       text: 'Login',
       onClick: () => this.showLoginModal(),
-      variant: 'default',
-      className: 'w-full',
+      variant: 'ghost',
+      className:
+        this.options.loginButtonClassName ??
+        `h-10 min-w-[108px] px-4 ${HUD_PRIMARY_BUTTON_CLASS}`,
     }).createElement() as HTMLButtonElement;
 
-    this.logoutButton = ComponentFactory.createButton({
-      text: 'Logout',
-      onClick: () => this.handleLogout(),
-      variant: 'destructive',
-      className: 'w-full',
-      size: 'lg',
-    }).createElement() as HTMLButtonElement;
+    this.logoutButton = createHudDropdownItem({
+      label: 'Logout',
+      tone: 'danger',
+    });
+    this.logoutButton.addEventListener('click', () => this.handleLogout());
 
     this.dropdownMenu = document.createElement('div');
     this.dropdownMenu.className =
-      'absolute right-0 mt-2 w-64 bg-white rounded-md shadow-lg z-10 hidden';
+      `absolute right-0 top-full mt-2 w-72 z-30 hidden ${HUD_DROPDOWN_CLASS}`;
     
     // Build user details section
     this.buildUserDetailsSection();
@@ -61,36 +79,44 @@ export class AuthComponent extends Component<any> {
     this.dropdownMenu.appendChild(this.logoutButton);
     this.avatarContainer.appendChild(this.dropdownMenu);
 
-    // Ensure container and avatarContainer are valid DOM nodes before appending
-    if (container instanceof Node) {
-      if (this.avatarContainer instanceof Node) {
-        container.appendChild(this.avatarContainer);
-      } else {
-        console.error(
-          'avatarContainer is not a valid DOM node',
-          this.avatarContainer
-        );
-      }
-    } else {
-      console.error('Container is not a valid DOM node', container);
-    }
     this.showLoginModalHandler = () => this.showLoginModal(true);
-    window.addEventListener('showLoginModal', this.showLoginModalHandler);
-
-    this.updateUI();
-    // Update login button text on history or auth changes
-    historyService.changes.subscribe(() => this.updateUI());
-    window.addEventListener('refreshCanvasData', () => this.updateUI());
+    this.refreshHandler = () => this.updateUI();
+    this.dropdownController = new HudDropdown({
+      container: this.avatarContainer,
+      panel: this.dropdownMenu,
+    });
   }
 
-  protected createElement(): HTMLElement {
-    return this.avatarContainer;
+  public mount(parent: HTMLElement = document.body): void {
+    if (this.mounted) return;
+    parent.appendChild(this.avatarContainer);
+    window.addEventListener('showLoginModal', this.showLoginModalHandler);
+    window.addEventListener('refreshCanvasData', this.refreshHandler);
+    this.dropdownController.mount();
+    this.historySubscription = historyService.changes.subscribe(() =>
+      this.updateUI()
+    );
+    this.mounted = true;
+    this.updateUI();
+  }
+
+  public unmount(): void {
+    if (!this.mounted) return;
+    window.removeEventListener('showLoginModal', this.showLoginModalHandler);
+    window.removeEventListener('refreshCanvasData', this.refreshHandler);
+    this.dropdownController.unmount();
+    this.historySubscription?.unsubscribe();
+    this.historySubscription = null;
+    this.closeModal();
+    this.removeAuthGuardOverlay();
+    this.avatarContainer.remove();
+    this.mounted = false;
   }
 
   private updateUI(): void {
     if (this.authService.isLoggedIn()) {
       this.avatarContainer.innerHTML =
-        '<img src="https://cdn.thegreatprojects.com/thegreatprojects/images/c/c/c/d/9/cccd9ab3a8832417497e233c1cb92b9e.jpg?width=364&height=364&format=jpg" alt="User Avatar" class="w-10 h-10 bg-gray-100 rounded-full cursor-pointer">';
+        '<img src="https://cdn.thegreatprojects.com/thegreatprojects/images/c/c/c/d/9/cccd9ab3a8832417497e233c1cb92b9e.jpg?width=364&height=364&format=jpg" alt="User Avatar" class="w-10 h-10 bg-gray-100 rounded-full cursor-pointer ring-2 ring-white shadow-[0_8px_18px_rgba(15,23,42,0.2)]">';
       this.avatarContainer.firstChild?.addEventListener('click', () =>
         this.toggleDropdown()
       );
@@ -99,6 +125,7 @@ export class AuthComponent extends Component<any> {
       this.currentUser = null;
       this.isUserLoading = false;
       this.buildUserDetailsSection();
+      this.setDropdownOpen(false);
       this.avatarContainer.innerHTML = '';
       // Show login prompt if there are unsaved changes
       const canSave = historyService.hasUnsavedChanges();
@@ -110,14 +137,19 @@ export class AuthComponent extends Component<any> {
   }
 
   private toggleDropdown(): void {
-    if (this.dropdownMenu.classList.contains('hidden')) {
-      this.dropdownMenu.classList.remove('hidden');
-      if (!this.currentUser && !this.isUserLoading) {
-        this.loadUserData();
-      }
-    } else {
-      this.dropdownMenu.classList.add('hidden');
+    const willOpen = !this.dropdownController.isOpen();
+    this.dropdownController.toggle();
+    if (willOpen && !this.currentUser && !this.isUserLoading) {
+      this.loadUserData();
     }
+  }
+
+  private setDropdownOpen(open: boolean): void {
+    this.dropdownController.setOpen(open);
+  }
+
+  private isDropdownOpen(): boolean {
+    return this.dropdownController.isOpen();
   }
 
   private loadUserData(): void {
@@ -129,63 +161,62 @@ export class AuthComponent extends Component<any> {
         this.buildUserDetailsSection();
         this.isUserLoading = false;
       },
-      error: (error: any) => {
+      error: (error: unknown) => {
         this.isUserLoading = false;
         console.error('Failed to load user data:', error);
-      }
+      },
     });
   }
 
   private buildUserDetailsSection(): void {
-    // Clear existing content except logout button
     const logoutButton = this.logoutButton;
     this.dropdownMenu.innerHTML = '';
-    
+
     if (this.currentUser) {
-      // User details section
       const userDetailsDiv = document.createElement('div');
-      userDetailsDiv.className = 'px-4 py-3 border-b border-gray-200';
-      
-      // User avatar and name
+      userDetailsDiv.className = 'mx-2 mt-2 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-3';
+
       const userInfoDiv = document.createElement('div');
-      userInfoDiv.className = 'flex items-center space-x-3';
-      
+      userInfoDiv.className = 'flex items-center gap-3';
+
       const avatar = document.createElement('img');
       avatar.src = 'https://cdn.thegreatprojects.com/thegreatprojects/images/c/c/c/d/9/cccd9ab3a8832417497e233c1cb92b9e.jpg?width=364&height=364&format=jpg';
       avatar.alt = 'User Avatar';
       avatar.className = 'w-8 h-8 rounded-full';
-      
+
       const userTextDiv = document.createElement('div');
       userTextDiv.className = 'flex-1';
-      
+
       const userName = document.createElement('div');
-      userName.className = 'text-sm font-medium text-gray-900';
+      userName.className = 'text-sm font-semibold text-slate-900';
       userName.textContent = this.currentUser.username;
-      
+
       const userEmail = document.createElement('div');
-      userEmail.className = 'text-xs text-gray-500';
+      userEmail.className = 'text-xs text-slate-500';
       userEmail.textContent = this.currentUser.email;
-      
+
       userTextDiv.appendChild(userName);
       userTextDiv.appendChild(userEmail);
       userInfoDiv.appendChild(avatar);
       userInfoDiv.appendChild(userTextDiv);
       userDetailsDiv.appendChild(userInfoDiv);
-      
-      // Additional user info
+
       const additionalInfoDiv = document.createElement('div');
-      additionalInfoDiv.className = 'mt-2 text-xs text-gray-600';
+      additionalInfoDiv.className = 'mt-2 space-y-1 text-xs text-slate-600';
       additionalInfoDiv.innerHTML = `
         <div>ID: ${this.currentUser.id}</div>
         <div>Language: ${this.currentUser.language}</div>
         ${this.currentUser.deletion_requested_at ? '<div class="text-red-500">Deletion requested</div>' : ''}
       `;
       userDetailsDiv.appendChild(additionalInfoDiv);
-      
+
       this.dropdownMenu.appendChild(userDetailsDiv);
     }
-    
-    // Add logout button back
+
+    const divider = document.createElement('div');
+    divider.className = 'mx-2 border-t border-slate-100';
+    this.dropdownMenu.appendChild(divider);
+
     this.dropdownMenu.appendChild(logoutButton);
   }
 
@@ -319,7 +350,7 @@ export class AuthComponent extends Component<any> {
     this.authService.logout();
     notify('Logged out', 'info');
     this.updateUI();
-    this.dropdownMenu.classList.add('hidden');
+    this.setDropdownOpen(false);
     // Trigger canvas data refresh
     window.dispatchEvent(new CustomEvent('refreshCanvasData'));
   }

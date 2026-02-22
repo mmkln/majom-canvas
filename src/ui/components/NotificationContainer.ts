@@ -10,7 +10,7 @@ export class NotificationContainer {
   constructor() {
     this.container = document.createElement('div');
     this.container.className =
-      'fixed top-4 right-4 flex flex-col space-y-2 z-50';
+      'fixed top-20 right-4 z-50 flex w-[min(92vw,360px)] flex-col gap-3';
   }
 
   mount(parent: HTMLElement = document.body): void {
@@ -22,7 +22,6 @@ export class NotificationContainer {
         onDismiss: () => note.getElement().remove(),
       });
       note.render(this.container);
-      setTimeout(() => note.getElement().remove(), 3000);
     });
   }
 

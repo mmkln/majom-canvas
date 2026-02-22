@@ -97,11 +97,11 @@ export class Notification extends Component<NotificationProps> {
     const hiddenClasses =
       'opacity-0 translate-x-2 transition ease-out duration-300';
     const base =
-      'flex items-start justify-between p-4 rounded-md shadow-md transition relative overflow-hidden';
+      'relative flex items-start justify-between overflow-hidden rounded-2xl border border-slate-200/80 p-3.5 shadow-[0_14px_34px_rgba(15,23,42,0.16)] transition';
     const variant = {
-      success: 'bg-green-50 text-green-800',
-      error: 'bg-red-50 text-red-800',
-      info: 'bg-blue-50 text-blue-800',
+      success: 'bg-emerald-50/95 text-emerald-900',
+      error: 'bg-rose-50/95 text-rose-900',
+      info: 'bg-sky-50/95 text-sky-900',
     }[type];
     note.className = twMerge(base, variant, className, hiddenClasses);
 
@@ -126,7 +126,7 @@ export class Notification extends Component<NotificationProps> {
     iconEl.innerHTML = ICON_SVGS[type];
     // Message
     const msgEl = document.createElement('div');
-    msgEl.className = 'ml-3 flex-1 text-sm font-medium';
+    msgEl.className = 'ml-3 flex-1 text-[13px] font-medium leading-5';
     msgEl.textContent = message;
     // Close button
     const btnEl = document.createElement('button');

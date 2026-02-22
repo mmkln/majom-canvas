@@ -1,29 +1,25 @@
 // ui/ZoomIndicator.ts
 import { CanvasManager } from '../core/managers/CanvasManager.ts';
+import { createHudSurface } from './primitives/index.ts';
 
 export class ZoomIndicator {
   private readonly container: HTMLDivElement;
   private readonly valueEl: HTMLSpanElement;
   private readonly canvasManager: CanvasManager;
+  private unsubscribeZoomChange: (() => void) | null = null;
 
   constructor(canvasManager: CanvasManager) {
     this.canvasManager = canvasManager;
-    this.container = document.createElement('div');
-    this.container.style.position = 'absolute';
-    this.container.style.left = '12px';
-    this.container.style.bottom = '12px';
-    this.container.style.background = 'rgba(255,255,255,0.95)';
-    this.container.style.borderRadius = '8px';
-    this.container.style.boxShadow = '0 1px 4px rgba(0,0,0,0.08)';
-    this.container.style.padding = '6px 16px';
-    this.container.style.fontSize = '1.1rem';
-    this.container.style.fontWeight = '500';
-    this.container.style.color = '#222';
+    this.container = createHudSurface({
+      className:
+        'absolute left-4 bottom-4 z-20 px-3.5 py-2 text-[0.95rem] font-semibold leading-none tracking-[0.02em] text-slate-900',
+    });
     this.valueEl = document.createElement('span');
     this.container.appendChild(this.valueEl);
     this.update();
-    // Реактивне оновлення через підписку на zoom
-    this.canvasManager.panZoom.onZoomChange(() => this.update());
+    this.unsubscribeZoomChange = this.canvasManager.panZoom.onZoomChange(() =>
+      this.update()
+    );
   }
 
   public mount(parent: HTMLElement = document.body) {
@@ -36,6 +32,8 @@ export class ZoomIndicator {
   }
 
   public unmount() {
+    this.unsubscribeZoomChange?.();
+    this.unsubscribeZoomChange = null;
     this.container.remove();
   }
 }

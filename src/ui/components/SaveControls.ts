@@ -1,11 +1,11 @@
-import { Scene } from '../../core/scene/Scene.ts';
 import { AuthService } from '../../majom-wrapper/data-access/auth-service.ts';
 import { SaveButton } from './SaveButton.ts';
-import { SaveSpinner } from './SaveSpinner.ts';
 import { UndoRedoControls } from '../UndoRedoControls.ts';
+import { AuthComponent } from './AuthComponent.ts';
+import { createHudSurface } from '../primitives/index.ts';
 
 /**
- * SaveControls: wraps the save spinner and button in a shared layout.
+ * SaveControls: wraps save and auth actions in a shared HUD layout.
  */
 export class SaveControls {
   private container: HTMLDivElement;
@@ -13,21 +13,21 @@ export class SaveControls {
   private saveGroup: HTMLDivElement;
   private undoRedoControls: UndoRedoControls;
   private saveButton: SaveButton;
-  private saveSpinner: SaveSpinner;
+  private authComponent: AuthComponent;
   private authService = new AuthService();
   private refreshHandler: () => void;
 
-  constructor(scene: Scene) {
+  constructor(authComponent: AuthComponent) {
     this.container = document.createElement('div');
-    this.container.className =
-      'absolute top-5 right-20 z-20';
-    this.actionsContainer = document.createElement('div');
-    this.actionsContainer.className = 'flex items-center gap-2';
+    this.container.className = 'absolute top-4 right-4 z-20';
+    this.actionsContainer = createHudSurface({
+      className: 'flex items-center gap-2 px-2.5 py-2',
+    });
     this.saveGroup = document.createElement('div');
-    this.saveGroup.className = 'flex items-center gap-2';
+    this.saveGroup.className = 'flex items-center pl-1';
     this.undoRedoControls = new UndoRedoControls();
-    this.saveButton = new SaveButton(scene);
-    this.saveSpinner = new SaveSpinner();
+    this.saveButton = new SaveButton();
+    this.authComponent = authComponent;
     this.refreshHandler = () => this.updateVisibility();
   }
 
@@ -36,8 +36,8 @@ export class SaveControls {
     this.container.appendChild(this.actionsContainer);
     this.undoRedoControls.mount(this.actionsContainer);
     this.actionsContainer.appendChild(this.saveGroup);
-    this.saveSpinner.mount(this.saveGroup);
     this.saveButton.mount(this.saveGroup);
+    this.authComponent.mount(this.actionsContainer);
     window.addEventListener('refreshCanvasData', this.refreshHandler);
     this.updateVisibility();
   }
@@ -45,8 +45,8 @@ export class SaveControls {
   unmount(): void {
     window.removeEventListener('refreshCanvasData', this.refreshHandler);
     this.undoRedoControls.unmount();
-    this.saveSpinner.unmount();
     this.saveButton.unmount();
+    this.authComponent.unmount();
     this.container.remove();
   }
 

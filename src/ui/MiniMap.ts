@@ -8,6 +8,7 @@ import { Scene } from '../core/scene/Scene.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
+import { createHudSurface } from './primitives/index.ts';
 
 type Rect = { x: number; y: number; width: number; height: number };
 
@@ -33,6 +34,7 @@ export class MiniMap {
   private isDraggingViewport = false;
   private dragOffsetX = 0;
   private dragOffsetY = 0;
+  private renderRafId: number | null = null;
   private readonly width = 260;
   private readonly height = 170;
   private readonly padding = 0;
@@ -41,16 +43,11 @@ export class MiniMap {
     private readonly scene: Scene,
     private readonly canvasManager: CanvasManager
   ) {
-    this.container = document.createElement('div');
-    this.container.style.position = 'absolute';
-    this.container.style.right = '64px';
-    this.container.style.bottom = '12px';
+    this.container = createHudSurface({
+      className: 'absolute right-[72px] bottom-4 z-20 overflow-hidden p-1',
+    });
     this.container.style.width = `${this.width}px`;
     this.container.style.height = `${this.height}px`;
-    this.container.style.background = '#ffffff';
-    this.container.style.borderRadius = '10px';
-    this.container.style.padding = '0';
-    this.container.style.zIndex = '20';
 
     this.canvasEl = document.createElement('canvas');
     this.canvasEl.width = this.width;
@@ -58,6 +55,7 @@ export class MiniMap {
     this.canvasEl.style.width = '100%';
     this.canvasEl.style.height = '100%';
     this.canvasEl.style.display = 'block';
+    this.canvasEl.style.borderRadius = '10px';
     this.canvasEl.style.cursor = 'pointer';
 
     const ctx = this.canvasEl.getContext('2d');
@@ -72,7 +70,7 @@ export class MiniMap {
     this.subscriptions.push(
       this.scene.changes.subscribe(() => {
         if (this.progressiveLoadFrozen) return;
-        this.render();
+        this.requestRender();
       })
     );
     this.subscriptions.push(
@@ -83,9 +81,11 @@ export class MiniMap {
     this.subscriptions.push(
       this.canvasManager
         .getPanZoomManager()
-        .viewChanges.subscribe(() => this.render())
+        .viewChanges.subscribe(() => this.requestRender())
     );
-    this.subscriptions.push(this.scene.focusChanges.subscribe(() => this.render()));
+    this.subscriptions.push(
+      this.scene.focusChanges.subscribe(() => this.requestRender())
+    );
     this.subscriptions.push(
       this.canvasManager.loadingPlaceholdersChanges$.subscribe(() => {
         const placeholders = this.canvasManager.getLoadingPlaceholders();
@@ -94,19 +94,19 @@ export class MiniMap {
             this.loadingSnapshot = placeholders.map((placeholder) => ({
               ...placeholder,
             }));
-            this.render();
+            this.requestRender();
           }
           return;
         }
-        this.render();
+        this.requestRender();
       })
     );
     this.canvasEl.addEventListener('pointerdown', this.onPointerDown);
     this.canvasEl.addEventListener('pointermove', this.onPointerMove);
     this.canvasEl.addEventListener('pointerup', this.onPointerUp);
     this.canvasEl.addEventListener('pointercancel', this.onPointerUp);
-    window.addEventListener('resize', this.render);
-    this.render();
+    window.addEventListener('resize', this.requestRender);
+    this.requestRender();
   }
 
   public unmount(): void {
@@ -116,9 +116,21 @@ export class MiniMap {
     this.canvasEl.removeEventListener('pointermove', this.onPointerMove);
     this.canvasEl.removeEventListener('pointerup', this.onPointerUp);
     this.canvasEl.removeEventListener('pointercancel', this.onPointerUp);
-    window.removeEventListener('resize', this.render);
+    window.removeEventListener('resize', this.requestRender);
+    if (this.renderRafId !== null) {
+      cancelAnimationFrame(this.renderRafId);
+      this.renderRafId = null;
+    }
     this.container.remove();
   }
+
+  private readonly requestRender = (): void => {
+    if (this.renderRafId !== null) return;
+    this.renderRafId = requestAnimationFrame(() => {
+      this.renderRafId = null;
+      this.render();
+    });
+  };
 
   private readonly render = (): void => {
     const metrics = this.computeMetrics();
@@ -335,7 +347,7 @@ export class MiniMap {
           this.loadingSnapshot = placeholders.map((placeholder) => ({
             ...placeholder,
           }));
-          this.render();
+          this.requestRender();
         }
       }
       return;
@@ -346,6 +358,6 @@ export class MiniMap {
     }
     this.progressiveLoadFrozen = false;
     this.loadingSnapshot = null;
-    this.render();
+    this.requestRender();
   }
 }

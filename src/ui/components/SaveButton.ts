@@ -1,50 +1,119 @@
-import { Scene } from '../../core/scene/Scene.ts';
-import { AuthService } from '../../majom-wrapper/data-access/auth-service.ts';
 import { historyService } from '../../core/services/HistoryService.ts';
-import { Button } from '../../ui-lib/src/components/Button.js';
+import { AuthService } from '../../majom-wrapper/data-access/auth-service.ts';
+import type { Subscription } from 'rxjs';
+import {
+  CANVAS_SAVE_LIFECYCLE_EVENT,
+  isCanvasSaveLifecycleDetail,
+} from '../../core/canvasSaveLifecycle.ts';
+import { createHudTextButton, type HudTextButtonElement } from '../primitives/index.ts';
 
 /**
- * SaveButton: shows "Save" when user is logged in and there are unsaved changes,
- * or "Login to Save" when not authenticated. Emits events on click.
+ * Save button with lifecycle-driven loading state.
  */
 export class SaveButton {
-  private container: HTMLElement;
-  private button: HTMLButtonElement;
-  private authService = new AuthService();
+  private readonly container: HTMLElement;
+  private readonly button: HudTextButtonElement;
+  private readonly authService = new AuthService();
+  private historySubscription: Subscription | null = null;
+  private readonly refreshHandler: () => void;
+  private readonly lifecycleHandler: (event: Event) => void;
+  private savesInFlight = 0;
+  private loadingSince = 0;
+  private hideLoadingTimer: number | null = null;
+  private readonly minimumLoadingMs = 700;
 
-  constructor(private scene: Scene) {
-    // Container overlay
+  constructor() {
     this.container = document.createElement('div');
     this.container.className = 'flex items-center';
 
-    // UI-lib Save button
-    this.button = new Button({
+    this.button = createHudTextButton({
+      tone: 'primary',
       text: 'Save',
-      variant: 'success',
+      className: 'h-10 min-w-[110px] px-4',
+      loadingText: 'Saving..',
       disabled: true,
-      onClick: () => {
-        if (!this.authService.isLoggedIn()) {
-          window.dispatchEvent(new CustomEvent('showLoginModal'));
-        } else {
-          window.dispatchEvent(new CustomEvent('saveCanvasLayout'));
-        }
-      },
-    }).createElement() as HTMLButtonElement;
+      onClick: () => this.handleClick(),
+    });
 
     this.container.appendChild(this.button);
 
-    // Update on history or auth changes
-    historyService.changes.subscribe(() => this.updateButton());
-    window.addEventListener('refreshCanvasData', () => this.updateButton());
-    // Initial state update
-    this.updateButton();
+    this.historySubscription = historyService.changes.subscribe(() =>
+      this.updateButtonState()
+    );
+    this.refreshHandler = () => this.updateButtonState();
+    window.addEventListener('refreshCanvasData', this.refreshHandler);
+
+    this.lifecycleHandler = (event: Event) => this.handleSaveLifecycleEvent(event);
+    window.addEventListener(CANVAS_SAVE_LIFECYCLE_EVENT, this.lifecycleHandler);
+
+    this.updateButtonState();
   }
 
-  private updateButton(): void {
+  private handleClick(): void {
+    if (!this.authService.isLoggedIn()) {
+      window.dispatchEvent(new CustomEvent('showLoginModal'));
+      return;
+    }
+    window.dispatchEvent(new CustomEvent('saveCanvasLayout'));
+  }
+
+  private handleSaveLifecycleEvent(event: Event): void {
+    const customEvent = event as CustomEvent<unknown>;
+    const detail = customEvent.detail;
+    if (!isCanvasSaveLifecycleDetail(detail)) return;
+
+    if (detail.action === 'started') {
+      this.savesInFlight += 1;
+      this.showLoading();
+      return;
+    }
+
+    this.savesInFlight = Math.max(0, this.savesInFlight - 1);
+    if (this.savesInFlight === 0) {
+      this.hideLoadingWithDelay();
+    }
+  }
+
+  private showLoading(): void {
+    if (this.hideLoadingTimer !== null) {
+      window.clearTimeout(this.hideLoadingTimer);
+      this.hideLoadingTimer = null;
+    }
+    if (this.button.loading) return;
+    this.loadingSince = Date.now();
+    this.button.loading = true;
+    this.updateButtonState();
+  }
+
+  private hideLoadingWithDelay(): void {
+    if (!this.button.loading) return;
+    const elapsed = Date.now() - this.loadingSince;
+    const remaining = Math.max(0, this.minimumLoadingMs - elapsed);
+    if (remaining === 0) {
+      this.hideLoadingNow();
+      return;
+    }
+    if (this.hideLoadingTimer !== null) {
+      window.clearTimeout(this.hideLoadingTimer);
+    }
+    this.hideLoadingTimer = window.setTimeout(() => {
+      this.hideLoadingTimer = null;
+      if (this.savesInFlight === 0) {
+        this.hideLoadingNow();
+      }
+    }, remaining);
+  }
+
+  private hideLoadingNow(): void {
+    if (!this.button.loading) return;
+    this.button.loading = false;
+    this.updateButtonState();
+  }
+
+  private updateButtonState(): void {
     const canSave = historyService.hasUnsavedChanges();
     const isLoggedIn = this.authService.isLoggedIn();
-    // Always text 'Save'; disable if not logged in or no changes
-    this.button.disabled = !isLoggedIn || !canSave;
+    this.button.disabled = this.button.loading || !isLoggedIn || !canSave;
   }
 
   mount(parent: HTMLElement = document.body): void {
@@ -52,6 +121,16 @@ export class SaveButton {
   }
 
   unmount(): void {
+    window.removeEventListener('refreshCanvasData', this.refreshHandler);
+    window.removeEventListener(CANVAS_SAVE_LIFECYCLE_EVENT, this.lifecycleHandler);
+    if (this.hideLoadingTimer !== null) {
+      window.clearTimeout(this.hideLoadingTimer);
+      this.hideLoadingTimer = null;
+    }
+    this.savesInFlight = 0;
+    this.hideLoadingNow();
+    this.historySubscription?.unsubscribe();
+    this.historySubscription = null;
     this.container.remove();
   }
 }
