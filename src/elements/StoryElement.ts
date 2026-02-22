@@ -33,6 +33,7 @@ export class StoryElement extends PlanningElement {
   status: ElementStatus = ElementStatus.Defined;
   tasks: TaskElement[] = [];
   public priority: 'low' | 'medium' | 'high' = 'medium';
+  public goalBackendId: number | null = null;
   /** Currently hovered resize direction */
   public hoveredResizeHandle: 'nw' | 'ne' | 'se' | 'sw' | null = null;
 
@@ -53,6 +54,7 @@ export class StoryElement extends PlanningElement {
     selected = false,
     backendId,
     uuid,
+    goalBackendId = null,
   }: {
     id?: string;
     x?: number;
@@ -67,6 +69,7 @@ export class StoryElement extends PlanningElement {
     selected?: boolean;
     backendId?: number;
     uuid?: string;
+    goalBackendId?: number | null;
   }) {
     // determine style by status
     const style = storyStyles[status];
@@ -90,6 +93,7 @@ export class StoryElement extends PlanningElement {
     this.priority = priority;
     this.tasks = tasks;
     this.selected = selected;
+    this.goalBackendId = goalBackendId;
   }
 
   /**

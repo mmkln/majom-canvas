@@ -31,6 +31,7 @@ export function mapStory(
     height: typeof height === 'number' ? height : undefined,
     backendId: dto.id,
     uuid: dto.uuid,
+    goalBackendId: dto.goal?.id ?? dto.goal_id ?? null,
     title: dto.title,
     status: mapStatus(dto.status),
     description: dto.description,

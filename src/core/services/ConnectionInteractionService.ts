@@ -15,6 +15,10 @@ import {
 } from '../interfaces/connection.ts';
 import { historyService } from './HistoryService.ts';
 import { ConnectCommand } from '../commands/ConnectCommand.ts';
+import {
+  buildCanvasRelationEndpoint,
+  emitCanvasRelationLifecycle,
+} from '../canvasRelationLifecycle.ts';
 
 export class ConnectionInteractionService {
   private creating = false;
@@ -124,14 +128,37 @@ export class ConnectionInteractionService {
               : ConnectionRelationType.RelatesTo;
         const normalized = this.normalizeConnectionRefs(relationType, src, dst);
         if (normalized) {
+          const fromRef = this.getElementRef(normalized.from);
+          const toRef = this.getElementRef(normalized.to);
           historyService.execute(
             new ConnectCommand(
               this.scene,
-              this.getElementRef(normalized.from),
-              this.getElementRef(normalized.to),
+              fromRef,
+              toRef,
               relationType
             )
           );
+          emitCanvasRelationLifecycle({
+            action: 'created',
+            relationType,
+            from: buildCanvasRelationEndpoint(normalized.from, fromRef),
+            to: buildCanvasRelationEndpoint(normalized.to, toRef),
+          });
+          if (
+            relationType === ConnectionRelationType.ParentChild &&
+            normalized.from instanceof GoalElement &&
+            normalized.to instanceof StoryElement &&
+            typeof window !== 'undefined'
+          ) {
+            window.dispatchEvent(
+              new CustomEvent('storyGoalRelationCreated', {
+                detail: {
+                  story: normalized.to,
+                  goal: normalized.from,
+                },
+              })
+            );
+          }
         }
       }
     }

@@ -28,6 +28,11 @@ import { isPlanningElement } from './elements/utils/typeGuards.ts';
 import { ElementStatus } from './elements/ElementStatus.ts';
 import { CanvasPositionWriteDTO } from './majom-wrapper/data-access/canvas-position-dto.ts';
 import { notify } from './core/services/NotificationService.ts';
+import { ConnectionRelationType } from './core/interfaces/connection.ts';
+import {
+  CANVAS_RELATION_LIFECYCLE_EVENT,
+  isCanvasRelationLifecycleDetail,
+} from './core/canvasRelationLifecycle.ts';
 import { Observable, of, Subscription, throwError } from 'rxjs';
 import { catchError, finalize, map, switchMap } from 'rxjs/operators';
 
@@ -247,6 +252,40 @@ export class App {
         error: (err) => {
           console.error('Failed to update task story link', err);
           notify('Failed to update task link', 'error');
+        },
+      });
+    });
+
+    window.addEventListener(CANVAS_RELATION_LIFECYCLE_EVENT, (event: Event) => {
+      const customEvent = event as CustomEvent<unknown>;
+      if (!isCanvasRelationLifecycleDetail(customEvent.detail)) return;
+      const detail = customEvent.detail;
+      if (detail.action !== 'created') return;
+      if (detail.relationType !== ConnectionRelationType.ParentChild) return;
+      if (detail.from.elementType !== 'goal' || detail.to.elementType !== 'story') {
+        return;
+      }
+      const goal = detail.from.element;
+      const story = detail.to.element;
+      if (!(goal instanceof GoalElement) || !(story instanceof StoryElement)) {
+        return;
+      }
+      if (!this.authService.isLoggedIn()) {
+        return;
+      }
+      // TODO(relation-policy): when replace-confirm flow is implemented,
+      // route this through a single policy orchestrator instead of direct sync.
+      this.canvasDataService.updateStoryGoalLink(story, goal).subscribe({
+        next: (result) => {
+          if (result.status !== 'conflict') return;
+          notify(
+            'Story already has another goal. Cannot link to this goal.',
+            'error'
+          );
+        },
+        error: (err) => {
+          console.error('Failed to update story goal link', err);
+          notify('Failed to update story goal link', 'error');
         },
       });
     });

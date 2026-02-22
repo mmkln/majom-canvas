@@ -1,4 +1,4 @@
-import { concat, forkJoin, Observable, of, Subject } from 'rxjs';
+import { concat, forkJoin, Observable, of, Subject, throwError } from 'rxjs';
 import {
   catchError,
   debounceTime,
@@ -110,6 +110,12 @@ export type CanvasElementsLoadOptions = {
   viewportFirstThreshold?: number;
   viewportBufferPx?: number;
 };
+
+export type StoryGoalLinkResult =
+  | { status: 'updated'; goalId: number }
+  | { status: 'unchanged'; goalId: number }
+  | { status: 'conflict'; currentGoalId: number; requestedGoalId: number }
+  | { status: 'skipped' };
 
 /**
  * Service to load and persist canvas elements and layout.
@@ -698,6 +704,100 @@ export class CanvasDataService {
         }
       }),
       map(() => undefined)
+    );
+  }
+
+  public updateStoryGoalLink(
+    story: StoryElement,
+    goal: GoalElement
+  ): Observable<StoryGoalLinkResult> {
+    const elementsToPersist = [story, goal].filter(Boolean) as Array<
+      TaskElement | StoryElement | GoalElement
+    >;
+    return this.ensureElementsPersisted(elementsToPersist).pipe(
+      switchMap(() => {
+        const storyRef = this.getBackendRef(story);
+        const rawGoalId = this.getBackendId(goal);
+        if (!storyRef || !Number.isFinite(rawGoalId)) {
+          return of<StoryGoalLinkResult>({ status: 'skipped' });
+        }
+        const goalId = Number(rawGoalId);
+        const currentGoalId = Number.isFinite(story.goalBackendId)
+          ? Number(story.goalBackendId)
+          : null;
+        if (Number.isFinite(currentGoalId) && currentGoalId !== goalId) {
+          return of<StoryGoalLinkResult>({
+            status: 'conflict',
+            currentGoalId: Number(currentGoalId),
+            requestedGoalId: goalId,
+          });
+        }
+        if (currentGoalId === goalId) {
+          return of<StoryGoalLinkResult>({
+            status: 'unchanged',
+            goalId,
+          });
+        }
+        return this.storiesApi
+          .patchStory(storyRef, { goal_id: goalId } as Partial<Story>)
+          .pipe(
+            tap((updated) => {
+              this.upsertStoryCache(updated);
+              story.goalBackendId =
+                updated.goal?.id ?? updated.goal_id ?? goalId;
+            }),
+            map(
+              (): StoryGoalLinkResult => ({
+                status: 'updated',
+                goalId,
+              })
+            ),
+            catchError((err) => {
+              const status = (err as { status?: number } | null)?.status;
+              if (status !== 409) {
+                return throwError(() => err);
+              }
+              const payload = err as {
+                current_goal_id?: unknown;
+                currentGoalId?: unknown;
+                goal_id?: unknown;
+                goalId?: unknown;
+                error?: {
+                  current_goal_id?: unknown;
+                  currentGoalId?: unknown;
+                  goal_id?: unknown;
+                  goalId?: unknown;
+                };
+              };
+              const currentGoalRaw =
+                payload.error?.current_goal_id ??
+                payload.error?.currentGoalId ??
+                payload.error?.goal_id ??
+                payload.error?.goalId ??
+                payload.current_goal_id ??
+                payload.currentGoalId ??
+                payload.goal_id ??
+                payload.goalId;
+              const serverGoalId =
+                typeof currentGoalRaw === 'number' &&
+                Number.isFinite(currentGoalRaw)
+                  ? currentGoalRaw
+                  : null;
+              if (Number.isFinite(serverGoalId)) {
+                story.goalBackendId = Number(serverGoalId);
+              }
+              return of<StoryGoalLinkResult>({
+                status: 'conflict',
+                currentGoalId:
+                  serverGoalId ??
+                  (Number.isFinite(currentGoalId)
+                    ? Number(currentGoalId)
+                    : goalId),
+                requestedGoalId: goalId,
+              });
+            })
+        );
+      })
     );
   }
 
