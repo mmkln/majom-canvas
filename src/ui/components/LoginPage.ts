@@ -1,5 +1,11 @@
 import { LoginCredentials } from '../../majom-wrapper/interfaces/auth-interfaces.ts';
 import {
+  normalizeLoginCredentials,
+  validateLoginCredentialField,
+  validateLoginCredentials,
+  type LoginCredentialsFieldErrors,
+} from '../../core/validation/loginCredentialsValidator.ts';
+import {
   createHudField,
   createHudFormMessage,
   createHudInput,
@@ -95,10 +101,13 @@ export class LoginPage {
     });
 
     this.usernameInput.addEventListener('input', () => {
-      this.validateUsername();
       this.clearGeneralError();
+      this.validateField('username');
     });
-    this.passwordInput.addEventListener('input', () => this.clearGeneralError());
+    this.passwordInput.addEventListener('input', () => {
+      this.clearGeneralError();
+      this.validateField('password');
+    });
 
     form.addEventListener('submit', (event) => {
       void this.handleSubmit(event);
@@ -154,10 +163,17 @@ export class LoginPage {
     event.preventDefault();
     if (this.submitButton.loading) return;
 
-    const hasUsernameError = this.validateUsername();
-    if (hasUsernameError) {
-      if (hasUsernameError) {
+    const credentials = this.getCredentialsValues();
+    const validation = validateLoginCredentials(credentials);
+    this.applyFieldErrors({
+      username: validation.fieldErrors.username,
+      password: validation.fieldErrors.password,
+    });
+    if (!validation.valid) {
+      if (validation.fieldErrors.username) {
         this.usernameInput.focus();
+      } else if (validation.fieldErrors.password) {
+        this.passwordInput.focus();
       }
       return;
     }
@@ -165,10 +181,6 @@ export class LoginPage {
     this.submitButton.loading = true;
     this.clearGeneralError();
 
-    const credentials: LoginCredentials = {
-      username: this.usernameInput.value.trim(),
-      password: this.passwordInput.value,
-    };
     this.usernameCache = credentials.username;
 
     try {
@@ -192,28 +204,38 @@ export class LoginPage {
     }
   }
 
-  private validateUsername(): boolean {
-    const value = this.usernameInput.value.trim();
-    if (!value) {
-      this.usernameField.setState({
-        invalid: true,
-        error: 'Username is required.',
-      });
-      return true;
-    }
-    if (value.length < 3) {
-      this.usernameField.setState({
-        invalid: true,
-        error: 'Minimum 3 characters.',
-      });
-      return true;
-    }
-    this.usernameField.setState({ invalid: false, error: undefined });
-    return false;
-  }
-
   private showGeneralError(message: string): void {
     this.generalError.show(message, 'error');
+  }
+
+  private getCredentialsValues(): LoginCredentials {
+    return normalizeLoginCredentials({
+      username: this.usernameInput.value,
+      password: this.passwordInput.value,
+    });
+  }
+
+  private validateField(field: keyof LoginCredentials): void {
+    const values = this.getCredentialsValues();
+    const error = validateLoginCredentialField(field, values);
+    this.applyFieldErrors({
+      [field]: error ?? undefined,
+    } as LoginCredentialsFieldErrors);
+  }
+
+  private applyFieldErrors(errors: LoginCredentialsFieldErrors): void {
+    if (Object.prototype.hasOwnProperty.call(errors, 'username')) {
+      this.usernameField.setState({
+        invalid: Boolean(errors.username),
+        error: errors.username,
+      });
+    }
+    if (Object.prototype.hasOwnProperty.call(errors, 'password')) {
+      this.passwordField.setState({
+        invalid: Boolean(errors.password),
+        error: errors.password,
+      });
+    }
   }
 
   private clearGeneralError(): void {

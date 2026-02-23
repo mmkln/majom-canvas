@@ -200,12 +200,24 @@ export function createHudField(options: HudFieldOptions): HudField {
   };
 
   const setState = (nextState: HudFieldState): void => {
-    if (nextState.tone !== undefined) state.tone = nextState.tone;
-    if (nextState.required !== undefined) state.required = nextState.required;
-    if (nextState.invalid !== undefined) state.invalid = nextState.invalid;
-    if (nextState.disabled !== undefined) state.disabled = nextState.disabled;
-    if (nextState.hint !== undefined) state.hint = nextState.hint;
-    if (nextState.error !== undefined) state.error = nextState.error;
+    if (Object.prototype.hasOwnProperty.call(nextState, 'tone')) {
+      state.tone = nextState.tone ?? state.tone;
+    }
+    if (Object.prototype.hasOwnProperty.call(nextState, 'required')) {
+      state.required = nextState.required ?? state.required;
+    }
+    if (Object.prototype.hasOwnProperty.call(nextState, 'invalid')) {
+      state.invalid = nextState.invalid ?? state.invalid;
+    }
+    if (Object.prototype.hasOwnProperty.call(nextState, 'disabled')) {
+      state.disabled = nextState.disabled ?? state.disabled;
+    }
+    if (Object.prototype.hasOwnProperty.call(nextState, 'hint')) {
+      state.hint = nextState.hint;
+    }
+    if (Object.prototype.hasOwnProperty.call(nextState, 'error')) {
+      state.error = nextState.error;
+    }
     renderLabel();
     applyControlState();
   };
