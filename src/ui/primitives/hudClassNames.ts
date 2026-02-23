@@ -34,6 +34,12 @@ export const HUD_PRIMARY_BUTTON_CLASS =
 
 export const HUD_DROPDOWN_CLASS = `${HUD_SURFACE_ELEVATED_CLASS} overflow-hidden`;
 
+export const HUD_DIVIDER_BASE_CLASS = 'border-t';
+export const HUD_DIVIDER_DEFAULT_TONE_CLASS = 'border-slate-200';
+export const HUD_DIVIDER_SOFT_TONE_CLASS = 'border-slate-100';
+export const HUD_DIVIDER_INSET_CLASS = 'mx-2';
+export const HUD_DIVIDER_SPACED_CLASS = 'my-1';
+
 export const HUD_MENU_ITEM_BASE_CLASS =
   'flex w-full items-center justify-between px-4 py-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:ring-inset';
 

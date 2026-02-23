@@ -19,6 +19,7 @@ export {
   type HudTextButtonState,
 } from './HudTextButton.ts';
 export { HudDropdown } from './HudDropdown.ts';
+export { createHudDivider } from './HudDivider.ts';
 export {
   createHudDropdownItem,
   type HudDropdownItemTone,

@@ -1,4 +1,5 @@
 import {
+  createHudDivider,
   createHudDropdownItem,
   createHudInput,
   createHudIconButton,
@@ -80,8 +81,9 @@ export class CanvasBoardSelector {
     this.emptyRow.textContent = 'No boards yet';
     this.listWrap.appendChild(this.emptyRow);
 
-    const divider = document.createElement('div');
-    divider.className = 'mx-2 border-t border-slate-100';
+    const divider = createHudDivider({
+      tone: 'soft',
+    });
 
     this.createBtn = createHudDropdownItem({
       label: 'New board',

@@ -26,6 +26,7 @@ import { ExistingStoryPicker } from './components/ExistingStoryPicker.ts';
 import { AddExistingTaskService } from '../core/services/AddExistingTaskService.ts';
 import { AddExistingGoalService } from '../core/services/AddExistingGoalService.ts';
 import { AddExistingStoryService } from '../core/services/AddExistingStoryService.ts';
+import { createHudDivider, createHudDropdownItem } from './primitives/index.ts';
 
 type ContextMenuDetail = {
   element: ICanvasElement | null;
@@ -71,7 +72,7 @@ export class ContextMenu {
     this.bulkActions = new BulkActionsController(scene);
     this.menu = document.createElement('div');
     this.menu.className =
-      'fixed z-50 min-w-[180px] rounded-md border border-gray-200 bg-white shadow-lg text-sm text-gray-800';
+      'fixed z-50 min-w-[200px] overflow-hidden rounded-xl border border-slate-200 bg-white/95 p-0 text-sm text-slate-800 shadow-[0_18px_42px_rgba(15,23,42,0.18)] backdrop-blur-sm';
     this.menu.style.display = 'none';
   }
 
@@ -346,39 +347,32 @@ export class ContextMenu {
     );
     visibleSections.forEach((section, index) => {
       if (index > 0) {
-        const divider = document.createElement('div');
-        divider.className = 'my-1 border-t border-gray-200';
-        this.menu.appendChild(divider);
+        this.menu.appendChild(createHudDivider({ inset: false }));
       }
       if (section.title) {
         const header = document.createElement('div');
         header.className =
-          'px-3 pt-2 text-xs font-semibold uppercase text-gray-400';
+          'px-4 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-400';
         header.textContent = section.title;
         this.menu.appendChild(header);
       }
       section.items.forEach((item) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        const baseClasses =
-          'w-full text-left px-3 py-2 hover:bg-gray-100 active:bg-gray-200';
-        const dangerClasses = 'text-red-600 hover:bg-red-50 active:bg-red-100';
-        const warningClasses =
-          'text-orange-600 hover:bg-orange-50 active:bg-orange-100';
-        btn.className =
-          item.tone === 'danger'
-            ? `${baseClasses} ${dangerClasses}`
-            : item.tone === 'warning'
-              ? `${baseClasses} ${warningClasses}`
-              : baseClasses;
-        btn.textContent = item.label ?? '';
-        btn.addEventListener('click', () => {
-          const result = item.action ? item.action() : undefined;
-          if (result === 'keep-open') {
-            this.render();
-            return;
-          }
-          this.hide();
+        const warningClassName =
+          item.tone === 'warning'
+            ? 'font-medium text-amber-700 hover:bg-amber-50 hover:text-amber-800'
+            : '';
+        const btn = createHudDropdownItem({
+          label: item.label ?? '',
+          tone: item.tone === 'danger' ? 'danger' : 'default',
+          className: warningClassName,
+          onClick: () => {
+            const result = item.action ? item.action() : undefined;
+            if (result === 'keep-open') {
+              this.render();
+              return;
+            }
+            this.hide();
+          },
         });
         this.menu.appendChild(btn);
       });

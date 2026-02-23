@@ -12,6 +12,7 @@ import {
 } from '../core/services/SelectionContext.ts';
 import { BulkActionsController } from '../core/services/BulkActionsController.ts';
 import { positionFixedElement } from './overlayPosition.ts';
+import { createHudDropdownItem } from './primitives/index.ts';
 
 type StatusOption = {
   value: ElementStatus;
@@ -37,17 +38,17 @@ export class StatusPicker {
     this.container.style.position = 'fixed';
     this.container.style.display = 'none';
     this.container.style.minWidth = '180px';
-    this.container.style.background = 'white';
-    this.container.style.border = '1px solid #e5e7eb';
-    this.container.style.borderRadius = '10px';
-    this.container.style.boxShadow = '0 10px 30px rgba(0,0,0,0.14)';
-    this.container.style.padding = '6px';
+    this.container.style.background = 'rgba(255,255,255,0.96)';
+    this.container.style.border = '1px solid #e2e8f0';
+    this.container.style.borderRadius = '12px';
+    this.container.style.boxShadow = '0 18px 42px rgba(15,23,42,0.18)';
+    this.container.style.padding = '4px';
     this.container.style.zIndex = '120';
 
     this.list = document.createElement('div');
     this.list.style.display = 'flex';
     this.list.style.flexDirection = 'column';
-    this.list.style.gap = '4px';
+    this.list.style.gap = '2px';
     this.container.appendChild(this.list);
   }
 
@@ -70,8 +71,9 @@ export class StatusPicker {
       const elements = customEvent.detail?.elements ?? [];
       const element = customEvent.detail?.element ?? null;
       if (elements.length > 0) {
-        if (!elements.every((el) => SelectionContext.isPlanningElement(el)))
+        if (!elements.every((el) => SelectionContext.isPlanningElement(el))) {
           return;
+        }
         this.activeElements = elements;
         this.activeElement = elements[0];
       } else {
@@ -169,34 +171,13 @@ export class StatusPicker {
     if (this.activeElements.length === 0) return;
     const currentStatus = SelectionContext.getMixedStatus(this.activeElements);
     ELEMENT_STATUS_OPTIONS.forEach((option: StatusOption) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.textContent = option.label;
-      btn.style.display = 'flex';
-      btn.style.alignItems = 'center';
-      btn.style.justifyContent = 'space-between';
-      btn.style.width = '100%';
-      btn.style.border = '1px solid transparent';
-      btn.style.borderRadius = '8px';
-      btn.style.padding = '6px 10px';
-      btn.style.cursor = 'pointer';
-      btn.style.fontSize = '13px';
-      const styles = this.getStatusStyles(option.value);
-      btn.style.color = styles.text;
       const isActive = currentStatus === option.value;
-      btn.style.background = isActive ? styles.bg : 'white';
-      btn.style.borderColor = isActive ? styles.border : 'transparent';
-      btn.addEventListener('mouseenter', () => {
-        if (!isActive) {
-          btn.style.background = '#f3f4f6';
-        }
+      const btn = createHudDropdownItem({
+        label: option.label,
+        variant: isActive ? 'emphasis' : 'default',
+        className: this.getStatusItemClasses(option.value, isActive),
+        onClick: () => this.applyStatus(option.value),
       });
-      btn.addEventListener('mouseleave', () => {
-        if (!isActive) {
-          btn.style.background = 'white';
-        }
-      });
-      btn.addEventListener('click', () => this.applyStatus(option.value));
       this.list.appendChild(btn);
     });
   }
@@ -212,21 +193,28 @@ export class StatusPicker {
     this.hide();
   }
 
-  private getStatusStyles(status: ElementStatus): {
-    bg: string;
-    text: string;
-    border: string;
-  } {
+  private getStatusItemClasses(
+    status: ElementStatus,
+    active: boolean
+  ): string {
     switch (status) {
       case ElementStatus.InProgress:
-        return { bg: '#dbeafe', text: '#1d4ed8', border: '#93c5fd' };
+        return active
+          ? 'bg-blue-50 text-blue-700'
+          : 'text-blue-700 hover:bg-blue-50/70 hover:text-blue-800';
       case ElementStatus.Pending:
-        return { bg: '#fef3c7', text: '#b45309', border: '#fcd34d' };
+        return active
+          ? 'bg-amber-50 text-amber-700'
+          : 'text-amber-700 hover:bg-amber-50/70 hover:text-amber-800';
       case ElementStatus.Done:
-        return { bg: '#dcfce7', text: '#15803d', border: '#86efac' };
+        return active
+          ? 'bg-emerald-50 text-emerald-700'
+          : 'text-emerald-700 hover:bg-emerald-50/70 hover:text-emerald-800';
       case ElementStatus.Defined:
       default:
-        return { bg: '#f3f4f6', text: '#4b5563', border: '#e5e7eb' };
+        return active
+          ? 'bg-slate-100 text-slate-700'
+          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800';
     }
   }
 

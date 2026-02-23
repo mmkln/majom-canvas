@@ -6,6 +6,7 @@ import { notify } from '../../core/services/NotificationService.ts';
 import { AuthController, type AuthState } from '../auth/AuthController.ts';
 import { authFlowService } from '../auth/authFlowService.ts';
 import {
+  createHudDivider,
   createHudDropdownItem,
   createHudIconButton,
   createHudSurface,
@@ -158,7 +159,7 @@ export class CanvasMenu {
       loadingRow.className = 'px-4 py-3 text-sm text-slate-500';
       loadingRow.textContent = 'Loading account...';
       this.dropdownMenu.appendChild(loadingRow);
-      this.dropdownMenu.appendChild(this.createDivider());
+      this.dropdownMenu.appendChild(createHudDivider());
     } else if (user) {
       const userInfo = document.createElement('div');
       userInfo.className = 'px-4 py-3';
@@ -173,7 +174,7 @@ export class CanvasMenu {
       userEmail.textContent = user.email;
 
       userInfo.append(userName, userEmail);
-      this.dropdownMenu.append(userInfo, this.createDivider());
+      this.dropdownMenu.append(userInfo, createHudDivider());
     }
 
     const actions = document.createElement('div');
@@ -200,11 +201,5 @@ export class CanvasMenu {
     notify('Logged out', 'info');
     this.setDropdownOpen(false);
     window.dispatchEvent(new CustomEvent('refreshCanvasData'));
-  }
-
-  private createDivider(): HTMLDivElement {
-    const divider = document.createElement('div');
-    divider.className = 'mx-2 border-t border-slate-200/80';
-    return divider;
   }
 }
