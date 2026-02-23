@@ -1,6 +1,5 @@
 // ui/UIManager.ts
-import { CanvasControls } from './CanvasControls.ts';
-import { ZoomIndicator } from './ZoomIndicator.ts';
+import { CanvasNavigationDock } from './CanvasNavigationDock.ts';
 import { EditElementModal } from './components/EditElementModal.ts';
 import { NotificationContainer } from './components/NotificationContainer.ts';
 import { CanvasBoardSelector } from './components/CanvasBoardSelector.ts';
@@ -12,7 +11,6 @@ import { ContextMenu } from './ContextMenu.ts';
 import { SelectionActionMenu } from './SelectionActionMenu.ts';
 import { RelatedItemsPicker } from './RelatedItemsPicker.ts';
 import { StatusPicker } from './StatusPicker.ts';
-import { MiniMap } from './MiniMap.ts';
 import { BulkActionsController } from '../core/services/BulkActionsController.ts';
 import { ExistingTaskPicker } from './components/ExistingTaskPicker.ts';
 import { ExistingGoalPicker } from './components/ExistingGoalPicker.ts';
@@ -42,8 +40,7 @@ export class UIManager {
     mount(parent?: HTMLElement): void;
     unmount(): void;
   }[] = [];
-  private readonly canvasControls: CanvasControls;
-  private readonly zoomIndicator: ZoomIndicator;
+  private readonly canvasNavigationDock: CanvasNavigationDock;
   private readonly addExistingTaskService: AddExistingTaskService;
   private readonly addExistingGoalService: AddExistingGoalService;
   private readonly addExistingStoryService: AddExistingStoryService;
@@ -71,10 +68,11 @@ export class UIManager {
     private readonly scene: Scene,
     private readonly authService: AuthService
   ) {
-    this.canvasControls = new CanvasControls(this.canvasManager, this.scene);
+    this.canvasNavigationDock = new CanvasNavigationDock(
+      this.scene,
+      this.canvasManager
+    );
     const canvasBoardSelector = new CanvasBoardSelector();
-    const miniMap = new MiniMap(this.scene, this.canvasManager);
-    this.zoomIndicator = new ZoomIndicator(this.canvasManager);
 
     const http = new HttpInterceptorClient(environment.apiUrl);
     const tasksApi = new TasksApiService(http);
@@ -170,9 +168,7 @@ export class UIManager {
     // Add controls to components list
     this.components.push(
       canvasBoardSelector,
-      this.canvasControls,
-      miniMap,
-      this.zoomIndicator,
+      this.canvasNavigationDock,
       contextMenu,
       selectionActions,
       relatedItemsPicker,

@@ -24,7 +24,7 @@ export class SaveControls {
       className: 'flex items-center gap-2 px-2.5 py-2',
     });
     this.saveGroup = document.createElement('div');
-    this.saveGroup.className = 'flex items-center pl-1';
+    this.saveGroup.className = 'flex items-center';
     this.undoRedoControls = new UndoRedoControls();
     this.saveButton = new SaveButton();
     this.authComponent = authComponent;

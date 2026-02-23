@@ -13,7 +13,7 @@ export class UndoRedoControls {
 
   constructor() {
     this.container = document.createElement('div');
-    this.container.className = 'flex items-center gap-2';
+    this.container.className = 'flex items-center gap-2 px-0.5';
 
     this.undoBtn = createHudIconButton({
       icon: 'arrow-ultum-left',

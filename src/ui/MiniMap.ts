@@ -22,6 +22,12 @@ type MiniMapMetrics = {
   virtualHeight: number;
 };
 
+type MiniMapOptions = {
+  embedded?: boolean;
+  surface?: boolean;
+  className?: string;
+};
+
 export class MiniMap {
   private readonly container: HTMLDivElement;
   private readonly canvasEl: HTMLCanvasElement;
@@ -37,17 +43,27 @@ export class MiniMap {
   private renderRafId: number | null = null;
   private readonly width = 260;
   private readonly height = 170;
+  private readonly compactWidth = 220;
+  private readonly compactBreakpoint = 640;
   private readonly padding = 0;
 
   constructor(
     private readonly scene: Scene,
-    private readonly canvasManager: CanvasManager
+    private readonly canvasManager: CanvasManager,
+    options: MiniMapOptions = {}
   ) {
-    this.container = createHudSurface({
-      className: 'absolute right-[72px] bottom-4 z-20 overflow-hidden p-1',
-    });
-    this.container.style.width = `${this.width}px`;
-    this.container.style.height = `${this.height}px`;
+    const embedded = options.embedded ?? false;
+    const useSurface = options.surface ?? true;
+    const baseClass = embedded ? '' : 'absolute right-[72px] bottom-4 z-20';
+    const defaultInnerClass = useSurface ? 'overflow-hidden p-1' : '';
+    const className = `${baseClass} ${options.className ?? defaultInnerClass}`.trim();
+    this.container = useSurface
+      ? createHudSurface({ className })
+      : document.createElement('div');
+    if (!useSurface) {
+      this.container.className = className;
+    }
+    this.applyResponsiveSize();
 
     this.canvasEl = document.createElement('canvas');
     this.canvasEl.width = this.width;
@@ -55,8 +71,9 @@ export class MiniMap {
     this.canvasEl.style.width = '100%';
     this.canvasEl.style.height = '100%';
     this.canvasEl.style.display = 'block';
-    this.canvasEl.style.borderRadius = '10px';
+    this.canvasEl.style.borderRadius = useSurface ? '14px' : '0';
     this.canvasEl.style.cursor = 'pointer';
+    this.canvasEl.style.border = 'none';
 
     const ctx = this.canvasEl.getContext('2d');
     if (!ctx) throw new Error('MiniMap canvas context is not available');
@@ -105,7 +122,7 @@ export class MiniMap {
     this.canvasEl.addEventListener('pointermove', this.onPointerMove);
     this.canvasEl.addEventListener('pointerup', this.onPointerUp);
     this.canvasEl.addEventListener('pointercancel', this.onPointerUp);
-    window.addEventListener('resize', this.requestRender);
+    window.addEventListener('resize', this.onViewportResize);
     this.requestRender();
   }
 
@@ -116,7 +133,7 @@ export class MiniMap {
     this.canvasEl.removeEventListener('pointermove', this.onPointerMove);
     this.canvasEl.removeEventListener('pointerup', this.onPointerUp);
     this.canvasEl.removeEventListener('pointercancel', this.onPointerUp);
-    window.removeEventListener('resize', this.requestRender);
+    window.removeEventListener('resize', this.onViewportResize);
     if (this.renderRafId !== null) {
       cancelAnimationFrame(this.renderRafId);
       this.renderRafId = null;
@@ -131,6 +148,21 @@ export class MiniMap {
       this.render();
     });
   };
+
+  private readonly onViewportResize = (): void => {
+    this.applyResponsiveSize();
+    this.requestRender();
+  };
+
+  private applyResponsiveSize(): void {
+    const maxByViewport = Math.max(120, window.innerWidth - 32);
+    const preferredWidth =
+      window.innerWidth <= this.compactBreakpoint ? this.compactWidth : this.width;
+    const width = Math.min(preferredWidth, maxByViewport);
+    const height = Math.round((width * this.height) / this.width);
+    this.container.style.width = `${width}px`;
+    this.container.style.height = `${height}px`;
+  }
 
   private readonly render = (): void => {
     const metrics = this.computeMetrics();

@@ -33,7 +33,7 @@ export class CanvasBoardSelector {
     this.container.className = 'absolute left-4 top-4 z-20';
 
     this.header = createHudSurface({
-      className: 'inline-flex items-center gap-1 px-2 py-1',
+      className: 'inline-flex items-center gap-1 px-2.5 py-2',
     });
 
     this.titleWrap = document.createElement('div');
