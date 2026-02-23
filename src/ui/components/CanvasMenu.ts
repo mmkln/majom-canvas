@@ -53,13 +53,13 @@ export class CanvasMenu {
 
     this.dropdownMenu = createHudSurface({
       elevated: true,
-      className: 'absolute right-[-10px] top-full mt-4 z-30 hidden w-72 overflow-hidden',
+      className:
+        'absolute right-0 top-[calc(100%+4px)] z-30 hidden w-72 overflow-hidden',
     });
 
     this.deleteCanvasButton = createHudDropdownItem({
       label: 'Delete canvas',
-      tone: 'default',
-      className: 'font-medium text-slate-700 hover:text-slate-900',
+      variant: 'default',
       onClick: () => {
         this.setDropdownOpen(false);
         window.dispatchEvent(new CustomEvent('canvasDeleteRequested'));
@@ -68,8 +68,7 @@ export class CanvasMenu {
 
     this.logoutButton = createHudDropdownItem({
       label: 'Logout',
-      tone: 'default',
-      className: 'font-medium text-slate-700 hover:text-slate-900',
+      variant: 'emphasis',
       onClick: () => this.handleLogout(),
     });
 

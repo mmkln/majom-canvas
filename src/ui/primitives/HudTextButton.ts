@@ -1,6 +1,8 @@
 import {
+  HUD_TEXT_BUTTON_DANGER_CLASS,
+  HUD_TEXT_BUTTON_SECONDARY_CLASS,
+  HUD_TEXT_BUTTON_TERTIARY_CLASS,
   HUD_PRIMARY_BUTTON_CLASS,
-  HUD_SOFT_TEXT_BUTTON_CLASS,
 } from './hudClassNames.ts';
 import {
   getHudButtonController,
@@ -9,7 +11,12 @@ import {
   type HudButtonState,
 } from './HudButtonBase.ts';
 
-export type HudTextButtonTone = 'soft' | 'primary';
+export type HudTextButtonTone =
+  | 'soft'
+  | 'secondary'
+  | 'primary'
+  | 'text'
+  | 'danger';
 export type HudTextButtonElement = HudButtonElement;
 
 type HudTextButtonOptions = {
@@ -33,8 +40,11 @@ type HudTextButtonLoadingOptions = {
 };
 
 const classByTone: Record<HudTextButtonTone, string> = {
-  soft: HUD_SOFT_TEXT_BUTTON_CLASS,
+  soft: HUD_TEXT_BUTTON_SECONDARY_CLASS,
+  secondary: HUD_TEXT_BUTTON_SECONDARY_CLASS,
   primary: HUD_PRIMARY_BUTTON_CLASS,
+  text: HUD_TEXT_BUTTON_TERTIARY_CLASS,
+  danger: HUD_TEXT_BUTTON_DANGER_CLASS,
 };
 
 class HudTextButton extends HudButtonBase {

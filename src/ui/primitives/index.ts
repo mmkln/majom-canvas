@@ -1,4 +1,8 @@
-export { createHudIconButton, setHudIconButtonLoading } from './HudIconButton.ts';
+export {
+  createHudIconButton,
+  setHudIconButtonLoading,
+  type HudIconButtonTone,
+} from './HudIconButton.ts';
 export {
   HUD_BUTTON_CONTROLLER,
   getHudButtonController,
@@ -10,9 +14,14 @@ export {
   createHudTextButton,
   setHudTextButtonLoading,
   setHudTextButtonState,
+  type HudTextButtonTone,
   type HudTextButtonElement,
   type HudTextButtonState,
 } from './HudTextButton.ts';
 export { HudDropdown } from './HudDropdown.ts';
-export { createHudDropdownItem } from './HudDropdownItem.ts';
+export {
+  createHudDropdownItem,
+  type HudDropdownItemTone,
+  type HudMenuItemVariant,
+} from './HudDropdownItem.ts';
 export { createHudSurface } from './HudSurface.ts';

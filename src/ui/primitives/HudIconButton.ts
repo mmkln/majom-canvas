@@ -1,17 +1,21 @@
 import {
+  HUD_ICON_BUTTON_DANGER_CLASS,
   HUD_ICON_BUTTON_SIZE_LG_CLASS,
   HUD_ICON_BUTTON_SIZE_MD_CLASS,
   HUD_ICON_BUTTON_SIZE_SM_CLASS,
-  HUD_SOFT_ICON_BUTTON_CLASS,
+  HUD_ICON_BUTTON_SECONDARY_CLASS,
+  HUD_ICON_BUTTON_TERTIARY_CLASS,
 } from './hudClassNames.ts';
 import { createIcon, type IconName } from '../icons.ts';
 import { getHudButtonController, HudButtonBase } from './HudButtonBase.ts';
 
 type HudIconButtonSize = 'sm' | 'md' | 'lg';
+export type HudIconButtonTone = 'soft' | 'secondary' | 'text' | 'danger';
 
 type HudIconButtonOptions = {
   icon: IconName;
   size?: HudIconButtonSize;
+  tone?: HudIconButtonTone;
   iconSize?: number;
   iconStrokeWidth?: number;
   loading?: boolean;
@@ -29,6 +33,13 @@ const classBySize: Record<HudIconButtonSize, string> = {
   lg: HUD_ICON_BUTTON_SIZE_LG_CLASS,
 };
 
+const classByTone: Record<HudIconButtonTone, string> = {
+  soft: HUD_ICON_BUTTON_SECONDARY_CLASS,
+  secondary: HUD_ICON_BUTTON_SECONDARY_CLASS,
+  text: HUD_ICON_BUTTON_TERTIARY_CLASS,
+  danger: HUD_ICON_BUTTON_DANGER_CLASS,
+};
+
 const iconSizeByButtonSize: Record<HudIconButtonSize, number> = {
   sm: 14,
   md: 16,
@@ -41,8 +52,9 @@ class HudIconButton extends HudButtonBase {
 
   constructor(options: HudIconButtonOptions) {
     const buttonSize = options.size ?? 'md';
+    const tone = options.tone ?? 'soft';
     const className =
-      `${HUD_SOFT_ICON_BUTTON_CLASS} ${classBySize[buttonSize]} ${options.className ?? ''}`.trim();
+      `${classByTone[tone]} ${classBySize[buttonSize]} ${options.className ?? ''}`.trim();
     super({
       className,
       type: options.type,

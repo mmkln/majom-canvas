@@ -4,7 +4,6 @@ import type { LoginSubmitResult } from '../auth/AuthController.ts';
 
 type LoginPageOptions = {
   title?: string;
-  subtitle?: string;
   onSubmit: (credentials: LoginCredentials) => Promise<LoginSubmitResult>;
 };
 
@@ -40,12 +39,8 @@ export class LoginPage {
     heading.className = 'text-[30px] font-semibold leading-none tracking-tight text-slate-900';
     heading.textContent = this.options.title ?? 'Login';
 
-    const subtitle = document.createElement('p');
-    subtitle.className = 'mt-3 text-sm leading-6 text-slate-500';
-    subtitle.textContent = this.options.subtitle ?? 'Sign in to continue.';
-
     const form = document.createElement('form');
-    form.className = 'mt-8 space-y-5';
+    form.className = 'mt-6 space-y-5';
     form.noValidate = true;
 
     const usernameWrap = document.createElement('div');
@@ -121,7 +116,7 @@ export class LoginPage {
       this.generalError,
       this.submitButton
     );
-    shell.append(caption, heading, subtitle, form);
+    shell.append(caption, heading, form);
     root.appendChild(shell);
     this.root = root;
   }

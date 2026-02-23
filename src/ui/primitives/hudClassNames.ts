@@ -7,11 +7,23 @@ export const HUD_SURFACE_ELEVATED_CLASS =
 export const HUD_BUTTON_BASE_CLASS =
   'rounded-full border border-slate-200 bg-white text-slate-700 transition-colors hover:bg-indigo-50 hover:text-indigo-700 focus-visible:ring-indigo-300 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400';
 
-export const HUD_SOFT_TEXT_BUTTON_CLASS =
+export const HUD_TEXT_BUTTON_SECONDARY_CLASS =
   'truncate rounded-lg px-3 py-2 text-sm font-semibold text-indigo-600 transition-colors hover:bg-indigo-50 disabled:cursor-not-allowed disabled:bg-transparent disabled:text-slate-400';
 
-export const HUD_SOFT_ICON_BUTTON_CLASS =
+export const HUD_TEXT_BUTTON_TERTIARY_CLASS =
+  'truncate rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:cursor-not-allowed disabled:bg-transparent disabled:text-slate-400';
+
+export const HUD_TEXT_BUTTON_DANGER_CLASS =
+  'truncate rounded-lg px-3 py-2 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:bg-transparent disabled:text-slate-400';
+
+export const HUD_ICON_BUTTON_SECONDARY_CLASS =
   'inline-flex shrink-0 items-center justify-center rounded-lg p-0 text-[15px] font-semibold leading-none text-indigo-500 transition-colors hover:bg-indigo-50 hover:text-indigo-600 disabled:cursor-not-allowed disabled:bg-transparent disabled:text-slate-400';
+
+export const HUD_ICON_BUTTON_TERTIARY_CLASS =
+  'inline-flex shrink-0 items-center justify-center rounded-lg p-0 text-[15px] font-medium leading-none text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:cursor-not-allowed disabled:bg-transparent disabled:text-slate-400';
+
+export const HUD_ICON_BUTTON_DANGER_CLASS =
+  'inline-flex shrink-0 items-center justify-center rounded-lg p-0 text-[15px] font-medium leading-none text-rose-600 transition-colors hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:bg-transparent disabled:text-slate-400';
 
 export const HUD_ICON_BUTTON_SIZE_SM_CLASS = 'h-8 w-8';
 export const HUD_ICON_BUTTON_SIZE_MD_CLASS = 'h-9 w-9';
@@ -22,14 +34,33 @@ export const HUD_PRIMARY_BUTTON_CLASS =
 
 export const HUD_DROPDOWN_CLASS = `${HUD_SURFACE_ELEVATED_CLASS} overflow-hidden`;
 
-export const HUD_DROPDOWN_ITEM_CLASS =
-  'flex w-full items-center justify-between px-4 py-3 text-left text-sm transition-colors hover:bg-indigo-50';
+export const HUD_MENU_ITEM_BASE_CLASS =
+  'flex w-full items-center justify-between px-4 py-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:ring-inset';
 
-export const HUD_DROPDOWN_ITEM_DEFAULT_CLASS =
-  'text-[#475569] font-normal';
+export const HUD_MENU_ITEM_DEFAULT_CLASS =
+  'font-normal text-slate-600 hover:bg-indigo-50 hover:text-slate-800';
 
-export const HUD_DROPDOWN_ITEM_ACTIVE_CLASS =
-  'bg-[#e9edff] text-[#3b4fd9] font-medium';
+export const HUD_MENU_ITEM_EMPHASIS_CLASS =
+  'font-semibold text-slate-700 hover:bg-indigo-50 hover:text-slate-900';
+
+export const HUD_MENU_ITEM_SELECTED_CLASS =
+  'bg-indigo-50 font-medium text-indigo-700';
+
+export const HUD_MENU_ITEM_ACCENT_CREATE_CLASS =
+  'font-medium text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700';
+
+export const HUD_MENU_ITEM_DANGER_CLASS =
+  'font-medium text-rose-600 hover:bg-rose-50 hover:text-rose-700';
+
+export const HUD_MENU_ITEM_DISABLED_CLASS =
+  'cursor-not-allowed text-slate-400 hover:bg-transparent hover:text-slate-400';
+
+// Backward-compatible aliases.
+export const HUD_SOFT_TEXT_BUTTON_CLASS = HUD_TEXT_BUTTON_SECONDARY_CLASS;
+export const HUD_SOFT_ICON_BUTTON_CLASS = HUD_ICON_BUTTON_SECONDARY_CLASS;
+export const HUD_DROPDOWN_ITEM_CLASS = HUD_MENU_ITEM_BASE_CLASS;
+export const HUD_DROPDOWN_ITEM_DEFAULT_CLASS = HUD_MENU_ITEM_DEFAULT_CLASS;
+export const HUD_DROPDOWN_ITEM_ACTIVE_CLASS = HUD_MENU_ITEM_SELECTED_CLASS;
 
 export const HUD_INLINE_INPUT_CLASS =
   'h-[34px] w-full rounded-lg border border-indigo-200/70 bg-indigo-50/70 px-3 text-sm font-semibold text-indigo-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] outline-none transition-colors focus:border-indigo-300 focus:bg-white';

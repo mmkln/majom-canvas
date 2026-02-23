@@ -1,25 +1,45 @@
 import {
-  HUD_DROPDOWN_ITEM_ACTIVE_CLASS,
-  HUD_DROPDOWN_ITEM_CLASS,
-  HUD_DROPDOWN_ITEM_DEFAULT_CLASS,
+  HUD_MENU_ITEM_ACCENT_CREATE_CLASS,
+  HUD_MENU_ITEM_BASE_CLASS,
+  HUD_MENU_ITEM_DANGER_CLASS,
+  HUD_MENU_ITEM_DEFAULT_CLASS,
+  HUD_MENU_ITEM_DISABLED_CLASS,
+  HUD_MENU_ITEM_EMPHASIS_CLASS,
+  HUD_MENU_ITEM_SELECTED_CLASS,
 } from './hudClassNames.ts';
 
+export type HudMenuItemVariant =
+  | 'default'
+  | 'emphasis'
+  | 'selected'
+  | 'accent-create'
+  | 'danger';
 export type HudDropdownItemTone = 'default' | 'accent' | 'danger';
 
 type HudDropdownItemOptions = {
   label: string;
+  variant?: HudMenuItemVariant;
   tone?: HudDropdownItemTone;
   active?: boolean;
+  disabled?: boolean;
   className?: string;
   leading?: HTMLElement | null;
   trailing?: HTMLElement | null;
   onClick?: (event: MouseEvent) => void;
 };
 
-const toneClassByType: Record<HudDropdownItemTone, string> = {
-  default: HUD_DROPDOWN_ITEM_DEFAULT_CLASS,
-  accent: 'font-semibold text-indigo-600',
-  danger: 'text-rose-600 hover:bg-rose-50 hover:text-rose-700',
+const classByVariant: Record<HudMenuItemVariant, string> = {
+  default: HUD_MENU_ITEM_DEFAULT_CLASS,
+  emphasis: HUD_MENU_ITEM_EMPHASIS_CLASS,
+  selected: HUD_MENU_ITEM_SELECTED_CLASS,
+  'accent-create': HUD_MENU_ITEM_ACCENT_CREATE_CLASS,
+  danger: HUD_MENU_ITEM_DANGER_CLASS,
+};
+
+const toneToVariant: Record<HudDropdownItemTone, HudMenuItemVariant> = {
+  default: 'default',
+  accent: 'accent-create',
+  danger: 'danger',
 };
 
 export function createHudDropdownItem(
@@ -27,10 +47,20 @@ export function createHudDropdownItem(
 ): HTMLButtonElement {
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = `${HUD_DROPDOWN_ITEM_CLASS} ${toneClassByType[options.tone ?? 'default']} ${options.className ?? ''}`.trim();
-
-  if (options.active) {
-    button.classList.add(HUD_DROPDOWN_ITEM_ACTIVE_CLASS);
+  const explicitVariant = options.variant;
+  const fallbackVariant = options.active
+    ? 'selected'
+    : toneToVariant[options.tone ?? 'default'];
+  const variant = explicitVariant ?? fallbackVariant;
+  button.className =
+    `${HUD_MENU_ITEM_BASE_CLASS} ${classByVariant[variant]} ${options.className ?? ''}`.trim();
+  if (variant === 'selected') {
+    button.setAttribute('aria-current', 'true');
+  }
+  if (options.disabled) {
+    button.classList.add(HUD_MENU_ITEM_DISABLED_CLASS);
+    button.disabled = true;
+    button.setAttribute('aria-disabled', 'true');
   }
 
   const content = document.createElement('span');

@@ -1,4 +1,5 @@
 import {
+  createHudDropdownItem,
   createHudIconButton,
   createHudTextButton,
   HudDropdown,
@@ -82,15 +83,14 @@ export class CanvasBoardSelector {
     const divider = document.createElement('div');
     divider.className = 'mx-2 border-t border-slate-100';
 
-    this.createBtn = document.createElement('button');
-    this.createBtn.type = 'button';
-    this.createBtn.className =
-      'flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold text-indigo-600 transition-colors hover:bg-indigo-50';
-    this.createBtn.innerHTML =
-      '<span class="inline-flex items-center gap-1"><span class="text-lg leading-none">+</span><span>New board</span></span>';
-    this.createBtn.addEventListener('click', () => {
-      window.dispatchEvent(new CustomEvent('canvasCreateRequested'));
-      this.setDropdownOpen(false);
+    this.createBtn = createHudDropdownItem({
+      label: 'New board',
+      variant: 'accent-create',
+      leading: this.createPlusIcon(),
+      onClick: () => {
+        window.dispatchEvent(new CustomEvent('canvasCreateRequested'));
+        this.setDropdownOpen(false);
+      },
     });
 
     this.dropdown.append(boardsHeader, this.listWrap, divider, this.createBtn);
@@ -212,35 +212,34 @@ export class CanvasBoardSelector {
 
     this.canvases.forEach((canvas) => {
       const isActive = canvas.id === this.activeCanvasId;
-      const row = document.createElement('button');
-      row.type = 'button';
-      row.className =
-        'flex w-full items-center justify-between px-4 py-3 text-left text-sm transition-colors hover:bg-indigo-50';
-      row.style.cssText = isActive
-        ? 'background: #e9edff; color: #3b4fd9; font-weight: 500;'
-        : 'color: #475569; font-weight: 400;';
-
-      const label = document.createElement('span');
-      label.className = 'truncate';
-      label.textContent = canvas.name;
-      row.appendChild(label);
-
-      if (isActive) {
-        row.appendChild(this.createCheckIcon());
-      }
-
-      row.addEventListener('click', () => {
-        if (canvas.id.startsWith('missing-id-')) return;
-        window.dispatchEvent(
-          new CustomEvent('canvasSelected', {
-            detail: { id: canvas.id, name: canvas.name },
-          })
-        );
-        this.setDropdownOpen(false);
+      const isUnavailable = canvas.id.startsWith('missing-id-');
+      const row = createHudDropdownItem({
+        label: canvas.name,
+        variant: isActive ? 'selected' : 'default',
+        trailing: isActive ? this.createCheckIcon() : null,
+        disabled: isUnavailable,
+        onClick: () => {
+          if (isUnavailable) return;
+          window.dispatchEvent(
+            new CustomEvent('canvasSelected', {
+              detail: { id: canvas.id, name: canvas.name },
+            })
+          );
+          this.setDropdownOpen(false);
+        },
       });
 
       this.listWrap.appendChild(row);
     });
+  }
+
+  private createPlusIcon(): HTMLSpanElement {
+    const plusWrap = document.createElement('span');
+    plusWrap.className = 'inline-flex items-center justify-center text-indigo-600';
+    const plus = createIcon('plus', { size: 14, strokeWidth: 2 });
+    plus.setAttribute('aria-hidden', 'true');
+    plusWrap.appendChild(plus);
+    return plusWrap;
   }
 
   private createCheckIcon(): HTMLSpanElement {
