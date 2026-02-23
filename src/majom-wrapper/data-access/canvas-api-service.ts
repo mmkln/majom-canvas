@@ -69,4 +69,9 @@ export class CanvasApiService {
       }
     );
   }
+
+  /** Delete canvas container */
+  deleteCanvas(id: string): Observable<void> {
+    return this.http.delete<void>(`/canvas/${id}/`);
+  }
 }

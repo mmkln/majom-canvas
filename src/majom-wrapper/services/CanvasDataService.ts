@@ -1471,6 +1471,19 @@ export class CanvasDataService {
     );
   }
 
+  public deleteCanvas(id: string): Observable<void> {
+    return this.canvasApi.deleteCanvas(id).pipe(
+      tap(() => {
+        if (this.canvasId !== id) return;
+        this.canvasId = null;
+        this.canvasName = null;
+        this.positionRegistry.clear();
+        this.positionDirtyKeys.clear();
+        this.relationRegistry.clear();
+      })
+    );
+  }
+
   public getRemovedPositionIds(
     elements: Array<TaskElement | StoryElement | GoalElement>
   ): string[] {

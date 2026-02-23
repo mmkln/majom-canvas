@@ -17,6 +17,7 @@ export type IconName =
   | 'chevron-up'
   | 'chevron-left'
   | 'chevron-right'
+  | 'ellipsis-vertical'
   | 'x-mark'
   | 'check'
   | 'trash'
@@ -181,6 +182,15 @@ export function createIcon(
 
   if (name === 'chevron-right') {
     svg.appendChild(makePath('m8.25 4.5 7.5 7.5-7.5 7.5'));
+    return svg;
+  }
+
+  if (name === 'ellipsis-vertical') {
+    svg.appendChild(
+      makePath(
+        'M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z'
+      )
+    );
     return svg;
   }
 

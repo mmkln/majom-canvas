@@ -3,6 +3,7 @@ import { SaveButton } from './SaveButton.ts';
 import { UndoRedoControls } from '../UndoRedoControls.ts';
 import { AuthComponent } from './AuthComponent.ts';
 import { createHudSurface } from '../primitives/index.ts';
+import { CanvasMenuButton } from './CanvasMenuButton.ts';
 
 /**
  * SaveControls: wraps save and auth actions in a shared HUD layout.
@@ -13,6 +14,7 @@ export class SaveControls {
   private saveGroup: HTMLDivElement;
   private undoRedoControls: UndoRedoControls;
   private saveButton: SaveButton;
+  private canvasMenuButton: CanvasMenuButton;
   private authComponent: AuthComponent;
   private authService = new AuthService();
   private refreshHandler: () => void;
@@ -27,6 +29,7 @@ export class SaveControls {
     this.saveGroup.className = 'flex items-center';
     this.undoRedoControls = new UndoRedoControls();
     this.saveButton = new SaveButton();
+    this.canvasMenuButton = new CanvasMenuButton();
     this.authComponent = authComponent;
     this.refreshHandler = () => this.updateVisibility();
   }
@@ -38,6 +41,7 @@ export class SaveControls {
     this.actionsContainer.appendChild(this.saveGroup);
     this.saveButton.mount(this.saveGroup);
     this.authComponent.mount(this.actionsContainer);
+    this.canvasMenuButton.mount(this.actionsContainer);
     window.addEventListener('refreshCanvasData', this.refreshHandler);
     this.updateVisibility();
   }
@@ -46,6 +50,7 @@ export class SaveControls {
     window.removeEventListener('refreshCanvasData', this.refreshHandler);
     this.undoRedoControls.unmount();
     this.saveButton.unmount();
+    this.canvasMenuButton.unmount();
     this.authComponent.unmount();
     this.container.remove();
   }

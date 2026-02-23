@@ -41,7 +41,8 @@ import {
   type CanvasSaveSource,
 } from './core/canvasSaveLifecycle.ts';
 import { confirmReplaceStoryGoalModal } from './ui/components/ConfirmReplaceStoryGoalModal.ts';
-import { Observable, of, Subscription, throwError } from 'rxjs';
+import { confirmDeleteCanvasModal } from './ui/components/ConfirmDeleteCanvasModal.ts';
+import { firstValueFrom, Observable, of, Subscription, throwError } from 'rxjs';
 import { catchError, finalize, map, switchMap } from 'rxjs/operators';
 
 export class App {
@@ -196,6 +197,9 @@ export class App {
           notify('Failed to create canvas', 'error');
         },
       });
+    });
+    window.addEventListener('canvasDeleteRequested', () => {
+      void this.handleCanvasDeleteRequested();
     });
     window.addEventListener('elementDetailsEdited', (event: Event) => {
       const customEvent = event as CustomEvent<{
@@ -688,6 +692,76 @@ export class App {
   private syncHydrationState(): void {
     this.isHydratingCanvas =
       this.isElementsHydrating || this.isRelationsHydrating;
+  }
+
+  private async handleCanvasDeleteRequested(): Promise<void> {
+    if (!this.authService.isLoggedIn()) {
+      window.dispatchEvent(new CustomEvent('showLoginModal'));
+      return;
+    }
+
+    const activeCanvasId = this.canvasDataService.getActiveCanvasId();
+    if (!activeCanvasId) {
+      notify('No active canvas selected.', 'info');
+      return;
+    }
+
+    try {
+      const canvases = await firstValueFrom(this.canvasDataService.loadCanvases());
+      const activeCanvas =
+        canvases.find((canvas) => canvas.id === activeCanvasId) ?? null;
+      if (!activeCanvas) {
+        notify('Active canvas was not found.', 'error');
+        return;
+      }
+
+      const confirmed = await confirmDeleteCanvasModal({
+        canvasTitle: activeCanvas.name,
+        isLastCanvas: canvases.length <= 1,
+      });
+      if (!confirmed) {
+        return;
+      }
+
+      await firstValueFrom(this.canvasDataService.deleteCanvas(activeCanvas.id));
+      notify('Canvas deleted.', 'success');
+
+      const remainingCanvases = canvases.filter(
+        (canvas) => canvas.id !== activeCanvas.id
+      );
+      if (remainingCanvases.length === 0) {
+        const createdCanvas = await firstValueFrom(
+          this.canvasDataService.createCanvas('New canvas')
+        );
+        this.setCanvasTitle(createdCanvas.name);
+        await this.restoreCanvasViewState(createdCanvas.id);
+        this.refreshCanvasList(createdCanvas.id);
+        this.loadActiveCanvasElements();
+        return;
+      }
+
+      const nextCanvas = remainingCanvases[0];
+      try {
+        const loadedCanvas = await firstValueFrom(
+          this.canvasDataService.loadCanvasDetails(nextCanvas.id)
+        );
+        this.setCanvasTitle(loadedCanvas.name);
+      } catch (err) {
+        console.error('Failed to load next canvas details', err);
+        this.canvasDataService.setActiveCanvas({
+          id: nextCanvas.id,
+          name: nextCanvas.name,
+        });
+        this.setCanvasTitle(nextCanvas.name);
+      }
+
+      await this.restoreCanvasViewState(nextCanvas.id);
+      this.refreshCanvasList(nextCanvas.id);
+      this.loadActiveCanvasElements();
+    } catch (err) {
+      console.error('Failed to delete canvas', err);
+      notify('Failed to delete canvas', 'error');
+    }
   }
 
   private refreshCanvasList(activeId?: string | null): void {
