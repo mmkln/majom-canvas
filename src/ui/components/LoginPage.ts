@@ -7,10 +7,6 @@ import {
   type HudFormMessage,
   type HudTextButtonElement,
 } from '../primitives/index.ts';
-import {
-  HUD_PAGE_EYEBROW_CLASS,
-  HUD_PAGE_TITLE_CLASS,
-} from '../primitives/hudClassNames.ts';
 import type { LoginSubmitResult } from '../auth/AuthController.ts';
 
 type LoginPageOptions = {
@@ -35,23 +31,24 @@ export class LoginPage {
 
     const shell = document.createElement('section');
     shell.className =
-      'w-full max-w-sm rounded-2xl border border-slate-200/90 bg-white p-8';
+      'w-full max-w-[26rem] rounded-2xl border border-slate-200/90 bg-white/95 px-7 py-7 sm:px-8 sm:py-8';
     shell.setAttribute('aria-label', this.options.title ?? 'Login');
 
+    const header = document.createElement('div');
+    header.className = 'space-y-1.5';
+
     const caption = document.createElement('p');
-    caption.className = HUD_PAGE_EYEBROW_CLASS;
+    caption.className =
+      'mb-0 inline-flex items-center text-[10px] font-medium uppercase tracking-[0.08em] text-slate-400';
     caption.textContent = 'Majom Canvas';
 
     const heading = document.createElement('h1');
-    heading.className = HUD_PAGE_TITLE_CLASS;
-    heading.textContent = this.options.title ?? 'Welcome to Majom';
-
-    const description = document.createElement('p');
-    description.className = 'mt-2 text-sm text-slate-500';
-    description.textContent = 'The single place to organize the whole life.';
+    heading.className = 'text-[26px] font-semibold leading-[1.1] tracking-tight text-slate-900';
+    heading.textContent = this.options.title ?? 'Login';
+    header.append(caption, heading);
 
     const form = document.createElement('form');
-    form.className = 'mt-6 space-y-5';
+    form.className = 'mt-6 space-y-0';
     form.noValidate = true;
 
     const usernameControl = createHudInput({
@@ -115,11 +112,12 @@ export class LoginPage {
     );
 
     const accessHint = document.createElement('p');
-    accessHint.className = 'mt-4 text-xs text-slate-500';
+    accessHint.className =
+      'mt-4 text-xs leading-5 text-slate-500';
     accessHint.textContent =
       'Need an account? Contact the administrator to get access.';
 
-    shell.append(caption, heading, description, form, accessHint);
+    shell.append(header, form, accessHint);
     root.appendChild(shell);
     this.root = root;
   }
