@@ -5,6 +5,10 @@ import { Scene } from '../../core/scene/Scene.ts';
 import { ComponentFactory } from '../../ui-lib/src/core/ComponentFactory.ts';
 import { createModalShell } from '../../ui-lib/src/components/Modal.js';
 import {
+  createHudSegmentedControl,
+  type HudSegmentedControl,
+} from '../primitives/index.ts';
+import {
   ELEMENT_STATUS_OPTIONS,
   ElementStatus,
 } from '../../elements/ElementStatus.ts';
@@ -12,12 +16,18 @@ import {
 // Modal for editing title, status, and priority of an element
 export class EditElementModal {
   private modal: HTMLDivElement | null = null;
+  private priorityControl: HudSegmentedControl<'low' | 'medium' | 'high'> | null =
+    null;
+  private scaleControl: HudSegmentedControl<GoalScale> | null = null;
+
   constructor(
     private element: TaskElement | StoryElement | GoalElement,
     private scene: Scene
   ) {}
 
   public show(): void {
+    this.destroyControls();
+
     const typeLabel =
       this.element instanceof TaskElement
         ? 'Task'
@@ -64,12 +74,13 @@ export class EditElementModal {
 
     // Title input with label
     const titleDiv = document.createElement('div');
-    titleDiv.className = 'mb-4';
+    titleDiv.className = 'mb-4 space-y-1.5';
     const titleLabel = document.createElement('label');
-    titleLabel.className = 'block text-sm font-medium text-gray-700';
+    titleLabel.className = 'block text-sm font-medium text-slate-600';
     titleLabel.textContent = 'Title';
     titleDiv.appendChild(titleLabel);
     const titleInput = ComponentFactory.createInput({
+      variant: 'default',
       value: tempTitle,
       onChange: (v: string) => {
         tempTitle = v;
@@ -83,30 +94,32 @@ export class EditElementModal {
 
     // Description textarea with label
     const descDiv = document.createElement('div');
-    descDiv.className = 'mb-4';
+    descDiv.className = 'mb-4 space-y-1.5';
     const descLabel = document.createElement('label');
-    descLabel.className = 'block text-sm font-medium text-gray-700';
+    descLabel.className = 'block text-sm font-medium text-slate-600';
     descLabel.textContent = 'Description';
     descDiv.appendChild(descLabel);
-    const descTextarea = document.createElement('textarea');
-    descTextarea.value = tempDescription;
-    descTextarea.className = 'w-full border rounded p-2';
-    descTextarea.rows = 3;
-    descTextarea.addEventListener('input', (e) => {
-      tempDescription = (e.target as HTMLTextAreaElement).value;
+    const descTextarea = ComponentFactory.createTextarea({
+      variant: 'default',
+      value: tempDescription,
+      rows: 3,
+      onInput: (value: string) => {
+        tempDescription = value;
+      },
+      className: 'w-full',
     });
-    descDiv.appendChild(descTextarea);
+    descTextarea.render(descDiv);
     container.appendChild(descDiv);
 
     // Status dropdown with label
     const statusDiv = document.createElement('div');
-    statusDiv.className = 'mb-4';
+    statusDiv.className = 'mb-4 space-y-1.5';
     const statusLabelEl = document.createElement('label');
-    statusLabelEl.className = 'block text-sm font-medium text-gray-700';
+    statusLabelEl.className = 'block text-sm font-medium text-slate-600';
     statusLabelEl.textContent = 'Status';
     statusDiv.appendChild(statusLabelEl);
-    // TODO: replace Select with ToggleSwitch component
     const statusSelect = ComponentFactory.createSelect({
+      variant: 'default',
       items: ELEMENT_STATUS_OPTIONS,
       selectedValue: tempStatus,
       onChange: (v: string) => {
@@ -117,38 +130,39 @@ export class EditElementModal {
     statusSelect.render(statusDiv);
     container.appendChild(statusDiv);
 
-    // Priority dropdown with label
+    // Priority segmented control with label
     const priorityDiv = document.createElement('div');
-    priorityDiv.className = 'mb-4';
+    priorityDiv.className = 'mb-4 space-y-1.5';
     const priorityLabelEl = document.createElement('label');
-    priorityLabelEl.className = 'block text-sm font-medium text-gray-700';
+    priorityLabelEl.className = 'block text-sm font-medium text-slate-600';
     priorityLabelEl.textContent = 'Priority';
     priorityDiv.appendChild(priorityLabelEl);
-    // TODO: replace Select with ToggleSwitch component
-    // TODO: use correct priority values (create a new enum for priority)
-    const prioritySelect = ComponentFactory.createSelect({
-      items: [
-        { value: 'low', label: 'Low' },
-        { value: 'medium', label: 'Medium' },
-        { value: 'high', label: 'High' },
+    this.priorityControl = createHudSegmentedControl({
+      size: 'md',
+      fullWidth: true,
+      ariaLabel: 'Priority',
+      options: [
+        { id: 'priority-low', value: 'low', label: 'Low' },
+        { id: 'priority-medium', value: 'medium', label: 'Medium' },
+        { id: 'priority-high', value: 'high', label: 'High' },
       ],
-      selectedValue: tempPriority,
-      onChange: (v: string) => {
-        tempPriority = v as 'low' | 'medium' | 'high';
+      value: tempPriority,
+      onChange: (value) => {
+        tempPriority = value;
       },
-      className: 'w-full',
     });
-    prioritySelect.render(priorityDiv);
+    priorityDiv.appendChild(this.priorityControl.element);
     container.appendChild(priorityDiv);
 
     if (isTask) {
       const dueDateDiv = document.createElement('div');
-      dueDateDiv.className = 'mb-4';
+      dueDateDiv.className = 'mb-4 space-y-1.5';
       const dueDateLabelEl = document.createElement('label');
-      dueDateLabelEl.className = 'block text-sm font-medium text-gray-700';
+      dueDateLabelEl.className = 'block text-sm font-medium text-slate-600';
       dueDateLabelEl.textContent = 'Due date';
       dueDateDiv.appendChild(dueDateLabelEl);
       const dueDateInput = ComponentFactory.createInput({
+        variant: 'default',
         value: tempDueDateValue,
         onChange: (v: string) => {
           tempDueDateValue = v;
@@ -162,24 +176,26 @@ export class EditElementModal {
 
     if (isGoal) {
       const scaleDiv = document.createElement('div');
-      scaleDiv.className = 'mb-4';
+      scaleDiv.className = 'mb-4 space-y-1.5';
       const scaleLabelEl = document.createElement('label');
-      scaleLabelEl.className = 'block text-sm font-medium text-gray-700';
-      scaleLabelEl.textContent = 'Масштаб';
+      scaleLabelEl.className = 'block text-sm font-medium text-slate-600';
+      scaleLabelEl.textContent = 'Scale';
       scaleDiv.appendChild(scaleLabelEl);
-      const scaleSelect = ComponentFactory.createSelect({
-        items: [
-          { value: '1', label: 'Малий' },
-          { value: '2', label: 'Середній' },
-          { value: '3', label: 'Великий' },
+      this.scaleControl = createHudSegmentedControl({
+        size: 'md',
+        fullWidth: true,
+        ariaLabel: 'Scale',
+        options: [
+          { id: 'scale-small', value: 1, label: 'Small' },
+          { id: 'scale-medium', value: 2, label: 'Medium' },
+          { id: 'scale-large', value: 3, label: 'Large' },
         ],
-        selectedValue: tempScale.toString(),
-        onChange: (v: string) => {
-          tempScale = Number(v) as GoalScale;
+        value: tempScale,
+        onChange: (value) => {
+          tempScale = value;
         },
-        className: 'w-full',
       });
-      scaleSelect.render(scaleDiv);
+      scaleDiv.appendChild(this.scaleControl.element);
       container.appendChild(scaleDiv);
     }
 
@@ -267,10 +283,18 @@ export class EditElementModal {
   }
 
   private close(): void {
+    this.destroyControls();
     if (this.modal) {
       // Use remove() to trigger modalService.unregister()
       this.modal.remove();
       this.modal = null;
     }
+  }
+
+  private destroyControls(): void {
+    this.priorityControl?.destroy();
+    this.priorityControl = null;
+    this.scaleControl?.destroy();
+    this.scaleControl = null;
   }
 }

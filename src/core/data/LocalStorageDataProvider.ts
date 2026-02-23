@@ -14,7 +14,7 @@ const STORIES_KEY = 'canvas-stories';
 const VIEW_KEY = 'canvas-view';
 const GOALS_KEY = 'canvas-goals';
 
-const DEFAULT_VIEW_STATE: IViewState = { scrollX: 0, scrollY: 0, scale: 1.4 };
+const DEFAULT_VIEW_STATE: IViewState = { scrollX: 20000, scrollY: 12000, scale: 1 };
 const CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 14;
 const VIEW_TTL_MS = 1000 * 60 * 60 * 24 * 30;
 

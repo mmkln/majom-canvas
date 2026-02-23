@@ -39,9 +39,10 @@ export class SearchSelect extends Component<SearchSelectProps> {
       : '';
 
     this.filterInput = ComponentFactory.createInput({
+      variant: 'default',
       value: initialLabel,
       placeholder: this.props.placeholder ?? 'Search items...',
-      onChange: (value: string) => this.filterItems(value),
+      onInput: (value: string) => this.filterItems(value),
     });
 
     // If a selectedValue is provided, filter list to that item

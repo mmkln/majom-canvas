@@ -1,11 +1,11 @@
 import {
   createHudDropdownItem,
+  createHudInput,
   createHudIconButton,
   createHudTextButton,
   HudDropdown,
   createHudSurface,
 } from '../primitives/index.ts';
-import { HUD_INLINE_INPUT_CLASS } from '../primitives/hudClassNames.ts';
 import { createIcon } from '../icons.ts';
 
 type CanvasItem = { id: string; name: string };
@@ -166,10 +166,11 @@ export class CanvasBoardSelector {
   private startTitleEdit(): void {
     if (this.isEditingTitle) return;
     this.isEditingTitle = true;
-    this.titleInput = document.createElement('input');
-    this.titleInput.type = 'text';
-    this.titleInput.value = this.currentTitle;
-    this.titleInput.className = HUD_INLINE_INPUT_CLASS;
+    this.titleInput = createHudInput({
+      variant: 'inline',
+      value: this.currentTitle,
+      type: 'text',
+    });
     this.titleWrap.replaceChild(this.titleInput, this.titleText);
     this.titleInput.focus();
     this.titleInput.select();

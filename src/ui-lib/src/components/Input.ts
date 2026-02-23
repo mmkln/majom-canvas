@@ -7,9 +7,12 @@ export interface InputProps {
   value?: string;
   placeholder?: string;
   className?: string;
+  variant?: 'default' | 'inline';
   type?: string;
+  onInput?: (value: string) => void;
   onChange?: (value: string) => void;
   disabled?: boolean;
+  invalid?: boolean;
   name?: string;
   id?: string;
   autoFocus?: boolean;
@@ -21,10 +24,13 @@ export interface InputProps {
 }
 
 export class Input extends Component<InputProps> {
-  private changeEmitter = new EventEmitter<string>();
+  private inputEmitter = new EventEmitter<string>();
 
   constructor(props: InputProps) {
     super(props);
+    if (props.onInput) {
+      this.onInput(props.onInput);
+    }
     if (props.onChange) {
       this.onChange(props.onChange);
     }
@@ -46,29 +52,47 @@ export class Input extends Component<InputProps> {
     if (this.props.maxLength !== undefined)
       input.maxLength = this.props.maxLength;
     if (this.props.pattern) input.pattern = this.props.pattern;
+    if (this.props.invalid) {
+      input.setAttribute('aria-invalid', 'true');
+    }
 
     input.addEventListener('input', () => {
-      this.changeEmitter.emit(input.value);
+      this.inputEmitter.emit(input.value);
     });
 
-    // Tailwind base styles for input (matching modern UI/UX)
+    const variant = this.props.variant ?? 'default';
     const baseStyles = [
-      'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background',
-      'placeholder:text-muted-foreground',
-      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-      'disabled:cursor-not-allowed disabled:opacity-50',
+      'w-full outline-none transition-colors',
+      'disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400',
+      'aria-[invalid=true]:border-rose-300 aria-[invalid=true]:bg-rose-50 aria-[invalid=true]:ring-rose-100',
     ].join(' ');
-    input.className = twMerge(baseStyles, this.props.className || '');
+    const variantStyles: Record<'default' | 'inline', string> = {
+      default:
+        'h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-200',
+      inline:
+        'h-[34px] rounded-lg border border-indigo-200/70 bg-indigo-50/70 px-3 text-sm font-semibold text-indigo-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] focus:border-indigo-300 focus:bg-white focus:ring-2 focus:ring-indigo-100',
+    };
+    input.className = twMerge(
+      baseStyles,
+      variantStyles[variant],
+      this.props.className || ''
+    );
 
     return input;
   }
 
+  public onInput(listener: (value: string) => void): void {
+    this.inputEmitter.on(listener);
+  }
+
   public onChange(listener: (value: string) => void): void {
-    this.changeEmitter.on(listener);
+    this.inputEmitter.on(listener);
   }
 
   public setValue(value: string): void {
-    this.updateProps({ value });
+    this.props = { ...this.props, value };
+    const input = this.element as HTMLInputElement;
+    input.value = value;
   }
 
   public getValue(): string {

@@ -13,7 +13,7 @@ export type RenderFlags = {
 export class PanZoomManager {
   scrollX: number = 0;
   scrollY: number = 0;
-  scale: number = 1.4;
+  scale: number = 1.25;
   // Virtual content dimensions (can be adjusted or passed in)
   virtualWidth: number = 40000;
   virtualHeight: number = 24000;

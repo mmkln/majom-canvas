@@ -1,14 +1,15 @@
 import { LoginCredentials } from '../../majom-wrapper/interfaces/auth-interfaces.ts';
-import { createHudTextButton, type HudTextButtonElement } from '../primitives/index.ts';
+import {
+  createHudInput,
+  createHudTextButton,
+  type HudTextButtonElement,
+} from '../primitives/index.ts';
 import type { LoginSubmitResult } from '../auth/AuthController.ts';
 
 type LoginPageOptions = {
   title?: string;
   onSubmit: (credentials: LoginCredentials) => Promise<LoginSubmitResult>;
 };
-
-const LOGIN_INPUT_CLASS =
-  'h-11 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-200';
 
 export class LoginPage {
   private readonly root: HTMLDivElement;
@@ -49,13 +50,14 @@ export class LoginPage {
     usernameLabel.className = 'block text-sm font-medium text-slate-600';
     usernameLabel.htmlFor = 'canvas-login-username';
     usernameLabel.textContent = 'Username';
-    this.usernameInput = document.createElement('input');
-    this.usernameInput.id = 'canvas-login-username';
-    this.usernameInput.name = 'username';
-    this.usernameInput.type = 'text';
-    this.usernameInput.autocomplete = 'username';
-    this.usernameInput.placeholder = 'Enter username';
-    this.usernameInput.className = LOGIN_INPUT_CLASS;
+    this.usernameInput = createHudInput({
+      id: 'canvas-login-username',
+      name: 'username',
+      type: 'text',
+      autoComplete: 'username',
+      placeholder: 'Enter username',
+      variant: 'default',
+    });
     this.usernameError = document.createElement('p');
     this.usernameError.className = 'hidden text-xs font-medium text-rose-600';
     usernameWrap.append(usernameLabel, this.usernameInput, this.usernameError);
@@ -68,13 +70,15 @@ export class LoginPage {
     passwordLabel.textContent = 'Password';
     const passwordInputRow = document.createElement('div');
     passwordInputRow.className = 'relative';
-    this.passwordInput = document.createElement('input');
-    this.passwordInput.id = 'canvas-login-password';
-    this.passwordInput.name = 'password';
-    this.passwordInput.type = 'password';
-    this.passwordInput.autocomplete = 'current-password';
-    this.passwordInput.placeholder = 'Enter password';
-    this.passwordInput.className = `${LOGIN_INPUT_CLASS} pr-14`;
+    this.passwordInput = createHudInput({
+      id: 'canvas-login-password',
+      name: 'password',
+      type: 'password',
+      autoComplete: 'current-password',
+      placeholder: 'Enter password',
+      variant: 'default',
+      className: 'pr-14',
+    });
     this.togglePasswordButton = document.createElement('button');
     this.togglePasswordButton.type = 'button';
     this.togglePasswordButton.className =

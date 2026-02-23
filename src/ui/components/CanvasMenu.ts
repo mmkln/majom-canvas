@@ -54,7 +54,7 @@ export class CanvasMenu {
     this.dropdownMenu = createHudSurface({
       elevated: true,
       className:
-        'absolute right-0 top-[calc(100%+4px)] z-30 hidden w-72 overflow-hidden',
+        'absolute right-[-10px] top-full mt-3.5 z-30 hidden w-72 overflow-hidden',
     });
 
     this.deleteCanvasButton = createHudDropdownItem({

@@ -1,6 +1,7 @@
 // src/core/ComponentFactory.ts
 import { Button, ButtonProps } from '../components/Button.ts';
 import { Input, InputProps } from '../components/Input.ts';
+import { Textarea, TextareaProps } from '../components/Textarea.ts';
 import { Checkbox, CheckboxProps } from '../components/Checkbox.ts';
 import { SearchSelect, SearchSelectProps } from '../components/SearchSelect.js';
 import { Select, SelectProps } from '../components/Select.ts';
@@ -13,6 +14,10 @@ export class ComponentFactory {
 
   static createInput(props: InputProps): Input {
     return new Input(props);
+  }
+
+  static createTextarea(props: TextareaProps): Textarea {
+    return new Textarea(props);
   }
 
   static createCheckbox(props: CheckboxProps): Checkbox {

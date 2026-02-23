@@ -9,7 +9,10 @@ export interface SelectItem {
 export interface SelectProps {
   items: SelectItem[];
   className?: string;
+  variant?: 'default' | 'inline';
   selectedValue?: string;
+  disabled?: boolean;
+  invalid?: boolean;
   onChange?: (value: string) => void;
 }
 
@@ -20,13 +23,29 @@ export class Select extends Component<SelectProps> {
 
   protected createElement(): HTMLElement {
     const select = document.createElement('select');
-    // Apply default Button-like Tailwind styles + user classes
+    if (this.props.disabled) {
+      select.disabled = true;
+    }
+    if (this.props.invalid) {
+      select.setAttribute('aria-invalid', 'true');
+    }
+    const variant = this.props.variant ?? 'default';
     const baseStyles = [
-      'appearance-none inline-flex items-center justify-between w-full gap-2 whitespace-nowrap rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground ring-offset-background transition-colors cursor-pointer',
-      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-      'disabled:pointer-events-none disabled:opacity-50',
+      'w-full cursor-pointer outline-none transition-colors',
+      'disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400',
+      'aria-[invalid=true]:border-rose-300 aria-[invalid=true]:bg-rose-50 aria-[invalid=true]:ring-rose-100',
     ].join(' ');
-    select.className = twMerge(baseStyles, this.props.className ?? '');
+    const variantStyles: Record<'default' | 'inline', string> = {
+      default:
+        'h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-200',
+      inline:
+        'h-[34px] rounded-lg border border-indigo-200/70 bg-indigo-50/70 px-3 text-sm font-semibold text-indigo-700 focus:border-indigo-300 focus:bg-white focus:ring-2 focus:ring-indigo-100',
+    };
+    select.className = twMerge(
+      baseStyles,
+      variantStyles[variant],
+      this.props.className ?? ''
+    );
     this.props.items.forEach((item) => {
       const opt = document.createElement('option');
       opt.value = item.value;

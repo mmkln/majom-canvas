@@ -24,4 +24,15 @@ export {
   type HudDropdownItemTone,
   type HudMenuItemVariant,
 } from './HudDropdownItem.ts';
+export {
+  createHudInput,
+  setHudInputState,
+  type HudInputVariant,
+} from './HudInput.ts';
+export {
+  createHudSegmentedControl,
+  HudSegmentedControl,
+  type HudSegmentedControlOption,
+  type HudSegmentedControlSize,
+} from './HudSegmentedControl.ts';
 export { createHudSurface } from './HudSurface.ts';
