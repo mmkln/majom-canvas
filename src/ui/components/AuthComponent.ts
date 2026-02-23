@@ -65,6 +65,7 @@ export class AuthComponent {
     this.logoutButton = createHudDropdownItem({
       label: 'Logout',
       tone: 'danger',
+      className: 'font-medium',
     });
     this.logoutButton.addEventListener('click', () => this.handleLogout());
 
@@ -75,8 +76,6 @@ export class AuthComponent {
     // Build user details section
     this.buildUserDetailsSection();
     
-    // Add logout button
-    this.dropdownMenu.appendChild(this.logoutButton);
     this.avatarContainer.appendChild(this.dropdownMenu);
 
     this.showLoginModalHandler = () => this.showLoginModal(true);
@@ -173,49 +172,35 @@ export class AuthComponent {
     this.dropdownMenu.innerHTML = '';
 
     if (this.currentUser) {
-      const userDetailsDiv = document.createElement('div');
-      userDetailsDiv.className = 'mx-2 mt-2 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-3';
-
       const userInfoDiv = document.createElement('div');
-      userInfoDiv.className = 'flex items-center gap-3';
+      userInfoDiv.className = 'flex items-center gap-3 px-3 py-3';
 
       const avatar = document.createElement('img');
       avatar.src = 'https://cdn.thegreatprojects.com/thegreatprojects/images/c/c/c/d/9/cccd9ab3a8832417497e233c1cb92b9e.jpg?width=364&height=364&format=jpg';
       avatar.alt = 'User Avatar';
-      avatar.className = 'w-8 h-8 rounded-full';
+      avatar.className = 'h-8 w-8 rounded-full';
 
       const userTextDiv = document.createElement('div');
-      userTextDiv.className = 'flex-1';
+      userTextDiv.className = 'min-w-0 flex-1';
 
       const userName = document.createElement('div');
-      userName.className = 'text-sm font-semibold text-slate-900';
+      userName.className = 'truncate text-sm font-semibold leading-5 text-slate-900';
       userName.textContent = this.currentUser.username;
 
       const userEmail = document.createElement('div');
-      userEmail.className = 'text-xs text-slate-500';
+      userEmail.className = 'truncate text-[13px] leading-5 text-slate-500';
       userEmail.textContent = this.currentUser.email;
 
       userTextDiv.appendChild(userName);
       userTextDiv.appendChild(userEmail);
       userInfoDiv.appendChild(avatar);
       userInfoDiv.appendChild(userTextDiv);
-      userDetailsDiv.appendChild(userInfoDiv);
+      this.dropdownMenu.appendChild(userInfoDiv);
 
-      const additionalInfoDiv = document.createElement('div');
-      additionalInfoDiv.className = 'mt-2 space-y-1 text-xs text-slate-600';
-      additionalInfoDiv.innerHTML = `
-        <div>ID: ${this.currentUser.id}</div>
-        <div>Language: ${this.currentUser.language}</div>
-        ${this.currentUser.deletion_requested_at ? '<div class="text-red-500">Deletion requested</div>' : ''}
-      `;
-      userDetailsDiv.appendChild(additionalInfoDiv);
-
-      this.dropdownMenu.appendChild(userDetailsDiv);
+      const divider = document.createElement('div');
+      divider.className = 'mx-2 border-t border-slate-200/80';
+      this.dropdownMenu.appendChild(divider);
     }
-
-    const divider = document.createElement('div');
-    divider.className = 'mx-2 border-t border-slate-100';
-    this.dropdownMenu.appendChild(divider);
 
     this.dropdownMenu.appendChild(logoutButton);
   }
