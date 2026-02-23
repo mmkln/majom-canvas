@@ -6,6 +6,13 @@ import {
   type ExistingPickerDropCompletedDetail,
   type ExistingPickerKind,
 } from '../events/existingPickerEvents.ts';
+import {
+  createHudDivider,
+  createHudIconButton,
+  createHudInput,
+  createHudSurface,
+  createHudTextButton,
+} from '../primitives/index.ts';
 
 export type ExistingPickerPage<TItem> = {
   items: TItem[];
@@ -40,6 +47,7 @@ export class ExistingEntityPicker<TItem> {
   private header: HTMLDivElement | null = null;
   private searchInput: HTMLInputElement | null = null;
   private list: HTMLDivElement | null = null;
+  private footerDivider: HTMLDivElement | null = null;
   private footer: HTMLDivElement | null = null;
   private compactPanel: HTMLDivElement | null = null;
   private listScrollHandler: ((event: Event) => void) | null = null;
@@ -75,14 +83,15 @@ export class ExistingEntityPicker<TItem> {
     this.activeOptions = options;
 
     const backdrop = document.createElement('div');
-    backdrop.className = 'fixed inset-0 bg-black/12';
+    backdrop.className = 'fixed inset-0 bg-slate-950/10';
     backdrop.style.zIndex = '55';
     backdrop.style.pointerEvents = 'none';
 
-    const container = document.createElement('div');
-    container.className =
-      'fixed right-0 top-0 h-full w-[520px] max-w-[96vw] border-l border-gray-200 bg-white shadow-2xl text-sm text-gray-800';
-    container.style.padding = '16px 14px 12px 14px';
+    const container = createHudSurface({
+      elevated: true,
+      className:
+        'fixed right-0 top-0 h-full w-[520px] max-w-[96vw] rounded-none rounded-l-2xl p-3 text-sm text-slate-700',
+    });
     container.style.display = 'flex';
     container.style.flexDirection = 'column';
     container.style.gap = '0';
@@ -90,51 +99,61 @@ export class ExistingEntityPicker<TItem> {
     container.style.transition = 'width 140ms ease, padding 140ms ease';
 
     const header = document.createElement('div');
-    header.className = 'mb-3 flex items-center justify-between';
+    header.className = 'mb-2 flex items-center justify-between gap-2 px-1';
     const title = document.createElement('div');
-    title.className = 'text-base font-semibold text-gray-900';
+    title.className = 'truncate text-sm font-semibold text-slate-900';
     title.textContent = this.config.drawerTitle;
 
-    const closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.className =
-      'rounded px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-700';
-    closeBtn.textContent = 'Close';
+    const closeBtn = createHudIconButton({
+      icon: 'x-mark',
+      size: 'sm',
+      tone: 'text',
+      title: 'Close',
+      ariaLabel: 'Close picker',
+    });
     closeBtn.addEventListener('click', () => this.close());
     header.append(title, closeBtn);
 
-    const searchInput = document.createElement('input');
-    searchInput.type = 'search';
-    searchInput.placeholder = this.config.searchPlaceholder;
-    searchInput.className =
-      'mb-3 w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-blue-300 focus:outline-none';
+    const searchInput = createHudInput({
+      type: 'search',
+      placeholder: this.config.searchPlaceholder,
+      className: 'mb-2 h-10',
+    });
 
     const list = document.createElement('div');
     list.className = 'min-h-0 flex-1 overflow-auto pr-1';
 
+    const footerDivider = createHudDivider({ inset: false, tone: 'soft' });
     const footer = document.createElement('div');
-    footer.className = 'border-t border-gray-100 pt-2';
+    footer.className = 'pt-2';
 
     const compactPanel = document.createElement('div');
     compactPanel.className =
-      'hidden h-full flex-col items-center justify-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-2 py-3 text-center';
+      'hidden h-full flex-col items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 py-3 text-center';
     compactPanel.style.display = 'none';
     const compactTitle = document.createElement('div');
     compactTitle.className =
-      'text-[10px] font-semibold uppercase tracking-wide text-gray-600';
+      'text-[10px] font-medium uppercase tracking-[0.06em] text-slate-500';
     compactTitle.textContent = 'Picker minimized';
     const compactHint = document.createElement('div');
-    compactHint.className = 'text-[10px] text-gray-500';
+    compactHint.className = 'text-[11px] text-slate-500';
     compactHint.textContent = `Drop ${this.config.itemLabel.toLowerCase()} on canvas`;
-    const expandBtn = document.createElement('button');
-    expandBtn.type = 'button';
-    expandBtn.className =
-      'rounded border border-gray-300 bg-white px-2 py-1 text-[10px] text-gray-700 hover:bg-gray-100';
-    expandBtn.textContent = 'Expand';
+    const expandBtn = createHudTextButton({
+      text: 'Expand',
+      tone: 'soft',
+      className: 'px-2 py-1 text-[11px] font-medium',
+    });
     expandBtn.addEventListener('click', () => this.setViewMode('full'));
     compactPanel.append(compactTitle, compactHint, expandBtn);
 
-    container.append(header, searchInput, list, footer, compactPanel);
+    container.append(
+      header,
+      searchInput,
+      footerDivider,
+      list,
+      footer,
+      compactPanel
+    );
     document.body.appendChild(backdrop);
     document.body.appendChild(container);
 
@@ -143,6 +162,7 @@ export class ExistingEntityPicker<TItem> {
     this.header = header;
     this.searchInput = searchInput;
     this.list = list;
+    this.footerDivider = footerDivider;
     this.footer = footer;
     this.compactPanel = compactPanel;
     this.listScrollHandler = () => this.maybeAutoLoadMore();
@@ -211,6 +231,7 @@ export class ExistingEntityPicker<TItem> {
     this.header = null;
     this.searchInput = null;
     this.list = null;
+    this.footerDivider = null;
     this.footer = null;
     this.compactPanel = null;
     this.listScrollHandler = null;
@@ -288,9 +309,15 @@ export class ExistingEntityPicker<TItem> {
       const onCanvas = this.activeOptions?.isOnCanvas(item) ?? false;
       const row = document.createElement('div');
       row.className =
-        'mb-2 cursor-pointer rounded-lg border px-3 py-2 transition-colors hover:bg-gray-50';
-      row.style.borderColor = onCanvas ? '#bbf7d0' : '#e5e7eb';
-      row.style.background = onCanvas ? '#f0fdf4' : '#ffffff';
+        'mb-2 cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200';
+      if (onCanvas) {
+        row.classList.remove('border-slate-200', 'bg-white', 'hover:bg-slate-50');
+        row.classList.add(
+          'border-emerald-200',
+          'bg-emerald-50/60',
+          'hover:bg-emerald-50'
+        );
+      }
       row.setAttribute('role', 'button');
       row.tabIndex = 0;
       row.draggable = true;
@@ -359,25 +386,24 @@ export class ExistingEntityPicker<TItem> {
       const textWrap = document.createElement('div');
       textWrap.className = 'min-w-0 flex-1';
       const title = document.createElement('div');
-      title.className = 'truncate text-[15px] font-semibold leading-5 text-gray-900';
+      title.className =
+        'truncate text-[14px] font-semibold leading-5 text-slate-900';
       title.textContent = this.config.getTitle(item) || `Untitled ${this.config.itemLabel.toLowerCase()}`;
       textWrap.appendChild(title);
 
       if (onCanvas) {
         const badge = document.createElement('span');
         badge.className =
-          'inline-block rounded bg-green-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-700';
+          'mt-0.5 inline-flex w-fit rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.06em] text-emerald-700';
         badge.textContent = this.config.onCanvasLabel ?? 'On canvas';
         textWrap.appendChild(badge);
       }
 
-      const actionBtn = document.createElement('button');
-      actionBtn.type = 'button';
-      actionBtn.className =
-        'shrink-0 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-100';
-      actionBtn.textContent = onCanvas
-        ? (this.config.findLabel ?? 'Find')
-        : (this.config.addLabel ?? 'Add');
+      const actionBtn = createHudTextButton({
+        text: onCanvas ? (this.config.findLabel ?? 'Find') : (this.config.addLabel ?? 'Add'),
+        tone: onCanvas ? 'text' : 'soft',
+        className: 'h-7 px-2 py-1 text-xs font-medium',
+      });
       actionBtn.addEventListener('click', (event: MouseEvent) => {
         event.stopPropagation();
         handlePick(true);
@@ -387,7 +413,7 @@ export class ExistingEntityPicker<TItem> {
 
       const meta = document.createElement('div');
       meta.className =
-        'mt-1 flex items-center gap-2 overflow-hidden text-[11px] text-gray-500';
+        'mt-1 flex items-center gap-2 overflow-hidden text-[11px] text-slate-500';
 
       const statusValue = this.config.getStatus?.(item);
       if (statusValue !== undefined && statusValue !== null) {
@@ -409,7 +435,7 @@ export class ExistingEntityPicker<TItem> {
       const updatedAt = this.getUpdatedAtLabel(updatedAtValue);
       if (updatedAt) {
         const updated = document.createElement('span');
-        updated.className = 'truncate text-[11px] text-gray-500';
+        updated.className = 'truncate text-[11px] text-slate-500';
         updated.textContent = `Updated ${updatedAt}`;
         meta.appendChild(updated);
       }
@@ -424,7 +450,7 @@ export class ExistingEntityPicker<TItem> {
       );
       if (shortDescription.length > 0) {
         const description = document.createElement('div');
-        description.className = 'mt-1 truncate text-xs text-gray-600';
+        description.className = 'mt-1 truncate text-xs text-slate-600';
         description.textContent = shortDescription;
         row.appendChild(description);
       }
@@ -436,6 +462,9 @@ export class ExistingEntityPicker<TItem> {
   private renderFooter(): void {
     if (!this.footer || !this.activeOptions) return;
     this.footer.innerHTML = '';
+    if (this.footerDivider) {
+      this.footerDivider.style.display = 'none';
+    }
     if (this.items.length === 0 && !this.hasMore && !this.loadMoreError) {
       return;
     }
@@ -443,32 +472,37 @@ export class ExistingEntityPicker<TItem> {
     if (this.hasMore || this.loadMoreError) {
       if (!this.loadMoreError) {
         const hint = document.createElement('div');
-        hint.className = 'px-1 text-[11px] text-gray-400';
+        hint.className = 'px-1 text-[11px] text-slate-400';
         hint.textContent = this.isLoading
           ? 'Loading more...'
           : 'Scroll down to load more';
         this.footer.appendChild(hint);
+        if (this.footerDivider) {
+          this.footerDivider.style.display = '';
+        }
         return;
       }
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className =
-        'w-full rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60';
-      button.disabled = this.isLoading;
-      button.textContent = this.loadMoreError
-        ? 'Retry load more'
-        : this.isLoading
-          ? 'Loading...'
-          : 'Load more';
-      button.addEventListener('click', () => this.loadMore());
-      this.footer.appendChild(button);
+      const retryBtn = createHudTextButton({
+        text: this.loadMoreError ? 'Retry load more' : 'Load more',
+        tone: 'soft',
+        disabled: this.isLoading,
+        className: 'w-full justify-center px-2 py-1 text-xs',
+        onClick: () => this.loadMore(),
+      });
+      this.footer.appendChild(retryBtn);
+      if (this.footerDivider) {
+        this.footerDivider.style.display = '';
+      }
       return;
     }
 
     const summary = document.createElement('div');
-    summary.className = 'px-1 text-[11px] text-gray-400';
+    summary.className = 'px-1 text-[11px] text-slate-400';
     summary.textContent = `Loaded ${this.items.length} items`;
     this.footer.appendChild(summary);
+    if (this.footerDivider) {
+      this.footerDivider.style.display = '';
+    }
   }
 
   private maybeAutoLoadMore(): void {
@@ -486,60 +520,49 @@ export class ExistingEntityPicker<TItem> {
     if (!this.list) return;
     this.list.innerHTML = '';
     const row = document.createElement('div');
-    row.className = 'px-1 py-4 text-center text-xs text-gray-500';
+    row.className = 'px-1 py-4 text-center text-xs text-slate-500';
     row.textContent = message;
     this.list.appendChild(row);
   }
 
   private createChip(
     label: string,
-    palette: { bg: string; border: string; text: string }
+    palette: string
   ): HTMLSpanElement {
     const chip = document.createElement('span');
     chip.className =
-      'inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide';
+      `inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.06em] ${palette}`.trim();
     chip.textContent = label;
-    chip.style.background = palette.bg;
-    chip.style.borderColor = palette.border;
-    chip.style.color = palette.text;
     return chip;
   }
 
-  private getStatusChipPalette(status: unknown): {
-    bg: string;
-    border: string;
-    text: string;
-  } {
+  private getStatusChipPalette(status: unknown): string {
     const normalized = typeof status === 'string' ? status.toLowerCase() : '';
     if (normalized.includes('done')) {
-      return { bg: '#dcfce7', border: '#86efac', text: '#166534' };
+      return 'border-emerald-200 bg-emerald-100 text-emerald-700';
     }
     if (normalized.includes('progress')) {
-      return { bg: '#dbeafe', border: '#93c5fd', text: '#1d4ed8' };
+      return 'border-blue-200 bg-blue-100 text-blue-700';
     }
     if (normalized.includes('pending')) {
-      return { bg: '#fef3c7', border: '#fcd34d', text: '#b45309' };
+      return 'border-amber-200 bg-amber-100 text-amber-700';
     }
-    return { bg: '#f3f4f6', border: '#d1d5db', text: '#374151' };
+    return 'border-slate-200 bg-slate-100 text-slate-600';
   }
 
-  private getPriorityChipPalette(priority: unknown): {
-    bg: string;
-    border: string;
-    text: string;
-  } {
+  private getPriorityChipPalette(priority: unknown): string {
     const normalized =
       typeof priority === 'string' ? priority.toLowerCase() : '';
     if (normalized === 'high') {
-      return { bg: '#fee2e2', border: '#fca5a5', text: '#991b1b' };
+      return 'border-rose-200 bg-rose-100 text-rose-700';
     }
     if (normalized === 'medium') {
-      return { bg: '#ffedd5', border: '#fdba74', text: '#9a3412' };
+      return 'border-orange-200 bg-orange-100 text-orange-700';
     }
     if (normalized === 'low') {
-      return { bg: '#dcfce7', border: '#86efac', text: '#166534' };
+      return 'border-emerald-200 bg-emerald-100 text-emerald-700';
     }
-    return { bg: '#f3f4f6', border: '#d1d5db', text: '#374151' };
+    return 'border-slate-200 bg-slate-100 text-slate-600';
   }
 
   private formatEnum(value: unknown): string {
@@ -610,11 +633,14 @@ export class ExistingEntityPicker<TItem> {
       this.container.style.padding = '12px 8px';
       this.header.style.display = 'none';
       this.searchInput.style.display = 'none';
+      if (this.footerDivider) {
+        this.footerDivider.style.display = 'none';
+      }
       this.list.style.display = 'none';
       this.footer.style.display = 'none';
       this.compactPanel.style.display = 'flex';
       if (this.backdrop) {
-        this.backdrop.style.background = 'rgba(17, 24, 39, 0.05)';
+        this.backdrop.style.background = 'rgba(15, 23, 42, 0.06)';
       }
       return;
     }
@@ -623,6 +649,9 @@ export class ExistingEntityPicker<TItem> {
     this.container.style.padding = '16px 14px 12px 14px';
     this.header.style.display = '';
     this.searchInput.style.display = '';
+    if (this.footerDivider) {
+      this.footerDivider.style.display = '';
+    }
     this.list.style.display = '';
     this.footer.style.display = '';
     this.compactPanel.style.display = 'none';

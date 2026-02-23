@@ -21,6 +21,15 @@ import type {
   Goal,
 } from '../majom-wrapper/interfaces/index.ts';
 import { positionFixedElement } from './overlayPosition.ts';
+import {
+  createHudDivider,
+  createHudIconButton,
+  createHudInput,
+  createHudSegmentedControl,
+  createHudSurface,
+  createHudTextButton,
+  type HudSegmentedControl,
+} from './primitives/index.ts';
 
 type RelatedItem =
   | { kind: 'task'; value: PlatformTask }
@@ -35,8 +44,7 @@ export class RelatedItemsPicker {
   private readonly closeBtn: HTMLButtonElement;
   private readonly searchInput: HTMLInputElement;
   private readonly tabsRow: HTMLDivElement;
-  private readonly tasksTabBtn: HTMLButtonElement;
-  private readonly storiesTabBtn: HTMLButtonElement;
+  private readonly goalTabControl: HudSegmentedControl<GoalTab>;
   private readonly actionsRow: HTMLDivElement;
   private readonly addAllBtn: HTMLButtonElement;
   private readonly list: HTMLDivElement;
@@ -65,111 +73,75 @@ export class RelatedItemsPicker {
     this.storiesApi = new StoriesApiService(http);
     this.goalsApi = new GoalsApiService(http);
 
-    this.container = document.createElement('div');
+    this.container = createHudSurface({
+      elevated: true,
+      className:
+        'fixed z-[130] hidden w-[320px] max-w-[calc(100vw-1rem)] max-h-[320px] overflow-hidden p-2.5',
+    });
     this.container.style.position = 'fixed';
     this.container.style.display = 'none';
-    this.container.style.minWidth = '260px';
-    this.container.style.maxWidth = '320px';
     this.container.style.maxHeight = '320px';
-    this.container.style.background = 'white';
-    this.container.style.border = '1px solid #e5e7eb';
-    this.container.style.borderRadius = '12px';
-    this.container.style.boxShadow = '0 10px 30px rgba(0,0,0,0.15)';
-    this.container.style.padding = '10px';
-    this.container.style.zIndex = '130';
 
     this.header = document.createElement('div');
-    this.header.style.display = 'flex';
-    this.header.style.alignItems = 'center';
-    this.header.style.justifyContent = 'space-between';
-    this.header.style.marginBottom = '8px';
+    this.header.className = 'mb-2 flex items-center justify-between';
 
     this.titleEl = document.createElement('span');
     this.titleEl.textContent = 'Add related';
-    this.titleEl.style.fontWeight = '600';
-    this.titleEl.style.fontSize = '14px';
-    this.titleEl.style.color = '#111827';
+    this.titleEl.className = 'text-sm font-semibold text-slate-900';
 
-    this.closeBtn = document.createElement('button');
-    this.closeBtn.type = 'button';
-    this.closeBtn.textContent = 'x';
-    this.closeBtn.style.border = 'none';
-    this.closeBtn.style.background = 'transparent';
-    this.closeBtn.style.cursor = 'pointer';
-    this.closeBtn.style.fontSize = '14px';
-    this.closeBtn.style.color = '#6b7280';
-    this.closeBtn.addEventListener('click', () => this.hide());
+    this.closeBtn = createHudIconButton({
+      icon: 'x-mark',
+      size: 'sm',
+      tone: 'text',
+      title: 'Close',
+      ariaLabel: 'Close',
+      onClick: () => this.hide(),
+    });
 
     this.header.appendChild(this.titleEl);
     this.header.appendChild(this.closeBtn);
     this.container.appendChild(this.header);
 
-    this.searchInput = document.createElement('input');
-    this.searchInput.type = 'search';
-    this.searchInput.placeholder = 'Search...';
-    this.searchInput.style.width = '100%';
-    this.searchInput.style.border = '1px solid #e5e7eb';
-    this.searchInput.style.borderRadius = '8px';
-    this.searchInput.style.padding = '6px 8px';
-    this.searchInput.style.marginBottom = '8px';
+    this.searchInput = createHudInput({
+      type: 'search',
+      placeholder: 'Search...',
+      className: 'mb-2 h-9',
+    });
     this.searchInput.addEventListener('input', () => this.applyFilter());
     this.container.appendChild(this.searchInput);
 
+    this.container.appendChild(createHudDivider({ inset: false }));
+
     this.tabsRow = document.createElement('div');
-    this.tabsRow.style.display = 'none';
-    this.tabsRow.style.gap = '6px';
-    this.tabsRow.style.marginBottom = '8px';
-    this.tabsRow.style.alignItems = 'center';
-
-    this.tasksTabBtn = document.createElement('button');
-    this.tasksTabBtn.type = 'button';
-    this.tasksTabBtn.textContent = 'Tasks';
-    this.tasksTabBtn.style.border = '1px solid #e5e7eb';
-    this.tasksTabBtn.style.borderRadius = '6px';
-    this.tasksTabBtn.style.padding = '4px 8px';
-    this.tasksTabBtn.style.fontSize = '12px';
-    this.tasksTabBtn.style.cursor = 'pointer';
-    this.tasksTabBtn.addEventListener('click', () => this.setGoalTab('tasks'));
-
-    this.storiesTabBtn = document.createElement('button');
-    this.storiesTabBtn.type = 'button';
-    this.storiesTabBtn.textContent = 'Stories';
-    this.storiesTabBtn.style.border = '1px solid #e5e7eb';
-    this.storiesTabBtn.style.borderRadius = '6px';
-    this.storiesTabBtn.style.padding = '4px 8px';
-    this.storiesTabBtn.style.fontSize = '12px';
-    this.storiesTabBtn.style.cursor = 'pointer';
-    this.storiesTabBtn.addEventListener('click', () =>
-      this.setGoalTab('stories')
-    );
-
-    this.tabsRow.appendChild(this.tasksTabBtn);
-    this.tabsRow.appendChild(this.storiesTabBtn);
+    this.tabsRow.className = 'mb-2 mt-2 hidden';
+    this.goalTabControl = createHudSegmentedControl<GoalTab>({
+      size: 'sm',
+      fullWidth: true,
+      ariaLabel: 'Related item type',
+      options: [
+        { id: 'related-tab-tasks', value: 'tasks', label: 'Tasks' },
+        { id: 'related-tab-stories', value: 'stories', label: 'Stories' },
+      ],
+      value: this.activeGoalTab,
+      onChange: (tab) => this.setGoalTab(tab),
+    });
+    this.tabsRow.appendChild(this.goalTabControl.element);
     this.container.appendChild(this.tabsRow);
 
     this.actionsRow = document.createElement('div');
-    this.actionsRow.style.display = 'flex';
-    this.actionsRow.style.justifyContent = 'flex-end';
-    this.actionsRow.style.marginBottom = '8px';
+    this.actionsRow.className = 'mb-2 mt-1 flex justify-end';
 
-    this.addAllBtn = document.createElement('button');
-    this.addAllBtn.type = 'button';
-    this.addAllBtn.style.border = '1px solid #e5e7eb';
-    this.addAllBtn.style.background = 'white';
-    this.addAllBtn.style.borderRadius = '6px';
-    this.addAllBtn.style.padding = '4px 8px';
-    this.addAllBtn.style.fontSize = '12px';
-    this.addAllBtn.style.cursor = 'pointer';
-    this.addAllBtn.addEventListener('click', () => this.handleAddAllClick());
+    this.addAllBtn = createHudTextButton({
+      text: 'Add all',
+      tone: 'text',
+      className: 'px-2 py-1 text-xs font-medium',
+      onClick: () => this.handleAddAllClick(),
+    });
     this.actionsRow.appendChild(this.addAllBtn);
     this.container.appendChild(this.actionsRow);
 
     this.list = document.createElement('div');
-    this.list.style.display = 'flex';
-    this.list.style.flexDirection = 'column';
-    this.list.style.gap = '6px';
-    this.list.style.overflowY = 'auto';
-    this.list.style.maxHeight = '220px';
+    this.list.className = 'flex max-h-[220px] flex-col gap-2 overflow-y-auto pr-0.5';
     this.container.appendChild(this.list);
   }
 
@@ -207,6 +179,7 @@ export class RelatedItemsPicker {
       this.eventHandler = null;
     }
     this.detachOutsideHandler();
+    this.goalTabControl.destroy();
     this.container.remove();
   }
 
@@ -236,6 +209,7 @@ export class RelatedItemsPicker {
     this.visible = false;
     this.container.style.display = 'none';
     this.loading = false;
+    this.titleEl.textContent = 'Add related';
     this.activeElement = null;
     this.allItems = [];
     this.filteredItems = [];
@@ -527,8 +501,7 @@ export class RelatedItemsPicker {
     if (loading) {
       const row = document.createElement('div');
       row.textContent = 'Loading...';
-      row.style.color = '#6b7280';
-      row.style.fontSize = '13px';
+      row.className = 'px-2 py-2 text-sm text-slate-500';
       this.list.appendChild(row);
       return;
     }
@@ -538,44 +511,31 @@ export class RelatedItemsPicker {
     }
     this.filteredItems.forEach((item, idx) => {
       const row = document.createElement('div');
-      row.style.display = 'flex';
-      row.style.alignItems = 'center';
-      row.style.justifyContent = 'space-between';
-      row.style.padding = '6px 6px';
-      row.style.border = '1px solid #f3f4f6';
-      row.style.borderRadius = '8px';
-      row.style.background = '#fafafa';
+      row.className =
+        'flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5';
 
       const label = document.createElement('div');
-      label.style.display = 'flex';
-      label.style.flexDirection = 'column';
-      label.style.gap = '2px';
+      label.className = 'flex min-w-0 flex-col gap-0.5';
       const title = document.createElement('span');
       title.textContent = item.value.title;
-      title.style.fontSize = '13px';
-      title.style.fontWeight = '600';
+      title.className = 'truncate text-[13px] font-semibold text-slate-800';
       const meta = document.createElement('span');
       meta.textContent = item.value.description
         ? item.value.description
         : item.kind === 'task'
           ? `Task #${item.value.id}`
           : `Story #${item.value.id}`;
-      meta.style.fontSize = '11px';
-      meta.style.color = '#6b7280';
+      meta.className = 'truncate text-[11px] text-slate-500';
       label.appendChild(title);
       label.appendChild(meta);
 
-      const addBtn = document.createElement('button');
-      addBtn.type = 'button';
-      addBtn.textContent = 'Add';
-      addBtn.style.border = '1px solid #e5e7eb';
-      addBtn.style.background = 'white';
-      addBtn.style.borderRadius = '6px';
-      addBtn.style.padding = '4px 8px';
-      addBtn.style.cursor = 'pointer';
-      addBtn.style.fontSize = '12px';
-      addBtn.addEventListener('click', () => {
-        this.addItemToCanvas(item, idx);
+      const addBtn = createHudTextButton({
+        text: 'Add',
+        tone: 'soft',
+        className: 'px-2 py-1 text-xs font-semibold',
+        onClick: () => {
+          this.addItemToCanvas(item, idx);
+        },
       });
 
       row.appendChild(label);
@@ -588,8 +548,7 @@ export class RelatedItemsPicker {
     this.list.innerHTML = '';
     const row = document.createElement('div');
     row.textContent = message;
-    row.style.color = '#6b7280';
-    row.style.fontSize = '13px';
+    row.className = 'px-2 py-2 text-sm text-slate-500';
     this.list.appendChild(row);
   }
 
@@ -794,13 +753,9 @@ export class RelatedItemsPicker {
 
   private updateGoalTabsUi(): void {
     const isGoal = this.activeElement instanceof GoalElement;
-    this.tabsRow.style.display = isGoal ? 'flex' : 'none';
+    this.tabsRow.style.display = isGoal ? 'block' : 'none';
     if (!isGoal) return;
-    const tasksActive = this.activeGoalTab === 'tasks';
-    this.tasksTabBtn.style.background = tasksActive ? '#eef2ff' : 'white';
-    this.tasksTabBtn.style.borderColor = tasksActive ? '#c7d2fe' : '#e5e7eb';
-    this.storiesTabBtn.style.background = tasksActive ? 'white' : '#eef2ff';
-    this.storiesTabBtn.style.borderColor = tasksActive ? '#e5e7eb' : '#c7d2fe';
+    this.goalTabControl.setValue(this.activeGoalTab);
   }
 
   private updateAddAllButton(): void {
@@ -822,10 +777,6 @@ export class RelatedItemsPicker {
         : `Add all missing stories (${count})`
       : `Add all missing tasks (${count})`;
     this.addAllBtn.disabled = this.loading || count === 0;
-    this.addAllBtn.style.opacity = this.addAllBtn.disabled ? '0.5' : '1';
-    this.addAllBtn.style.cursor = this.addAllBtn.disabled
-      ? 'not-allowed'
-      : 'pointer';
   }
 
   private getInsertPosition(index: number): { x: number; y: number } {
