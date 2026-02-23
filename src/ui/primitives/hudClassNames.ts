@@ -61,6 +61,12 @@ export const HUD_MENU_ITEM_DANGER_CLASS =
 export const HUD_MENU_ITEM_DISABLED_CLASS =
   'cursor-not-allowed text-slate-400 hover:bg-transparent hover:text-slate-400';
 
+export const HUD_PAGE_EYEBROW_CLASS =
+  'mb-2 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400';
+
+export const HUD_PAGE_TITLE_CLASS =
+  'text-[30px] font-semibold leading-none tracking-tight text-slate-900';
+
 export const HUD_FIELD_CLASS = 'mb-4 space-y-1.5';
 export const HUD_FIELD_LABEL_BASE_CLASS = 'block text-[13px] font-medium leading-5';
 export const HUD_FIELD_LABEL_DEFAULT_CLASS = 'text-slate-500';

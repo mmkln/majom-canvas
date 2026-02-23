@@ -15,12 +15,18 @@ export {
   setHudTextButtonLoading,
   setHudTextButtonState,
   type HudTextButtonTone,
+  type HudTextButtonSize,
   type HudTextButtonElement,
   type HudTextButtonState,
 } from './HudTextButton.ts';
 export { HudDropdown } from './HudDropdown.ts';
 export { createHudDivider } from './HudDivider.ts';
 export { createHudField } from './HudField.ts';
+export {
+  createHudFormMessage,
+  type HudFormMessage,
+  type HudFormMessageTone,
+} from './HudFormMessage.ts';
 export {
   createHudDropdownItem,
   type HudDropdownItemTone,

@@ -17,6 +17,7 @@ export type HudTextButtonTone =
   | 'primary'
   | 'text'
   | 'danger';
+export type HudTextButtonSize = 'sm' | 'md' | 'lg';
 export type HudTextButtonElement = HudButtonElement;
 
 type HudTextButtonOptions = {
@@ -24,6 +25,8 @@ type HudTextButtonOptions = {
   html?: string;
   className?: string;
   tone?: HudTextButtonTone;
+  size?: HudTextButtonSize;
+  fullWidth?: boolean;
   loading?: boolean;
   loadingText?: string;
   title?: string;
@@ -47,10 +50,18 @@ const classByTone: Record<HudTextButtonTone, string> = {
   danger: HUD_TEXT_BUTTON_DANGER_CLASS,
 };
 
+const classBySize: Record<HudTextButtonSize, string> = {
+  sm: 'h-8 px-3 text-sm',
+  md: 'h-9 px-3.5 text-sm',
+  lg: 'h-11 px-4 text-sm',
+};
+
 class HudTextButton extends HudButtonBase {
   constructor(options: HudTextButtonOptions) {
+    const sizeClass = classBySize[options.size ?? 'md'];
+    const widthClass = options.fullWidth ? 'w-full' : '';
     const className =
-      `${classByTone[options.tone ?? 'soft']} ${options.className ?? ''}`.trim();
+      `${classByTone[options.tone ?? 'soft']} ${sizeClass} ${widthClass} ${options.className ?? ''}`.trim();
     super({
       className,
       type: options.type,

@@ -1,9 +1,16 @@
 import { LoginCredentials } from '../../majom-wrapper/interfaces/auth-interfaces.ts';
 import {
+  createHudField,
+  createHudFormMessage,
   createHudInput,
   createHudTextButton,
+  type HudFormMessage,
   type HudTextButtonElement,
 } from '../primitives/index.ts';
+import {
+  HUD_PAGE_EYEBROW_CLASS,
+  HUD_PAGE_TITLE_CLASS,
+} from '../primitives/hudClassNames.ts';
 import type { LoginSubmitResult } from '../auth/AuthController.ts';
 
 type LoginPageOptions = {
@@ -15,10 +22,11 @@ export class LoginPage {
   private readonly root: HTMLDivElement;
   private readonly usernameInput: HTMLInputElement;
   private readonly passwordInput: HTMLInputElement;
-  private readonly usernameError: HTMLParagraphElement;
-  private readonly generalError: HTMLParagraphElement;
+  private readonly usernameField: ReturnType<typeof createHudField>;
+  private readonly passwordField: ReturnType<typeof createHudField>;
+  private readonly generalError: HudFormMessage;
   private readonly submitButton: HudTextButtonElement;
-  private readonly togglePasswordButton: HTMLButtonElement;
+  private readonly togglePasswordButton: HudTextButtonElement;
   private usernameCache = '';
 
   constructor(private readonly options: LoginPageOptions) {
@@ -32,24 +40,17 @@ export class LoginPage {
     shell.setAttribute('aria-label', this.options.title ?? 'Login');
 
     const caption = document.createElement('p');
-    caption.className =
-      'mb-2 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400';
+    caption.className = HUD_PAGE_EYEBROW_CLASS;
     caption.textContent = 'Majom Canvas';
 
     const heading = document.createElement('h1');
-    heading.className = 'text-[30px] font-semibold leading-none tracking-tight text-slate-900';
+    heading.className = HUD_PAGE_TITLE_CLASS;
     heading.textContent = this.options.title ?? 'Login';
 
     const form = document.createElement('form');
     form.className = 'mt-6 space-y-5';
     form.noValidate = true;
 
-    const usernameWrap = document.createElement('div');
-    usernameWrap.className = 'space-y-2';
-    const usernameLabel = document.createElement('label');
-    usernameLabel.className = 'block text-sm font-medium text-slate-600';
-    usernameLabel.htmlFor = 'canvas-login-username';
-    usernameLabel.textContent = 'Username';
     this.usernameInput = createHudInput({
       id: 'canvas-login-username',
       name: 'username',
@@ -58,16 +59,11 @@ export class LoginPage {
       placeholder: 'Enter username',
       variant: 'default',
     });
-    this.usernameError = document.createElement('p');
-    this.usernameError.className = 'hidden text-xs font-medium text-rose-600';
-    usernameWrap.append(usernameLabel, this.usernameInput, this.usernameError);
+    this.usernameField = createHudField({
+      label: 'Username',
+      control: this.usernameInput,
+    });
 
-    const passwordWrap = document.createElement('div');
-    passwordWrap.className = 'space-y-2';
-    const passwordLabel = document.createElement('label');
-    passwordLabel.className = 'block text-sm font-medium text-slate-600';
-    passwordLabel.htmlFor = 'canvas-login-password';
-    passwordLabel.textContent = 'Password';
     const passwordInputRow = document.createElement('div');
     passwordInputRow.className = 'relative';
     this.passwordInput = createHudInput({
@@ -79,29 +75,33 @@ export class LoginPage {
       variant: 'default',
       className: 'pr-14',
     });
-    this.togglePasswordButton = document.createElement('button');
-    this.togglePasswordButton.type = 'button';
-    this.togglePasswordButton.className =
-      'absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-200/70 hover:text-slate-700';
-    this.togglePasswordButton.textContent = 'Show';
-    this.togglePasswordButton.addEventListener('click', () =>
-      this.togglePasswordVisibility()
-    );
+    this.togglePasswordButton = createHudTextButton({
+      tone: 'text',
+      text: 'Show',
+      type: 'button',
+      className:
+        'absolute right-2 top-1/2 h-7 -translate-y-1/2 rounded-md px-2 py-0 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700',
+      onClick: () => this.togglePasswordVisibility(),
+    });
     passwordInputRow.append(this.passwordInput, this.togglePasswordButton);
-    passwordWrap.append(passwordLabel, passwordInputRow);
+    this.passwordField = createHudField({
+      label: 'Password',
+      control: passwordInputRow,
+    });
 
-    this.generalError = document.createElement('p');
-    this.generalError.className =
-      'hidden rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700';
-    this.generalError.setAttribute('aria-live', 'polite');
+    this.generalError = createHudFormMessage({
+      tone: 'error',
+      ariaLive: 'polite',
+    });
 
     this.submitButton = createHudTextButton({
       tone: 'primary',
+      size: 'lg',
+      fullWidth: true,
       text: 'Login',
       loadingText: 'Logging in...',
       type: 'submit',
-      className:
-        'mt-1 h-11 w-full justify-center rounded-lg border border-slate-900 bg-slate-900 px-4 text-white hover:bg-slate-800 active:bg-slate-950 focus-visible:ring-slate-300',
+      className: 'mt-1',
     });
 
     this.usernameInput.addEventListener('input', () => {
@@ -115,9 +115,9 @@ export class LoginPage {
     });
 
     form.append(
-      usernameWrap,
-      passwordWrap,
-      this.generalError,
+      this.usernameField.element,
+      this.passwordField.element,
+      this.generalError.element,
       this.submitButton
     );
     shell.append(caption, heading, form);
@@ -204,42 +204,29 @@ export class LoginPage {
   private validateUsername(): boolean {
     const value = this.usernameInput.value.trim();
     if (!value) {
-      return this.setFieldError(
-        this.usernameInput,
-        this.usernameError,
-        'Username is required.'
-      );
+      this.usernameField.setState({
+        invalid: true,
+        error: 'Username is required.',
+      });
+      return true;
     }
     if (value.length < 3) {
-      return this.setFieldError(
-        this.usernameInput,
-        this.usernameError,
-        'Minimum 3 characters.'
-      );
+      this.usernameField.setState({
+        invalid: true,
+        error: 'Minimum 3 characters.',
+      });
+      return true;
     }
-    return this.setFieldError(this.usernameInput, this.usernameError, null);
-  }
-
-  private setFieldError(
-    input: HTMLInputElement,
-    errorEl: HTMLElement,
-    message: string | null
-  ): boolean {
-    const hasError = Boolean(message);
-    input.setAttribute('aria-invalid', hasError ? 'true' : 'false');
-    errorEl.classList.toggle('hidden', !hasError);
-    errorEl.textContent = message ?? '';
-    return hasError;
+    this.usernameField.setState({ invalid: false, error: undefined });
+    return false;
   }
 
   private showGeneralError(message: string): void {
-    this.generalError.textContent = message;
-    this.generalError.classList.remove('hidden');
+    this.generalError.show(message, 'error');
   }
 
   private clearGeneralError(): void {
-    this.generalError.textContent = '';
-    this.generalError.classList.add('hidden');
+    this.generalError.clear();
   }
 
   private prefillCachedUsername(): void {

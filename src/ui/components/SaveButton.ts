@@ -29,8 +29,9 @@ export class SaveButton {
 
     this.button = createHudTextButton({
       tone: 'primary',
+      size: 'md',
       text: 'Save',
-      className: 'h-9 min-w-[80px] px-4',
+      className: 'min-w-[80px]',
       loadingText: 'Saving..',
       disabled: true,
       onClick: () => this.handleClick(),
