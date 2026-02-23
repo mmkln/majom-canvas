@@ -61,6 +61,19 @@ export const HUD_MENU_ITEM_DANGER_CLASS =
 export const HUD_MENU_ITEM_DISABLED_CLASS =
   'cursor-not-allowed text-slate-400 hover:bg-transparent hover:text-slate-400';
 
+export const HUD_FIELD_CLASS = 'mb-4 space-y-1.5';
+export const HUD_FIELD_LABEL_BASE_CLASS = 'block text-[13px] font-medium leading-5';
+export const HUD_FIELD_LABEL_DEFAULT_CLASS = 'text-slate-500';
+export const HUD_FIELD_LABEL_MUTED_CLASS = 'text-slate-400';
+export const HUD_FIELD_LABEL_ERROR_CLASS = 'text-rose-700';
+export const HUD_FIELD_LABEL_DISABLED_CLASS = 'text-slate-400';
+export const HUD_FIELD_REQUIRED_MARK_CLASS = 'ml-1 text-rose-400';
+export const HUD_FIELD_HINT_CLASS = 'text-xs text-slate-500';
+export const HUD_FIELD_ERROR_CLASS = 'text-xs font-medium text-rose-600';
+
+// Backward-compatible alias.
+export const HUD_FIELD_LABEL_CLASS = `${HUD_FIELD_LABEL_BASE_CLASS} ${HUD_FIELD_LABEL_DEFAULT_CLASS}`;
+
 export const HUD_INPUT_BASE_CLASS =
   'w-full outline-none transition-colors disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 aria-[invalid=true]:border-rose-300 aria-[invalid=true]:bg-rose-50 aria-[invalid=true]:ring-rose-100';
 

@@ -20,6 +20,7 @@ export {
 } from './HudTextButton.ts';
 export { HudDropdown } from './HudDropdown.ts';
 export { createHudDivider } from './HudDivider.ts';
+export { createHudField } from './HudField.ts';
 export {
   createHudDropdownItem,
   type HudDropdownItemTone,

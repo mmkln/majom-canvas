@@ -5,6 +5,7 @@ import { Scene } from '../../core/scene/Scene.ts';
 import { ComponentFactory } from '../../ui-lib/src/core/ComponentFactory.ts';
 import { createModalShell } from '../../ui-lib/src/components/Modal.js';
 import {
+  createHudField,
   createHudSegmentedControl,
   type HudSegmentedControl,
 } from '../primitives/index.ts';
@@ -73,12 +74,7 @@ export class EditElementModal {
     let tempDueDateValue = originalDueDateValue;
 
     // Title input with label
-    const titleDiv = document.createElement('div');
-    titleDiv.className = 'mb-4 space-y-1.5';
-    const titleLabel = document.createElement('label');
-    titleLabel.className = 'block text-sm font-medium text-slate-600';
-    titleLabel.textContent = 'Title';
-    titleDiv.appendChild(titleLabel);
+    const titleField = createHudField({ label: 'Title', required: true });
     const titleInput = ComponentFactory.createInput({
       variant: 'default',
       value: tempTitle,
@@ -88,17 +84,13 @@ export class EditElementModal {
       autoFocus: true,
       className: 'w-full',
     });
-    titleInput.render(titleDiv);
+    titleInput.render(titleField.controlContainer);
     const titleInputEl = titleInput.getElement() as HTMLInputElement;
-    container.appendChild(titleDiv);
+    titleField.setControl(titleInputEl);
+    container.appendChild(titleField.element);
 
     // Description textarea with label
-    const descDiv = document.createElement('div');
-    descDiv.className = 'mb-4 space-y-1.5';
-    const descLabel = document.createElement('label');
-    descLabel.className = 'block text-sm font-medium text-slate-600';
-    descLabel.textContent = 'Description';
-    descDiv.appendChild(descLabel);
+    const descField = createHudField({ label: 'Description' });
     const descTextarea = ComponentFactory.createTextarea({
       variant: 'default',
       value: tempDescription,
@@ -108,16 +100,12 @@ export class EditElementModal {
       },
       className: 'w-full',
     });
-    descTextarea.render(descDiv);
-    container.appendChild(descDiv);
+    descTextarea.render(descField.controlContainer);
+    descField.setControl(descTextarea.getElement() as HTMLElement);
+    container.appendChild(descField.element);
 
     // Status dropdown with label
-    const statusDiv = document.createElement('div');
-    statusDiv.className = 'mb-4 space-y-1.5';
-    const statusLabelEl = document.createElement('label');
-    statusLabelEl.className = 'block text-sm font-medium text-slate-600';
-    statusLabelEl.textContent = 'Status';
-    statusDiv.appendChild(statusLabelEl);
+    const statusField = createHudField({ label: 'Status' });
     const statusSelect = ComponentFactory.createSelect({
       variant: 'default',
       items: ELEMENT_STATUS_OPTIONS,
@@ -127,16 +115,11 @@ export class EditElementModal {
       },
       className: 'w-full',
     });
-    statusSelect.render(statusDiv);
-    container.appendChild(statusDiv);
+    statusSelect.render(statusField.controlContainer);
+    statusField.setControl(statusSelect.getElement() as HTMLElement);
+    container.appendChild(statusField.element);
 
     // Priority segmented control with label
-    const priorityDiv = document.createElement('div');
-    priorityDiv.className = 'mb-4 space-y-1.5';
-    const priorityLabelEl = document.createElement('label');
-    priorityLabelEl.className = 'block text-sm font-medium text-slate-600';
-    priorityLabelEl.textContent = 'Priority';
-    priorityDiv.appendChild(priorityLabelEl);
     this.priorityControl = createHudSegmentedControl({
       size: 'md',
       fullWidth: true,
@@ -151,16 +134,14 @@ export class EditElementModal {
         tempPriority = value;
       },
     });
-    priorityDiv.appendChild(this.priorityControl.element);
-    container.appendChild(priorityDiv);
+    const priorityField = createHudField({
+      label: 'Priority',
+      control: this.priorityControl.element,
+    });
+    container.appendChild(priorityField.element);
 
     if (isTask) {
-      const dueDateDiv = document.createElement('div');
-      dueDateDiv.className = 'mb-4 space-y-1.5';
-      const dueDateLabelEl = document.createElement('label');
-      dueDateLabelEl.className = 'block text-sm font-medium text-slate-600';
-      dueDateLabelEl.textContent = 'Due date';
-      dueDateDiv.appendChild(dueDateLabelEl);
+      const dueDateField = createHudField({ label: 'Due date' });
       const dueDateInput = ComponentFactory.createInput({
         variant: 'default',
         value: tempDueDateValue,
@@ -170,17 +151,12 @@ export class EditElementModal {
         className: 'w-full',
         type: 'date',
       });
-      dueDateInput.render(dueDateDiv);
-      container.appendChild(dueDateDiv);
+      dueDateInput.render(dueDateField.controlContainer);
+      dueDateField.setControl(dueDateInput.getElement() as HTMLElement);
+      container.appendChild(dueDateField.element);
     }
 
     if (isGoal) {
-      const scaleDiv = document.createElement('div');
-      scaleDiv.className = 'mb-4 space-y-1.5';
-      const scaleLabelEl = document.createElement('label');
-      scaleLabelEl.className = 'block text-sm font-medium text-slate-600';
-      scaleLabelEl.textContent = 'Scale';
-      scaleDiv.appendChild(scaleLabelEl);
       this.scaleControl = createHudSegmentedControl({
         size: 'md',
         fullWidth: true,
@@ -195,8 +171,11 @@ export class EditElementModal {
           tempScale = value;
         },
       });
-      scaleDiv.appendChild(this.scaleControl.element);
-      container.appendChild(scaleDiv);
+      const scaleField = createHudField({
+        label: 'Scale',
+        control: this.scaleControl.element,
+      });
+      container.appendChild(scaleField.element);
     }
 
     // Save function
