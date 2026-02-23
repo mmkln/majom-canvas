@@ -42,6 +42,7 @@ import {
 } from './core/canvasSaveLifecycle.ts';
 import { confirmReplaceStoryGoalModal } from './ui/components/ConfirmReplaceStoryGoalModal.ts';
 import { confirmDeleteCanvasModal } from './ui/components/ConfirmDeleteCanvasModal.ts';
+import { authFlowService } from './ui/auth/authFlowService.ts';
 import { firstValueFrom, Observable, of, Subscription, throwError } from 'rxjs';
 import { catchError, finalize, map, switchMap } from 'rxjs/operators';
 
@@ -131,7 +132,7 @@ export class App {
       const title = customEvent.detail?.title;
       if (typeof title !== 'string') return;
       if (!this.authService.isLoggedIn()) {
-        window.dispatchEvent(new CustomEvent('showLoginModal'));
+        authFlowService.requestLogin('protected-action');
         this.setCanvasTitle(this.canvasTitle);
         return;
       }
@@ -156,7 +157,7 @@ export class App {
       const id = customEvent.detail?.id;
       if (!id) return;
       if (!this.authService.isLoggedIn()) {
-        window.dispatchEvent(new CustomEvent('showLoginModal'));
+        authFlowService.requestLogin('canvas-access');
         return;
       }
       const name = customEvent.detail?.name || 'New canvas';
@@ -181,7 +182,7 @@ export class App {
     });
     window.addEventListener('canvasCreateRequested', () => {
       if (!this.authService.isLoggedIn()) {
-        window.dispatchEvent(new CustomEvent('showLoginModal'));
+        authFlowService.requestLogin('canvas-access');
         return;
       }
       this.canvasDataService.createCanvas('New canvas').subscribe({
@@ -242,7 +243,7 @@ export class App {
       const element = customEvent.detail?.element;
       if (!element) return;
       if (!this.authService.isLoggedIn()) {
-        window.dispatchEvent(new CustomEvent('showLoginModal'));
+        authFlowService.requestLogin('protected-action');
         return;
       }
       this.scene.removeElements([element]);
@@ -342,7 +343,7 @@ export class App {
     }
     if (!this.authService.isLoggedIn()) {
       if (showNotifications) {
-        window.dispatchEvent(new CustomEvent('showLoginModal'));
+        authFlowService.requestLogin('save');
       }
       return of(false);
     }
@@ -696,7 +697,7 @@ export class App {
 
   private async handleCanvasDeleteRequested(): Promise<void> {
     if (!this.authService.isLoggedIn()) {
-      window.dispatchEvent(new CustomEvent('showLoginModal'));
+      authFlowService.requestLogin('canvas-access');
       return;
     }
 

@@ -27,7 +27,6 @@ import { AddExistingStoryService } from '../core/services/AddExistingStoryServic
 import { AuthService } from '../majom-wrapper/data-access/auth-service.ts';
 import { UserApiService } from '../majom-wrapper/data-access/user-api-service.ts';
 import { CanvasMenu } from './components/CanvasMenu.ts';
-import { HUD_PRIMARY_BUTTON_CLASS } from './primitives/hudClassNames.ts';
 import {
   EXISTING_PICKER_EVENT_NAMES,
   emitExistingPickerDropCompleted,
@@ -81,8 +80,6 @@ export class UIManager {
     const userApi = new UserApiService(http);
     const canvasMenu = new CanvasMenu(this.authService, userApi, {
       containerClassName: 'relative z-30 flex items-center',
-      loginButtonClassName:
-        `h-10 min-w-[108px] px-4 ${HUD_PRIMARY_BUTTON_CLASS}`,
     });
     const saveControls = new SaveControls(canvasMenu);
     this.addExistingTaskService = new AddExistingTaskService(

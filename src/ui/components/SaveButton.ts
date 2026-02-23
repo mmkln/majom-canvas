@@ -6,6 +6,7 @@ import {
   isCanvasSaveLifecycleDetail,
 } from '../../core/canvasSaveLifecycle.ts';
 import { createHudTextButton, type HudTextButtonElement } from '../primitives/index.ts';
+import { authFlowService } from '../auth/authFlowService.ts';
 
 /**
  * Save button with lifecycle-driven loading state.
@@ -51,7 +52,7 @@ export class SaveButton {
 
   private handleClick(): void {
     if (!this.authService.isLoggedIn()) {
-      window.dispatchEvent(new CustomEvent('showLoginModal'));
+      authFlowService.requestLogin('save');
       return;
     }
     window.dispatchEvent(new CustomEvent('saveCanvasLayout'));

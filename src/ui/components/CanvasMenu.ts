@@ -1,160 +1,194 @@
-import { Subscription } from 'rxjs';
+import type { Subscription } from 'rxjs';
 import { AuthService } from '../../majom-wrapper/data-access/auth-service.ts';
+import type { User } from '../../majom-wrapper/interfaces/auth-interfaces.ts';
 import { UserApiService } from '../../majom-wrapper/data-access/user-api-service.ts';
-import { LoginCredentials, User } from '../../majom-wrapper/interfaces/auth-interfaces.ts';
-import { createModalShell } from '../../ui-lib/src/components/Modal.ts';
 import { notify } from '../../core/services/NotificationService.ts';
-import { historyService } from '../../core/services/HistoryService.ts';
-import { ComponentFactory } from '../../ui-lib/src/index.js';
-import {
-  HUD_DROPDOWN_CLASS,
-  HUD_PRIMARY_BUTTON_CLASS,
-} from '../primitives/hudClassNames.ts';
+import { AuthController, type AuthState } from '../auth/AuthController.ts';
+import { authFlowService } from '../auth/authFlowService.ts';
 import {
   createHudDropdownItem,
   createHudIconButton,
+  createHudSurface,
   HudDropdown,
 } from '../primitives/index.ts';
 
+import { LoginPage } from './LoginPage.ts';
+
 type CanvasMenuOptions = {
   containerClassName?: string;
-  loginButtonClassName?: string;
 };
 
-/**
- * CanvasMenu manages top-right user/canvas actions, including login/logout and canvas actions.
- */
 export class CanvasMenu {
-  private readonly authService: AuthService;
-  private readonly userApiService: UserApiService;
-  private currentUser: User | null = null;
-  private readonly avatarContainer: HTMLDivElement;
+  private readonly container: HTMLDivElement;
   private readonly menuButton: HTMLButtonElement;
-  private readonly deleteCanvasButton: HTMLButtonElement;
-  private readonly loginButton: HTMLButtonElement;
-  private readonly logoutButton: HTMLButtonElement;
   private readonly dropdownMenu: HTMLDivElement;
-  private modal: HTMLElement | null = null;
-  private errorMessage: HTMLElement | null = null;
-  private isLoading = false;
-  private isUserLoading = false;
-  private authGuardOverlay: HTMLElement | null = null;
-  private readonly showLoginModalHandler: () => void;
-  private readonly refreshHandler: () => void;
   private readonly dropdownController: HudDropdown;
-  private historySubscription: Subscription | null = null;
+  private readonly deleteCanvasButton: HTMLButtonElement;
+  private readonly logoutButton: HTMLButtonElement;
+  private readonly authController: AuthController;
+  private readonly loginPage: LoginPage;
+  private stateSubscription: Subscription | null = null;
+  private authRequestSubscription: Subscription | null = null;
+  private readonly refreshHandler: () => void;
   private mounted = false;
-  private readonly options: CanvasMenuOptions;
 
   constructor(
     authService: AuthService,
     userApiService: UserApiService,
     options: CanvasMenuOptions = {}
   ) {
-    this.authService = authService;
-    this.userApiService = userApiService;
-    this.options = options;
-    this.avatarContainer = document.createElement('div');
-    this.avatarContainer.className =
-      this.options.containerClassName ?? 'absolute top-4 right-4 z-30';
+    this.container = document.createElement('div');
+    this.container.className =
+      options.containerClassName ?? 'relative z-30 flex items-center';
 
-    // Use Button component from UI library for login and logout buttons
-    this.loginButton = ComponentFactory.createButton({
-      text: 'Login',
-      onClick: () => this.showLoginModal(),
-      variant: 'ghost',
-      className:
-        this.options.loginButtonClassName ??
-        `h-10 min-w-[108px] px-4 ${HUD_PRIMARY_BUTTON_CLASS}`,
-    }).createElement() as HTMLButtonElement;
     this.menuButton = createHudIconButton({
       icon: 'ellipsis-vertical',
-      title: 'Open user menu',
-      ariaLabel: 'Open user menu',
-      onClick: () => this.toggleDropdown(),
+      title: 'Open canvas menu',
+      ariaLabel: 'Open canvas menu',
+      onClick: (event) => {
+        event.stopPropagation();
+        this.toggleDropdown();
+      },
+    });
+
+    this.dropdownMenu = createHudSurface({
+      elevated: true,
+      className: 'absolute right-[-10px] top-full mt-4 z-30 hidden w-72 overflow-hidden',
+    });
+
+    this.deleteCanvasButton = createHudDropdownItem({
+      label: 'Delete canvas',
+      tone: 'default',
+      className: 'font-medium text-slate-700 hover:text-slate-900',
+      onClick: () => {
+        this.setDropdownOpen(false);
+        window.dispatchEvent(new CustomEvent('canvasDeleteRequested'));
+      },
     });
 
     this.logoutButton = createHudDropdownItem({
       label: 'Logout',
       tone: 'default',
       className: 'font-medium text-slate-700 hover:text-slate-900',
-    });
-    this.logoutButton.addEventListener('click', () => this.handleLogout());
-    this.deleteCanvasButton = createHudDropdownItem({
-      label: 'Delete canvas',
-      tone: 'default',
-      className: 'font-medium text-slate-700 hover:text-slate-900',
-    });
-    this.deleteCanvasButton.addEventListener('click', () => {
-      this.setDropdownOpen(false);
-      window.dispatchEvent(new CustomEvent('canvasDeleteRequested'));
+      onClick: () => this.handleLogout(),
     });
 
-    this.dropdownMenu = document.createElement('div');
-    this.dropdownMenu.className =
-      `absolute right-[-10px] top-full mt-4 w-72 z-30 hidden ${HUD_DROPDOWN_CLASS}`;
-    
-    // Build user details section
-    this.buildUserDetailsSection();
-    
-    this.avatarContainer.appendChild(this.dropdownMenu);
-
-    this.showLoginModalHandler = () => this.showLoginModal(true);
-    this.refreshHandler = () => this.updateUI();
     this.dropdownController = new HudDropdown({
-      container: this.avatarContainer,
+      container: this.container,
       panel: this.dropdownMenu,
+      onOpenChange: (open) => {
+        this.menuButton.classList.toggle('bg-indigo-50', open);
+        this.menuButton.classList.toggle('text-indigo-700', open);
+      },
     });
+
+    this.authController = new AuthController(authService, userApiService);
+    this.loginPage = new LoginPage({
+      onSubmit: async (credentials) => {
+        const result = await this.authController.submitLogin(credentials);
+        if (result.ok) {
+          notify('Logged in successfully', 'success');
+          window.dispatchEvent(new CustomEvent('refreshCanvasData'));
+        }
+        return result;
+      },
+    });
+    this.refreshHandler = () => this.authController.initialize();
   }
 
   public mount(parent: HTMLElement = document.body): void {
     if (this.mounted) return;
-    parent.appendChild(this.avatarContainer);
-    window.addEventListener('showLoginModal', this.showLoginModalHandler);
-    window.addEventListener('refreshCanvasData', this.refreshHandler);
+    parent.appendChild(this.container);
     this.dropdownController.mount();
-    this.historySubscription = historyService.changes.subscribe(() =>
-      this.updateUI()
+    window.addEventListener('refreshCanvasData', this.refreshHandler);
+
+    this.stateSubscription = this.authController.state$.subscribe((state) =>
+      this.render(state)
     );
+    this.authRequestSubscription = authFlowService.loginRequests$.subscribe(() => {
+      this.authController.requestLogin();
+      if (!this.authController.getState().isAuthenticated) {
+        this.loginPage.show();
+        this.loginPage.focusPrimaryField();
+      }
+    });
+
     this.mounted = true;
-    this.updateUI();
+    this.authController.initialize();
   }
 
   public unmount(): void {
     if (!this.mounted) return;
-    window.removeEventListener('showLoginModal', this.showLoginModalHandler);
-    window.removeEventListener('refreshCanvasData', this.refreshHandler);
+    this.setDropdownOpen(false);
     this.dropdownController.unmount();
-    this.historySubscription?.unsubscribe();
-    this.historySubscription = null;
-    this.closeModal();
-    this.removeAuthGuardOverlay();
-    this.avatarContainer.remove();
+    window.removeEventListener('refreshCanvasData', this.refreshHandler);
+    this.stateSubscription?.unsubscribe();
+    this.stateSubscription = null;
+    this.authRequestSubscription?.unsubscribe();
+    this.authRequestSubscription = null;
+    this.loginPage.hide();
+    this.container.remove();
     this.mounted = false;
   }
 
-  private updateUI(): void {
-    if (this.authService.isLoggedIn()) {
-      this.avatarContainer.replaceChildren(this.menuButton, this.dropdownMenu);
-    } else {
-      this.currentUser = null;
-      this.isUserLoading = false;
-      this.buildUserDetailsSection();
-      this.setDropdownOpen(false);
-      // Show login prompt if there are unsaved changes
-      const canSave = historyService.hasUnsavedChanges();
-      this.loginButton.textContent = canSave ? 'Login to Save' : 'Login';
-      this.avatarContainer.replaceChildren(this.loginButton);
+  private render(state: AuthState): void {
+    this.renderDropdownContent(state.user, state.isUserLoading);
+
+    if (state.isAuthenticated) {
+      this.container.replaceChildren(this.menuButton, this.dropdownMenu);
+      this.loginPage.hide();
+      if (!state.user && !state.isUserLoading) {
+        this.authController.loadUserIfNeeded();
+      }
+      return;
     }
 
-    this.syncAuthRequirement();
+    this.setDropdownOpen(false);
+    this.container.replaceChildren();
+    this.loginPage.show();
+  }
+
+  private renderDropdownContent(
+    user: User | null,
+    isUserLoading: boolean
+  ): void {
+    this.dropdownMenu.innerHTML = '';
+
+    if (isUserLoading) {
+      const loadingRow = document.createElement('div');
+      loadingRow.className = 'px-4 py-3 text-sm text-slate-500';
+      loadingRow.textContent = 'Loading account...';
+      this.dropdownMenu.appendChild(loadingRow);
+      this.dropdownMenu.appendChild(this.createDivider());
+    } else if (user) {
+      const userInfo = document.createElement('div');
+      userInfo.className = 'px-4 py-3';
+
+      const userName = document.createElement('div');
+      userName.className =
+        'truncate text-sm font-semibold leading-5 tracking-tight text-slate-900';
+      userName.textContent = user.username;
+
+      const userEmail = document.createElement('div');
+      userEmail.className = 'truncate text-sm leading-5 text-slate-500';
+      userEmail.textContent = user.email;
+
+      userInfo.append(userName, userEmail);
+      this.dropdownMenu.append(userInfo, this.createDivider());
+    }
+
+    const actions = document.createElement('div');
+    actions.append(this.deleteCanvasButton, this.logoutButton);
+    this.dropdownMenu.appendChild(actions);
   }
 
   private toggleDropdown(): void {
     const willOpen = !this.dropdownController.isOpen();
     this.dropdownController.toggle();
-    if (willOpen && !this.currentUser && !this.isUserLoading) {
-      this.loadUserData();
+    if (!willOpen) return;
+    const state = this.authController.getState();
+    if (!state.user && !state.isUserLoading) {
+      this.authController.loadUserIfNeeded();
     }
   }
 
@@ -162,232 +196,16 @@ export class CanvasMenu {
     this.dropdownController.setOpen(open);
   }
 
-  private isDropdownOpen(): boolean {
-    return this.dropdownController.isOpen();
-  }
-
-  private loadUserData(): void {
-    if (this.currentUser || this.isUserLoading) return;
-    this.isUserLoading = true;
-    this.userApiService.getUser().subscribe({
-      next: (user: User) => {
-        this.currentUser = user;
-        this.buildUserDetailsSection();
-        this.isUserLoading = false;
-      },
-      error: (error: unknown) => {
-        this.isUserLoading = false;
-        console.error('Failed to load user data:', error);
-      },
-    });
-  }
-
-  private buildUserDetailsSection(): void {
-    const deleteCanvasButton = this.deleteCanvasButton;
-    const logoutButton = this.logoutButton;
-    this.dropdownMenu.innerHTML = '';
-
-    if (this.currentUser) {
-      const userInfoDiv = document.createElement('div');
-      userInfoDiv.className = 'px-3 py-3';
-
-      const userTextDiv = document.createElement('div');
-      userTextDiv.className = 'min-w-0 flex-1';
-
-      const userName = document.createElement('div');
-      userName.className = 'truncate text-sm font-semibold leading-5 text-slate-900';
-      userName.textContent = this.currentUser.username;
-
-      const userEmail = document.createElement('div');
-      userEmail.className = 'truncate text-[13px] leading-5 text-slate-500';
-      userEmail.textContent = this.currentUser.email;
-
-      userTextDiv.appendChild(userName);
-      userTextDiv.appendChild(userEmail);
-      userInfoDiv.appendChild(userTextDiv);
-      this.dropdownMenu.appendChild(userInfoDiv);
-
-      const divider = document.createElement('div');
-      divider.className = 'mx-2 border-t border-slate-200/80';
-      this.dropdownMenu.appendChild(divider);
-    }
-
-    const actions = document.createElement('div');
-    actions.appendChild(deleteCanvasButton);
-    actions.appendChild(logoutButton);
-    this.dropdownMenu.appendChild(actions);
-  }
-
-  private showLoginModal(force: boolean = false): void {
-    if (this.modal) {
-      if (!force) return;
-      this.closeModal();
-    }
-    const { overlay, container } = createModalShell('Login to Majom Canvas', {
-      onClose: () => {
-        this.closeModal();
-        if (!this.authService.isLoggedIn()) {
-          this.ensureAuthGuardOverlay();
-          window.setTimeout(() => this.showLoginModal(true), 0);
-        }
-      },
-      zIndex: 210,
-    });
-    this.modal = overlay;
-
-    // Build login form
-    const form = document.createElement('form');
-    form.id = 'loginForm';
-
-    // Username field
-    const usernameDiv = document.createElement('div');
-    usernameDiv.className = 'mb-4';
-    const usernameLabel = document.createElement('label');
-    usernameLabel.htmlFor = 'username';
-    usernameLabel.className = 'block text-sm font-medium text-gray-700';
-    usernameLabel.textContent = 'Username';
-    const usernameInput = ComponentFactory.createInput({
-      id: 'username',
-      name: 'username',
-      type: 'text',
-      placeholder: 'Enter your username',
-      className: 'mt-1',
-    }).createElement();
-    usernameDiv.append(usernameLabel, usernameInput);
-
-    // Password field
-    const passwordDiv = document.createElement('div');
-    passwordDiv.className = 'mb-4';
-    const passwordLabel = document.createElement('label');
-    passwordLabel.htmlFor = 'password';
-    passwordLabel.className = 'block text-sm font-medium text-gray-700';
-    passwordLabel.textContent = 'Password';
-    const passwordInput = ComponentFactory.createInput({
-      id: 'password',
-      name: 'password',
-      type: 'password',
-      placeholder: 'Enter your password',
-      className: 'mt-1',
-    }).createElement();
-    passwordDiv.append(passwordLabel, passwordInput);
-
-    // Error message
-    this.errorMessage = document.createElement('div');
-    this.errorMessage.className = 'mt-2 text-red-500 hidden';
-
-    // Submit button
-    const loginBtn = ComponentFactory.createButton({
-      text: 'Login',
-      type: 'submit',
-      variant: 'default',
-      className: 'w-full',
-    }).createElement();
-    loginBtn.id = 'loginSubmit';
-
-    form.append(usernameDiv, passwordDiv, loginBtn);
-    container.append(form, this.errorMessage);
-    form.addEventListener('submit', (e) => this.handleLoginSubmit(e));
-  }
-
-  private closeModal(): void {
-    if (this.modal) {
-      this.modal.remove();
-      this.modal = null;
-      this.errorMessage = null;
-    }
-  }
-
-  private async handleLoginSubmit(e: Event): Promise<void> {
-    e.preventDefault();
-    if (this.isLoading || !this.modal) return;
-
-    const usernameInput = this.modal.querySelector(
-      '#username'
-    ) as HTMLInputElement;
-    const passwordInput = this.modal.querySelector(
-      '#password'
-    ) as HTMLInputElement;
-    const loginButton = this.modal.querySelector(
-      '#loginSubmit'
-    ) as HTMLButtonElement;
-
-    const credentials: LoginCredentials = {
-      username: usernameInput.value,
-      password: passwordInput.value,
-    };
-
-    this.isLoading = true;
-    loginButton.disabled = true;
-    loginButton.textContent = 'Logging in...';
-
-    try {
-      await this.authService.login(credentials);
-      this.isLoading = false;
-      notify('Logged in successfully', 'success');
-      this.closeModal();
-      this.updateUI();
-      // Trigger canvas data refresh
-      window.dispatchEvent(new CustomEvent('refreshCanvasData'));
-    } catch (error: unknown) {
-      this.isLoading = false;
-      loginButton.disabled = false;
-      loginButton.textContent = 'Login';
-      const msg =
-        error instanceof Error
-          ? error.message
-          : 'Login failed. Please try again.';
-      notify(msg, 'error');
-      if (this.errorMessage) {
-        this.errorMessage.classList.remove('hidden');
-        this.errorMessage.textContent = msg;
-      }
-    }
-  }
-
   private handleLogout(): void {
-    this.authService.logout();
+    this.authController.logout();
     notify('Logged out', 'info');
-    this.updateUI();
     this.setDropdownOpen(false);
-    // Trigger canvas data refresh
     window.dispatchEvent(new CustomEvent('refreshCanvasData'));
   }
 
-  private ensureAuthGuardOverlay(): void {
-    if (this.authService.isLoggedIn() || this.authGuardOverlay) return;
-
-    const overlay = document.createElement('div');
-    overlay.className =
-      'fixed inset-0 z-[180] bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center gap-4 pointer-events-auto';
-
-    const message = document.createElement('p');
-    message.className = 'text-lg font-semibold text-gray-800';
-    message.textContent = 'Please log in to continue.';
-
-    const openModalButton = ComponentFactory.createButton({
-      text: 'Open Login',
-      variant: 'default',
-      size: 'lg',
-      onClick: () => this.showLoginModal(true),
-    }).createElement() as HTMLButtonElement;
-
-    overlay.append(message, openModalButton);
-    document.body.appendChild(overlay);
-    this.authGuardOverlay = overlay;
-  }
-
-  private removeAuthGuardOverlay(): void {
-    if (!this.authGuardOverlay) return;
-    this.authGuardOverlay.remove();
-    this.authGuardOverlay = null;
-  }
-
-  private syncAuthRequirement(): void {
-    if (this.authService.isLoggedIn()) {
-      this.removeAuthGuardOverlay();
-    } else {
-      this.ensureAuthGuardOverlay();
-      this.showLoginModal();
-    }
+  private createDivider(): HTMLDivElement {
+    const divider = document.createElement('div');
+    divider.className = 'mx-2 border-t border-slate-200/80';
+    return divider;
   }
 }
