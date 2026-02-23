@@ -194,9 +194,15 @@ export class StatusSelector {
   }
 
   private positionDropdown(): void {
+    const anchorGap = 8;
     const viewportPadding = 8;
     this.panel.style.left = '0';
     this.panel.style.right = 'auto';
+    this.panel.style.top = `calc(100% + ${anchorGap}px)`;
+    this.panel.style.bottom = 'auto';
+    this.panel.style.maxHeight = '';
+    this.panel.style.overflowY = 'hidden';
+
     const rightOverflow =
       this.panel.getBoundingClientRect().right >
       window.innerWidth - viewportPadding;
@@ -208,6 +214,23 @@ export class StatusSelector {
     if (leftOverflow) {
       this.panel.style.left = '0';
       this.panel.style.right = 'auto';
+    }
+
+    const triggerRect = this.triggerBtn.getBoundingClientRect();
+    const panelHeight = this.panel.getBoundingClientRect().height;
+    const spaceBelow = window.innerHeight - triggerRect.bottom - viewportPadding;
+    const spaceAbove = triggerRect.top - viewportPadding;
+
+    const openUpward = panelHeight > spaceBelow && spaceAbove > spaceBelow;
+    if (openUpward) {
+      this.panel.style.top = 'auto';
+      this.panel.style.bottom = `calc(100% + ${anchorGap}px)`;
+    }
+
+    const availableSpace = openUpward ? spaceAbove : spaceBelow;
+    if (panelHeight > availableSpace) {
+      this.panel.style.maxHeight = `${Math.max(120, Math.floor(availableSpace))}px`;
+      this.panel.style.overflowY = 'auto';
     }
   }
 
