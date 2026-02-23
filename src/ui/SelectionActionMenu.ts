@@ -13,14 +13,12 @@ import {
 } from '../core/services/SelectionContext.ts';
 import { BulkActionsController } from '../core/services/BulkActionsController.ts';
 import { createIcon, IconName, IconOptions } from './icons.ts';
-import {
-  ElementStatus,
-  ELEMENT_STATUS_OPTIONS,
-} from '../elements/ElementStatus.ts';
+import { ElementStatus } from '../elements/ElementStatus.ts';
 import { positionFixedElement } from './overlayPosition.ts';
 import { getViewBounds, isRectVisible } from '../core/utils/viewBounds.ts';
-import { SingleSelectGroup } from './components/SingleSelectGroup.ts';
 import { addTaskToStory } from './storyTaskActions.ts';
+import { createHudIconButton, createHudSurface } from './primitives/index.ts';
+import { StatusSelector } from './components/StatusSelector.ts';
 
 type ActionContext = {
   elements: PlanningElement[];
@@ -28,18 +26,12 @@ type ActionContext = {
   isMulti: boolean;
 };
 
-const STATUS_ORDER: ElementStatus[] = [
-  ElementStatus.Defined,
-  ElementStatus.Pending,
-  ElementStatus.InProgress,
-  ElementStatus.Done,
-];
+type ActionButtonVariant = 'default' | 'danger' | 'warning';
 
-const STATUS_ICON_MAP: Record<ElementStatus, IconName> = {
-  [ElementStatus.Done]: 'check',
-  [ElementStatus.InProgress]: 'arrow-path',
-  [ElementStatus.Pending]: 'status-pending',
-  [ElementStatus.Defined]: 'map-pin',
+const ACTION_BUTTON_VARIANT_CLASS: Record<ActionButtonVariant, string> = {
+  default: '!text-slate-500 hover:!bg-slate-100 hover:!text-slate-700',
+  danger: '!text-rose-500 hover:!bg-rose-50 hover:!text-rose-600',
+  warning: '!text-amber-600 hover:!bg-amber-50 hover:!text-amber-700',
 };
 
 type ActionNode =
@@ -64,7 +56,7 @@ export class SelectionActionMenu {
   private readonly container: HTMLDivElement;
   private actionNodes: ActionNode[] = [];
   private actionElements: Map<string, HTMLElement> = new Map();
-  private statusSelector: SingleSelectGroup<ElementStatus> | null = null;
+  private statusSelector: StatusSelector | null = null;
   private subscriptions: Subscription[] = [];
   private suspendUpdates = false;
   private activeInteractions = new Set<'drag' | 'resize' | 'select'>();
@@ -98,19 +90,10 @@ export class SelectionActionMenu {
     private readonly canvasManager: CanvasManager,
     private readonly bulkActions: BulkActionsController
   ) {
-    this.container = document.createElement('div');
-    this.container.style.position = 'fixed';
-    this.container.style.display = 'none';
-    this.container.style.alignItems = 'center';
-    this.container.style.gap = '6px';
-    this.container.style.padding = '6px';
-    this.container.style.paddingRight = '12px';
-    this.container.style.background = 'rgba(255,255,255,0.96)';
-    this.container.style.border = '1px solid #e5e7eb';
-    this.container.style.borderRadius = '9999px';
-    this.container.style.boxShadow = '0 6px 18px rgba(0,0,0,0.12)';
-    this.container.style.zIndex = '40';
-    this.container.style.transform = 'translate(0, 0)';
+    this.container = createHudSurface({
+      className:
+        'fixed z-40 hidden translate-x-0 items-center gap-1 rounded-full bg-white/96 p-1.5 pr-2.5 shadow-[0_8px_18px_rgba(15,23,42,0.12)] backdrop-blur-[2px]',
+    });
 
     this.actionNodes = this.buildActionNodes();
     this.renderActions();
@@ -141,6 +124,8 @@ export class SelectionActionMenu {
   public unmount(): void {
     this.subscriptions.forEach((sub) => sub.unsubscribe());
     this.subscriptions = [];
+    this.statusSelector?.destroy();
+    this.statusSelector = null;
     window.removeEventListener('resize', this.resizeHandler);
     window.removeEventListener(
       'canvasInteractionStart',
@@ -196,8 +181,9 @@ export class SelectionActionMenu {
   }
 
   private show(): void {
-    if (this.container.style.display !== 'flex') {
-      this.container.style.display = 'flex';
+    if (this.container.classList.contains('hidden')) {
+      this.container.classList.remove('hidden');
+      this.container.classList.add('flex');
     }
   }
 
@@ -206,76 +192,29 @@ export class SelectionActionMenu {
     this.selectedElements = [];
     this.deleteConfirmState = null;
     this.clearDeleteConfirmTimer();
-    if (this.container.style.display !== 'none') {
-      this.container.style.display = 'none';
+    this.statusSelector?.close();
+    if (!this.container.classList.contains('hidden')) {
+      this.container.classList.remove('flex');
+      this.container.classList.add('hidden');
     }
   }
 
   private renderActions(): void {
     this.container.innerHTML = '';
     this.actionElements.clear();
+    this.statusSelector?.destroy();
     this.statusSelector = null;
     this.actionNodes.forEach((node) => {
       if (node.kind === 'divider') {
         const divider = document.createElement('div');
-        divider.style.width = '1px';
-        divider.style.height = '20px';
-        divider.style.background = '#e5e7eb';
-        divider.style.margin = '0 4px';
+        divider.className = 'mx-1 h-4 w-px shrink-0 bg-slate-200/70';
         this.actionElements.set(node.id, divider);
         this.container.appendChild(divider);
         return;
       }
       if (node.variant === 'status') {
-        const statusLabels = new Map(
-          ELEMENT_STATUS_OPTIONS.map((option) => [option.value, option.label])
-        );
-        const selector = new SingleSelectGroup<ElementStatus>({
-          options: STATUS_ORDER.map((value) => ({
-            id: value,
-            value,
-            label: statusLabels.get(value) ?? value,
-          })),
-          onSelect: (status) => this.applyStatus(status),
-          collapseMode: 'expand-active',
-          disableAnimations: true,
-          buttonWidth: 32,
-          buttonPadding: '0 8px',
-          renderContent: (option) => {
-            const wrapper = document.createElement('span');
-            wrapper.style.display = 'inline-flex';
-            wrapper.style.alignItems = 'center';
-            wrapper.style.gap = '6px';
-            const icon = createIcon(STATUS_ICON_MAP[option.value], {
-              size: 16,
-              strokeWidth: 1.5,
-            });
-            icon.setAttribute('aria-hidden', 'true');
-            icon.style.display = 'block';
-            const label = document.createElement('span');
-            label.textContent = option.label;
-            label.setAttribute('data-role', 'label');
-            label.style.fontSize = '12px';
-            label.style.fontWeight = '600';
-            label.style.whiteSpace = 'nowrap';
-            wrapper.appendChild(icon);
-            wrapper.appendChild(label);
-            return wrapper;
-          },
-          applyStyles: ({ option, button, content, active, expanded }) => {
-            const styles = this.getStatusStyles(option.value);
-            content.style.color = styles.text;
-            button.style.background = active ? styles.bg : 'transparent';
-            button.style.borderColor = active ? styles.border : 'transparent';
-            button.style.color = styles.text;
-            button.style.opacity = active ? '1' : '0.7';
-            const label = content.querySelector(
-              '[data-role="label"]'
-            ) as HTMLElement | null;
-            if (label) {
-              label.style.display = !expanded && active ? 'inline' : 'none';
-            }
-          },
+        const selector = new StatusSelector({
+          onStatusChange: (status) => this.applyStatus(status),
         });
         this.statusSelector = selector;
         this.actionElements.set(node.id, selector.element);
@@ -474,39 +413,21 @@ export class SelectionActionMenu {
     options: { isDanger?: boolean; iconOptions?: IconOptions } = {}
   ): HTMLButtonElement {
     const { isDanger = false, iconOptions } = options;
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.title = title;
-    btn.setAttribute('aria-label', title);
-    btn.style.width = '32px';
-    btn.style.height = '32px';
-    btn.style.borderRadius = '10px';
-    btn.style.border = '1px solid transparent';
-    btn.style.display = 'inline-flex';
-    btn.style.alignItems = 'center';
-    btn.style.justifyContent = 'center';
-    btn.style.cursor = 'pointer';
-    btn.style.transition = 'background 150ms ease, border-color 150ms ease';
+    const btn = createHudIconButton({
+      icon,
+      size: 'sm',
+      tone: 'text',
+      iconSize: iconOptions?.size,
+      iconStrokeWidth: iconOptions?.strokeWidth,
+      title,
+      ariaLabel: title,
+      className: 'rounded-lg border border-transparent bg-transparent',
+    });
     this.setButtonVariant(btn, isDanger ? 'danger' : 'default');
-    btn.addEventListener('mouseenter', () => {
-      const variant = (btn.dataset.variant ?? 'default') as
-        | 'default'
-        | 'danger'
-        | 'warning';
-      this.applyButtonStyle(btn, variant, 'hover');
-    });
-    btn.addEventListener('mouseleave', () => {
-      const variant = (btn.dataset.variant ?? 'default') as
-        | 'default'
-        | 'danger'
-        | 'warning';
-      this.applyButtonStyle(btn, variant, 'base');
-    });
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       handler();
     });
-    btn.appendChild(createIcon(icon, iconOptions));
     return btn;
   }
 
@@ -581,7 +502,7 @@ export class SelectionActionMenu {
   private updateStatusSelector(elements: PlanningElement[]): void {
     if (!this.statusSelector || elements.length === 0) return;
     const status = SelectionContext.getMixedStatus(elements);
-    this.statusSelector.setActive(status ?? null);
+    this.statusSelector.setState(status ?? null);
   }
 
   private updateDeleteConfirmation(elements: PlanningElement[]): void {
@@ -655,77 +576,23 @@ export class SelectionActionMenu {
 
   private setButtonVariant(
     button: HTMLButtonElement,
-    variant: 'default' | 'danger' | 'warning'
+    variant: ActionButtonVariant
   ): void {
     button.dataset.variant = variant;
-    this.applyButtonStyle(button, variant, 'base');
+    this.toggleClassNames(button, ACTION_BUTTON_VARIANT_CLASS.default, false);
+    this.toggleClassNames(button, ACTION_BUTTON_VARIANT_CLASS.danger, false);
+    this.toggleClassNames(button, ACTION_BUTTON_VARIANT_CLASS.warning, false);
+    this.toggleClassNames(button, ACTION_BUTTON_VARIANT_CLASS[variant], true);
   }
 
-  private applyButtonStyle(
-    button: HTMLButtonElement,
-    variant: 'default' | 'danger' | 'warning',
-    state: 'base' | 'hover'
+  private toggleClassNames(
+    element: HTMLElement,
+    classNames: string,
+    enabled: boolean
   ): void {
-    const palette = this.getButtonPalette(variant);
-    if (state === 'hover') {
-      button.style.background = palette.hoverBg;
-      button.style.borderColor = palette.hoverBorder;
-    } else {
-      button.style.background = palette.baseBg;
-      button.style.borderColor = palette.baseBorder;
-    }
-    button.style.color = palette.text;
-  }
-
-  private getButtonPalette(variant: 'default' | 'danger' | 'warning'): {
-    baseBg: string;
-    baseBorder: string;
-    hoverBg: string;
-    hoverBorder: string;
-    text: string;
-  } {
-    if (variant === 'danger') {
-      return {
-        baseBg: '#fee2e2',
-        baseBorder: 'transparent',
-        hoverBg: '#fecaca',
-        hoverBorder: '#fca5a5',
-        text: '#dc2626',
-      };
-    }
-    if (variant === 'warning') {
-      return {
-        baseBg: '#ffedd5',
-        baseBorder: 'transparent',
-        hoverBg: '#fed7aa',
-        hoverBorder: '#fdba74',
-        text: '#c2410c',
-      };
-    }
-    return {
-      baseBg: '#f3f4f6',
-      baseBorder: 'transparent',
-      hoverBg: '#e5e7eb',
-      hoverBorder: '#d1d5db',
-      text: '#111827',
-    };
-  }
-
-  private getStatusStyles(status: ElementStatus): {
-    bg: string;
-    border: string;
-    text: string;
-  } {
-    switch (status) {
-      case ElementStatus.InProgress:
-        return { bg: '#dbeafe', border: '#93c5fd', text: '#1d4ed8' };
-      case ElementStatus.Pending:
-        return { bg: '#fef3c7', border: '#fcd34d', text: '#b45309' };
-      case ElementStatus.Done:
-        return { bg: '#dcfce7', border: '#86efac', text: '#15803d' };
-      case ElementStatus.Defined:
-      default:
-        return { bg: '#f5f3ff', border: '#c4b5fd', text: '#6b5b95' };
-    }
+    classNames
+      .split(/\s+/)
+      .filter(Boolean)
+      .forEach((token) => element.classList.toggle(token, enabled));
   }
 }

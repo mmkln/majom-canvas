@@ -228,18 +228,6 @@ export class ContextMenu {
     const sections: ContextMenuSection[] = [];
     const actionItems: ContextMenuItem[] = [];
     if (isPlanningElement) {
-      const planningElement = element as TaskElement | StoryElement | GoalElement;
-      const isFocused = this.scene.isFocused(planningElement);
-      actionItems.push({
-        label: isFocused ? 'Clear Focus' : 'Set Focus',
-        action: () =>
-          historyService.execute(
-            new SetFocusCommand(
-              this.scene,
-              isFocused ? null : planningElement.id
-            )
-          ),
-      });
       actionItems.push({
         label: 'Edit',
         action: () => {
@@ -271,6 +259,26 @@ export class ContextMenu {
       title: getTitlteByElement(element),
       items: actionItems 
     });
+
+    if (isPlanningElement) {
+      const planningElement = element as TaskElement | StoryElement | GoalElement;
+      const isFocused = this.scene.isFocused(planningElement);
+      actionItems.push();
+      sections.push({
+        items: [
+          {
+            label: isFocused ? 'Clear Focus' : 'Set Focus',
+            action: () =>
+              historyService.execute(
+                new SetFocusCommand(
+                  this.scene,
+                  isFocused ? null : planningElement.id
+                )
+              ),
+          }
+        ]
+      });
+    }
 
     if (element instanceof StoryElement) {
       sections.push({
@@ -429,9 +437,9 @@ export class ContextMenu {
   }
 
   private getElementLabel(element: ICanvasElement): string {
-    if (element instanceof TaskElement) return 'task';
-    if (element instanceof StoryElement) return 'story';
-    if (element instanceof GoalElement) return 'goal';
+    if (element instanceof TaskElement) return 'Task';
+    if (element instanceof StoryElement) return 'Story';
+    if (element instanceof GoalElement) return 'Goal';
     return 'element';
   }
 
