@@ -7,6 +7,7 @@ import { createModalShell } from '../../ui-lib/src/components/Modal.js';
 import {
   createHudField,
   createHudSegmentedControl,
+  createHudTextButton,
   type HudSegmentedControl,
 } from '../primitives/index.ts';
 import {
@@ -80,8 +81,12 @@ export class EditElementModal {
       value: tempTitle,
       onChange: (v: string) => {
         tempTitle = v;
+        if (v.trim().length > 0) {
+          titleField.setState({ invalid: false, error: undefined });
+        }
       },
       autoFocus: true,
+      required: true,
       className: 'w-full',
     });
     titleInput.render(titleField.controlContainer);
@@ -180,6 +185,14 @@ export class EditElementModal {
 
     // Save function
     const saveAndClose = () => {
+      const normalizedTitle = tempTitle.trim();
+      if (normalizedTitle.length === 0) {
+        titleField.setState({ invalid: true, error: 'Title is required' });
+        titleInputEl.focus();
+        titleInputEl.select();
+        return;
+      }
+
       const patch: Partial<{
         title: string;
         description: string;
@@ -187,7 +200,7 @@ export class EditElementModal {
         priority: 'low' | 'medium' | 'high';
         dueDate: Date | null;
       }> = {};
-      if (tempTitle !== originalTitle) patch.title = tempTitle;
+      if (normalizedTitle !== originalTitle) patch.title = normalizedTitle;
       if (tempDescription !== originalDescription) {
         patch.description = tempDescription;
       }
@@ -198,7 +211,7 @@ export class EditElementModal {
         patch.dueDate = nextDueDate;
         (this.element as TaskElement).dueDate = nextDueDate;
       }
-      this.element.title = tempTitle;
+      this.element.title = normalizedTitle;
       this.element.description = tempDescription;
       this.element.status = tempStatus;
       this.element.priority = tempPriority;
@@ -229,17 +242,18 @@ export class EditElementModal {
 
     // Actions
     const btnRow = document.createElement('div');
-    btnRow.className = 'flex justify-end space-x-2';
-    ComponentFactory.createButton({
+    btnRow.className = 'flex justify-end gap-2 pt-1';
+    const cancelBtn = createHudTextButton({
       text: 'Cancel',
+      tone: 'text',
       onClick: () => this.close(),
-      variant: 'outline',
-    }).render(btnRow);
-    ComponentFactory.createButton({
+    });
+    const saveBtn = createHudTextButton({
       text: 'Save',
+      tone: 'primary',
       onClick: saveAndClose,
-      variant: 'default',
-    }).render(btnRow);
+    });
+    btnRow.append(cancelBtn, saveBtn);
     container.appendChild(btnRow);
 
     // Ensure title input receives focus when the modal opens.
@@ -249,6 +263,11 @@ export class EditElementModal {
     container.addEventListener('keydown', (e) => {
       e.stopPropagation();
       if (e.key === 'Enter') {
+        const target = e.target as EventTarget | null;
+        const isTextarea = target instanceof HTMLTextAreaElement;
+        if (isTextarea && !e.metaKey && !e.ctrlKey) {
+          return;
+        }
         e.preventDefault();
         saveAndClose();
       }

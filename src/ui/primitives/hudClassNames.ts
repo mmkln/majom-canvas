@@ -30,7 +30,7 @@ export const HUD_ICON_BUTTON_SIZE_MD_CLASS = 'h-9 w-9';
 export const HUD_ICON_BUTTON_SIZE_LG_CLASS = 'h-10 w-10';
 
 export const HUD_PRIMARY_BUTTON_CLASS =
-  'rounded-lg bg-indigo-600 text-sm font-semibold text-white transition-colors hover:border-indigo-600 hover:bg-indigo-700 active:border-indigo-700 active:bg-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400';
+  'inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold text-white bg-indigo-600 transition-colors hover:border-indigo-600 hover:bg-indigo-700 active:border-indigo-700 active:bg-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400';
 
 export const HUD_DROPDOWN_CLASS = `${HUD_SURFACE_ELEVATED_CLASS} overflow-hidden`;
 
