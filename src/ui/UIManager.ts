@@ -26,7 +26,7 @@ import { AddExistingGoalService } from '../core/services/AddExistingGoalService.
 import { AddExistingStoryService } from '../core/services/AddExistingStoryService.ts';
 import { AuthService } from '../majom-wrapper/data-access/auth-service.ts';
 import { UserApiService } from '../majom-wrapper/data-access/user-api-service.ts';
-import { AuthComponent } from './components/AuthComponent.ts';
+import { CanvasMenu } from './components/CanvasMenu.ts';
 import { HUD_PRIMARY_BUTTON_CLASS } from './primitives/hudClassNames.ts';
 import {
   EXISTING_PICKER_EVENT_NAMES,
@@ -79,12 +79,12 @@ export class UIManager {
     const goalsApi = new GoalsApiService(http);
     const storiesApi = new StoriesApiService(http);
     const userApi = new UserApiService(http);
-    const authComponent = new AuthComponent(this.authService, userApi, {
+    const canvasMenu = new CanvasMenu(this.authService, userApi, {
       containerClassName: 'relative z-30 flex items-center',
       loginButtonClassName:
         `h-10 min-w-[108px] px-4 ${HUD_PRIMARY_BUTTON_CLASS}`,
     });
-    const saveControls = new SaveControls(authComponent);
+    const saveControls = new SaveControls(canvasMenu);
     this.addExistingTaskService = new AddExistingTaskService(
       this.scene,
       this.canvasManager

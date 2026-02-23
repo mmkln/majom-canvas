@@ -10,21 +10,27 @@ import {
   HUD_DROPDOWN_CLASS,
   HUD_PRIMARY_BUTTON_CLASS,
 } from '../primitives/hudClassNames.ts';
-import { createHudDropdownItem, HudDropdown } from '../primitives/index.ts';
+import {
+  createHudDropdownItem,
+  createHudIconButton,
+  HudDropdown,
+} from '../primitives/index.ts';
 
-type AuthComponentOptions = {
+type CanvasMenuOptions = {
   containerClassName?: string;
   loginButtonClassName?: string;
 };
 
 /**
- * AuthComponent manages the UI for user authentication, including login/logout buttons and modal for credentials.
+ * CanvasMenu manages top-right user/canvas actions, including login/logout and canvas actions.
  */
-export class AuthComponent {
+export class CanvasMenu {
   private readonly authService: AuthService;
   private readonly userApiService: UserApiService;
   private currentUser: User | null = null;
   private readonly avatarContainer: HTMLDivElement;
+  private readonly menuButton: HTMLButtonElement;
+  private readonly deleteCanvasButton: HTMLButtonElement;
   private readonly loginButton: HTMLButtonElement;
   private readonly logoutButton: HTMLButtonElement;
   private readonly dropdownMenu: HTMLDivElement;
@@ -38,12 +44,12 @@ export class AuthComponent {
   private readonly dropdownController: HudDropdown;
   private historySubscription: Subscription | null = null;
   private mounted = false;
-  private readonly options: AuthComponentOptions;
+  private readonly options: CanvasMenuOptions;
 
   constructor(
     authService: AuthService,
     userApiService: UserApiService,
-    options: AuthComponentOptions = {}
+    options: CanvasMenuOptions = {}
   ) {
     this.authService = authService;
     this.userApiService = userApiService;
@@ -61,17 +67,32 @@ export class AuthComponent {
         this.options.loginButtonClassName ??
         `h-10 min-w-[108px] px-4 ${HUD_PRIMARY_BUTTON_CLASS}`,
     }).createElement() as HTMLButtonElement;
+    this.menuButton = createHudIconButton({
+      icon: 'ellipsis-vertical',
+      title: 'Open user menu',
+      ariaLabel: 'Open user menu',
+      onClick: () => this.toggleDropdown(),
+    });
 
     this.logoutButton = createHudDropdownItem({
       label: 'Logout',
-      tone: 'danger',
-      className: 'font-medium',
+      tone: 'default',
+      className: 'font-medium text-slate-700 hover:text-slate-900',
     });
     this.logoutButton.addEventListener('click', () => this.handleLogout());
+    this.deleteCanvasButton = createHudDropdownItem({
+      label: 'Delete canvas',
+      tone: 'default',
+      className: 'font-medium text-slate-700 hover:text-slate-900',
+    });
+    this.deleteCanvasButton.addEventListener('click', () => {
+      this.setDropdownOpen(false);
+      window.dispatchEvent(new CustomEvent('canvasDeleteRequested'));
+    });
 
     this.dropdownMenu = document.createElement('div');
     this.dropdownMenu.className =
-      `absolute right-0 top-full mt-2 w-72 z-30 hidden ${HUD_DROPDOWN_CLASS}`;
+      `absolute right-[-10px] top-full mt-4 w-72 z-30 hidden ${HUD_DROPDOWN_CLASS}`;
     
     // Build user details section
     this.buildUserDetailsSection();
@@ -114,22 +135,16 @@ export class AuthComponent {
 
   private updateUI(): void {
     if (this.authService.isLoggedIn()) {
-      this.avatarContainer.innerHTML =
-        '<img src="https://cdn.thegreatprojects.com/thegreatprojects/images/c/c/c/d/9/cccd9ab3a8832417497e233c1cb92b9e.jpg?width=364&height=364&format=jpg" alt="User Avatar" class="w-10 h-10 bg-gray-100 rounded-full cursor-pointer ring-2 ring-white shadow-[0_8px_18px_rgba(15,23,42,0.2)]">';
-      this.avatarContainer.firstChild?.addEventListener('click', () =>
-        this.toggleDropdown()
-      );
-      this.avatarContainer.appendChild(this.dropdownMenu);
+      this.avatarContainer.replaceChildren(this.menuButton, this.dropdownMenu);
     } else {
       this.currentUser = null;
       this.isUserLoading = false;
       this.buildUserDetailsSection();
       this.setDropdownOpen(false);
-      this.avatarContainer.innerHTML = '';
       // Show login prompt if there are unsaved changes
       const canSave = historyService.hasUnsavedChanges();
       this.loginButton.textContent = canSave ? 'Login to Save' : 'Login';
-      this.avatarContainer.appendChild(this.loginButton);
+      this.avatarContainer.replaceChildren(this.loginButton);
     }
 
     this.syncAuthRequirement();
@@ -168,17 +183,13 @@ export class AuthComponent {
   }
 
   private buildUserDetailsSection(): void {
+    const deleteCanvasButton = this.deleteCanvasButton;
     const logoutButton = this.logoutButton;
     this.dropdownMenu.innerHTML = '';
 
     if (this.currentUser) {
       const userInfoDiv = document.createElement('div');
-      userInfoDiv.className = 'flex items-center gap-3 px-3 py-3';
-
-      const avatar = document.createElement('img');
-      avatar.src = 'https://cdn.thegreatprojects.com/thegreatprojects/images/c/c/c/d/9/cccd9ab3a8832417497e233c1cb92b9e.jpg?width=364&height=364&format=jpg';
-      avatar.alt = 'User Avatar';
-      avatar.className = 'h-8 w-8 rounded-full';
+      userInfoDiv.className = 'px-3 py-3';
 
       const userTextDiv = document.createElement('div');
       userTextDiv.className = 'min-w-0 flex-1';
@@ -193,7 +204,6 @@ export class AuthComponent {
 
       userTextDiv.appendChild(userName);
       userTextDiv.appendChild(userEmail);
-      userInfoDiv.appendChild(avatar);
       userInfoDiv.appendChild(userTextDiv);
       this.dropdownMenu.appendChild(userInfoDiv);
 
@@ -202,7 +212,10 @@ export class AuthComponent {
       this.dropdownMenu.appendChild(divider);
     }
 
-    this.dropdownMenu.appendChild(logoutButton);
+    const actions = document.createElement('div');
+    actions.appendChild(deleteCanvasButton);
+    actions.appendChild(logoutButton);
+    this.dropdownMenu.appendChild(actions);
   }
 
   private showLoginModal(force: boolean = false): void {

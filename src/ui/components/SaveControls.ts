@@ -1,9 +1,8 @@
 import { AuthService } from '../../majom-wrapper/data-access/auth-service.ts';
 import { SaveButton } from './SaveButton.ts';
 import { UndoRedoControls } from '../UndoRedoControls.ts';
-import { AuthComponent } from './AuthComponent.ts';
+import { CanvasMenu } from './CanvasMenu.ts';
 import { createHudSurface } from '../primitives/index.ts';
-import { CanvasMenuButton } from './CanvasMenuButton.ts';
 
 /**
  * SaveControls: wraps save and auth actions in a shared HUD layout.
@@ -14,12 +13,11 @@ export class SaveControls {
   private saveGroup: HTMLDivElement;
   private undoRedoControls: UndoRedoControls;
   private saveButton: SaveButton;
-  private canvasMenuButton: CanvasMenuButton;
-  private authComponent: AuthComponent;
+  private canvasMenu: CanvasMenu;
   private authService = new AuthService();
   private refreshHandler: () => void;
 
-  constructor(authComponent: AuthComponent) {
+  constructor(canvasMenu: CanvasMenu) {
     this.container = document.createElement('div');
     this.container.className = 'absolute top-4 right-4 z-20';
     this.actionsContainer = createHudSurface({
@@ -29,8 +27,7 @@ export class SaveControls {
     this.saveGroup.className = 'flex items-center';
     this.undoRedoControls = new UndoRedoControls();
     this.saveButton = new SaveButton();
-    this.canvasMenuButton = new CanvasMenuButton();
-    this.authComponent = authComponent;
+    this.canvasMenu = canvasMenu;
     this.refreshHandler = () => this.updateVisibility();
   }
 
@@ -40,8 +37,7 @@ export class SaveControls {
     this.undoRedoControls.mount(this.actionsContainer);
     this.actionsContainer.appendChild(this.saveGroup);
     this.saveButton.mount(this.saveGroup);
-    this.authComponent.mount(this.actionsContainer);
-    this.canvasMenuButton.mount(this.actionsContainer);
+    this.canvasMenu.mount(this.actionsContainer);
     window.addEventListener('refreshCanvasData', this.refreshHandler);
     this.updateVisibility();
   }
@@ -50,8 +46,7 @@ export class SaveControls {
     window.removeEventListener('refreshCanvasData', this.refreshHandler);
     this.undoRedoControls.unmount();
     this.saveButton.unmount();
-    this.canvasMenuButton.unmount();
-    this.authComponent.unmount();
+    this.canvasMenu.unmount();
     this.container.remove();
   }
 

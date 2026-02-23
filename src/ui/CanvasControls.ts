@@ -131,7 +131,9 @@ export class CanvasControls {
   }
 
   private updateFocusAvailability(): void {
-    this.goToFocusBtn.disabled = this.scene.getFocusedElement() === null;
+    const hasFocus = this.scene.getFocusedElement() !== null;
+    this.goToFocusBtn.disabled = !hasFocus;
+    this.goToFocusBtn.style.display = hasFocus ? '' : 'none';
   }
 
   private updateZoomIndicator(): void {
