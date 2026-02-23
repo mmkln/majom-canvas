@@ -26,7 +26,6 @@ export class LoginPage {
   private readonly passwordField: ReturnType<typeof createHudField>;
   private readonly generalError: HudFormMessage;
   private readonly submitButton: HudTextButtonElement;
-  private readonly togglePasswordButton: HudTextButtonElement;
   private usernameCache = '';
 
   constructor(private readonly options: LoginPageOptions) {
@@ -45,48 +44,42 @@ export class LoginPage {
 
     const heading = document.createElement('h1');
     heading.className = HUD_PAGE_TITLE_CLASS;
-    heading.textContent = this.options.title ?? 'Login';
+    heading.textContent = this.options.title ?? 'Welcome to Majom';
+
+    const description = document.createElement('p');
+    description.className = 'mt-2 text-sm text-slate-500';
+    description.textContent = 'The single place to organize the whole life.';
 
     const form = document.createElement('form');
     form.className = 'mt-6 space-y-5';
     form.noValidate = true;
 
-    this.usernameInput = createHudInput({
+    const usernameControl = createHudInput({
+      kind: 'text',
       id: 'canvas-login-username',
       name: 'username',
-      type: 'text',
       autoComplete: 'username',
       placeholder: 'Enter username',
       variant: 'default',
     });
+    this.usernameInput = usernameControl.input;
     this.usernameField = createHudField({
       label: 'Username',
-      control: this.usernameInput,
+      control: usernameControl.element,
     });
 
-    const passwordInputRow = document.createElement('div');
-    passwordInputRow.className = 'relative';
-    this.passwordInput = createHudInput({
+    const passwordControl = createHudInput({
+      kind: 'password',
       id: 'canvas-login-password',
       name: 'password',
-      type: 'password',
       autoComplete: 'current-password',
       placeholder: 'Enter password',
       variant: 'default',
-      className: 'pr-14',
     });
-    this.togglePasswordButton = createHudTextButton({
-      tone: 'text',
-      text: 'Show',
-      type: 'button',
-      className:
-        'absolute right-2 top-1/2 h-7 -translate-y-1/2 rounded-md px-2 py-0 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700',
-      onClick: () => this.togglePasswordVisibility(),
-    });
-    passwordInputRow.append(this.passwordInput, this.togglePasswordButton);
+    this.passwordInput = passwordControl.input;
     this.passwordField = createHudField({
       label: 'Password',
-      control: passwordInputRow,
+      control: passwordControl.element,
     });
 
     this.generalError = createHudFormMessage({
@@ -120,7 +113,13 @@ export class LoginPage {
       this.generalError.element,
       this.submitButton
     );
-    shell.append(caption, heading, form);
+
+    const accessHint = document.createElement('p');
+    accessHint.className = 'mt-4 text-xs text-slate-500';
+    accessHint.textContent =
+      'Need an account? Contact the administrator to get access.';
+
+    shell.append(caption, heading, description, form, accessHint);
     root.appendChild(shell);
     this.root = root;
   }
@@ -193,12 +192,6 @@ export class LoginPage {
           : 'Login failed. Please try again.'
       );
     }
-  }
-
-  private togglePasswordVisibility(): void {
-    const hidden = this.passwordInput.type === 'password';
-    this.passwordInput.type = hidden ? 'text' : 'password';
-    this.togglePasswordButton.textContent = hidden ? 'Hide' : 'Show';
   }
 
   private validateUsername(): boolean {

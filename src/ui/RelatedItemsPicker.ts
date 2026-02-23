@@ -24,7 +24,7 @@ import { positionFixedElement } from './overlayPosition.ts';
 import {
   createHudDivider,
   createHudIconButton,
-  createHudInput,
+  createHudInputBase,
   createHudSegmentedControl,
   createHudSurface,
   createHudTextButton,
@@ -102,7 +102,7 @@ export class RelatedItemsPicker {
     this.header.appendChild(this.closeBtn);
     this.container.appendChild(this.header);
 
-    this.searchInput = createHudInput({
+    this.searchInput = createHudInputBase({
       type: 'search',
       placeholder: 'Search...',
       className: 'mb-2 h-9',

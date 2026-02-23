@@ -9,7 +9,7 @@ import {
 import {
   createHudDivider,
   createHudIconButton,
-  createHudInput,
+  createHudInputBase,
   createHudSurface,
   createHudTextButton,
 } from '../primitives/index.ts';
@@ -114,7 +114,7 @@ export class ExistingEntityPicker<TItem> {
     closeBtn.addEventListener('click', () => this.close());
     header.append(title, closeBtn);
 
-    const searchInput = createHudInput({
+    const searchInput = createHudInputBase({
       type: 'search',
       placeholder: this.config.searchPlaceholder,
       className: 'mb-2 h-10',

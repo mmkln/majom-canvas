@@ -53,16 +53,26 @@ function ensureControlId(control: HTMLElement): string {
   return id;
 }
 
+function findPrimaryFormControl(control: HTMLElement): HTMLElement | null {
+  if (control.matches('input, select, textarea')) {
+    return control;
+  }
+  const nested = control.querySelector('input, select, textarea');
+  return nested instanceof HTMLElement ? nested : null;
+}
+
 function connectLabelToControl(
   label: HTMLLabelElement,
   control: HTMLElement
 ): void {
-  const controlId = ensureControlId(control);
-  if (control.matches('input, select, textarea, button')) {
+  const primaryControl = findPrimaryFormControl(control);
+  if (primaryControl) {
+    const controlId = ensureControlId(primaryControl);
     label.htmlFor = controlId;
     return;
   }
 
+  const controlId = ensureControlId(control);
   const labelledBy = control.getAttribute('aria-labelledby');
   if (labelledBy && labelledBy.length > 0) {
     label.id = labelledBy.split(/\s+/)[0] ?? labelledBy;
@@ -141,7 +151,6 @@ export function createHudField(options: HudFieldOptions): HudField {
     meta.replaceChildren();
     const hasError = Boolean(state.error && state.error.trim().length > 0);
     const hasHint = Boolean(state.hint && state.hint.trim().length > 0);
-    const describedByIds: string[] = [];
 
     if (hasError) {
       const errorEl = document.createElement('div');
@@ -149,33 +158,37 @@ export function createHudField(options: HudFieldOptions): HudField {
       errorEl.className = HUD_FIELD_ERROR_CLASS;
       errorEl.textContent = state.error ?? '';
       meta.appendChild(errorEl);
-      describedByIds.push(errorId);
     } else if (hasHint) {
       const hintEl = document.createElement('div');
       hintEl.id = hintId;
       hintEl.className = HUD_FIELD_HINT_CLASS;
       hintEl.textContent = state.hint ?? '';
       meta.appendChild(hintEl);
-      describedByIds.push(hintId);
-    }
-
-    if (!controlEl) return;
-    mergeDescribedBy(controlEl, managedDescribedByIds, describedByIds);
-    managedDescribedByIds = describedByIds;
-
-    const invalid = state.invalid || hasError;
-    if (invalid) {
-      controlEl.setAttribute('aria-invalid', 'true');
-    } else {
-      controlEl.removeAttribute('aria-invalid');
     }
   };
 
   const applyControlState = (): void => {
     if (!controlEl) return;
-    if ('disabled' in controlEl) {
-      (controlEl as HTMLInputElement).disabled = state.disabled;
+    const targetControl = findPrimaryFormControl(controlEl) ?? controlEl;
+    if ('disabled' in targetControl) {
+      (targetControl as HTMLInputElement).disabled = state.disabled;
     }
+
+    const hasError = Boolean(state.error && state.error.trim().length > 0);
+    const invalid = state.invalid || hasError;
+    if (invalid) {
+      targetControl.setAttribute('aria-invalid', 'true');
+    } else {
+      targetControl.removeAttribute('aria-invalid');
+    }
+
+    const hasHint = Boolean(state.hint && state.hint.trim().length > 0);
+    const describedByIds: string[] = [];
+    if (hasError) describedByIds.push(errorId);
+    else if (hasHint) describedByIds.push(hintId);
+    mergeDescribedBy(targetControl, managedDescribedByIds, describedByIds);
+    managedDescribedByIds = describedByIds;
+
     renderMeta();
   };
 

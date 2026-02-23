@@ -33,10 +33,20 @@ export {
   type HudMenuItemVariant,
 } from './HudDropdownItem.ts';
 export {
-  createHudInput,
+  createHudInputBase,
   setHudInputState,
+  type HudInputBaseOptions,
+  type HudInputBaseState,
   type HudInputVariant,
 } from './HudInput.ts';
+export {
+  createHudInput,
+  type HudInput,
+  type HudInputKind,
+  createHudTextInputControl,
+  type HudTextInputControl,
+  type HudTextInputKind,
+} from './HudTextInputControl.ts';
 export {
   createHudSegmentedControl,
   HudSegmentedControl,

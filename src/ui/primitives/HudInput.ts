@@ -6,7 +6,7 @@ import {
 
 export type HudInputVariant = 'default' | 'inline';
 
-type HudInputOptions = {
+export type HudInputBaseOptions = {
   variant?: HudInputVariant;
   className?: string;
   type?: string;
@@ -32,7 +32,9 @@ const classByVariant: Record<HudInputVariant, string> = {
   inline: HUD_INPUT_INLINE_CLASS,
 };
 
-export function createHudInput(options: HudInputOptions = {}): HTMLInputElement {
+export function createHudInputBase(
+  options: HudInputBaseOptions = {}
+): HTMLInputElement {
   const input = document.createElement('input');
   input.type = options.type ?? 'text';
   if (options.value !== undefined) input.value = options.value;
@@ -71,14 +73,14 @@ export function createHudInput(options: HudInputOptions = {}): HTMLInputElement 
   return input;
 }
 
-type HudInputState = {
+export type HudInputBaseState = {
   disabled?: boolean;
   invalid?: boolean;
 };
 
 export function setHudInputState(
   input: HTMLInputElement,
-  state: HudInputState
+  state: HudInputBaseState
 ): void {
   if (state.disabled !== undefined) {
     input.disabled = state.disabled;
@@ -91,3 +93,6 @@ export function setHudInputState(
     }
   }
 }
+
+// Backward-compatible alias for direct imports from this file.
+export const createHudInput = createHudInputBase;

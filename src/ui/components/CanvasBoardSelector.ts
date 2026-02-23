@@ -1,7 +1,7 @@
 import {
   createHudDivider,
   createHudDropdownItem,
-  createHudInput,
+  createHudInputBase,
   createHudIconButton,
   createHudTextButton,
   HudDropdown,
@@ -168,7 +168,7 @@ export class CanvasBoardSelector {
   private startTitleEdit(): void {
     if (this.isEditingTitle) return;
     this.isEditingTitle = true;
-    this.titleInput = createHudInput({
+    this.titleInput = createHudInputBase({
       variant: 'inline',
       value: this.currentTitle,
       type: 'text',
