@@ -18,6 +18,7 @@ export class BootOrchestrator {
   private readonly runtimeHost: RuntimeHost;
   private readonly loginPage: LoginPage;
   private readonly loadingScreen: LoadingScreen;
+  private readonly minLoadingScreenMs = 1800;
   private logoutSubscription: Subscription | null = null;
   private loginSubscription: Subscription | null = null;
   private state: BootState = 'auth_required';
@@ -133,6 +134,7 @@ export class BootOrchestrator {
     if (this.bootInFlight) return;
     if (this.state !== 'booting') return;
     this.bootInFlight = true;
+    const startedAt = Date.now();
     try {
       await this.runtimeHost.start();
       this.dispatch('boot_succeeded');
@@ -140,6 +142,13 @@ export class BootOrchestrator {
       console.error('Failed to initialize authenticated app session.', error);
       this.dispatch('boot_failed');
     } finally {
+      const elapsedMs = Date.now() - startedAt;
+      const remainingMs = this.minLoadingScreenMs - elapsedMs;
+      if (remainingMs > 0) {
+        await new Promise<void>((resolve) =>
+          window.setTimeout(resolve, remainingMs)
+        );
+      }
       this.bootInFlight = false;
       this.render();
     }
