@@ -33,7 +33,7 @@ export class LoginPage {
   constructor(private readonly options: LoginPageOptions) {
     const root = document.createElement('div');
     root.className =
-      'fixed inset-0 z-[190] flex items-center justify-center bg-gradient-to-b from-white to-slate-50 px-4 py-8';
+      'fixed inset-0 z-[190] flex items-center justify-center bg-[radial-gradient(circle_at_16%_18%,rgba(14,165,233,0.03),transparent_41%),radial-gradient(circle_at_84%_82%,rgba(249,115,22,0.02),transparent_43%),linear-gradient(to_bottom,#ffffff,#f8fafc)] px-4 py-8';
 
     const shell = document.createElement('section');
     shell.className =
