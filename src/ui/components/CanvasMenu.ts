@@ -13,8 +13,6 @@ import {
   HudDropdown,
 } from '../primitives/index.ts';
 
-import { LoginPage } from './LoginPage.ts';
-
 type CanvasMenuOptions = {
   containerClassName?: string;
 };
@@ -27,10 +25,9 @@ export class CanvasMenu {
   private readonly deleteCanvasButton: HTMLButtonElement;
   private readonly logoutButton: HTMLButtonElement;
   private readonly authController: AuthController;
-  private readonly loginPage: LoginPage;
   private stateSubscription: Subscription | null = null;
-  private authRequestSubscription: Subscription | null = null;
   private readonly refreshHandler: () => void;
+  private logoutRequested = false;
   private mounted = false;
 
   constructor(
@@ -83,16 +80,6 @@ export class CanvasMenu {
     });
 
     this.authController = new AuthController(authService, userApiService);
-    this.loginPage = new LoginPage({
-      onSubmit: async (credentials) => {
-        const result = await this.authController.submitLogin(credentials);
-        if (result.ok) {
-          notify('Logged in successfully', 'success');
-          window.dispatchEvent(new CustomEvent('refreshCanvasData'));
-        }
-        return result;
-      },
-    });
     this.refreshHandler = () => this.authController.initialize();
   }
 
@@ -102,19 +89,15 @@ export class CanvasMenu {
     this.dropdownController.mount();
     window.addEventListener('refreshCanvasData', this.refreshHandler);
 
+    // Initialize auth state before subscribing, otherwise the initial
+    // BehaviorSubject emission (default unauthenticated) can trigger a
+    // false-positive logout during app bootstrap.
+    this.authController.initialize();
     this.stateSubscription = this.authController.state$.subscribe((state) =>
       this.render(state)
     );
-    this.authRequestSubscription = authFlowService.loginRequests$.subscribe(() => {
-      this.authController.requestLogin();
-      if (!this.authController.getState().isAuthenticated) {
-        this.loginPage.show();
-        this.loginPage.focusPrimaryField();
-      }
-    });
 
     this.mounted = true;
-    this.authController.initialize();
   }
 
   public unmount(): void {
@@ -124,19 +107,17 @@ export class CanvasMenu {
     window.removeEventListener('refreshCanvasData', this.refreshHandler);
     this.stateSubscription?.unsubscribe();
     this.stateSubscription = null;
-    this.authRequestSubscription?.unsubscribe();
-    this.authRequestSubscription = null;
-    this.loginPage.hide();
     this.container.remove();
     this.mounted = false;
+    this.logoutRequested = false;
   }
 
   private render(state: AuthState): void {
     this.renderDropdownContent(state.user, state.isUserLoading);
 
     if (state.isAuthenticated) {
+      this.logoutRequested = false;
       this.container.replaceChildren(this.menuButton, this.dropdownMenu);
-      this.loginPage.hide();
       if (!state.user && !state.isUserLoading) {
         this.authController.loadUserIfNeeded();
       }
@@ -145,7 +126,10 @@ export class CanvasMenu {
 
     this.setDropdownOpen(false);
     this.container.replaceChildren();
-    this.loginPage.show();
+    if (!this.logoutRequested) {
+      this.logoutRequested = true;
+      authFlowService.requestLogout('session-expired');
+    }
   }
 
   private renderDropdownContent(
@@ -200,6 +184,9 @@ export class CanvasMenu {
     this.authController.logout();
     notify('Logged out', 'info');
     this.setDropdownOpen(false);
-    window.dispatchEvent(new CustomEvent('refreshCanvasData'));
+    if (!this.logoutRequested) {
+      this.logoutRequested = true;
+      authFlowService.requestLogout('manual');
+    }
   }
 }

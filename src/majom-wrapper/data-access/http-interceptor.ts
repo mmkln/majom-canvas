@@ -11,6 +11,7 @@ import {
 import { AuthService } from './auth-service.js';
 import { ACCESS_TOKEN_KEY } from '../../config/storage-keys.js';
 import { requestTracker } from './request-tracker.js';
+import { authFlowService } from '../../ui/auth/authFlowService.ts';
 
 /**
  * HTTP client wrapper: automatically attaches JWT and handles errors.
@@ -36,6 +37,10 @@ export class HttpInterceptorClient {
     if (!this.refreshAccessToken$) {
       this.refreshAccessToken$ = from(this.authService.refreshToken()).pipe(
         map(({ access }) => access),
+        catchError((error) => {
+          this.handleUnauthorizedSession();
+          return throwError(() => error);
+        }),
         finalize(() => {
           this.refreshAccessToken$ = undefined;
         }),
@@ -43,6 +48,11 @@ export class HttpInterceptorClient {
       );
     }
     return this.refreshAccessToken$;
+  }
+
+  private handleUnauthorizedSession(): void {
+    this.authService.logout();
+    authFlowService.requestLogout('unauthorized');
   }
 
   private parseResponse<T>(res: any): Observable<T> {
