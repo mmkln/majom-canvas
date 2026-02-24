@@ -1,4 +1,5 @@
 import {
+  HUD_DESTRUCTIVE_BUTTON_CLASS,
   HUD_TEXT_BUTTON_DANGER_CLASS,
   HUD_TEXT_BUTTON_SECONDARY_CLASS,
   HUD_TEXT_BUTTON_TERTIARY_CLASS,
@@ -15,6 +16,7 @@ export type HudTextButtonTone =
   | 'soft'
   | 'secondary'
   | 'primary'
+  | 'destructive'
   | 'text'
   | 'danger';
 export type HudTextButtonSize = 'sm' | 'md' | 'lg';
@@ -46,6 +48,7 @@ const classByTone: Record<HudTextButtonTone, string> = {
   soft: HUD_TEXT_BUTTON_SECONDARY_CLASS,
   secondary: HUD_TEXT_BUTTON_SECONDARY_CLASS,
   primary: HUD_PRIMARY_BUTTON_CLASS,
+  destructive: HUD_DESTRUCTIVE_BUTTON_CLASS,
   text: HUD_TEXT_BUTTON_TERTIARY_CLASS,
   danger: HUD_TEXT_BUTTON_DANGER_CLASS,
 };

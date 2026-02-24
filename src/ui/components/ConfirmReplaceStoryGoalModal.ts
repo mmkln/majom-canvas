@@ -1,5 +1,5 @@
-import { ComponentFactory } from '../../ui-lib/src/core/ComponentFactory.ts';
 import { createModalShell } from '../../ui-lib/src/components/Modal.ts';
+import { createHudTextButton } from '../primitives/index.ts';
 
 type ConfirmReplaceStoryGoalModalOptions = {
   storyTitle?: string;
@@ -30,30 +30,36 @@ export function confirmReplaceStoryGoalModal(
 
     const storyLabel = options.storyTitle?.trim() || 'This story';
     const message = document.createElement('p');
-    message.className = 'text-sm text-gray-700 leading-relaxed';
+    message.className = 'text-sm leading-relaxed text-slate-600';
     message.textContent = `"${storyLabel}" is already linked to another goal. Do you want to replace it with the new goal?`;
     container.appendChild(message);
 
     const row = document.createElement('div');
-    row.className = 'flex justify-end gap-2 pt-2';
+    row.className = 'mt-4 flex justify-end gap-2';
 
-    ComponentFactory.createButton({
+    const cancelButton = createHudTextButton({
       text: 'Cancel',
-      variant: 'outline',
+      tone: 'text',
+      size: 'md',
+      className: 'min-w-[84px] justify-center',
       onClick: () => {
         settle(false);
         close();
       },
-    }).render(row);
+    });
+    row.appendChild(cancelButton);
 
-    ComponentFactory.createButton({
+    const replaceButton = createHudTextButton({
       text: 'Replace',
-      variant: 'default',
+      tone: 'primary',
+      size: 'md',
+      className: 'min-w-[84px] justify-center',
       onClick: () => {
         settle(true);
         close();
       },
-    }).render(row);
+    });
+    row.appendChild(replaceButton);
 
     container.appendChild(row);
 
@@ -73,4 +79,3 @@ export function confirmReplaceStoryGoalModal(
     });
   });
 }
-
