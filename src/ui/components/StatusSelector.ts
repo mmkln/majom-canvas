@@ -78,7 +78,7 @@ export class StatusSelector {
     this.onStatusChange = options.onStatusChange;
 
     this.element = document.createElement('div');
-    this.element.className = 'relative inline-flex items-center gap-0.5 p-1';
+    this.element.className = 'relative inline-flex items-center gap-0.5';
 
     this.prevBtn = this.createStepButton(
       'chevron-left',
