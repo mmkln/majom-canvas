@@ -4,6 +4,7 @@ import { GoalElement, GoalScale } from '../../elements/GoalElement.ts';
 import { Scene } from '../../core/scene/Scene.ts';
 import { ComponentFactory } from '../../ui-lib/src/core/ComponentFactory.ts';
 import { createModalShell } from '../../ui-lib/src/components/Modal.js';
+import { confirmUnsavedChangesModal } from './ConfirmUnsavedChangesModal.ts';
 import {
   createHudField,
   createHudSegmentedControl,
@@ -48,8 +49,11 @@ export class EditElementModal {
       return Number.isNaN(parsed.getTime()) ? null : parsed;
     };
     const { overlay, container } = createModalShell(`Edit ${typeLabel}`, {
-      onClose: () => this.close(),
+      onClose: () => {
+        void requestClose();
+      },
     });
+    this.modal = overlay;
 
     // Local temp state
     const originalTitle = this.element.title;
@@ -73,6 +77,32 @@ export class EditElementModal {
     let tempPriority = originalPriority;
     let tempScale: GoalScale = originalScale ?? 1;
     let tempDueDateValue = originalDueDateValue;
+    let closeGuardOpen = false;
+
+    const hasUnsavedChanges = (): boolean => {
+      const normalizedTitle = tempTitle.trim();
+      if (normalizedTitle !== originalTitle) return true;
+      if (tempDescription !== originalDescription) return true;
+      if (tempStatus !== originalStatus) return true;
+      if (tempPriority !== originalPriority) return true;
+      if (isTask && tempDueDateValue !== originalDueDateValue) return true;
+      if (isGoal && originalScale !== tempScale) return true;
+      return false;
+    };
+
+    const requestClose = async (): Promise<void> => {
+      if (!this.modal) return;
+      if (!hasUnsavedChanges()) {
+        this.close();
+        return;
+      }
+      if (closeGuardOpen) return;
+      closeGuardOpen = true;
+      const canDiscard = await confirmUnsavedChangesModal();
+      closeGuardOpen = false;
+      if (!canDiscard) return;
+      this.close();
+    };
 
     // Title input with label
     const titleField = createHudField({ label: 'Title', required: true });
@@ -246,7 +276,9 @@ export class EditElementModal {
     const cancelBtn = createHudTextButton({
       text: 'Cancel',
       tone: 'text',
-      onClick: () => this.close(),
+      onClick: () => {
+        void requestClose();
+      },
     });
     const saveBtn = createHudTextButton({
       text: 'Save',
@@ -273,11 +305,9 @@ export class EditElementModal {
       }
       if (e.key === 'Escape') {
         e.preventDefault();
-        this.close();
+        void requestClose();
       }
     });
-
-    this.modal = overlay;
   }
 
   private close(): void {
