@@ -7,6 +7,8 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "build:repo": "vite build --base=/majom-canvas/",
+    "build:domain": "vite build --base=/",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist",
     "preview": "vite preview",
@@ -16,7 +18,9 @@
     "lint": "eslint .",
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,css,scss,md}\"",
     "deploy:build": "npm run build && npm run deploy",
-    "go": "npm run deploy:build"
+    "deploy:repo": "npm run build:repo && npm run deploy",
+    "deploy:domain": "npm run build:domain && npm run deploy",
+    "go": "npm run deploy:domain"
   },
   "keywords": [
     "canvas",
