@@ -41,20 +41,27 @@ export class LoginPage {
     shell.setAttribute('aria-label', this.options.title ?? 'Login');
 
     const header = document.createElement('div');
-    header.className = 'space-y-1.5';
+    header.className = 'mb-7 flex flex-col items-center text-center';
 
-    const caption = document.createElement('p');
-    caption.className =
-      'mb-0 inline-flex items-center text-[10px] font-medium uppercase tracking-[0.08em] text-slate-400';
-    caption.textContent = 'Majom Canvas';
+    const logo = document.createElement('img');
+    logo.src = '/favicon.svg';
+    logo.alt = 'Majom logo';
+    logo.width = 48;
+    logo.height = 48;
+    logo.className = 'mb-3 h-12 w-12';
 
     const heading = document.createElement('h1');
-    heading.className = 'text-[26px] font-semibold leading-[1.1] tracking-tight text-slate-900';
-    heading.textContent = this.options.title ?? 'Login';
-    header.append(caption, heading);
+    heading.className = 'text-[25px] font-semibold leading-[1.1] tracking-tight text-slate-900';
+    heading.textContent = this.options.title ?? 'Welcome back';
+
+    const caption = document.createElement('p');
+    caption.className = 'mt-1 text-sm leading-5 text-slate-500';
+    caption.textContent = 'Sign in to Majom Canvas';
+
+    header.append(logo, heading, caption);
 
     const form = document.createElement('form');
-    form.className = 'mt-6 space-y-0';
+    form.className = 'space-y-0';
     form.noValidate = true;
 
     const usernameControl = createHudInput({
@@ -88,16 +95,17 @@ export class LoginPage {
     this.generalError = createHudFormMessage({
       tone: 'error',
       ariaLive: 'polite',
+      className: 'mt-1 mb-2',
     });
 
     this.submitButton = createHudTextButton({
       tone: 'primary',
       size: 'lg',
       fullWidth: true,
-      text: 'Login',
+      text: 'Sign in',
       loadingText: 'Logging in...',
       type: 'submit',
-      className: 'mt-1',
+      className: 'mt-2',
     });
 
     this.usernameInput.addEventListener('input', () => {
@@ -120,13 +128,7 @@ export class LoginPage {
       this.submitButton
     );
 
-    const accessHint = document.createElement('p');
-    accessHint.className =
-      'mt-4 text-xs leading-5 text-slate-500';
-    accessHint.textContent =
-      'Need an account? Contact the administrator to get access.';
-
-    shell.append(header, form, accessHint);
+    shell.append(header, form);
     root.appendChild(shell);
     this.root = root;
   }
