@@ -13,6 +13,7 @@ export type IconName =
   | 'squares-plus'
   | 'minus'
   | 'plus'
+  | 'magnifying-glass'
   | 'chevron-down'
   | 'chevron-up'
   | 'chevron-left'
@@ -162,6 +163,15 @@ export function createIcon(
       makeFilledPath(
         'M12 3.75a.75.75 0 0 1 .75.75v6.75h6.75a.75.75 0 0 1 0 1.5h-6.75v6.75a.75.75 0 0 1-1.5 0v-6.75H4.5a.75.75 0 0 1 0-1.5h6.75V4.5a.75.75 0 0 1 .75-.75Z',
         'evenodd'
+      )
+    );
+    return svg;
+  }
+
+  if (name === 'magnifying-glass') {
+    svg.appendChild(
+      makePath(
+        'm21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z'
       )
     );
     return svg;

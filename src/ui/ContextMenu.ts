@@ -28,7 +28,7 @@ import {
   createHudDropdownItem,
   type HudMenuItemVariant,
 } from './primitives/index.ts';
-import { createIcon } from './icons.ts';
+import { createIcon, type IconName } from './icons.ts';
 import {
   getStatusLabel,
   STATUS_ICON_MAP,
@@ -60,7 +60,16 @@ type ContextMenuSubmenuItem = {
   tone?: 'danger' | 'warning';
 };
 
-type ContextMenuItem = ContextMenuActionItem | ContextMenuSubmenuItem;
+type ContextMenuSplitActionItem = ContextMenuActionItem & {
+  secondaryAction: () => MenuActionResult;
+  secondaryIcon: IconName;
+  secondaryLabel: string;
+};
+
+type ContextMenuItem =
+  | ContextMenuActionItem
+  | ContextMenuSubmenuItem
+  | ContextMenuSplitActionItem;
 
 type ContextMenuSection = {
   title?: string;
@@ -226,42 +235,24 @@ export class ContextMenu {
         items: [
           {
             label: 'Task',
-            submenu: [
-              {
-                label: 'Create new',
-                action: () => this.createTaskAt(sceneX, sceneY),
-              },
-              {
-                label: 'Find existing',
-                action: () => this.openExistingTaskPicker(sceneX, sceneY),
-              },
-            ],
+            action: () => this.createTaskAt(sceneX, sceneY),
+            secondaryAction: () => this.openExistingTaskPicker(sceneX, sceneY),
+            secondaryIcon: 'magnifying-glass',
+            secondaryLabel: 'Find existing task',
           },
           {
             label: 'Story',
-            submenu: [
-              {
-                label: 'Create new',
-                action: () => this.createStoryAt(sceneX, sceneY),
-              },
-              {
-                label: 'Find existing',
-                action: () => this.openExistingStoryPicker(sceneX, sceneY),
-              },
-            ],
+            action: () => this.createStoryAt(sceneX, sceneY),
+            secondaryAction: () => this.openExistingStoryPicker(sceneX, sceneY),
+            secondaryIcon: 'magnifying-glass',
+            secondaryLabel: 'Find existing story',
           },
           {
             label: 'Goal',
-            submenu: [
-              {
-                label: 'Create new',
-                action: () => this.createGoalAt(sceneX, sceneY),
-              },
-              {
-                label: 'Find existing',
-                action: () => this.openExistingGoalPicker(sceneX, sceneY),
-              },
-            ],
+            action: () => this.createGoalAt(sceneX, sceneY),
+            secondaryAction: () => this.openExistingGoalPicker(sceneX, sceneY),
+            secondaryIcon: 'magnifying-glass',
+            secondaryLabel: 'Find existing goal',
           },
         ],
       });
@@ -314,6 +305,23 @@ export class ContextMenu {
       items: actionItems,
     });
 
+    if (element instanceof StoryElement) {
+      sections.push({
+        title:'Add Item',
+        items: [
+          {
+            label: 'Task',
+            action: () => this.createTaskInStory(element),
+            secondaryAction: () => {
+              this.openRelatedItemsPicker(element);
+            },
+            secondaryIcon: 'squares-plus',
+            secondaryLabel: 'Add related tasks',
+          },
+        ],
+      });
+    }
+
     if (isPlanningElement) {
       const planningElement = element as TaskElement | StoryElement | GoalElement;
       const isFocused = this.scene.isFocused(planningElement);
@@ -328,23 +336,6 @@ export class ContextMenu {
                   isFocused ? null : planningElement.id
                 )
               ),
-          },
-        ],
-      });
-    }
-
-    if (element instanceof StoryElement) {
-      sections.push({
-        items: [
-          {
-            label: 'Create Task',
-            action: () => this.createTaskInStory(element),
-          },
-          {
-            label: 'Related Tasks',
-            action: () => {
-              this.openRelatedItemsPicker(element);
-            },
           },
         ],
       });
@@ -450,6 +441,11 @@ export class ContextMenu {
           return;
         }
 
+        if (this.isSplitActionItem(item)) {
+          this.menu.appendChild(this.createSplitActionRow(item));
+          return;
+        }
+
         const btn = this.createActionButton(item);
         btn.addEventListener('mouseenter', () => {
           this.closeSubmenu();
@@ -464,6 +460,12 @@ export class ContextMenu {
 
   private isSubmenuItem(item: ContextMenuItem): item is ContextMenuSubmenuItem {
     return 'submenu' in item;
+  }
+
+  private isSplitActionItem(
+    item: ContextMenuItem
+  ): item is ContextMenuSplitActionItem {
+    return 'secondaryAction' in item;
   }
 
   private createSubmenuChevron(): HTMLSpanElement {
@@ -527,6 +529,45 @@ export class ContextMenu {
     });
     btn.setAttribute('role', 'menuitem');
     return btn;
+  }
+
+  private createSplitActionRow(item: ContextMenuSplitActionItem): HTMLDivElement {
+    const row = document.createElement('div');
+    row.className =
+      'group flex w-full items-stretch overflow-hidden transition-colors';
+
+    const primary = this.createActionButton({
+      ...item,
+    });
+    primary.classList.add('!w-auto', 'grow', 'border-0');
+
+    const secondary = document.createElement('button');
+    secondary.type = 'button';
+    secondary.className =
+      'inline-flex w-11 shrink-0 items-center justify-center text-slate-500 transition-colors hover:bg-indigo-50 hover:text-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:ring-inset';
+    secondary.title = item.secondaryLabel;
+    secondary.setAttribute('aria-label', item.secondaryLabel);
+    secondary.setAttribute('role', 'menuitem');
+    const icon = createIcon(item.secondaryIcon, { size: 14, strokeWidth: 1.9 });
+    icon.setAttribute('aria-hidden', 'true');
+    secondary.appendChild(icon);
+    secondary.addEventListener('click', (event) => {
+      event.stopPropagation();
+      this.executeItemAction(item.secondaryAction);
+    });
+
+    row.append(primary, secondary);
+    row.addEventListener('mouseenter', () => {
+      this.closeSubmenu();
+    });
+    primary.addEventListener('focus', () => {
+      this.closeSubmenu();
+    });
+    secondary.addEventListener('focus', () => {
+      this.closeSubmenu();
+    });
+
+    return row;
   }
 
   private executeItemAction(action: () => MenuActionResult): void {
