@@ -204,8 +204,8 @@ export class StatusPicker {
           : 'text-blue-700 hover:bg-blue-50/70 hover:text-blue-800';
       case ElementStatus.Pending:
         return active
-          ? 'bg-amber-50 text-amber-700'
-          : 'text-amber-700 hover:bg-amber-50/70 hover:text-amber-800';
+          ? 'bg-yellow-50 text-yellow-700'
+          : 'text-yellow-700 hover:bg-yellow-50/70 hover:text-yellow-800';
       case ElementStatus.Done:
         return active
           ? 'bg-emerald-50 text-emerald-700'

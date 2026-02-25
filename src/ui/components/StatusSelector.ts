@@ -10,7 +10,7 @@ import {
 const STATUS_LABEL_TONE_CLASS: Record<ElementStatus, string> = {
   [ElementStatus.Done]: 'text-emerald-700',
   [ElementStatus.InProgress]: 'text-blue-700',
-  [ElementStatus.Pending]: 'text-amber-700',
+  [ElementStatus.Pending]: 'text-yellow-700',
   [ElementStatus.Defined]: 'text-slate-700',
 };
 
@@ -19,7 +19,7 @@ const STATUS_LABEL_MIXED_TONE_CLASS = 'text-slate-700';
 const STATUS_TRIGGER_BG_CLASS: Record<ElementStatus, string> = {
   [ElementStatus.Done]: 'bg-emerald-100/70',
   [ElementStatus.InProgress]: 'bg-blue-100/70',
-  [ElementStatus.Pending]: 'bg-amber-100/70',
+  [ElementStatus.Pending]: 'bg-yellow-100/70',
   [ElementStatus.Defined]: 'bg-slate-100',
 };
 
@@ -31,7 +31,7 @@ const STATUS_STEP_TONE_CLASS: Record<ElementStatus, string> = {
   [ElementStatus.InProgress]:
     'bg-blue-100/60 text-blue-600 hover:bg-blue-100 hover:text-blue-700',
   [ElementStatus.Pending]:
-    'bg-amber-100/60 text-amber-600 hover:bg-amber-100 hover:text-amber-700',
+    'bg-yellow-100/60 text-yellow-600 hover:bg-yellow-100 hover:text-yellow-700',
   [ElementStatus.Defined]:
     'bg-slate-100 text-slate-600 hover:bg-slate-200/80 hover:text-slate-700',
 };

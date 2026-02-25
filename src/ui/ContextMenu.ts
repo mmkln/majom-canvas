@@ -353,7 +353,6 @@ export class ContextMenu {
             leading: this.createStatusIcon(status),
             trailing: isCurrent ? this.createActiveStatusCheck() : null,
             variant: isCurrent ? 'selected' : 'default',
-            className: this.getStatusItemClass(status, isCurrent),
             action: () => {
               if (isCurrent) return 'keep-open';
               this.bulkActions.updateStatus([planningElement], status);
@@ -496,21 +495,6 @@ export class ContextMenu {
     check.setAttribute('aria-hidden', 'true');
     wrap.appendChild(check);
     return wrap;
-  }
-
-  private getStatusItemClass(status: ElementStatus, isCurrent: boolean): string {
-    if (isCurrent) return 'cursor-default';
-    switch (status) {
-      case ElementStatus.InProgress:
-        return 'hover:bg-blue-50/70';
-      case ElementStatus.Pending:
-        return 'hover:bg-amber-50/70';
-      case ElementStatus.Done:
-        return 'hover:bg-emerald-50/70';
-      case ElementStatus.Defined:
-      default:
-        return 'hover:bg-slate-100';
-    }
   }
 
   private createActionButton(item: ContextMenuActionItem): HTMLButtonElement {

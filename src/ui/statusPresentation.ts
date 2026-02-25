@@ -18,7 +18,7 @@ export const STATUS_ICON_MAP: Readonly<Record<ElementStatus, IconName>> = {
 export const STATUS_ICON_TONE_CLASS: Readonly<Record<ElementStatus, string>> = {
   [ElementStatus.Done]: 'text-emerald-600',
   [ElementStatus.InProgress]: 'text-blue-600',
-  [ElementStatus.Pending]: 'text-amber-600',
+  [ElementStatus.Pending]: 'text-yellow-600',
   [ElementStatus.Defined]: 'text-slate-500',
 };
 

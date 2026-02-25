@@ -545,7 +545,7 @@ export class ExistingEntityPicker<TItem> {
       return 'border-blue-200 bg-blue-100 text-blue-700';
     }
     if (normalized.includes('pending')) {
-      return 'border-amber-200 bg-amber-100 text-amber-700';
+      return 'border-yellow-200 bg-yellow-100 text-yellow-700';
     }
     return 'border-slate-200 bg-slate-100 text-slate-600';
   }
