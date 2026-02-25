@@ -4,6 +4,10 @@ import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
 import {
   SELECT_COLOR,
+  FOCUS_COLOR,
+  HIGHLIGHT_COLOR,
+  FOCUS_GOAL_FILL,
+  HIGHLIGHT_GOAL_FILL,
   FONT_FAMILY,
   TITLE_FONT_SIZE,
   SMALL_FONT_SIZE,
@@ -102,15 +106,25 @@ export class GoalElement extends PlanningElement {
     const showAnim = renderFlags?.showAnim ?? panZoom.scale >= SHOW_ANIM_SCALE;
     const { x, y, width, height, title, progress } = this;
     const style = goalStyles[this.status];
-    this.fillColor = style.fillColor;
-    this.borderColor = style.borderColor;
+    const chromeColor = this.focused
+      ? FOCUS_COLOR
+      : this.highlighted
+      ? HIGHLIGHT_COLOR
+      : style.borderColor;
+    const fillColor = this.focused
+      ? FOCUS_GOAL_FILL
+      : this.highlighted
+      ? HIGHLIGHT_GOAL_FILL
+      : style.fillColor;
+    this.fillColor = fillColor;
+    this.borderColor = chromeColor;
     const centerX = x + width / 2;
     const centerY = y + height / 2;
     const radius = width / 2;
     const hexVertices = this.getHexVertices(centerX, centerY, radius);
 
     // Background hex
-    ctx.fillStyle = style.fillColor;
+    ctx.fillStyle = fillColor;
     ctx.beginPath();
     this.drawHexPath(ctx, hexVertices);
     ctx.fill();
@@ -142,7 +156,7 @@ export class GoalElement extends PlanningElement {
       );
 
       // Filled segments
-      ctx.strokeStyle = style.borderColor;
+      ctx.strokeStyle = chromeColor;
       this.drawHexRingSegments(
         ctx,
         centerX,
@@ -155,7 +169,13 @@ export class GoalElement extends PlanningElement {
     }
 
     // Border
-    ctx.strokeStyle = this.selected ? SELECT_COLOR : style.borderColor;
+    ctx.strokeStyle = this.focused
+      ? FOCUS_COLOR
+      : this.highlighted
+      ? HIGHLIGHT_COLOR
+      : this.selected
+      ? SELECT_COLOR
+      : style.borderColor;
     ctx.lineWidth = this.lineWidth / panZoom.scale;
     ctx.beginPath();
     this.drawHexPath(ctx, hexVertices);
@@ -169,7 +189,7 @@ export class GoalElement extends PlanningElement {
         radius,
         lineWidth: this.lineWidth / panZoom.scale,
         scale: panZoom.scale,
-        color: style.borderColor,
+        color: chromeColor,
         timeMs: panZoom.timeMs,
         viewBounds: panZoom.viewBounds,
       });

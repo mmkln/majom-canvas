@@ -9,7 +9,6 @@ const PULSE_DURATION_MS = 2400;
 const PULSE_ALPHA_MIN = 0;
 const PULSE_ALPHA_MAX = 0.55;
 const PULSE_EXPAND_MAX = 22;
-const PULSE_COLOR = '24,144,255';
 const PULSE_OVERLAP_OFFSET = 0.55;
 const ANTS_DURATION_MS = 2400;
 const ANTS_DASH = 24;
@@ -93,8 +92,10 @@ const drawInProgressPulse = ({
   outline,
   lineWidth,
   scale,
+  color,
   timeMs,
 }: OutlineEffectParams): void => {
+  const pulseColor = color ?? '#1890ff';
   const drawPulse = (progress: number): void => {
     const alpha = getPulseAlpha(progress);
     const expand = getPulseExpand(progress, scale);
@@ -102,7 +103,8 @@ const drawInProgressPulse = ({
     const innerAlpha = Math.min(0.9, alpha * 1.4);
 
     ctx.save();
-    ctx.fillStyle = `rgba(${PULSE_COLOR},${baseAlpha})`;
+    ctx.fillStyle = pulseColor;
+    ctx.globalAlpha = baseAlpha;
     ctx.beginPath();
     outline.drawPath(ctx, expand);
     outline.drawPath(ctx, 0);
@@ -110,7 +112,8 @@ const drawInProgressPulse = ({
     ctx.restore();
 
     ctx.save();
-    ctx.strokeStyle = `rgba(${PULSE_COLOR},${innerAlpha})`;
+    ctx.strokeStyle = pulseColor;
+    ctx.globalAlpha = innerAlpha;
     ctx.lineWidth = lineWidth;
     ctx.beginPath();
     outline.drawPath(ctx, 0);
@@ -118,7 +121,8 @@ const drawInProgressPulse = ({
     ctx.restore();
 
     ctx.save();
-    ctx.strokeStyle = `rgba(${PULSE_COLOR},${baseAlpha * 0.6})`;
+    ctx.strokeStyle = pulseColor;
+    ctx.globalAlpha = baseAlpha * 0.6;
     ctx.lineWidth = lineWidth;
     ctx.beginPath();
     outline.drawPath(ctx, expand);

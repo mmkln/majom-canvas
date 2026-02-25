@@ -15,6 +15,7 @@ import {
 } from '../interfaces/connection.ts';
 import {
   SELECT_COLOR,
+  FOCUS_COLOR,
   HOVER_OVERLAY_FILL,
   HOVER_OUTLINE_COLOR,
   REGION_SELECT_BORDER_COLOR,
@@ -25,10 +26,6 @@ import {
   SHOW_TASK_TEXT_SCALE,
   SHOW_ANIM_SCALE,
   TASK_DROP_PLACEHOLDER_FILL,
-  FOCUS_COLOR,
-  FOCUS_OFFSET,
-  FOCUS_CORNER_LENGTH,
-  FOCUS_LINE_WIDTH,
 } from '../constants.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
 import { GoalElement } from '../../elements/GoalElement.ts';
@@ -151,6 +148,7 @@ export class CanvasManager {
 
     this.scene.changes.subscribe(() => this.requestDraw());
     this.scene.focusChanges.subscribe(() => this.requestDraw());
+    this.scene.highlightChanges.subscribe(() => this.requestDraw());
 
     this.canvas.addEventListener('wheel', this.onWheel.bind(this));
     window.addEventListener('resize', this.onResize.bind(this));
@@ -250,6 +248,12 @@ export class CanvasManager {
     const shapes = this.cachedShapes;
     const planningEls = this.cachedPlanningElements;
     const planningElsSorted = this.cachedPlanningElementsSorted;
+    const focusedId = this.scene.getFocusedElementId();
+    const highlightedIds = new Set(this.scene.getHighlightedElementIds());
+    planningEls.forEach((element) => {
+      element.focused = element.id === focusedId;
+      element.highlighted = highlightedIds.has(element.id);
+    });
     const connectables = [...shapes, ...planningEls];
 
     const connections = this.scene.getConnections();
@@ -458,7 +462,6 @@ export class CanvasManager {
       this.ctx.strokeRect(region.x, region.y, region.width, region.height);
       this.ctx.restore();
     }
-    this.drawFocusOverlay();
 
     this.ctx.restore();
     this.scrollbarManager.drawScrollbars();
@@ -510,22 +513,22 @@ export class CanvasManager {
       this.ctx.restore();
 
       if (!placeholder.isFocused) return;
-      const offset = FOCUS_OFFSET / scale;
-      const cornerLength = Math.min(
-        FOCUS_CORNER_LENGTH / scale,
-        Math.max(8 / scale, Math.min(width, height) / 3)
-      );
-      const left = x - offset;
-      const top = y - offset;
-      const right = x + width + offset;
-      const bottom = y + height + offset;
       this.ctx.save();
       this.ctx.strokeStyle = FOCUS_COLOR;
-      this.ctx.lineWidth = FOCUS_LINE_WIDTH / scale;
-      this.ctx.lineCap = 'round';
-      this.ctx.lineJoin = 'round';
+      this.ctx.lineWidth = 2 / scale;
       this.ctx.setLineDash([]);
-      this.drawFocusCorners(left, top, right, bottom, cornerLength);
+      this.ctx.beginPath();
+      if (placeholder.elementType === 'task') {
+        this.ctx.roundRect(x, y, width, height, 24);
+      } else if (placeholder.elementType === 'story') {
+        this.ctx.roundRect(x, y, width, height, 8);
+      } else {
+        const centerX = x + width / 2;
+        const centerY = y + height / 2;
+        const radius = Math.min(width, height) / 2;
+        this.drawHexPath(centerX, centerY, radius);
+      }
+      this.ctx.stroke();
       this.ctx.restore();
     });
   }
@@ -543,63 +546,6 @@ export class CanvasManager {
       }
     }
     this.ctx.closePath();
-  }
-
-  private drawFocusOverlay(): void {
-    const focused = this.scene.getFocusedElement() as any;
-    if (!focused) return;
-    const bounds = this.getElementBounds(focused);
-    if (!bounds) return;
-    const scale = this.panZoom.scale || 1;
-    const offset = FOCUS_OFFSET / scale;
-    const cornerLength = Math.min(
-      FOCUS_CORNER_LENGTH / scale,
-      Math.max(8 / scale, Math.min(bounds.width, bounds.height) / 3)
-    );
-    const x = bounds.x - offset;
-    const y = bounds.y - offset;
-    const width = bounds.width + offset * 2;
-    const height = bounds.height + offset * 2;
-    const right = x + width;
-    const bottom = y + height;
-
-    this.ctx.save();
-    this.ctx.strokeStyle = FOCUS_COLOR;
-    this.ctx.lineWidth = FOCUS_LINE_WIDTH / scale;
-    this.ctx.lineCap = 'round';
-    this.ctx.lineJoin = 'round';
-    this.ctx.setLineDash([]);
-
-    this.drawFocusCorners(x, y, right, bottom, cornerLength);
-
-    this.ctx.restore();
-  }
-
-  private drawFocusCorners(
-    left: number,
-    top: number,
-    right: number,
-    bottom: number,
-    length: number
-  ): void {
-    this.ctx.beginPath();
-    // top-left
-    this.ctx.moveTo(left, top + length);
-    this.ctx.lineTo(left, top);
-    this.ctx.lineTo(left + length, top);
-    // top-right
-    this.ctx.moveTo(right - length, top);
-    this.ctx.lineTo(right, top);
-    this.ctx.lineTo(right, top + length);
-    // bottom-right
-    this.ctx.moveTo(right, bottom - length);
-    this.ctx.lineTo(right, bottom);
-    this.ctx.lineTo(right - length, bottom);
-    // bottom-left
-    this.ctx.moveTo(left + length, bottom);
-    this.ctx.lineTo(left, bottom);
-    this.ctx.lineTo(left, bottom - length);
-    this.ctx.stroke();
   }
 
   private getElementBounds(

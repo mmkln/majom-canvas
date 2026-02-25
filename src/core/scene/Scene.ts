@@ -10,6 +10,7 @@ export class Scene {
   private elementsVersion = 0;
   private selectedMap: Map<string, ICanvasElement> = new Map<string, ICanvasElement>();
   private focusedElementId: string | null = null;
+  private highlightedElementIds: Set<string> = new Set<string>();
   public changes: Subject<void> = new Subject<void>();
   public focusChanges: Subject<{
     previousId: string | null;
@@ -17,6 +18,13 @@ export class Scene {
   }> = new Subject<{
     previousId: string | null;
     currentId: string | null;
+  }>();
+  public highlightChanges: Subject<{
+    addedIds: string[];
+    removedIds: string[];
+  }> = new Subject<{
+    addedIds: string[];
+    removedIds: string[];
   }>();
 
   constructor() {}
@@ -35,6 +43,7 @@ export class Scene {
   public removeElements(elements: ICanvasElement[]): void {
     let focusChanged = false;
     const previousFocusId = this.focusedElementId;
+    const removedHighlightedIds: string[] = [];
     elements.forEach((element) => {
       const index = this.elements.indexOf(element);
       const elementId = element.id;
@@ -49,6 +58,9 @@ export class Scene {
         this.focusedElementId = null;
         focusChanged = true;
       }
+      if (this.highlightedElementIds.delete(elementId)) {
+        removedHighlightedIds.push(elementId);
+      }
     });
     if (elements.length > 0) {
       this.elementsVersion += 1;
@@ -58,6 +70,12 @@ export class Scene {
       this.focusChanges.next({
         previousId: previousFocusId,
         currentId: this.focusedElementId,
+      });
+    }
+    if (removedHighlightedIds.length > 0) {
+      this.highlightChanges.next({
+        addedIds: [],
+        removedIds: removedHighlightedIds,
       });
     }
   }
@@ -71,6 +89,7 @@ export class Scene {
     if (replacedCount === 0 && replacements.length === 0) return;
 
     const previousFocusId = this.focusedElementId;
+    const previousHighlightedIds = new Set(this.highlightedElementIds);
     const nextElements = [...keptElements, ...replacements];
     this.elements = nextElements;
     this.selectedMap.clear();
@@ -85,7 +104,18 @@ export class Scene {
       nextElements.some((element) => element.id === previousFocusId)
         ? previousFocusId
         : null;
+    const nextElementIds = new Set(nextElements.map((element) => element.id));
+    const nextHighlightedIds = new Set<string>();
+    this.highlightedElementIds.forEach((id) => {
+      if (nextElementIds.has(id)) {
+        nextHighlightedIds.add(id);
+      }
+    });
+    const removedHighlightedIds = Array.from(previousHighlightedIds).filter(
+      (id) => !nextHighlightedIds.has(id)
+    );
     this.focusedElementId = nextFocusId;
+    this.highlightedElementIds = nextHighlightedIds;
 
     this.elementsVersion += 1;
     this.changes.next();
@@ -93,6 +123,12 @@ export class Scene {
       this.focusChanges.next({
         previousId: previousFocusId,
         currentId: nextFocusId,
+      });
+    }
+    if (removedHighlightedIds.length > 0) {
+      this.highlightChanges.next({
+        addedIds: [],
+        removedIds: removedHighlightedIds,
       });
     }
   }
@@ -195,15 +231,23 @@ export class Scene {
 
   public clear(): void {
     const previousFocusId = this.focusedElementId;
+    const removedHighlightedIds = Array.from(this.highlightedElementIds);
     this.elements = [];
     this.selectedMap.clear();
     this.focusedElementId = null;
+    this.highlightedElementIds.clear();
     this.elementsVersion += 1;
     this.changes.next();
     if (previousFocusId !== null) {
       this.focusChanges.next({
         previousId: previousFocusId,
         currentId: null,
+      });
+    }
+    if (removedHighlightedIds.length > 0) {
+      this.highlightChanges.next({
+        addedIds: [],
+        removedIds: removedHighlightedIds,
       });
     }
   }
@@ -243,5 +287,72 @@ export class Scene {
   public isFocused(element: ICanvasElement | null): boolean {
     if (!element) return false;
     return this.focusedElementId === element.id;
+  }
+
+  public setHighlightedElementById(id: string, highlighted: boolean): void {
+    const exists = this.elements.some((element) => element.id === id);
+    if (!exists) return;
+    const wasHighlighted = this.highlightedElementIds.has(id);
+    if (highlighted) {
+      if (wasHighlighted) return;
+      this.highlightedElementIds.add(id);
+      this.highlightChanges.next({
+        addedIds: [id],
+        removedIds: [],
+      });
+      return;
+    }
+    if (!wasHighlighted) return;
+    this.highlightedElementIds.delete(id);
+    this.highlightChanges.next({
+      addedIds: [],
+      removedIds: [id],
+    });
+  }
+
+  public setHighlightedElementIds(ids: string[]): void {
+    const existingIds = new Set(this.elements.map((element) => element.id));
+    const nextIds = new Set<string>();
+    ids.forEach((id) => {
+      if (existingIds.has(id)) {
+        nextIds.add(id);
+      }
+    });
+    const addedIds = Array.from(nextIds).filter(
+      (id) => !this.highlightedElementIds.has(id)
+    );
+    const removedIds = Array.from(this.highlightedElementIds).filter(
+      (id) => !nextIds.has(id)
+    );
+    if (addedIds.length === 0 && removedIds.length === 0) return;
+    this.highlightedElementIds = nextIds;
+    this.highlightChanges.next({
+      addedIds,
+      removedIds,
+    });
+  }
+
+  public clearHighlightedElements(): void {
+    if (this.highlightedElementIds.size === 0) return;
+    const removedIds = Array.from(this.highlightedElementIds);
+    this.highlightedElementIds.clear();
+    this.highlightChanges.next({
+      addedIds: [],
+      removedIds,
+    });
+  }
+
+  public getHighlightedElementIds(): string[] {
+    return Array.from(this.highlightedElementIds);
+  }
+
+  public isHighlightedById(id: string | null): boolean {
+    if (!id) return false;
+    return this.highlightedElementIds.has(id);
+  }
+
+  public isHighlighted(element: ICanvasElement | null): boolean {
+    if (!element) return false;
+    return this.highlightedElementIds.has(element.id);
   }
 }

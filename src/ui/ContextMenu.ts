@@ -325,6 +325,7 @@ export class ContextMenu {
     if (isPlanningElement) {
       const planningElement = element as TaskElement | StoryElement | GoalElement;
       const isFocused = this.scene.isFocused(planningElement);
+      const isHighlighted = this.scene.isHighlighted(planningElement);
       sections.push({
         items: [
           {
@@ -337,6 +338,15 @@ export class ContextMenu {
                 )
               ),
             variant: isFocused ? 'selected' : 'default',
+          },
+          {
+            label: 'Highlight',
+            action: () =>
+              this.scene.setHighlightedElementById(
+                planningElement.id,
+                !isHighlighted
+              ),
+            variant: isHighlighted ? 'selected' : 'default',
           },
         ],
       });

@@ -5,10 +5,13 @@ import {
   CanvasPositionWriteDTO,
 } from './canvas-position-dto.js';
 
+export type CanvasMeta = Record<string, unknown> | null;
+
 export interface CanvasSummary {
   id: string;
   name: string;
   created_at: string;
+  meta?: CanvasMeta;
 }
 
 export class CanvasApiService {
@@ -50,22 +53,29 @@ export class CanvasApiService {
 
   /** Create a new canvas container */
   createCanvas(
-    name: string = 'New canvas'
-  ): Observable<Pick<CanvasSummary, 'id' | 'name'>> {
-    return this.http.post<Pick<CanvasSummary, 'id' | 'name'>>('/canvas/', {
-      name,
-    });
+    name: string = 'New canvas',
+    meta?: CanvasMeta
+  ): Observable<Pick<CanvasSummary, 'id' | 'name' | 'meta'>> {
+    return this.http.post<Pick<CanvasSummary, 'id' | 'name' | 'meta'>>(
+      '/canvas/',
+      {
+        name,
+        ...(meta !== undefined ? { meta } : {}),
+      }
+    );
   }
 
   /** Update an existing canvas */
   updateCanvas(
     id: string,
-    name: string
-  ): Observable<Pick<CanvasSummary, 'id' | 'name'>> {
-    return this.http.patch<Pick<CanvasSummary, 'id' | 'name'>>(
+    name: string,
+    meta?: CanvasMeta
+  ): Observable<Pick<CanvasSummary, 'id' | 'name' | 'meta'>> {
+    return this.http.patch<Pick<CanvasSummary, 'id' | 'name' | 'meta'>>(
       `/canvas/${id}/`,
       {
         name,
+        ...(meta !== undefined ? { meta } : {}),
       }
     );
   }

@@ -5,6 +5,10 @@ import { TaskElement } from './TaskElement.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
 import {
   SELECT_COLOR,
+  FOCUS_COLOR,
+  HIGHLIGHT_COLOR,
+  FOCUS_STORY_FILL,
+  HIGHLIGHT_STORY_FILL,
   FONT_FAMILY,
   TITLE_FONT_SIZE,
   SMALL_FONT_SIZE,
@@ -108,10 +112,20 @@ export class StoryElement extends PlanningElement {
     const showAnim = renderFlags?.showAnim ?? panZoom.scale >= SHOW_ANIM_SCALE;
     // Apply fill and border based on status
     const style = storyStyles[this.status];
-    this.fillColor = style.fillColor;
-    this.borderColor = style.borderColor;
+    const chromeColor = this.focused
+      ? FOCUS_COLOR
+      : this.highlighted
+      ? HIGHLIGHT_COLOR
+      : style.borderColor;
+    const fillColor = this.focused
+      ? FOCUS_STORY_FILL
+      : this.highlighted
+      ? HIGHLIGHT_STORY_FILL
+      : style.fillColor;
+    this.fillColor = fillColor;
+    this.borderColor = chromeColor;
     const radius = 8 * panZoom.scale;
-    ctx.fillStyle = style.fillColor;
+    ctx.fillStyle = fillColor;
     ctx.beginPath();
     ctx.roundRect(this.x, this.y, this.width, this.height, radius);
     ctx.fill();
@@ -119,7 +133,13 @@ export class StoryElement extends PlanningElement {
     const dashOn = 6 / panZoom.scale;
     const dashOff = 2 / panZoom.scale;
     ctx.setLineDash(this.selected ? [] : [dashOn, dashOff]);
-    ctx.strokeStyle = this.selected ? SELECT_COLOR : style.borderColor;
+    ctx.strokeStyle = this.focused
+      ? FOCUS_COLOR
+      : this.highlighted
+      ? HIGHLIGHT_COLOR
+      : this.selected
+      ? SELECT_COLOR
+      : style.borderColor;
     ctx.lineWidth = this.lineWidth / panZoom.scale;
     ctx.stroke();
     if (showAnim) {
@@ -133,7 +153,7 @@ export class StoryElement extends PlanningElement {
         radius,
         lineWidth: this.lineWidth / panZoom.scale,
         scale: panZoom.scale,
-        color: style.borderColor,
+        color: chromeColor,
         timeMs: panZoom.timeMs,
         viewBounds: panZoom.viewBounds,
       });

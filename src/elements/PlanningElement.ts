@@ -22,6 +22,8 @@ export abstract class PlanningElement
   backendId?: number;
   /** Backend UUID (new) */
   uuid?: string;
+  focused: boolean = false;
+  highlighted: boolean = false;
 
   constructor({
     id,

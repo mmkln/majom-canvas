@@ -17,7 +17,10 @@ import { TasksApiService } from '../data-access/tasks-api-service.ts';
 import { StoriesApiService } from '../data-access/stories-api-service.ts';
 import { GoalsApiService } from '../data-access/goals-api-service.ts';
 import { CanvasRelationsApiService } from '../data-access/canvas-relations-api-service.ts';
-import { CanvasApiService, CanvasSummary } from '../data-access/canvas-api-service.ts';
+import {
+  CanvasApiService,
+  CanvasSummary,
+} from '../data-access/canvas-api-service.ts';
 import { mapTask } from '../mappers/task-mapper.ts';
 import { mapStory } from '../mappers/story-mapper.ts';
 import { mapGoal } from '../mappers/goal-mapper.ts';
@@ -92,7 +95,7 @@ export type CanvasElementsLoadState =
       focusedElementUuid: string | null;
     };
 
-export type CanvasListItem = Pick<CanvasSummary, 'id' | 'name'>;
+export type CanvasListItem = Pick<CanvasSummary, 'id' | 'name' | 'meta'>;
 
 export type CanvasBootstrapResult = {
   canvases: CanvasListItem[];
@@ -1336,7 +1339,9 @@ export class CanvasDataService {
     }
   }
 
-  public setActiveCanvas(canvas: Pick<CanvasSummary, 'id' | 'name'>): void {
+  public setActiveCanvas(
+    canvas: Pick<CanvasSummary, 'id' | 'name' | 'meta'>
+  ): void {
     if (this.canvasId !== canvas.id) {
       this.positionRegistry.clear();
       this.positionDirtyKeys.clear();
@@ -1425,7 +1430,7 @@ export class CanvasDataService {
 
   public createCanvas(
     name: string = 'New canvas'
-  ): Observable<Pick<CanvasSummary, 'id' | 'name'>> {
+  ): Observable<Pick<CanvasSummary, 'id' | 'name' | 'meta'>> {
     return this.canvasApi.createCanvas(name).pipe(
       map((canvas) => {
         this.setActiveCanvas(canvas);
@@ -1434,12 +1439,12 @@ export class CanvasDataService {
     );
   }
 
-  public ensureCanvas(): Observable<Pick<CanvasSummary, 'id' | 'name'>> {
+  public ensureCanvas(): Observable<Pick<CanvasSummary, 'id' | 'name' | 'meta'>> {
     return this.canvasApi.loadCanvases().pipe(
       switchMap((canvases) => {
         if (canvases.length > 0) {
           const canvas = canvases[0];
-          return of({ id: canvas.id, name: canvas.name });
+          return of({ id: canvas.id, name: canvas.name, meta: canvas.meta });
         }
         return this.canvasApi.createCanvas('New canvas');
       }),
@@ -1452,7 +1457,7 @@ export class CanvasDataService {
 
   public updateCanvasName(
     name: string
-  ): Observable<Pick<CanvasSummary, 'id' | 'name'>> {
+  ): Observable<Pick<CanvasSummary, 'id' | 'name' | 'meta'>> {
     const safeName = name.trim() || 'New canvas';
     if (this.canvasId) {
       return this.canvasApi.updateCanvas(this.canvasId, safeName).pipe(

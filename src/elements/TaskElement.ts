@@ -4,6 +4,8 @@ import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
 import {
   SELECT_COLOR,
+  FOCUS_COLOR,
+  HIGHLIGHT_COLOR,
   SHOW_ANIM_SCALE,
   SHOW_TASK_TEXT_SCALE,
 } from '../core/constants.ts';
@@ -87,15 +89,26 @@ export class TaskElement extends PlanningElement {
     const h = TaskElement.height;
     // Background
     const style = taskStyles[this.status];
+    const chromeColor = this.focused
+      ? FOCUS_COLOR
+      : this.highlighted
+      ? HIGHLIGHT_COLOR
+      : style.borderColor;
     this.fillColor = style.fillColor;
-    this.borderColor = style.borderColor;
+    this.borderColor = chromeColor;
     // Draw background and uniform 2px rounded border
     const radius = 24;
     ctx.fillStyle = style.fillColor;
     ctx.beginPath();
     ctx.roundRect(x, y, w, h, radius);
     ctx.fill();
-    ctx.strokeStyle = this.selected ? SELECT_COLOR : style.borderColor;
+    ctx.strokeStyle = this.focused
+      ? FOCUS_COLOR
+      : this.highlighted
+      ? HIGHLIGHT_COLOR
+      : this.selected
+      ? SELECT_COLOR
+      : style.borderColor;
     ctx.lineWidth = 2 / panZoom.scale;
     ctx.lineJoin = 'round';
     ctx.stroke();
@@ -110,7 +123,7 @@ export class TaskElement extends PlanningElement {
         radius,
         lineWidth: 2 / panZoom.scale,
         scale: panZoom.scale,
-        color: style.borderColor,
+        color: chromeColor,
         timeMs: panZoom.timeMs,
         viewBounds: panZoom.viewBounds,
       });

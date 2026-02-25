@@ -34,6 +34,10 @@ export interface IPlanningElement extends ICanvasElement, IConnectable {
   uuid?: string;
   /** Layer index for draw ordering; lower draws first */
   zIndex: number;
+  /** focused state visualized on canvas */
+  focused?: boolean;
+  /** highlight state visualized on canvas */
+  highlighted?: boolean;
   /** clone the planning element */
   clone(): IPlanningElement;
   /** render with current pan/zoom */
