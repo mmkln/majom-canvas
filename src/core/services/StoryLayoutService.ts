@@ -79,16 +79,31 @@ export class StoryLayoutService {
     nextHeight: number
   ): ResizeLayoutPlan {
     const layoutTasks = this.getLayoutTasks(story, tasks);
-    return this.planLayoutForTasks(story, layoutTasks, nextWidth, nextHeight);
+    return this.planLayoutForSortedTasks(
+      story,
+      layoutTasks,
+      nextWidth,
+      nextHeight
+    );
   }
 
-  public planLayoutForTasks(
+  public planLayoutForSortedTasks(
     story: StoryElement,
     layoutTasks: TaskElement[],
     nextWidth: number,
     nextHeight: number
   ): ResizeLayoutPlan {
     const ordered = this.getOrderedTasks(layoutTasks);
+    return this.planLayoutForOrderedTasks(story, ordered, nextWidth, nextHeight);
+  }
+
+  public planLayoutForOrderedTasks(
+    story: StoryElement,
+    orderedTasks: TaskElement[],
+    nextWidth: number,
+    nextHeight: number
+  ): ResizeLayoutPlan {
+    const ordered = [...orderedTasks];
     const hasTasks = ordered.length > 0;
     const minWidth = hasTasks ? this.getMinWidth() : 1;
     const clampedWidth = Math.max(nextWidth, minWidth, 1);

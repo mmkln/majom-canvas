@@ -70,7 +70,10 @@ export class StoryDragPreviewService {
     });
     const draggedByStory = new Map<string, TaskElement[]>();
     draggedOrder.forEach((task) => {
-      const story = stories.find((candidate) => candidate.contains(task.x, task.y));
+      const anchor = this.getTaskAnchor(task);
+      const story = stories.find((candidate) =>
+        candidate.contains(anchor.x, anchor.y)
+      );
       if (!story) return;
       const list = draggedByStory.get(story.id) ?? [];
       list.push(task);
@@ -106,7 +109,7 @@ export class StoryDragPreviewService {
         ];
       }
 
-      const plan = this.storyLayoutService.planLayoutForTasks(
+      const plan = this.storyLayoutService.planLayoutForOrderedTasks(
         story,
         orderedForPlan,
         story.width,
@@ -124,7 +127,7 @@ export class StoryDragPreviewService {
       }
       nextDropPlans.set(story.id, {
         storyId: story.id,
-        orderedTasks: orderedForPlan,
+        orderedTasks: plan.orderedTasks,
         positions: plan.positions,
         nextWidth: plan.nextWidth,
         nextHeight: plan.nextHeight,
@@ -184,5 +187,11 @@ export class StoryDragPreviewService {
       taskReflowPreviews: new Map(),
     };
   }
-}
 
+  private getTaskAnchor(task: TaskElement): { x: number; y: number } {
+    return {
+      x: task.x + TaskElement.width / 2,
+      y: task.y + TaskElement.height / 2,
+    };
+  }
+}

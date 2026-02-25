@@ -126,7 +126,8 @@ export class InteractionManager {
     const prevStoryMap = this.getTaskStoryMap(stories);
     stories.forEach((story) => {
       tasks.forEach((task) => {
-        if (story.contains(task.x, task.y)) story.addTask(task);
+        const anchor = this.getTaskAnchor(task);
+        if (story.contains(anchor.x, anchor.y)) story.addTask(task);
         else story.removeTask(task.id);
       });
     });
@@ -1214,5 +1215,12 @@ export class InteractionManager {
       Math.abs(next.width - this.initialWidth) > epsilon ||
       Math.abs(next.height - this.initialHeight) > epsilon
     );
+  }
+
+  private getTaskAnchor(task: TaskElement): { x: number; y: number } {
+    return {
+      x: task.x + TaskElement.width / 2,
+      y: task.y + TaskElement.height / 2,
+    };
   }
 }
