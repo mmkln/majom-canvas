@@ -156,11 +156,33 @@ export class StoryLayoutService {
     story: StoryElement,
     tasks: TaskElement[]
   ): TaskElement[] {
-    if (story.tasks.length > 0) {
-      const ids = new Set(story.tasks.map((task) => task.id));
-      return tasks.filter((task) => ids.has(task.id));
+    if (story.tasks.length === 0) {
+      return this.getTasksInsideStory(story, tasks);
     }
-    return this.getTasksInsideStory(story, tasks);
+
+    const taskById = new Map(tasks.map((task) => [task.id, task]));
+    const ordered: TaskElement[] = [];
+    const seen = new Set<string>();
+
+    story.tasks.forEach((taskRef) => {
+      const task = taskById.get(taskRef.id);
+      if (!task) return;
+      ordered.push(task);
+      seen.add(task.id);
+    });
+
+    const missingInside = this.getTasksInsideStory(story, tasks)
+      .filter((task) => !seen.has(task.id))
+      .sort((a, b) => {
+        if (a.y === b.y) return a.x - b.x;
+        return a.y - b.y;
+      });
+
+    if (missingInside.length > 0) {
+      ordered.push(...missingInside);
+    }
+
+    return ordered;
   }
 
   private getColumns(story: StoryElement): number {
