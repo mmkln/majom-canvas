@@ -1,30 +1,11 @@
-import { map } from 'rxjs';
 import { ElementStatus } from '../../elements/ElementStatus.ts';
 import { createIcon, type IconName } from '../icons.ts';
-import { mapStatus } from '../../majom-wrapper/utils/statusMapping.ts';
-
-const STATUS_ORDER: ElementStatus[] = [
-  ElementStatus.Defined,
-  ElementStatus.Pending,
-  ElementStatus.InProgress,
-  ElementStatus.Done,
-];
-
-const STATUS_ICON_MAP: Record<ElementStatus, IconName> = {
-  [ElementStatus.Done]: 'check',
-  [ElementStatus.InProgress]: 'arrow-path',
-  [ElementStatus.Pending]: 'status-pending',
-  [ElementStatus.Defined]: 'map-pin',
-};
-
-const STATUS_ICON_TONE_CLASS: Record<ElementStatus, string> = {
-  [ElementStatus.Done]: 'text-emerald-600',
-  [ElementStatus.InProgress]: 'text-blue-600',
-  [ElementStatus.Pending]: 'text-amber-600',
-  [ElementStatus.Defined]: 'text-slate-500',
-};
-
-const STATUS_ICON_MIXED_TONE_CLASS = 'text-slate-500';
+import {
+  getStatusLabel,
+  STATUS_ICON_MAP,
+  STATUS_ICON_TONE_CLASS,
+  STATUS_ORDER,
+} from '../statusPresentation.ts';
 
 const STATUS_LABEL_TONE_CLASS: Record<ElementStatus, string> = {
   [ElementStatus.Done]: 'text-emerald-700',
@@ -259,7 +240,7 @@ export class StatusSelector {
       content.className = 'inline-flex min-w-0 items-center gap-2';
       const label = document.createElement('span');
       label.className = 'truncate';
-      label.textContent = this.getStatusLabel(status);
+      label.textContent = getStatusLabel(status);
       content.append(leading, label);
       option.appendChild(content);
       if (trailing) {
@@ -294,7 +275,7 @@ export class StatusSelector {
       this.prevBtn.disabled = true;
       this.nextBtn.disabled = true;
     } else {
-      this.statusLabel.textContent = this.getStatusLabel(this.currentStatus);
+      this.statusLabel.textContent = getStatusLabel(this.currentStatus);
       this.setStatusLabelTone(this.currentStatus);
       this.setTriggerStatusBackground(this.currentStatus);
       this.setStepButtonsStatusTone(this.currentStatus);
@@ -306,7 +287,7 @@ export class StatusSelector {
 
     const triggerText =
       this.currentStatus !== null
-        ? this.getStatusLabel(this.currentStatus)
+        ? getStatusLabel(this.currentStatus)
         : 'Mixed status';
     this.triggerBtn.title = `Status: ${triggerText}`;
     this.triggerBtn.setAttribute('aria-label', `Status: ${triggerText}`);
@@ -327,20 +308,6 @@ export class StatusSelector {
     this.syncUi();
     this.onStatusChange(nextStatus);
     this.setOpen(false);
-  }
-
-  private getStatusLabel(status: ElementStatus): string {
-    switch (status) {
-      case ElementStatus.InProgress:
-        return 'In progress';
-      case ElementStatus.Pending:
-        return 'Pending';
-      case ElementStatus.Done:
-        return 'Done';
-      case ElementStatus.Defined:
-      default:
-        return 'Defined';
-    }
   }
 
   private setStatusLabelTone(status: ElementStatus | null): void {

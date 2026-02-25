@@ -15,10 +15,7 @@ import { GoalElement } from '../elements/GoalElement.ts';
 import { StoryLayoutService } from '../core/services/StoryLayoutService.ts';
 import { positionFixedElement } from './overlayPosition.ts';
 import { BulkActionsController } from '../core/services/BulkActionsController.ts';
-import {
-  ElementStatus,
-  ELEMENT_STATUS_OPTIONS,
-} from '../elements/ElementStatus.ts';
+import { ElementStatus } from '../elements/ElementStatus.ts';
 import { addTaskToStory } from './storyTaskActions.ts';
 import { ExistingTaskPicker } from './components/ExistingTaskPicker.ts';
 import { ExistingGoalPicker } from './components/ExistingGoalPicker.ts';
@@ -26,7 +23,18 @@ import { ExistingStoryPicker } from './components/ExistingStoryPicker.ts';
 import { AddExistingTaskService } from '../core/services/AddExistingTaskService.ts';
 import { AddExistingGoalService } from '../core/services/AddExistingGoalService.ts';
 import { AddExistingStoryService } from '../core/services/AddExistingStoryService.ts';
-import { createHudDivider, createHudDropdownItem } from './primitives/index.ts';
+import {
+  createHudDivider,
+  createHudDropdownItem,
+  type HudMenuItemVariant,
+} from './primitives/index.ts';
+import { createIcon } from './icons.ts';
+import {
+  getStatusLabel,
+  STATUS_ICON_MAP,
+  STATUS_ICON_TONE_CLASS,
+  STATUS_ORDER,
+} from './statusPresentation.ts';
 
 type ContextMenuDetail = {
   element: ICanvasElement | null;
@@ -36,11 +44,23 @@ type ContextMenuDetail = {
 
 type MenuActionResult = 'keep-open' | void;
 
-type ContextMenuItem = {
+type ContextMenuActionItem = {
   label: string;
   action: () => MenuActionResult;
   tone?: 'danger' | 'warning';
+  className?: string;
+  variant?: HudMenuItemVariant;
+  leading?: HTMLElement | null;
+  trailing?: HTMLElement | null;
 };
+
+type ContextMenuSubmenuItem = {
+  label: string;
+  submenu: ContextMenuActionItem[];
+  tone?: 'danger' | 'warning';
+};
+
+type ContextMenuItem = ContextMenuActionItem | ContextMenuSubmenuItem;
 
 type ContextMenuSection = {
   title?: string;
@@ -49,15 +69,19 @@ type ContextMenuSection = {
 
 export class ContextMenu {
   private menu: HTMLDivElement;
+  private submenu: HTMLDivElement;
   private visible = false;
   private handler: ((event: Event) => void) | null = null;
   private outsideHandler: ((event: MouseEvent) => void) | null = null;
   private viewSubscription: Subscription | null = null;
   private confirmState: { key: string; expiresAt: number } | null = null;
   private lastDetail: ContextMenuDetail | null = null;
+  private submenuTrigger: HTMLButtonElement | null = null;
+  private submenuCloseTimeoutId: number | null = null;
   private layoutService = new StoryLayoutService();
   private bulkActions: BulkActionsController;
   private readonly confirmTimeoutMs = 4000;
+  private readonly submenuCloseDelayMs = 120;
 
   constructor(
     private scene: Scene,
@@ -74,10 +98,25 @@ export class ContextMenu {
     this.menu.className =
       'fixed z-50 min-w-[200px] overflow-hidden rounded-xl border border-slate-200 bg-white/95 p-0 text-sm text-slate-800 shadow-[0_18px_42px_rgba(15,23,42,0.18)] backdrop-blur-sm';
     this.menu.style.display = 'none';
+    this.menu.setAttribute('role', 'menu');
+
+    this.submenu = document.createElement('div');
+    this.submenu.className =
+      'fixed z-[60] min-w-[180px] overflow-hidden rounded-xl border border-slate-200 bg-white/95 p-0 text-sm text-slate-800 shadow-[0_18px_42px_rgba(15,23,42,0.18)] backdrop-blur-sm';
+    this.submenu.style.display = 'none';
+    this.submenu.setAttribute('role', 'menu');
+    this.submenu.addEventListener('mouseenter', () => {
+      this.clearSubmenuCloseTimer();
+    });
+    this.submenu.addEventListener('mouseleave', () => {
+      this.scheduleSubmenuClose();
+    });
+    this.submenu.addEventListener('keydown', this.onSubmenuKeyDown);
   }
 
   mount(parent: HTMLElement = document.body): void {
     parent.appendChild(this.menu);
+    parent.appendChild(this.submenu);
     this.handler = (event: Event) => {
       const customEvent = event as CustomEvent<ContextMenuDetail>;
       this.show(customEvent.detail);
@@ -101,6 +140,9 @@ export class ContextMenu {
     this.existingTaskPicker.close();
     this.existingGoalPicker.close();
     this.existingStoryPicker.close();
+    this.closeSubmenu();
+    this.submenu.removeEventListener('keydown', this.onSubmenuKeyDown);
+    this.submenu.remove();
     this.menu.remove();
   }
 
@@ -136,6 +178,7 @@ export class ContextMenu {
     if (!this.visible) return;
     this.menu.style.display = 'none';
     this.visible = false;
+    this.closeSubmenu();
     this.confirmState = null;
     if (this.outsideHandler) {
       window.removeEventListener('mousedown', this.outsideHandler);
@@ -152,7 +195,8 @@ export class ContextMenu {
   private attachOutsideHandler(): void {
     if (this.outsideHandler) return;
     this.outsideHandler = (event: MouseEvent) => {
-      if (!this.menu.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (!this.menu.contains(target) && !this.submenu.contains(target)) {
         this.hide();
       }
     };
@@ -178,36 +222,46 @@ export class ContextMenu {
         });
       }
       sections.push({
-        title: 'Create new',
+        title: 'Add item',
         items: [
           {
             label: 'Task',
-            action: () => this.createTaskAt(sceneX, sceneY),
+            submenu: [
+              {
+                label: 'Create new',
+                action: () => this.createTaskAt(sceneX, sceneY),
+              },
+              {
+                label: 'Find existing',
+                action: () => this.openExistingTaskPicker(sceneX, sceneY),
+              },
+            ],
           },
           {
             label: 'Story',
-            action: () => this.createStoryAt(sceneX, sceneY),
+            submenu: [
+              {
+                label: 'Create new',
+                action: () => this.createStoryAt(sceneX, sceneY),
+              },
+              {
+                label: 'Find existing',
+                action: () => this.openExistingStoryPicker(sceneX, sceneY),
+              },
+            ],
           },
           {
             label: 'Goal',
-            action: () => this.createGoalAt(sceneX, sceneY),
-          },
-        ],
-      });
-      sections.push({
-        title: 'Add existing',
-        items: [
-          {
-            label: 'Task',
-            action: () => this.openExistingTaskPicker(sceneX, sceneY),
-          },
-          {
-            label: 'Goal',
-            action: () => this.openExistingGoalPicker(sceneX, sceneY),
-          },
-          {
-            label: 'Story',
-            action: () => this.openExistingStoryPicker(sceneX, sceneY),
+            submenu: [
+              {
+                label: 'Create new',
+                action: () => this.createGoalAt(sceneX, sceneY),
+              },
+              {
+                label: 'Find existing',
+                action: () => this.openExistingGoalPicker(sceneX, sceneY),
+              },
+            ],
           },
         ],
       });
@@ -248,22 +302,21 @@ export class ContextMenu {
       }
     );
 
-    const getTitlteByElement = (el: ICanvasElement): string | undefined => {
+    const getTitleByElement = (el: ICanvasElement): string | undefined => {
       if (el instanceof TaskElement) return 'Task';
       if (el instanceof StoryElement) return 'Story';
       if (el instanceof GoalElement) return 'Goal';
       return undefined;
-    }
+    };
 
-    sections.push({ 
-      title: getTitlteByElement(element),
-      items: actionItems 
+    sections.push({
+      title: getTitleByElement(element),
+      items: actionItems,
     });
 
     if (isPlanningElement) {
       const planningElement = element as TaskElement | StoryElement | GoalElement;
       const isFocused = this.scene.isFocused(planningElement);
-      actionItems.push();
       sections.push({
         items: [
           {
@@ -275,8 +328,8 @@ export class ContextMenu {
                   isFocused ? null : planningElement.id
                 )
               ),
-          }
-        ]
+          },
+        ],
       });
     }
 
@@ -299,24 +352,22 @@ export class ContextMenu {
 
     if (isPlanningElement) {
       const planningElement = element as TaskElement | StoryElement | GoalElement;
-      const statusLabels = new Map(
-        ELEMENT_STATUS_OPTIONS.map((option) => [option.value, option.label])
-      );
-      const statusOrder: ElementStatus[] = [
-        ElementStatus.Done,
-        ElementStatus.InProgress,
-        ElementStatus.Pending,
-        ElementStatus.Defined,
-      ];
       sections.push({
         title: 'Set status',
-        items: statusOrder.map((status) => ({
-          label: statusLabels.get(status) ?? status,
-          action: () => {
-            if (planningElement.status === status) return;
-            this.bulkActions.updateStatus([planningElement], status);
-          },
-        })),
+        items: STATUS_ORDER.map((status) => {
+          const isCurrent = planningElement.status === status;
+          return {
+            label: getStatusLabel(status),
+            leading: this.createStatusIcon(status),
+            trailing: isCurrent ? this.createActiveStatusCheck() : null,
+            variant: isCurrent ? 'selected' : 'default',
+            className: this.getStatusItemClass(status, isCurrent),
+            action: () => {
+              if (isCurrent) return 'keep-open';
+              this.bulkActions.updateStatus([planningElement], status);
+            },
+          };
+        }),
       });
       sections.push({
         items: [
@@ -349,6 +400,7 @@ export class ContextMenu {
   }
 
   private renderSections(sections: ContextMenuSection[]): void {
+    this.closeSubmenu();
     this.menu.innerHTML = '';
     const visibleSections = sections.filter(
       (section) => section.items.length > 0
@@ -365,27 +417,274 @@ export class ContextMenu {
         this.menu.appendChild(header);
       }
       section.items.forEach((item) => {
-        const warningClassName =
-          item.tone === 'warning'
-            ? 'font-medium text-amber-700 hover:bg-amber-50 hover:text-amber-800'
-            : '';
-        const btn = createHudDropdownItem({
-          label: item.label ?? '',
-          tone: item.tone === 'danger' ? 'danger' : 'default',
-          className: warningClassName,
-          onClick: () => {
-            const result = item.action ? item.action() : undefined;
-            if (result === 'keep-open') {
-              this.render();
-              return;
+        if (this.isSubmenuItem(item)) {
+          const btn = createHudDropdownItem({
+            label: item.label ?? '',
+            tone: item.tone === 'danger' ? 'danger' : 'default',
+            trailing: this.createSubmenuChevron(),
+            onClick: (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              this.toggleSubmenu(item, btn);
+            },
+          });
+          btn.setAttribute('aria-haspopup', 'menu');
+          btn.setAttribute('aria-expanded', 'false');
+          btn.setAttribute('role', 'menuitem');
+          btn.addEventListener('mouseenter', () => {
+            this.openSubmenu(item, btn);
+          });
+          btn.addEventListener('mouseleave', () => {
+            this.scheduleSubmenuClose();
+          });
+          btn.addEventListener('focus', () => {
+            this.openSubmenu(item, btn);
+          });
+          btn.addEventListener(
+            'keydown',
+            (event: KeyboardEvent) => {
+              this.onSubmenuTriggerKeyDown(event, item, btn);
             }
-            this.hide();
-          },
+          );
+          this.menu.appendChild(btn);
+          return;
+        }
+
+        const btn = this.createActionButton(item);
+        btn.addEventListener('mouseenter', () => {
+          this.closeSubmenu();
+        });
+        btn.addEventListener('focus', () => {
+          this.closeSubmenu();
         });
         this.menu.appendChild(btn);
       });
     });
   }
+
+  private isSubmenuItem(item: ContextMenuItem): item is ContextMenuSubmenuItem {
+    return 'submenu' in item;
+  }
+
+  private createSubmenuChevron(): HTMLSpanElement {
+    const wrap = document.createElement('span');
+    wrap.className = 'ml-auto inline-flex items-center justify-center text-slate-400';
+    const chevron = createIcon('chevron-right', { size: 14, strokeWidth: 2 });
+    chevron.setAttribute('aria-hidden', 'true');
+    wrap.appendChild(chevron);
+    return wrap;
+  }
+
+  private createStatusIcon(status: ElementStatus): SVGSVGElement {
+    const icon = createIcon(STATUS_ICON_MAP[status], {
+      size: 14,
+      strokeWidth: 1.7,
+    });
+    icon.classList.add('shrink-0', STATUS_ICON_TONE_CLASS[status]);
+    icon.setAttribute('aria-hidden', 'true');
+    return icon;
+  }
+
+  private createActiveStatusCheck(): HTMLSpanElement {
+    const wrap = document.createElement('span');
+    wrap.className =
+      'ml-auto inline-flex items-center justify-center text-indigo-700';
+    const check = createIcon('check', { size: 14, strokeWidth: 2 });
+    check.setAttribute('aria-hidden', 'true');
+    wrap.appendChild(check);
+    return wrap;
+  }
+
+  private getStatusItemClass(status: ElementStatus, isCurrent: boolean): string {
+    if (isCurrent) return 'cursor-default';
+    switch (status) {
+      case ElementStatus.InProgress:
+        return 'hover:bg-blue-50/70';
+      case ElementStatus.Pending:
+        return 'hover:bg-amber-50/70';
+      case ElementStatus.Done:
+        return 'hover:bg-emerald-50/70';
+      case ElementStatus.Defined:
+      default:
+        return 'hover:bg-slate-100';
+    }
+  }
+
+  private createActionButton(item: ContextMenuActionItem): HTMLButtonElement {
+    const warningClassName =
+      item.tone === 'warning'
+        ? 'font-medium text-amber-700 hover:bg-amber-50 hover:text-amber-800'
+        : '';
+    const customClassName = item.className ?? '';
+    const btn = createHudDropdownItem({
+      label: item.label ?? '',
+      variant: item.variant,
+      tone: item.tone === 'danger' ? 'danger' : 'default',
+      className: `${warningClassName} ${customClassName}`.trim(),
+      leading: item.leading ?? null,
+      trailing: item.trailing ?? null,
+      onClick: () => this.executeItemAction(item.action),
+    });
+    btn.setAttribute('role', 'menuitem');
+    return btn;
+  }
+
+  private executeItemAction(action: () => MenuActionResult): void {
+    const result = action();
+    if (result === 'keep-open') {
+      this.render();
+      return;
+    }
+    this.hide();
+  }
+
+  private toggleSubmenu(
+    item: ContextMenuSubmenuItem,
+    trigger: HTMLButtonElement
+  ): void {
+    if (
+      this.submenu.style.display === 'block' &&
+      this.submenuTrigger === trigger
+    ) {
+      this.closeSubmenu();
+      return;
+    }
+    this.openSubmenu(item, trigger);
+  }
+
+  private openSubmenu(
+    item: ContextMenuSubmenuItem,
+    trigger: HTMLButtonElement
+  ): void {
+    if (item.submenu.length === 0) return;
+    this.clearSubmenuCloseTimer();
+    this.renderSubmenuItems(item.submenu);
+    this.positionSubmenu(trigger);
+    this.submenu.style.display = 'block';
+    this.submenu.style.visibility = 'hidden';
+    this.positionSubmenu(trigger);
+    this.submenu.style.visibility = 'visible';
+
+    if (this.submenuTrigger && this.submenuTrigger !== trigger) {
+      this.setSubmenuTriggerExpanded(this.submenuTrigger, false);
+    }
+    this.submenuTrigger = trigger;
+    this.setSubmenuTriggerExpanded(trigger, true);
+  }
+
+  private closeSubmenu(): void {
+    this.clearSubmenuCloseTimer();
+    if (this.submenu.style.display !== 'none') {
+      this.submenu.style.display = 'none';
+      this.submenu.innerHTML = '';
+    }
+    if (this.submenuTrigger) {
+      this.setSubmenuTriggerExpanded(this.submenuTrigger, false);
+      this.submenuTrigger = null;
+    }
+  }
+
+  private scheduleSubmenuClose(): void {
+    this.clearSubmenuCloseTimer();
+    this.submenuCloseTimeoutId = window.setTimeout(() => {
+      this.closeSubmenu();
+    }, this.submenuCloseDelayMs);
+  }
+
+  private clearSubmenuCloseTimer(): void {
+    if (this.submenuCloseTimeoutId === null) return;
+    window.clearTimeout(this.submenuCloseTimeoutId);
+    this.submenuCloseTimeoutId = null;
+  }
+
+  private setSubmenuTriggerExpanded(
+    trigger: HTMLButtonElement,
+    expanded: boolean
+  ): void {
+    trigger.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    trigger.classList.toggle('bg-indigo-50', expanded);
+    trigger.classList.toggle('text-slate-800', expanded);
+  }
+
+  private renderSubmenuItems(items: ContextMenuActionItem[]): void {
+    this.submenu.innerHTML = '';
+    items.forEach((item) => {
+      const btn = this.createActionButton(item);
+      this.submenu.appendChild(btn);
+    });
+  }
+
+  private positionSubmenu(trigger: HTMLButtonElement): void {
+    const triggerRect = trigger.getBoundingClientRect();
+    const submenuWidth = this.measureFloatingWidth(this.submenu);
+    const gap = 4;
+    const openLeft = triggerRect.right + gap + submenuWidth > window.innerWidth - 8;
+
+    positionFixedElement(this.submenu, {
+      anchorX: openLeft ? triggerRect.left - gap : triggerRect.right + gap,
+      anchorY: triggerRect.top,
+      alignX: openLeft ? 'right' : 'left',
+      alignY: 'top',
+    });
+  }
+
+  private measureFloatingWidth(element: HTMLElement): number {
+    const rect = element.getBoundingClientRect();
+    if (rect.width > 0) return rect.width;
+
+    const previousDisplay = element.style.display;
+    const previousVisibility = element.style.visibility;
+    const previousPointerEvents = element.style.pointerEvents;
+    element.style.display = 'block';
+    element.style.visibility = 'hidden';
+    element.style.pointerEvents = 'none';
+    const measured = element.getBoundingClientRect().width;
+    element.style.display = previousDisplay;
+    element.style.visibility = previousVisibility;
+    element.style.pointerEvents = previousPointerEvents;
+    return measured;
+  }
+
+  private focusFirstSubmenuItem(): void {
+    const first = this.submenu.querySelector('button:not([disabled])');
+    if (!(first instanceof HTMLButtonElement)) return;
+    first.focus();
+  }
+
+  private onSubmenuTriggerKeyDown(
+    event: KeyboardEvent,
+    item: ContextMenuSubmenuItem,
+    trigger: HTMLButtonElement
+  ): void {
+    if (
+      event.key === 'ArrowRight' ||
+      event.key === 'Enter' ||
+      event.key === ' '
+    ) {
+      event.preventDefault();
+      this.openSubmenu(item, trigger);
+      this.focusFirstSubmenuItem();
+      return;
+    }
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      this.closeSubmenu();
+    }
+  }
+
+  private onSubmenuKeyDown = (event: KeyboardEvent): void => {
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      const trigger = this.submenuTrigger;
+      this.closeSubmenu();
+      trigger?.focus();
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.hide();
+    }
+  };
 
   private syncConfirmState(element: ICanvasElement | null): void {
     if (!this.confirmState) return;
