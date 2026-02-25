@@ -328,7 +328,7 @@ export class ContextMenu {
       sections.push({
         items: [
           {
-            label: isFocused ? 'Clear Focus' : 'Set Focus',
+            label: 'Focus',
             action: () =>
               historyService.execute(
                 new SetFocusCommand(
@@ -336,6 +336,7 @@ export class ContextMenu {
                   isFocused ? null : planningElement.id
                 )
               ),
+            variant: isFocused ? 'selected' : 'default',
           },
         ],
       });
