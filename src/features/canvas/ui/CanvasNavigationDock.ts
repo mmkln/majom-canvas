@@ -13,6 +13,7 @@ export class CanvasNavigationDock {
   private readonly miniMap: MiniMap;
   private readonly canvasControls: CanvasControls;
   private miniMapVisible = true;
+  private miniMapMounted = false;
 
   constructor(scene: Scene, canvasManager: CanvasManager) {
     this.container = createHudSurface({
@@ -42,23 +43,38 @@ export class CanvasNavigationDock {
   public mount(parent: HTMLElement = document.body): void {
     parent.appendChild(this.container);
     this.container.appendChild(this.miniMapSlot);
-    this.miniMap.mount(this.miniMapSlot);
     this.canvasControls.mount(this.container);
     this.setMiniMapVisible(this.miniMapVisible);
   }
 
   public unmount(): void {
     this.canvasControls.unmount();
-    this.miniMap.unmount();
+    this.unmountMiniMap();
     this.container.remove();
   }
 
   private setMiniMapVisible(visible: boolean): void {
     this.miniMapVisible = visible;
-    this.miniMapSlot.style.display = visible ? '' : 'none';
+    if (visible) {
+      this.mountMiniMap();
+    } else {
+      this.unmountMiniMap();
+    }
     const controlsEl = this.canvasControls.getElement();
     controlsEl.classList.toggle('border-t', visible);
     controlsEl.classList.toggle('border-slate-200/80', visible);
     this.canvasControls.setMiniMapVisible(visible);
+  }
+
+  private mountMiniMap(): void {
+    if (this.miniMapMounted) return;
+    this.miniMap.mount(this.miniMapSlot);
+    this.miniMapMounted = true;
+  }
+
+  private unmountMiniMap(): void {
+    if (!this.miniMapMounted) return;
+    this.miniMap.unmount();
+    this.miniMapMounted = false;
   }
 }
