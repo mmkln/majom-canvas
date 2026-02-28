@@ -8,6 +8,8 @@ export type IconName =
   | 'delete'
   | 'forward'
   | 'map-pin'
+  | 'arrows-pointing-in'
+  | 'arrows-pointing-out'
   | 'pencil'
   | 'star'
   | 'square-2-stack'
@@ -91,6 +93,24 @@ export function createIcon(
     svg.appendChild(
       makePath(
         'M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z'
+      )
+    );
+    return svg;
+  }
+
+  if (name === 'arrows-pointing-in') {
+    svg.appendChild(
+      makePath(
+        'M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25'
+      )
+    );
+    return svg;
+  }
+
+  if (name === 'arrows-pointing-out') {
+    svg.appendChild(
+      makePath(
+        'M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15'
       )
     );
     return svg;
