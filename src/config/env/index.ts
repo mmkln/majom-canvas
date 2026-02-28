@@ -1,13 +1,22 @@
-export const CANVAS_PERF_LOG = import.meta.env.VITE_CANVAS_PERF_LOG === 'true';
+const DEFAULT_API_URL = 'https://mxll.pythonanywhere.com';
 
-const parseOptionalNumber = (value?: string): number | null => {
+const parseOptionalBoolean = (value?: string): boolean | null => {
+  if (value === undefined) return null;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return null;
+};
+
+const parseOptionalString = (value?: string): string | null => {
   if (!value) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 };
 
-export const CONTENT_TYPE_IDS = {
-  task: parseOptionalNumber(import.meta.env.VITE_CONTENT_TYPE_TASK),
-  story: parseOptionalNumber(import.meta.env.VITE_CONTENT_TYPE_STORY),
-  goal: parseOptionalNumber(import.meta.env.VITE_CONTENT_TYPE_GOAL),
-};
+export const CANVAS_PERF_LOG =
+  parseOptionalBoolean(import.meta.env.VITE_CANVAS_PERF_LOG) ?? false;
+export const KANBAN_DEV_ENABLED =
+  import.meta.env.DEV &&
+  (parseOptionalBoolean(import.meta.env.VITE_ENABLE_KANBAN_DEV) ?? true);
+export const API_URL =
+  parseOptionalString(import.meta.env.VITE_API_URL) ?? DEFAULT_API_URL;

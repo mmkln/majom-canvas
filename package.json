@@ -20,7 +20,8 @@
     "deploy:build": "npm run build && npm run deploy",
     "deploy:repo": "npm run build:repo && npm run deploy",
     "deploy:domain": "npm run build:domain && npm run deploy",
-    "go": "npm run deploy:domain"
+    "go": "npm run deploy:domain",
+    "test": "vitest run"
   },
   "keywords": [
     "canvas",
@@ -39,7 +40,8 @@
     "prettier": "^3.5.1",
     "typescript": "^5.0.0",
     "typescript-eslint": "^8.53.1",
-    "vite": "^6.2.3"
+    "vite": "^6.2.3",
+    "vitest": "^3.2.4"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.3",

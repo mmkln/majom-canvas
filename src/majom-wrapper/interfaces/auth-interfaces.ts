@@ -22,13 +22,12 @@ export interface User {
   email: string;
   username: string;
   language: string;
-  readonly wallpaper: Wallpaper;
-  wallpaper_id: string;
+  readonly wallpaper: Wallpaper | null;
+  wallpaper_id: string | null;
   readonly deletion_requested_at: string | null;
 }
 
-// You may need to define the Wallpaper interface as well if not already present.
 export interface Wallpaper {
-  // Define according to your backend response
-  [key: string]: any;
+  readonly id: number;
+  image_file: string;
 }

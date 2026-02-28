@@ -21,12 +21,12 @@ import {
   CanvasApiService,
   CanvasSummary,
 } from '../data-access/canvas-api-service.ts';
-import { mapTask } from '../mappers/task-mapper.ts';
-import { mapStory } from '../mappers/story-mapper.ts';
-import { mapGoal } from '../mappers/goal-mapper.ts';
-import { TaskElement } from '../../elements/TaskElement.ts';
-import { StoryElement } from '../../elements/StoryElement.ts';
-import { GoalElement } from '../../elements/GoalElement.ts';
+import { mapTask } from '../../features/canvas/mappers/task-mapper.ts';
+import { mapStory } from '../../features/canvas/mappers/story-mapper.ts';
+import { mapGoal } from '../../features/canvas/mappers/goal-mapper.ts';
+import { TaskElement } from '../../features/canvas/elements/TaskElement.ts';
+import { StoryElement } from '../../features/canvas/elements/StoryElement.ts';
+import { GoalElement } from '../../features/canvas/elements/GoalElement.ts';
 import { mapStatusToBackend } from '../utils/statusMapping.ts';
 import { mapPriorityToBackend } from '../utils/priorityMapping.ts';
 import type {
@@ -37,14 +37,14 @@ import type {
   Story,
   Goal,
 } from '../interfaces/index.ts';
-import { ElementStatus } from '../../elements/ElementStatus.ts';
-import Connection from '../../core/shapes/Connection.ts';
+import { ElementStatus } from '../../features/canvas/elements/ElementStatus.ts';
+import Connection from '../../features/canvas/core/shapes/Connection.ts';
 import {
   ConnectionRelationType,
   type IConnection,
-} from '../../core/interfaces/connection.ts';
-import type { CanvasLoadingPlaceholder } from '../../core/types/canvasLoading.ts';
-import { CanvasClientStorage } from '../../core/services/CanvasClientStorage.ts';
+} from '../../features/canvas/core/interfaces/connection.ts';
+import type { CanvasLoadingPlaceholder } from '../../features/canvas/core/types/canvasLoading.ts';
+import { CanvasClientStorage } from '../../features/canvas/core/services/CanvasClientStorage.ts';
 
 type ElementPatch = Partial<{
   title: string;

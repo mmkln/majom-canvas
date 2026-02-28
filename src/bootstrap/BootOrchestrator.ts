@@ -1,20 +1,27 @@
-import { Subscription } from 'rxjs';
+import { Subscription, firstValueFrom, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
+import { environment } from '../config/environment.ts';
 import { AuthService } from '../majom-wrapper/data-access/auth-service.ts';
+import { HttpInterceptorClient } from '../majom-wrapper/data-access/http-interceptor.ts';
+import { UserApiService } from '../majom-wrapper/data-access/user-api-service.ts';
+import { WallpaperApiService } from '../majom-wrapper/data-access/wallpaper-api-service.ts';
 import type { LoginCredentials } from '../majom-wrapper/interfaces/auth-interfaces.ts';
-import { authFlowService } from '../ui/auth/authFlowService.ts';
-import type { LoginSubmitResult } from '../ui/auth/AuthController.ts';
-import { LoginPage } from '../ui/components/LoginPage.ts';
-import { LoadingScreen } from '../ui/components/LoadingScreen.ts';
+import { authFlowService } from '../features/canvas/ui/auth/authFlowService.ts';
+import type { LoginSubmitResult } from '../features/canvas/ui/auth/AuthController.ts';
+import { LoginPage } from '../features/canvas/ui/components/LoginPage.ts';
+import { LoadingScreen } from '../features/canvas/ui/components/LoadingScreen.ts';
+import { WallpaperService } from '../features/shell/services/WallpaperService.ts';
 import type { BootEvent, BootState } from './BootState.ts';
 import { nextBootState } from './BootStateMachine.ts';
 import { RuntimeHost } from './RuntimeHost.ts';
 
-type BootOrchestratorOptions = {
-  canvas: HTMLCanvasElement;
-};
-
 export class BootOrchestrator {
   private readonly authService = new AuthService();
+  private readonly http = new HttpInterceptorClient(environment.apiUrl);
+  private readonly userApi = new UserApiService(this.http);
+  private readonly wallpaperService = new WallpaperService(
+    new WallpaperApiService(this.http)
+  );
   private readonly runtimeHost: RuntimeHost;
   private readonly loginPage: LoginPage;
   private readonly loadingScreen: LoadingScreen;
@@ -25,8 +32,8 @@ export class BootOrchestrator {
   private bootInFlight = false;
   private logoutInProgress = false;
 
-  constructor(options: BootOrchestratorOptions) {
-    this.runtimeHost = new RuntimeHost(options.canvas);
+  constructor() {
+    this.runtimeHost = new RuntimeHost(this.wallpaperService);
     this.loadingScreen = new LoadingScreen();
     this.loginPage = new LoginPage({
       title: 'Welcome back',
@@ -136,6 +143,7 @@ export class BootOrchestrator {
     this.bootInFlight = true;
     const startedAt = Date.now();
     try {
+      await this.initializeUserWallpaper();
       await this.runtimeHost.start();
       this.dispatch('boot_succeeded');
     } catch (error) {
@@ -154,11 +162,26 @@ export class BootOrchestrator {
     }
   }
 
+  private async initializeUserWallpaper(): Promise<void> {
+    const profilePromise = firstValueFrom(this.userApi.getUser());
+    const wallpaperListPromise = firstValueFrom(
+      this.wallpaperService.loadWallpaperList().pipe(
+        catchError((error: unknown) => {
+          console.warn('Wallpaper list failed to load.', error);
+          return of([]);
+        })
+      )
+    );
+    const [user] = await Promise.all([profilePromise, wallpaperListPromise]);
+    this.wallpaperService.applyUserWallpaper(user);
+  }
+
   private handleHardLogout(): void {
     if (this.logoutInProgress) return;
     this.logoutInProgress = true;
     this.dispatch('logout');
     this.authService.logout();
+    this.runtimeHost.dispose();
     this.render();
     window.location.reload();
   }

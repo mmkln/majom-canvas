@@ -1,7 +1,9 @@
+import { API_URL } from './env/index.ts';
+
 /**
- * Environment configuration for the Majom Canvas application.
+ * Legacy environment object shape used across the app.
+ * Values are sourced from Vite env config in src/config/env/index.ts.
  */
 export const environment = {
-  apiUrl: 'https://mxll.pythonanywhere.com',
-  localApiUrl: 'http://localhost:8000',
-};
+  apiUrl: API_URL,
+} as const;

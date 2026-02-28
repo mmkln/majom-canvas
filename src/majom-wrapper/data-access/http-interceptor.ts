@@ -11,7 +11,7 @@ import {
 import { AuthService } from './auth-service.js';
 import { ACCESS_TOKEN_KEY } from '../../config/storage-keys.js';
 import { requestTracker } from './request-tracker.js';
-import { authFlowService } from '../../ui/auth/authFlowService.ts';
+import { authFlowService } from '../../features/canvas/ui/auth/authFlowService.ts';
 
 /**
  * HTTP client wrapper: automatically attaches JWT and handles errors.

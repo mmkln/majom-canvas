@@ -17,4 +17,21 @@ export default [
       '@typescript-eslint/no-explicit-any': 'off',
     },
   },
+  {
+    files: ['src/features/kanban/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['../canvas/**', '../../canvas/**', '**/features/canvas/**'],
+              message:
+                'Kanban must be isolated from canvas internals. Use shared API/auth infrastructure only.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];

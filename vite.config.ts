@@ -11,6 +11,8 @@ export default defineConfig(({ mode }) => {
     // Default to relative assets so the same build works on
     // both custom domains and GitHub Pages project paths.
     base,
+    // Keep env files in repo root even though Vite root is "src".
+    envDir: '..',
     // Specify the project root (where index.html is located)
     root: 'src',
     build: {

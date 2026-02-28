@@ -3,7 +3,7 @@ import {
   notifications$,
   Notification as NotificationData,
   NotificationType,
-} from '../../../core/services/NotificationService.ts';
+} from '../../../features/canvas/core/services/NotificationService.ts';
 import { Notification } from './Notification.ts';
 
 export interface ToastProviderOptions {

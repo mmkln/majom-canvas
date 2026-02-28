@@ -1,5 +1,5 @@
 import { Status } from '../interfaces/index.ts';
-import { ElementStatus } from '../../elements/ElementStatus.ts';
+import { ElementStatus } from '../../features/canvas/elements/ElementStatus.ts';
 
 /**
  * Map backend Status enum to UI ElementStatus
