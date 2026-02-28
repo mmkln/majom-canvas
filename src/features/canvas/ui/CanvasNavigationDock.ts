@@ -1,5 +1,6 @@
 import type { CanvasManager } from '../core/managers/CanvasManager.ts';
 import type { Scene } from '../core/scene/Scene.ts';
+import { CanvasClientStorage } from '../core/services/CanvasClientStorage.ts';
 import { CanvasControls } from './CanvasControls.ts';
 import { MiniMap } from './MiniMap.ts';
 import { createHudSurface } from './primitives/index.ts';
@@ -12,10 +13,11 @@ export class CanvasNavigationDock {
   private readonly miniMapSlot: HTMLDivElement;
   private readonly miniMap: MiniMap;
   private readonly canvasControls: CanvasControls;
-  private miniMapVisible = true;
+  private miniMapVisible: boolean;
   private miniMapMounted = false;
 
   constructor(scene: Scene, canvasManager: CanvasManager) {
+    this.miniMapVisible = CanvasClientStorage.getMiniMapVisible(true);
     this.container = createHudSurface({
       className:
         'absolute right-4 bottom-4 z-20 flex flex-col overflow-hidden p-0',
@@ -55,6 +57,7 @@ export class CanvasNavigationDock {
 
   private setMiniMapVisible(visible: boolean): void {
     this.miniMapVisible = visible;
+    CanvasClientStorage.setMiniMapVisible(visible);
     if (visible) {
       this.mountMiniMap();
     } else {

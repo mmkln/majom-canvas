@@ -23,6 +23,7 @@ type StorageEnvelope<T> = {
 const LAST_OPENED_CANVAS_KEY = 'last-opened-canvas-id';
 const DRAFTS_KEY_PREFIX = 'draft-unsynced-changes';
 const DRAFTS_TTL_MS = 1000 * 60 * 60 * 24 * 7;
+const MINI_MAP_VISIBLE_KEY = 'ui:minimap-visible';
 
 function getDraftsKey(canvasId: string): string {
   return `${DRAFTS_KEY_PREFIX}:${canvasId}`;
@@ -71,6 +72,15 @@ function writeEnvelope<T>(
 }
 
 export class CanvasClientStorage {
+  public static getMiniMapVisible(defaultVisible = true): boolean {
+    const stored = readEnvelope<unknown>(MINI_MAP_VISIBLE_KEY);
+    return typeof stored === 'boolean' ? stored : defaultVisible;
+  }
+
+  public static setMiniMapVisible(visible: boolean): void {
+    writeEnvelope(MINI_MAP_VISIBLE_KEY, visible, null);
+  }
+
   public static getLastOpenedCanvasId(): string | null {
     return readEnvelope<string>(LAST_OPENED_CANVAS_KEY);
   }
