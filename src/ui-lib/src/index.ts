@@ -7,3 +7,5 @@ export { ComponentFactory } from './core/ComponentFactory.ts';
 export { UIManager } from './core/UIManager.ts';
 export { ThemeManager } from './core/Theme.ts';
 export { ToastProvider } from './components/ToastProvider.ts';
+
+export * from './hud/index.ts';

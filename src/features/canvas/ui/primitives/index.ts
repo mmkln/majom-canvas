@@ -2,14 +2,14 @@ export {
   createHudIconButton,
   setHudIconButtonLoading,
   type HudIconButtonTone,
-} from './HudIconButton.ts';
+} from '../../../../ui-lib/src/hud/index.ts';
 export {
   HUD_BUTTON_CONTROLLER,
   getHudButtonController,
   type HudButtonElement,
   type HudButtonState,
   HudButtonBase,
-} from './HudButtonBase.ts';
+} from '../../../../ui-lib/src/hud/index.ts';
 export {
   createHudTextButton,
   setHudTextButtonLoading,
@@ -18,27 +18,27 @@ export {
   type HudTextButtonSize,
   type HudTextButtonElement,
   type HudTextButtonState,
-} from './HudTextButton.ts';
-export { HudDropdown } from './HudDropdown.ts';
-export { createHudDivider } from './HudDivider.ts';
-export { createHudField } from './HudField.ts';
+} from '../../../../ui-lib/src/hud/index.ts';
+export { HudDropdown } from '../../../../ui-lib/src/hud/index.ts';
+export { createHudDivider } from '../../../../ui-lib/src/hud/index.ts';
+export { createHudField } from '../../../../ui-lib/src/hud/index.ts';
 export {
   createHudFormMessage,
   type HudFormMessage,
   type HudFormMessageTone,
-} from './HudFormMessage.ts';
+} from '../../../../ui-lib/src/hud/index.ts';
 export {
   createHudDropdownItem,
   type HudDropdownItemTone,
   type HudMenuItemVariant,
-} from './HudDropdownItem.ts';
+} from '../../../../ui-lib/src/hud/index.ts';
 export {
   createHudInputBase,
   setHudInputState,
   type HudInputBaseOptions,
   type HudInputBaseState,
   type HudInputVariant,
-} from './HudInput.ts';
+} from '../../../../ui-lib/src/hud/index.ts';
 export {
   createHudInput,
   type HudInput,
@@ -46,11 +46,55 @@ export {
   createHudTextInputControl,
   type HudTextInputControl,
   type HudTextInputKind,
-} from './HudTextInputControl.ts';
+} from '../../../../ui-lib/src/hud/index.ts';
 export {
   createHudSegmentedControl,
   HudSegmentedControl,
   type HudSegmentedControlOption,
   type HudSegmentedControlSize,
-} from './HudSegmentedControl.ts';
-export { createHudSurface } from './HudSurface.ts';
+} from '../../../../ui-lib/src/hud/index.ts';
+export { createHudSurface } from '../../../../ui-lib/src/hud/index.ts';
+
+// Prefix-free exports for new code
+export {
+  createIconButton,
+  setIconButtonLoading,
+  type IconButtonTone,
+  BUTTON_CONTROLLER,
+  getButtonController,
+  type ButtonElement,
+  type ButtonState,
+  ButtonBase,
+  createTextButton,
+  setTextButtonLoading,
+  setTextButtonState,
+  type TextButtonTone,
+  type TextButtonSize,
+  type TextButtonElement,
+  type TextButtonState,
+  Dropdown,
+  createDivider,
+  createField,
+  createFormMessage,
+  type FormMessage,
+  type FormMessageTone,
+  createDropdownItem,
+  type DropdownItemTone,
+  type MenuItemVariant,
+  createInputBase,
+  setInputState,
+  type InputBaseOptions,
+  type InputBaseState,
+  type InputVariant,
+  createInput,
+  type Input,
+  type InputKind,
+  createTextInputControl,
+  type TextInputControl,
+  type TextInputKind,
+  createSegmentedControl,
+  SegmentedControl,
+  type SegmentedControlOption,
+  type SegmentedControlSize,
+  createSurface,
+} from '../../../../ui-lib/src/hud/index.ts';
