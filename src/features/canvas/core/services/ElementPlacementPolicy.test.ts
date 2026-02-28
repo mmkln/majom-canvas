@@ -21,7 +21,7 @@ describe('ElementPlacementPolicy', () => {
     });
 
     expect(resolved.dx).toBeLessThanOrEqual(34.1);
-    expect(resolved.dx).toBeGreaterThan(33);
+    expect(resolved.dx).toBeGreaterThanOrEqual(31.9);
     expect(resolved.dy).toBe(0);
   });
 
@@ -49,6 +49,41 @@ describe('ElementPlacementPolicy', () => {
 
     expect(resolved.dx).toBe(180);
     expect(resolved.dy).toBe(120);
+  });
+
+  it('resolves commit drop to nearest valid position around target, not only along start path', () => {
+    const policy = new ElementPlacementPolicy(24);
+    const movingStory = new StoryElement({
+      id: 'moving',
+      x: -500,
+      y: 0,
+      width: 344,
+      height: 240,
+    });
+    const blockingStory = new StoryElement({
+      id: 'blocking',
+      x: 350,
+      y: -300,
+      width: 1000,
+      height: 600,
+    });
+    const initialPositions = new Map<string, { x: number; y: number }>([
+      [movingStory.id, { x: movingStory.x, y: movingStory.y }],
+    ]);
+
+    const resolved = policy.resolveDragTranslation({
+      movingElements: [movingStory],
+      initialPositions,
+      proposedDx: 1120,
+      proposedDy: 0,
+      sceneElements: [movingStory, blockingStory],
+      resolveMode: 'commit',
+    });
+
+    // The nearest valid point is around the target by vertical offset, not near
+    // the start->target clamp along X.
+    expect(Math.abs(resolved.dy)).toBeGreaterThanOrEqual(324);
+    expect(Math.abs(resolved.dx - 1120)).toBeLessThanOrEqual(24);
   });
 
   it('repositions newly added element to the nearest free spot', () => {

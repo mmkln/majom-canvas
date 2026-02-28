@@ -322,6 +322,10 @@ export class CanvasManager {
     const planningEls = this.cachedPlanningElements;
     const planningElsSorted = this.cachedPlanningElementsSorted;
     const planningById = new Map(planningEls.map((element) => [element.id, element]));
+    const placementPreview = this.interactionManager.getPlacementPreview();
+    const suppressTaskLayoutPreviews = Boolean(
+      placementPreview && !placementPreview.valid
+    );
     const focusedId = this.scene.getFocusedElementId();
     const highlightedIds = new Set(this.scene.getHighlightedElementIds());
     planningEls.forEach((element) => {
@@ -394,10 +398,11 @@ export class CanvasManager {
     );
     const taskReflowPreviewByTaskId =
       this.interactionManager.getTaskReflowPreviews();
+    const draggedElementIds = this.interactionManager.getDraggedElementIds();
 
     // draw planning elements in layer order with live drag/drop previews
-    planningElsSorted.forEach((el) => {
-      if (el instanceof StoryElement) {
+    const drawPlanningElement = (el: IPlanningElement): void => {
+      if (!suppressTaskLayoutPreviews && el instanceof StoryElement) {
         const preview = resizePreviewByStoryId.get(el.id);
         if (preview && preview.previewHeight > el.height) {
           this.drawPlanningElementWithOverrides(el, {
@@ -406,7 +411,7 @@ export class CanvasManager {
           return;
         }
       }
-      if (el instanceof TaskElement) {
+      if (!suppressTaskLayoutPreviews && el instanceof TaskElement) {
         const preview = taskReflowPreviewByTaskId.get(el.id);
         if (preview) {
           this.drawPlanningElementWithOverrides(el, {
@@ -417,11 +422,21 @@ export class CanvasManager {
         }
       }
       el.draw(this.ctx, this.panZoom);
+    };
+    const regularPlanningEls: IPlanningElement[] = [];
+    const draggedPlanningEls: IPlanningElement[] = [];
+    planningElsSorted.forEach((el) => {
+      if (draggedElementIds.has(el.id)) {
+        draggedPlanningEls.push(el);
+        return;
+      }
+      regularPlanningEls.push(el);
     });
+    regularPlanningEls.forEach(drawPlanningElement);
     this.drawPlacementPreview(planningById);
 
     const taskDropPlaceholders = this.interactionManager.getTaskDropPlaceholders();
-    if (taskDropPlaceholders.length > 0) {
+    if (!suppressTaskLayoutPreviews && taskDropPlaceholders.length > 0) {
       this.ctx.save();
       this.ctx.fillStyle = TASK_DROP_PLACEHOLDER_FILL;
       const radius = 24;
@@ -438,6 +453,7 @@ export class CanvasManager {
       });
       this.ctx.restore();
     }
+    draggedPlanningEls.forEach(drawPlanningElement);
 
     // highlight drop target when dragging connection
     if (this.interactionManager.isCreatingConnection) {
@@ -564,64 +580,113 @@ export class CanvasManager {
 
     this.ctx.save();
     const scale = this.panZoom.scale || 1;
-    const invalidColor = 'rgba(220, 38, 38, 0.95)';
-    const suggestedColor = 'rgba(37, 99, 235, 0.95)';
+    const blockerColor = 'rgba(100, 116, 139, 0.82)';
+    const placeholderFill = TASK_DROP_PLACEHOLDER_FILL;
 
     if (preview.kind === 'drag') {
       this.ctx.setLineDash([]);
-      this.ctx.lineWidth = 2 / scale;
-      this.ctx.strokeStyle = invalidColor;
-      preview.elementIds.forEach((id) => {
-        const element = planningById.get(id);
-        if (!element) return;
-        this.drawPreviewRect(element.x, element.y, element.width, element.height);
-      });
-
-      this.ctx.setLineDash([10 / scale, 7 / scale]);
-      this.ctx.strokeStyle = suggestedColor;
+      this.ctx.lineWidth = 0;
+      this.ctx.strokeStyle = 'transparent';
+      this.ctx.fillStyle = placeholderFill;
       preview.suggestedPositions.forEach((position, id) => {
         const element = planningById.get(id);
         if (!element) return;
-        this.drawPreviewRect(
+        this.drawPreviewOutline(
+          element,
           position.x,
           position.y,
           element.width,
-          element.height
+          element.height,
+          true,
+          false
         );
       });
+
+      if (preview.blockerIds.length > 0) {
+        this.ctx.setLineDash([2 / scale, 6 / scale]);
+        this.ctx.lineWidth = 2 / scale;
+        this.ctx.strokeStyle = blockerColor;
+        this.ctx.fillStyle = 'transparent';
+        preview.blockerIds.forEach((id) => {
+          const blocker = planningById.get(id);
+          if (!blocker) return;
+          this.drawPreviewOutline(
+            blocker,
+            blocker.x,
+            blocker.y,
+            blocker.width,
+            blocker.height,
+            false
+          );
+        });
+      }
       this.ctx.restore();
       return;
     }
 
     this.ctx.setLineDash([]);
-    this.ctx.lineWidth = 2 / scale;
-    this.ctx.strokeStyle = invalidColor;
-    this.drawPreviewRect(
-      preview.currentRect.x,
-      preview.currentRect.y,
-      preview.currentRect.width,
-      preview.currentRect.height
-    );
-    this.ctx.setLineDash([10 / scale, 7 / scale]);
-    this.ctx.strokeStyle = suggestedColor;
-    this.drawPreviewRect(
+    this.ctx.lineWidth = 0;
+    this.ctx.strokeStyle = 'transparent';
+    this.ctx.fillStyle = placeholderFill;
+    const element = planningById.get(preview.elementId);
+    if (!element) {
+      this.ctx.restore();
+      return;
+    }
+    this.drawPreviewOutline(
+      element,
       preview.suggestedRect.x,
       preview.suggestedRect.y,
       preview.suggestedRect.width,
-      preview.suggestedRect.height
+      preview.suggestedRect.height,
+      true,
+      false
     );
+
+    if (preview.blockerIds.length > 0) {
+      this.ctx.setLineDash([2 / scale, 6 / scale]);
+      this.ctx.lineWidth = 2 / scale;
+      this.ctx.strokeStyle = blockerColor;
+      preview.blockerIds.forEach((id) => {
+        const blocker = planningById.get(id);
+        if (!blocker) return;
+        this.drawPreviewOutline(
+          blocker,
+          blocker.x,
+          blocker.y,
+          blocker.width,
+          blocker.height,
+          false
+        );
+      });
+    }
     this.ctx.restore();
   }
 
-  private drawPreviewRect(
+  private drawPreviewOutline(
+    element: IPlanningElement,
     x: number,
     y: number,
     width: number,
-    height: number
+    height: number,
+    fill: boolean,
+    stroke: boolean = true
   ): void {
     this.ctx.beginPath();
-    this.ctx.roundRect(x, y, width, height, 10 / (this.panZoom.scale || 1));
-    this.ctx.stroke();
+    if (element instanceof GoalElement) {
+      const centerX = x + width / 2;
+      const centerY = y + height / 2;
+      const radius = Math.min(width, height) / 2;
+      this.drawHexPath(centerX, centerY, radius);
+    } else if (element instanceof TaskElement) {
+      this.ctx.roundRect(x, y, width, height, 24);
+    } else if (element instanceof StoryElement) {
+      this.ctx.roundRect(x, y, width, height, 8);
+    } else {
+      this.ctx.roundRect(x, y, width, height, 10);
+    }
+    if (fill) this.ctx.fill();
+    if (stroke) this.ctx.stroke();
   }
 
   private drawLoadingPlaceholders(): void {
@@ -633,7 +698,7 @@ export class CanvasManager {
       const width = Math.max(1, placeholder.width);
       const height = Math.max(1, placeholder.height);
       this.ctx.save();
-      this.ctx.fillStyle = '#e5e7eb';
+      this.ctx.fillStyle = TASK_DROP_PLACEHOLDER_FILL;
       this.ctx.setLineDash([]);
       if (placeholder.elementType === 'task') {
         this.ctx.beginPath();

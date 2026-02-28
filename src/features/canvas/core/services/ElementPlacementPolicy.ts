@@ -17,6 +17,7 @@ type DragResolveArgs = {
   proposedDx: number;
   proposedDy: number;
   sceneElements: ICanvasElement[];
+  resolveMode?: DragResolveMode;
 };
 
 type RectResolveArgs = {
@@ -31,8 +32,96 @@ type PlaceElementsOptions = {
   preserveGroup?: boolean;
 };
 
+type DragResolveMode = 'preview' | 'commit';
+
+export type PlacementReasonCode = 'collision' | 'none';
+
+export type PlacementBlocker = {
+  movingElementId: string;
+  blockingElementId: string;
+};
+
+export type DragPlacementDiagnostics = {
+  valid: boolean;
+  reasonCode: PlacementReasonCode;
+  blockers: PlacementBlocker[];
+  requiredGap: number;
+  suggestedTranslation: { dx: number; dy: number };
+};
+
+export type RectPlacementDiagnostics = {
+  valid: boolean;
+  reasonCode: PlacementReasonCode;
+  blockers: PlacementBlocker[];
+  requiredGap: number;
+  suggestedRect: Rect;
+};
+
 export class ElementPlacementPolicy {
+  private readonly dragSearchMaxRingPreview = 48;
+  private readonly dragSearchMaxRingCommit = 220;
+
   constructor(private readonly minGap: number = MIN_ELEMENT_GAP) {}
+
+  public evaluateDragPlacement({
+    movingElements,
+    initialPositions,
+    proposedDx,
+    proposedDy,
+    sceneElements,
+    resolveMode = 'commit',
+  }: DragResolveArgs): DragPlacementDiagnostics {
+    const blockers = this.collectDragBlockers(
+      movingElements,
+      initialPositions,
+      proposedDx,
+      proposedDy,
+      sceneElements
+    );
+    const suggestedTranslation =
+      blockers.length === 0
+        ? { dx: proposedDx, dy: proposedDy }
+        : this.resolveDragTranslation({
+            movingElements,
+            initialPositions,
+            proposedDx,
+            proposedDy,
+            sceneElements,
+            resolveMode,
+          });
+    return {
+      valid: blockers.length === 0,
+      reasonCode: blockers.length === 0 ? 'none' : 'collision',
+      blockers,
+      requiredGap: this.minGap,
+      suggestedTranslation,
+    };
+  }
+
+  public evaluateRectPlacement(args: RectResolveArgs): RectPlacementDiagnostics {
+    const { element, targetRect, sceneElements, movingIds = new Set([element.id]) } =
+      args;
+    const blockers = this.collectRectBlockers(
+      element,
+      targetRect,
+      sceneElements,
+      movingIds
+    );
+    const suggestedRect =
+      blockers.length === 0
+        ? targetRect
+        : this.resolveElementRectAlongPath({
+            ...args,
+            movingIds,
+          });
+    return {
+      valid: blockers.length === 0,
+      reasonCode: blockers.length === 0 ? 'none' : 'collision',
+      blockers,
+      requiredGap: this.minGap,
+      suggestedRect,
+    };
+  }
 
   public resolveDragTranslation({
     movingElements,
@@ -40,6 +129,7 @@ export class ElementPlacementPolicy {
     proposedDx,
     proposedDy,
     sceneElements,
+    resolveMode = 'commit',
   }: DragResolveArgs): { dx: number; dy: number } {
     if (movingElements.length === 0) {
       return { dx: proposedDx, dy: proposedDy };
@@ -85,6 +175,21 @@ export class ElementPlacementPolicy {
       return { dx: proposedDx, dy: proposedDy };
     }
 
+    const nearest = this.findNearestValidTranslationAroundTarget(
+      proposedDx,
+      proposedDy,
+      isValid,
+      resolveMode
+    );
+    if (nearest) return nearest;
+
+    if (resolveMode === 'preview') {
+      // During drag preview keep suggestion near cursor.
+      // Hard-drop will still resolve to a guaranteed valid position on mouseUp.
+      return { dx: proposedDx, dy: proposedDy };
+    }
+
+    // Fallback: project to the farthest valid point along start->target path.
     let lo = 0;
     let hi = 1;
     let best = { dx: 0, dy: 0 };
@@ -261,6 +366,87 @@ export class ElementPlacementPolicy {
     return true;
   }
 
+  private collectDragBlockers(
+    movingElements: PlanningElement[],
+    initialPositions: Map<string, { x: number; y: number }>,
+    dx: number,
+    dy: number,
+    sceneElements: ICanvasElement[]
+  ): PlacementBlocker[] {
+    const movingIds = new Set(movingElements.map((element) => element.id));
+    const staticElements = this.getPlanningElements(sceneElements).filter(
+      (element) => !movingIds.has(element.id)
+    );
+    const blockers: PlacementBlocker[] = [];
+
+    for (const movingElement of movingElements) {
+      const origin = initialPositions.get(movingElement.id) ?? {
+        x: movingElement.x,
+        y: movingElement.y,
+      };
+      const movingRect = {
+        x: origin.x + dx,
+        y: origin.y + dy,
+        width: movingElement.width,
+        height: movingElement.height,
+      };
+      for (const staticElement of staticElements) {
+        const staticRect = this.getRect(staticElement);
+        if (!this.intersectsWithGap(movingRect, staticRect)) continue;
+        if (
+          this.isAllowedOverlap(
+            movingElement,
+            movingRect,
+            staticElement,
+            staticRect
+          )
+        ) {
+          continue;
+        }
+        blockers.push({
+          movingElementId: movingElement.id,
+          blockingElementId: staticElement.id,
+        });
+      }
+    }
+
+    return this.uniqueBlockers(blockers);
+  }
+
+  private collectRectBlockers(
+    element: PlanningElement,
+    rect: Rect,
+    sceneElements: ICanvasElement[],
+    movingIds: Set<string>
+  ): PlacementBlocker[] {
+    const staticElements = this.getPlanningElements(sceneElements).filter(
+      (candidate) => !movingIds.has(candidate.id)
+    );
+    const blockers: PlacementBlocker[] = [];
+    staticElements.forEach((staticElement) => {
+      const staticRect = this.getRect(staticElement);
+      if (!this.intersectsWithGap(rect, staticRect)) return;
+      if (this.isAllowedOverlap(element, rect, staticElement, staticRect)) {
+        return;
+      }
+      blockers.push({
+        movingElementId: element.id,
+        blockingElementId: staticElement.id,
+      });
+    });
+    return this.uniqueBlockers(blockers);
+  }
+
+  private uniqueBlockers(blockers: PlacementBlocker[]): PlacementBlocker[] {
+    const seen = new Set<string>();
+    return blockers.filter((blocker) => {
+      const key = `${blocker.movingElementId}:${blocker.blockingElementId}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
   private isAllowedOverlap(
     movingElement: PlanningElement,
     movingRect: Rect,
@@ -326,6 +512,46 @@ export class ElementPlacementPolicy {
       width: element.width,
       height: element.height,
     };
+  }
+
+  private getDragSearchMaxRing(resolveMode: DragResolveMode): number {
+    return resolveMode === 'preview'
+      ? this.dragSearchMaxRingPreview
+      : this.dragSearchMaxRingCommit;
+  }
+
+  private findNearestValidTranslationAroundTarget(
+    proposedDx: number,
+    proposedDy: number,
+    isValid: (dx: number, dy: number) => boolean,
+    resolveMode: DragResolveMode
+  ): { dx: number; dy: number } | null {
+    const step = Math.max(8, Math.round(this.minGap / 2));
+    const maxRing = this.getDragSearchMaxRing(resolveMode);
+    for (let ring = 1; ring <= maxRing; ring += 1) {
+      const radius = ring * step;
+      let bestCandidate: { dx: number; dy: number; distSq: number } | null = null;
+      const testCandidate = (offsetX: number, offsetY: number): void => {
+        const dx = proposedDx + offsetX;
+        const dy = proposedDy + offsetY;
+        if (!isValid(dx, dy)) return;
+        const distSq = offsetX * offsetX + offsetY * offsetY;
+        if (bestCandidate && bestCandidate.distSq <= distSq) return;
+        bestCandidate = { dx, dy, distSq };
+      };
+      for (let x = -radius; x <= radius; x += step) {
+        testCandidate(x, -radius);
+        testCandidate(x, radius);
+      }
+      for (let y = -radius + step; y <= radius - step; y += step) {
+        testCandidate(-radius, y);
+        testCandidate(radius, y);
+      }
+      if (bestCandidate) {
+        return { dx: bestCandidate.dx, dy: bestCandidate.dy };
+      }
+    }
+    return null;
   }
 }
 
