@@ -21,6 +21,7 @@ import { addTaskToStory } from './storyTaskActions.ts';
 import { ExistingTaskPicker } from './components/ExistingTaskPicker.ts';
 import { ExistingGoalPicker } from './components/ExistingGoalPicker.ts';
 import { ExistingStoryPicker } from './components/ExistingStoryPicker.ts';
+import { createMenuBadge } from './components/MenuBadge.ts';
 import { AddExistingTaskService } from '../core/services/AddExistingTaskService.ts';
 import { AddExistingGoalService } from '../core/services/AddExistingGoalService.ts';
 import { AddExistingStoryService } from '../core/services/AddExistingStoryService.ts';
@@ -339,6 +340,7 @@ export class ContextMenu {
                 )
               ),
             variant: isFocused ? 'selected' : 'default',
+            leading: createMenuBadge('focus'),
           },
           {
             label: 'Highlight',
@@ -351,6 +353,7 @@ export class ContextMenu {
                 )
               ),
             variant: isHighlighted ? 'selected' : 'default',
+            leading: createMenuBadge('highlight'),
           },
         ],
       });
