@@ -10,10 +10,9 @@ import { AddElementCommand } from '../core/commands/AddElementCommand.ts';
 import { ResizeCommand } from '../core/commands/ResizeCommand.ts';
 import { AddTasksToStoryCommand } from '../core/commands/AddTasksToStoryCommand.ts';
 import { StoryLayoutService } from '../core/services/StoryLayoutService.ts';
+import { elementPlacementPolicy } from '../core/services/ElementPlacementPolicy.ts';
 import { environment } from '../../../config/environment.ts';
-import { HttpInterceptorClient } from '../../../majom-wrapper/data-access/http-interceptor.ts';
-import { StoriesApiService } from '../../../majom-wrapper/data-access/stories-api-service.ts';
-import { GoalsApiService } from '../../../majom-wrapper/data-access/goals-api-service.ts';
+import { HttpInterceptorClient, StoriesApiService, GoalsApiService } from '../../../majom-wrapper/index.ts';
 import { mapStatus } from '../../../majom-wrapper/utils/statusMapping.ts';
 import type {
   PlatformTask,
@@ -599,6 +598,8 @@ export class RelatedItemsPicker {
         });
         historyService.execute(new ResizeCommand(this.scene, initial, final));
       }
+    } else {
+      elementPlacementPolicy.placeElements([task], this.scene.getElements());
     }
     historyService.execute(new AddElementCommand(this.scene, task));
     if (this.activeElement instanceof StoryElement) {
@@ -610,6 +611,7 @@ export class RelatedItemsPicker {
     if (!(this.activeElement instanceof GoalElement)) return;
     const position = this.getStoryInsertPosition(index);
     const story = this.createStoryElement(item, position.x, position.y);
+    elementPlacementPolicy.placeElements([story], this.scene.getElements());
     historyService.execute(new AddElementCommand(this.scene, story));
   }
 
@@ -677,6 +679,9 @@ export class RelatedItemsPicker {
       const position = this.getInsertPosition(index);
       return this.createTaskElement(item, position.x, position.y);
     });
+    elementPlacementPolicy.placeElements(tasksToAdd, this.scene.getElements(), {
+      preserveGroup: true,
+    });
     historyService.execute(new AddElementCommand(this.scene, tasksToAdd));
     this.goalTaskItems = [];
     this.syncItemsFromContext();
@@ -689,6 +694,9 @@ export class RelatedItemsPicker {
     const storiesToAdd = this.goalStoryItems.map((item, index) => {
       const position = this.getStoryInsertPosition(index);
       return this.createStoryElement(item, position.x, position.y);
+    });
+    elementPlacementPolicy.placeElements(storiesToAdd, this.scene.getElements(), {
+      preserveGroup: true,
     });
     historyService.execute(new AddElementCommand(this.scene, storiesToAdd));
     this.goalStoryItems = [];

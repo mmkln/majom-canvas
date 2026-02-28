@@ -5,6 +5,7 @@ import type { Story } from '../../../../majom-wrapper/interfaces/index.ts';
 import { mapStatus } from '../../../../majom-wrapper/utils/statusMapping.ts';
 import { historyService } from './HistoryService.ts';
 import { AddElementCommand } from '../commands/AddElementCommand.ts';
+import { elementPlacementPolicy } from './ElementPlacementPolicy.ts';
 
 export class AddExistingStoryService {
   constructor(
@@ -51,6 +52,7 @@ export class AddExistingStoryService {
       x: sceneX - StoryElement.width / 2,
       y: sceneY - StoryElement.height / 2,
     });
+    elementPlacementPolicy.placeElements([storyElement], this.scene.getElements());
 
     historyService.execute(new AddElementCommand(this.scene, storyElement));
     this.scene.setSelected([storyElement]);

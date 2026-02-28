@@ -5,6 +5,7 @@ import type { Goal } from '../../../../majom-wrapper/interfaces/index.ts';
 import { mapStatus } from '../../../../majom-wrapper/utils/statusMapping.ts';
 import { historyService } from './HistoryService.ts';
 import { AddElementCommand } from '../commands/AddElementCommand.ts';
+import { elementPlacementPolicy } from './ElementPlacementPolicy.ts';
 
 export class AddExistingGoalService {
   constructor(
@@ -42,6 +43,7 @@ export class AddExistingGoalService {
       x: sceneX - GoalElement.width / 2,
       y: sceneY - GoalElement.height / 2,
     });
+    elementPlacementPolicy.placeElements([goalElement], this.scene.getElements());
 
     historyService.execute(new AddElementCommand(this.scene, goalElement));
     this.scene.setSelected([goalElement]);

@@ -5,6 +5,7 @@ import type { PlatformTask } from '../../../../majom-wrapper/interfaces/index.ts
 import { mapStatus } from '../../../../majom-wrapper/utils/statusMapping.ts';
 import { historyService } from './HistoryService.ts';
 import { AddElementCommand } from '../commands/AddElementCommand.ts';
+import { elementPlacementPolicy } from './ElementPlacementPolicy.ts';
 
 export class AddExistingTaskService {
   constructor(
@@ -52,6 +53,7 @@ export class AddExistingTaskService {
       x: sceneX - TaskElement.width / 2,
       y: sceneY - TaskElement.height / 2,
     });
+    elementPlacementPolicy.placeElements([taskElement], this.scene.getElements());
 
     historyService.execute(new AddElementCommand(this.scene, taskElement));
     this.scene.setSelected([taskElement]);

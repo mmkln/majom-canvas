@@ -31,6 +31,7 @@ import { TaskElement } from '../../elements/TaskElement.ts';
 import { GoalElement } from '../../elements/GoalElement.ts';
 import { StoryElement } from '../../elements/StoryElement.ts';
 import { StoryLayoutService } from '../services/StoryLayoutService.ts';
+import { elementPlacementPolicy } from '../services/ElementPlacementPolicy.ts';
 import { getBoundingBox } from '../utils/geometryUtils.ts';
 import { hasStatusAnimation } from '../../elements/utils/statusAnimations.ts';
 import { CANVAS_PERF_LOG } from '../../../../config/env/index.ts';
@@ -91,6 +92,7 @@ export class CanvasManager {
   private pinchInitialTaskPositions: Map<string, { x: number; y: number }> | null =
     null;
   private readonly storyLayoutService = new StoryLayoutService();
+  private readonly placementPolicy = elementPlacementPolicy;
 
   // Pinch-to-zoom state
   private pinchZoomInitialDist: number | null = null;
@@ -319,6 +321,7 @@ export class CanvasManager {
     const shapes = this.cachedShapes;
     const planningEls = this.cachedPlanningElements;
     const planningElsSorted = this.cachedPlanningElementsSorted;
+    const planningById = new Map(planningEls.map((element) => [element.id, element]));
     const focusedId = this.scene.getFocusedElementId();
     const highlightedIds = new Set(this.scene.getHighlightedElementIds());
     planningEls.forEach((element) => {
@@ -415,6 +418,7 @@ export class CanvasManager {
       }
       el.draw(this.ctx, this.panZoom);
     });
+    this.drawPlacementPreview(planningById);
 
     const taskDropPlaceholders = this.interactionManager.getTaskDropPlaceholders();
     if (taskDropPlaceholders.length > 0) {
@@ -552,6 +556,72 @@ export class CanvasManager {
     ) as IPlanningElement;
     Object.assign(previewElement, element, overrides);
     previewElement.draw(this.ctx, this.panZoom);
+  }
+
+  private drawPlacementPreview(planningById: Map<string, IPlanningElement>): void {
+    const preview = this.interactionManager.getPlacementPreview();
+    if (!preview || preview.valid) return;
+
+    this.ctx.save();
+    const scale = this.panZoom.scale || 1;
+    const invalidColor = 'rgba(220, 38, 38, 0.95)';
+    const suggestedColor = 'rgba(37, 99, 235, 0.95)';
+
+    if (preview.kind === 'drag') {
+      this.ctx.setLineDash([]);
+      this.ctx.lineWidth = 2 / scale;
+      this.ctx.strokeStyle = invalidColor;
+      preview.elementIds.forEach((id) => {
+        const element = planningById.get(id);
+        if (!element) return;
+        this.drawPreviewRect(element.x, element.y, element.width, element.height);
+      });
+
+      this.ctx.setLineDash([10 / scale, 7 / scale]);
+      this.ctx.strokeStyle = suggestedColor;
+      preview.suggestedPositions.forEach((position, id) => {
+        const element = planningById.get(id);
+        if (!element) return;
+        this.drawPreviewRect(
+          position.x,
+          position.y,
+          element.width,
+          element.height
+        );
+      });
+      this.ctx.restore();
+      return;
+    }
+
+    this.ctx.setLineDash([]);
+    this.ctx.lineWidth = 2 / scale;
+    this.ctx.strokeStyle = invalidColor;
+    this.drawPreviewRect(
+      preview.currentRect.x,
+      preview.currentRect.y,
+      preview.currentRect.width,
+      preview.currentRect.height
+    );
+    this.ctx.setLineDash([10 / scale, 7 / scale]);
+    this.ctx.strokeStyle = suggestedColor;
+    this.drawPreviewRect(
+      preview.suggestedRect.x,
+      preview.suggestedRect.y,
+      preview.suggestedRect.width,
+      preview.suggestedRect.height
+    );
+    this.ctx.restore();
+  }
+
+  private drawPreviewRect(
+    x: number,
+    y: number,
+    width: number,
+    height: number
+  ): void {
+    this.ctx.beginPath();
+    this.ctx.roundRect(x, y, width, height, 10 / (this.panZoom.scale || 1));
+    this.ctx.stroke();
   }
 
   private drawLoadingPlaceholders(): void {
@@ -983,6 +1053,13 @@ export class CanvasManager {
       item.x = coords.x;
       item.y = coords.y;
     }
+    if (
+      item instanceof TaskElement ||
+      item instanceof StoryElement ||
+      item instanceof GoalElement
+    ) {
+      this.placementPolicy.placeElements([item], this.scene.getElements());
+    }
     this.scene.addElement(item);
     this.requestDraw();
     console.log('Added item to canvas:', item);
@@ -1197,19 +1274,65 @@ export class CanvasManager {
         Math.max(newW, 1),
         Math.max(newH, 1)
       );
-      story.width = plan.nextWidth;
-      story.height = plan.nextHeight;
-      story.x = this.pinchCenter.x - plan.nextWidth / 2;
-      story.y = this.pinchCenter.y - plan.nextHeight / 2;
-      if (plan.positions.size > 0) {
+      const targetRect = {
+        x: this.pinchCenter.x - plan.nextWidth / 2,
+        y: this.pinchCenter.y - plan.nextHeight / 2,
+        width: plan.nextWidth,
+        height: plan.nextHeight,
+      };
+      const movingIds = new Set<string>([
+        story.id,
+        ...story.tasks.map((task) => task.id),
+      ]);
+      const resolvedRect = this.placementPolicy.resolveElementRectAlongPath({
+        element: story,
+        startRect: this.pinchInitialRect ?? {
+          x: story.x,
+          y: story.y,
+          width: story.width,
+          height: story.height,
+        },
+        targetRect,
+        sceneElements: this.scene.getElements(),
+        movingIds,
+      });
+      const resolvedPlan = this.storyLayoutService.planResize(
+        story,
+        tasks,
+        resolvedRect.width,
+        resolvedRect.height
+      );
+      const finalRect = {
+        x: this.pinchCenter.x - resolvedPlan.nextWidth / 2,
+        y: this.pinchCenter.y - resolvedPlan.nextHeight / 2,
+        width: resolvedPlan.nextWidth,
+        height: resolvedPlan.nextHeight,
+      };
+      if (
+        !this.placementPolicy.isPlacementValidForRect(
+          story,
+          finalRect,
+          this.scene.getElements(),
+          movingIds
+        )
+      ) {
+        return;
+      }
+      const xShift = finalRect.x - story.x;
+      const yShift = finalRect.y - story.y;
+      story.width = finalRect.width;
+      story.height = finalRect.height;
+      story.x = finalRect.x;
+      story.y = finalRect.y;
+      if (resolvedPlan.positions.size > 0) {
         const taskById = new Map(tasks.map((task) => [task.id, task]));
-        plan.positions.forEach((pos, id) => {
+        resolvedPlan.positions.forEach((pos, id) => {
           const task = taskById.get(id);
           if (!task) return;
-          task.x = pos.x;
-          task.y = pos.y;
+          task.x = pos.x + xShift;
+          task.y = pos.y + yShift;
         });
-        story.tasks = plan.orderedTasks;
+        story.tasks = resolvedPlan.orderedTasks;
       }
       this.scene.changes.next();
       return;

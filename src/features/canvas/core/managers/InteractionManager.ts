@@ -25,9 +25,37 @@ import {
   type TaskDropPlaceholder,
   type TaskReflowPreview,
 } from '../services/StoryDragPreviewService.ts';
+import { elementPlacementPolicy } from '../services/ElementPlacementPolicy.ts';
 import type { IDraggable } from '../interfaces/draggable.ts';
 import { getBoundingBox } from '../utils/geometryUtils.ts';
 import { emitTaskStoryLinkSet } from '../canvasLinkLifecycle.ts';
+import { PlanningElement } from '../../elements/PlanningElement.ts';
+
+type PlacementPreviewRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type DragPlacementPreview = {
+  kind: 'drag';
+  valid: boolean;
+  elementIds: string[];
+  suggestedPositions: Map<string, { x: number; y: number }>;
+};
+
+export type ResizePlacementPreview = {
+  kind: 'resize';
+  valid: boolean;
+  elementId: string;
+  currentRect: PlacementPreviewRect;
+  suggestedRect: PlacementPreviewRect;
+};
+
+export type PlacementPreview =
+  | DragPlacementPreview
+  | ResizePlacementPreview;
 
 export class InteractionManager {
   private draggingItem: (ICanvasElement & IDraggable) | null = null;
@@ -68,6 +96,7 @@ export class InteractionManager {
   private resizeInitialTaskPositions: Map<string, { x: number; y: number }> =
     new Map();
   private readonly storyLayoutService = new StoryLayoutService();
+  private readonly placementPolicy = elementPlacementPolicy;
   private readonly storyDragPreviewService = new StoryDragPreviewService(
     this.storyLayoutService
   );
@@ -75,6 +104,7 @@ export class InteractionManager {
   private storyDropPlans: Map<string, StoryDropPlan> = new Map();
   private storyResizePreviews: StoryResizePreview[] = [];
   private taskReflowPreviews: Map<string, TaskReflowPreview> = new Map();
+  private placementPreview: PlacementPreview | null = null;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -214,6 +244,7 @@ export class InteractionManager {
 
   handleMouseDown(e: MouseEvent, sceneX: number, sceneY: number): boolean {
     this.clearTaskDropPreviewState();
+    this.clearPlacementPreview();
     if (e.button === 2) {
       this.rightClickTarget = this.findTopElementAt(sceneX, sceneY);
       this.rightClickSceneX = sceneX;
@@ -359,6 +390,7 @@ export class InteractionManager {
   handleMouseMove(sceneX: number, sceneY: number): void {
     if (!this.draggingItem && !this.draggingGroup) {
       this.clearTaskDropPreviewState();
+      this.clearPlacementPreview();
     }
     const rawShapes = this.scene.getShapes();
     const planningEls = this.scene
@@ -409,6 +441,7 @@ export class InteractionManager {
     // connection creation update via service
     if (this.connectionService.isCreating()) {
       this.clearTaskDropPreviewState();
+      this.clearPlacementPreview();
       this.connectionService.update(sceneX, sceneY);
       return;
     }
@@ -480,14 +513,9 @@ export class InteractionManager {
     if (this.draggingGroup) {
       const dx = sceneX - this.groupDragStartX;
       const dy = sceneY - this.groupDragStartY;
-      this.draggingGroup.forEach((el) => {
-        const init = this.initialPositions.get(el.id);
-        if (init) {
-          const e = el as any;
-          e.x = init.x + dx;
-          e.y = init.y + dy;
-        }
-      });
+      this.applyDragDelta(this.draggingGroup, dx, dy, false);
+      const resolved = this.resolveDragDelta(this.draggingGroup, dx, dy);
+      this.updateDragPlacementPreview(this.draggingGroup, dx, dy, resolved);
       this.updateTaskDropPlaceholders(sceneX, sceneY);
       this.scene.changes.next();
       return;
@@ -543,16 +571,9 @@ export class InteractionManager {
         const dy = sceneY - (init.y + this.dragOffsetY);
         const selected = this.scene.getSelectedElements();
         const dragGroup = SelectionService.getDragGroup(selected);
-        dragGroup.forEach((elem) => {
-          const origin = this.initialPositions.get(elem.id);
-          if (origin) {
-            const newX = origin.x + dx;
-            const newY = origin.y + dy;
-            (elem as any).x = newX;
-            (elem as any).y = newY;
-            if ((elem as any).onDrag) (elem as any).onDrag(newX, newY);
-          }
-        });
+        this.applyDragDelta(dragGroup, dx, dy, true);
+        const resolved = this.resolveDragDelta(dragGroup, dx, dy);
+        this.updateDragPlacementPreview(dragGroup, dx, dy, resolved);
         this.updateTaskDropPlaceholders(sceneX, sceneY);
         this.scene.changes.next();
       }
@@ -597,12 +618,14 @@ export class InteractionManager {
         newW,
         newH
       );
-      const anchored = this.getResizeAnchoredPosition(
+      const targetRect = this.getResizeAnchoredRect(
         plan.nextWidth,
         plan.nextHeight
       );
-      story.x = anchored.x;
-      story.y = anchored.y;
+      const targetShiftX = targetRect.x - story.x;
+      const targetShiftY = targetRect.y - story.y;
+      story.x = targetRect.x;
+      story.y = targetRect.y;
       story.width = plan.nextWidth;
       story.height = plan.nextHeight;
       if (plan.positions.size > 0) {
@@ -610,11 +633,29 @@ export class InteractionManager {
         plan.positions.forEach((pos, id) => {
           const task = taskById.get(id);
           if (!task) return;
-          task.x = pos.x;
-          task.y = pos.y;
+          task.x = pos.x + targetShiftX;
+          task.y = pos.y + targetShiftY;
         });
         story.tasks = plan.orderedTasks;
       }
+
+      const movingIds = new Set<string>([
+        story.id,
+        ...story.tasks.map((task) => task.id),
+      ]);
+      const resolvedRect = this.placementPolicy.resolveElementRectAlongPath({
+        element: story,
+        startRect: {
+          x: this.initialX,
+          y: this.initialY,
+          width: this.initialWidth,
+          height: this.initialHeight,
+        },
+        targetRect,
+        sceneElements: this.scene.getElements(),
+        movingIds,
+      });
+      this.updateResizePlacementPreview(story.id, targetRect, resolvedRect);
       this.scene.changes.next();
       return;
     }
@@ -624,6 +665,7 @@ export class InteractionManager {
     // finish connection via service
     if (this.connectionService.isCreating()) {
       this.clearTaskDropPreviewState();
+      this.clearPlacementPreview();
       this.connectionService.finish();
       return;
     }
@@ -674,6 +716,7 @@ export class InteractionManager {
       this.isRegionSelecting = false;
       this.scene.changes.next();
       this.clearTaskDropPreviewState();
+      this.clearPlacementPreview();
       this.notifyInteractionEnd('select');
       return;
     }
@@ -681,6 +724,7 @@ export class InteractionManager {
     // finalize group drag
     if (this.draggingGroup) {
       const initial = new Map(this.initialPositions);
+      this.applyHardDropForDragGroup(this.draggingGroup, false);
       const selectedEls = this.scene.getSelectedElements();
       const tasks = selectedEls.filter(
         (el): el is TaskElement => el instanceof TaskElement
@@ -729,6 +773,7 @@ export class InteractionManager {
       this.initialPositions.clear();
       this.draggingGroup = null;
       this.clearTaskDropPreviewState();
+      this.clearPlacementPreview();
       this.scene.changes.next();
       this.notifyInteractionEnd('drag');
       return;
@@ -736,6 +781,9 @@ export class InteractionManager {
 
     // finalize drag and record history
     if (this.draggingItem) {
+      const selected = this.scene.getSelectedElements();
+      const dragGroup = SelectionService.getDragGroup(selected);
+      this.applyHardDropForDragGroup(dragGroup, true);
       // Handle Task drop into/out of Story containers
       let alignChanges = {
         movedInitial: new Map<string, { x: number; y: number }>(),
@@ -805,6 +853,7 @@ export class InteractionManager {
       this.initialPositions.clear();
       this.draggingItem = null;
       this.clearTaskDropPreviewState();
+      this.clearPlacementPreview();
       this.scene.changes.next();
       this.notifyInteractionEnd('drag');
     }
@@ -812,6 +861,7 @@ export class InteractionManager {
     if (this.resizingElement) {
       // record resize in history
       const el = this.resizingElement;
+      this.applyHardDropForResize(el);
       const movedTasks = this.getResizeMovedTasks();
       if (movedTasks.initial.size > 0) {
         historyService.execute(
@@ -859,11 +909,13 @@ export class InteractionManager {
         .filter((el): el is StoryElement => el instanceof StoryElement)
         .forEach((s) => (s.hoveredResizeHandle = null));
       this.clearTaskDropPreviewState();
+      this.clearPlacementPreview();
       this.scene.changes.next();
       this.notifyInteractionEnd('resize');
       return;
     }
     this.clearTaskDropPreviewState();
+    this.clearPlacementPreview();
   }
 
   handleDoubleClick(sceneX: number, sceneY: number): void {
@@ -928,6 +980,10 @@ export class InteractionManager {
     return this.taskReflowPreviews;
   }
 
+  public getPlacementPreview(): PlacementPreview | null {
+    return this.placementPreview;
+  }
+
   public get isResizingStory(): boolean {
     return this.resizingElement !== null;
   }
@@ -937,6 +993,10 @@ export class InteractionManager {
     this.storyDropPlans.clear();
     this.storyResizePreviews = [];
     this.taskReflowPreviews.clear();
+  }
+
+  private clearPlacementPreview(): void {
+    this.placementPreview = null;
   }
 
   private updateTaskDropPlaceholders(sceneX: number, sceneY: number): void {
@@ -1174,6 +1234,232 @@ export class InteractionManager {
       default:
         return { x: this.initialX, y: this.initialY };
     }
+  }
+
+  private getResizeAnchoredRect(
+    width: number,
+    height: number
+  ): { x: number; y: number; width: number; height: number } {
+    const anchored = this.getResizeAnchoredPosition(width, height);
+    return {
+      x: anchored.x,
+      y: anchored.y,
+      width,
+      height,
+    };
+  }
+
+  private resolveDragDelta(
+    dragGroup: ICanvasElement[],
+    proposedDx: number,
+    proposedDy: number
+  ): { dx: number; dy: number } {
+    const planningGroup = dragGroup.filter(
+      (element): element is PlanningElement => element instanceof PlanningElement
+    );
+    if (planningGroup.length === 0) {
+      return { dx: proposedDx, dy: proposedDy };
+    }
+    return this.placementPolicy.resolveDragTranslation({
+      movingElements: planningGroup,
+      initialPositions: this.initialPositions,
+      proposedDx,
+      proposedDy,
+      sceneElements: this.scene.getElements(),
+    });
+  }
+
+  private applyDragDelta(
+    dragGroup: ICanvasElement[],
+    dx: number,
+    dy: number,
+    callOnDrag: boolean
+  ): void {
+    dragGroup.forEach((element) => {
+      const origin = this.initialPositions.get(element.id);
+      if (!origin) return;
+      const nextX = origin.x + dx;
+      const nextY = origin.y + dy;
+      const draggable = element as any;
+      draggable.x = nextX;
+      draggable.y = nextY;
+      if (callOnDrag && draggable.onDrag) {
+        draggable.onDrag(nextX, nextY);
+      }
+    });
+  }
+
+  private updateDragPlacementPreview(
+    dragGroup: ICanvasElement[],
+    proposedDx: number,
+    proposedDy: number,
+    resolved: { dx: number; dy: number }
+  ): void {
+    const planningGroup = dragGroup.filter(
+      (element): element is PlanningElement => element instanceof PlanningElement
+    );
+    if (planningGroup.length === 0) {
+      this.clearPlacementPreview();
+      return;
+    }
+    const suggestedPositions = new Map<string, { x: number; y: number }>();
+    planningGroup.forEach((element) => {
+      const origin = this.initialPositions.get(element.id);
+      if (!origin) return;
+      suggestedPositions.set(element.id, {
+        x: origin.x + resolved.dx,
+        y: origin.y + resolved.dy,
+      });
+    });
+    this.placementPreview = {
+      kind: 'drag',
+      valid: this.areDeltasEqual(
+        { dx: proposedDx, dy: proposedDy },
+        { dx: resolved.dx, dy: resolved.dy }
+      ),
+      elementIds: planningGroup.map((element) => element.id),
+      suggestedPositions,
+    };
+  }
+
+  private updateResizePlacementPreview(
+    elementId: string,
+    currentRect: PlacementPreviewRect,
+    suggestedRect: PlacementPreviewRect
+  ): void {
+    this.placementPreview = {
+      kind: 'resize',
+      valid: this.areRectsEqual(currentRect, suggestedRect),
+      elementId,
+      currentRect,
+      suggestedRect,
+    };
+  }
+
+  private applyHardDropForDragGroup(
+    dragGroup: ICanvasElement[],
+    callOnDrag: boolean
+  ): void {
+    const currentDelta = this.getCurrentDragDelta(dragGroup);
+    const resolved = this.resolveDragDelta(
+      dragGroup,
+      currentDelta.dx,
+      currentDelta.dy
+    );
+    if (this.areDeltasEqual(currentDelta, resolved)) return;
+    this.applyDragDelta(dragGroup, resolved.dx, resolved.dy, callOnDrag);
+  }
+
+  private applyHardDropForResize(story: StoryElement): void {
+    const tasks = this.scene
+      .getElements()
+      .filter((element) => element instanceof TaskElement) as TaskElement[];
+    const movingIds = new Set<string>([
+      story.id,
+      ...story.tasks.map((task) => task.id),
+    ]);
+    const targetRect = {
+      x: story.x,
+      y: story.y,
+      width: story.width,
+      height: story.height,
+    };
+    const resolvedRect = this.placementPolicy.resolveElementRectAlongPath({
+      element: story,
+      startRect: {
+        x: this.initialX,
+        y: this.initialY,
+        width: this.initialWidth,
+        height: this.initialHeight,
+      },
+      targetRect,
+      sceneElements: this.scene.getElements(),
+      movingIds,
+    });
+    if (this.areRectsEqual(targetRect, resolvedRect)) return;
+
+    let plan = this.storyLayoutService.planResize(
+      story,
+      tasks,
+      resolvedRect.width,
+      resolvedRect.height
+    );
+    let finalRect = this.getResizeAnchoredRect(plan.nextWidth, plan.nextHeight);
+    if (
+      !this.placementPolicy.isPlacementValidForRect(
+        story,
+        finalRect,
+        this.scene.getElements(),
+        movingIds
+      )
+    ) {
+      plan = this.storyLayoutService.planResize(
+        story,
+        tasks,
+        this.initialWidth,
+        this.initialHeight
+      );
+      finalRect = {
+        x: this.initialX,
+        y: this.initialY,
+        width: plan.nextWidth,
+        height: plan.nextHeight,
+      };
+    }
+
+    const xShift = finalRect.x - story.x;
+    const yShift = finalRect.y - story.y;
+    story.x = finalRect.x;
+    story.y = finalRect.y;
+    story.width = finalRect.width;
+    story.height = finalRect.height;
+    if (plan.positions.size > 0) {
+      const taskById = new Map(tasks.map((task) => [task.id, task]));
+      plan.positions.forEach((pos, id) => {
+        const task = taskById.get(id);
+        if (!task) return;
+        task.x = pos.x + xShift;
+        task.y = pos.y + yShift;
+      });
+      story.tasks = plan.orderedTasks;
+    }
+  }
+
+  private getCurrentDragDelta(dragGroup: ICanvasElement[]): {
+    dx: number;
+    dy: number;
+  } {
+    for (const element of dragGroup) {
+      const origin = this.initialPositions.get(element.id);
+      if (!origin) continue;
+      const current = element as any;
+      return {
+        dx: current.x - origin.x,
+        dy: current.y - origin.y,
+      };
+    }
+    return { dx: 0, dy: 0 };
+  }
+
+  private areDeltasEqual(
+    a: { dx: number; dy: number },
+    b: { dx: number; dy: number },
+    epsilon: number = 0.1
+  ): boolean {
+    return Math.abs(a.dx - b.dx) <= epsilon && Math.abs(a.dy - b.dy) <= epsilon;
+  }
+
+  private areRectsEqual(
+    a: PlacementPreviewRect,
+    b: PlacementPreviewRect,
+    epsilon: number = 0.1
+  ): boolean {
+    return (
+      Math.abs(a.x - b.x) <= epsilon &&
+      Math.abs(a.y - b.y) <= epsilon &&
+      Math.abs(a.width - b.width) <= epsilon &&
+      Math.abs(a.height - b.height) <= epsilon
+    );
   }
 
   private getResizeMovedTasks(): {

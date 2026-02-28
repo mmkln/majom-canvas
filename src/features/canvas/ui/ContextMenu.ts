@@ -25,6 +25,7 @@ import { createMenuBadge } from './components/MenuBadge.ts';
 import { AddExistingTaskService } from '../core/services/AddExistingTaskService.ts';
 import { AddExistingGoalService } from '../core/services/AddExistingGoalService.ts';
 import { AddExistingStoryService } from '../core/services/AddExistingStoryService.ts';
+import { elementPlacementPolicy } from '../core/services/ElementPlacementPolicy.ts';
 import {
   createHudDivider,
   createHudDropdownItem,
@@ -793,6 +794,7 @@ export class ContextMenu {
       x: sceneX - TaskElement.width / 2,
       y: sceneY - TaskElement.height / 2,
     });
+    elementPlacementPolicy.placeElements([task], this.scene.getElements());
     historyService.execute(new AddElementCommand(this.scene, task));
     this.scene.setSelected([task]);
     this.canvasManager.draw();
@@ -820,6 +822,7 @@ export class ContextMenu {
       x: sceneX - StoryElement.width / 2,
       y: sceneY - StoryElement.height / 2,
     });
+    elementPlacementPolicy.placeElements([story], this.scene.getElements());
     historyService.execute(new AddElementCommand(this.scene, story));
     this.scene.setSelected([story]);
     this.canvasManager.draw();
@@ -830,6 +833,7 @@ export class ContextMenu {
       x: sceneX - GoalElement.width / 2,
       y: sceneY - GoalElement.height / 2,
     });
+    elementPlacementPolicy.placeElements([goal], this.scene.getElements());
     historyService.execute(new AddElementCommand(this.scene, goal));
     this.scene.setSelected([goal]);
     this.canvasManager.draw();

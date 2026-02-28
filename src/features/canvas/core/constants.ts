@@ -14,6 +14,7 @@ export const HOVER_OUTLINE_COLOR = 'rgba(29,78,216,0.4)';
 export const REGION_SELECT_BORDER_COLOR = SELECT_COLOR;
 export const REGION_SELECT_FILL = 'rgba(29,78,216,0.2)';
 export const TASK_DROP_PLACEHOLDER_FILL = 'rgba(29,78,216,0.16)';
+export const MIN_ELEMENT_GAP = 24;
 // Font settings
 export const FONT_FAMILY = 'Arial';
 export const TITLE_FONT_SIZE = 14; // px

@@ -1,7 +1,7 @@
 import { Scene } from '../scene/Scene.ts';
 import { PlanningElement } from '../../elements/PlanningElement.ts';
 import { v4 as uuidv4 } from 'uuid';
-import { getBoundingBox } from '../utils/geometryUtils.ts';
+import { elementPlacementPolicy } from './ElementPlacementPolicy.ts';
 
 /**
  * Clipboard service stores copies of PlanningElement for paste operations.
@@ -60,10 +60,12 @@ export class ClipboardService {
       // Apply the offset to position the element
       newClone.x = item.x + offsetX;
       newClone.y = item.y + offsetY;
-
-      scene.addElement(newClone);
       return newClone;
     });
+    elementPlacementPolicy.placeElements(clones, scene.getElements(), {
+      preserveGroup: true,
+    });
+    clones.forEach((clone) => scene.addElement(clone));
     return clones;
   }
 
