@@ -178,11 +178,11 @@ export class StoryLayoutService {
         return a.y - b.y;
       });
 
-    if (missingInside.length > 0) {
-      ordered.push(...missingInside);
-    }
+    const combined = missingInside.length > 0
+      ? [...ordered, ...missingInside]
+      : ordered;
 
-    return ordered;
+    return this.getOrderedTasks(combined);
   }
 
   private getColumns(story: StoryElement): number {
