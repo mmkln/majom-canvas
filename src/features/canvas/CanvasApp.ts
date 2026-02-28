@@ -2,7 +2,7 @@ import { CanvasManager } from './core/managers/CanvasManager.ts';
 import { Scene } from './core/scene/Scene.ts';
 import { DiagramRepository } from './core/data/DiagramRepository.ts';
 import { IDataProvider } from './core/interfaces/dataProvider.ts';
-import { AuthService } from '../../majom-wrapper/data-access/auth-service.ts';
+import { AuthService } from '../../majom-wrapper/index.ts';
 import { HttpInterceptorClient } from '../../majom-wrapper/data-access/http-interceptor.ts';
 import { TasksApiService } from '../../majom-wrapper/data-access/tasks-api-service.ts';
 import { StoriesApiService } from '../../majom-wrapper/data-access/stories-api-service.ts';
@@ -510,10 +510,18 @@ export class CanvasApp {
               width: el.width,
               height: el.height,
               focused: this.scene.isFocused(el),
+              highlighted: this.scene.isHighlighted(el),
             }
           : el instanceof GoalElement
-            ? { goalScale: el.scale, focused: this.scene.isFocused(el) }
-            : { focused: this.scene.isFocused(el) };
+            ? {
+                goalScale: el.scale,
+                focused: this.scene.isFocused(el),
+                highlighted: this.scene.isHighlighted(el),
+              }
+            : {
+                focused: this.scene.isFocused(el),
+                highlighted: this.scene.isHighlighted(el),
+              };
       positions.push({
         element_type: elementType,
         element_uuid: elementUuid,
@@ -715,6 +723,10 @@ export class CanvasApp {
           if (state.phase === 'elements-partial-ready') {
             this.replacePlanningElements(state.elements);
             this.applyFocusedElement(state.elements, state.focusedElementUuid);
+            this.applyHighlightedElements(
+              state.elements,
+              this.canvasDataService.getHighlightedElementUuids()
+            );
             this.canvasManager.setLoadingPlaceholders(
               state.placeholders,
               state.focusedElementUuid
@@ -725,6 +737,10 @@ export class CanvasApp {
           this.canvasManager.clearLoadingPlaceholders();
           this.replacePlanningElements(state.elements);
           this.applyFocusedElement(state.elements, state.focusedElementUuid);
+          this.applyHighlightedElements(
+            state.elements,
+            this.canvasDataService.getHighlightedElementUuids()
+          );
           this.canvasManager.setLoadPhase('elements-ready');
           this.setElementsHydrating(false);
         },
@@ -751,6 +767,28 @@ export class CanvasApp {
           ) ?? null
         : null;
     this.scene.setFocusedElement(focusedElement);
+  }
+
+  private applyHighlightedElements(
+    elements: Array<TaskElement | StoryElement | GoalElement>,
+    highlightedUuids: string[]
+  ): void {
+    if (highlightedUuids.length === 0) {
+      this.scene.clearHighlightedElements();
+      return;
+    }
+    const highlightedIds = highlightedUuids
+      .map((highlightedUuid) =>
+        elements.find(
+          (element) =>
+            element.uuid === highlightedUuid || element.id === highlightedUuid
+        )
+      )
+      .filter((element): element is TaskElement | StoryElement | GoalElement =>
+        Boolean(element)
+      )
+      .map((element) => element.id);
+    this.scene.setHighlightedElementIds(highlightedIds);
   }
 
   private replacePlanningElements(

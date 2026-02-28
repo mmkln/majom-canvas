@@ -5,6 +5,7 @@ import { CopyCommand } from '../core/commands/CopyCommand.ts';
 import { PasteCommand } from '../core/commands/PasteCommand.ts';
 import { AddElementCommand } from '../core/commands/AddElementCommand.ts';
 import { SetFocusCommand } from '../core/commands/SetFocusCommand.ts';
+import { SetHighlightCommand } from '../core/commands/SetHighlightCommand.ts';
 import { Scene } from '../core/scene/Scene.ts';
 import { clipboardService } from '../core/services/ClipboardService.ts';
 import type { CanvasManager } from '../core/managers/CanvasManager.ts';
@@ -342,9 +343,12 @@ export class ContextMenu {
           {
             label: 'Highlight',
             action: () =>
-              this.scene.setHighlightedElementById(
-                planningElement.id,
-                !isHighlighted
+              historyService.execute(
+                new SetHighlightCommand(
+                  this.scene,
+                  planningElement.id,
+                  !isHighlighted
+                )
               ),
             variant: isHighlighted ? 'selected' : 'default',
           },

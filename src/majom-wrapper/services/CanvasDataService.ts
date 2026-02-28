@@ -935,6 +935,20 @@ export class CanvasDataService {
     return null;
   }
 
+  public getHighlightedElementUuids(): string[] {
+    const highlighted: string[] = [];
+    for (const snapshot of this.positionRegistry.values()) {
+      const isPlanningType =
+        snapshot.element_type === 'task' ||
+        snapshot.element_type === 'story' ||
+        snapshot.element_type === 'goal';
+      if (!isPlanningType) continue;
+      if (!snapshot.meta || snapshot.meta.highlighted !== true) continue;
+      highlighted.push(snapshot.element_uuid);
+    }
+    return highlighted;
+  }
+
   public loadCanvasDetails(id: string): Observable<CanvasSummary> {
     return this.canvasApi.loadCanvas(id).pipe(
       map((canvas) => {
@@ -1643,7 +1657,19 @@ export class CanvasDataService {
       existing.meta,
       'focused'
     );
-    return xChanged || yChanged || metaChanged || metaScaleChanged || metaFocusChanged;
+    const metaHighlightChanged = this.isMetaValueChanged(
+      pos.meta,
+      existing.meta,
+      'highlighted'
+    );
+    return (
+      xChanged ||
+      yChanged ||
+      metaChanged ||
+      metaScaleChanged ||
+      metaFocusChanged ||
+      metaHighlightChanged
+    );
   }
 
   private mergePositionUpdates(changes: CanvasPositionWriteDTO[]): void {
@@ -1899,6 +1925,7 @@ export class CanvasDataService {
         ? { ...(base as Record<string, any>) }
         : {};
     next.focused = next.focused === true;
+    next.highlighted = next.highlighted === true;
     return next;
   }
 
