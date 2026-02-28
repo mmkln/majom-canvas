@@ -1,8 +1,8 @@
+import { isCircleVisible, isRectVisible } from '../../core/utils/viewBounds.ts';
 import {
-  isCircleVisible,
-  isRectVisible,
-} from '../../core/utils/viewBounds.ts';
-import { drawStatusAnimationEffect, hasStatusAnimation } from './statusAnimationEffects.ts';
+  drawStatusAnimationEffect,
+  hasStatusAnimation,
+} from './statusAnimationEffects.ts';
 import {
   createCircleOutline,
   createHexOutline,

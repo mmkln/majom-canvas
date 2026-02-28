@@ -1,4 +1,7 @@
-import { Priority, Status } from '../../../../majom-wrapper/interfaces/index.ts';
+import {
+  Priority,
+  Status,
+} from '../../../../majom-wrapper/interfaces/index.ts';
 import type { KanbanTaskCard } from '../../types.ts';
 import type { KanbanViewHandlers } from './types.ts';
 
@@ -27,9 +30,10 @@ function formatPriority(value: Priority): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-function formatDateSelectorParts(
-  date: Date | null
-): { day: string; month: string } {
+function formatDateSelectorParts(date: Date | null): {
+  day: string;
+  month: string;
+} {
   if (!date) return { day: 'No', month: 'date' };
   const day = String(date.getDate());
   const month = new Intl.DateTimeFormat('en', { month: 'short' }).format(date);
@@ -61,7 +65,10 @@ function startOfLocalDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
-function isOverdue(taskCard: KanbanTaskCard): { today: boolean; past: boolean } {
+function isOverdue(taskCard: KanbanTaskCard): {
+  today: boolean;
+  past: boolean;
+} {
   if (!taskCard.dueDate) return { today: false, past: false };
   if (
     taskCard.status === Status.Completed ||
@@ -83,7 +90,10 @@ function resolveStatusClass(taskCard: KanbanTaskCard): string {
   if (taskCard.status === Status.Cancelled) return 'kb-card-status-cancelled';
   if (overdue.past) return 'kb-card-status-overdue-past';
   if (overdue.today) return 'kb-card-status-overdue-today';
-  if (taskCard.status === Status.Active || taskCard.status === Status.Archived) {
+  if (
+    taskCard.status === Status.Active ||
+    taskCard.status === Status.Archived
+  ) {
     return 'kb-card-status-active';
   }
   return 'kb-card-status-default';
@@ -124,7 +134,8 @@ export function renderKanbanTaskCard(
   }
 
   const titleRow = document.createElement('div');
-  titleRow.className = 'kb-task-title-row flex items-center justify-between pb-2';
+  titleRow.className =
+    'kb-task-title-row flex items-center justify-between pb-2';
   const titleInput = document.createElement('input');
   titleInput.className = 'kb-title-input text-sm font-medium';
   titleInput.value = taskCard.title;
@@ -145,7 +156,8 @@ export function renderKanbanTaskCard(
   statusTopRow.className = 'kb-task-status-top-row';
 
   const controlsRow = document.createElement('div');
-  controlsRow.className = 'kb-task-controls-row flex justify-between items-center h-5';
+  controlsRow.className =
+    'kb-task-controls-row flex justify-between items-center h-5';
   const leftControls = document.createElement('div');
   leftControls.className = 'kb-row';
   const statusSelect = document.createElement('select');
@@ -227,7 +239,8 @@ export function renderKanbanTaskCard(
     'kb-link kb-link-open'
   );
   const secondaryActions = document.createElement('div');
-  secondaryActions.className = 'kb-card-secondary-actions hidden group-hover:flex';
+  secondaryActions.className =
+    'kb-card-secondary-actions hidden group-hover:flex';
   secondaryActions.append(
     createTaskActionButton(
       'Clone',

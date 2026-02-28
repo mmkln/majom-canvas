@@ -1,10 +1,15 @@
 import { BehaviorSubject, Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
-import type { Wallpaper, User } from '../../../majom-wrapper/interfaces/auth-interfaces.ts';
+import type {
+  Wallpaper,
+  User,
+} from '../../../majom-wrapper/interfaces/auth-interfaces.ts';
 import { WallpaperApiService } from '../../../majom-wrapper/data-access/wallpaper-api-service.ts';
 import { environment } from '../../../config/environment.ts';
 
-function parseWallpaperId(value: string | number | null | undefined): number | null {
+function parseWallpaperId(
+  value: string | number | null | undefined
+): number | null {
   if (value === null || value === undefined) return null;
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string') {
@@ -72,7 +77,9 @@ export class WallpaperService {
   ): Wallpaper | null {
     const id = parseWallpaperId(wallpaperId);
     if (id === null) return null;
-    const found = this.wallpaperListSubject.value.find((item) => item.id === id);
+    const found = this.wallpaperListSubject.value.find(
+      (item) => item.id === id
+    );
     return found ?? null;
   }
 

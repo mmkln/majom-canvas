@@ -109,13 +109,13 @@ export class GoalElement extends PlanningElement {
     const chromeColor = this.focused
       ? FOCUS_COLOR
       : this.highlighted
-      ? HIGHLIGHT_COLOR
-      : style.borderColor;
+        ? HIGHLIGHT_COLOR
+        : style.borderColor;
     const fillColor = this.focused
       ? FOCUS_GOAL_FILL
       : this.highlighted
-      ? HIGHLIGHT_GOAL_FILL
-      : style.fillColor;
+        ? HIGHLIGHT_GOAL_FILL
+        : style.fillColor;
     this.fillColor = fillColor;
     this.borderColor = chromeColor;
     const centerX = x + width / 2;
@@ -172,10 +172,10 @@ export class GoalElement extends PlanningElement {
     ctx.strokeStyle = this.focused
       ? FOCUS_COLOR
       : this.highlighted
-      ? HIGHLIGHT_COLOR
-      : this.selected
-      ? SELECT_COLOR
-      : style.borderColor;
+        ? HIGHLIGHT_COLOR
+        : this.selected
+          ? SELECT_COLOR
+          : style.borderColor;
     ctx.lineWidth = this.lineWidth / panZoom.scale;
     ctx.beginPath();
     this.drawHexPath(ctx, hexVertices);
@@ -232,8 +232,7 @@ export class GoalElement extends PlanningElement {
     if (normalized === this.scale) return;
     const centerX = this.x + this.width / 2;
     const centerY = this.y + this.height / 2;
-    const diameter =
-      GoalElement.baseDiameter * GOAL_SCALE_FACTORS[normalized];
+    const diameter = GoalElement.baseDiameter * GOAL_SCALE_FACTORS[normalized];
     this.width = diameter;
     this.height = diameter;
     this.x = centerX - diameter / 2;

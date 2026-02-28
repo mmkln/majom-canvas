@@ -86,8 +86,13 @@ export class StoryDragPreviewService {
     const nextTaskReflowPreviews = new Map<string, TaskReflowPreview>();
 
     stories.forEach((story) => {
-      const currentLayout = this.storyLayoutService.getLayoutTasks(story, tasks);
-      const baseLayout = currentLayout.filter((task) => !draggedTaskIds.has(task.id));
+      const currentLayout = this.storyLayoutService.getLayoutTasks(
+        story,
+        tasks
+      );
+      const baseLayout = currentLayout.filter(
+        (task) => !draggedTaskIds.has(task.id)
+      );
       const incoming = draggedByStory.get(story.id) ?? [];
       const hadRemoval = baseLayout.length !== currentLayout.length;
       const hasIncoming = incoming.length > 0;
@@ -95,7 +100,12 @@ export class StoryDragPreviewService {
 
       let orderedForPlan = [...baseLayout];
       if (incoming.length > 0) {
-        const anchor = this.getDropAnchorPoint(story, incoming, pointer.x, pointer.y);
+        const anchor = this.getDropAnchorPoint(
+          story,
+          incoming,
+          pointer.x,
+          pointer.y
+        );
         const insertionIndex = this.storyLayoutService.getInsertionIndex(
           story,
           baseLayout.length,

@@ -89,7 +89,12 @@ class HudTextButton extends HudButtonBase {
   protected renderLoadingContent(loadingText?: string): void {
     const element = this.getElement();
     element.innerHTML = '';
-    element.classList.add('inline-flex', 'items-center', 'justify-center', 'gap-2');
+    element.classList.add(
+      'inline-flex',
+      'items-center',
+      'justify-center',
+      'gap-2'
+    );
     element.append(this.createSpinner(14));
     if (loadingText) {
       const label = document.createElement('span');

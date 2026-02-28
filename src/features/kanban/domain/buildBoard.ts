@@ -9,7 +9,11 @@ import type {
   KanbanTaskCard,
 } from '../types.ts';
 import { KANBAN_COLUMN_ORDER, KANBAN_COLUMN_TITLES } from './constants.ts';
-import { parseToDate, toDateInputValue, toShortDateLabel } from './dateUtils.ts';
+import {
+  parseToDate,
+  toDateInputValue,
+  toShortDateLabel,
+} from './dateUtils.ts';
 import {
   isActiveHabit,
   isCompletedStatus,
@@ -81,7 +85,8 @@ function toTaskCard(task: KanbanDataSnapshot['tasks'][number]): KanbanTaskCard {
   const dueDate = parseToDate(task.due_date);
   const storyId = task.story?.id ?? task.story_id ?? null;
   const storyKey = storyId ? String(storyId) : null;
-  const storyTitle = task.story?.title ?? (storyKey ? `Story #${storyKey}` : null);
+  const storyTitle =
+    task.story?.title ?? (storyKey ? `Story #${storyKey}` : null);
   return {
     key: task.uuid ?? String(task.id),
     taskId: task.id,
@@ -99,7 +104,9 @@ function toTaskCard(task: KanbanDataSnapshot['tasks'][number]): KanbanTaskCard {
   };
 }
 
-function toEventCard(event: KanbanDataSnapshot['events'][number]): KanbanEventCard {
+function toEventCard(
+  event: KanbanDataSnapshot['events'][number]
+): KanbanEventCard {
   return {
     key: String(event.id),
     eventId: event.id,
@@ -148,7 +155,8 @@ function finalizeStoryGroups(
   column: MutableColumn,
   options: KanbanBuildOptions
 ): KanbanStoryGroup[] {
-  const collapsedStoryGroups = options.collapsedStoryGroups ?? new Set<string>();
+  const collapsedStoryGroups =
+    options.collapsedStoryGroups ?? new Set<string>();
   const groups = Array.from(column.storyGroupsByKey.values());
   return groups.map((group) => {
     const collapseKey = buildStoryGroupCollapseKey(column.id, group.storyKey);
@@ -172,7 +180,9 @@ function calculateProgress(
     (acc, group) => acc + group.tasks.length,
     0
   );
-  const habitCompleted = column.habits.filter((habit) => habit.isCompletedToday).length;
+  const habitCompleted = column.habits.filter(
+    (habit) => habit.isCompletedToday
+  ).length;
   const habitTotal = column.habits.length;
   const completed = column.completedTasks.length + habitCompleted;
   const total =

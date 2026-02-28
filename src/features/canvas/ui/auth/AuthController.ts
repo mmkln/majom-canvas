@@ -15,9 +15,7 @@ export type AuthState = {
   error: string | null;
 };
 
-export type LoginSubmitResult =
-  | { ok: true }
-  | { ok: false; message: string };
+export type LoginSubmitResult = { ok: true } | { ok: false; message: string };
 
 const INITIAL_AUTH_STATE: AuthState = {
   isAuthenticated: false,
@@ -65,7 +63,11 @@ export class AuthController {
   }
 
   public dismissLogin(): void {
-    this.patchState({ isLoginRequested: false, error: null, isSubmitting: false });
+    this.patchState({
+      isLoginRequested: false,
+      error: null,
+      isSubmitting: false,
+    });
   }
 
   public async submitLogin(

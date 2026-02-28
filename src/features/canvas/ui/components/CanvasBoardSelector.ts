@@ -137,16 +137,16 @@ export class CanvasBoardSelector {
       const rawCanvases = customEvent.detail?.canvases;
       this.canvases = Array.isArray(rawCanvases)
         ? rawCanvases.map((canvas, index) => ({
-          id:
-            typeof canvas?.id === 'string' && canvas.id.length > 0
-              ? canvas.id
-              : `missing-id-${index}`,
-          name:
-            typeof canvas?.name === 'string' && canvas.name.trim().length > 0
-              ? canvas.name
-              : 'New canvas',
-          isFavorite: canvas?.isFavorite === true,
-        }))
+            id:
+              typeof canvas?.id === 'string' && canvas.id.length > 0
+                ? canvas.id
+                : `missing-id-${index}`,
+            name:
+              typeof canvas?.name === 'string' && canvas.name.trim().length > 0
+                ? canvas.name
+                : 'New canvas',
+            isFavorite: canvas?.isFavorite === true,
+          }))
         : [];
       this.activeCanvasId = customEvent.detail?.activeId ?? null;
       this.renderCanvasList();
@@ -292,7 +292,8 @@ export class CanvasBoardSelector {
 
   private createPlusIcon(): HTMLSpanElement {
     const plusWrap = document.createElement('span');
-    plusWrap.className = 'inline-flex items-center justify-center text-indigo-600';
+    plusWrap.className =
+      'inline-flex items-center justify-center text-indigo-600';
     const plus = createIcon('plus', { size: 14, strokeWidth: 2 });
     plus.setAttribute('aria-hidden', 'true');
     plusWrap.appendChild(plus);
@@ -301,7 +302,8 @@ export class CanvasBoardSelector {
 
   private createCheckIcon(): HTMLSpanElement {
     const check = document.createElement('span');
-    check.className = 'ml-auto inline-flex items-center justify-center text-indigo-700';
+    check.className =
+      'ml-auto inline-flex items-center justify-center text-indigo-700';
     const icon = createIcon('check', { size: 14, strokeWidth: 1.8 });
     icon.setAttribute('aria-hidden', 'true');
     check.appendChild(icon);
@@ -334,5 +336,4 @@ export class CanvasBoardSelector {
       this.renderCanvasList();
     }
   }
-
 }

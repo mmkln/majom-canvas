@@ -94,7 +94,12 @@ export class StatusSelector {
     this.panel.className =
       'absolute left-0 top-[calc(100%+8px)] z-[90] hidden min-w-[176px] max-w-[216px] overflow-hidden rounded-xl border border-slate-200/90 bg-white/98 shadow-[0_10px_22px_rgba(15,23,42,0.10)] backdrop-blur-[1px]';
 
-    this.element.append(this.prevBtn, this.triggerBtn, this.nextBtn, this.panel);
+    this.element.append(
+      this.prevBtn,
+      this.triggerBtn,
+      this.nextBtn,
+      this.panel
+    );
 
     this.triggerBtn.addEventListener('click', (event) => {
       event.stopPropagation();
@@ -159,10 +164,10 @@ export class StatusSelector {
   ): HTMLButtonElement {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className =
-      `inline-flex h-8 w-6 items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:cursor-not-allowed disabled:text-slate-300 disabled:opacity-60`;
+    button.className = `inline-flex h-8 w-6 items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:cursor-not-allowed disabled:text-slate-300 disabled:opacity-60`;
     button.title = label;
-    button.style.borderRadius = side === 'left' ? '16px 4px 4px 16px' : '4px 16px 16px 4px';
+    button.style.borderRadius =
+      side === 'left' ? '16px 4px 4px 16px' : '4px 16px 16px 4px';
     button.setAttribute('aria-label', label);
     const iconEl = createIcon(icon, { size: 14, strokeWidth: 1.9 });
     iconEl.classList.add('shrink-0');
@@ -191,7 +196,8 @@ export class StatusSelector {
       this.panel.style.left = 'auto';
       this.panel.style.right = '0';
     }
-    const leftOverflow = this.panel.getBoundingClientRect().left < viewportPadding;
+    const leftOverflow =
+      this.panel.getBoundingClientRect().left < viewportPadding;
     if (leftOverflow) {
       this.panel.style.left = '0';
       this.panel.style.right = 'auto';
@@ -199,7 +205,8 @@ export class StatusSelector {
 
     const triggerRect = this.triggerBtn.getBoundingClientRect();
     const panelHeight = this.panel.getBoundingClientRect().height;
-    const spaceBelow = window.innerHeight - triggerRect.bottom - viewportPadding;
+    const spaceBelow =
+      window.innerHeight - triggerRect.bottom - viewportPadding;
     const spaceAbove = triggerRect.top - viewportPadding;
 
     const openUpward = panelHeight > spaceBelow && spaceAbove > spaceBelow;
@@ -311,9 +318,10 @@ export class StatusSelector {
   }
 
   private setStatusLabelTone(status: ElementStatus | null): void {
-    [STATUS_LABEL_MIXED_TONE_CLASS, ...Object.values(STATUS_LABEL_TONE_CLASS)].forEach(
-      (tone) => this.statusLabel.classList.remove(tone)
-    );
+    [
+      STATUS_LABEL_MIXED_TONE_CLASS,
+      ...Object.values(STATUS_LABEL_TONE_CLASS),
+    ].forEach((tone) => this.statusLabel.classList.remove(tone));
     if (status === null) {
       this.statusLabel.classList.add(STATUS_LABEL_MIXED_TONE_CLASS);
       return;
@@ -322,9 +330,10 @@ export class StatusSelector {
   }
 
   private setTriggerStatusBackground(status: ElementStatus | null): void {
-    [STATUS_TRIGGER_MIXED_BG_CLASS, ...Object.values(STATUS_TRIGGER_BG_CLASS)].forEach(
-      (tone) => this.triggerBtn.classList.remove(tone)
-    );
+    [
+      STATUS_TRIGGER_MIXED_BG_CLASS,
+      ...Object.values(STATUS_TRIGGER_BG_CLASS),
+    ].forEach((tone) => this.triggerBtn.classList.remove(tone));
     if (status === null) {
       this.triggerBtn.classList.add(STATUS_TRIGGER_MIXED_BG_CLASS);
       return;
@@ -333,15 +342,18 @@ export class StatusSelector {
   }
 
   private setStepButtonsStatusTone(status: ElementStatus | null): void {
-    [STATUS_STEP_MIXED_TONE_CLASS, ...Object.values(STATUS_STEP_TONE_CLASS)].forEach(
-      (tone) => {
-        const tokens = tone.split(' ').filter(Boolean);
-        this.prevBtn.classList.remove(...tokens);
-        this.nextBtn.classList.remove(...tokens);
-      }
-    );
+    [
+      STATUS_STEP_MIXED_TONE_CLASS,
+      ...Object.values(STATUS_STEP_TONE_CLASS),
+    ].forEach((tone) => {
+      const tokens = tone.split(' ').filter(Boolean);
+      this.prevBtn.classList.remove(...tokens);
+      this.nextBtn.classList.remove(...tokens);
+    });
     const toneClass =
-      status === null ? STATUS_STEP_MIXED_TONE_CLASS : STATUS_STEP_TONE_CLASS[status];
+      status === null
+        ? STATUS_STEP_MIXED_TONE_CLASS
+        : STATUS_STEP_TONE_CLASS[status];
     const tokens = toneClass.split(' ').filter(Boolean);
     this.prevBtn.classList.add(...tokens);
     this.nextBtn.classList.add(...tokens);

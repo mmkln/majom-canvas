@@ -57,11 +57,7 @@ function makeTask(
   };
 }
 
-function makeHabit(
-  id: number,
-  status: Status,
-  isDueToday: boolean
-): Habit {
+function makeHabit(id: number, status: Status, isDueToday: boolean): Habit {
   return {
     id,
     title: `Habit ${id}`,
@@ -84,7 +80,10 @@ function buildFromTasks(tasks: PlatformTask[]): KanbanColumnState[] {
   });
 }
 
-function byId(columns: KanbanColumnState[], id: KanbanColumnId): KanbanColumnState {
+function byId(
+  columns: KanbanColumnState[],
+  id: KanbanColumnId
+): KanbanColumnState {
   const found = columns.find((column) => column.id === id);
   if (!found) {
     throw new Error(`Missing column "${id}" in test.`);
@@ -109,9 +108,9 @@ describe('buildKanbanColumns task assignment rules', () => {
       makeTask({ id: 1, status: Status.Active, due_date: addDays(NOW, 0) }),
     ]);
 
-    expect(byId(columns, 'today').sections.tasks.map((item) => item.taskId)).toEqual([
-      1,
-    ]);
+    expect(
+      byId(columns, 'today').sections.tasks.map((item) => item.taskId)
+    ).toEqual([1]);
   });
 
   it('2) due today + completed => today and placement uses push order', () => {
@@ -126,7 +125,9 @@ describe('buildKanbanColumns task assignment rules', () => {
   });
 
   it('3) cancelled => cancelled', () => {
-    const columns = buildFromTasks([makeTask({ id: 2, status: Status.Cancelled })]);
+    const columns = buildFromTasks([
+      makeTask({ id: 2, status: Status.Cancelled }),
+    ]);
 
     expect(
       byId(columns, 'cancelled').sections.tasks.map((item) => item.taskId)
@@ -138,9 +139,9 @@ describe('buildKanbanColumns task assignment rules', () => {
       makeTask({ id: 3, status: Status.Completed, due_date: addDays(NOW, 5) }),
     ]);
 
-    expect(byId(columns, 'done').sections.completedTasks.map((item) => item.taskId)).toEqual([
-      3,
-    ]);
+    expect(
+      byId(columns, 'done').sections.completedTasks.map((item) => item.taskId)
+    ).toEqual([3]);
   });
 
   it('5) due in past => overdue', () => {
@@ -148,9 +149,9 @@ describe('buildKanbanColumns task assignment rules', () => {
       makeTask({ id: 4, status: Status.Active, due_date: addDays(NOW, -1) }),
     ]);
 
-    expect(byId(columns, 'overdue').sections.tasks.map((item) => item.taskId)).toEqual([
-      4,
-    ]);
+    expect(
+      byId(columns, 'overdue').sections.tasks.map((item) => item.taskId)
+    ).toEqual([4]);
   });
 
   it('6) due tomorrow => tomorrow', () => {
@@ -158,9 +159,9 @@ describe('buildKanbanColumns task assignment rules', () => {
       makeTask({ id: 5, status: Status.Active, due_date: addDays(NOW, 1) }),
     ]);
 
-    expect(byId(columns, 'tomorrow').sections.tasks.map((item) => item.taskId)).toEqual([
-      5,
-    ]);
+    expect(
+      byId(columns, 'tomorrow').sections.tasks.map((item) => item.taskId)
+    ).toEqual([5]);
   });
 
   it('7) due +3 days => soon', () => {
@@ -168,9 +169,9 @@ describe('buildKanbanColumns task assignment rules', () => {
       makeTask({ id: 6, status: Status.Active, due_date: addDays(NOW, 3) }),
     ]);
 
-    expect(byId(columns, 'soon').sections.tasks.map((item) => item.taskId)).toEqual([
-      6,
-    ]);
+    expect(
+      byId(columns, 'soon').sections.tasks.map((item) => item.taskId)
+    ).toEqual([6]);
   });
 
   it('8) due +10 days => planned', () => {
@@ -178,17 +179,19 @@ describe('buildKanbanColumns task assignment rules', () => {
       makeTask({ id: 7, status: Status.Active, due_date: addDays(NOW, 10) }),
     ]);
 
-    expect(byId(columns, 'planned').sections.tasks.map((item) => item.taskId)).toEqual([
-      7,
-    ]);
+    expect(
+      byId(columns, 'planned').sections.tasks.map((item) => item.taskId)
+    ).toEqual([7]);
   });
 
   it('9) active without due_date => todo', () => {
-    const columns = buildFromTasks([makeTask({ id: 8, status: Status.Active })]);
-
-    expect(byId(columns, 'todo').sections.tasks.map((item) => item.taskId)).toEqual([
-      8,
+    const columns = buildFromTasks([
+      makeTask({ id: 8, status: Status.Active }),
     ]);
+
+    expect(
+      byId(columns, 'todo').sections.tasks.map((item) => item.taskId)
+    ).toEqual([8]);
   });
 
   it('10) challenge tasks outside today/tomorrow are filtered out', () => {
@@ -228,7 +231,9 @@ describe('buildKanbanColumns task assignment rules', () => {
       byId(columns, 'today').sections.challengeTasks.map((item) => item.taskId)
     ).toEqual([30]);
     expect(
-      byId(columns, 'tomorrow').sections.challengeTasks.map((item) => item.taskId)
+      byId(columns, 'tomorrow').sections.challengeTasks.map(
+        (item) => item.taskId
+      )
     ).toEqual([31]);
   });
 
@@ -249,10 +254,9 @@ describe('buildKanbanColumns task assignment rules', () => {
       now: NOW,
     });
 
-    expect(byId(columns, 'today').sections.habits.map((item) => item.habitId)).toEqual([
-      101,
-      103,
-    ]);
+    expect(
+      byId(columns, 'today').sections.habits.map((item) => item.habitId)
+    ).toEqual([101, 103]);
     columns
       .filter((column) => column.id !== 'today')
       .forEach((column) => {

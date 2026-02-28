@@ -94,7 +94,12 @@ export class StoryLayoutService {
     nextHeight: number
   ): ResizeLayoutPlan {
     const ordered = this.getOrderedTasks(layoutTasks);
-    return this.planLayoutForOrderedTasks(story, ordered, nextWidth, nextHeight);
+    return this.planLayoutForOrderedTasks(
+      story,
+      ordered,
+      nextWidth,
+      nextHeight
+    );
   }
 
   public planLayoutForOrderedTasks(
@@ -178,9 +183,8 @@ export class StoryLayoutService {
         return a.y - b.y;
       });
 
-    const combined = missingInside.length > 0
-      ? [...ordered, ...missingInside]
-      : ordered;
+    const combined =
+      missingInside.length > 0 ? [...ordered, ...missingInside] : ordered;
 
     return this.getOrderedTasks(combined);
   }

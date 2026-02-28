@@ -1,7 +1,6 @@
 export type MenuBadgeVariant = 'focus' | 'highlight';
 
-const MENU_BADGE_CLASS =
-  'inline-flex h-1.5 w-1.5 shrink-0 rounded-full';
+const MENU_BADGE_CLASS = 'inline-flex h-1.5 w-1.5 shrink-0 rounded-full';
 
 const MENU_BADGE_VARIANT_CLASS: Record<MenuBadgeVariant, string> = {
   focus: 'bg-purple-400',

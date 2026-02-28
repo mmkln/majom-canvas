@@ -14,13 +14,16 @@ export function confirmUnsavedChangesModal(): Promise<boolean> {
       overlay.remove();
     };
 
-    const { overlay, container } = createModalShell('Discard unsaved changes?', {
-      onClose: () => {
-        settle(false);
-        close();
-      },
-      zIndex: 270,
-    });
+    const { overlay, container } = createModalShell(
+      'Discard unsaved changes?',
+      {
+        onClose: () => {
+          settle(false);
+          close();
+        },
+        zIndex: 270,
+      }
+    );
 
     const message = document.createElement('p');
     message.className = 'text-sm leading-relaxed text-slate-600';

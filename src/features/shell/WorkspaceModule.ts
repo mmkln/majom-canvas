@@ -5,4 +5,3 @@ export interface WorkspaceModule {
   mount(parent: HTMLElement): Promise<void> | void;
   unmount(): void;
 }
-

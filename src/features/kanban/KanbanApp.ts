@@ -47,12 +47,15 @@ export class KanbanApp {
       onTaskAction: (action, taskId) => this.emitTaskAction(action, taskId),
       onHabitToggle: (habitId, completed) =>
         store.toggleHabitCompleted(habitId, completed),
-      onHabitTitlePatch: (habitId, title) => store.patchHabitTitle(habitId, title),
+      onHabitTitlePatch: (habitId, title) =>
+        store.patchHabitTitle(habitId, title),
       onHabitUpdate: () => refreshKanbanData(store),
     });
     this.view = view;
 
-    this.subscriptions.add(store.state$.subscribe((state) => view.render(state)));
+    this.subscriptions.add(
+      store.state$.subscribe((state) => view.render(state))
+    );
     store.start();
     this.bindGlobalRefreshTriggers(store);
   }
@@ -89,7 +92,10 @@ export class KanbanApp {
       KANBAN_REFRESH_REQUEST_EVENT,
       this.refreshRequestHandler
     );
-    window.addEventListener(KANBAN_ENTITY_CREATED_EVENT, this.entityCreatedHandler);
+    window.addEventListener(
+      KANBAN_ENTITY_CREATED_EVENT,
+      this.entityCreatedHandler
+    );
     document.addEventListener('visibilitychange', this.visibilityHandler);
   }
 

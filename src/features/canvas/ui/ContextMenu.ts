@@ -310,7 +310,7 @@ export class ContextMenu {
 
     if (element instanceof StoryElement) {
       sections.push({
-        title:'Add Item',
+        title: 'Add Item',
         items: [
           {
             label: 'Task',
@@ -326,7 +326,10 @@ export class ContextMenu {
     }
 
     if (isPlanningElement) {
-      const planningElement = element as TaskElement | StoryElement | GoalElement;
+      const planningElement = element as
+        | TaskElement
+        | StoryElement
+        | GoalElement;
       const isFocused = this.scene.isFocused(planningElement);
       const isHighlighted = this.scene.isHighlighted(planningElement);
       sections.push({
@@ -361,7 +364,10 @@ export class ContextMenu {
     }
 
     if (isPlanningElement) {
-      const planningElement = element as TaskElement | StoryElement | GoalElement;
+      const planningElement = element as
+        | TaskElement
+        | StoryElement
+        | GoalElement;
       sections.push({
         title: 'Set status',
         items: STATUS_ORDER.map((status) => {
@@ -449,12 +455,9 @@ export class ContextMenu {
           btn.addEventListener('focus', () => {
             this.openSubmenu(item, btn);
           });
-          btn.addEventListener(
-            'keydown',
-            (event: KeyboardEvent) => {
-              this.onSubmenuTriggerKeyDown(event, item, btn);
-            }
-          );
+          btn.addEventListener('keydown', (event: KeyboardEvent) => {
+            this.onSubmenuTriggerKeyDown(event, item, btn);
+          });
           this.menu.appendChild(btn);
           return;
         }
@@ -488,7 +491,8 @@ export class ContextMenu {
 
   private createSubmenuChevron(): HTMLSpanElement {
     const wrap = document.createElement('span');
-    wrap.className = 'ml-auto inline-flex items-center justify-center text-slate-400';
+    wrap.className =
+      'ml-auto inline-flex items-center justify-center text-slate-400';
     const chevron = createIcon('chevron-right', { size: 14, strokeWidth: 2 });
     chevron.setAttribute('aria-hidden', 'true');
     wrap.appendChild(chevron);
@@ -537,7 +541,9 @@ export class ContextMenu {
     return btn;
   }
 
-  private createSplitActionRow(item: ContextMenuSplitActionItem): HTMLDivElement {
+  private createSplitActionRow(
+    item: ContextMenuSplitActionItem
+  ): HTMLDivElement {
     const warningClassName =
       item.tone === 'warning'
         ? 'font-medium text-amber-700 hover:bg-amber-50 hover:text-amber-800'
@@ -648,7 +654,8 @@ export class ContextMenu {
     const triggerRect = trigger.getBoundingClientRect();
     const submenuWidth = this.measureFloatingWidth(this.submenu);
     const gap = 4;
-    const openLeft = triggerRect.right + gap + submenuWidth > window.innerWidth - 8;
+    const openLeft =
+      triggerRect.right + gap + submenuWidth > window.innerWidth - 8;
 
     positionFixedElement(this.submenu, {
       anchorX: openLeft ? triggerRect.left - gap : triggerRect.right + gap,

@@ -63,7 +63,10 @@ describe('Checkbox', () => {
   });
 
   it('resolves aria-label from ariaLabel or label', () => {
-    const withAria = new Checkbox({ label: 'Routine A', ariaLabel: 'Toggle routine A' });
+    const withAria = new Checkbox({
+      label: 'Routine A',
+      ariaLabel: 'Toggle routine A',
+    });
     expect(withAria.getResolvedAriaLabel()).toBe('Toggle routine A');
 
     const withLabelOnly = new Checkbox({ label: 'Routine B' });

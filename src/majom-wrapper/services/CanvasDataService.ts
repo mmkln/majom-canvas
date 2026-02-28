@@ -12,7 +12,10 @@ import {
   switchMap,
   tap,
 } from 'rxjs/operators';
-import { CanvasPositionReadDTO, CanvasPositionWriteDTO } from '../data-access/canvas-position-dto.ts';
+import {
+  CanvasPositionReadDTO,
+  CanvasPositionWriteDTO,
+} from '../data-access/canvas-position-dto.ts';
 import { TasksApiService } from '../data-access/tasks-api-service.ts';
 import { StoriesApiService } from '../data-access/stories-api-service.ts';
 import { GoalsApiService } from '../data-access/goals-api-service.ts';
@@ -168,8 +171,12 @@ export class CanvasDataService {
       viewportFirstThreshold: this.defaultViewportFirstThreshold,
     }).pipe(
       filter(
-        (state): state is Extract<CanvasElementsLoadState, { phase: 'elements-ready' }> =>
-          state.phase === 'elements-ready'
+        (
+          state
+        ): state is Extract<
+          CanvasElementsLoadState,
+          { phase: 'elements-ready' }
+        > => state.phase === 'elements-ready'
       ),
       map((state) => state.elements),
       shareReplay(1)
@@ -306,9 +313,12 @@ export class CanvasDataService {
     );
   }
 
-  private getLayoutEntryBounds(
-    entry: CanvasPositionReadDTO
-  ): { minX: number; minY: number; maxX: number; maxY: number } {
+  private getLayoutEntryBounds(entry: CanvasPositionReadDTO): {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+  } {
     const x = this.normalizeCoord(entry.x);
     const y = this.normalizeCoord(entry.y);
     if (entry.element_type === 'task') {
@@ -395,7 +405,10 @@ export class CanvasDataService {
     primary: Array<TaskElement | StoryElement | GoalElement>,
     secondary: Array<TaskElement | StoryElement | GoalElement>
   ): Array<TaskElement | StoryElement | GoalElement> {
-    const mergedById = new Map<string, TaskElement | StoryElement | GoalElement>();
+    const mergedById = new Map<
+      string,
+      TaskElement | StoryElement | GoalElement
+    >();
     primary.forEach((element) => mergedById.set(element.id, element));
     secondary.forEach((element) => mergedById.set(element.id, element));
     return Array.from(mergedById.values());
@@ -453,7 +466,9 @@ export class CanvasDataService {
     return placeholders;
   }
 
-  private getGoalScale(meta: Record<string, any> | null | undefined): 1 | 2 | 3 {
+  private getGoalScale(
+    meta: Record<string, any> | null | undefined
+  ): 1 | 2 | 3 {
     const value = meta ? meta.goalScale : undefined;
     if (typeof value !== 'number' || !Number.isFinite(value)) return 1;
     const rounded = Math.round(value);
@@ -518,15 +533,15 @@ export class CanvasDataService {
 
     const delete$ = deletes.length
       ? this.relationsApi
-        .batchDelete(deletes)
-        .pipe(tap(() => this.removeRelationsById(deletes)))
+          .batchDelete(deletes)
+          .pipe(tap(() => this.removeRelationsById(deletes)))
       : of(undefined);
     return delete$.pipe(
       switchMap(() =>
         creates.length
           ? this.relationsApi
-            .batchCreate(creates)
-            .pipe(tap((created) => this.mergeRelationRegistry(created)))
+              .batchCreate(creates)
+              .pipe(tap((created) => this.mergeRelationRegistry(created)))
           : of([])
       ),
       map(() => undefined)
@@ -838,7 +853,7 @@ export class CanvasDataService {
                 requestedGoalId: goalId,
               });
             })
-        );
+          );
       }),
       tap((result) => {
         if (!this.canvasId) return;
@@ -1459,7 +1474,9 @@ export class CanvasDataService {
     );
   }
 
-  public ensureCanvas(): Observable<Pick<CanvasSummary, 'id' | 'name' | 'meta'>> {
+  public ensureCanvas(): Observable<
+    Pick<CanvasSummary, 'id' | 'name' | 'meta'>
+  > {
     return this.canvasApi.loadCanvases().pipe(
       switchMap((canvases) => {
         if (canvases.length > 0) {
@@ -1670,7 +1687,9 @@ export class CanvasDataService {
     });
   }
 
-  public updateLayoutBatch(changes: CanvasPositionWriteDTO[]): Observable<void> {
+  public updateLayoutBatch(
+    changes: CanvasPositionWriteDTO[]
+  ): Observable<void> {
     if (changes.length === 0) return of(undefined);
     const normalizedChanges = this.normalizePositionChanges(changes);
     if (this.canvasId) {
@@ -1735,13 +1754,9 @@ export class CanvasDataService {
         return;
       }
       const nextX =
-        pos.x !== undefined
-          ? this.normalizeCoord(pos.x)
-          : existing?.x ?? 0;
+        pos.x !== undefined ? this.normalizeCoord(pos.x) : (existing?.x ?? 0);
       const nextY =
-        pos.y !== undefined
-          ? this.normalizeCoord(pos.y)
-          : existing?.y ?? 0;
+        pos.y !== undefined ? this.normalizeCoord(pos.y) : (existing?.y ?? 0);
       this.positionRegistry.set(key, {
         id: existing?.id,
         canvas: existing?.canvas ?? this.canvasId ?? undefined,
@@ -1972,7 +1987,9 @@ export class CanvasDataService {
     meta: Record<string, any> | null | undefined
   ): Record<string, any> | null {
     const base =
-      meta && typeof meta === 'object' ? this.normalizeMetaSize(meta) ?? meta : {};
+      meta && typeof meta === 'object'
+        ? (this.normalizeMetaSize(meta) ?? meta)
+        : {};
     const next =
       base && typeof base === 'object'
         ? { ...(base as Record<string, any>) }
@@ -2010,9 +2027,7 @@ export class CanvasDataService {
     const prev = this.getMetaSize(existingMeta);
     if (next.width !== undefined) {
       if (prev?.width === undefined) return true;
-      if (
-        this.normalizeCoord(next.width) !== this.normalizeCoord(prev.width)
-      ) {
+      if (this.normalizeCoord(next.width) !== this.normalizeCoord(prev.width)) {
         return true;
       }
     }

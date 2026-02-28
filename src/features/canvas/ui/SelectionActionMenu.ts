@@ -65,7 +65,9 @@ export class SelectionActionMenu {
   private readonly confirmTimeoutMs = 4000;
   private resizeHandler = () => this.requestUpdate();
   private interactionStartHandler = (event: Event): void => {
-    const detail = (event as CustomEvent<{ kind?: 'drag' | 'resize' | 'select' }>).detail;
+    const detail = (
+      event as CustomEvent<{ kind?: 'drag' | 'resize' | 'select' }>
+    ).detail;
     const kind = detail?.kind;
     if (!kind) return;
     this.activeInteractions.add(kind);
@@ -73,7 +75,9 @@ export class SelectionActionMenu {
     this.hide();
   };
   private interactionEndHandler = (event: Event): void => {
-    const detail = (event as CustomEvent<{ kind?: 'drag' | 'resize' | 'select' }>).detail;
+    const detail = (
+      event as CustomEvent<{ kind?: 'drag' | 'resize' | 'select' }>
+    ).detail;
     const kind = detail?.kind;
     if (!kind) return;
     this.activeInteractions.delete(kind);
@@ -114,10 +118,7 @@ export class SelectionActionMenu {
       'canvasInteractionStart',
       this.interactionStartHandler
     );
-    window.addEventListener(
-      'canvasInteractionEnd',
-      this.interactionEndHandler
-    );
+    window.addEventListener('canvasInteractionEnd', this.interactionEndHandler);
     this.requestUpdate();
   }
 
@@ -146,7 +147,10 @@ export class SelectionActionMenu {
   }
 
   private update(): void {
-    if (this.canvasManager.isDraggingElements || this.canvasManager.isResizingStory) {
+    if (
+      this.canvasManager.isDraggingElements ||
+      this.canvasManager.isResizingStory
+    ) {
       this.hide();
       return;
     }
@@ -282,11 +286,9 @@ export class SelectionActionMenu {
         isVisible: isMulti,
         onClick: () => this.handleRemove(),
       },
-      {        kind: 'divider',
-        id: 'divider-delete-bulk',
-        isVisible: isMulti,
-      },
-      {        kind: 'action',
+      { kind: 'divider', id: 'divider-delete-bulk', isVisible: isMulti },
+      {
+        kind: 'action',
         id: 'delete-bulk-danger',
         title: 'Delete permanently',
         icon: 'trash',
@@ -294,7 +296,7 @@ export class SelectionActionMenu {
         isVisible: isMulti,
         onClick: () => {
           this.handleDeletePermanently();
-        }
+        },
       },
       {
         kind: 'divider',
@@ -353,7 +355,7 @@ export class SelectionActionMenu {
         id: 'divider-delete',
         isVisible: isSingle,
       },
-      {        
+      {
         kind: 'action',
         id: 'delete-danger',
         title: 'Delete permanently',

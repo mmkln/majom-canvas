@@ -193,10 +193,7 @@ export class StatusPicker {
     this.hide();
   }
 
-  private getStatusItemClasses(
-    status: ElementStatus,
-    active: boolean
-  ): string {
+  private getStatusItemClasses(status: ElementStatus, active: boolean): string {
     switch (status) {
       case ElementStatus.InProgress:
         return active

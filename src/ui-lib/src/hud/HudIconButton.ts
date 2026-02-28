@@ -91,7 +91,9 @@ class HudIconButton extends HudButtonBase {
   protected renderLoadingContent(): void {
     const element = this.getElement();
     element.innerHTML = '';
-    element.append(this.createSpinner(this.loadingSize, this.loadingStrokeWidth));
+    element.append(
+      this.createSpinner(this.loadingSize, this.loadingStrokeWidth)
+    );
   }
 }
 

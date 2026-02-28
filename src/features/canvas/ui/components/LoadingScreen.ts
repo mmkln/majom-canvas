@@ -55,7 +55,8 @@ export class LoadingScreen {
     lineTrack.appendChild(this.lineFill);
 
     this.message = document.createElement('p');
-    this.message.className = 'mt-3 hidden text-center text-xs leading-5 text-rose-700';
+    this.message.className =
+      'mt-3 hidden text-center text-xs leading-5 text-rose-700';
 
     this.actions = document.createElement('div');
     this.actions.className = 'mt-2 hidden';
@@ -100,7 +101,8 @@ export class LoadingScreen {
     if (loading) {
       this.lineFill.classList.remove('bg-rose-600/85');
       this.lineFill.classList.add('bg-slate-700/85');
-      this.lineFill.style.animation = 'majom-loading-slide 1.05s linear infinite';
+      this.lineFill.style.animation =
+        'majom-loading-slide 1.05s linear infinite';
     } else {
       this.lineFill.classList.remove('bg-slate-700/85');
       this.lineFill.classList.add('bg-rose-600/85');

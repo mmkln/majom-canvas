@@ -63,7 +63,10 @@ export abstract class HudButtonBase {
     this.leaveLoading(state.disabled);
   }
 
-  protected createSpinner(size: number = 14, strokeWidth: number = 2): SVGSVGElement {
+  protected createSpinner(
+    size: number = 14,
+    strokeWidth: number = 2
+  ): SVGSVGElement {
     const spinner = createIcon('arrow-path', { size, strokeWidth });
     startSpinnerAnimation(spinner);
     spinner.setAttribute('aria-hidden', 'true');
@@ -81,7 +84,9 @@ export abstract class HudButtonBase {
   private enterLoading(): void {
     if (!this.isLoading()) {
       this.button.dataset.hudRestoreHtml = this.button.innerHTML;
-      this.button.dataset.hudRestoreDisabled = this.button.disabled ? 'true' : 'false';
+      this.button.dataset.hudRestoreDisabled = this.button.disabled
+        ? 'true'
+        : 'false';
     }
     this.button.setAttribute('data-loading', 'true');
     this.button.setAttribute('aria-busy', 'true');

@@ -407,7 +407,6 @@ class ConnectionRenderer {
     return `rgba(${color.r}, ${color.g}, ${color.b}, ${alpha})`;
   }
 
-
   private strokePath(
     ctx: CanvasRenderingContext2D,
     points: Array<{ x: number; y: number }>
@@ -420,7 +419,6 @@ class ConnectionRenderer {
     }
     ctx.stroke();
   }
-
 }
 
 export const connectionRenderer = new ConnectionRenderer();

@@ -67,7 +67,9 @@ export class AddExistingGoalService {
   public getExistingGoal(goal: Goal): GoalElement | null {
     const sceneGoals = this.scene
       .getElements()
-      .filter((element): element is GoalElement => element instanceof GoalElement);
+      .filter(
+        (element): element is GoalElement => element instanceof GoalElement
+      );
 
     const goalId = String(goal.id);
     return (

@@ -92,8 +92,8 @@ export class TaskElement extends PlanningElement {
     const chromeColor = this.focused
       ? FOCUS_COLOR
       : this.highlighted
-      ? HIGHLIGHT_COLOR
-      : style.borderColor;
+        ? HIGHLIGHT_COLOR
+        : style.borderColor;
     this.fillColor = style.fillColor;
     this.borderColor = chromeColor;
     // Draw background and uniform 2px rounded border
@@ -105,10 +105,10 @@ export class TaskElement extends PlanningElement {
     ctx.strokeStyle = this.focused
       ? FOCUS_COLOR
       : this.highlighted
-      ? HIGHLIGHT_COLOR
-      : this.selected
-      ? SELECT_COLOR
-      : style.borderColor;
+        ? HIGHLIGHT_COLOR
+        : this.selected
+          ? SELECT_COLOR
+          : style.borderColor;
     ctx.lineWidth = 2 / panZoom.scale;
     ctx.lineJoin = 'round';
     ctx.stroke();
@@ -255,4 +255,3 @@ export class TaskElement extends PlanningElement {
     editElement$.next(this);
   }
 }
-

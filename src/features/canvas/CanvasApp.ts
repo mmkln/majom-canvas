@@ -195,7 +195,10 @@ export class CanvasApp {
       'refreshCanvasData',
       this.refreshCanvasDataHandler
     );
-    window.removeEventListener('saveCanvasLayout', this.saveCanvasLayoutHandler);
+    window.removeEventListener(
+      'saveCanvasLayout',
+      this.saveCanvasLayoutHandler
+    );
     window.removeEventListener(
       'canvasTitleEdited',
       this.canvasTitleEditedHandler
@@ -432,12 +435,14 @@ export class CanvasApp {
       return;
     }
     if (detail.kind === 'task-story') {
-      this.canvasDataService.updateTaskStoryLink(detail.task, detail.story).subscribe({
-        error: (err) => {
-          console.error('Failed to update task story link', err);
-          notify('Failed to update task link', 'error');
-        },
-      });
+      this.canvasDataService
+        .updateTaskStoryLink(detail.task, detail.story)
+        .subscribe({
+          error: (err) => {
+            console.error('Failed to update task story link', err);
+            notify('Failed to update task link', 'error');
+          },
+        });
       return;
     }
     void this.handleStoryGoalLinkSet(detail.story, detail.goal);
@@ -785,8 +790,9 @@ export class CanvasApp {
     this.scene.clear();
     this.canvasManager.clearLoadingPlaceholders();
     const loadOptions = this.buildCanvasLoadOptions();
-    this.activeCanvasElementsSubscription =
-      this.canvasDataService.loadElementsProgressive(loadOptions).subscribe({
+    this.activeCanvasElementsSubscription = this.canvasDataService
+      .loadElementsProgressive(loadOptions)
+      .subscribe({
         next: (state) => {
           if (state.phase === 'layout-ready') {
             this.loadActiveCanvasRelations();
@@ -838,10 +844,10 @@ export class CanvasApp {
   ): void {
     const focusedElement =
       focusedUuid !== null
-        ? elements.find(
+        ? (elements.find(
             (element) =>
               element.uuid === focusedUuid || element.id === focusedUuid
-          ) ?? null
+          ) ?? null)
         : null;
     this.scene.setFocusedElement(focusedElement);
   }
@@ -891,8 +897,9 @@ export class CanvasApp {
   private loadActiveCanvasRelations(): void {
     this.activeCanvasRelationsSubscription?.unsubscribe();
     this.setRelationsHydrating(true);
-    this.activeCanvasRelationsSubscription =
-      this.canvasDataService.loadRelations().subscribe({
+    this.activeCanvasRelationsSubscription = this.canvasDataService
+      .loadRelations()
+      .subscribe({
         next: (connections) => {
           connections.forEach((conn) => this.scene.addElement(conn));
         },
@@ -940,7 +947,9 @@ export class CanvasApp {
     }
 
     try {
-      const canvases = await firstValueFrom(this.canvasDataService.loadCanvases());
+      const canvases = await firstValueFrom(
+        this.canvasDataService.loadCanvases()
+      );
       const activeCanvas =
         canvases.find((canvas) => canvas.id === activeCanvasId) ?? null;
       if (!activeCanvas) {
@@ -956,7 +965,9 @@ export class CanvasApp {
         return;
       }
 
-      await firstValueFrom(this.canvasDataService.deleteCanvas(activeCanvas.id));
+      await firstValueFrom(
+        this.canvasDataService.deleteCanvas(activeCanvas.id)
+      );
       notify('Canvas deleted.', 'success');
 
       const remainingCanvases = canvases.filter(
@@ -1005,7 +1016,8 @@ export class CanvasApp {
     }
     this.canvasDataService.loadCanvases().subscribe({
       next: (canvases) => {
-        const selectedId = activeId || this.canvasDataService.getActiveCanvasId();
+        const selectedId =
+          activeId || this.canvasDataService.getActiveCanvasId();
         this.setCanvasListCache(canvases);
         this.emitCanvasList(
           this.getCanvasListUiItemsFromCache(),
@@ -1186,10 +1198,7 @@ export class CanvasApp {
       });
   }
 
-  private getLinkElementRef(element: {
-    id: string;
-    uuid?: string;
-  }): string {
+  private getLinkElementRef(element: { id: string; uuid?: string }): string {
     return element.uuid ?? element.id;
   }
 
@@ -1258,8 +1267,3 @@ export class CanvasApp {
     this.removeCanvasConnections(duplicates);
   }
 }
-
-
-
-
-

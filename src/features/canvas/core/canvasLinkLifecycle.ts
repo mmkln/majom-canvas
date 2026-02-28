@@ -45,17 +45,14 @@ export function emitStoryGoalLinkSet(
 ): void {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(
-    new CustomEvent<StoryGoalLinkLifecycleDetail>(
-      CANVAS_LINK_LIFECYCLE_EVENT,
-      {
-        detail: {
-          kind: 'story-goal',
-          action: 'set',
-          story,
-          goal,
-        },
-      }
-    )
+    new CustomEvent<StoryGoalLinkLifecycleDetail>(CANVAS_LINK_LIFECYCLE_EVENT, {
+      detail: {
+        kind: 'story-goal',
+        action: 'set',
+        story,
+        goal,
+      },
+    })
   );
 }
 
@@ -76,4 +73,3 @@ export function isCanvasLinkLifecycleDetail(
   }
   return false;
 }
-

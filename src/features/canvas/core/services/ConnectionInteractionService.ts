@@ -132,12 +132,7 @@ export class ConnectionInteractionService {
           const fromRef = this.getElementRef(normalized.from);
           const toRef = this.getElementRef(normalized.to);
           historyService.execute(
-            new ConnectCommand(
-              this.scene,
-              fromRef,
-              toRef,
-              relationType
-            )
+            new ConnectCommand(this.scene, fromRef, toRef, relationType)
           );
           emitCanvasRelationLifecycle({
             action: 'created',

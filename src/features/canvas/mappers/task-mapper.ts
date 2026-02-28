@@ -36,5 +36,3 @@ export function mapTask(
     dueDate: Number.isNaN(dueDate?.getTime()) ? null : dueDate,
   });
 }
-
-

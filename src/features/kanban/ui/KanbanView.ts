@@ -67,7 +67,8 @@ export class KanbanView {
           handlers: this.handlers,
           collapsedColumns: this.collapsedColumns,
           completedHabitsCollapsed: this.completedHabitsCollapsed,
-          onColumnCollapseToggle: (columnId) => this.toggleColumnCollapse(columnId),
+          onColumnCollapseToggle: (columnId) =>
+            this.toggleColumnCollapse(columnId),
           onLocalStateChange: () => this.render(this.state),
         })
       );
@@ -110,7 +111,9 @@ export class KanbanView {
   }
 
   private pruneCollapsedColumns(columns: KanbanColumnState[]): void {
-    const currentIds = new Set<KanbanColumnId>(columns.map((column) => column.id));
+    const currentIds = new Set<KanbanColumnId>(
+      columns.map((column) => column.id)
+    );
     let changed = false;
     this.collapsedColumns.forEach((columnId) => {
       if (currentIds.has(columnId)) return;

@@ -60,7 +60,10 @@ export function createHudFormMessage(
       } else {
         element.textContent = nextMessage;
         element.classList.remove('hidden');
-        element.setAttribute('role', currentTone === 'error' ? 'alert' : 'status');
+        element.setAttribute(
+          'role',
+          currentTone === 'error' ? 'alert' : 'status'
+        );
       }
     }
   };

@@ -17,8 +17,7 @@ const BASE_INDICATOR_CLASS =
 const UNCHECKED_ENABLED_CLASS =
   'border-gray-400 hover:border-gray-500 bg-white';
 const UNCHECKED_DISABLED_CLASS = 'border-gray-300 bg-gray-100';
-const CHECKED_ENABLED_CLASS =
-  'bg-blue-600 border-blue-600';
+const CHECKED_ENABLED_CLASS = 'bg-blue-600 border-blue-600';
 const CHECKED_DISABLED_CLASS = 'bg-gray-300 border-gray-300';
 const CHECKMARK_WRAPPER_CLASS = 'text-white';
 const CHECKMARK_SVG_CLASS = 'w-3 h-3';
@@ -135,7 +134,10 @@ export class Checkbox {
   }
 
   public getIndicatorClassName(): string {
-    const classNames = [BASE_INDICATOR_CLASS, this.resolveIndicatorStateClass()];
+    const classNames = [
+      BASE_INDICATOR_CLASS,
+      this.resolveIndicatorStateClass(),
+    ];
     if (this.focused && !this.disabled) {
       classNames.push(INDICATOR_FOCUS_CLASS);
     }

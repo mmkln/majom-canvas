@@ -40,8 +40,10 @@ export class Textarea extends Component<TextareaProps> {
     if (this.props.name) textarea.name = this.props.name;
     if (this.props.id) textarea.id = this.props.id;
     if (this.props.required) textarea.required = true;
-    if (this.props.minLength !== undefined) textarea.minLength = this.props.minLength;
-    if (this.props.maxLength !== undefined) textarea.maxLength = this.props.maxLength;
+    if (this.props.minLength !== undefined)
+      textarea.minLength = this.props.minLength;
+    if (this.props.maxLength !== undefined)
+      textarea.maxLength = this.props.maxLength;
     textarea.rows = this.props.rows ?? 3;
     if (this.props.invalid) {
       textarea.setAttribute('aria-invalid', 'true');

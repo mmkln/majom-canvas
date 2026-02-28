@@ -30,9 +30,7 @@ export class UserApiService {
   /**
    * Update user's selected wallpaper.
    */
-  public setUserWallpaper(
-    wallpaperId: User['wallpaper_id']
-  ): Observable<User> {
+  public setUserWallpaper(wallpaperId: User['wallpaper_id']): Observable<User> {
     return this.http.patch<User>('/user/profile/', {
       wallpaper_id: wallpaperId,
     });

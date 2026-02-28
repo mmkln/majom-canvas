@@ -51,4 +51,3 @@ export class DataProvider implements IDataProvider {
     // stub
   }
 }
-

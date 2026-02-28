@@ -1,4 +1,10 @@
-import { BehaviorSubject, firstValueFrom, of, Subject, Subscription } from 'rxjs';
+import {
+  BehaviorSubject,
+  firstValueFrom,
+  of,
+  Subject,
+  Subscription,
+} from 'rxjs';
 import { catchError, first, map, switchMap, tap } from 'rxjs/operators';
 import type {
   KanbanBoardState,
@@ -141,7 +147,9 @@ export class KanbanStore {
     columnId: KanbanColumnId,
     collapsed: boolean
   ): void {
-    const column = this.stateSubject.value.columns.find((item) => item.id === columnId);
+    const column = this.stateSubject.value.columns.find(
+      (item) => item.id === columnId
+    );
     if (!column) return;
 
     column.sections.storyGroups.forEach((group) => {
@@ -178,7 +186,9 @@ export class KanbanStore {
   ): Promise<boolean> {
     try {
       await firstValueFrom(
-        this.dataService.toggleHabitCompletion(habitId, new Date()).pipe(first())
+        this.dataService
+          .toggleHabitCompletion(habitId, new Date())
+          .pipe(first())
       );
       notify('Routine updated', 'success');
       return true;
@@ -202,7 +212,10 @@ export class KanbanStore {
     }, timeoutMs);
   }
 
-  private applyTaskPatchOptimistic(taskId: number, patch: KanbanTaskPatch): void {
+  private applyTaskPatchOptimistic(
+    taskId: number,
+    patch: KanbanTaskPatch
+  ): void {
     if (!this.latestSnapshot) return;
     this.latestSnapshot = {
       ...this.latestSnapshot,

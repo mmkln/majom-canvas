@@ -5,7 +5,10 @@ import {
   CANVAS_SAVE_LIFECYCLE_EVENT,
   isCanvasSaveLifecycleDetail,
 } from '../../core/canvasSaveLifecycle.ts';
-import { createTextButton, type TextButtonElement } from '../primitives/index.ts';
+import {
+  createTextButton,
+  type TextButtonElement,
+} from '../primitives/index.ts';
 import { authFlowService } from '../auth/authFlowService.ts';
 
 /**
@@ -45,7 +48,8 @@ export class SaveButton {
     this.refreshHandler = () => this.updateButtonState();
     window.addEventListener('refreshCanvasData', this.refreshHandler);
 
-    this.lifecycleHandler = (event: Event) => this.handleSaveLifecycleEvent(event);
+    this.lifecycleHandler = (event: Event) =>
+      this.handleSaveLifecycleEvent(event);
     window.addEventListener(CANVAS_SAVE_LIFECYCLE_EVENT, this.lifecycleHandler);
 
     this.updateButtonState();
@@ -124,7 +128,10 @@ export class SaveButton {
 
   unmount(): void {
     window.removeEventListener('refreshCanvasData', this.refreshHandler);
-    window.removeEventListener(CANVAS_SAVE_LIFECYCLE_EVENT, this.lifecycleHandler);
+    window.removeEventListener(
+      CANVAS_SAVE_LIFECYCLE_EVENT,
+      this.lifecycleHandler
+    );
     if (this.hideLoadingTimer !== null) {
       window.clearTimeout(this.hideLoadingTimer);
       this.hideLoadingTimer = null;

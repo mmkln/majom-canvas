@@ -56,7 +56,8 @@ export class MiniMap {
     const useSurface = options.surface ?? true;
     const baseClass = embedded ? '' : 'absolute right-[72px] bottom-4 z-20';
     const defaultInnerClass = useSurface ? 'overflow-hidden p-1' : '';
-    const className = `${baseClass} ${options.className ?? defaultInnerClass}`.trim();
+    const className =
+      `${baseClass} ${options.className ?? defaultInnerClass}`.trim();
     this.container = useSurface
       ? createSurface({ className })
       : document.createElement('div');
@@ -157,7 +158,9 @@ export class MiniMap {
   private applyResponsiveSize(): void {
     const maxByViewport = Math.max(120, window.innerWidth - 32);
     const preferredWidth =
-      window.innerWidth <= this.compactBreakpoint ? this.compactWidth : this.width;
+      window.innerWidth <= this.compactBreakpoint
+        ? this.compactWidth
+        : this.width;
     const width = Math.min(preferredWidth, maxByViewport);
     const height = Math.round((width * this.height) / this.width);
     this.container.style.width = `${width}px`;
@@ -175,7 +178,12 @@ export class MiniMap {
     ctx.fillRect(0, 0, width, height);
 
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(metrics.mapX, metrics.mapY, metrics.mapWidth, metrics.mapHeight);
+    ctx.fillRect(
+      metrics.mapX,
+      metrics.mapY,
+      metrics.mapWidth,
+      metrics.mapHeight
+    );
 
     this.drawElements(metrics);
     this.viewportRect = this.drawViewport(metrics);
@@ -221,7 +229,8 @@ export class MiniMap {
 
     const focusedId = this.scene.getFocusedElementId();
     sceneElements.forEach((element: any) => {
-      if (typeof element?.x !== 'number' || typeof element?.y !== 'number') return;
+      if (typeof element?.x !== 'number' || typeof element?.y !== 'number')
+        return;
       const baseColor = this.getColorByType(
         element instanceof TaskElement
           ? 'task'
@@ -314,7 +323,10 @@ export class MiniMap {
     const sceneLeft = this.mapToSceneX(mapLeft, this.metrics);
     const sceneTop = this.mapToSceneY(mapTop, this.metrics);
     const panZoom = this.canvasManager.getPanZoomManager();
-    this.canvasManager.setScroll(sceneLeft * panZoom.scale, sceneTop * panZoom.scale);
+    this.canvasManager.setScroll(
+      sceneLeft * panZoom.scale,
+      sceneTop * panZoom.scale
+    );
   };
 
   private readonly onPointerUp = (event: PointerEvent): void => {
@@ -356,7 +368,10 @@ export class MiniMap {
     };
   }
 
-  private isPointInsideRect(point: { x: number; y: number }, rect: Rect): boolean {
+  private isPointInsideRect(
+    point: { x: number; y: number },
+    rect: Rect
+  ): boolean {
     return (
       point.x >= rect.x &&
       point.x <= rect.x + rect.width &&

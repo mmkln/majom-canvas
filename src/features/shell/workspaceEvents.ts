@@ -1,6 +1,7 @@
 import type { WorkspaceView } from './WorkspaceView.ts';
 
-export const WORKSPACE_VIEW_CHANGE_REQUEST_EVENT = 'workspaceViewChangeRequested';
+export const WORKSPACE_VIEW_CHANGE_REQUEST_EVENT =
+  'workspaceViewChangeRequested';
 export const WORKSPACE_VIEW_CHANGED_EVENT = 'workspaceViewChanged';
 
 export type WorkspaceViewChangeRequestDetail = {

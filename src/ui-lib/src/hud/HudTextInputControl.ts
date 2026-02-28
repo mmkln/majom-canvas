@@ -136,7 +136,10 @@ export function createHudInput(options: HudInputOptions = {}): HudInput {
       'aria-label',
       isPasswordVisible ? 'Hide password' : 'Show password'
     );
-    toggleButton.setAttribute('aria-pressed', isPasswordVisible ? 'true' : 'false');
+    toggleButton.setAttribute(
+      'aria-pressed',
+      isPasswordVisible ? 'true' : 'false'
+    );
     toggleButton.title = isPasswordVisible ? 'Hide password' : 'Show password';
   };
 

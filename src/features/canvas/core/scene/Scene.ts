@@ -8,7 +8,10 @@ import { IConnection } from '../interfaces/connection.ts';
 export class Scene {
   private elements: ICanvasElement[] = [];
   private elementsVersion = 0;
-  private selectedMap: Map<string, ICanvasElement> = new Map<string, ICanvasElement>();
+  private selectedMap: Map<string, ICanvasElement> = new Map<
+    string,
+    ICanvasElement
+  >();
   private focusedElementId: string | null = null;
   private highlightedElementIds: Set<string> = new Set<string>();
   public changes: Subject<void> = new Subject<void>();
@@ -38,7 +41,6 @@ export class Scene {
     }
     this.changes.next();
   }
-
 
   public removeElements(elements: ICanvasElement[]): void {
     let focusChanged = false;
@@ -84,7 +86,9 @@ export class Scene {
     shouldReplace: (element: ICanvasElement) => boolean,
     replacements: ICanvasElement[]
   ): void {
-    const keptElements = this.elements.filter((element) => !shouldReplace(element));
+    const keptElements = this.elements.filter(
+      (element) => !shouldReplace(element)
+    );
     const replacedCount = this.elements.length - keptElements.length;
     if (replacedCount === 0 && replacements.length === 0) return;
 
@@ -203,7 +207,7 @@ export class Scene {
   }
 
   public toggleSelected(elements: ICanvasElement[]): void {
-    console.log({elements});
+    console.log({ elements });
     let changed = false;
     elements.forEach((selectable) => {
       if (selectable.selected) {

@@ -71,7 +71,8 @@ export const HUD_PAGE_TITLE_CLASS =
   'text-[30px] font-semibold leading-none tracking-tight text-slate-900';
 
 export const HUD_FIELD_CLASS = 'mb-4 space-y-1.5';
-export const HUD_FIELD_LABEL_BASE_CLASS = 'block text-[13px] font-medium leading-5';
+export const HUD_FIELD_LABEL_BASE_CLASS =
+  'block text-[13px] font-medium leading-5';
 export const HUD_FIELD_LABEL_DEFAULT_CLASS = 'text-slate-500';
 export const HUD_FIELD_LABEL_MUTED_CLASS = 'text-slate-400';
 export const HUD_FIELD_LABEL_ERROR_CLASS = 'text-rose-700';
@@ -101,8 +102,7 @@ export const HUD_SEGMENTED_ITEM_CLASS =
 export const HUD_SEGMENTED_ITEM_SM_CLASS = 'h-7 min-w-7 text-xs';
 export const HUD_SEGMENTED_ITEM_MD_CLASS = 'h-8 min-w-8 text-sm';
 
-export const HUD_SEGMENTED_ITEM_ACTIVE_CLASS =
-  'bg-slate-100 text-slate-900';
+export const HUD_SEGMENTED_ITEM_ACTIVE_CLASS = 'bg-slate-100 text-slate-900';
 
 export const HUD_SEGMENTED_ITEM_INACTIVE_CLASS =
   'hover:bg-slate-50 hover:text-slate-800';
@@ -117,7 +117,6 @@ export const HUD_DROPDOWN_ITEM_CLASS = HUD_MENU_ITEM_BASE_CLASS;
 export const HUD_DROPDOWN_ITEM_DEFAULT_CLASS = HUD_MENU_ITEM_DEFAULT_CLASS;
 export const HUD_DROPDOWN_ITEM_ACTIVE_CLASS = HUD_MENU_ITEM_SELECTED_CLASS;
 export const HUD_INLINE_INPUT_CLASS = `${HUD_INPUT_BASE_CLASS} ${HUD_INPUT_INLINE_CLASS}`;
-
 
 // Prefix-free aliases
 export const SURFACE_CLASS = HUD_SURFACE_CLASS;

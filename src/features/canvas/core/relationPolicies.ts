@@ -29,4 +29,3 @@ export class RelationPolicyRegistry {
     return { kind: 'allow' };
   }
 }
-

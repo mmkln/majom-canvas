@@ -1,8 +1,4 @@
-import type {
-  FieldErrors,
-  FormSchema,
-  ValidationResult,
-} from './types.ts';
+import type { FieldErrors, FormSchema, ValidationResult } from './types.ts';
 
 type FormValidatorApi<TValues> = {
   validate: (values: TValues) => ValidationResult<TValues>;

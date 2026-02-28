@@ -51,7 +51,8 @@ export class LoginPage {
     logo.className = 'mb-3 h-12 w-12';
 
     const heading = document.createElement('h1');
-    heading.className = 'text-[25px] font-semibold leading-[1.1] tracking-tight text-slate-900';
+    heading.className =
+      'text-[25px] font-semibold leading-[1.1] tracking-tight text-slate-900';
     heading.textContent = this.options.title ?? 'Welcome back';
 
     const caption = document.createElement('p');

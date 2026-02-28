@@ -30,7 +30,11 @@ describe('StoryLayoutService.getLayoutTasks', () => {
     // `middleTask` is inside story by coordinates but absent in story.tasks refs.
     story.tasks = [rightTask, leftTask];
 
-    const layoutTasks = service.getLayoutTasks(story, [leftTask, middleTask, rightTask]);
+    const layoutTasks = service.getLayoutTasks(story, [
+      leftTask,
+      middleTask,
+      rightTask,
+    ]);
 
     expect(layoutTasks.map((task) => task.id)).toEqual([
       'left',

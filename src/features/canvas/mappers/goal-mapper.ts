@@ -32,5 +32,3 @@ export function mapGoal(
     scale: typeof scale === 'number' ? scale : undefined,
   });
 }
-
-

@@ -115,13 +115,13 @@ export class StoryElement extends PlanningElement {
     const chromeColor = this.focused
       ? FOCUS_COLOR
       : this.highlighted
-      ? HIGHLIGHT_COLOR
-      : style.borderColor;
+        ? HIGHLIGHT_COLOR
+        : style.borderColor;
     const fillColor = this.focused
       ? FOCUS_STORY_FILL
       : this.highlighted
-      ? HIGHLIGHT_STORY_FILL
-      : style.fillColor;
+        ? HIGHLIGHT_STORY_FILL
+        : style.fillColor;
     this.fillColor = fillColor;
     this.borderColor = chromeColor;
     const radius = 8 * panZoom.scale;
@@ -136,10 +136,10 @@ export class StoryElement extends PlanningElement {
     ctx.strokeStyle = this.focused
       ? FOCUS_COLOR
       : this.highlighted
-      ? HIGHLIGHT_COLOR
-      : this.selected
-      ? SELECT_COLOR
-      : style.borderColor;
+        ? HIGHLIGHT_COLOR
+        : this.selected
+          ? SELECT_COLOR
+          : style.borderColor;
     ctx.lineWidth = this.lineWidth / panZoom.scale;
     ctx.stroke();
     if (showAnim) {

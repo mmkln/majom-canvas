@@ -77,7 +77,9 @@ export class AddExistingTaskService {
   public getExistingTask(task: PlatformTask): TaskElement | null {
     const sceneTasks = this.scene
       .getElements()
-      .filter((element): element is TaskElement => element instanceof TaskElement);
+      .filter(
+        (element): element is TaskElement => element instanceof TaskElement
+      );
 
     const taskId = String(task.id);
     return (

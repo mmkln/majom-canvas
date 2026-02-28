@@ -42,10 +42,7 @@ function createChevronIcon(collapsed: boolean): SVGSVGElement {
   const path = document.createElementNS(ns, 'path');
   path.setAttribute('stroke-linecap', 'round');
   path.setAttribute('stroke-linejoin', 'round');
-  path.setAttribute(
-    'd',
-    collapsed ? 'm6 9 6 6 6-6' : 'm18 15-6-6-6 6'
-  );
+  path.setAttribute('d', collapsed ? 'm6 9 6 6 6-6' : 'm18 15-6-6-6 6');
   svg.appendChild(path);
   return svg;
 }
@@ -115,7 +112,9 @@ function renderStoryGroupsSection(
     const toggleBtn = document.createElement('button');
     toggleBtn.type = 'button';
     toggleBtn.className = 'kb-story-toggle';
-    toggleBtn.title = group.collapsed ? 'Expand story group' : 'Collapse story group';
+    toggleBtn.title = group.collapsed
+      ? 'Expand story group'
+      : 'Collapse story group';
     toggleBtn.setAttribute(
       'aria-label',
       group.collapsed ? 'Expand story group' : 'Collapse story group'
@@ -131,7 +130,9 @@ function renderStoryGroupsSection(
 
     const body = document.createElement('div');
     body.className = 'kb-story-body';
-    const visibleTasks = group.collapsed ? group.tasks.slice(0, 1) : group.tasks;
+    const visibleTasks = group.collapsed
+      ? group.tasks.slice(0, 1)
+      : group.tasks;
     visibleTasks.forEach((taskCard) => {
       body.appendChild(
         renderKanbanTaskCard(taskCard, options.handlers, { isInGroup: true })
@@ -222,8 +223,11 @@ export function renderKanbanColumn(
   groupsToggle.type = 'button';
   groupsToggle.className = 'kb-header-toggle';
   groupsToggle.disabled = groups.length === 0;
-  const allCollapsed = groups.length > 0 && groups.every((group) => group.collapsed);
-  groupsToggle.title = allCollapsed ? 'Expand all story groups' : 'Collapse all story groups';
+  const allCollapsed =
+    groups.length > 0 && groups.every((group) => group.collapsed);
+  groupsToggle.title = allCollapsed
+    ? 'Expand all story groups'
+    : 'Collapse all story groups';
   groupsToggle.setAttribute(
     'aria-label',
     allCollapsed ? 'Expand all story groups' : 'Collapse all story groups'
@@ -294,7 +298,11 @@ export function renderKanbanColumn(
   }
   if (column.sections.completedTasks.length > 0) {
     sectionContainer.appendChild(
-      renderTaskListSection('Completed', column.sections.completedTasks, options)
+      renderTaskListSection(
+        'Completed',
+        column.sections.completedTasks,
+        options
+      )
     );
   }
 

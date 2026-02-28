@@ -141,7 +141,8 @@ export class RelatedItemsPicker {
     this.container.appendChild(this.actionsRow);
 
     this.list = document.createElement('div');
-    this.list.className = 'flex max-h-[220px] flex-col gap-2 overflow-y-auto pr-0.5';
+    this.list.className =
+      'flex max-h-[220px] flex-col gap-2 overflow-y-auto pr-0.5';
     this.container.appendChild(this.list);
   }
 
@@ -306,7 +307,10 @@ export class RelatedItemsPicker {
 
           const directStories = this.getGoalStories(goal);
           const embeddedStories = this.extractStoriesFromGoalTasks(goalTasks);
-          const knownStories = this.mergeStories(directStories, embeddedStories);
+          const knownStories = this.mergeStories(
+            directStories,
+            embeddedStories
+          );
           const ids = this.extractStoryIdsFromGoalTasks(goalTasks);
           const loadedIds = new Set(knownStories.map((story) => story.id));
           const missingIds = ids.filter((id) => !loadedIds.has(id));

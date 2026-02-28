@@ -135,7 +135,9 @@ export class HudSegmentedControl<T> {
   private syncButtons(): void {
     const activeEntry = this.getActiveEntry();
     const fallbackFocusable =
-      activeEntry ?? this.entries.find((entry) => !this.isDisabled(entry)) ?? null;
+      activeEntry ??
+      this.entries.find((entry) => !this.isDisabled(entry)) ??
+      null;
 
     this.entries.forEach((entry) => {
       const isActive = this.isActive(entry);
@@ -182,11 +184,14 @@ export class HudSegmentedControl<T> {
     }
     event.preventDefault();
 
-    const enabledEntries = this.entries.filter((entry) => !this.isDisabled(entry));
+    const enabledEntries = this.entries.filter(
+      (entry) => !this.isDisabled(entry)
+    );
     if (enabledEntries.length === 0) return;
 
     const currentEntry =
-      this.entries.find((entry) => entry.button === current) ?? this.getActiveEntry();
+      this.entries.find((entry) => entry.button === current) ??
+      this.getActiveEntry();
     if (!currentEntry) return;
 
     let nextEntry: Entry<T> | null = null;

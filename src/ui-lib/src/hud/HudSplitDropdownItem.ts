@@ -5,7 +5,10 @@ import {
   type HudMenuItemVariant,
 } from './HudDropdownItem.ts';
 
-type HudSplitSecondaryTone = 'default' | 'favorite-active' | 'favorite-inactive';
+type HudSplitSecondaryTone =
+  | 'default'
+  | 'favorite-active'
+  | 'favorite-inactive';
 
 export type HudSplitDropdownItemOptions = {
   label: string;
@@ -39,11 +42,11 @@ const SECONDARY_INTERACTIVE_CLASS =
   'group-hover:border-indigo-100 group-focus-within:border-indigo-100 group-hover:bg-indigo-50 group-focus-within:bg-indigo-50 group-hover:text-indigo-600 group-focus-within:text-indigo-600 hover:!bg-indigo-100 focus-visible:!bg-indigo-100';
 const SECONDARY_REVEAL_ON_HOVER_CLASS =
   'opacity-0 pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 group-hover:pointer-events-auto group-focus-within:pointer-events-auto';
-const SECONDARY_DISABLED_CLASS =
-  `${SECONDARY_BASE_CLASS} text-slate-300 cursor-not-allowed`;
+const SECONDARY_DISABLED_CLASS = `${SECONDARY_BASE_CLASS} text-slate-300 cursor-not-allowed`;
 
 const SECONDARY_TONE_CLASS: Record<HudSplitSecondaryTone, string> = {
-  default: 'text-slate-500 hover:!text-indigo-600 focus-visible:!text-indigo-700',
+  default:
+    'text-slate-500 hover:!text-indigo-600 focus-visible:!text-indigo-700',
   'favorite-active':
     '!text-amber-500 hover:!text-amber-500 focus-visible:!text-amber-500 hover:!bg-amber-100 focus-visible:!bg-amber-100',
   'favorite-inactive':
@@ -55,13 +58,15 @@ export function createHudSplitDropdownItem(
 ): HTMLDivElement {
   const row = document.createElement('div');
   const isSelected = options.variant === 'selected';
-  row.className = `group flex w-full items-stretch overflow-hidden transition-colors ${isSelected ? 'bg-indigo-50' : ''}`.trim();
+  row.className =
+    `group flex w-full items-stretch overflow-hidden transition-colors ${isSelected ? 'bg-indigo-50' : ''}`.trim();
 
   const primary = createHudDropdownItem({
     label: options.label,
     variant: options.variant,
     tone: options.tone,
-    className: `${options.className ?? ''} ${PRIMARY_BASE_CLASS} ${options.primaryTransparent ? PRIMARY_TRANSPARENT_CLASS : ''}`.trim(),
+    className:
+      `${options.className ?? ''} ${PRIMARY_BASE_CLASS} ${options.primaryTransparent ? PRIMARY_TRANSPARENT_CLASS : ''}`.trim(),
     disabled: options.disabled,
     leading: options.leading ?? null,
     trailing: options.trailing ?? null,
@@ -69,7 +74,8 @@ export function createHudSplitDropdownItem(
   });
   primary.setAttribute('role', 'menuitem');
 
-  const secondaryDisabled = options.secondaryDisabled ?? options.disabled ?? false;
+  const secondaryDisabled =
+    options.secondaryDisabled ?? options.disabled ?? false;
   const secondary = document.createElement('button');
   secondary.type = 'button';
   const secondaryTone = options.secondaryTone ?? 'default';
@@ -82,14 +88,20 @@ export function createHudSplitDropdownItem(
   secondary.setAttribute('aria-label', options.secondaryLabel);
   secondary.setAttribute('role', 'menuitem');
   if (typeof options.secondaryPressed === 'boolean') {
-    secondary.setAttribute('aria-pressed', options.secondaryPressed ? 'true' : 'false');
+    secondary.setAttribute(
+      'aria-pressed',
+      options.secondaryPressed ? 'true' : 'false'
+    );
   }
   if (secondaryDisabled) {
     secondary.disabled = true;
     secondary.setAttribute('aria-disabled', 'true');
   }
 
-  const icon = createIcon(options.secondaryIcon, { size: 14, strokeWidth: 1.9 });
+  const icon = createIcon(options.secondaryIcon, {
+    size: 14,
+    strokeWidth: 1.9,
+  });
   icon.setAttribute('aria-hidden', 'true');
   secondary.appendChild(icon);
   secondary.addEventListener('click', (event) => {

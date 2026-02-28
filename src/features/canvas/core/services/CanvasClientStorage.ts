@@ -68,7 +68,10 @@ function writeEnvelope<T>(
     updatedAt: now,
     expiresAt: ttlMs ? now + ttlMs : null,
   };
-  localStorage.setItem(buildUserScopedStorageKey(baseKey), JSON.stringify(envelope));
+  localStorage.setItem(
+    buildUserScopedStorageKey(baseKey),
+    JSON.stringify(envelope)
+  );
 }
 
 export class CanvasClientStorage {
@@ -120,7 +123,9 @@ export class CanvasClientStorage {
     const current = this.listUnsyncedDrafts(canvasId);
     const filtered = current.filter((draft) => draft.id !== draftId);
     if (filtered.length === 0) {
-      localStorage.removeItem(buildUserScopedStorageKey(getDraftsKey(canvasId)));
+      localStorage.removeItem(
+        buildUserScopedStorageKey(getDraftsKey(canvasId))
+      );
       return;
     }
     writeEnvelope(getDraftsKey(canvasId), filtered, DRAFTS_TTL_MS);

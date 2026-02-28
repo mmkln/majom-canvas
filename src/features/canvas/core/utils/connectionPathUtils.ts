@@ -32,16 +32,12 @@ export function buildCyberPath(
     const midY = startStub.y + (endStub.y - startStub.y) * 0.5;
 
     pathPoints.push({ x: start.x, y: start.y }, startStub);
-    if (Math.abs(endStub.x - startStub.x) >= Math.abs(endStub.y - startStub.y)) {
-      pathPoints.push(
-        { x: midX, y: startStub.y },
-        { x: midX, y: endStub.y }
-      );
+    if (
+      Math.abs(endStub.x - startStub.x) >= Math.abs(endStub.y - startStub.y)
+    ) {
+      pathPoints.push({ x: midX, y: startStub.y }, { x: midX, y: endStub.y });
     } else {
-      pathPoints.push(
-        { x: startStub.x, y: midY },
-        { x: endStub.x, y: midY }
-      );
+      pathPoints.push({ x: startStub.x, y: midY }, { x: endStub.x, y: midY });
     }
     pathPoints.push(endStub, { x: end.x, y: end.y });
   }

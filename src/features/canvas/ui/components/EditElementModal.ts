@@ -63,11 +63,12 @@ export class EditElementModal {
     const taskElement =
       this.element instanceof TaskElement ? this.element : null;
     const isTask = taskElement !== null;
-    const goalElement = this.element instanceof GoalElement
-      ? this.element
-      : null;
+    const goalElement =
+      this.element instanceof GoalElement ? this.element : null;
     const isGoal = goalElement !== null;
-    const originalScale: GoalScale | null = goalElement ? goalElement.scale : null;
+    const originalScale: GoalScale | null = goalElement
+      ? goalElement.scale
+      : null;
     const originalDueDateValue = isTask
       ? formatDateInputValue(taskElement?.dueDate ?? null)
       : '';

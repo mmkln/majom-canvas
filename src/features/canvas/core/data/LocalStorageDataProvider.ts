@@ -14,7 +14,11 @@ const STORIES_KEY = 'canvas-stories';
 const VIEW_KEY = 'canvas-view';
 const GOALS_KEY = 'canvas-goals';
 
-const DEFAULT_VIEW_STATE: IViewState = { scrollX: 20000, scrollY: 12000, scale: 1 };
+const DEFAULT_VIEW_STATE: IViewState = {
+  scrollX: 20000,
+  scrollY: 12000,
+  scale: 1,
+};
 const CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 14;
 const VIEW_TTL_MS = 1000 * 60 * 60 * 24 * 30;
 
@@ -68,7 +72,10 @@ export class LocalStorageDataProvider implements IDataProvider {
   /** Load saved view (scroll & zoom) */
   async loadViewState(canvasId?: string | null): Promise<IViewState> {
     const viewKey = this.getViewKey(canvasId);
-    const viewState = this.readCollection<IViewState>(viewKey, DEFAULT_VIEW_STATE);
+    const viewState = this.readCollection<IViewState>(
+      viewKey,
+      DEFAULT_VIEW_STATE
+    );
     if (!this.isValidViewState(viewState)) {
       return DEFAULT_VIEW_STATE;
     }
@@ -99,10 +106,7 @@ export class LocalStorageDataProvider implements IDataProvider {
       updatedAt: now,
       expiresAt: now + ttlMs,
     };
-    localStorage.setItem(
-      this.getScopedKey(baseKey),
-      JSON.stringify(envelope)
-    );
+    localStorage.setItem(this.getScopedKey(baseKey), JSON.stringify(envelope));
   }
 
   private readCollection<T>(baseKey: string, fallback: T): T {

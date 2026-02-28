@@ -38,11 +38,13 @@ export function createHudInputBase(
   const input = document.createElement('input');
   input.type = options.type ?? 'text';
   if (options.value !== undefined) input.value = options.value;
-  if (options.placeholder !== undefined) input.placeholder = options.placeholder;
+  if (options.placeholder !== undefined)
+    input.placeholder = options.placeholder;
   if (options.name !== undefined) input.name = options.name;
   if (options.id !== undefined) input.id = options.id;
   if (options.autoFocus) input.autofocus = true;
-  if (options.autoComplete !== undefined) input.autocomplete = options.autoComplete;
+  if (options.autoComplete !== undefined)
+    input.autocomplete = options.autoComplete;
   if (options.required) input.required = true;
   if (options.minLength !== undefined) input.minLength = options.minLength;
   if (options.maxLength !== undefined) input.maxLength = options.maxLength;

@@ -1,7 +1,4 @@
-import type {
-  KanbanColumnId,
-  KanbanHabitCard,
-} from '../../types.ts';
+import type { KanbanColumnId, KanbanHabitCard } from '../../types.ts';
 import type { KanbanViewHandlers } from './types.ts';
 import { Checkbox } from '../../../../ui-lib/src/components/Checkbox.ts';
 

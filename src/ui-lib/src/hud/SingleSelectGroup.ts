@@ -59,8 +59,7 @@ export class SingleSelectGroup<T> {
       (options.collapseInactive ? 'expand-active' : 'none');
     this.buttonWidth =
       options.buttonWidth ?? (this.collapseMode === 'none' ? null : 32);
-    this.expandedActiveWidth =
-      options.expandedActiveWidth ?? this.buttonWidth;
+    this.expandedActiveWidth = options.expandedActiveWidth ?? this.buttonWidth;
     this.buttonPadding = options.buttonPadding ?? '0 10px';
     this.disableAnimations = options.disableAnimations ?? false;
     this.isExpanded = this.collapseMode === 'none';

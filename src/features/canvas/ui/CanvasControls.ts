@@ -3,10 +3,7 @@ import { CanvasManager } from '../core/managers/CanvasManager.ts';
 import { Scene } from '../core/scene/Scene.ts';
 import { Subscription } from 'rxjs';
 import { createIcon } from './icons.ts';
-import {
-  createIconButton,
-  createSurface,
-} from './primitives/index.ts';
+import { createIconButton, createSurface } from './primitives/index.ts';
 
 type MiniMapToggleOptions = {
   initialVisible?: boolean;
@@ -47,7 +44,8 @@ export class CanvasControls {
       : 'flex-col items-center';
     const baseClass = embedded ? '' : 'absolute right-4 bottom-4 z-20';
     const defaultClass = `flex ${layoutClass} gap-1 px-3 py-2`;
-    const className = `${baseClass} ${defaultClass} ${options.className ?? ''}`.trim();
+    const className =
+      `${baseClass} ${defaultClass} ${options.className ?? ''}`.trim();
     this.container = useSurface
       ? createSurface({ className })
       : document.createElement('div');
@@ -70,10 +68,9 @@ export class CanvasControls {
     });
 
     const zoomCluster = document.createElement('div');
-    zoomCluster.className =
-      isHorizontal
-        ? 'inline-flex items-center gap-1'
-        : 'inline-flex flex-col items-center gap-1';
+    zoomCluster.className = isHorizontal
+      ? 'inline-flex items-center gap-1'
+      : 'inline-flex flex-col items-center gap-1';
 
     let zoomWrap: HTMLDivElement | null = null;
     if (options.showZoomIndicator) {
@@ -117,13 +114,13 @@ export class CanvasControls {
     this.miniMapToggleHandler = miniMapToggle?.onToggle ?? null;
     this.miniMapToggleBtn = miniMapToggle
       ? createIconButton({
-        icon: this.miniMapVisible
-          ? 'arrows-pointing-in'
-          : 'arrows-pointing-out',
-        title: this.miniMapVisible ? 'Hide mini map' : 'Show mini map',
-        ariaLabel: this.miniMapVisible ? 'Hide mini map' : 'Show mini map',
-        onClick: () => this.handleMiniMapToggle(),
-      })
+          icon: this.miniMapVisible
+            ? 'arrows-pointing-in'
+            : 'arrows-pointing-out',
+          title: this.miniMapVisible ? 'Hide mini map' : 'Show mini map',
+          ariaLabel: this.miniMapVisible ? 'Hide mini map' : 'Show mini map',
+          onClick: () => this.handleMiniMapToggle(),
+        })
       : null;
     this.updateMiniMapToggleButton();
 

@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Status, type Habit } from '../../../../majom-wrapper/interfaces/index.ts';
+import {
+  Status,
+  type Habit,
+} from '../../../../majom-wrapper/interfaces/index.ts';
 import type { KanbanHabitCard } from '../../types.ts';
 import { HabitListComponent } from './HabitList.ts';
 import type { KanbanViewHandlers } from './types.ts';
@@ -57,7 +60,9 @@ describe('HabitListComponent', () => {
     component.sortItems();
 
     expect(component.dueItemList.map((item) => item.habitId)).toEqual([1]);
-    expect(component.completedItemList.map((item) => item.habitId)).toEqual([2]);
+    expect(component.completedItemList.map((item) => item.habitId)).toEqual([
+      2,
+    ]);
   });
 
   it('toggleCompletedList toggles collapsed state set', () => {
@@ -124,5 +129,4 @@ describe('HabitListComponent', () => {
 
     expect(component.isLoading()).toBe(false);
   });
-
 });

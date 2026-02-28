@@ -132,7 +132,9 @@ describe('CanvasApp.saveLayoutPositions', () => {
     const { app, canvasDataService } = createHarness();
     const taskWithoutUuid = createTask({ id: 'task-no-uuid' });
 
-    const saved = await firstValueFrom(runSaveLayout(app, [taskWithoutUuid], true));
+    const saved = await firstValueFrom(
+      runSaveLayout(app, [taskWithoutUuid], true)
+    );
 
     expect(saved).toBe(false);
     expect(notify).toHaveBeenCalledWith(
@@ -145,7 +147,10 @@ describe('CanvasApp.saveLayoutPositions', () => {
   it('saves changed positions and marks save success', async () => {
     const { app, canvasDataService, removeUnsyncedDraft } = createHarness();
     const task = createTask({ uuid: 'task-uuid-1' });
-    const changedPosition = { element_type: 'task', element_uuid: 'task-uuid-1' };
+    const changedPosition = {
+      element_type: 'task',
+      element_uuid: 'task-uuid-1',
+    };
     canvasDataService.filterPositionUpdates.mockReturnValue([changedPosition]);
 
     const saved = await firstValueFrom(runSaveLayout(app, [task], true));
@@ -170,7 +175,9 @@ describe('CanvasApp.saveLayoutPositions', () => {
 
     expect(saved).toBe(true);
     expect(canvasDataService.updateLayoutBatch).not.toHaveBeenCalled();
-    expect(canvasDataService.deletePositions).toHaveBeenCalledWith(['position-1']);
+    expect(canvasDataService.deletePositions).toHaveBeenCalledWith([
+      'position-1',
+    ]);
     expect(canvasDataService.updateCanvasRelations).toHaveBeenCalledTimes(1);
   });
 
@@ -190,7 +197,10 @@ describe('CanvasApp.saveLayoutPositions', () => {
   it('refreshes positions when refresh is required', async () => {
     const { app, canvasDataService } = createHarness();
     const task = createTask({ uuid: 'task-uuid-1' });
-    const changedPosition = { element_type: 'task', element_uuid: 'task-uuid-1' };
+    const changedPosition = {
+      element_type: 'task',
+      element_uuid: 'task-uuid-1',
+    };
     canvasDataService.filterPositionUpdates.mockReturnValue([changedPosition]);
     canvasDataService.needsPositionRefresh.mockReturnValue(true);
 
@@ -209,9 +219,9 @@ describe('CanvasApp.saveLayoutPositions', () => {
       throwError(() => failure)
     );
 
-    await expect(
-      firstValueFrom(runSaveLayout(app, [task], true))
-    ).rejects.toBe(failure);
+    await expect(firstValueFrom(runSaveLayout(app, [task], true))).rejects.toBe(
+      failure
+    );
 
     expect(queueUnsyncedDraft).toHaveBeenCalledWith(
       'relations-sync',

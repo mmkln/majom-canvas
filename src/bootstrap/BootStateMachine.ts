@@ -17,7 +17,11 @@ export function nextBootState(current: BootState, event: BootEvent): BootState {
       if (event === 'session_missing') return 'auth_required';
       return 'ready';
     case 'boot_error':
-      if (event === 'retry' || event === 'session_found' || event === 'login_success') {
+      if (
+        event === 'retry' ||
+        event === 'session_found' ||
+        event === 'login_success'
+      ) {
         return 'booting';
       }
       if (event === 'session_missing') return 'auth_required';

@@ -37,5 +37,3 @@ export function mapStory(
     description: dto.description,
   });
 }
-
-

@@ -8,7 +8,7 @@
     "allowImportingTsExtensions": true,
     "forceConsistentCasingInFileNames": true,
     "outDir": "./dist",
-    "lib": ["ES2016", "DOM"],
+    "lib": ["ES2018", "DOM"],
     "skipLibCheck": true,
     "noEmit": true
   },

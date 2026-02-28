@@ -23,7 +23,10 @@ export class SetHighlightCommand extends Command {
   }
 
   undo(): void {
-    this.scene.setHighlightedElementById(this.elementId, this.previousHighlighted);
+    this.scene.setHighlightedElementById(
+      this.elementId,
+      this.previousHighlighted
+    );
     this.notifyPositionsDirty();
   }
 

@@ -183,7 +183,8 @@ export class ExistingEntityPicker<TItem> {
     searchInput.focus();
 
     this.dropCompletedHandler = (event: Event) => {
-      const customEvent = event as CustomEvent<ExistingPickerDropCompletedDetail>;
+      const customEvent =
+        event as CustomEvent<ExistingPickerDropCompletedDetail>;
       if (customEvent.detail?.kind !== this.config.dragKind) return;
       this.pendingDropCompleted = true;
       if (!this.pickerDragActive) {
@@ -311,7 +312,11 @@ export class ExistingEntityPicker<TItem> {
       row.className =
         'mb-2 cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200';
       if (onCanvas) {
-        row.classList.remove('border-slate-200', 'bg-white', 'hover:bg-slate-50');
+        row.classList.remove(
+          'border-slate-200',
+          'bg-white',
+          'hover:bg-slate-50'
+        );
         row.classList.add(
           'border-emerald-200',
           'bg-emerald-50/60',
@@ -388,7 +393,9 @@ export class ExistingEntityPicker<TItem> {
       const title = document.createElement('div');
       title.className =
         'truncate text-[14px] font-semibold leading-5 text-slate-900';
-      title.textContent = this.config.getTitle(item) || `Untitled ${this.config.itemLabel.toLowerCase()}`;
+      title.textContent =
+        this.config.getTitle(item) ||
+        `Untitled ${this.config.itemLabel.toLowerCase()}`;
       textWrap.appendChild(title);
 
       if (onCanvas) {
@@ -400,7 +407,9 @@ export class ExistingEntityPicker<TItem> {
       }
 
       const actionBtn = createTextButton({
-        text: onCanvas ? (this.config.findLabel ?? 'Find') : (this.config.addLabel ?? 'Add'),
+        text: onCanvas
+          ? (this.config.findLabel ?? 'Find')
+          : (this.config.addLabel ?? 'Add'),
         tone: onCanvas ? 'text' : 'soft',
         className: 'h-7 px-2 py-1 text-xs font-medium',
       });
@@ -525,10 +534,7 @@ export class ExistingEntityPicker<TItem> {
     this.list.appendChild(row);
   }
 
-  private createChip(
-    label: string,
-    palette: string
-  ): HTMLSpanElement {
+  private createChip(label: string, palette: string): HTMLSpanElement {
     const chip = document.createElement('span');
     chip.className =
       `inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.06em] ${palette}`.trim();
@@ -612,7 +618,9 @@ export class ExistingEntityPicker<TItem> {
   }
 
   private shouldSuppressPick(): boolean {
-    return this.pickerDragActive || performance.now() < this.suppressPickUntilTs;
+    return (
+      this.pickerDragActive || performance.now() < this.suppressPickUntilTs
+    );
   }
 
   private setViewMode(mode: 'full' | 'mini'): void {

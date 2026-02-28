@@ -16,5 +16,11 @@ export type {
   StoryGoalLinkResult,
   StoryGoalLinkOptions,
 } from './services/CanvasDataService.ts';
-export type { CanvasPositionReadDTO, CanvasPositionWriteDTO } from './data-access/canvas-position-dto.ts';
-export type { LoginCredentials, AuthResponse } from './interfaces/auth-interfaces.ts';
+export type {
+  CanvasPositionReadDTO,
+  CanvasPositionWriteDTO,
+} from './data-access/canvas-position-dto.ts';
+export type {
+  LoginCredentials,
+  AuthResponse,
+} from './interfaces/auth-interfaces.ts';

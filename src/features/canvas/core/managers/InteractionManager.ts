@@ -255,9 +255,16 @@ export class InteractionManager {
       | null;
 
     // Check for connection point first to prioritize connection creation
-    const connectables = [...this.scene.getShapes(), ...planningEls] as IConnectable[];
-    const connectionPointHit = this.findConnectionPointAt(sceneX, sceneY, connectables);
-    
+    const connectables = [
+      ...this.scene.getShapes(),
+      ...planningEls,
+    ] as IConnectable[];
+    const connectionPointHit = this.findConnectionPointAt(
+      sceneX,
+      sceneY,
+      connectables
+    );
+
     if (connectionPointHit) {
       // If clicking on a connection point, prioritize connection creation over existing connection selection
       if (this.connectionService.start(sceneX, sceneY)) {
@@ -271,7 +278,7 @@ export class InteractionManager {
       this.updateSelectionOnClick(existingConn, e.shiftKey);
       return true;
     }
-    
+
     // service-based connection creation start (fallback)
     if (this.connectionService.start(sceneX, sceneY)) {
       return true;
@@ -282,14 +289,11 @@ export class InteractionManager {
         (el) => el.id === clickedItem.id
       );
       const shouldDragSelectionGroup =
-        clickedAlreadySelected &&
-        selectedBeforeClick.length > 1 &&
-        !e.shiftKey;
+        clickedAlreadySelected && selectedBeforeClick.length > 1 && !e.shiftKey;
 
       if (shouldDragSelectionGroup) {
-        this.pendingDragGroup = SelectionService.getDragGroup(
-          selectedBeforeClick
-        );
+        this.pendingDragGroup =
+          SelectionService.getDragGroup(selectedBeforeClick);
         this.pendingDragStartX = sceneX;
         this.pendingDragStartY = sceneY;
         this.pendingDragClickTarget = clickedItem;
@@ -443,7 +447,10 @@ export class InteractionManager {
     }
 
     // arm drag only after threshold (prevents micro-moves on click)
-    if ((this.pendingDragItem || this.pendingDragGroup) && this.shouldStartDrag(sceneX, sceneY)) {
+    if (
+      (this.pendingDragItem || this.pendingDragGroup) &&
+      this.shouldStartDrag(sceneX, sceneY)
+    ) {
       if (this.pendingDragGroup) {
         this.draggingGroup = this.pendingDragGroup;
         this.initialPositions.clear();
@@ -591,12 +598,7 @@ export class InteractionManager {
       const tasks = this.scene
         .getElements()
         .filter((el) => el instanceof TaskElement) as TaskElement[];
-      const plan = this.storyLayoutService.planResize(
-        story,
-        tasks,
-        newW,
-        newH
-      );
+      const plan = this.storyLayoutService.planResize(story, tasks, newW, newH);
       const anchored = this.getResizeAnchoredPosition(
         plan.nextWidth,
         plan.nextHeight
@@ -846,7 +848,9 @@ export class InteractionManager {
           height: el.height,
         })
       ) {
-        historyService.execute(new ResizeCommand(this.scene, initial, finalMap));
+        historyService.execute(
+          new ResizeCommand(this.scene, initial, finalMap)
+        );
       }
       // clear resizing state
       this.resizingElement = null;
@@ -957,14 +961,18 @@ export class InteractionManager {
     const tasks = sceneElements.filter(
       (element): element is TaskElement => element instanceof TaskElement
     );
-    const draggedTasks = tasks.filter((task) => this.initialPositions.has(task.id));
+    const draggedTasks = tasks.filter((task) =>
+      this.initialPositions.has(task.id)
+    );
     if (draggedTasks.length === 0) {
       this.clearTaskDropPreviewState();
       return;
     }
     const stories = sceneElements
       .filter(isPlanningElement)
-      .filter((element): element is StoryElement => element instanceof StoryElement);
+      .filter(
+        (element): element is StoryElement => element instanceof StoryElement
+      );
     if (stories.length === 0) {
       this.clearTaskDropPreviewState();
       return;
@@ -1056,8 +1064,14 @@ export class InteractionManager {
   ): {
     movedInitial: Map<string, { x: number; y: number }>;
     movedFinal: Map<string, { x: number; y: number }>;
-    resizedInitial: Map<string, { x: number; y: number; width: number; height: number }>;
-    resizedFinal: Map<string, { x: number; y: number; width: number; height: number }>;
+    resizedInitial: Map<
+      string,
+      { x: number; y: number; width: number; height: number }
+    >;
+    resizedFinal: Map<
+      string,
+      { x: number; y: number; width: number; height: number }
+    >;
   } {
     const movedInitial = new Map<string, { x: number; y: number }>();
     const movedFinal = new Map<string, { x: number; y: number }>();
@@ -1162,9 +1176,15 @@ export class InteractionManager {
   ): { x: number; y: number } {
     switch (this.resizeDirection) {
       case 'ne':
-        return { x: this.initialX, y: this.initialY + this.initialHeight - height };
+        return {
+          x: this.initialX,
+          y: this.initialY + this.initialHeight - height,
+        };
       case 'sw':
-        return { x: this.initialX + this.initialWidth - width, y: this.initialY };
+        return {
+          x: this.initialX + this.initialWidth - width,
+          y: this.initialY,
+        };
       case 'nw':
         return {
           x: this.initialX + this.initialWidth - width,

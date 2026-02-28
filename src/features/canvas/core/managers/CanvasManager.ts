@@ -88,8 +88,10 @@ export class CanvasManager {
   } | null = null;
   private pinchCenter: { x: number; y: number } | null = null;
   private pinchElement: StoryElement | null = null;
-  private pinchInitialTaskPositions: Map<string, { x: number; y: number }> | null =
-    null;
+  private pinchInitialTaskPositions: Map<
+    string,
+    { x: number; y: number }
+  > | null = null;
   private readonly storyLayoutService = new StoryLayoutService();
 
   // Pinch-to-zoom state
@@ -119,7 +121,9 @@ export class CanvasManager {
     new Subject<void>();
   public readonly loadingPlaceholdersChanges$ =
     this.loadingPlaceholdersChangesSubject.asObservable();
-  private readonly loadPhaseSubject = new BehaviorSubject<CanvasLoadPhase>('idle');
+  private readonly loadPhaseSubject = new BehaviorSubject<CanvasLoadPhase>(
+    'idle'
+  );
   public readonly loadPhase$ = this.loadPhaseSubject.asObservable();
   private sceneChangesSubscription: Subscription | null = null;
   private sceneFocusChangesSubscription: Subscription | null = null;
@@ -192,11 +196,7 @@ export class CanvasManager {
     this.canvas.addEventListener('mouseup', this.mouseUpHandler);
     this.canvas.addEventListener('dblclick', this.doubleClickHandler);
     this.canvas.addEventListener('contextmenu', this.contextMenuHandler);
-    window.addEventListener(
-      'contextmenu',
-      this.windowContextMenuHandler,
-      true
-    );
+    window.addEventListener('contextmenu', this.windowContextMenuHandler, true);
     window.addEventListener('mouseup', this.windowMouseUpHandler);
 
     // Pointer events for touch/mobile support
@@ -206,9 +206,18 @@ export class CanvasManager {
     this.canvas.addEventListener('pointercancel', this.pointerUpHandler);
 
     // Gesture events (Mac Safari pinch-to-zoom)
-    this.canvas.addEventListener('gesturestart', this.gestureStartHandler as EventListener);
-    this.canvas.addEventListener('gesturechange', this.gestureChangeHandler as EventListener);
-    this.canvas.addEventListener('gestureend', this.gestureEndHandler as EventListener);
+    this.canvas.addEventListener(
+      'gesturestart',
+      this.gestureStartHandler as EventListener
+    );
+    this.canvas.addEventListener(
+      'gesturechange',
+      this.gestureChangeHandler as EventListener
+    );
+    this.canvas.addEventListener(
+      'gestureend',
+      this.gestureEndHandler as EventListener
+    );
 
     this.resizeCanvas();
   }
@@ -416,7 +425,8 @@ export class CanvasManager {
       el.draw(this.ctx, this.panZoom);
     });
 
-    const taskDropPlaceholders = this.interactionManager.getTaskDropPlaceholders();
+    const taskDropPlaceholders =
+      this.interactionManager.getTaskDropPlaceholders();
     if (taskDropPlaceholders.length > 0) {
       this.ctx.save();
       this.ctx.fillStyle = TASK_DROP_PLACEHOLDER_FILL;
@@ -942,8 +952,7 @@ export class CanvasManager {
     const focused = focusedElementUuid ?? null;
     this.loadingPlaceholders = placeholders.map((placeholder) => ({
       ...placeholder,
-      isFocused:
-        Boolean(focused) && focused === placeholder.elementUuid,
+      isFocused: Boolean(focused) && focused === placeholder.elementUuid,
     }));
     this.loadingPlaceholdersChangesSubject.next();
     this.requestDraw();
@@ -1005,7 +1014,9 @@ export class CanvasManager {
   }
 
   public get isResizingStory(): boolean {
-    return this.interactionManager.isResizingStory || this.pinchElement !== null;
+    return (
+      this.interactionManager.isResizingStory || this.pinchElement !== null
+    );
   }
 
   private notifyInteractionStart(kind: 'drag' | 'resize'): void {
@@ -1110,8 +1121,9 @@ export class CanvasManager {
           width: this.pinchElement.width,
           height: this.pinchElement.height,
         };
-        this.pinchInitialTaskPositions =
-          this.captureStoryTaskPositions(this.pinchElement);
+        this.pinchInitialTaskPositions = this.captureStoryTaskPositions(
+          this.pinchElement
+        );
         const rect = this.canvas.getBoundingClientRect();
         const midX = (p1.x + p2.x) / 2 - rect.left;
         const midY = (p1.y + p2.y) / 2 - rect.top;

@@ -44,7 +44,8 @@ export class UIManager {
   private readonly addExistingTaskService: AddExistingTaskService;
   private readonly addExistingGoalService: AddExistingGoalService;
   private readonly addExistingStoryService: AddExistingStoryService;
-  private existingPickerDragStateHandler: ((event: Event) => void) | null = null;
+  private existingPickerDragStateHandler: ((event: Event) => void) | null =
+    null;
   private existingPickerDragMoveHandler: ((event: Event) => void) | null = null;
   private externalGoalDragOverlay: HTMLDivElement | null = null;
   private externalGoalDropPreview: HTMLDivElement | null = null;
@@ -124,19 +125,20 @@ export class UIManager {
           }))
         )
     );
-    const existingStoryPicker = new ExistingStoryPicker((term, page, pageSize) =>
-      storiesApi
-        .fetchStories({
-          page,
-          pageSize,
-          search: term || undefined,
-        })
-        .pipe(
-          map((res) => ({
-            items: res.results || [],
-            hasMore: Boolean(res.next),
-          }))
-        )
+    const existingStoryPicker = new ExistingStoryPicker(
+      (term, page, pageSize) =>
+        storiesApi
+          .fetchStories({
+            page,
+            pageSize,
+            search: term || undefined,
+          })
+          .pipe(
+            map((res) => ({
+              items: res.results || [],
+              hasMore: Boolean(res.next),
+            }))
+          )
     );
     const contextMenu = new ContextMenu(
       this.scene,
@@ -444,7 +446,11 @@ export class UIManager {
       this.externalGoalGlobalDragOverHandler = null;
     }
     if (this.externalGoalGlobalDropHandler) {
-      window.removeEventListener('drop', this.externalGoalGlobalDropHandler, true);
+      window.removeEventListener(
+        'drop',
+        this.externalGoalGlobalDropHandler,
+        true
+      );
       this.externalGoalGlobalDropHandler = null;
     }
     const canvas = this.canvasManager.getCanvas();
@@ -476,11 +482,7 @@ export class UIManager {
     const threshold = 96;
     const maxSpeed = 26;
 
-    const speedByAxis = (
-      pointer: number,
-      min: number,
-      max: number
-    ): number => {
+    const speedByAxis = (pointer: number, min: number, max: number): number => {
       if (pointer < min + threshold) {
         const ratio = Math.min(1, (min + threshold - pointer) / threshold);
         return -maxSpeed * ratio;
@@ -498,7 +500,10 @@ export class UIManager {
     };
   }
 
-  private isInsideExternalGoalOverlay(clientX: number, clientY: number): boolean {
+  private isInsideExternalGoalOverlay(
+    clientX: number,
+    clientY: number
+  ): boolean {
     if (!this.externalGoalDragOverlay) return false;
     const rect = this.externalGoalDragOverlay.getBoundingClientRect();
     return (
