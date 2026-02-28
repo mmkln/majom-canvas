@@ -547,6 +547,7 @@ export class ContextMenu {
       variant: item.variant,
       tone: item.tone === 'danger' ? 'danger' : 'default',
       className: `${warningClassName} ${item.className ?? ''}`.trim(),
+      primaryTransparent: true,
       leading: item.leading ?? null,
       trailing: item.trailing ?? null,
       secondaryIcon: item.secondaryIcon,

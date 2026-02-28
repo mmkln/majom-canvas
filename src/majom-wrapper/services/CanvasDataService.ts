@@ -898,19 +898,25 @@ export class CanvasDataService {
           const activeCanvas = {
             id: selectedCanvas.id,
             name: selectedCanvas.name,
+            meta: selectedCanvas.meta,
           };
           this.setActiveCanvas(activeCanvas);
           return of({
             canvases: canvases.map((canvas) => ({
               id: canvas.id,
               name: canvas.name,
+              meta: canvas.meta,
             })),
             activeCanvas,
           });
         }
         return this.canvasApi.createCanvas('New canvas').pipe(
           map((created) => {
-            const activeCanvas = { id: created.id, name: created.name };
+            const activeCanvas = {
+              id: created.id,
+              name: created.name,
+              meta: created.meta,
+            };
             this.setActiveCanvas(activeCanvas);
             return {
               canvases: [activeCanvas],
@@ -1485,6 +1491,53 @@ export class CanvasDataService {
       switchMap((canvas) => this.canvasApi.updateCanvas(canvas.id, safeName)),
       map((updated) => {
         this.setActiveCanvas(updated);
+        return updated;
+      })
+    );
+  }
+
+  public updateCanvasFavorite(input: {
+    id: string;
+    name?: string;
+    isFavorite: boolean;
+    meta?: Record<string, unknown> | null;
+  }): Observable<Pick<CanvasSummary, 'id' | 'name' | 'meta'>> {
+    const sourceCanvas$ =
+      input.name !== undefined && input.meta !== undefined
+        ? of({ name: input.name, meta: input.meta })
+        : this.canvasApi.loadCanvas(input.id).pipe(
+            map((canvas) => ({
+              name: canvas.name,
+              meta: canvas.meta ?? null,
+            })),
+            catchError(() =>
+              of({
+                name: input.name ?? 'New canvas',
+                meta: input.meta ?? null,
+              })
+            )
+          );
+
+    return sourceCanvas$.pipe(
+      switchMap((sourceCanvas) => {
+        const safeName =
+          typeof sourceCanvas.name === 'string' &&
+          sourceCanvas.name.trim().length > 0
+            ? sourceCanvas.name.trim()
+            : 'New canvas';
+        const baseMeta: Record<string, unknown> =
+          sourceCanvas.meta &&
+          typeof sourceCanvas.meta === 'object' &&
+          !Array.isArray(sourceCanvas.meta)
+            ? { ...sourceCanvas.meta }
+            : {};
+        baseMeta.favorite = input.isFavorite;
+        return this.canvasApi.updateCanvas(input.id, safeName, baseMeta);
+      }),
+      map((updated) => {
+        if (this.canvasId === updated.id) {
+          this.setActiveCanvas(updated);
+        }
         return updated;
       })
     );

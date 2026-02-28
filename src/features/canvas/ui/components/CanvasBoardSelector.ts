@@ -3,13 +3,14 @@ import {
   createDropdownItem,
   createInputBase,
   createIconButton,
+  createSplitDropdownItem,
   createTextButton,
   Dropdown,
   createSurface,
 } from '../primitives/index.ts';
 import { createIcon } from '../icons.ts';
 
-type CanvasItem = { id: string; name: string };
+type CanvasItem = { id: string; name: string; isFavorite: boolean };
 
 export class CanvasBoardSelector {
   private readonly container: HTMLDivElement;
@@ -28,6 +29,8 @@ export class CanvasBoardSelector {
   private activeCanvasId: string | null = null;
   private canvasListHandler: ((event: Event) => void) | null = null;
   private canvasTitleHandler: ((event: Event) => void) | null = null;
+  private canvasFavoriteToggleFailedHandler: ((event: Event) => void) | null =
+    null;
   private readonly dropdownController: Dropdown;
 
   constructor() {
@@ -124,7 +127,11 @@ export class CanvasBoardSelector {
 
     this.canvasListHandler = (event: Event) => {
       const customEvent = event as CustomEvent<{
-        canvases?: CanvasItem[];
+        canvases?: Array<{
+          id?: string;
+          name?: string;
+          isFavorite?: boolean;
+        }>;
         activeId?: string | null;
       }>;
       const rawCanvases = customEvent.detail?.canvases;
@@ -138,12 +145,28 @@ export class CanvasBoardSelector {
             typeof canvas?.name === 'string' && canvas.name.trim().length > 0
               ? canvas.name
               : 'New canvas',
+          isFavorite: canvas?.isFavorite === true,
         }))
         : [];
       this.activeCanvasId = customEvent.detail?.activeId ?? null;
       this.renderCanvasList();
     };
     window.addEventListener('canvasListUpdated', this.canvasListHandler);
+
+    this.canvasFavoriteToggleFailedHandler = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        id?: string;
+        previousIsFavorite?: boolean;
+      }>;
+      const id = customEvent.detail?.id;
+      const previousIsFavorite = customEvent.detail?.previousIsFavorite;
+      if (!id || typeof previousIsFavorite !== 'boolean') return;
+      this.setCanvasFavorite(id, previousIsFavorite);
+    };
+    window.addEventListener(
+      'canvasFavoriteToggleFailed',
+      this.canvasFavoriteToggleFailedHandler
+    );
     this.dropdownController.mount();
   }
 
@@ -155,6 +178,13 @@ export class CanvasBoardSelector {
     if (this.canvasListHandler) {
       window.removeEventListener('canvasListUpdated', this.canvasListHandler);
       this.canvasListHandler = null;
+    }
+    if (this.canvasFavoriteToggleFailedHandler) {
+      window.removeEventListener(
+        'canvasFavoriteToggleFailed',
+        this.canvasFavoriteToggleFailedHandler
+      );
+      this.canvasFavoriteToggleFailedHandler = null;
     }
     this.dropdownController.unmount();
     this.container.remove();
@@ -212,15 +242,37 @@ export class CanvasBoardSelector {
       return;
     }
 
-    this.canvases.forEach((canvas) => {
+    const sortedCanvases = this.canvases
+      .map((canvas, index) => ({ canvas, index }))
+      .sort((left, right) => {
+        const favoriteOrder =
+          Number(right.canvas.isFavorite) - Number(left.canvas.isFavorite);
+        if (favoriteOrder !== 0) return favoriteOrder;
+        return left.index - right.index;
+      })
+      .map((entry) => entry.canvas);
+
+    sortedCanvases.forEach((canvas) => {
       const isActive = canvas.id === this.activeCanvasId;
       const isUnavailable = canvas.id.startsWith('missing-id-');
-      const row = createDropdownItem({
+      const row = createSplitDropdownItem({
         label: canvas.name,
         variant: isActive ? 'selected' : 'default',
+        tone: 'default',
+        primaryTransparent: !isActive,
         trailing: isActive ? this.createCheckIcon() : null,
+        className: 'min-w-0',
         disabled: isUnavailable,
-        onClick: () => {
+        secondaryIcon: canvas.isFavorite ? 'star-solid' : 'star',
+        secondaryLabel: canvas.isFavorite
+          ? 'Remove from favourites'
+          : 'Add to favourites',
+        secondaryTone: canvas.isFavorite
+          ? 'favorite-active'
+          : 'favorite-inactive',
+        secondaryPressed: canvas.isFavorite,
+        secondaryDisabled: isUnavailable,
+        onPrimaryClick: () => {
           if (isUnavailable) return;
           window.dispatchEvent(
             new CustomEvent('canvasSelected', {
@@ -229,8 +281,11 @@ export class CanvasBoardSelector {
           );
           this.setDropdownOpen(false);
         },
+        onSecondaryClick: () => {
+          if (isUnavailable) return;
+          this.handleFavoriteToggle(canvas);
+        },
       });
-
       this.listWrap.appendChild(row);
     });
   }
@@ -252,4 +307,32 @@ export class CanvasBoardSelector {
     check.appendChild(icon);
     return check;
   }
+
+  private handleFavoriteToggle(canvas: CanvasItem): void {
+    const nextIsFavorite = !canvas.isFavorite;
+    this.setCanvasFavorite(canvas.id, nextIsFavorite);
+    window.dispatchEvent(
+      new CustomEvent('canvasFavoriteToggled', {
+        detail: {
+          id: canvas.id,
+          isFavorite: nextIsFavorite,
+          previousIsFavorite: canvas.isFavorite,
+        },
+      })
+    );
+  }
+
+  private setCanvasFavorite(id: string, isFavorite: boolean): void {
+    let changed = false;
+    this.canvases = this.canvases.map((canvas) => {
+      if (canvas.id !== id) return canvas;
+      if (canvas.isFavorite === isFavorite) return canvas;
+      changed = true;
+      return { ...canvas, isFavorite };
+    });
+    if (changed) {
+      this.renderCanvasList();
+    }
+  }
+
 }

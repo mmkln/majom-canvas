@@ -46,6 +46,18 @@ import { authFlowService } from './ui/auth/authFlowService.ts';
 import { firstValueFrom, Observable, of, Subscription, throwError } from 'rxjs';
 import { catchError, finalize, map, switchMap } from 'rxjs/operators';
 
+type CanvasListUiItem = {
+  id: string;
+  name: string;
+  isFavorite: boolean;
+};
+
+type CanvasListCacheItem = {
+  id: string;
+  name: string;
+  meta?: Record<string, unknown> | null;
+};
+
 export class CanvasApp {
   private readonly dataProvider: IDataProvider;
   private readonly canvas: HTMLCanvasElement;
@@ -68,6 +80,7 @@ export class CanvasApp {
   private sceneChangesSubscription: Subscription | null = null;
   private elementUpdateStatusSubscription: Subscription | null = null;
   private destroyed = false;
+  private readonly canvasListCache = new Map<string, CanvasListCacheItem>();
 
   private readonly refreshCanvasDataHandler = (): void =>
     this.loadCanvasFromApi();
@@ -79,6 +92,8 @@ export class CanvasApp {
     this.handleCanvasSelected(event);
   private readonly canvasCreateRequestedHandler = (): void =>
     this.handleCanvasCreateRequested();
+  private readonly canvasFavoriteToggledHandler = (event: Event): void =>
+    this.handleCanvasFavoriteToggled(event);
   private readonly canvasDeleteRequestedHandler = (): void => {
     void this.handleCanvasDeleteRequested();
   };
@@ -150,6 +165,10 @@ export class CanvasApp {
       this.canvasCreateRequestedHandler
     );
     window.addEventListener(
+      'canvasFavoriteToggled',
+      this.canvasFavoriteToggledHandler
+    );
+    window.addEventListener(
       'canvasDeleteRequested',
       this.canvasDeleteRequestedHandler
     );
@@ -185,6 +204,10 @@ export class CanvasApp {
     window.removeEventListener(
       'canvasCreateRequested',
       this.canvasCreateRequestedHandler
+    );
+    window.removeEventListener(
+      'canvasFavoriteToggled',
+      this.canvasFavoriteToggledHandler
     );
     window.removeEventListener(
       'canvasDeleteRequested',
@@ -295,6 +318,56 @@ export class CanvasApp {
         notify('Failed to create canvas', 'error');
       },
     });
+  }
+
+  private handleCanvasFavoriteToggled(event: Event): void {
+    const customEvent = event as CustomEvent<{
+      id?: string;
+      isFavorite?: boolean;
+      previousIsFavorite?: boolean;
+    }>;
+    const id = customEvent.detail?.id;
+    const isFavorite = customEvent.detail?.isFavorite;
+    if (!id || typeof isFavorite !== 'boolean') return;
+
+    const previousIsFavorite = customEvent.detail?.previousIsFavorite;
+    if (!this.authService.isLoggedIn()) {
+      authFlowService.requestLogin('protected-action');
+      if (typeof previousIsFavorite === 'boolean') {
+        this.emitCanvasFavoriteToggleFailed(id, previousIsFavorite);
+      }
+      return;
+    }
+
+    const cachedCanvas = this.canvasListCache.get(id);
+    this.canvasDataService
+      .updateCanvasFavorite({
+        id,
+        isFavorite,
+        name: cachedCanvas?.name,
+        meta: cachedCanvas?.meta,
+      })
+      .subscribe({
+        next: (updated) => {
+          const fallbackName = cachedCanvas?.name ?? 'New canvas';
+          this.canvasListCache.set(id, {
+            id,
+            name: updated.name || fallbackName,
+            meta: updated.meta ?? cachedCanvas?.meta ?? null,
+          });
+          this.emitCanvasList(
+            this.getCanvasListUiItemsFromCache(),
+            this.canvasDataService.getActiveCanvasId()
+          );
+        },
+        error: (err) => {
+          console.error('Failed to update canvas favourite', err);
+          notify('Failed to update favourite', 'error');
+          if (typeof previousIsFavorite === 'boolean') {
+            this.emitCanvasFavoriteToggleFailed(id, previousIsFavorite);
+          }
+        },
+      });
   }
 
   private handleElementDetailsEdited(event: Event): void {
@@ -437,7 +510,11 @@ export class CanvasApp {
     this.canvasDataService.bootstrapCanvas().subscribe({
       next: ({ canvases, activeCanvas }) => {
         this.setCanvasTitle(activeCanvas.name);
-        this.emitCanvasList(canvases, activeCanvas.id);
+        this.setCanvasListCache(canvases);
+        this.emitCanvasList(
+          this.getCanvasListUiItemsFromCache(),
+          activeCanvas.id
+        );
         this.restoreCanvasViewState(activeCanvas.id).finally(() => {
           this.loadActiveCanvasElements();
         });
@@ -922,13 +999,18 @@ export class CanvasApp {
 
   private refreshCanvasList(activeId?: string | null): void {
     if (!this.authService.isLoggedIn()) {
+      this.canvasListCache.clear();
       this.emitCanvasList([], null);
       return;
     }
     this.canvasDataService.loadCanvases().subscribe({
       next: (canvases) => {
         const selectedId = activeId || this.canvasDataService.getActiveCanvasId();
-        this.emitCanvasList(canvases, selectedId ?? null);
+        this.setCanvasListCache(canvases);
+        this.emitCanvasList(
+          this.getCanvasListUiItemsFromCache(),
+          selectedId ?? null
+        );
       },
       error: (err) => {
         console.error('Failed to load canvases', err);
@@ -937,7 +1019,7 @@ export class CanvasApp {
   }
 
   private emitCanvasList(
-    canvases: Array<{ id: string; name: string }>,
+    canvases: CanvasListUiItem[],
     activeId: string | null
   ): void {
     window.dispatchEvent(
@@ -951,6 +1033,62 @@ export class CanvasApp {
     this.canvasTitle = title;
     window.dispatchEvent(
       new CustomEvent('canvasTitleChanged', { detail: { title } })
+    );
+  }
+
+  private mapCanvasListUiItem(canvas: {
+    id: string;
+    name: string;
+    meta?: Record<string, unknown> | null;
+  }): CanvasListUiItem {
+    return {
+      id: canvas.id,
+      name: canvas.name,
+      isFavorite: this.extractCanvasFavoriteFlag(canvas.meta),
+    };
+  }
+
+  private setCanvasListCache(
+    canvases: Array<{
+      id: string;
+      name: string;
+      meta?: Record<string, unknown> | null;
+    }>
+  ): void {
+    this.canvasListCache.clear();
+    canvases.forEach((canvas) => {
+      this.canvasListCache.set(canvas.id, {
+        id: canvas.id,
+        name: canvas.name,
+        meta: canvas.meta,
+      });
+    });
+  }
+
+  private getCanvasListUiItemsFromCache(): CanvasListUiItem[] {
+    return Array.from(this.canvasListCache.values()).map((canvas) =>
+      this.mapCanvasListUiItem(canvas)
+    );
+  }
+
+  private extractCanvasFavoriteFlag(
+    meta: Record<string, unknown> | null | undefined
+  ): boolean {
+    if (!meta) return false;
+    const favorite = meta.favorite;
+    if (typeof favorite === 'boolean') return favorite;
+    const favourite = meta.favourite;
+    return typeof favourite === 'boolean' ? favourite : false;
+  }
+
+  private emitCanvasFavoriteToggleFailed(
+    id: string,
+    previousIsFavorite: boolean
+  ): void {
+    window.dispatchEvent(
+      new CustomEvent('canvasFavoriteToggleFailed', {
+        detail: { id, previousIsFavorite },
+      })
     );
   }
 
@@ -1120,10 +1258,6 @@ export class CanvasApp {
     this.removeCanvasConnections(duplicates);
   }
 }
-
-
-
-
 
 
 
