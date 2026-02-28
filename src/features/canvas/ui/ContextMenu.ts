@@ -236,11 +236,11 @@ export class ContextMenu {
         title: 'Add item',
         items: [
           {
-            label: 'Task',
-            action: () => this.createTaskAt(sceneX, sceneY),
-            secondaryAction: () => this.openExistingTaskPicker(sceneX, sceneY),
+            label: 'Goal',
+            action: () => this.createGoalAt(sceneX, sceneY),
+            secondaryAction: () => this.openExistingGoalPicker(sceneX, sceneY),
             secondaryIcon: 'magnifying-glass',
-            secondaryLabel: 'Find existing task',
+            secondaryLabel: 'Find existing goal',
           },
           {
             label: 'Story',
@@ -250,11 +250,11 @@ export class ContextMenu {
             secondaryLabel: 'Find existing story',
           },
           {
-            label: 'Goal',
-            action: () => this.createGoalAt(sceneX, sceneY),
-            secondaryAction: () => this.openExistingGoalPicker(sceneX, sceneY),
+            label: 'Task',
+            action: () => this.createTaskAt(sceneX, sceneY),
+            secondaryAction: () => this.openExistingTaskPicker(sceneX, sceneY),
             secondaryIcon: 'magnifying-glass',
-            secondaryLabel: 'Find existing goal',
+            secondaryLabel: 'Find existing task',
           },
         ],
       });
@@ -494,14 +494,17 @@ export class ContextMenu {
     return wrap;
   }
 
-  private createStatusIcon(status: ElementStatus): SVGSVGElement {
+  private createStatusIcon(status: ElementStatus): HTMLSpanElement {
+    const wrap = document.createElement('span');
+    wrap.className = 'inline-flex items-center justify-center';
     const icon = createIcon(STATUS_ICON_MAP[status], {
       size: 14,
       strokeWidth: 1.7,
     });
     icon.classList.add('shrink-0', STATUS_ICON_TONE_CLASS[status]);
     icon.setAttribute('aria-hidden', 'true');
-    return icon;
+    wrap.appendChild(icon);
+    return wrap;
   }
 
   private createActiveStatusCheck(): HTMLSpanElement {
@@ -540,13 +543,13 @@ export class ContextMenu {
 
     const primary = this.createActionButton({
       ...item,
+      className: `${item.className ?? ''} !w-auto grow border-0 !rounded-none !bg-transparent hover:!bg-indigo-50 group-hover:!bg-indigo-50 focus-visible:!bg-indigo-50 group-focus-within:!bg-indigo-50 group-hover:!text-slate-800 group-focus-within:!text-slate-800`.trim(),
     });
-    primary.classList.add('!w-auto', 'grow', 'border-0');
 
     const secondary = document.createElement('button');
     secondary.type = 'button';
     secondary.className =
-      'inline-flex w-11 shrink-0 items-center justify-center text-slate-500 transition-colors hover:bg-indigo-50 hover:text-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:ring-inset';
+      'inline-flex w-11 shrink-0 items-center justify-center border-l border-transparent text-slate-500 transition-colors bg-transparent group-hover:border-indigo-100 group-hover:bg-indigo-50 group-focus-within:bg-indigo-50 group-focus-within:text-indigo-600 hover:!bg-indigo-100 hover:!text-indigo-600 focus-visible:!bg-indigo-100 focus-visible:!text-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:ring-inset';
     secondary.title = item.secondaryLabel;
     secondary.setAttribute('aria-label', item.secondaryLabel);
     secondary.setAttribute('role', 'menuitem');
