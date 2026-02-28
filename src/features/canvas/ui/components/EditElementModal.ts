@@ -6,10 +6,10 @@ import { ComponentFactory } from '../../../../ui-lib/src/core/ComponentFactory.t
 import { createModalShell } from '../../../../ui-lib/src/components/Modal.js';
 import { confirmUnsavedChangesModal } from './ConfirmUnsavedChangesModal.ts';
 import {
-  createHudField,
-  createHudSegmentedControl,
-  createHudTextButton,
-  type HudSegmentedControl,
+  createField,
+  createSegmentedControl,
+  createTextButton,
+  type SegmentedControl,
 } from '../primitives/index.ts';
 import {
   ELEMENT_STATUS_OPTIONS,
@@ -19,9 +19,9 @@ import {
 // Modal for editing title, status, and priority of an element
 export class EditElementModal {
   private modal: HTMLDivElement | null = null;
-  private priorityControl: HudSegmentedControl<'low' | 'medium' | 'high'> | null =
+  private priorityControl: SegmentedControl<'low' | 'medium' | 'high'> | null =
     null;
-  private scaleControl: HudSegmentedControl<GoalScale> | null = null;
+  private scaleControl: SegmentedControl<GoalScale> | null = null;
 
   constructor(
     private element: TaskElement | StoryElement | GoalElement,
@@ -105,7 +105,7 @@ export class EditElementModal {
     };
 
     // Title input with label
-    const titleField = createHudField({ label: 'Title', required: true });
+    const titleField = createField({ label: 'Title', required: true });
     const titleInput = ComponentFactory.createInput({
       variant: 'default',
       value: tempTitle,
@@ -125,7 +125,7 @@ export class EditElementModal {
     container.appendChild(titleField.element);
 
     // Description textarea with label
-    const descField = createHudField({ label: 'Description' });
+    const descField = createField({ label: 'Description' });
     const descTextarea = ComponentFactory.createTextarea({
       variant: 'default',
       value: tempDescription,
@@ -140,7 +140,7 @@ export class EditElementModal {
     container.appendChild(descField.element);
 
     // Status dropdown with label
-    const statusField = createHudField({ label: 'Status' });
+    const statusField = createField({ label: 'Status' });
     const statusSelect = ComponentFactory.createSelect({
       variant: 'default',
       items: ELEMENT_STATUS_OPTIONS,
@@ -155,7 +155,7 @@ export class EditElementModal {
     container.appendChild(statusField.element);
 
     // Priority segmented control with label
-    this.priorityControl = createHudSegmentedControl({
+    this.priorityControl = createSegmentedControl({
       size: 'md',
       fullWidth: true,
       ariaLabel: 'Priority',
@@ -169,14 +169,14 @@ export class EditElementModal {
         tempPriority = value;
       },
     });
-    const priorityField = createHudField({
+    const priorityField = createField({
       label: 'Priority',
       control: this.priorityControl.element,
     });
     container.appendChild(priorityField.element);
 
     if (isTask) {
-      const dueDateField = createHudField({ label: 'Due date' });
+      const dueDateField = createField({ label: 'Due date' });
       const dueDateInput = ComponentFactory.createInput({
         variant: 'default',
         value: tempDueDateValue,
@@ -192,7 +192,7 @@ export class EditElementModal {
     }
 
     if (isGoal) {
-      this.scaleControl = createHudSegmentedControl({
+      this.scaleControl = createSegmentedControl({
         size: 'md',
         fullWidth: true,
         ariaLabel: 'Scale',
@@ -206,7 +206,7 @@ export class EditElementModal {
           tempScale = value;
         },
       });
-      const scaleField = createHudField({
+      const scaleField = createField({
         label: 'Scale',
         control: this.scaleControl.element,
       });
@@ -273,14 +273,14 @@ export class EditElementModal {
     // Actions
     const btnRow = document.createElement('div');
     btnRow.className = 'flex justify-end gap-2 pt-1';
-    const cancelBtn = createHudTextButton({
+    const cancelBtn = createTextButton({
       text: 'Cancel',
       tone: 'text',
       onClick: () => {
         void requestClose();
       },
     });
-    const saveBtn = createHudTextButton({
+    const saveBtn = createTextButton({
       text: 'Save',
       tone: 'primary',
       onClick: saveAndClose,

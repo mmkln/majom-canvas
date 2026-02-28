@@ -1,5 +1,5 @@
 import { createModalShell } from '../../../../ui-lib/src/components/Modal.ts';
-import { createHudTextButton } from '../primitives/index.ts';
+import { createTextButton } from '../primitives/index.ts';
 
 export function confirmUnsavedChangesModal(): Promise<boolean> {
   return new Promise((resolve) => {
@@ -31,7 +31,7 @@ export function confirmUnsavedChangesModal(): Promise<boolean> {
     const row = document.createElement('div');
     row.className = 'mt-4 flex justify-end gap-2';
 
-    const keepEditingButton = createHudTextButton({
+    const keepEditingButton = createTextButton({
       text: 'Keep editing',
       tone: 'text',
       size: 'md',
@@ -43,7 +43,7 @@ export function confirmUnsavedChangesModal(): Promise<boolean> {
     });
     row.appendChild(keepEditingButton);
 
-    const discardButton = createHudTextButton({
+    const discardButton = createTextButton({
       text: 'Discard',
       tone: 'destructive',
       size: 'md',

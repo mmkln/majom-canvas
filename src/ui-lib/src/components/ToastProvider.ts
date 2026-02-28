@@ -1,9 +1,8 @@
 import { Subscription } from 'rxjs';
 import {
   notifications$,
-  Notification as NotificationData,
-  NotificationType,
-} from '../../../features/canvas/core/services/NotificationService.ts';
+  type NotificationMessage as NotificationData,
+} from '../services/NotificationService.ts';
 import { Notification } from './Notification.ts';
 
 export interface ToastProviderOptions {
@@ -28,7 +27,7 @@ export class ToastProvider {
     const parent = options.parent ?? document.body;
     const position = options.position ?? 'top-right';
     this.duration = options.duration ?? 3000;
-    this.maxToasts = (options as any).maxToasts ?? 3;
+    this.maxToasts = options.maxToasts ?? 3;
     this.container = document.createElement('div');
     // Position classes
     const posClasses: Record<string, string> = {

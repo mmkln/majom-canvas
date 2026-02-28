@@ -1,6 +1,6 @@
 import { historyService } from '../core/services/HistoryService.ts';
 import { Subscription } from 'rxjs';
-import { createHudIconButton } from './primitives/index.ts';
+import { createIconButton } from './primitives/index.ts';
 
 /**
  * Inline Undo/Redo controls for top action bars.
@@ -15,7 +15,7 @@ export class UndoRedoControls {
     this.container = document.createElement('div');
     this.container.className = 'flex items-center gap-2 px-0.5';
 
-    this.undoBtn = createHudIconButton({
+    this.undoBtn = createIconButton({
       icon: 'arrow-ultum-left',
       size: 'sm',
       title: 'Undo',
@@ -24,7 +24,7 @@ export class UndoRedoControls {
     });
     this.undoBtn.setAttribute('aria-label', 'Undo');
 
-    this.redoBtn = createHudIconButton({
+    this.redoBtn = createIconButton({
       icon: 'arrow-ultum-right',
       size: 'sm',
       title: 'Redo',

@@ -6,12 +6,12 @@ import {
   type LoginCredentialsFieldErrors,
 } from '../../core/validation/loginCredentialsValidator.ts';
 import {
-  createHudField,
-  createHudFormMessage,
-  createHudInput,
-  createHudTextButton,
-  type HudFormMessage,
-  type HudTextButtonElement,
+  createField,
+  createFormMessage,
+  createInput,
+  createTextButton,
+  type FormMessage,
+  type TextButtonElement,
 } from '../primitives/index.ts';
 import type { LoginSubmitResult } from '../auth/AuthController.ts';
 
@@ -24,10 +24,10 @@ export class LoginPage {
   private readonly root: HTMLDivElement;
   private readonly usernameInput: HTMLInputElement;
   private readonly passwordInput: HTMLInputElement;
-  private readonly usernameField: ReturnType<typeof createHudField>;
-  private readonly passwordField: ReturnType<typeof createHudField>;
-  private readonly generalError: HudFormMessage;
-  private readonly submitButton: HudTextButtonElement;
+  private readonly usernameField: ReturnType<typeof createField>;
+  private readonly passwordField: ReturnType<typeof createField>;
+  private readonly generalError: FormMessage;
+  private readonly submitButton: TextButtonElement;
   private usernameCache = '';
 
   constructor(private readonly options: LoginPageOptions) {
@@ -64,7 +64,7 @@ export class LoginPage {
     form.className = 'space-y-0';
     form.noValidate = true;
 
-    const usernameControl = createHudInput({
+    const usernameControl = createInput({
       kind: 'text',
       id: 'canvas-login-username',
       name: 'username',
@@ -73,12 +73,12 @@ export class LoginPage {
       variant: 'default',
     });
     this.usernameInput = usernameControl.input;
-    this.usernameField = createHudField({
+    this.usernameField = createField({
       label: 'Username',
       control: usernameControl.element,
     });
 
-    const passwordControl = createHudInput({
+    const passwordControl = createInput({
       kind: 'password',
       id: 'canvas-login-password',
       name: 'password',
@@ -87,18 +87,18 @@ export class LoginPage {
       variant: 'default',
     });
     this.passwordInput = passwordControl.input;
-    this.passwordField = createHudField({
+    this.passwordField = createField({
       label: 'Password',
       control: passwordControl.element,
     });
 
-    this.generalError = createHudFormMessage({
+    this.generalError = createFormMessage({
       tone: 'error',
       ariaLive: 'polite',
       className: 'mt-1 mb-2',
     });
 
-    this.submitButton = createHudTextButton({
+    this.submitButton = createTextButton({
       tone: 'primary',
       size: 'lg',
       fullWidth: true,

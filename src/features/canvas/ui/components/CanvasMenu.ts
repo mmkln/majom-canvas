@@ -6,11 +6,11 @@ import { notify } from '../../core/services/NotificationService.ts';
 import { AuthController, type AuthState } from '../auth/AuthController.ts';
 import { authFlowService } from '../auth/authFlowService.ts';
 import {
-  createHudDivider,
-  createHudDropdownItem,
-  createHudIconButton,
-  createHudSurface,
-  HudDropdown,
+  createDivider,
+  createDropdownItem,
+  createIconButton,
+  createSurface,
+  Dropdown,
 } from '../primitives/index.ts';
 
 type CanvasMenuOptions = {
@@ -21,7 +21,7 @@ export class CanvasMenu {
   private readonly container: HTMLDivElement;
   private readonly menuButton: HTMLButtonElement;
   private readonly dropdownMenu: HTMLDivElement;
-  private readonly dropdownController: HudDropdown;
+  private readonly dropdownController: Dropdown;
   private readonly deleteCanvasButton: HTMLButtonElement;
   private readonly logoutButton: HTMLButtonElement;
   private readonly authController: AuthController;
@@ -39,7 +39,7 @@ export class CanvasMenu {
     this.container.className =
       options.containerClassName ?? 'relative z-30 flex items-center';
 
-    this.menuButton = createHudIconButton({
+    this.menuButton = createIconButton({
       icon: 'ellipsis-vertical',
       title: 'Open canvas menu',
       ariaLabel: 'Open canvas menu',
@@ -49,13 +49,13 @@ export class CanvasMenu {
       },
     });
 
-    this.dropdownMenu = createHudSurface({
+    this.dropdownMenu = createSurface({
       elevated: true,
       className:
         'absolute right-[-10px] top-full mt-3.5 z-30 hidden w-72 overflow-hidden',
     });
 
-    this.deleteCanvasButton = createHudDropdownItem({
+    this.deleteCanvasButton = createDropdownItem({
       label: 'Delete canvas',
       variant: 'default',
       onClick: () => {
@@ -64,13 +64,13 @@ export class CanvasMenu {
       },
     });
 
-    this.logoutButton = createHudDropdownItem({
+    this.logoutButton = createDropdownItem({
       label: 'Logout',
       variant: 'emphasis',
       onClick: () => this.handleLogout(),
     });
 
-    this.dropdownController = new HudDropdown({
+    this.dropdownController = new Dropdown({
       container: this.container,
       panel: this.dropdownMenu,
       onOpenChange: (open) => {
@@ -143,7 +143,7 @@ export class CanvasMenu {
       loadingRow.className = 'px-4 py-3 text-sm text-slate-500';
       loadingRow.textContent = 'Loading account...';
       this.dropdownMenu.appendChild(loadingRow);
-      this.dropdownMenu.appendChild(createHudDivider());
+      this.dropdownMenu.appendChild(createDivider());
     } else if (user) {
       const userInfo = document.createElement('div');
       userInfo.className = 'px-4 py-3';
@@ -158,7 +158,7 @@ export class CanvasMenu {
       userEmail.textContent = user.email;
 
       userInfo.append(userName, userEmail);
-      this.dropdownMenu.append(userInfo, createHudDivider());
+      this.dropdownMenu.append(userInfo, createDivider());
     }
 
     const actions = document.createElement('div');

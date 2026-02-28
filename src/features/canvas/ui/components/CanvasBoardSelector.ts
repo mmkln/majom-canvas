@@ -1,11 +1,11 @@
 import {
-  createHudDivider,
-  createHudDropdownItem,
-  createHudInputBase,
-  createHudIconButton,
-  createHudTextButton,
-  HudDropdown,
-  createHudSurface,
+  createDivider,
+  createDropdownItem,
+  createInputBase,
+  createIconButton,
+  createTextButton,
+  Dropdown,
+  createSurface,
 } from '../primitives/index.ts';
 import { createIcon } from '../icons.ts';
 
@@ -28,19 +28,19 @@ export class CanvasBoardSelector {
   private activeCanvasId: string | null = null;
   private canvasListHandler: ((event: Event) => void) | null = null;
   private canvasTitleHandler: ((event: Event) => void) | null = null;
-  private readonly dropdownController: HudDropdown;
+  private readonly dropdownController: Dropdown;
 
   constructor() {
     this.container = document.createElement('div');
     this.container.className = 'absolute left-4 top-4 z-20';
 
-    this.header = createHudSurface({
+    this.header = createSurface({
       className: 'inline-flex items-center gap-1 p-1.5',
     });
 
     this.titleWrap = document.createElement('div');
 
-    this.titleText = createHudTextButton({
+    this.titleText = createTextButton({
       tone: 'soft',
       text: this.currentTitle,
       title: 'Click to edit title',
@@ -51,7 +51,7 @@ export class CanvasBoardSelector {
     });
     this.titleWrap.appendChild(this.titleText);
 
-    this.toggleBtn = createHudIconButton({
+    this.toggleBtn = createIconButton({
       icon: 'chevron-down',
       title: 'Select canvas',
       onClick: (event) => {
@@ -62,7 +62,7 @@ export class CanvasBoardSelector {
 
     this.header.append(this.titleWrap, this.toggleBtn);
 
-    this.dropdown = createHudSurface({
+    this.dropdown = createSurface({
       elevated: true,
       className: 'mt-1 hidden w-[260px] overflow-hidden',
     });
@@ -80,11 +80,11 @@ export class CanvasBoardSelector {
     this.emptyRow.textContent = 'No boards yet';
     this.listWrap.appendChild(this.emptyRow);
 
-    const divider = createHudDivider({
+    const divider = createDivider({
       tone: 'soft',
     });
 
-    this.createBtn = createHudDropdownItem({
+    this.createBtn = createDropdownItem({
       label: 'New board',
       variant: 'accent-create',
       leading: this.createPlusIcon(),
@@ -97,7 +97,7 @@ export class CanvasBoardSelector {
     this.dropdown.append(boardsHeader, this.listWrap, divider, this.createBtn);
     this.container.append(this.header, this.dropdown);
 
-    this.dropdownController = new HudDropdown({
+    this.dropdownController = new Dropdown({
       container: this.container,
       panel: this.dropdown,
       onOpenChange: (open) => {
@@ -167,7 +167,7 @@ export class CanvasBoardSelector {
   private startTitleEdit(): void {
     if (this.isEditingTitle) return;
     this.isEditingTitle = true;
-    this.titleInput = createHudInputBase({
+    this.titleInput = createInputBase({
       variant: 'inline',
       value: this.currentTitle,
       type: 'text',
@@ -215,7 +215,7 @@ export class CanvasBoardSelector {
     this.canvases.forEach((canvas) => {
       const isActive = canvas.id === this.activeCanvasId;
       const isUnavailable = canvas.id.startsWith('missing-id-');
-      const row = createHudDropdownItem({
+      const row = createDropdownItem({
         label: canvas.name,
         variant: isActive ? 'selected' : 'default',
         trailing: isActive ? this.createCheckIcon() : null,

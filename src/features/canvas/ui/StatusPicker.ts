@@ -12,7 +12,7 @@ import {
 } from '../core/services/SelectionContext.ts';
 import { BulkActionsController } from '../core/services/BulkActionsController.ts';
 import { positionFixedElement } from './overlayPosition.ts';
-import { createHudDropdownItem } from './primitives/index.ts';
+import { createDropdownItem } from './primitives/index.ts';
 
 type StatusOption = {
   value: ElementStatus;
@@ -172,7 +172,7 @@ export class StatusPicker {
     const currentStatus = SelectionContext.getMixedStatus(this.activeElements);
     ELEMENT_STATUS_OPTIONS.forEach((option: StatusOption) => {
       const isActive = currentStatus === option.value;
-      const btn = createHudDropdownItem({
+      const btn = createDropdownItem({
         label: option.label,
         variant: isActive ? 'emphasis' : 'default',
         className: this.getStatusItemClasses(option.value, isActive),

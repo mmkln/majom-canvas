@@ -26,9 +26,9 @@ import { AddExistingTaskService } from '../core/services/AddExistingTaskService.
 import { AddExistingGoalService } from '../core/services/AddExistingGoalService.ts';
 import { AddExistingStoryService } from '../core/services/AddExistingStoryService.ts';
 import {
-  createHudDivider,
-  createHudDropdownItem,
-  type HudMenuItemVariant,
+  createDivider,
+  createDropdownItem,
+  type MenuItemVariant,
 } from './primitives/index.ts';
 import { createIcon, type IconName } from './icons.ts';
 import {
@@ -51,7 +51,7 @@ type ContextMenuActionItem = {
   action: () => MenuActionResult;
   tone?: 'danger' | 'warning';
   className?: string;
-  variant?: HudMenuItemVariant;
+  variant?: MenuItemVariant;
   leading?: HTMLElement | null;
   trailing?: HTMLElement | null;
 };
@@ -415,7 +415,7 @@ export class ContextMenu {
     );
     visibleSections.forEach((section, index) => {
       if (index > 0) {
-        this.menu.appendChild(createHudDivider({ inset: false }));
+        this.menu.appendChild(createDivider({ inset: false }));
       }
       if (section.title) {
         const header = document.createElement('div');
@@ -426,7 +426,7 @@ export class ContextMenu {
       }
       section.items.forEach((item) => {
         if (this.isSubmenuItem(item)) {
-          const btn = createHudDropdownItem({
+          const btn = createDropdownItem({
             label: item.label ?? '',
             tone: item.tone === 'danger' ? 'danger' : 'default',
             trailing: this.createSubmenuChevron(),
@@ -523,7 +523,7 @@ export class ContextMenu {
         ? 'font-medium text-amber-700 hover:bg-amber-50 hover:text-amber-800'
         : '';
     const customClassName = item.className ?? '';
-    const btn = createHudDropdownItem({
+    const btn = createDropdownItem({
       label: item.label ?? '',
       variant: item.variant,
       tone: item.tone === 'danger' ? 'danger' : 'default',

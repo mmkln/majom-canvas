@@ -1,5 +1,5 @@
 import { createModalShell } from '../../../../ui-lib/src/components/Modal.ts';
-import { createHudTextButton } from '../primitives/index.ts';
+import { createTextButton } from '../primitives/index.ts';
 
 type ConfirmReplaceStoryGoalModalOptions = {
   storyTitle?: string;
@@ -37,7 +37,7 @@ export function confirmReplaceStoryGoalModal(
     const row = document.createElement('div');
     row.className = 'mt-4 flex justify-end gap-2';
 
-    const cancelButton = createHudTextButton({
+    const cancelButton = createTextButton({
       text: 'Cancel',
       tone: 'text',
       size: 'md',
@@ -49,7 +49,7 @@ export function confirmReplaceStoryGoalModal(
     });
     row.appendChild(cancelButton);
 
-    const replaceButton = createHudTextButton({
+    const replaceButton = createTextButton({
       text: 'Replace',
       tone: 'primary',
       size: 'md',

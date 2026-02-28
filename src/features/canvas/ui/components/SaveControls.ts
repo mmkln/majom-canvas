@@ -2,7 +2,7 @@ import { AuthService } from '../../../../majom-wrapper/data-access/auth-service.
 import { SaveButton } from './SaveButton.ts';
 import { UndoRedoControls } from '../UndoRedoControls.ts';
 import { CanvasMenu } from './CanvasMenu.ts';
-import { createHudSurface } from '../primitives/index.ts';
+import { createSurface } from '../primitives/index.ts';
 
 /**
  * SaveControls: wraps save and auth actions in a shared HUD layout.
@@ -20,7 +20,7 @@ export class SaveControls {
   constructor(canvasMenu: CanvasMenu) {
     this.container = document.createElement('div');
     this.container.className = 'absolute top-4 right-4 z-20';
-    this.actionsContainer = createHudSurface({
+    this.actionsContainer = createSurface({
       className: 'flex items-center gap-2 p-1.5',
     });
     this.saveGroup = document.createElement('div');

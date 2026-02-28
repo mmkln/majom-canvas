@@ -1,6 +1,6 @@
 // ui/ZoomIndicator.ts
 import { CanvasManager } from '../core/managers/CanvasManager.ts';
-import { createHudSurface } from './primitives/index.ts';
+import { createSurface } from './primitives/index.ts';
 
 type ZoomIndicatorOptions = {
   embedded?: boolean;
@@ -23,7 +23,7 @@ export class ZoomIndicator {
       'px-2.5 py-2 text-[0.95rem] font-semibold leading-none tracking-[0.02em] text-slate-900';
     const className = `${baseClass} ${options.className ?? defaultClass}`.trim();
     this.container = useSurface
-      ? createHudSurface({ className })
+      ? createSurface({ className })
       : document.createElement('div');
     if (!useSurface) {
       this.container.className = className;

@@ -8,7 +8,7 @@ import { Scene } from '../core/scene/Scene.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
-import { createHudSurface } from './primitives/index.ts';
+import { createSurface } from './primitives/index.ts';
 
 type Rect = { x: number; y: number; width: number; height: number };
 
@@ -58,7 +58,7 @@ export class MiniMap {
     const defaultInnerClass = useSurface ? 'overflow-hidden p-1' : '';
     const className = `${baseClass} ${options.className ?? defaultInnerClass}`.trim();
     this.container = useSurface
-      ? createHudSurface({ className })
+      ? createSurface({ className })
       : document.createElement('div');
     if (!useSurface) {
       this.container.className = className;

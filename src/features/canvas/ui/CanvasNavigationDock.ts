@@ -3,7 +3,7 @@ import type { Scene } from '../core/scene/Scene.ts';
 import { CanvasClientStorage } from '../core/services/CanvasClientStorage.ts';
 import { CanvasControls } from './CanvasControls.ts';
 import { MiniMap } from './MiniMap.ts';
-import { createHudSurface } from './primitives/index.ts';
+import { createSurface } from './primitives/index.ts';
 
 /**
  * Groups minimap and navigation controls into one right-bottom dock.
@@ -18,7 +18,7 @@ export class CanvasNavigationDock {
 
   constructor(scene: Scene, canvasManager: CanvasManager) {
     this.miniMapVisible = CanvasClientStorage.getMiniMapVisible(true);
-    this.container = createHudSurface({
+    this.container = createSurface({
       className:
         'absolute right-4 bottom-4 z-20 flex flex-col overflow-hidden p-0',
     });

@@ -7,11 +7,11 @@ import {
   type ExistingPickerKind,
 } from '../events/existingPickerEvents.ts';
 import {
-  createHudDivider,
-  createHudIconButton,
-  createHudInputBase,
-  createHudSurface,
-  createHudTextButton,
+  createDivider,
+  createIconButton,
+  createInputBase,
+  createSurface,
+  createTextButton,
 } from '../primitives/index.ts';
 
 export type ExistingPickerPage<TItem> = {
@@ -87,7 +87,7 @@ export class ExistingEntityPicker<TItem> {
     backdrop.style.zIndex = '55';
     backdrop.style.pointerEvents = 'none';
 
-    const container = createHudSurface({
+    const container = createSurface({
       elevated: true,
       className:
         'fixed right-0 top-0 h-full w-[520px] max-w-[96vw] rounded-none rounded-l-2xl p-3 text-sm text-slate-700',
@@ -104,7 +104,7 @@ export class ExistingEntityPicker<TItem> {
     title.className = 'truncate text-sm font-semibold text-slate-900';
     title.textContent = this.config.drawerTitle;
 
-    const closeBtn = createHudIconButton({
+    const closeBtn = createIconButton({
       icon: 'x-mark',
       size: 'sm',
       tone: 'text',
@@ -114,7 +114,7 @@ export class ExistingEntityPicker<TItem> {
     closeBtn.addEventListener('click', () => this.close());
     header.append(title, closeBtn);
 
-    const searchInput = createHudInputBase({
+    const searchInput = createInputBase({
       type: 'search',
       placeholder: this.config.searchPlaceholder,
       className: 'mb-2 h-10',
@@ -123,7 +123,7 @@ export class ExistingEntityPicker<TItem> {
     const list = document.createElement('div');
     list.className = 'min-h-0 flex-1 overflow-auto pr-1';
 
-    const footerDivider = createHudDivider({ inset: false, tone: 'soft' });
+    const footerDivider = createDivider({ inset: false, tone: 'soft' });
     const footer = document.createElement('div');
     footer.className = 'pt-2';
 
@@ -138,7 +138,7 @@ export class ExistingEntityPicker<TItem> {
     const compactHint = document.createElement('div');
     compactHint.className = 'text-[11px] text-slate-500';
     compactHint.textContent = `Drop ${this.config.itemLabel.toLowerCase()} on canvas`;
-    const expandBtn = createHudTextButton({
+    const expandBtn = createTextButton({
       text: 'Expand',
       tone: 'soft',
       className: 'px-2 py-1 text-[11px] font-medium',
@@ -399,7 +399,7 @@ export class ExistingEntityPicker<TItem> {
         textWrap.appendChild(badge);
       }
 
-      const actionBtn = createHudTextButton({
+      const actionBtn = createTextButton({
         text: onCanvas ? (this.config.findLabel ?? 'Find') : (this.config.addLabel ?? 'Add'),
         tone: onCanvas ? 'text' : 'soft',
         className: 'h-7 px-2 py-1 text-xs font-medium',
@@ -482,7 +482,7 @@ export class ExistingEntityPicker<TItem> {
         }
         return;
       }
-      const retryBtn = createHudTextButton({
+      const retryBtn = createTextButton({
         text: this.loadMoreError ? 'Retry load more' : 'Load more',
         tone: 'soft',
         disabled: this.isLoading,

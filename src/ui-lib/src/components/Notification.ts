@@ -1,6 +1,6 @@
 import { twMerge } from 'tailwind-merge';
 import { Component } from '../core/Component.ts';
-import { NotificationType } from '../../../features/canvas/core/services/NotificationService.ts';
+import type { NotificationType } from '../services/NotificationService.ts';
 
 // Inject keyframes for toast progress bar animation
 const PROGRESS_STYLE_ID = 'ui-lib-toast-progress-style';

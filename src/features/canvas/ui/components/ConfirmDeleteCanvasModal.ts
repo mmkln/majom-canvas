@@ -1,5 +1,5 @@
 import { createModalShell } from '../../../../ui-lib/src/components/Modal.ts';
-import { createHudTextButton } from '../primitives/index.ts';
+import { createTextButton } from '../primitives/index.ts';
 
 type ConfirmDeleteCanvasModalOptions = {
   canvasTitle?: string;
@@ -47,7 +47,7 @@ export function confirmDeleteCanvasModal(
     const row = document.createElement('div');
     row.className = 'mt-4 flex justify-end gap-2';
 
-    const cancelButton = createHudTextButton({
+    const cancelButton = createTextButton({
       text: 'Cancel',
       tone: 'text',
       size: 'md',
@@ -59,7 +59,7 @@ export function confirmDeleteCanvasModal(
     });
     row.appendChild(cancelButton);
 
-    const deleteButton = createHudTextButton({
+    const deleteButton = createTextButton({
       text: 'Delete',
       tone: 'destructive',
       size: 'md',

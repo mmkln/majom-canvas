@@ -5,7 +5,7 @@ import {
   CANVAS_SAVE_LIFECYCLE_EVENT,
   isCanvasSaveLifecycleDetail,
 } from '../../core/canvasSaveLifecycle.ts';
-import { createHudTextButton, type HudTextButtonElement } from '../primitives/index.ts';
+import { createTextButton, type TextButtonElement } from '../primitives/index.ts';
 import { authFlowService } from '../auth/authFlowService.ts';
 
 /**
@@ -13,7 +13,7 @@ import { authFlowService } from '../auth/authFlowService.ts';
  */
 export class SaveButton {
   private readonly container: HTMLElement;
-  private readonly button: HudTextButtonElement;
+  private readonly button: TextButtonElement;
   private readonly authService = new AuthService();
   private historySubscription: Subscription | null = null;
   private readonly refreshHandler: () => void;
@@ -27,7 +27,7 @@ export class SaveButton {
     this.container = document.createElement('div');
     this.container.className = 'flex items-center';
 
-    this.button = createHudTextButton({
+    this.button = createTextButton({
       tone: 'primary',
       size: 'md',
       text: 'Save',

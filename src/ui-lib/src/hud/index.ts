@@ -65,6 +65,7 @@ export {
 } from './HudSegmentedControl.ts';
 
 export { createHudSurface as createSurface } from './HudSurface.ts';
+export { SingleSelectGroup } from './SingleSelectGroup.ts';
 
 export * from './classNames.ts';
 

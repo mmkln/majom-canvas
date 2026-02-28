@@ -4,8 +4,8 @@ import { Scene } from '../core/scene/Scene.ts';
 import { Subscription } from 'rxjs';
 import { createIcon } from './icons.ts';
 import {
-  createHudIconButton,
-  createHudSurface,
+  createIconButton,
+  createSurface,
 } from './primitives/index.ts';
 
 type MiniMapToggleOptions = {
@@ -49,20 +49,20 @@ export class CanvasControls {
     const defaultClass = `flex ${layoutClass} gap-1 px-3 py-2`;
     const className = `${baseClass} ${defaultClass} ${options.className ?? ''}`.trim();
     this.container = useSurface
-      ? createHudSurface({ className })
+      ? createSurface({ className })
       : document.createElement('div');
     if (!useSurface) {
       this.container.className = className;
     }
 
-    const zoomOutBtn = createHudIconButton({
+    const zoomOutBtn = createIconButton({
       icon: 'minus',
       title: 'Zoom Out',
       ariaLabel: 'Zoom Out',
       onClick: () => this.canvasManager.zoomOut(),
     });
 
-    const zoomInBtn = createHudIconButton({
+    const zoomInBtn = createIconButton({
       icon: 'plus',
       title: 'Zoom In',
       ariaLabel: 'Zoom In',
@@ -105,7 +105,7 @@ export class CanvasControls {
       zoomCluster.appendChild(zoomOutBtn);
     }
 
-    this.goToFocusBtn = createHudIconButton({
+    this.goToFocusBtn = createIconButton({
       icon: 'map-pin',
       title: 'Go to Focus',
       ariaLabel: 'Go to Focus',
@@ -116,7 +116,7 @@ export class CanvasControls {
     this.miniMapVisible = miniMapToggle?.initialVisible ?? true;
     this.miniMapToggleHandler = miniMapToggle?.onToggle ?? null;
     this.miniMapToggleBtn = miniMapToggle
-      ? createHudIconButton({
+      ? createIconButton({
         icon: this.miniMapVisible
           ? 'arrows-pointing-in'
           : 'arrows-pointing-out',

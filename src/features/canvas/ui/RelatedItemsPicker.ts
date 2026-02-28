@@ -22,13 +22,13 @@ import type {
 } from '../../../majom-wrapper/interfaces/index.ts';
 import { positionFixedElement } from './overlayPosition.ts';
 import {
-  createHudDivider,
-  createHudIconButton,
-  createHudInputBase,
-  createHudSegmentedControl,
-  createHudSurface,
-  createHudTextButton,
-  type HudSegmentedControl,
+  createDivider,
+  createIconButton,
+  createInputBase,
+  createSegmentedControl,
+  createSurface,
+  createTextButton,
+  type SegmentedControl,
 } from './primitives/index.ts';
 
 type RelatedItem =
@@ -44,7 +44,7 @@ export class RelatedItemsPicker {
   private readonly closeBtn: HTMLButtonElement;
   private readonly searchInput: HTMLInputElement;
   private readonly tabsRow: HTMLDivElement;
-  private readonly goalTabControl: HudSegmentedControl<GoalTab>;
+  private readonly goalTabControl: SegmentedControl<GoalTab>;
   private readonly actionsRow: HTMLDivElement;
   private readonly addAllBtn: HTMLButtonElement;
   private readonly list: HTMLDivElement;
@@ -73,7 +73,7 @@ export class RelatedItemsPicker {
     this.storiesApi = new StoriesApiService(http);
     this.goalsApi = new GoalsApiService(http);
 
-    this.container = createHudSurface({
+    this.container = createSurface({
       elevated: true,
       className:
         'fixed z-[130] hidden w-[320px] max-w-[calc(100vw-1rem)] max-h-[320px] overflow-hidden p-2.5',
@@ -89,7 +89,7 @@ export class RelatedItemsPicker {
     this.titleEl.textContent = 'Add related';
     this.titleEl.className = 'text-sm font-semibold text-slate-900';
 
-    this.closeBtn = createHudIconButton({
+    this.closeBtn = createIconButton({
       icon: 'x-mark',
       size: 'sm',
       tone: 'text',
@@ -102,7 +102,7 @@ export class RelatedItemsPicker {
     this.header.appendChild(this.closeBtn);
     this.container.appendChild(this.header);
 
-    this.searchInput = createHudInputBase({
+    this.searchInput = createInputBase({
       type: 'search',
       placeholder: 'Search...',
       className: 'mb-2 h-9',
@@ -110,11 +110,11 @@ export class RelatedItemsPicker {
     this.searchInput.addEventListener('input', () => this.applyFilter());
     this.container.appendChild(this.searchInput);
 
-    this.container.appendChild(createHudDivider({ inset: false }));
+    this.container.appendChild(createDivider({ inset: false }));
 
     this.tabsRow = document.createElement('div');
     this.tabsRow.className = 'mb-2 mt-2 hidden';
-    this.goalTabControl = createHudSegmentedControl<GoalTab>({
+    this.goalTabControl = createSegmentedControl<GoalTab>({
       size: 'sm',
       fullWidth: true,
       ariaLabel: 'Related item type',
@@ -131,7 +131,7 @@ export class RelatedItemsPicker {
     this.actionsRow = document.createElement('div');
     this.actionsRow.className = 'mb-2 mt-1 flex justify-end';
 
-    this.addAllBtn = createHudTextButton({
+    this.addAllBtn = createTextButton({
       text: 'Add all',
       tone: 'text',
       className: 'px-2 py-1 text-xs font-medium',
@@ -529,7 +529,7 @@ export class RelatedItemsPicker {
       label.appendChild(title);
       label.appendChild(meta);
 
-      const addBtn = createHudTextButton({
+      const addBtn = createTextButton({
         text: 'Add',
         tone: 'soft',
         className: 'px-2 py-1 text-xs font-semibold',

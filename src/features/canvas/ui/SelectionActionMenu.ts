@@ -17,7 +17,7 @@ import { ElementStatus } from '../elements/ElementStatus.ts';
 import { positionFixedElement } from './overlayPosition.ts';
 import { getViewBounds, isRectVisible } from '../core/utils/viewBounds.ts';
 import { addTaskToStory } from './storyTaskActions.ts';
-import { createHudIconButton, createHudSurface } from './primitives/index.ts';
+import { createIconButton, createSurface } from './primitives/index.ts';
 import { StatusSelector } from './components/StatusSelector.ts';
 
 type ActionContext = {
@@ -90,7 +90,7 @@ export class SelectionActionMenu {
     private readonly canvasManager: CanvasManager,
     private readonly bulkActions: BulkActionsController
   ) {
-    this.container = createHudSurface({
+    this.container = createSurface({
       className:
         'fixed z-40 hidden translate-x-0 items-center gap-1 rounded-full bg-white/96 p-1.5 pr-2.5 shadow-[0_8px_18px_rgba(15,23,42,0.12)] backdrop-blur-[2px]',
     });
@@ -413,7 +413,7 @@ export class SelectionActionMenu {
     options: { isDanger?: boolean; iconOptions?: IconOptions } = {}
   ): HTMLButtonElement {
     const { isDanger = false, iconOptions } = options;
-    const btn = createHudIconButton({
+    const btn = createIconButton({
       icon,
       size: 'sm',
       tone: 'text',
