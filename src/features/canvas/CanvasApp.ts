@@ -2,17 +2,18 @@ import { CanvasManager } from './core/managers/CanvasManager.ts';
 import { Scene } from './core/scene/Scene.ts';
 import { DiagramRepository } from './core/data/DiagramRepository.ts';
 import { IDataProvider } from './core/interfaces/dataProvider.ts';
-import { AuthService } from '../../majom-wrapper/index.ts';
-import { HttpInterceptorClient } from '../../majom-wrapper/data-access/http-interceptor.ts';
-import { TasksApiService } from '../../majom-wrapper/data-access/tasks-api-service.ts';
-import { StoriesApiService } from '../../majom-wrapper/data-access/stories-api-service.ts';
-import { GoalsApiService } from '../../majom-wrapper/data-access/goals-api-service.ts';
-import { CanvasApiService } from '../../majom-wrapper/data-access/canvas-api-service.ts';
-import { CanvasRelationsApiService } from '../../majom-wrapper/data-access/canvas-relations-api-service.ts';
 import {
+  AuthService,
+  HttpInterceptorClient,
+  TasksApiService,
+  StoriesApiService,
+  GoalsApiService,
+  CanvasApiService,
+  CanvasRelationsApiService,
   CanvasDataService,
+  type CanvasPositionWriteDTO,
   type CanvasElementsLoadOptions,
-} from '../../majom-wrapper/services/CanvasDataService.ts';
+} from '../../majom-wrapper/index.ts';
 import { UIManager } from './ui/UIManager.ts';
 import type { IViewState } from './core/interfaces/interfaces.ts';
 import { commandManager } from './core/managers/CommandManager.ts';
@@ -28,7 +29,6 @@ import {
   ConnectionRelationType,
   type IConnection,
 } from './core/interfaces/connection.ts';
-import { CanvasPositionWriteDTO } from '../../majom-wrapper/data-access/canvas-position-dto.ts';
 import { notify } from './core/services/NotificationService.ts';
 import { CanvasClientStorage } from './core/services/CanvasClientStorage.ts';
 import {
@@ -1120,7 +1120,6 @@ export class CanvasApp {
     this.removeCanvasConnections(duplicates);
   }
 }
-
 
 
 
