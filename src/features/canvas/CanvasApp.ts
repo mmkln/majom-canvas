@@ -561,7 +561,7 @@ export class CanvasApp {
       if (showNotifications) {
         notify('No changes to save.', 'info');
       }
-      return of(false);
+      return of(true);
     }
 
     const save$ =
@@ -1120,7 +1120,6 @@ export class CanvasApp {
     this.removeCanvasConnections(duplicates);
   }
 }
-
 
 
 

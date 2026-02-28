@@ -31,4 +31,8 @@ export class CopyCommand extends Command {
     clipboardService.clear();
     notify(`Clipboard cleared`, 'info');
   }
+
+  public override affectsUnsavedChanges(): boolean {
+    return false;
+  }
 }

@@ -12,10 +12,12 @@ export class HistoryService {
 
   // Execute a command and add it to the undo stack
   public execute(command: Command): void {
-    const hadRedo = this.redoStack.length > 0;
+    const hadTrackedRedo = this.redoStack.some((cmd) =>
+      cmd.affectsUnsavedChanges()
+    );
     command.execute();
     this.undoStack.push(command);
-    if (hadRedo) {
+    if (hadTrackedRedo && command.affectsUnsavedChanges()) {
       this.branchId += 1;
     }
     this.redoStack = [];
@@ -55,7 +57,10 @@ export class HistoryService {
   }
 
   public getStateToken(): { branchId: number; index: number } {
-    return { branchId: this.branchId, index: this.undoStack.length };
+    return {
+      branchId: this.branchId,
+      index: this.getTrackedUndoCount(),
+    };
   }
 
   public isTokenCurrent(token: { branchId: number; index: number }): boolean {
@@ -72,10 +77,21 @@ export class HistoryService {
   }
 
   public hasUnsavedChanges(): boolean {
+    const current = this.getStateToken();
     return (
-      this.savedBranchId !== this.branchId ||
-      this.savedIndex !== this.undoStack.length
+      this.savedBranchId !== current.branchId ||
+      this.savedIndex !== current.index
     );
+  }
+
+  private getTrackedUndoCount(): number {
+    let count = 0;
+    for (const command of this.undoStack) {
+      if (command.affectsUnsavedChanges()) {
+        count += 1;
+      }
+    }
+    return count;
   }
 }
 

@@ -23,4 +23,8 @@ export class ZoomInCommand extends Command {
     this.canvasManager.getPanZoomManager().setViewState(this.prevState);
     this.canvasManager.draw();
   }
+
+  public override affectsUnsavedChanges(): boolean {
+    return false;
+  }
 }
