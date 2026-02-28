@@ -21,7 +21,7 @@ export class SaveControls {
     this.container = document.createElement('div');
     this.container.className = 'absolute top-4 right-4 z-20';
     this.actionsContainer = createHudSurface({
-      className: 'flex items-center gap-2 px-2.5 py-2',
+      className: 'flex items-center gap-2 p-1.5',
     });
     this.saveGroup = document.createElement('div');
     this.saveGroup.className = 'flex items-center';
