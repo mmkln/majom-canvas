@@ -39,6 +39,10 @@ export {
   type HudDropdownItemTone as DropdownItemTone,
   type HudMenuItemVariant as MenuItemVariant,
 } from './HudDropdownItem.ts';
+export {
+  createHudSplitDropdownItem as createSplitDropdownItem,
+  type HudSplitDropdownItemOptions as SplitDropdownItemOptions,
+} from './HudSplitDropdownItem.ts';
 
 export {
   createHudInputBase as createInputBase,
@@ -104,6 +108,10 @@ export {
   type HudDropdownItemTone,
   type HudMenuItemVariant,
 } from './HudDropdownItem.ts';
+export {
+  createHudSplitDropdownItem,
+  type HudSplitDropdownItemOptions,
+} from './HudSplitDropdownItem.ts';
 export {
   createHudInputBase,
   setHudInputState,

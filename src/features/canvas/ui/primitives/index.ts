@@ -31,6 +31,8 @@ export {
   createHudDropdownItem,
   type HudDropdownItemTone,
   type HudMenuItemVariant,
+  createHudSplitDropdownItem,
+  type HudSplitDropdownItemOptions,
 } from '../../../../ui-lib/src/hud/index.ts';
 export {
   createHudInputBase,
@@ -81,6 +83,8 @@ export {
   createDropdownItem,
   type DropdownItemTone,
   type MenuItemVariant,
+  createSplitDropdownItem,
+  type SplitDropdownItemOptions,
   createInputBase,
   setInputState,
   type InputBaseOptions,

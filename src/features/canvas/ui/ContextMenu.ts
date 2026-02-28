@@ -28,6 +28,7 @@ import { AddExistingStoryService } from '../core/services/AddExistingStoryServic
 import {
   createDivider,
   createDropdownItem,
+  createSplitDropdownItem,
   type MenuItemVariant,
 } from './primitives/index.ts';
 import { createIcon, type IconName } from './icons.ts';
@@ -537,42 +538,24 @@ export class ContextMenu {
   }
 
   private createSplitActionRow(item: ContextMenuSplitActionItem): HTMLDivElement {
-    const row = document.createElement('div');
-    row.className =
-      'group flex w-full items-stretch overflow-hidden transition-colors';
-
-    const primary = this.createActionButton({
-      ...item,
-      className: `${item.className ?? ''} !w-auto grow border-0 !rounded-none !bg-transparent hover:!bg-indigo-50 group-hover:!bg-indigo-50 focus-visible:!bg-indigo-50 group-focus-within:!bg-indigo-50 group-hover:!text-slate-800 group-focus-within:!text-slate-800`.trim(),
+    const warningClassName =
+      item.tone === 'warning'
+        ? 'font-medium text-amber-700 hover:bg-amber-50 hover:text-amber-800'
+        : '';
+    return createSplitDropdownItem({
+      label: item.label ?? '',
+      variant: item.variant,
+      tone: item.tone === 'danger' ? 'danger' : 'default',
+      className: `${warningClassName} ${item.className ?? ''}`.trim(),
+      leading: item.leading ?? null,
+      trailing: item.trailing ?? null,
+      secondaryIcon: item.secondaryIcon,
+      secondaryLabel: item.secondaryLabel,
+      onPrimaryClick: () => this.executeItemAction(item.action),
+      onSecondaryClick: () => this.executeItemAction(item.secondaryAction),
+      onPointerEnter: () => this.closeSubmenu(),
+      onFocusWithin: () => this.closeSubmenu(),
     });
-
-    const secondary = document.createElement('button');
-    secondary.type = 'button';
-    secondary.className =
-      'inline-flex w-11 shrink-0 items-center justify-center border-l border-transparent text-slate-500 transition-colors bg-transparent group-hover:border-indigo-100 group-hover:bg-indigo-50 group-focus-within:bg-indigo-50 group-focus-within:text-indigo-600 hover:!bg-indigo-100 hover:!text-indigo-600 focus-visible:!bg-indigo-100 focus-visible:!text-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:ring-inset';
-    secondary.title = item.secondaryLabel;
-    secondary.setAttribute('aria-label', item.secondaryLabel);
-    secondary.setAttribute('role', 'menuitem');
-    const icon = createIcon(item.secondaryIcon, { size: 14, strokeWidth: 1.9 });
-    icon.setAttribute('aria-hidden', 'true');
-    secondary.appendChild(icon);
-    secondary.addEventListener('click', (event) => {
-      event.stopPropagation();
-      this.executeItemAction(item.secondaryAction);
-    });
-
-    row.append(primary, secondary);
-    row.addEventListener('mouseenter', () => {
-      this.closeSubmenu();
-    });
-    primary.addEventListener('focus', () => {
-      this.closeSubmenu();
-    });
-    secondary.addEventListener('focus', () => {
-      this.closeSubmenu();
-    });
-
-    return row;
   }
 
   private executeItemAction(action: () => MenuActionResult): void {
