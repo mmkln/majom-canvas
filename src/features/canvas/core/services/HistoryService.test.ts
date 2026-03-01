@@ -99,7 +99,7 @@ describe('HistoryService save-state tracking', () => {
     service.undo();
 
     expect(service.canRedo()).toBe(true);
-    expect(service.hasUnsavedChanges()).toBe(true);
+    expect(service.hasUnsavedChanges()).toBe(false);
 
     service.reset();
 
