@@ -12,7 +12,6 @@ import {
   TITLE_FONT_SIZE,
   SMALL_FONT_SIZE,
   SHOW_ANIM_SCALE,
-  SHOW_DETAILS_SCALE,
   SHOW_GOAL_TEXT_SCALE,
 } from '../core/constants.ts';
 import { editElement$ } from '../core/eventBus.ts';
@@ -99,12 +98,10 @@ export class GoalElement extends PlanningElement {
 
   draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
     const renderFlags = panZoom.renderFlags;
-    const showDetails =
-      renderFlags?.showDetails ?? panZoom.scale >= SHOW_DETAILS_SCALE;
     const showText =
       renderFlags?.showGoalText ?? panZoom.scale >= SHOW_GOAL_TEXT_SCALE;
     const showAnim = renderFlags?.showAnim ?? panZoom.scale >= SHOW_ANIM_SCALE;
-    const { x, y, width, height, title, progress } = this;
+    const { x, y, width, height, title } = this;
     const style = goalStyles[this.status];
     const chromeColor = this.focused
       ? FOCUS_COLOR
@@ -129,44 +126,6 @@ export class GoalElement extends PlanningElement {
     this.drawHexPath(ctx, hexVertices);
     ctx.fill();
 
-    if (showDetails) {
-      // Progress ring (outside the main hex) - segmented
-      const progressRingWidth = 12;
-      const progressRingOffset = 8; // Space between main circle and progress ring
-      const segmentCount = 100;
-      const segmentFillRatio = 0.6;
-      const filledSegments = Math.max(
-        0,
-        Math.min(segmentCount, Math.round(progress * segmentCount))
-      );
-
-      ctx.lineWidth = progressRingWidth;
-      ctx.lineCap = 'butt';
-
-      // Background segments (unfilled)
-      ctx.strokeStyle = 'rgba(224,224,224,0.5)';
-      this.drawHexRingSegments(
-        ctx,
-        centerX,
-        centerY,
-        radius + progressRingOffset + progressRingWidth / 2,
-        segmentCount,
-        segmentFillRatio,
-        segmentCount
-      );
-
-      // Filled segments
-      ctx.strokeStyle = chromeColor;
-      this.drawHexRingSegments(
-        ctx,
-        centerX,
-        centerY,
-        radius + progressRingOffset + progressRingWidth / 2,
-        segmentCount,
-        segmentFillRatio,
-        filledSegments
-      );
-    }
 
     // Border
     ctx.strokeStyle = this.focused
@@ -244,10 +203,7 @@ export class GoalElement extends PlanningElement {
     const centerX = this.x + this.width / 2;
     const centerY = this.y + this.height / 2;
     const radius = this.width / 2;
-    const progressRingWidth = 12;
-    const progressRingOffset = 8;
-    const maxRadius = radius + progressRingOffset + progressRingWidth;
-    const vertices = this.getHexVertices(centerX, centerY, maxRadius);
+    const vertices = this.getHexVertices(centerX, centerY, radius);
     return this.isPointInPolygon(vertices, px, py);
   }
 
@@ -357,133 +313,6 @@ export class GoalElement extends PlanningElement {
       else ctx.lineTo(point.x, point.y);
     });
     ctx.closePath();
-  }
-
-  private drawHexRingSegments(
-    ctx: CanvasRenderingContext2D,
-    centerX: number,
-    centerY: number,
-    radius: number,
-    segmentCount: number,
-    segmentFillRatio: number,
-    segmentsToDraw: number
-  ): void {
-    if (segmentsToDraw <= 0) return;
-    const vertices = this.getHexVertices(centerX, centerY, radius);
-    const edgeLengths: number[] = [];
-    const edgeStarts: number[] = [];
-    let total = 0;
-    for (let i = 0; i < vertices.length; i += 1) {
-      const a = vertices[i];
-      const b = vertices[(i + 1) % vertices.length];
-      edgeStarts.push(total);
-      const len = Math.hypot(b.x - a.x, b.y - a.y);
-      edgeLengths.push(len);
-      total += len;
-    }
-    const segmentLength = total / segmentCount;
-    const drawLength = segmentLength * segmentFillRatio;
-    const startOffset = edgeLengths[0] + edgeLengths[1] / 2;
-    for (let i = 0; i < segmentsToDraw; i += 1) {
-      const start = (startOffset + i * segmentLength) % total;
-      const end = start + drawLength;
-      this.drawPerimeterSegment(
-        ctx,
-        vertices,
-        edgeStarts,
-        edgeLengths,
-        start,
-        end,
-        total
-      );
-    }
-  }
-
-  private drawPerimeterSegment(
-    ctx: CanvasRenderingContext2D,
-    vertices: Array<{ x: number; y: number }>,
-    edgeStarts: number[],
-    edgeLengths: number[],
-    startDist: number,
-    endDist: number,
-    totalLength: number
-  ): void {
-    if (endDist <= totalLength) {
-      this.drawPerimeterRange(
-        ctx,
-        vertices,
-        edgeStarts,
-        edgeLengths,
-        startDist,
-        endDist
-      );
-      return;
-    }
-    this.drawPerimeterRange(
-      ctx,
-      vertices,
-      edgeStarts,
-      edgeLengths,
-      startDist,
-      totalLength
-    );
-    this.drawPerimeterRange(
-      ctx,
-      vertices,
-      edgeStarts,
-      edgeLengths,
-      0,
-      endDist - totalLength
-    );
-  }
-
-  private drawPerimeterRange(
-    ctx: CanvasRenderingContext2D,
-    vertices: Array<{ x: number; y: number }>,
-    edgeStarts: number[],
-    edgeLengths: number[],
-    startDist: number,
-    endDist: number
-  ): void {
-    let cursor = startDist;
-    const epsilon = 1e-6;
-    while (cursor < endDist) {
-      const edgeIndex = this.getEdgeIndex(edgeStarts, edgeLengths, cursor);
-      const edgeStart = edgeStarts[edgeIndex];
-      const edgeLength = edgeLengths[edgeIndex];
-      const edgeEnd = edgeStart + edgeLength;
-      const segEnd = Math.min(endDist, edgeEnd);
-      if (segEnd - cursor <= epsilon) {
-        cursor = Math.min(endDist, segEnd + epsilon);
-        continue;
-      }
-      const t0 = (cursor - edgeStart) / edgeLength;
-      const t1 = (segEnd - edgeStart) / edgeLength;
-      const a = vertices[edgeIndex];
-      const b = vertices[(edgeIndex + 1) % vertices.length];
-      const x0 = a.x + (b.x - a.x) * t0;
-      const y0 = a.y + (b.y - a.y) * t0;
-      const x1 = a.x + (b.x - a.x) * t1;
-      const y1 = a.y + (b.y - a.y) * t1;
-      ctx.beginPath();
-      ctx.moveTo(x0, y0);
-      ctx.lineTo(x1, y1);
-      ctx.stroke();
-      cursor = segEnd;
-    }
-  }
-
-  private getEdgeIndex(
-    edgeStarts: number[],
-    edgeLengths: number[],
-    distance: number
-  ): number {
-    for (let i = 0; i < edgeStarts.length; i += 1) {
-      if (distance <= edgeStarts[i] + edgeLengths[i]) {
-        return i;
-      }
-    }
-    return 0;
   }
 
   private isPointInPolygon(
