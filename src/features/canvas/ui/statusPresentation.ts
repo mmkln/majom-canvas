@@ -2,10 +2,10 @@ import { ElementStatus } from '../elements/ElementStatus.ts';
 import type { IconName } from './icons.ts';
 
 export const STATUS_ORDER: readonly ElementStatus[] = [
-  ElementStatus.Defined,
-  ElementStatus.Pending,
-  ElementStatus.InProgress,
   ElementStatus.Done,
+  ElementStatus.InProgress,
+  ElementStatus.Pending,
+  ElementStatus.Defined,
 ];
 
 export const STATUS_ICON_MAP: Readonly<Record<ElementStatus, IconName>> = {
