@@ -564,7 +564,7 @@ export class CanvasBoardSelector {
       this.itemActionsMenu.appendChild(this.createNewGroupInputRow(canvas.id));
     } else {
       const newGroupItem = createDropdownItem({
-        label: 'New group',
+        label: 'Create group',
         onClick: (event) => {
           event.stopPropagation();
           this.handleCreateGroupRequest(canvas.id);

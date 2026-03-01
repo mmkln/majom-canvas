@@ -13,6 +13,14 @@ function ensureLoadingLineStyle(): void {
   0% { transform: translateX(-140%); }
   100% { transform: translateX(260%); }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .majom-loading-line-fill {
+    animation: none !important;
+    transform: translateX(0) !important;
+    width: 100% !important;
+  }
+}
 `;
   document.head.appendChild(style);
 }
@@ -31,7 +39,7 @@ export class LoadingScreen {
 
     this.root = document.createElement('div');
     this.root.className =
-      'fixed inset-0 z-[205] hidden items-center justify-center bg-[linear-gradient(to_bottom,#ffffff,#f8fafc)] px-4';
+      'fixed inset-0 z-[205] hidden items-center justify-center bg-[linear-gradient(to_bottom,#ffffff,#f8fafc)] px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]';
 
     const content = document.createElement('section');
     content.className = 'flex w-full max-w-xs flex-col items-center';
@@ -46,11 +54,11 @@ export class LoadingScreen {
 
     const lineTrack = document.createElement('div');
     lineTrack.className =
-      'relative h-1.5 w-52 overflow-hidden rounded-full bg-slate-200';
+      'relative h-1.5 w-full max-w-56 overflow-hidden rounded-full bg-slate-200';
 
     this.lineFill = document.createElement('div');
     this.lineFill.className =
-      'absolute left-0 top-0 h-full w-2/5 rounded-full bg-slate-700/85';
+      'majom-loading-line-fill absolute left-0 top-0 h-full w-2/5 rounded-full bg-slate-700/85';
     this.lineFill.style.animation = 'majom-loading-slide 1.05s linear infinite';
     lineTrack.appendChild(this.lineFill);
 
@@ -64,7 +72,7 @@ export class LoadingScreen {
     this.retryButton = document.createElement('button');
     this.retryButton.type = 'button';
     this.retryButton.className =
-      'inline-flex h-8 items-center justify-center rounded-md border border-slate-300 px-3 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100';
+      'inline-flex h-10 items-center justify-center rounded-md border border-slate-300 px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100';
     this.retryButton.textContent = 'Retry';
     this.actions.appendChild(this.retryButton);
 
@@ -72,13 +80,15 @@ export class LoadingScreen {
     this.root.appendChild(content);
   }
 
-  public showLoading(_message: string = 'Loading canvas...'): void {
+  public showLoading(message: string = 'Loading canvas...'): void {
     this.mount();
+    this.root.setAttribute('aria-label', message);
     this.setState('loading');
   }
 
   public showError(message: string, onRetry: () => void): void {
     this.mount();
+    this.root.setAttribute('aria-label', message);
     this.setState('error');
     this.message.textContent = message;
     this.bindRetry(onRetry);

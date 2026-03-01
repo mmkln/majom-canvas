@@ -25,7 +25,7 @@ export class BootOrchestrator {
   private readonly runtimeHost: RuntimeHost;
   private readonly loginPage: LoginPage;
   private readonly loadingScreen: LoadingScreen;
-  private readonly minLoadingScreenMs = 1800;
+  private readonly minLoadingScreenMs: number;
   private logoutSubscription: Subscription | null = null;
   private loginSubscription: Subscription | null = null;
   private state: BootState = 'auth_required';
@@ -35,6 +35,7 @@ export class BootOrchestrator {
   constructor() {
     this.runtimeHost = new RuntimeHost(this.wallpaperService);
     this.loadingScreen = new LoadingScreen();
+    this.minLoadingScreenMs = this.resolveMinLoadingScreenDuration();
     this.loginPage = new LoginPage({
       title: 'Welcome back',
       onSubmit: async (credentials) => this.handleLoginSubmit(credentials),
@@ -184,5 +185,13 @@ export class BootOrchestrator {
     this.runtimeHost.dispose();
     this.render();
     window.location.reload();
+  }
+
+  private resolveMinLoadingScreenDuration(): number {
+    if (typeof window === 'undefined') return 1800;
+    if (typeof window.matchMedia !== 'function') return 1800;
+    return window.matchMedia('(pointer: coarse), (max-width: 640px)').matches
+      ? 900
+      : 1800;
   }
 }
