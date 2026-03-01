@@ -37,9 +37,9 @@ export class Select extends Component<SelectProps> {
     ].join(' ');
     const variantStyles: Record<'default' | 'inline', string> = {
       default:
-        'h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-200',
+        'h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-base text-slate-800 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-200 md:text-sm',
       inline:
-        'h-[34px] rounded-lg border border-indigo-200/70 bg-indigo-50/70 px-3 text-sm font-semibold text-indigo-700 focus:border-indigo-300 focus:bg-white focus:ring-2 focus:ring-indigo-100',
+        'h-[34px] rounded-lg border border-indigo-200/70 bg-indigo-50/70 px-3 text-base font-semibold text-indigo-700 focus:border-indigo-300 focus:bg-white focus:ring-2 focus:ring-indigo-100 md:text-sm',
     };
     select.className = twMerge(
       baseStyles,

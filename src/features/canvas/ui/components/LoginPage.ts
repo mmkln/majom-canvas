@@ -74,7 +74,7 @@ export class LoginPage {
       autoComplete: 'username',
       placeholder: 'Username',
       variant: 'default',
-      inputClassName: 'text-base sm:text-sm',
+      inputClassName: 'text-base md:text-sm',
     });
     this.usernameInput = usernameControl.input;
     this.usernameInput.autocapitalize = 'none';
@@ -94,7 +94,7 @@ export class LoginPage {
       autoComplete: 'current-password',
       placeholder: 'Password',
       variant: 'default',
-      inputClassName: 'text-base sm:text-sm',
+      inputClassName: 'text-base md:text-sm',
     });
     this.passwordInput = passwordControl.input;
     this.passwordInput.autocapitalize = 'none';

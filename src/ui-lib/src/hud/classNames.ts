@@ -88,10 +88,10 @@ export const HUD_INPUT_BASE_CLASS =
   'w-full outline-none transition-colors disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 aria-[invalid=true]:border-rose-300 aria-[invalid=true]:bg-rose-50 aria-[invalid=true]:ring-rose-100';
 
 export const HUD_INPUT_DEFAULT_CLASS =
-  'h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-300';
+  'h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-base text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-300 md:text-sm';
 
 export const HUD_INPUT_INLINE_CLASS =
-  'h-[34px] rounded-lg border border-indigo-200/70 bg-indigo-50/70 px-3 text-sm font-semibold text-indigo-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] focus:border-indigo-300 focus:bg-white focus:ring-2 focus:ring-indigo-100';
+  'h-[34px] rounded-lg border border-indigo-200/70 bg-indigo-50/70 px-3 text-base font-semibold text-indigo-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] focus:border-indigo-300 focus:bg-white focus:ring-2 focus:ring-indigo-100 md:text-sm';
 
 export const HUD_SEGMENTED_CONTROL_CLASS =
   'inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1';

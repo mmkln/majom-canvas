@@ -68,9 +68,9 @@ export class Input extends Component<InputProps> {
     ].join(' ');
     const variantStyles: Record<'default' | 'inline', string> = {
       default:
-        'h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-200',
+        'h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-base text-slate-800 placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-200 md:text-sm',
       inline:
-        'h-[34px] rounded-lg border border-indigo-200/70 bg-indigo-50/70 px-3 text-sm font-semibold text-indigo-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] focus:border-indigo-300 focus:bg-white focus:ring-2 focus:ring-indigo-100',
+        'h-[34px] rounded-lg border border-indigo-200/70 bg-indigo-50/70 px-3 text-base font-semibold text-indigo-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] focus:border-indigo-300 focus:bg-white focus:ring-2 focus:ring-indigo-100 md:text-sm',
     };
     input.className = twMerge(
       baseStyles,
