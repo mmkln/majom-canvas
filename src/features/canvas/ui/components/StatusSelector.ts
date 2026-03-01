@@ -39,6 +39,13 @@ const STATUS_STEP_TONE_CLASS: Record<ElementStatus, string> = {
 const STATUS_STEP_MIXED_TONE_CLASS =
   'bg-slate-100/60 text-slate-600 hover:bg-slate-200/70 hover:text-slate-700';
 
+const STATUS_STEP_ORDER: readonly ElementStatus[] = [
+  ElementStatus.Defined,
+  ElementStatus.Pending,
+  ElementStatus.InProgress,
+  ElementStatus.Done,
+];
+
 type StatusSelectorOptions = {
   onStatusChange: (status: ElementStatus) => void;
 };
@@ -287,9 +294,9 @@ export class StatusSelector {
       this.setTriggerStatusBackground(this.currentStatus);
       this.setStepButtonsStatusTone(this.currentStatus);
 
-      const index = STATUS_ORDER.indexOf(this.currentStatus);
+      const index = STATUS_STEP_ORDER.indexOf(this.currentStatus);
       this.prevBtn.disabled = index <= 0;
-      this.nextBtn.disabled = index >= STATUS_ORDER.length - 1;
+      this.nextBtn.disabled = index >= STATUS_STEP_ORDER.length - 1;
     }
 
     const triggerText =
@@ -306,11 +313,11 @@ export class StatusSelector {
 
   private stepStatus(direction: -1 | 1): void {
     if (this.currentStatus === null) return;
-    const currentIndex = STATUS_ORDER.indexOf(this.currentStatus);
+    const currentIndex = STATUS_STEP_ORDER.indexOf(this.currentStatus);
     if (currentIndex === -1) return;
     const nextIndex = currentIndex + direction;
-    if (nextIndex < 0 || nextIndex >= STATUS_ORDER.length) return;
-    const nextStatus = STATUS_ORDER[nextIndex];
+    if (nextIndex < 0 || nextIndex >= STATUS_STEP_ORDER.length) return;
+    const nextStatus = STATUS_STEP_ORDER[nextIndex];
     this.currentStatus = nextStatus;
     this.syncUi();
     this.onStatusChange(nextStatus);
