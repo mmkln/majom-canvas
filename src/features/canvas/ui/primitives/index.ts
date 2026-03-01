@@ -20,6 +20,7 @@ export {
   type HudTextButtonState,
 } from '../../../../ui-lib/src/hud/index.ts';
 export { HudDropdown } from '../../../../ui-lib/src/hud/index.ts';
+export { HudAnchoredMenu } from '../../../../ui-lib/src/hud/index.ts';
 export { createHudDivider } from '../../../../ui-lib/src/hud/index.ts';
 export { createHudField } from '../../../../ui-lib/src/hud/index.ts';
 export {
@@ -75,6 +76,7 @@ export {
   type TextButtonElement,
   type TextButtonState,
   Dropdown,
+  AnchoredMenu,
   createDivider,
   createField,
   createFormMessage,

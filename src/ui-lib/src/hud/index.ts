@@ -25,6 +25,7 @@ export {
 } from './HudIconButton.ts';
 
 export { HudDropdown as Dropdown } from './HudDropdown.ts';
+export { HudAnchoredMenu as AnchoredMenu } from './HudAnchoredMenu.ts';
 export { createHudDivider as createDivider } from './HudDivider.ts';
 export { createHudField as createField } from './HudField.ts';
 
@@ -96,6 +97,7 @@ export {
   type HudTextButtonState,
 } from './HudTextButton.ts';
 export { HudDropdown } from './HudDropdown.ts';
+export { HudAnchoredMenu } from './HudAnchoredMenu.ts';
 export { createHudDivider } from './HudDivider.ts';
 export { createHudField } from './HudField.ts';
 export {

@@ -50,6 +50,8 @@ type CanvasListUiItem = {
   id: string;
   name: string;
   isFavorite: boolean;
+  groupId: string | null;
+  groupName: string | null;
 };
 
 type CanvasListCacheItem = {
@@ -94,8 +96,12 @@ export class CanvasApp {
     this.handleCanvasCreateRequested();
   private readonly canvasFavoriteToggledHandler = (event: Event): void =>
     this.handleCanvasFavoriteToggled(event);
-  private readonly canvasDeleteRequestedHandler = (): void => {
-    void this.handleCanvasDeleteRequested();
+  private readonly canvasGroupUpdatedHandler = (event: Event): void =>
+    this.handleCanvasGroupUpdated(event);
+  private readonly canvasRenameRequestedHandler = (event: Event): void =>
+    this.handleCanvasRenameRequested(event);
+  private readonly canvasDeleteRequestedHandler = (event: Event): void => {
+    void this.handleCanvasDeleteRequested(event);
   };
   private readonly elementDetailsEditedHandler = (event: Event): void =>
     this.handleElementDetailsEdited(event);
@@ -168,6 +174,11 @@ export class CanvasApp {
       'canvasFavoriteToggled',
       this.canvasFavoriteToggledHandler
     );
+    window.addEventListener('canvasGroupUpdated', this.canvasGroupUpdatedHandler);
+    window.addEventListener(
+      'canvasRenameRequested',
+      this.canvasRenameRequestedHandler
+    );
     window.addEventListener(
       'canvasDeleteRequested',
       this.canvasDeleteRequestedHandler
@@ -211,6 +222,14 @@ export class CanvasApp {
     window.removeEventListener(
       'canvasFavoriteToggled',
       this.canvasFavoriteToggledHandler
+    );
+    window.removeEventListener(
+      'canvasGroupUpdated',
+      this.canvasGroupUpdatedHandler
+    );
+    window.removeEventListener(
+      'canvasRenameRequested',
+      this.canvasRenameRequestedHandler
     );
     window.removeEventListener(
       'canvasDeleteRequested',
@@ -371,6 +390,105 @@ export class CanvasApp {
           }
         },
       });
+  }
+
+  private handleCanvasGroupUpdated(event: Event): void {
+    const customEvent = event as CustomEvent<{
+      id?: string;
+      groupId?: string | null;
+      groupName?: string | null;
+      previousGroupId?: string | null;
+      previousGroupName?: string | null;
+    }>;
+    const id = customEvent.detail?.id;
+    if (!id) return;
+
+    const nextGroup = this.normalizeCanvasGroup(
+      customEvent.detail?.groupId,
+      customEvent.detail?.groupName
+    );
+    const previousGroupFromEvent = this.normalizeCanvasGroup(
+      customEvent.detail?.previousGroupId,
+      customEvent.detail?.previousGroupName
+    );
+
+    const cachedCanvas = this.canvasListCache.get(id);
+    const previousGroup =
+      previousGroupFromEvent ?? this.extractCanvasGroup(cachedCanvas?.meta);
+
+    if (!this.authService.isLoggedIn()) {
+      authFlowService.requestLogin('protected-action');
+      this.emitCanvasGroupUpdateFailed(id, previousGroup);
+      return;
+    }
+
+    this.canvasDataService
+      .updateCanvasGroup({
+        id,
+        groupId: nextGroup?.id ?? null,
+        groupName: nextGroup?.name ?? null,
+        name: cachedCanvas?.name,
+        meta: cachedCanvas?.meta,
+      })
+      .subscribe({
+        next: (updated) => {
+          const fallbackName = cachedCanvas?.name ?? 'New canvas';
+          this.canvasListCache.set(id, {
+            id,
+            name: updated.name || fallbackName,
+            meta: updated.meta ?? cachedCanvas?.meta ?? null,
+          });
+          this.emitCanvasList(
+            this.getCanvasListUiItemsFromCache(),
+            this.canvasDataService.getActiveCanvasId()
+          );
+        },
+        error: (err) => {
+          console.error('Failed to update canvas group', err);
+          notify('Failed to update group', 'error');
+          this.emitCanvasGroupUpdateFailed(id, previousGroup);
+        },
+      });
+  }
+
+  private handleCanvasRenameRequested(event: Event): void {
+    const customEvent = event as CustomEvent<{
+      id?: string;
+      name?: string;
+    }>;
+    const id = customEvent.detail?.id;
+    const name = customEvent.detail?.name;
+    if (!id || typeof name !== 'string') return;
+    const nextName = name.trim();
+    if (nextName.length === 0) return;
+
+    if (!this.authService.isLoggedIn()) {
+      authFlowService.requestLogin('protected-action');
+      return;
+    }
+
+    const cachedCanvas = this.canvasListCache.get(id);
+    this.canvasDataService.updateCanvasNameById(id, nextName).subscribe({
+      next: (updated) => {
+        const fallbackName = cachedCanvas?.name ?? 'New canvas';
+        this.canvasListCache.set(id, {
+          id,
+          name: updated.name || fallbackName,
+          meta: updated.meta ?? cachedCanvas?.meta ?? null,
+        });
+        if (this.canvasDataService.getActiveCanvasId() === id) {
+          this.setCanvasTitle(updated.name || fallbackName);
+        }
+        this.emitCanvasList(
+          this.getCanvasListUiItemsFromCache(),
+          this.canvasDataService.getActiveCanvasId()
+        );
+      },
+      error: (err) => {
+        console.error('Failed to rename canvas', err);
+        notify('Failed to rename canvas', 'error');
+      },
+    });
   }
 
   private handleElementDetailsEdited(event: Event): void {
@@ -934,14 +1052,21 @@ export class CanvasApp {
       this.isElementsHydrating || this.isRelationsHydrating;
   }
 
-  private async handleCanvasDeleteRequested(): Promise<void> {
+  private async handleCanvasDeleteRequested(event?: Event): Promise<void> {
     if (!this.authService.isLoggedIn()) {
       authFlowService.requestLogin('canvas-access');
       return;
     }
 
+    const customEvent = event as
+      | CustomEvent<{
+          id?: string;
+        }>
+      | undefined;
+    const requestedCanvasId = customEvent?.detail?.id;
     const activeCanvasId = this.canvasDataService.getActiveCanvasId();
-    if (!activeCanvasId) {
+    const canvasIdToDelete = requestedCanvasId || activeCanvasId;
+    if (!canvasIdToDelete) {
       notify('No active canvas selected.', 'info');
       return;
     }
@@ -950,29 +1075,34 @@ export class CanvasApp {
       const canvases = await firstValueFrom(
         this.canvasDataService.loadCanvases()
       );
-      const activeCanvas =
-        canvases.find((canvas) => canvas.id === activeCanvasId) ?? null;
-      if (!activeCanvas) {
-        notify('Active canvas was not found.', 'error');
+      const targetCanvas =
+        canvases.find((canvas) => canvas.id === canvasIdToDelete) ?? null;
+      if (!targetCanvas) {
+        notify('Canvas was not found.', 'error');
         return;
       }
 
       const confirmed = await confirmDeleteCanvasModal({
-        canvasTitle: activeCanvas.name,
+        canvasTitle: targetCanvas.name,
         isLastCanvas: canvases.length <= 1,
       });
       if (!confirmed) {
         return;
       }
 
-      await firstValueFrom(
-        this.canvasDataService.deleteCanvas(activeCanvas.id)
-      );
+      await firstValueFrom(this.canvasDataService.deleteCanvas(targetCanvas.id));
       notify('Canvas deleted.', 'success');
 
       const remainingCanvases = canvases.filter(
-        (canvas) => canvas.id !== activeCanvas.id
+        (canvas) => canvas.id !== targetCanvas.id
       );
+      const deletedActiveCanvas = activeCanvasId === targetCanvas.id;
+
+      if (!deletedActiveCanvas) {
+        this.refreshCanvasList(activeCanvasId ?? null);
+        return;
+      }
+
       if (remainingCanvases.length === 0) {
         const createdCanvas = await firstValueFrom(
           this.canvasDataService.createCanvas('New canvas')
@@ -1053,10 +1183,13 @@ export class CanvasApp {
     name: string;
     meta?: Record<string, unknown> | null;
   }): CanvasListUiItem {
+    const group = this.extractCanvasGroup(canvas.meta);
     return {
       id: canvas.id,
       name: canvas.name,
       isFavorite: this.extractCanvasFavoriteFlag(canvas.meta),
+      groupId: group?.id ?? null,
+      groupName: group?.name ?? null,
     };
   }
 
@@ -1093,6 +1226,55 @@ export class CanvasApp {
     return typeof favourite === 'boolean' ? favourite : false;
   }
 
+  private extractCanvasGroup(
+    meta: Record<string, unknown> | null | undefined
+  ): { id: string; name: string } | null {
+    if (!meta) return null;
+
+    const directGroup = meta.group;
+    if (typeof directGroup === 'string' && directGroup.trim().length > 0) {
+      const value = directGroup.trim();
+      return { id: value, name: value };
+    }
+
+    if (
+      directGroup &&
+      typeof directGroup === 'object' &&
+      !Array.isArray(directGroup)
+    ) {
+      const group = directGroup as Record<string, unknown>;
+      const id = typeof group.id === 'string' ? group.id.trim() : '';
+      const name = typeof group.name === 'string' ? group.name.trim() : '';
+      if (id || name) {
+        return {
+          id: id || name,
+          name: name || id,
+        };
+      }
+    }
+
+    const groupId = this.extractMetaString(meta, ['groupId', 'group_id']);
+    const groupName = this.extractMetaString(meta, ['groupName', 'group_name']);
+    if (!groupId && !groupName) return null;
+    return {
+      id: groupId || groupName,
+      name: groupName || groupId,
+    };
+  }
+
+  private extractMetaString(
+    meta: Record<string, unknown>,
+    keys: string[]
+  ): string {
+    for (const key of keys) {
+      const value = meta[key];
+      if (typeof value !== 'string') continue;
+      const trimmed = value.trim();
+      if (trimmed.length > 0) return trimmed;
+    }
+    return '';
+  }
+
   private emitCanvasFavoriteToggleFailed(
     id: string,
     previousIsFavorite: boolean
@@ -1102,6 +1284,34 @@ export class CanvasApp {
         detail: { id, previousIsFavorite },
       })
     );
+  }
+
+  private emitCanvasGroupUpdateFailed(
+    id: string,
+    previousGroup: { id: string; name: string } | null
+  ): void {
+    window.dispatchEvent(
+      new CustomEvent('canvasGroupUpdateFailed', {
+        detail: {
+          id,
+          previousGroupId: previousGroup?.id ?? null,
+          previousGroupName: previousGroup?.name ?? null,
+        },
+      })
+    );
+  }
+
+  private normalizeCanvasGroup(
+    groupId: string | null | undefined,
+    groupName: string | null | undefined
+  ): { id: string; name: string } | null {
+    const id = typeof groupId === 'string' ? groupId.trim() : '';
+    const name = typeof groupName === 'string' ? groupName.trim() : '';
+    if (!id && !name) return null;
+    return {
+      id: id || name,
+      name: name || id,
+    };
   }
 
   private async handleStoryGoalLinkSet(

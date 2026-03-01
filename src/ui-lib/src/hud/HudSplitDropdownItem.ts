@@ -16,6 +16,7 @@ export type HudSplitDropdownItemOptions = {
   tone?: HudDropdownItemTone;
   className?: string;
   primaryTransparent?: boolean;
+  hideSelectedTrailing?: boolean;
   disabled?: boolean;
   leading?: HTMLElement | null;
   trailing?: HTMLElement | null;
@@ -26,8 +27,16 @@ export type HudSplitDropdownItemOptions = {
   secondaryClassName?: string;
   secondaryDisabled?: boolean;
   secondaryRevealOnHover?: boolean;
+  tertiaryIcon?: IconName;
+  tertiaryLabel?: string;
+  tertiaryTone?: HudSplitSecondaryTone;
+  tertiaryPressed?: boolean;
+  tertiaryClassName?: string;
+  tertiaryDisabled?: boolean;
+  tertiaryRevealOnHover?: boolean;
   onPrimaryClick?: () => void;
   onSecondaryClick?: () => void;
+  onTertiaryClick?: (event: MouseEvent, button: HTMLButtonElement) => void;
   onPointerEnter?: () => void;
   onFocusWithin?: () => void;
 };
@@ -40,8 +49,10 @@ const SECONDARY_BASE_CLASS =
   'inline-flex w-11 shrink-0 items-center justify-center border-l border-transparent bg-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:ring-inset';
 const SECONDARY_INTERACTIVE_CLASS =
   'group-hover:border-indigo-100 group-focus-within:border-indigo-100 group-hover:bg-indigo-50 group-focus-within:bg-indigo-50 group-hover:text-indigo-600 group-focus-within:text-indigo-600 hover:!bg-indigo-100 focus-visible:!bg-indigo-100';
-const SECONDARY_REVEAL_ON_HOVER_CLASS =
-  'opacity-0 pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 group-hover:pointer-events-auto group-focus-within:pointer-events-auto';
+const SECONDARY_REVEAL_INTERACTION_CLASS =
+  'pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto focus-visible:pointer-events-auto';
+const SECONDARY_ICON_REVEAL_CLASS =
+  'opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100';
 const SECONDARY_DISABLED_CLASS = `${SECONDARY_BASE_CLASS} text-slate-300 cursor-not-allowed`;
 
 const SECONDARY_TONE_CLASS: Record<HudSplitSecondaryTone, string> = {
@@ -69,45 +80,24 @@ export function createHudSplitDropdownItem(
       `${options.className ?? ''} ${PRIMARY_BASE_CLASS} ${options.primaryTransparent ? PRIMARY_TRANSPARENT_CLASS : ''}`.trim(),
     disabled: options.disabled,
     leading: options.leading ?? null,
-    trailing: options.trailing ?? null,
+    trailing:
+      isSelected && options.hideSelectedTrailing ? null : (options.trailing ?? null),
     onClick: () => options.onPrimaryClick?.(),
   });
   primary.setAttribute('role', 'menuitem');
 
-  const secondaryDisabled =
-    options.secondaryDisabled ?? options.disabled ?? false;
-  const secondary = document.createElement('button');
-  secondary.type = 'button';
-  const secondaryTone = options.secondaryTone ?? 'default';
-  const secondaryBaseClass = secondaryDisabled
-    ? SECONDARY_DISABLED_CLASS
-    : `${SECONDARY_BASE_CLASS} ${SECONDARY_INTERACTIVE_CLASS} ${SECONDARY_TONE_CLASS[secondaryTone]} ${options.secondaryRevealOnHover ? SECONDARY_REVEAL_ON_HOVER_CLASS : ''}`.trim();
-  secondary.className =
-    `${secondaryBaseClass} ${options.secondaryClassName ?? ''}`.trim();
-  secondary.title = options.secondaryLabel;
-  secondary.setAttribute('aria-label', options.secondaryLabel);
-  secondary.setAttribute('role', 'menuitem');
-  if (typeof options.secondaryPressed === 'boolean') {
-    secondary.setAttribute(
-      'aria-pressed',
-      options.secondaryPressed ? 'true' : 'false'
-    );
-  }
-  if (secondaryDisabled) {
-    secondary.disabled = true;
-    secondary.setAttribute('aria-disabled', 'true');
-  }
-
-  const icon = createIcon(options.secondaryIcon, {
-    size: 14,
-    strokeWidth: 1.9,
-  });
-  icon.setAttribute('aria-hidden', 'true');
-  secondary.appendChild(icon);
-  secondary.addEventListener('click', (event) => {
-    event.stopPropagation();
-    if (secondaryDisabled) return;
-    options.onSecondaryClick?.();
+  const secondary = createActionButton({
+    icon: options.secondaryIcon,
+    label: options.secondaryLabel,
+    tone: options.secondaryTone ?? 'default',
+    pressed: options.secondaryPressed,
+    disabled: options.secondaryDisabled ?? options.disabled ?? false,
+    className: options.secondaryClassName,
+    revealOnHover: options.secondaryRevealOnHover,
+    onClick: (event, button) => {
+      if (button.disabled) return;
+      options.onSecondaryClick?.();
+    },
   });
 
   const notifyFocusWithin = (): void => {
@@ -118,7 +108,70 @@ export function createHudSplitDropdownItem(
   });
   primary.addEventListener('focus', notifyFocusWithin);
   secondary.addEventListener('focus', notifyFocusWithin);
-
   row.append(primary, secondary);
+
+  const hasTertiaryAction =
+    options.tertiaryIcon !== undefined && options.tertiaryLabel !== undefined;
+  if (hasTertiaryAction) {
+    const tertiary = createActionButton({
+      icon: options.tertiaryIcon,
+      label: options.tertiaryLabel,
+      tone: options.tertiaryTone ?? 'default',
+      pressed: options.tertiaryPressed,
+      disabled: options.tertiaryDisabled ?? options.disabled ?? false,
+      className: options.tertiaryClassName,
+      revealOnHover: options.tertiaryRevealOnHover,
+      onClick: (event, button) => {
+        if (button.disabled) return;
+        options.onTertiaryClick?.(event, button);
+      },
+    });
+    tertiary.addEventListener('focus', notifyFocusWithin);
+    row.appendChild(tertiary);
+  }
+
   return row;
+}
+
+function createActionButton(options: {
+  icon: IconName;
+  label: string;
+  tone: HudSplitSecondaryTone;
+  pressed?: boolean;
+  disabled: boolean;
+  className?: string;
+  revealOnHover?: boolean;
+  onClick?: (event: MouseEvent, button: HTMLButtonElement) => void;
+}): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  const baseClass = options.disabled
+    ? SECONDARY_DISABLED_CLASS
+    : `${SECONDARY_BASE_CLASS} ${SECONDARY_INTERACTIVE_CLASS} ${SECONDARY_TONE_CLASS[options.tone]} ${options.revealOnHover ? SECONDARY_REVEAL_INTERACTION_CLASS : ''}`.trim();
+  button.className = `${baseClass} ${options.className ?? ''}`.trim();
+  button.title = options.label;
+  button.setAttribute('aria-label', options.label);
+  button.setAttribute('role', 'menuitem');
+  if (typeof options.pressed === 'boolean') {
+    button.setAttribute('aria-pressed', options.pressed ? 'true' : 'false');
+  }
+  if (options.disabled) {
+    button.disabled = true;
+    button.setAttribute('aria-disabled', 'true');
+  }
+
+  const icon = createIcon(options.icon, {
+    size: 14,
+    strokeWidth: 1.9,
+  });
+  if (options.revealOnHover) {
+    icon.classList.add(...SECONDARY_ICON_REVEAL_CLASS.split(' '));
+  }
+  icon.setAttribute('aria-hidden', 'true');
+  button.appendChild(icon);
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    options.onClick?.(event, button);
+  });
+  return button;
 }
