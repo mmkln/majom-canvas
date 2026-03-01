@@ -84,6 +84,15 @@ export class HistoryService {
     );
   }
 
+  public reset(): void {
+    this.undoStack = [];
+    this.redoStack = [];
+    this.branchId = 0;
+    this.savedBranchId = 0;
+    this.savedIndex = 0;
+    this.changes.next();
+  }
+
   private getTrackedUndoCount(): number {
     let count = 0;
     for (const command of this.undoStack) {

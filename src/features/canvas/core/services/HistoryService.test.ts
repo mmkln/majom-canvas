@@ -92,4 +92,20 @@ describe('HistoryService save-state tracking', () => {
 
     expect(service.hasUnsavedChanges()).toBe(false);
   });
+
+  it('clears undo/redo stacks and saved state on reset', () => {
+    const service = new HistoryService();
+    service.execute(new TestCommand(true));
+    service.undo();
+
+    expect(service.canRedo()).toBe(true);
+    expect(service.hasUnsavedChanges()).toBe(true);
+
+    service.reset();
+
+    expect(service.canUndo()).toBe(false);
+    expect(service.canRedo()).toBe(false);
+    expect(service.hasUnsavedChanges()).toBe(false);
+    expect(service.getStateToken()).toEqual({ branchId: 0, index: 0 });
+  });
 });
