@@ -64,8 +64,9 @@ export class HistoryService {
   }
 
   public isTokenCurrent(token: { branchId: number; index: number }): boolean {
+    const current = this.getStateToken();
     return (
-      token.branchId === this.branchId && token.index === this.undoStack.length
+      token.branchId === current.branchId && token.index === current.index
     );
   }
 
