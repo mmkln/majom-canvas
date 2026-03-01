@@ -72,9 +72,9 @@ export const HUD_PAGE_TITLE_CLASS =
 
 export const HUD_FIELD_CLASS = 'mb-4 space-y-1.5';
 export const HUD_FIELD_LABEL_BASE_CLASS =
-  'block text-[13px] font-medium leading-5';
-export const HUD_FIELD_LABEL_DEFAULT_CLASS = 'text-slate-500';
-export const HUD_FIELD_LABEL_MUTED_CLASS = 'text-slate-400';
+  'block text-sm font-medium leading-5';
+export const HUD_FIELD_LABEL_DEFAULT_CLASS = 'text-slate-700';
+export const HUD_FIELD_LABEL_MUTED_CLASS = 'text-slate-600';
 export const HUD_FIELD_LABEL_ERROR_CLASS = 'text-rose-700';
 export const HUD_FIELD_LABEL_DISABLED_CLASS = 'text-slate-400';
 export const HUD_FIELD_REQUIRED_MARK_CLASS = 'ml-1 text-rose-400';
@@ -88,7 +88,7 @@ export const HUD_INPUT_BASE_CLASS =
   'w-full outline-none transition-colors disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 aria-[invalid=true]:border-rose-300 aria-[invalid=true]:bg-rose-50 aria-[invalid=true]:ring-rose-100';
 
 export const HUD_INPUT_DEFAULT_CLASS =
-  'h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-200';
+  'h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-300';
 
 export const HUD_INPUT_INLINE_CLASS =
   'h-[34px] rounded-lg border border-indigo-200/70 bg-indigo-50/70 px-3 text-sm font-semibold text-indigo-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] focus:border-indigo-300 focus:bg-white focus:ring-2 focus:ring-indigo-100';
