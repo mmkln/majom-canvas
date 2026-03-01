@@ -40,10 +40,10 @@ export class CanvasControls {
     const orientation = options.orientation ?? 'vertical';
     const isHorizontal = orientation === 'horizontal';
     const layoutClass = isHorizontal
-      ? 'flex-row items-center justify-between w-full'
-      : 'flex-col items-center';
+      ? 'grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 py-1.5'
+      : 'flex flex-col items-center gap-1 px-3 py-2';
     const baseClass = embedded ? '' : 'absolute right-4 bottom-4 z-20';
-    const defaultClass = `flex ${layoutClass} gap-1 px-3 py-2`;
+    const defaultClass = layoutClass;
     const className =
       `${baseClass} ${defaultClass} ${options.className ?? ''}`.trim();
     this.container = useSurface
@@ -69,7 +69,7 @@ export class CanvasControls {
 
     const zoomCluster = document.createElement('div');
     zoomCluster.className = isHorizontal
-      ? 'inline-flex items-center gap-1'
+      ? 'inline-flex items-center gap-1 justify-self-start'
       : 'inline-flex flex-col items-center gap-1';
 
     let zoomWrap: HTMLDivElement | null = null;
@@ -126,14 +126,15 @@ export class CanvasControls {
 
     if (isHorizontal) {
       const actionsCluster = document.createElement('div');
-      actionsCluster.className = 'inline-flex items-center gap-1';
+      actionsCluster.className =
+        'inline-flex items-center gap-1 justify-self-end min-h-9';
       actionsCluster.append(this.goToFocusBtn);
       if (this.miniMapToggleBtn) {
         actionsCluster.append(this.miniMapToggleBtn);
       }
 
       const divider = document.createElement('span');
-      divider.className = 'mx-1 h-6 w-px bg-slate-200/80';
+      divider.className = 'justify-self-center h-6 w-px bg-slate-200/80';
       divider.setAttribute('aria-hidden', 'true');
 
       this.container.append(zoomCluster, divider, actionsCluster);
@@ -181,7 +182,8 @@ export class CanvasControls {
   private updateFocusAvailability(): void {
     const hasFocus = this.scene.getFocusedElement() !== null;
     this.goToFocusBtn.disabled = !hasFocus;
-    this.goToFocusBtn.style.display = hasFocus ? '' : 'none';
+    this.goToFocusBtn.style.visibility = hasFocus ? 'visible' : 'hidden';
+    this.goToFocusBtn.style.pointerEvents = hasFocus ? '' : 'none';
   }
 
   private handleMiniMapToggle(): void {

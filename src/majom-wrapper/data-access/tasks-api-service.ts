@@ -35,13 +35,21 @@ export class TasksApiService {
   public fetchTasksByIds(ids: number[]): Observable<PlatformTask[]> {
     if (!ids.length) return of([]);
     const encodedIds = encodeURIComponent(ids.join(','));
-    return this.http.get<PlatformTask[]>(`/tasks/?ids=${encodedIds}`);
+    return this.http
+      .get<PaginatedResponse<PlatformTask> | PlatformTask[]>(
+        `/tasks/?ids=${encodedIds}`
+      )
+      .pipe(map((res) => (Array.isArray(res) ? res : res.results)));
   }
 
   public fetchTasksByUuids(uuids: string[]): Observable<PlatformTask[]> {
     if (!uuids.length) return of([]);
     const encoded = encodeURIComponent(uuids.join(','));
-    return this.http.get<PlatformTask[]>(`/tasks/?uuids=${encoded}`);
+    return this.http
+      .get<PaginatedResponse<PlatformTask> | PlatformTask[]>(
+        `/tasks/?uuids=${encoded}`
+      )
+      .pipe(map((res) => (Array.isArray(res) ? res : res.results)));
   }
 
   public getTasks(

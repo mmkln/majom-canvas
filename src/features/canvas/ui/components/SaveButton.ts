@@ -126,6 +126,10 @@ export class SaveButton {
     parent.appendChild(this.container);
   }
 
+  public setVisible(visible: boolean): void {
+    this.container.style.display = visible ? 'flex' : 'none';
+  }
+
   unmount(): void {
     window.removeEventListener('refreshCanvasData', this.refreshHandler);
     window.removeEventListener(

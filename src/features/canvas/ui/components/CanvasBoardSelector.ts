@@ -10,6 +10,8 @@ import {
   createSurface,
 } from '../primitives/index.ts';
 import { createIcon } from '../icons.ts';
+import type { HudOverlayCoordinator } from '../HudOverlayCoordinator.ts';
+import { MobileBottomSheet } from '../MobileBottomSheet.ts';
 import { MenuItemGroup } from './MenuItemGroup.ts';
 
 type CanvasGroup = { id: string; name: string };
@@ -20,7 +22,16 @@ type CanvasItem = {
   group: CanvasGroup | null;
 };
 
+export type CanvasBoardSelectorLayoutMode = 'desktop' | 'mobile';
+
+type CanvasBoardSelectorOptions = {
+  layoutMode?: CanvasBoardSelectorLayoutMode;
+  containerClassName?: string;
+  overlayCoordinator?: HudOverlayCoordinator;
+};
+
 export class CanvasBoardSelector {
+  private static readonly OVERLAY_OWNER_ID = 'canvas-board-selector';
   private static readonly GROUP_COLLAPSE_STORAGE_KEY =
     'canvas-board-selector-collapsed-groups-v1';
   private readonly hideSelectedCheckInCanvasItems = true;
@@ -53,10 +64,20 @@ export class CanvasBoardSelector {
     null;
   private readonly dropdownController: Dropdown;
   private readonly itemActionsMenuController: AnchoredMenu;
+  private layoutMode: CanvasBoardSelectorLayoutMode;
+  private containerClassName: string;
+  private readonly selectorSheet: MobileBottomSheet;
+  private readonly detailsSheet: MobileBottomSheet;
+  private readonly overlayCoordinator: HudOverlayCoordinator | null;
 
-  constructor() {
+  constructor(options: CanvasBoardSelectorOptions = {}) {
+    this.layoutMode = options.layoutMode ?? 'desktop';
+    this.containerClassName = options.containerClassName ?? '';
+    this.overlayCoordinator = options.overlayCoordinator ?? null;
+    this.selectorSheet = new MobileBottomSheet('picker', 'CanvasBoardSelector');
+    this.detailsSheet = new MobileBottomSheet('info', 'CanvasBoardSelector');
     this.container = document.createElement('div');
-    this.container.className = 'absolute left-4 top-4 z-20';
+    this.container.className = this.resolveContainerClassName();
 
     this.header = createSurface({
       className: 'inline-flex items-center gap-1 p-1.5',
@@ -75,11 +96,8 @@ export class CanvasBoardSelector {
     this.titleText = createTextButton({
       tone: 'soft',
       text: this.currentTitle,
-      title: 'Click to edit title',
-      onClick: (event) => {
-        event.stopPropagation();
-        this.startTitleEdit();
-      },
+      title: this.resolveTitleButtonTitle(),
+      onClick: (event) => this.handleTitleClick(event),
     });
     this.titleWrap.append(titleIconWrap, this.titleText);
 
@@ -88,7 +106,7 @@ export class CanvasBoardSelector {
       title: 'Select canvas',
       onClick: (event) => {
         event.stopPropagation();
-        this.dropdownController.toggle();
+        this.setDropdownOpen(!this.isDropdownOpen());
       },
     });
 
@@ -96,13 +114,11 @@ export class CanvasBoardSelector {
 
     this.dropdown = createSurface({
       elevated: true,
-      className:
-        'mt-1 hidden grid max-h-[70vh] w-[300px] grid-rows-[minmax(0,1fr)_auto_auto] overflow-hidden',
+      className: this.resolveDropdownClassName(),
     });
 
     this.listWrap = document.createElement('div');
-    this.listWrap.className =
-      'min-h-0 overflow-y-auto overscroll-contain';
+    this.listWrap.className = 'min-h-0 flex-1 overflow-y-auto overscroll-contain';
 
     this.emptyRow = document.createElement('div');
     this.emptyRow.className = 'px-4 py-3 text-sm text-slate-400';
@@ -125,8 +141,7 @@ export class CanvasBoardSelector {
 
     this.itemActionsMenu = createSurface({
       elevated: true,
-      className:
-        'absolute left-0 top-0 z-40 hidden min-w-[220px] overflow-hidden',
+      className: this.resolveItemActionsMenuClassName(),
     });
     this.itemActionsMenu.addEventListener('mousedown', (event) => {
       event.stopPropagation();
@@ -148,6 +163,7 @@ export class CanvasBoardSelector {
       container: this.container,
       panel: this.dropdown,
       onOpenChange: (open) => {
+        if (this.layoutMode === 'mobile') return;
         this.toggleBtn.classList.toggle('bg-indigo-50', open);
         this.toggleBtn.classList.toggle('text-indigo-700', open);
         if (!open) {
@@ -155,6 +171,7 @@ export class CanvasBoardSelector {
         }
       },
     });
+    this.applyLayoutState();
   }
 
   public mount(parent: HTMLElement = document.body): void {
@@ -270,10 +287,58 @@ export class CanvasBoardSelector {
     this.closeItemActionsMenu();
     this.itemActionsMenuController.unmount();
     this.dropdownController.unmount();
+    this.overlayCoordinator?.close(CanvasBoardSelector.OVERLAY_OWNER_ID);
+    this.selectorSheet.close();
+    this.detailsSheet.close();
     this.container.remove();
   }
 
+  public setLayoutMode(mode: CanvasBoardSelectorLayoutMode): void {
+    if (this.layoutMode === mode) return;
+    this.closeAllMobileOverlays();
+    this.layoutMode = mode;
+    this.setDropdownOpen(false);
+    this.container.className = this.resolveContainerClassName();
+    this.dropdown.className = this.resolveDropdownClassName();
+    this.itemActionsMenu.className = this.resolveItemActionsMenuClassName();
+    this.applyLayoutState();
+  }
+
+  public setContainerClassName(className: string): void {
+    this.containerClassName = className.trim();
+    this.container.className = this.resolveContainerClassName();
+  }
+
   private setDropdownOpen(open: boolean): void {
+    if (this.layoutMode === 'mobile') {
+      if (open) {
+        if (this.selectorSheet.isOpen()) return;
+        this.closeItemActionsMenu();
+        this.overlayCoordinator?.open({
+          ownerId: CanvasBoardSelector.OVERLAY_OWNER_ID,
+          kind: 'board-selector',
+          onForceClose: () => this.closeAllMobileOverlays(),
+        });
+        this.selectorSheet.open({
+          content: this.dropdown,
+          ariaLabel: 'Canvas selector',
+          zIndex: 240,
+          onRequestClose: () => this.setDropdownOpen(false),
+          containerClassName:
+            'max-h-[min(82dvh,38rem)] px-0 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]',
+        });
+        this.toggleBtn.classList.add('bg-indigo-50', 'text-indigo-700');
+        return;
+      }
+      if (!this.selectorSheet.isOpen()) return;
+      this.selectorSheet.close();
+      this.overlayCoordinator?.close(
+        CanvasBoardSelector.OVERLAY_OWNER_ID,
+        'board-selector'
+      );
+      this.toggleBtn.classList.remove('bg-indigo-50', 'text-indigo-700');
+      return;
+    }
     this.dropdownController.setOpen(open);
   }
 
@@ -476,6 +541,32 @@ export class CanvasBoardSelector {
     canvas: CanvasItem,
     anchorButton: HTMLButtonElement
   ): void {
+    if (this.layoutMode === 'mobile') {
+      this.setDropdownOpen(false);
+      this.activeItemActionsCanvasId = canvas.id;
+      this.createGroupInputCanvasId = null;
+      this.createGroupInput = null;
+      this.renameCanvasInputCanvasId = null;
+      this.renameCanvasInput = null;
+      this.renderItemActionsMenu(canvas);
+      this.overlayCoordinator?.open({
+        ownerId: CanvasBoardSelector.OVERLAY_OWNER_ID,
+        kind: 'board-details',
+        payload: { canvasId: canvas.id },
+        onForceClose: () => this.closeAllMobileOverlays(),
+      });
+      this.itemActionsMenu.classList.remove('hidden');
+      this.detailsSheet.open({
+        content: this.itemActionsMenu,
+        ariaLabel: 'Canvas details',
+        zIndex: 241,
+        onRequestClose: () => this.closeItemActionsMenu(),
+        containerClassName:
+          'max-h-[min(74dvh,30rem)] px-0 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]',
+      });
+      return;
+    }
+
     this.activeItemActionsCanvasId = canvas.id;
     this.createGroupInputCanvasId = null;
     this.createGroupInput = null;
@@ -493,6 +584,15 @@ export class CanvasBoardSelector {
   }
 
   private closeItemActionsMenu(): void {
+    if (this.layoutMode === 'mobile') {
+      this.resetItemActionsMenuState();
+      this.detailsSheet.close();
+      this.overlayCoordinator?.close(
+        CanvasBoardSelector.OVERLAY_OWNER_ID,
+        'board-details'
+      );
+      return;
+    }
     this.resetItemActionsMenuState();
     this.itemActionsMenuController.close();
   }
@@ -612,7 +712,7 @@ export class CanvasBoardSelector {
       return;
     }
     this.renderItemActionsMenu(canvas);
-    this.itemActionsMenuController.reposition();
+    this.repositionItemActionsMenu();
   }
 
   private handleRenameCanvasRequest(canvasId: string): void {
@@ -625,7 +725,7 @@ export class CanvasBoardSelector {
       return;
     }
     this.renderItemActionsMenu(canvas);
-    this.itemActionsMenuController.reposition();
+    this.repositionItemActionsMenu();
   }
 
   private createNewGroupInputRow(canvasId: string): HTMLDivElement {
@@ -669,7 +769,7 @@ export class CanvasBoardSelector {
         return;
       }
       this.renderItemActionsMenu(canvas);
-      this.itemActionsMenuController.reposition();
+      this.repositionItemActionsMenu();
     };
 
     input.addEventListener('blur', () => finishEdit(true));
@@ -735,7 +835,7 @@ export class CanvasBoardSelector {
         return;
       }
       this.renderItemActionsMenu(canvas);
-      this.itemActionsMenuController.reposition();
+      this.repositionItemActionsMenu();
     };
 
     input.addEventListener('blur', () => finishEdit(true));
@@ -932,6 +1032,87 @@ export class CanvasBoardSelector {
     if (changed) {
       this.saveCollapsedGroupsToStorage();
     }
+  }
+
+  private resolveContainerClassName(): string {
+    if (this.containerClassName.length > 0) {
+      return this.containerClassName;
+    }
+    return this.layoutMode === 'mobile'
+      ? 'relative'
+      : 'absolute left-4 top-4 z-20';
+  }
+
+  private resolveDropdownClassName(): string {
+    if (this.layoutMode === 'mobile') {
+      return 'hidden flex min-h-0 w-full flex-col overflow-hidden p-0';
+    }
+    return 'mt-1 hidden grid max-h-[70vh] w-[300px] grid-rows-[minmax(0,1fr)_auto_auto] overflow-hidden';
+  }
+
+  private resolveItemActionsMenuClassName(): string {
+    if (this.layoutMode === 'mobile') {
+      return 'hidden w-full overflow-y-auto p-0';
+    }
+    return 'absolute left-0 top-0 z-40 hidden min-w-[220px] overflow-hidden';
+  }
+
+  private applyLayoutState(): void {
+    const mobileClasses = [
+      'border-transparent',
+      'bg-transparent',
+      'shadow-none',
+      'backdrop-blur-0',
+      'rounded-none',
+      'p-0',
+    ];
+    this.header.classList.toggle('gap-2', this.layoutMode === 'mobile');
+    mobileClasses.forEach((className) => {
+      this.header.classList.toggle(className, this.layoutMode === 'mobile');
+      this.dropdown.classList.toggle(className, this.layoutMode === 'mobile');
+      this.itemActionsMenu.classList.toggle(
+        className,
+        this.layoutMode === 'mobile'
+      );
+    });
+    this.titleText.classList.toggle(
+      'max-w-[min(48vw,14rem)]',
+      this.layoutMode === 'mobile'
+    );
+    this.titleText.classList.toggle('truncate', this.layoutMode === 'mobile');
+    this.titleText.title = this.resolveTitleButtonTitle();
+    this.titleText.setAttribute('aria-label', this.resolveTitleButtonTitle());
+  }
+
+  private handleTitleClick(event: MouseEvent): void {
+    event.stopPropagation();
+    if (this.layoutMode === 'mobile') {
+      this.setDropdownOpen(!this.isDropdownOpen());
+      return;
+    }
+    this.startTitleEdit();
+  }
+
+  private resolveTitleButtonTitle(): string {
+    return this.layoutMode === 'mobile'
+      ? 'Select canvas'
+      : 'Click to edit title';
+  }
+
+  private closeAllMobileOverlays(): void {
+    this.setDropdownOpen(false);
+    this.closeItemActionsMenu();
+  }
+
+  private isDropdownOpen(): boolean {
+    return this.layoutMode === 'mobile'
+      ? this.selectorSheet.isOpen()
+      : this.dropdownController.isOpen();
+  }
+
+  private repositionItemActionsMenu(): void {
+    if (this.layoutMode === 'mobile') return;
+    this.itemActionsMenuController.reposition();
   }
 
 }

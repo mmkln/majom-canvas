@@ -19,13 +19,17 @@ export class GoalsApiService {
   public fetchGoalsByIds(ids: number[]): Observable<Goal[]> {
     if (!ids.length) return of([]);
     const encodedIds = encodeURIComponent(ids.join(','));
-    return this.http.get<Goal[]>(`/goals/?ids=${encodedIds}`);
+    return this.http
+      .get<PaginatedResponse<Goal> | Goal[]>(`/goals/?ids=${encodedIds}`)
+      .pipe(map((res) => (Array.isArray(res) ? res : res.results)));
   }
 
   public fetchGoalsByUuids(uuids: string[]): Observable<Goal[]> {
     if (!uuids.length) return of([]);
     const encoded = encodeURIComponent(uuids.join(','));
-    return this.http.get<Goal[]>(`/goals/?uuids=${encoded}`);
+    return this.http
+      .get<PaginatedResponse<Goal> | Goal[]>(`/goals/?uuids=${encoded}`)
+      .pipe(map((res) => (Array.isArray(res) ? res : res.results)));
   }
 
   public getGoals(): Observable<Goal[]> {

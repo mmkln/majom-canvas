@@ -19,13 +19,21 @@ export class StoriesApiService {
   public fetchStoriesByIds(ids: number[]): Observable<StoryDto[]> {
     if (!ids.length) return of([]);
     const encodedIds = encodeURIComponent(ids.join(','));
-    return this.http.get<StoryDto[]>(`/stories/?ids=${encodedIds}`);
+    return this.http
+      .get<PaginatedResponse<StoryDto> | StoryDto[]>(
+        `/stories/?ids=${encodedIds}`
+      )
+      .pipe(map((res) => (Array.isArray(res) ? res : res.results)));
   }
 
   public fetchStoriesByUuids(uuids: string[]): Observable<StoryDto[]> {
     if (!uuids.length) return of([]);
     const encoded = encodeURIComponent(uuids.join(','));
-    return this.http.get<StoryDto[]>(`/stories/?uuids=${encoded}`);
+    return this.http
+      .get<PaginatedResponse<StoryDto> | StoryDto[]>(
+        `/stories/?uuids=${encoded}`
+      )
+      .pipe(map((res) => (Array.isArray(res) ? res : res.results)));
   }
 
   public getStories(): Observable<StoryDto[]> {

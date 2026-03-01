@@ -10,10 +10,19 @@ import {
   isWorkspaceViewChangeRequestDetail,
 } from '../features/shell/workspaceEvents.ts';
 import type { WorkspaceView } from '../features/shell/WorkspaceView.ts';
-import { WorkspaceViewSwitcher } from '../features/shell/WorkspaceViewSwitcher.ts';
+import {
+  WorkspaceViewSwitcher,
+  type WorkspaceViewSwitcherLayout,
+} from '../features/shell/WorkspaceViewSwitcher.ts';
 
 const ACTIVE_VIEW_STORAGE_KEY = 'workspace-active-view';
 const KANBAN_MODULE_IMPORT_PATH = '../features/kanban/KanbanModule.ts';
+const WORKSPACE_VIEW_SWITCHER_OFFSET_EVENT =
+  'workspaceViewSwitcherOffsetChanged';
+const WORKSPACE_VIEW_SWITCHER_OFFSET_VAR =
+  '--workspace-view-switcher-bottom-offset';
+const WORKSPACE_VIEW_SWITCHER_LAYOUT_MODE_VAR =
+  '--workspace-view-switcher-layout-mode';
 
 type KanbanModuleNamespace = {
   KanbanModule: new () => WorkspaceModule;
@@ -32,6 +41,7 @@ export class RuntimeHost {
   private hostVisible = false;
   private starting = false;
   private readonly viewChangeHandler: (event: Event) => void;
+  private readonly viewSwitcherOffsetHandler: (event: Event) => void;
 
   constructor(wallpaperService: WallpaperService) {
     this.wallpaperService = wallpaperService;
@@ -61,6 +71,8 @@ export class RuntimeHost {
     this.viewSwitcher = new WorkspaceViewSwitcher(this.activeView, {
       showKanban: KANBAN_DEV_ENABLED,
     });
+    this.syncViewSwitcherLayoutMode();
+    this.syncViewSwitcherBottomOffset();
     this.viewSwitcher.mount(document.body);
     this.viewSwitcher.setVisible(false);
     this.viewChangeHandler = (event: Event) => {
@@ -68,9 +80,27 @@ export class RuntimeHost {
       if (!isWorkspaceViewChangeRequestDetail(customEvent.detail)) return;
       void this.setActiveView(customEvent.detail.view);
     };
+    this.viewSwitcherOffsetHandler = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        bottomOffsetPx?: unknown;
+        layoutMode?: unknown;
+      }>;
+      const value = customEvent.detail?.bottomOffsetPx;
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        this.viewSwitcher.setBottomOffset(value);
+      }
+      const mode = customEvent.detail?.layoutMode;
+      if (this.isWorkspaceViewSwitcherLayoutMode(mode)) {
+        this.viewSwitcher.setLayoutMode(mode);
+      }
+    };
     window.addEventListener(
       WORKSPACE_VIEW_CHANGE_REQUEST_EVENT,
       this.viewChangeHandler
+    );
+    window.addEventListener(
+      WORKSPACE_VIEW_SWITCHER_OFFSET_EVENT,
+      this.viewSwitcherOffsetHandler
     );
   }
 
@@ -100,6 +130,10 @@ export class RuntimeHost {
     window.removeEventListener(
       WORKSPACE_VIEW_CHANGE_REQUEST_EVENT,
       this.viewChangeHandler
+    );
+    window.removeEventListener(
+      WORKSPACE_VIEW_SWITCHER_OFFSET_EVENT,
+      this.viewSwitcherOffsetHandler
     );
   }
 
@@ -148,6 +182,8 @@ export class RuntimeHost {
   }
 
   private applyVisibility(): void {
+    this.syncViewSwitcherLayoutMode();
+    this.syncViewSwitcherBottomOffset();
     const canvasUiRoot = document.getElementById('canvas-ui-root');
     const canvas = document.getElementById('myCanvas');
     if (!this.hostVisible) {
@@ -179,6 +215,32 @@ export class RuntimeHost {
     }
     this.viewSwitcher.setVisible(true);
     this.syncWorkspaceWallpaper();
+  }
+
+  private syncViewSwitcherBottomOffset(): void {
+    if (typeof window === 'undefined') return;
+    const styles = window.getComputedStyle(document.documentElement);
+    const value = styles.getPropertyValue(WORKSPACE_VIEW_SWITCHER_OFFSET_VAR).trim();
+    const parsed = Number.parseInt(value, 10);
+    this.viewSwitcher.setBottomOffset(Number.isFinite(parsed) ? parsed : 16);
+  }
+
+  private syncViewSwitcherLayoutMode(): void {
+    if (typeof window === 'undefined') return;
+    const styles = window.getComputedStyle(document.documentElement);
+    const value = styles
+      .getPropertyValue(WORKSPACE_VIEW_SWITCHER_LAYOUT_MODE_VAR)
+      .trim();
+    const mode = this.isWorkspaceViewSwitcherLayoutMode(value)
+      ? value
+      : 'desktop';
+    this.viewSwitcher.setLayoutMode(mode);
+  }
+
+  private isWorkspaceViewSwitcherLayoutMode(
+    value: unknown
+  ): value is WorkspaceViewSwitcherLayout {
+    return value === 'desktop' || value === 'mobile';
   }
 
   private loadActiveView(): WorkspaceView {

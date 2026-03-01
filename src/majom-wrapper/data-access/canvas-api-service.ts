@@ -1,9 +1,11 @@
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { HttpInterceptorClient } from './http-interceptor.js';
 import {
   CanvasPositionReadDTO,
   CanvasPositionWriteDTO,
 } from './canvas-position-dto.js';
+import { PaginatedResponse } from './paginated-response.js';
 
 export type CanvasMeta = Record<string, unknown> | null;
 
@@ -30,9 +32,11 @@ export class CanvasApiService {
 
   /** Load positions for a specific canvas */
   fetchCanvasPositions(canvasId: string): Observable<CanvasPositionReadDTO[]> {
-    return this.http.get<CanvasPositionReadDTO[]>(
-      `/canvas/${canvasId}/positions/`
-    );
+    return this.http
+      .get<PaginatedResponse<CanvasPositionReadDTO> | CanvasPositionReadDTO[]>(
+        `/canvas/${canvasId}/positions/`
+      )
+      .pipe(map((res) => (Array.isArray(res) ? res : res.results)));
   }
 
   /** Batch update or create canvas positions for a canvas */

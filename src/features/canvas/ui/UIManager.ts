@@ -29,6 +29,15 @@ import { AuthService } from '../../../majom-wrapper/data-access/auth-service.ts'
 import { UserApiService } from '../../../majom-wrapper/data-access/user-api-service.ts';
 import { CanvasMenu } from './components/CanvasMenu.ts';
 import {
+  resolveCanvasHudPolicy,
+  type CanvasHudPolicy,
+} from './canvasHudPolicy.ts';
+import type { CanvasHudMode } from './canvasHudPolicy.ts';
+import { CanvasDesktopHudShell } from './components/CanvasDesktopHudShell.ts';
+import { CanvasMobileHudShell } from './components/CanvasMobileHudShell.ts';
+import type { CanvasHudShell, CanvasHudSlots } from './hudShell.ts';
+import { HudOverlayCoordinator } from './HudOverlayCoordinator.ts';
+import {
   EXISTING_PICKER_EVENT_NAMES,
   emitExistingPickerDropCompleted,
   type ExistingPickerDragMovedDetail,
@@ -40,10 +49,18 @@ export class UIManager {
     mount(parent?: HTMLElement): void;
     unmount(): void;
   }[] = [];
+  private readonly canvasBoardSelector: CanvasBoardSelector;
+  private readonly saveControls: SaveControls;
   private readonly canvasNavigationDock: CanvasNavigationDock;
   private readonly addExistingTaskService: AddExistingTaskService;
   private readonly addExistingGoalService: AddExistingGoalService;
   private readonly addExistingStoryService: AddExistingStoryService;
+  private readonly hudOverlayCoordinator = new HudOverlayCoordinator();
+  private hudPolicy: CanvasHudPolicy = resolveCanvasHudPolicy();
+  private desktopMiniMapVisibleBeforeMobile: boolean | null = null;
+  private activeHudShell: CanvasHudShell | null = null;
+  private hudSlots: CanvasHudSlots | null = null;
+  private resizeHandler: (() => void) | null = null;
   private existingPickerDragStateHandler: ((event: Event) => void) | null =
     null;
   private existingPickerDragMoveHandler: ((event: Event) => void) | null = null;
@@ -70,11 +87,20 @@ export class UIManager {
     private readonly scene: Scene,
     private readonly authService: AuthService
   ) {
+    const initialMode = this.hudPolicy.mode;
     this.canvasNavigationDock = new CanvasNavigationDock(
       this.scene,
-      this.canvasManager
+      this.canvasManager,
+      {
+        layoutMode: initialMode,
+        miniMapDefaultVisible: this.hudPolicy.miniMapDefaultVisible,
+        showUndoRedo: this.hudPolicy.showBottomUndoRedo,
+      }
     );
-    const canvasBoardSelector = new CanvasBoardSelector();
+    this.canvasBoardSelector = new CanvasBoardSelector({
+      layoutMode: initialMode,
+      overlayCoordinator: this.hudOverlayCoordinator,
+    });
 
     const http = new HttpInterceptorClient(environment.apiUrl);
     const tasksApi = new TasksApiService(http);
@@ -83,8 +109,13 @@ export class UIManager {
     const userApi = new UserApiService(http);
     const canvasMenu = new CanvasMenu(this.authService, userApi, {
       containerClassName: 'relative z-30 flex items-center',
+      layoutMode: initialMode,
+      overlayCoordinator: this.hudOverlayCoordinator,
     });
-    const saveControls = new SaveControls(canvasMenu);
+    this.saveControls = new SaveControls(canvasMenu, {
+      layoutMode: initialMode,
+      showUndoRedo: !this.hudPolicy.showBottomUndoRedo,
+    });
     this.addExistingTaskService = new AddExistingTaskService(
       this.scene,
       this.canvasManager
@@ -168,13 +199,10 @@ export class UIManager {
 
     // Add controls to components list
     this.components.push(
-      canvasBoardSelector,
-      this.canvasNavigationDock,
       contextMenu,
       selectionActions,
       relatedItemsPicker,
-      statusPicker,
-      saveControls
+      statusPicker
     );
     // Notification container
     const notificationContainer = new NotificationContainer();
@@ -190,12 +218,16 @@ export class UIManager {
     this.uiRoot = this.createUiRoot();
     parent.appendChild(this.uiRoot);
 
+    this.mountHudShell(this.hudPolicy.mode);
+    if (this.hudSlots) {
+      this.canvasBoardSelector.mount(this.hudSlots.board);
+      this.saveControls.mount(this.hudSlots.save);
+      this.canvasNavigationDock.mount(this.hudSlots.navigation);
+    }
+
     this.components.forEach((c) => c.mount(this.uiRoot!));
-    Array.from(this.uiRoot.children).forEach((child) => {
-      if (child instanceof HTMLElement) {
-        child.style.pointerEvents = 'auto';
-      }
-    });
+    this.applyHudPolicy(true);
+    this.bindHudPolicyListeners();
 
     // drag-and-drop from existing pickers to canvas
     const canvas = this.canvasManager.getCanvas();
@@ -244,6 +276,11 @@ export class UIManager {
   }
 
   public unmountAll(): void {
+    this.unbindHudPolicyListeners();
+    this.canvasBoardSelector.unmount();
+    this.saveControls.unmount();
+    this.canvasNavigationDock.unmount();
+    this.unmountHudShell();
     this.components.forEach((c) => c.unmount());
     this.editElementSubscription?.unsubscribe();
     this.editElementSubscription = null;
@@ -275,6 +312,123 @@ export class UIManager {
       this.uiRoot.remove();
       this.uiRoot = null;
     }
+  }
+
+  private mountHudShell(mode: CanvasHudMode): void {
+    if (!this.uiRoot) return;
+    const shell = this.createHudShell(mode);
+    this.hudSlots = shell.mount(this.uiRoot);
+    this.activeHudShell = shell;
+  }
+
+  private unmountHudShell(): void {
+    this.activeHudShell?.unmount();
+    this.activeHudShell = null;
+    this.hudSlots = null;
+  }
+
+  private createHudShell(mode: CanvasHudMode): CanvasHudShell {
+    if (mode === 'mobile') {
+      return new CanvasMobileHudShell();
+    }
+    return new CanvasDesktopHudShell();
+  }
+
+  private remountHudShell(mode: CanvasHudMode): void {
+    if (!this.uiRoot) return;
+    const currentMode = this.activeHudShell?.mode;
+    if (currentMode === mode && this.hudSlots) return;
+
+    this.canvasBoardSelector.unmount();
+    this.saveControls.unmount();
+    this.canvasNavigationDock.unmount();
+    this.unmountHudShell();
+
+    this.mountHudShell(mode);
+    if (!this.hudSlots) return;
+
+    this.canvasBoardSelector.mount(this.hudSlots.board);
+    this.saveControls.mount(this.hudSlots.save);
+    this.canvasNavigationDock.mount(this.hudSlots.navigation);
+  }
+
+  private bindHudPolicyListeners(): void {
+    if (this.resizeHandler) return;
+    this.resizeHandler = () => this.applyHudPolicy();
+    window.addEventListener('resize', this.resizeHandler);
+    window.addEventListener('orientationchange', this.resizeHandler);
+    window.visualViewport?.addEventListener('resize', this.resizeHandler);
+  }
+
+  private unbindHudPolicyListeners(): void {
+    if (!this.resizeHandler) return;
+    window.removeEventListener('resize', this.resizeHandler);
+    window.removeEventListener('orientationchange', this.resizeHandler);
+    window.visualViewport?.removeEventListener('resize', this.resizeHandler);
+    this.resizeHandler = null;
+    document.documentElement.style.removeProperty(
+      '--workspace-view-switcher-bottom-offset'
+    );
+    document.documentElement.style.removeProperty(
+      '--workspace-view-switcher-layout-mode'
+    );
+  }
+
+  private applyHudPolicy(force = false): void {
+    const nextPolicy = resolveCanvasHudPolicy();
+    const previousPolicy = this.hudPolicy;
+    const modeChanged = previousPolicy.mode !== nextPolicy.mode;
+    this.hudPolicy = nextPolicy;
+
+    if (modeChanged || (force && !this.activeHudShell)) {
+      this.remountHudShell(nextPolicy.mode);
+    }
+
+    this.canvasBoardSelector.setLayoutMode(nextPolicy.mode);
+    this.canvasBoardSelector.setContainerClassName('relative pointer-events-auto');
+
+    this.saveControls.setLayoutMode(nextPolicy.mode);
+    this.saveControls.setContainerClassName('relative pointer-events-auto');
+    this.saveControls.setShowUndoRedo(!nextPolicy.showBottomUndoRedo);
+
+    this.canvasNavigationDock.setLayoutMode(nextPolicy.mode);
+    this.canvasNavigationDock.setContainerClassName(
+      nextPolicy.mode === 'mobile'
+        ? 'relative flex w-full flex-col gap-2 overflow-hidden p-0'
+        : 'relative flex flex-col gap-2 overflow-hidden p-0'
+    );
+    this.canvasNavigationDock.setShowUndoRedo(nextPolicy.showBottomUndoRedo);
+
+    if (modeChanged && nextPolicy.mode === 'mobile') {
+      this.desktopMiniMapVisibleBeforeMobile =
+        this.canvasNavigationDock.isMiniMapVisible();
+      this.canvasNavigationDock.setMiniMapVisible(false);
+    }
+    if (modeChanged && nextPolicy.mode === 'desktop') {
+      if (this.desktopMiniMapVisibleBeforeMobile !== null) {
+        this.canvasNavigationDock.setMiniMapVisible(
+          this.desktopMiniMapVisibleBeforeMobile
+        );
+      }
+      this.desktopMiniMapVisibleBeforeMobile = null;
+    }
+
+    document.documentElement.style.setProperty(
+      '--workspace-view-switcher-bottom-offset',
+      `${nextPolicy.workspaceSwitcherBottomOffsetPx}px`
+    );
+    document.documentElement.style.setProperty(
+      '--workspace-view-switcher-layout-mode',
+      nextPolicy.mode
+    );
+    window.dispatchEvent(
+      new CustomEvent('workspaceViewSwitcherOffsetChanged', {
+        detail: {
+          bottomOffsetPx: nextPolicy.workspaceSwitcherBottomOffsetPx,
+          layoutMode: nextPolicy.mode,
+        },
+      })
+    );
   }
 
   private createUiRoot(): HTMLDivElement {
