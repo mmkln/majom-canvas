@@ -1,7 +1,8 @@
 import { Scene } from '../scene/Scene.ts';
 import { PlanningElement } from '../../elements/PlanningElement.ts';
+import { StoryElement } from '../../elements/StoryElement.ts';
+import { TaskElement } from '../../elements/TaskElement.ts';
 import { v4 as uuidv4 } from 'uuid';
-import { getBoundingBox } from '../utils/geometryUtils.ts';
 
 /**
  * Clipboard service stores copies of PlanningElement for paste operations.
@@ -64,7 +65,34 @@ export class ClipboardService {
       scene.addElement(newClone);
       return newClone;
     });
+
+    this.restoreStoryTaskContainment(clones);
+
     return clones;
+  }
+
+  private restoreStoryTaskContainment(elements: PlanningElement[]): void {
+    const stories = elements.filter(
+      (element): element is StoryElement => element instanceof StoryElement
+    );
+    const tasks = elements.filter(
+      (element): element is TaskElement => element instanceof TaskElement
+    );
+
+    if (stories.length === 0 || tasks.length === 0) {
+      return;
+    }
+
+    stories.forEach((story) => {
+      story.tasks = [];
+      tasks.forEach((task) => {
+        const anchorX = task.x + TaskElement.width / 2;
+        const anchorY = task.y + TaskElement.height / 2;
+        if (story.contains(anchorX, anchorY)) {
+          story.addTask(task);
+        }
+      });
+    });
   }
 
   public clear(): void {
