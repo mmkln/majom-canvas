@@ -63,6 +63,14 @@ export class CanvasBoardSelector {
     });
 
     this.titleWrap = document.createElement('div');
+    this.titleWrap.className = 'inline-flex items-center gap-1';
+
+    const titleIconWrap = document.createElement('span');
+    titleIconWrap.className =
+      'inline-flex h-9 pl-1.5 items-center justify-center text-slate-400/70';
+    const titleIcon = createIcon('map', { size: 22, strokeWidth: 1.8 });
+    titleIcon.setAttribute('aria-hidden', 'true');
+    titleIconWrap.appendChild(titleIcon);
 
     this.titleText = createTextButton({
       tone: 'soft',
@@ -73,7 +81,7 @@ export class CanvasBoardSelector {
         this.startTitleEdit();
       },
     });
-    this.titleWrap.appendChild(this.titleText);
+    this.titleWrap.append(titleIconWrap, this.titleText);
 
     this.toggleBtn = createIconButton({
       icon: 'chevron-down',
