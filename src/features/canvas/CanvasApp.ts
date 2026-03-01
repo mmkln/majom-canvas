@@ -297,6 +297,8 @@ export class CanvasApp {
     }>;
     const id = customEvent.detail?.id;
     if (!id) return;
+    const activeCanvasId = this.canvasDataService.getActiveCanvasId();
+    const isCanvasSwitched = activeCanvasId !== id;
     if (!this.authService.isLoggedIn()) {
       authFlowService.requestLogin('canvas-access');
       return;
@@ -304,6 +306,9 @@ export class CanvasApp {
     const name = customEvent.detail?.name || 'New canvas';
     this.canvasDataService.loadCanvasDetails(id).subscribe({
       next: (canvas) => {
+        if (isCanvasSwitched) {
+          historyService.reset();
+        }
         this.setCanvasTitle(canvas.name);
         this.restoreCanvasViewState(canvas.id).finally(() => {
           this.loadActiveCanvasElements();
@@ -313,6 +318,9 @@ export class CanvasApp {
       error: (err) => {
         console.error('Failed to load canvas details', err);
         this.canvasDataService.setActiveCanvas({ id, name });
+        if (isCanvasSwitched) {
+          historyService.reset();
+        }
         this.setCanvasTitle(name);
         this.restoreCanvasViewState(id).finally(() => {
           this.loadActiveCanvasElements();
@@ -329,6 +337,7 @@ export class CanvasApp {
     }
     this.canvasDataService.createCanvas('New canvas').subscribe({
       next: (canvas) => {
+        historyService.reset();
         this.setCanvasTitle(canvas.name);
         this.restoreCanvasViewState(canvas.id).finally(() => {
           this.refreshCanvasList(canvas.id);
@@ -623,6 +632,7 @@ export class CanvasApp {
       this.canvasManager.setLoadPhase('idle');
       this.scene.clear();
       this.canvasManager.clearLoadingPlaceholders();
+      historyService.reset();
       this.setCanvasTitle('New canvas');
       this.refreshCanvasList(null);
       return;
@@ -632,6 +642,7 @@ export class CanvasApp {
     // replace bootstrap + elements + relations chain with single snapshot hydration.
     this.canvasDataService.bootstrapCanvas().subscribe({
       next: ({ canvases, activeCanvas }) => {
+        historyService.reset();
         this.setCanvasTitle(activeCanvas.name);
         this.setCanvasListCache(canvases);
         this.emitCanvasList(
@@ -1107,6 +1118,7 @@ export class CanvasApp {
         const createdCanvas = await firstValueFrom(
           this.canvasDataService.createCanvas('New canvas')
         );
+        historyService.reset();
         this.setCanvasTitle(createdCanvas.name);
         await this.restoreCanvasViewState(createdCanvas.id);
         this.refreshCanvasList(createdCanvas.id);
@@ -1129,6 +1141,7 @@ export class CanvasApp {
         this.setCanvasTitle(nextCanvas.name);
       }
 
+      historyService.reset();
       await this.restoreCanvasViewState(nextCanvas.id);
       this.refreshCanvasList(nextCanvas.id);
       this.loadActiveCanvasElements();
