@@ -3,7 +3,11 @@ import { StoryElement } from '../../elements/StoryElement.ts';
 import { GoalElement, GoalScale } from '../../elements/GoalElement.ts';
 import { Scene } from '../../core/scene/Scene.ts';
 import { ComponentFactory } from '../../../../ui-lib/src/core/ComponentFactory.ts';
-import { createModalShell } from '../../../../ui-lib/src/components/Modal.js';
+import {
+  createModalActionRow,
+  getModalActionButtonClass,
+  createModalShell,
+} from '../../../../ui-lib/src/components/Modal.ts';
 import { confirmUnsavedChangesModal } from './ConfirmUnsavedChangesModal.ts';
 import {
   createField,
@@ -48,13 +52,6 @@ export class EditElementModal {
       const parsed = new Date(value);
       return Number.isNaN(parsed.getTime()) ? null : parsed;
     };
-    const { overlay, container } = createModalShell(`Edit ${typeLabel}`, {
-      onClose: () => {
-        void requestClose();
-      },
-    });
-    this.modal = overlay;
-
     // Local temp state
     const originalTitle = this.element.title;
     const originalDescription = this.element.description;
@@ -105,6 +102,21 @@ export class EditElementModal {
       this.close();
     };
 
+    const { overlay, container, body, footer } = createModalShell(
+      `Edit ${typeLabel}`,
+      {
+        onClose: () => {
+          void requestClose();
+        },
+        intent: 'form',
+      }
+    );
+    this.modal = overlay;
+
+    const formContent = document.createElement('div');
+    formContent.className = 'space-y-4 pb-2';
+    body.appendChild(formContent);
+
     // Title input with label
     const titleField = createField({ label: 'Title', required: true });
     const titleInput = ComponentFactory.createInput({
@@ -123,7 +135,7 @@ export class EditElementModal {
     titleInput.render(titleField.controlContainer);
     const titleInputEl = titleInput.getElement() as HTMLInputElement;
     titleField.setControl(titleInputEl);
-    container.appendChild(titleField.element);
+    formContent.appendChild(titleField.element);
 
     // Description textarea with label
     const descField = createField({ label: 'Description' });
@@ -137,8 +149,8 @@ export class EditElementModal {
       className: 'w-full',
     });
     descTextarea.render(descField.controlContainer);
-    descField.setControl(descTextarea.getElement() as HTMLElement);
-    container.appendChild(descField.element);
+    descField.setControl(descTextarea.getElement());
+    formContent.appendChild(descField.element);
 
     // Status dropdown with label
     const statusField = createField({ label: 'Status' });
@@ -152,8 +164,8 @@ export class EditElementModal {
       className: 'w-full',
     });
     statusSelect.render(statusField.controlContainer);
-    statusField.setControl(statusSelect.getElement() as HTMLElement);
-    container.appendChild(statusField.element);
+    statusField.setControl(statusSelect.getElement());
+    formContent.appendChild(statusField.element);
 
     // Priority segmented control with label
     this.priorityControl = createSegmentedControl({
@@ -174,7 +186,7 @@ export class EditElementModal {
       label: 'Priority',
       control: this.priorityControl.element,
     });
-    container.appendChild(priorityField.element);
+    formContent.appendChild(priorityField.element);
 
     if (isTask) {
       const dueDateField = createField({ label: 'Due date' });
@@ -188,8 +200,8 @@ export class EditElementModal {
         type: 'date',
       });
       dueDateInput.render(dueDateField.controlContainer);
-      dueDateField.setControl(dueDateInput.getElement() as HTMLElement);
-      container.appendChild(dueDateField.element);
+      dueDateField.setControl(dueDateInput.getElement());
+      formContent.appendChild(dueDateField.element);
     }
 
     if (isGoal) {
@@ -211,7 +223,7 @@ export class EditElementModal {
         label: 'Scale',
         control: this.scaleControl.element,
       });
-      container.appendChild(scaleField.element);
+      formContent.appendChild(scaleField.element);
     }
 
     // Save function
@@ -272,11 +284,12 @@ export class EditElementModal {
     };
 
     // Actions
-    const btnRow = document.createElement('div');
-    btnRow.className = 'flex justify-end gap-2 pt-1';
+    const btnRow = createModalActionRow({ variant: 'form' });
     const cancelBtn = createTextButton({
       text: 'Cancel',
       tone: 'text',
+      size: 'md',
+      className: getModalActionButtonClass('default'),
       onClick: () => {
         void requestClose();
       },
@@ -284,10 +297,12 @@ export class EditElementModal {
     const saveBtn = createTextButton({
       text: 'Save',
       tone: 'primary',
+      size: 'md',
+      className: getModalActionButtonClass('default'),
       onClick: saveAndClose,
     });
     btnRow.append(cancelBtn, saveBtn);
-    container.appendChild(btnRow);
+    footer.appendChild(btnRow);
 
     // Ensure title input receives focus when the modal opens.
     titleInputEl.focus();
@@ -296,7 +311,7 @@ export class EditElementModal {
     container.addEventListener('keydown', (e) => {
       e.stopPropagation();
       if (e.key === 'Enter') {
-        const target = e.target as EventTarget | null;
+        const target = e.target;
         const isTextarea = target instanceof HTMLTextAreaElement;
         if (isTextarea && !e.metaKey && !e.ctrlKey) {
           return;
@@ -314,7 +329,7 @@ export class EditElementModal {
   private close(): void {
     this.destroyControls();
     if (this.modal) {
-      // Use remove() to trigger modalService.unregister()
+      // remove() triggers shell cleanup and closes overlay record in modalService.
       this.modal.remove();
       this.modal = null;
     }

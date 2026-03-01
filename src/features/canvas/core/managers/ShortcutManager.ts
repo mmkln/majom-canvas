@@ -37,8 +37,7 @@ export class ShortcutManager {
 
   private handleKeyDown(e: KeyboardEvent): void {
     // Ignore when modal open
-    if (modalService.isOpen() || document.querySelector('[role="dialog"]'))
-      return;
+    if (modalService.hasBlockingOverlay()) return;
     // Ignore editable fields
     const tgt: HTMLElement = e.target as HTMLElement;
     if (

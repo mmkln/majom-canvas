@@ -1,30 +1,81 @@
 // UI-lib Modal component for consistent modal dialogs
-import { modalService } from '../services/ModalService.ts';
+import {
+  type OverlayIntent,
+  type OverlayPresentation,
+} from '../services/ModalService.ts';
+import { OverlayController } from '../services/OverlayController.ts';
+import {
+  MODAL_BODY_CLASS,
+  MODAL_DIVIDER_CLASS,
+  MODAL_FOOTER_CLASS,
+  MODAL_HEADER_CLASS,
+  createModalActionRow,
+  getModalActionButtonClass,
+  getModalContainerClass,
+  getModalContainerMaxHeight,
+  getModalOverlayClass,
+  type ModalActionButtonPreset,
+  type ModalActionRowOptions,
+  type ModalActionRowVariant,
+} from './modalLayout.ts';
 export interface ModalOptions {
   onClose?: () => void;
   zIndex?: number;
   subtitle?: string;
   hideCloseButton?: boolean;
+  closeOnBackdrop?: boolean;
+  closeOnEscape?: boolean;
+  intent?: OverlayIntent;
+  presentation?: OverlayPresentation;
+  /** @deprecated Prefer intent/presentation. */
+  mobileFullscreen?: boolean;
 }
+
 export function createModalShell(
   title: string,
   options?: ModalOptions
-): { overlay: HTMLDivElement; container: HTMLDivElement } {
+): {
+  overlay: HTMLDivElement;
+  container: HTMLDivElement;
+  header: HTMLDivElement;
+  divider: HTMLDivElement;
+  body: HTMLDivElement;
+  footer: HTMLDivElement;
+} {
   const overlay = document.createElement('div');
-  // Track modal open
-  modalService.register();
-  overlay.className =
-    'fixed inset-0 bg-black/15 backdrop-blur-xs flex items-center justify-center';
+  const previousActiveElement =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const closeOnBackdrop = options?.closeOnBackdrop ?? true;
+  const closeOnEscape = options?.closeOnEscape ?? true;
+  const intent = options?.intent ?? 'info';
+  const explicitPresentation =
+    options?.presentation ?? (options?.mobileFullscreen ? 'fullscreen' : undefined);
+  const overlayController = new OverlayController({
+    intent,
+    source: 'createModalShell',
+  });
+  const presentation = overlayController.open({
+    presentation: explicitPresentation,
+    blocking: true,
+    dismissOnBackdrop: closeOnBackdrop,
+    dismissOnEscape: closeOnEscape,
+    restoreFocusTo: previousActiveElement,
+  });
+  overlay.className = getModalOverlayClass(presentation);
   const zIndexValue = options?.zIndex ?? 200;
   overlay.style.zIndex = zIndexValue.toString();
 
   const container = document.createElement('div');
-  container.className =
-    'relative w-[min(30rem,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white px-6 pb-5 pt-5 shadow-[0_24px_56px_rgba(15,23,42,0.18)]';
+  container.className = getModalContainerClass(presentation);
+  container.style.maxHeight = getModalContainerMaxHeight(presentation);
+  container.style.overflowY = 'hidden';
+  container.style.overscrollBehavior = 'contain';
   container.tabIndex = 0;
+  container.dataset.overlayIntent = intent;
+  container.dataset.overlayPresentation = presentation;
 
   const headerWrap = document.createElement('div');
-  headerWrap.className = 'pr-8';
+  headerWrap.className = MODAL_HEADER_CLASS;
 
   const headerEl = document.createElement('h2');
   headerEl.className =
@@ -34,8 +85,11 @@ export function createModalShell(
 
   if (options?.subtitle) {
     const subtitleEl = document.createElement('p');
-    subtitleEl.className = 'mt-1 text-sm leading-5 text-slate-500';
+    subtitleEl.className = 'mt-1 text-sm leading-5 text-slate-600';
     subtitleEl.textContent = options.subtitle;
+    const subtitleId = `modal-subtitle-${Math.random().toString(36).slice(2, 11)}`;
+    subtitleEl.id = subtitleId;
+    container.setAttribute('aria-describedby', subtitleId);
     headerWrap.appendChild(subtitleEl);
   }
 
@@ -43,10 +97,10 @@ export function createModalShell(
     const closeButton = document.createElement('button');
     closeButton.type = 'button';
     closeButton.className =
-      'absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200';
+      'absolute right-3 top-3 inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 md:right-4 md:top-4 md:h-9 md:w-9';
     closeButton.setAttribute('aria-label', 'Close dialog');
     closeButton.innerHTML =
-      '<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 20 20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" class=\"h-4 w-4\" aria-hidden=\"true\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M6 6l8 8M14 6l-8 8\"/></svg>';
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" class="h-4 w-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l8 8M14 6l-8 8"/></svg>';
     closeButton.addEventListener('click', (event) => {
       event.stopPropagation();
       options.onClose?.();
@@ -55,23 +109,41 @@ export function createModalShell(
   }
 
   const divider = document.createElement('div');
-  divider.className = 'my-4 -mx-6 border-t border-slate-200';
+  divider.className = MODAL_DIVIDER_CLASS;
 
-  container.append(headerWrap, divider);
+  const body = document.createElement('div');
+  body.className = MODAL_BODY_CLASS;
+  body.style.overscrollBehavior = 'contain';
+
+  const footer = document.createElement('div');
+  footer.className = MODAL_FOOTER_CLASS;
+
+  if (presentation === 'bottom-sheet') {
+    const grabber = document.createElement('div');
+    grabber.className =
+      'mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-slate-300/90 md:hidden';
+    grabber.setAttribute('aria-hidden', 'true');
+    container.appendChild(grabber);
+  }
+
+  container.append(headerWrap, divider, body, footer);
 
   overlay.appendChild(container);
   document.body.appendChild(overlay);
-  // Override remove() to unregister modalService
-  const originalRemove = overlay.remove;
+  // Override remove() to keep overlay stack in sync.
+  const originalRemove = overlay.remove.bind(overlay);
+  let closed = false;
   overlay.remove = function () {
+    if (closed) return;
+    closed = true;
     // Clear focus to prevent stale inputs catching key events
     const active = document.activeElement as HTMLElement | null;
     if (active && typeof active.blur === 'function') active.blur();
-    modalService.unregister();
-    originalRemove.call(this);
+    originalRemove();
+    overlayController.close();
   };
   // Handle click outside container to trigger onClose
-  if (options?.onClose) {
+  if (options?.onClose && closeOnBackdrop) {
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) options.onClose!();
     });
@@ -98,6 +170,11 @@ export function createModalShell(
     (elements[0] ?? container).focus();
   });
   container.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Escape' && options?.onClose && closeOnEscape) {
+      e.preventDefault();
+      options.onClose();
+      return;
+    }
     if (e.key !== 'Tab') return;
     const elements = getFocusableElements();
     if (elements.length === 0) {
@@ -120,5 +197,13 @@ export function createModalShell(
       }
     }
   });
-  return { overlay, container };
+  return { overlay, container, header: headerWrap, divider, body, footer };
 }
+
+export {
+  createModalActionRow,
+  getModalActionButtonClass,
+  type ModalActionButtonPreset,
+  type ModalActionRowOptions,
+  type ModalActionRowVariant,
+};

@@ -13,6 +13,7 @@ import {
   createSurface,
   createTextButton,
 } from '../primitives/index.ts';
+import { OverlayController } from '../../../../ui-lib/src/services/OverlayController.ts';
 
 export type ExistingPickerPage<TItem> = {
   items: TItem[];
@@ -52,6 +53,7 @@ export class ExistingEntityPicker<TItem> {
   private compactPanel: HTMLDivElement | null = null;
   private listScrollHandler: ((event: Event) => void) | null = null;
   private dropCompletedHandler: ((event: Event) => void) | null = null;
+  private backdropCloseHandler: ((event: MouseEvent) => void) | null = null;
   private searchDebounce: number | null = null;
   private loadSubscription: Subscription | null = null;
   private requestToken = 0;
@@ -66,7 +68,12 @@ export class ExistingEntityPicker<TItem> {
   private pendingDropCompleted = false;
   private viewMode: 'full' | 'mini' = 'full';
   private suppressPickUntilTs = 0;
+  private mobilePresentation = false;
   private readonly pickSuppressionMs = 180;
+  private readonly overlayController = new OverlayController({
+    intent: 'picker',
+    source: 'ExistingEntityPicker',
+  });
 
   constructor(
     private readonly loadItemsPage: (
@@ -81,22 +88,46 @@ export class ExistingEntityPicker<TItem> {
   public open(options: ExistingEntityPickerOpenOptions<TItem>): void {
     this.close();
     this.activeOptions = options;
+    const previousActiveElement =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const presentation = this.overlayController.resolvePresentation();
+    this.mobilePresentation = presentation !== 'dialog';
+    this.overlayController.open({
+      presentation,
+      registerInService: this.mobilePresentation,
+      blocking: true,
+      dismissOnBackdrop: true,
+      dismissOnEscape: true,
+      restoreFocusTo: previousActiveElement,
+    });
 
     const backdrop = document.createElement('div');
     backdrop.className = 'fixed inset-0 bg-slate-950/10';
     backdrop.style.zIndex = '55';
-    backdrop.style.pointerEvents = 'none';
+    backdrop.style.pointerEvents = this.mobilePresentation ? 'auto' : 'none';
 
     const container = createSurface({
       elevated: true,
-      className:
-        'fixed right-0 top-0 h-full w-[520px] max-w-[96vw] rounded-none rounded-l-2xl p-3 text-sm text-slate-700',
+      className: this.mobilePresentation
+        ? 'fixed inset-x-0 bottom-0 top-auto h-[min(86dvh,44rem)] w-full rounded-none rounded-t-2xl p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-sm text-slate-700'
+        : 'fixed right-0 top-0 h-full w-[520px] max-w-[96vw] rounded-none rounded-l-2xl p-3 text-sm text-slate-700',
     });
     container.style.display = 'flex';
     container.style.flexDirection = 'column';
     container.style.gap = '0';
     container.style.zIndex = '60';
     container.style.transition = 'width 140ms ease, padding 140ms ease';
+    container.setAttribute('aria-label', this.config.drawerTitle);
+    if (this.mobilePresentation) {
+      container.setAttribute('role', 'dialog');
+      container.setAttribute('aria-modal', 'true');
+    } else {
+      container.setAttribute('role', 'complementary');
+      container.removeAttribute('aria-modal');
+    }
+    container.tabIndex = 0;
 
     const header = document.createElement('div');
     header.className = 'mb-2 flex items-center justify-between gap-2 px-1';
@@ -146,16 +177,25 @@ export class ExistingEntityPicker<TItem> {
     expandBtn.addEventListener('click', () => this.setViewMode('full'));
     compactPanel.append(compactTitle, compactHint, expandBtn);
 
-    container.append(
-      header,
-      searchInput,
-      footerDivider,
-      list,
-      footer,
-      compactPanel
-    );
+    const containerParts: HTMLElement[] = [];
+    if (this.mobilePresentation) {
+      const grabber = document.createElement('div');
+      grabber.className =
+        'mx-auto mb-2 h-1.5 w-10 shrink-0 rounded-full bg-slate-300/90';
+      grabber.setAttribute('aria-hidden', 'true');
+      containerParts.push(grabber);
+    }
+    containerParts.push(header, searchInput, footerDivider, list, footer, compactPanel);
+    container.append(...containerParts);
     document.body.appendChild(backdrop);
     document.body.appendChild(container);
+    if (this.mobilePresentation) {
+      this.backdropCloseHandler = (event: MouseEvent) => {
+        if (event.target !== backdrop) return;
+        this.close();
+      };
+      backdrop.addEventListener('click', this.backdropCloseHandler);
+    }
 
     this.backdrop = backdrop;
     this.container = container;
@@ -181,6 +221,11 @@ export class ExistingEntityPicker<TItem> {
 
     this.resetAndLoad('');
     searchInput.focus();
+    container.addEventListener('keydown', (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      this.close();
+    });
 
     this.dropCompletedHandler = (event: Event) => {
       const customEvent =
@@ -212,6 +257,11 @@ export class ExistingEntityPicker<TItem> {
       );
       this.dropCompletedHandler = null;
     }
+    if (this.backdrop && this.backdropCloseHandler) {
+      this.backdrop.removeEventListener('click', this.backdropCloseHandler);
+      this.backdropCloseHandler = null;
+    }
+    this.overlayController.close();
     if (this.pickerDragActive) {
       this.pickerDragActive = false;
       this.emitDragState(false);
@@ -244,6 +294,7 @@ export class ExistingEntityPicker<TItem> {
     this.isLoading = false;
     this.loadMoreError = false;
     this.suppressPickUntilTs = 0;
+    this.mobilePresentation = false;
   }
 
   private resetAndLoad(term: string): void {
@@ -624,6 +675,9 @@ export class ExistingEntityPicker<TItem> {
   }
 
   private setViewMode(mode: 'full' | 'mini'): void {
+    if (this.mobilePresentation && mode === 'mini') {
+      mode = 'full';
+    }
     this.viewMode = mode;
     if (
       !this.container ||

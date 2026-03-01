@@ -32,9 +32,8 @@ export class KeyboardManager {
   }
 
   private onKeyDown(e: KeyboardEvent): void {
-    // Do not handle global shortcuts if a modal is open (service or actual dialog)
-    if (modalService.isOpen() || document.querySelector('[role="dialog"]'))
-      return;
+    // Do not handle global shortcuts if a blocking overlay is open.
+    if (modalService.hasBlockingOverlay()) return;
     // Ignore shortcuts when focused on form fields or editable content
     const tgt = e.target as HTMLElement;
     if (
@@ -48,7 +47,7 @@ export class KeyboardManager {
     const key = normalizeKeyboardKey(e);
 
     if (e.key === 'Escape') {
-      // Скасовуємо створення зв’язку
+      // Cancel connection creation.
       this.canvasManager.getInteractionManager().cancelConnectionCreation();
       return;
     }
@@ -74,10 +73,12 @@ export class KeyboardManager {
 
         this.scene.clearSelected();
 
+        const pasteX = mouseCoords?.x ?? 0;
+        const pasteY = mouseCoords?.y ?? 0;
         this.clipboard.forEach((shape) => {
           const clonedShape = shape.clone();
-          clonedShape.x = mouseCoords!.x + (clonedShape.x - shape.x);
-          clonedShape.y = mouseCoords!.y + (clonedShape.y - shape.y);
+          clonedShape.x = pasteX + (clonedShape.x - shape.x);
+          clonedShape.y = pasteY + (clonedShape.y - shape.y);
           clonedShape.selected = true;
           this.scene.addElement(clonedShape);
         });

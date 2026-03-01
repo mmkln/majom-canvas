@@ -1,4 +1,8 @@
-import { createModalShell } from '../../../../ui-lib/src/components/Modal.ts';
+import {
+  createModalActionRow,
+  getModalActionButtonClass,
+  createModalShell,
+} from '../../../../ui-lib/src/components/Modal.ts';
 import { createTextButton } from '../primitives/index.ts';
 
 type ConfirmReplaceStoryGoalModalOptions = {
@@ -20,28 +24,33 @@ export function confirmReplaceStoryGoalModal(
       overlay.remove();
     };
 
-    const { overlay, container } = createModalShell('Replace goal link?', {
-      onClose: () => {
-        settle(false);
-        close();
-      },
-      zIndex: 260,
-    });
+    const { overlay, container, body, footer } = createModalShell(
+      'Replace goal link?',
+      {
+        onClose: () => {
+          settle(false);
+          close();
+        },
+        intent: 'confirm',
+        zIndex: 260,
+      }
+    );
 
     const storyLabel = options.storyTitle?.trim() || 'This story';
     const message = document.createElement('p');
     message.className = 'text-sm leading-relaxed text-slate-600';
+    message.id = `confirm-replace-goal-message-${Math.random().toString(36).slice(2, 9)}`;
+    container.setAttribute('aria-describedby', message.id);
     message.textContent = `"${storyLabel}" is already linked to another goal. Do you want to replace it with the new goal?`;
-    container.appendChild(message);
+    body.appendChild(message);
 
-    const row = document.createElement('div');
-    row.className = 'mt-4 flex justify-end gap-2';
+    const row = createModalActionRow({ variant: 'confirm' });
 
     const cancelButton = createTextButton({
       text: 'Cancel',
       tone: 'text',
       size: 'md',
-      className: 'min-w-[84px] justify-center',
+      className: getModalActionButtonClass('default'),
       onClick: () => {
         settle(false);
         close();
@@ -53,7 +62,7 @@ export function confirmReplaceStoryGoalModal(
       text: 'Replace',
       tone: 'primary',
       size: 'md',
-      className: 'min-w-[84px] justify-center',
+      className: getModalActionButtonClass('default'),
       onClick: () => {
         settle(true);
         close();
@@ -61,7 +70,7 @@ export function confirmReplaceStoryGoalModal(
     });
     row.appendChild(replaceButton);
 
-    container.appendChild(row);
+    footer.appendChild(row);
 
     container.addEventListener('keydown', (event: KeyboardEvent) => {
       event.stopPropagation();
