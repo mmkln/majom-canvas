@@ -318,7 +318,7 @@ export class ContextMenu {
             secondaryAction: () => {
               this.openRelatedItemsPicker(element);
             },
-            secondaryIcon: 'squares-plus',
+            secondaryIcon: 'magnifying-glass',
             secondaryLabel: 'Add related tasks',
           },
         ],
