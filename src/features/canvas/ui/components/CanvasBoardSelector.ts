@@ -330,7 +330,7 @@ export class CanvasBoardSelector {
 
     if (pinnedCanvases.length > 0) {
       const pinnedRows = pinnedCanvases.map((canvas) =>
-        this.createCanvasRow(canvas, { noGroupIndent: true })
+        this.createCanvasRow(canvas, { noGroupIndent: false })
       );
       const pinnedGroup = new MenuItemGroup({
         id: '__pinned__',
