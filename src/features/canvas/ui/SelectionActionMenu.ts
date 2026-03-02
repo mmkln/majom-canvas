@@ -17,6 +17,7 @@ import { ElementStatus } from '../elements/ElementStatus.ts';
 import { positionFixedElement } from './overlayPosition.ts';
 import { getViewBounds, isRectVisible } from '../core/utils/viewBounds.ts';
 import { addTaskToStory } from './storyTaskActions.ts';
+import { editElement$ } from '../core/eventBus.ts';
 import { createIconButton, createSurface } from './primitives/index.ts';
 import { StatusSelector } from './components/StatusSelector.ts';
 
@@ -440,7 +441,9 @@ export class SelectionActionMenu {
 
   private handleEdit(): void {
     if (!this.activeElement) return;
-    (this.activeElement as any).onDoubleClick?.();
+    editElement$.next(
+      this.activeElement as TaskElement | StoryElement | GoalElement
+    );
   }
 
   private handleCopy(): void {

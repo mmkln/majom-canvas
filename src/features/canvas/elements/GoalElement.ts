@@ -14,7 +14,7 @@ import {
   SHOW_ANIM_SCALE,
   SHOW_GOAL_TEXT_SCALE,
 } from '../core/constants.ts';
-import { editElement$ } from '../core/eventBus.ts';
+import { viewElementDetails$ } from '../core/eventBus.ts';
 import { v4 } from 'uuid';
 import { goalStyles } from './styles/goalStyles.ts';
 import { ElementStatus } from './ElementStatus.ts';
@@ -281,10 +281,10 @@ export class GoalElement extends PlanningElement {
   }
 
   /**
-   * Prompt to edit goal title
+   * Open read-only goal details
    */
   public onDoubleClick(): void {
-    editElement$.next(this);
+    viewElementDetails$.next(this);
   }
 
   private getHexVertices(

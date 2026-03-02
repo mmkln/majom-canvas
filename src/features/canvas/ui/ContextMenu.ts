@@ -18,6 +18,7 @@ import { positionFixedElement } from './overlayPosition.ts';
 import { BulkActionsController } from '../core/services/BulkActionsController.ts';
 import { ElementStatus } from '../elements/ElementStatus.ts';
 import { addTaskToStory } from './storyTaskActions.ts';
+import { editElement$, viewElementDetails$ } from '../core/eventBus.ts';
 import { ExistingTaskPicker } from './components/ExistingTaskPicker.ts';
 import { ExistingGoalPicker } from './components/ExistingGoalPicker.ts';
 import { ExistingStoryPicker } from './components/ExistingStoryPicker.ts';
@@ -279,7 +280,17 @@ export class ContextMenu {
       actionItems.push({
         label: 'Edit',
         action: () => {
-          (element as any).onDoubleClick?.();
+          editElement$.next(
+            element as TaskElement | StoryElement | GoalElement
+          );
+        },
+      });
+      actionItems.push({
+        label: 'View details',
+        action: () => {
+          viewElementDetails$.next(
+            element as TaskElement | StoryElement | GoalElement
+          );
         },
       });
     }

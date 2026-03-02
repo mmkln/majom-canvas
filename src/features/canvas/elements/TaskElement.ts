@@ -11,7 +11,7 @@ import {
 } from '../core/constants.ts';
 import { taskStyles } from './styles/taskStyles.ts';
 import { ElementStatus } from './ElementStatus.ts';
-import { editElement$ } from '../core/eventBus.ts';
+import { viewElementDetails$ } from '../core/eventBus.ts';
 import { v4 } from 'uuid';
 import { TextRenderer } from '../utils/TextRenderer.ts';
 import { drawStatusAnimationRect } from './utils/statusAnimations.ts';
@@ -248,10 +248,10 @@ export class TaskElement extends PlanningElement {
   }
 
   /**
-   * Prompt to edit task title, status and priority
+   * Open read-only task details
    */
   public onDoubleClick(): void {
     // Trigger edit modal via event bus
-    editElement$.next(this);
+    viewElementDetails$.next(this);
   }
 }

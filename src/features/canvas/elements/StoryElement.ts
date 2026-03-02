@@ -16,7 +16,7 @@ import {
   SHOW_DETAILS_SCALE,
   SHOW_STORY_TEXT_SCALE,
 } from '../core/constants.ts';
-import { editElement$ } from '../core/eventBus.ts';
+import { viewElementDetails$ } from '../core/eventBus.ts';
 import { storyStyles } from './styles/storyStyles.ts';
 import { ElementStatus } from './ElementStatus.ts';
 import { v4 } from 'uuid';
@@ -396,10 +396,10 @@ export class StoryElement extends PlanningElement {
   }
 
   /**
-   * Prompt to edit story properties
+   * Open read-only story details
    */
   public onDoubleClick(): void {
-    editElement$.next(this);
+    viewElementDetails$.next(this);
   }
 
   clone(): PlanningElement {
