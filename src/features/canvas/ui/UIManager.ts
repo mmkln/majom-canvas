@@ -1,11 +1,12 @@
 // ui/UIManager.ts
 import { CanvasNavigationDock } from './CanvasNavigationDock.ts';
 import { EditElementModal } from './components/EditElementModal.ts';
+import { ElementDetailsModal } from './components/ElementDetailsModal.ts';
 import { NotificationContainer } from './components/NotificationContainer.ts';
 import { CanvasBoardSelector } from './components/CanvasBoardSelector.ts';
 import { CanvasManager } from '../core/managers/CanvasManager.ts';
 import { Scene } from '../core/scene/Scene.ts';
-import { editElement$ } from '../core/eventBus.ts';
+import { editElement$, viewElementDetails$ } from '../core/eventBus.ts';
 import { SaveControls } from './components/SaveControls.ts';
 import { ContextMenu } from './ContextMenu.ts';
 import { SelectionActionMenu } from './SelectionActionMenu.ts';
@@ -64,6 +65,7 @@ export class UIManager {
   private canvasDropHandler: ((event: DragEvent) => void) | null = null;
   private uiRoot: HTMLDivElement | null = null;
   private editElementSubscription: Subscription | null = null;
+  private viewElementDetailsSubscription: Subscription | null = null;
 
   constructor(
     private readonly canvasManager: CanvasManager,
@@ -183,6 +185,9 @@ export class UIManager {
     this.editElementSubscription = editElement$.subscribe((el) =>
       new EditElementModal(el, this.scene).show()
     );
+    this.viewElementDetailsSubscription = viewElementDetails$.subscribe((el) =>
+      new ElementDetailsModal(el, this.scene).show()
+    );
   }
 
   public mountAll(parent: HTMLElement = document.body): void {
@@ -247,6 +252,8 @@ export class UIManager {
     this.components.forEach((c) => c.unmount());
     this.editElementSubscription?.unsubscribe();
     this.editElementSubscription = null;
+    this.viewElementDetailsSubscription?.unsubscribe();
+    this.viewElementDetailsSubscription = null;
     if (this.existingPickerDragStateHandler) {
       window.removeEventListener(
         EXISTING_PICKER_EVENT_NAMES.dragStateChanged,

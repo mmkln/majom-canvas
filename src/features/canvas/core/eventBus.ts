@@ -7,3 +7,8 @@ import type { GoalElement } from '../elements/GoalElement.ts';
 export const editElement$ = new Subject<
   TaskElement | StoryElement | GoalElement
 >();
+
+// Central bus for read-only details view
+export const viewElementDetails$ = new Subject<
+  TaskElement | StoryElement | GoalElement
+>();
