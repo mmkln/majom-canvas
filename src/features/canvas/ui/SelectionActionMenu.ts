@@ -317,7 +317,7 @@ export class SelectionActionMenu {
         kind: 'action',
         id: 'add-related',
         title: 'Add related',
-        icon: 'squares-plus',
+        icon: 'magnifying-glass',
         isVisible: (context) => isSingle(context) && isStoryOrGoal(context),
         onClick: () => this.handleAddRelated(),
       },
