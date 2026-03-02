@@ -17,7 +17,7 @@ import { environment } from '../../../../config/environment.ts';
 import { HttpInterceptorClient } from '../../../../majom-wrapper/data-access/http-interceptor.ts';
 import { GoalsApiService } from '../../../../majom-wrapper/data-access/goals-api-service.ts';
 import { StoriesApiService } from '../../../../majom-wrapper/data-access/stories-api-service.ts';
-import { Subscription } from 'rxjs';
+import type { Subscription } from 'rxjs';
 
 type CanvasElement = TaskElement | StoryElement | GoalElement;
 
@@ -25,6 +25,8 @@ export class ElementDetailsModal {
   private modal: HTMLDivElement | null = null;
   private readonly detailsService: ElementDetailsService;
   private subscriptions: Subscription[] = [];
+  private storyTasksSubscription: Subscription | null = null;
+  private selectedStoryId: number | null = null;
 
   constructor(
     private readonly element: CanvasElement,
@@ -72,31 +74,18 @@ export class ElementDetailsModal {
     actions.appendChild(closeBtn);
     footer.appendChild(actions);
 
-    const renderTasks = (stories: StoryListItemVM[]): void => {
-      if (stories.length === 0) {
-        this.renderMessage(tasksCol.content, 'No tasks to display');
-        return;
-      }
-      const first = stories[0];
-      this.renderMessage(tasksCol.content, 'Loading tasks...');
-      const sub = this.detailsService
-        .loadTasksForStory({ id: first.id, uuid: first.uuid ?? null })
-        .subscribe((tasks) => this.renderTaskList(tasksCol.content, tasks));
-      this.subscriptions.push(sub);
-    };
-
     if (this.element instanceof StoryElement) {
       this.renderMessage(storiesCol.content, 'Current story');
       const refId = Number.isFinite(this.element.backendId)
         ? (this.element.backendId as number)
         : null;
       if (refId === null) {
-        this.renderMessage(tasksCol.content, 'Story is not linked to backend yet');
+        this.renderMessage(
+          tasksCol.content,
+          'Story is not linked to backend yet'
+        );
       } else {
-        const sub = this.detailsService
-          .loadTasksForStory({ id: refId, uuid: this.element.uuid ?? null })
-          .subscribe((tasks) => this.renderTaskList(tasksCol.content, tasks));
-        this.subscriptions.push(sub);
+        this.loadTasks(tasksCol.content, { id: refId, uuid: this.element.uuid });
       }
       return;
     }
@@ -106,16 +95,31 @@ export class ElementDetailsModal {
     const storiesSub = this.detailsService
       .loadStoriesForElement(this.element)
       .subscribe((stories) => {
-        this.renderStoriesList(storiesCol.content, stories, (story) => {
-          this.renderMessage(tasksCol.content, 'Loading tasks...');
-          const sub = this.detailsService
-            .loadTasksForStory({ id: story.id, uuid: story.uuid ?? null })
-            .subscribe((tasks) => this.renderTaskList(tasksCol.content, tasks));
-          this.subscriptions.push(sub);
-        });
-        renderTasks(stories);
+        if (stories.length === 0) {
+          this.selectedStoryId = null;
+          this.renderMessage(tasksCol.content, 'No tasks to display');
+        } else {
+          this.selectedStoryId = stories[0].id;
+          this.loadTasks(tasksCol.content, {
+            id: stories[0].id,
+            uuid: stories[0].uuid,
+          });
+        }
+        this.renderStoriesList(storiesCol.content, stories, tasksCol.content);
       });
     this.subscriptions.push(storiesSub);
+  }
+
+  private loadTasks(
+    container: HTMLElement,
+    ref: { id: number; uuid?: string }
+  ): void {
+    this.storyTasksSubscription?.unsubscribe();
+    this.renderMessage(container, 'Loading tasks...');
+    this.storyTasksSubscription = this.detailsService
+      .loadTasksForStory({ id: ref.id, uuid: ref.uuid ?? null })
+      .subscribe((tasks) => this.renderTaskList(container, tasks));
+    this.subscriptions.push(this.storyTasksSubscription);
   }
 
   private renderSummary(): HTMLElement {
@@ -139,7 +143,7 @@ export class ElementDetailsModal {
   private renderStoriesList(
     container: HTMLElement,
     stories: StoryListItemVM[],
-    onSelect: (story: StoryListItemVM) => void
+    tasksContainer: HTMLElement
   ): void {
     container.innerHTML = '';
     if (stories.length === 0) {
@@ -148,16 +152,23 @@ export class ElementDetailsModal {
     }
     const list = document.createElement('div');
     list.className = 'space-y-1';
-    stories.forEach((story, index) => {
+    stories.forEach((story) => {
       const btn = document.createElement('button');
       btn.type = 'button';
+      const selected = this.selectedStoryId === story.id;
       btn.className =
-        'w-full rounded-md border border-slate-200 px-2 py-2 text-left text-sm hover:bg-slate-50';
-      btn.innerHTML = `<div class="font-medium text-slate-900">${story.title}</div><div class="text-xs text-slate-500">Tasks: ${story.tasksCount} · ${story.isOnCanvas ? 'On canvas' : 'Not on canvas'}</div>`;
-      btn.addEventListener('click', () => onSelect(story));
-      if (index === 0) {
-        btn.classList.add('bg-indigo-50', 'border-indigo-200');
+        'w-full rounded-md border px-2 py-2 text-left text-sm hover:bg-slate-50';
+      if (selected) {
+        btn.classList.add('border-indigo-200', 'bg-indigo-50');
+      } else {
+        btn.classList.add('border-slate-200');
       }
+      btn.innerHTML = `<div class="font-medium text-slate-900">${story.title}</div><div class="text-xs text-slate-500">Tasks: ${story.tasksCount} · ${story.isOnCanvas ? 'On canvas' : 'Not on canvas'}</div>`;
+      btn.addEventListener('click', () => {
+        this.selectedStoryId = story.id;
+        this.renderStoriesList(container, stories, tasksContainer);
+        this.loadTasks(tasksContainer, { id: story.id, uuid: story.uuid });
+      });
       list.appendChild(btn);
     });
     container.appendChild(list);
@@ -183,12 +194,15 @@ export class ElementDetailsModal {
   private renderMessage(container: HTMLElement, text: string): void {
     container.innerHTML = '';
     const empty = document.createElement('div');
-    empty.className = 'rounded-md border border-dashed border-slate-300 p-3 text-sm text-slate-500';
+    empty.className =
+      'rounded-md border border-dashed border-slate-300 p-3 text-sm text-slate-500';
     empty.textContent = text;
     container.appendChild(empty);
   }
 
-  private createColumn(title: string): { element: HTMLDivElement; content: HTMLDivElement } {
+  private createColumn(
+    title: string
+  ): { element: HTMLDivElement; content: HTMLDivElement } {
     const element = document.createElement('div');
     element.className = 'rounded-xl border border-slate-200 p-3';
     const heading = document.createElement('h3');
@@ -207,6 +221,8 @@ export class ElementDetailsModal {
   }
 
   private close(): void {
+    this.storyTasksSubscription?.unsubscribe();
+    this.storyTasksSubscription = null;
     this.subscriptions.forEach((sub) => sub.unsubscribe());
     this.subscriptions = [];
     if (this.modal) {
