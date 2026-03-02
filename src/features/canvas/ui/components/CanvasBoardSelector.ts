@@ -326,15 +326,19 @@ export class CanvasBoardSelector {
       return;
     }
 
-    const sortedCanvases = this.canvases
-      .map((canvas, index) => ({ canvas, index }))
-      .sort((left, right) => {
-        const favoriteOrder =
-          Number(right.canvas.isFavorite) - Number(left.canvas.isFavorite);
-        if (favoriteOrder !== 0) return favoriteOrder;
-        return left.index - right.index;
-      })
-      .map((entry) => entry.canvas);
+    const pinnedCanvases = this.canvases.filter((canvas) => canvas.isFavorite);
+
+    if (pinnedCanvases.length > 0) {
+      const pinnedRows = pinnedCanvases.map((canvas) =>
+        this.createCanvasRow(canvas, { noGroupIndent: true })
+      );
+      const pinnedGroup = new MenuItemGroup({
+        id: '__pinned__',
+        label: 'Pinned',
+        items: pinnedRows,
+      });
+      this.listWrap.appendChild(pinnedGroup.getElement());
+    }
 
     const groupedCanvases = new Map<
       string,
@@ -342,7 +346,7 @@ export class CanvasBoardSelector {
     >();
     const ungroupedCanvases: CanvasItem[] = [];
 
-    sortedCanvases.forEach((canvas) => {
+    this.canvases.forEach((canvas) => {
       if (!canvas.group) {
         ungroupedCanvases.push(canvas);
         return;
@@ -387,9 +391,13 @@ export class CanvasBoardSelector {
     });
   }
 
-  private createCanvasRow(canvas: CanvasItem): HTMLDivElement {
+  private createCanvasRow(
+    canvas: CanvasItem,
+    options?: { noGroupIndent?: boolean }
+  ): HTMLDivElement {
     const isActive = canvas.id === this.activeCanvasId;
     const isUnavailable = canvas.id.startsWith('missing-id-');
+    const shouldIndentGroup = canvas.group && options?.noGroupIndent !== true;
     return createSplitDropdownItem({
       label: canvas.name,
       variant: isActive ? 'selected' : 'default',
@@ -398,7 +406,7 @@ export class CanvasBoardSelector {
       leading: this.createCanvasLeadingIcon(isActive),
       hideSelectedTrailing: this.hideSelectedCheckInCanvasItems,
       trailing: isActive ? this.createCheckIcon() : null,
-      className: `min-w-0 ${canvas.group ? 'pl-6' : ''}`,
+      className: `min-w-0 ${shouldIndentGroup ? 'pl-6' : ''}`,
       disabled: isUnavailable,
       secondaryIcon: canvas.isFavorite ? 'star-solid' : 'star',
       secondaryLabel: canvas.isFavorite
