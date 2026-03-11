@@ -5,9 +5,20 @@ import { ScrollbarManager } from './ScrollbarManager.ts';
 import { CanvasRenderer } from './CanvasRenderer.ts';
 import { InteractionManager } from './InteractionManager.ts';
 import { KeyboardManager } from './KeyboardManager.ts';
+import { legacyPlanningDragGroupResolver } from '../adapters/LegacyPlanningDragGroupResolver.ts';
+import { legacyPlanningConnectableOrderResolver } from '../adapters/LegacyPlanningConnectableOrderResolver.ts';
+import { legacyPlanningTopElementResolver } from '../adapters/LegacyPlanningTopElementResolver.ts';
+import { LegacyPlanningRelationPolicy } from '../adapters/LegacyPlanningRelationPolicy.ts';
+import { LegacyPlanningConnectionLifecycleAdapter } from '../adapters/LegacyPlanningConnectionLifecycleAdapter.ts';
+import { LegacyPlanningTaskDropPreviewAdapter } from '../adapters/LegacyPlanningTaskDropPreviewAdapter.ts';
+import { LegacyPlanningTaskStoryLayoutAdapter } from '../adapters/LegacyPlanningTaskStoryLayoutAdapter.ts';
+import { LegacyPlanningStoryResizeLayoutAdapter } from '../adapters/LegacyPlanningStoryResizeLayoutAdapter.ts';
+import { createLegacyInteractionCommandSink } from '../adapters/LegacyInteractionCommandSink.ts';
+import type { ResizableCanvasElement } from '../adapters/StoryResizeLayoutAdapter.ts';
 import { isShape } from '../utils/typeGuards.ts';
 import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
 import type { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
+import type { ICanvasElement } from '../interfaces/canvasElement.ts';
 import type { IShape } from '../interfaces/shape.ts';
 import {
   ConnectionRelationType,
@@ -35,6 +46,12 @@ import { getBoundingBox } from '../utils/geometryUtils.ts';
 import { hasStatusAnimation } from '../../elements/utils/statusAnimations.ts';
 import { CANVAS_PERF_LOG } from '../../../../config/env/index.ts';
 import { isCircleVisible, isRectVisible } from '../utils/viewBounds.ts';
+import {
+  emitCanvasInteractionEnd,
+  emitCanvasInteractionStart,
+} from '../canvasInteractionLifecycle.ts';
+import { emitCanvasContextMenuRequested } from '../canvasContextMenuLifecycle.ts';
+import { emitCanvasPositionsDirty } from '../canvasPositionsLifecycle.ts';
 import { BehaviorSubject, Subject, Subscription } from 'rxjs';
 import type {
   CanvasLoadPhase,
@@ -88,11 +105,9 @@ export class CanvasManager {
   } | null = null;
   private pinchCenter: { x: number; y: number } | null = null;
   private pinchElement: StoryElement | null = null;
-  private pinchInitialTaskPositions: Map<
-    string,
-    { x: number; y: number }
-  > | null = null;
   private readonly storyLayoutService = new StoryLayoutService();
+  private readonly storyResizeLayoutAdapter =
+    new LegacyPlanningStoryResizeLayoutAdapter(this.storyLayoutService);
 
   // Pinch-to-zoom state
   private pinchZoomInitialDist: number | null = null;
@@ -174,7 +189,30 @@ export class CanvasManager {
     this.interactionManager = new InteractionManager(
       canvas,
       scene,
-      this.panZoom
+      this.panZoom,
+      new LegacyPlanningRelationPolicy(),
+      new LegacyPlanningConnectionLifecycleAdapter(),
+      new LegacyPlanningTaskDropPreviewAdapter(),
+      new LegacyPlanningTaskStoryLayoutAdapter(this.storyLayoutService),
+      this.storyResizeLayoutAdapter,
+      legacyPlanningDragGroupResolver,
+      legacyPlanningTopElementResolver,
+      legacyPlanningConnectableOrderResolver,
+      {
+        isTaskElement: (element) => element instanceof TaskElement,
+        isResizableElement: (
+          element: ICanvasElement
+        ): element is ResizableCanvasElement => element instanceof StoryElement,
+      },
+      {
+        onInteractionStart: (interactionType) =>
+          emitCanvasInteractionStart(interactionType),
+        onInteractionEnd: (interactionType) =>
+          emitCanvasInteractionEnd(interactionType),
+        onContextMenuRequested: (payload) =>
+          emitCanvasContextMenuRequested(payload),
+      },
+      createLegacyInteractionCommandSink(scene)
     );
     this.keyboardManager = new KeyboardManager(scene, this);
 
@@ -905,7 +943,7 @@ export class CanvasManager {
     const rect = this.canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
-    this.panZoom.handleWheelEvent(e, this.canvas, mouseX, mouseY);
+    this.panZoom.handleWheelEvent(e, mouseX, mouseY);
     this.requestDraw();
   }
 
@@ -1019,20 +1057,6 @@ export class CanvasManager {
     );
   }
 
-  private notifyInteractionStart(kind: 'drag' | 'resize'): void {
-    if (typeof window === 'undefined') return;
-    window.dispatchEvent(
-      new CustomEvent('canvasInteractionStart', { detail: { kind } })
-    );
-  }
-
-  private notifyInteractionEnd(kind: 'drag' | 'resize'): void {
-    if (typeof window === 'undefined') return;
-    window.dispatchEvent(
-      new CustomEvent('canvasInteractionEnd', { detail: { kind } })
-    );
-  }
-
   private startRightPan(mouseX: number, mouseY: number): void {
     this.isRightPanning = true;
     this.rightPanActive = false;
@@ -1121,9 +1145,10 @@ export class CanvasManager {
           width: this.pinchElement.width,
           height: this.pinchElement.height,
         };
-        this.pinchInitialTaskPositions = this.captureStoryTaskPositions(
-          this.pinchElement
-        );
+        this.storyResizeLayoutAdapter.onResizeStart({
+          story: this.pinchElement,
+          sceneElements: this.scene.getElements(),
+        });
         const rect = this.canvas.getBoundingClientRect();
         const midX = (p1.x + p2.x) / 2 - rect.left;
         const midY = (p1.y + p2.y) / 2 - rect.top;
@@ -1131,7 +1156,7 @@ export class CanvasManager {
           x: (midX + this.panZoom.scrollX) / this.panZoom.scale,
           y: (midY + this.panZoom.scrollY) / this.panZoom.scale,
         };
-        this.notifyInteractionStart('resize');
+        emitCanvasInteractionStart('resize');
       } else {
         // pinch-to-zoom
         this.pinchZoomInitialDist = dist;
@@ -1164,14 +1189,7 @@ export class CanvasManager {
       const currDist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
       let newScale =
         this.pinchZoomInitialScale * (currDist / this.pinchZoomInitialDist!);
-      // clamp scale
-      const minScale = Math.max(
-        (this.canvas.width - this.panZoom.scrollbarWidth) /
-          this.panZoom.virtualWidth,
-        (this.canvas.height - this.panZoom.scrollbarWidth) /
-          this.panZoom.virtualHeight
-      );
-      newScale = Math.min(Math.max(newScale, minScale), 3);
+      newScale = this.panZoom.clampScale(newScale);
       // compute screen center of pinch
       const rect = this.canvas.getBoundingClientRect();
       const midX = (p1.x + p2.x) / 2 - rect.left;
@@ -1200,29 +1218,16 @@ export class CanvasManager {
       const newW = this.pinchInitialRect.width * scale;
       const newH = this.pinchInitialRect.height * scale;
       const story = this.pinchElement;
-      const tasks = this.scene
-        .getElements()
-        .filter((el) => el instanceof TaskElement) as TaskElement[];
-      const plan = this.storyLayoutService.planResize(
+      const resizeResult = this.storyResizeLayoutAdapter.onResizeUpdate({
         story,
-        tasks,
-        Math.max(newW, 1),
-        Math.max(newH, 1)
-      );
-      story.width = plan.nextWidth;
-      story.height = plan.nextHeight;
-      story.x = this.pinchCenter.x - plan.nextWidth / 2;
-      story.y = this.pinchCenter.y - plan.nextHeight / 2;
-      if (plan.positions.size > 0) {
-        const taskById = new Map(tasks.map((task) => [task.id, task]));
-        plan.positions.forEach((pos, id) => {
-          const task = taskById.get(id);
-          if (!task) return;
-          task.x = pos.x;
-          task.y = pos.y;
-        });
-        story.tasks = plan.orderedTasks;
-      }
+        sceneElements: this.scene.getElements(),
+        nextWidth: Math.max(newW, 1),
+        nextHeight: Math.max(newH, 1),
+      });
+      story.width = resizeResult.nextWidth;
+      story.height = resizeResult.nextHeight;
+      story.x = this.pinchCenter.x - resizeResult.nextWidth / 2;
+      story.y = this.pinchCenter.y - resizeResult.nextHeight / 2;
       this.scene.changes.next();
       return;
     }
@@ -1234,12 +1239,17 @@ export class CanvasManager {
     const pinchInitialRect = this.pinchInitialRect;
     const hadPinchResize = this.pinchElement !== null;
     if (pinchElement && pinchInitialRect) {
-      const movedTasks = this.getPinchMovedTasks();
+      const movedTasks = this.storyResizeLayoutAdapter.collectMovedTasks(
+        this.scene.getElements()
+      );
+      const movedTaskElements = this.getPlanningElementsByIds(
+        new Set(movedTasks.final.keys())
+      );
       if (
         this.hasPinchChange(pinchElement, pinchInitialRect) ||
-        movedTasks.length > 0
+        movedTaskElements.length > 0
       ) {
-        this.notifyPositionsDirty([pinchElement, ...movedTasks]);
+        this.notifyPositionsDirty([pinchElement, ...movedTaskElements]);
       }
     }
     // clear story-resize pinch
@@ -1247,14 +1257,14 @@ export class CanvasManager {
     this.pinchInitialRect = null;
     this.pinchCenter = null;
     this.pinchElement = null;
-    this.pinchInitialTaskPositions = null;
+    this.storyResizeLayoutAdapter.clear();
     // clear pinch-to-zoom
     this.pinchZoomInitialDist = null;
     this.pinchZoomInitialScale = 1;
     this.pinchZoomCenterScene = null;
     this.onMouseUp(e as unknown as MouseEvent);
     if (hadPinchResize) {
-      this.notifyInteractionEnd('resize');
+      emitCanvasInteractionEnd('resize');
     }
     this.canvas.releasePointerCapture(e.pointerId);
     // on mobile, treat tap as edit-modal open
@@ -1263,20 +1273,12 @@ export class CanvasManager {
     }
   }
 
-  private notifyPositionsDirty(
-    elements: Array<StoryElement | TaskElement>
-  ): void {
-    if (typeof window === 'undefined') return;
-    if (elements.length === 0) return;
-    window.dispatchEvent(
-      new CustomEvent('canvasPositionsDirty', {
-        detail: { elements },
-      })
-    );
+  private notifyPositionsDirty(elements: IPlanningElement[]): void {
+    emitCanvasPositionsDirty(elements);
   }
 
   private hasPinchChange(
-    element: StoryElement,
+    element: ResizableCanvasElement,
     rect: { x: number; y: number; width: number; height: number }
   ): boolean {
     const epsilon = 0.01;
@@ -1288,38 +1290,12 @@ export class CanvasManager {
     );
   }
 
-  private captureStoryTaskPositions(
-    story: StoryElement
-  ): Map<string, { x: number; y: number }> {
-    const positions = new Map<string, { x: number; y: number }>();
-    const tasks = this.scene
+  private getPlanningElementsByIds(ids: Set<string>): IPlanningElement[] {
+    if (ids.size === 0) return [];
+    return this.scene
       .getElements()
-      .filter((el) => el instanceof TaskElement) as TaskElement[];
-    const layoutTasks = this.storyLayoutService.getLayoutTasks(story, tasks);
-    layoutTasks.forEach((task) => {
-      positions.set(task.id, { x: task.x, y: task.y });
-    });
-    return positions;
-  }
-
-  private getPinchMovedTasks(): TaskElement[] {
-    if (!this.pinchInitialTaskPositions) return [];
-    if (this.pinchInitialTaskPositions.size === 0) return [];
-    const tasks = this.scene
-      .getElements()
-      .filter((el) => el instanceof TaskElement) as TaskElement[];
-    const taskById = new Map(tasks.map((task) => [task.id, task]));
-    const moved: TaskElement[] = [];
-    const epsilon = 0.01;
-    this.pinchInitialTaskPositions.forEach((pos, id) => {
-      const task = taskById.get(id);
-      if (!task) return;
-      const dx = Math.abs(task.x - pos.x);
-      const dy = Math.abs(task.y - pos.y);
-      if (dx <= epsilon && dy <= epsilon) return;
-      moved.push(task);
-    });
-    return moved;
+      .filter(isPlanningElement)
+      .filter((element) => ids.has(element.id));
   }
 
   // --- Gesture event handlers for Safari pinch ---
@@ -1331,13 +1307,7 @@ export class CanvasManager {
   private onGestureChange(e: any): void {
     e.preventDefault();
     let newScale = this.gestureInitialScale * e.scale;
-    const minScale = Math.max(
-      (this.canvas.width - this.panZoom.scrollbarWidth) /
-        this.panZoom.virtualWidth,
-      (this.canvas.height - this.panZoom.scrollbarWidth) /
-        this.panZoom.virtualHeight
-    );
-    newScale = Math.min(Math.max(newScale, minScale), 3);
+    newScale = this.panZoom.clampScale(newScale);
     const centerX = this.canvas.width / 2;
     const centerY = this.canvas.height / 2;
     const contentX = (centerX + this.panZoom.scrollX) / this.panZoom.scale;

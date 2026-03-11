@@ -30,6 +30,10 @@ import {
   createTextButton,
   type SegmentedControl,
 } from './primitives/index.ts';
+import {
+  RELATED_ITEMS_PICKER_REQUESTED_EVENT,
+  isRelatedItemsPickerRequestedDetail,
+} from './events/relatedItemsPickerEvents.ts';
 
 type RelatedItem =
   | { kind: 'task'; value: PlatformTask }
@@ -157,8 +161,9 @@ export class RelatedItemsPicker {
         .viewChanges.subscribe(() => this.updatePosition())
     );
     this.eventHandler = (event: Event) => {
-      const customEvent = event as CustomEvent<{ element?: ICanvasElement }>;
-      const element = customEvent.detail?.element ?? null;
+      const customEvent = event as CustomEvent<unknown>;
+      if (!isRelatedItemsPickerRequestedDetail(customEvent.detail)) return;
+      const element = customEvent.detail.element ?? null;
       if (!element) return;
       if (!this.isPlanningElement(element)) return;
       this.activeElement = element;
@@ -166,7 +171,7 @@ export class RelatedItemsPicker {
       this.loadRelatedItems();
       this.show();
     };
-    window.addEventListener('relatedItemsPickerRequested', this.eventHandler);
+    window.addEventListener(RELATED_ITEMS_PICKER_REQUESTED_EVENT, this.eventHandler);
   }
 
   public unmount(): void {
@@ -174,7 +179,7 @@ export class RelatedItemsPicker {
     this.subscriptions = [];
     if (this.eventHandler) {
       window.removeEventListener(
-        'relatedItemsPickerRequested',
+        RELATED_ITEMS_PICKER_REQUESTED_EVENT,
         this.eventHandler
       );
       this.eventHandler = null;

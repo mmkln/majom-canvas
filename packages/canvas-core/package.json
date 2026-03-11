@@ -1,0 +1,26 @@
+{
+  "name": "majom-canvas-core",
+  "version": "0.1.0",
+  "description": "Reusable canvas interaction engine extracted from majom-canvas",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "INTEGRATION_GUIDE.md"
+  ],
+  "sideEffects": false,
+  "license": "ISC",
+  "dependencies": {
+    "rxjs": "^7.8.2",
+    "uuid": "^11.1.0"
+  }
+}

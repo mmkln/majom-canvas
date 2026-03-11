@@ -11,6 +11,23 @@ import {
 } from '../primitives/index.ts';
 import { createIcon } from '../icons.ts';
 import { MenuItemGroup } from './MenuItemGroup.ts';
+import {
+  CANVAS_FAVORITE_TOGGLE_FAILED_EVENT,
+  CANVAS_GROUP_UPDATE_FAILED_EVENT,
+  CANVAS_LIST_UPDATED_EVENT,
+  CANVAS_TITLE_CHANGED_EVENT,
+  emitCanvasCreateRequested,
+  emitCanvasDeleteRequested,
+  emitCanvasFavoriteToggled,
+  emitCanvasGroupUpdated,
+  emitCanvasRenameRequested,
+  emitCanvasSelected,
+  emitCanvasTitleEdited,
+  isCanvasFavoriteToggleFailedDetail,
+  isCanvasGroupUpdateFailedDetail,
+  isCanvasListUpdatedDetail,
+  isCanvasTitleChangedDetail,
+} from '../../core/canvasBoardLifecycle.ts';
 
 type CanvasGroup = { id: string; name: string };
 type CanvasItem = {
@@ -118,7 +135,7 @@ export class CanvasBoardSelector {
       variant: 'accent-create',
       leading: this.createPlusIcon(),
       onClick: () => {
-        window.dispatchEvent(new CustomEvent('canvasCreateRequested'));
+        emitCanvasCreateRequested();
         this.setDropdownOpen(false);
       },
     });
@@ -162,82 +179,56 @@ export class CanvasBoardSelector {
     this.loadCollapsedGroupsFromStorage();
 
     this.canvasTitleHandler = (event: Event) => {
-      const customEvent = event as CustomEvent<{ title?: string }>;
-      const title = customEvent.detail?.title;
-      if (typeof title !== 'string') return;
+      const customEvent = event as CustomEvent<unknown>;
+      if (!isCanvasTitleChangedDetail(customEvent.detail)) return;
+      const { title } = customEvent.detail;
       this.currentTitle = title;
       if (this.titleInput) {
         this.titleInput.value = title;
       }
       this.titleText.textContent = title;
     };
-    window.addEventListener('canvasTitleChanged', this.canvasTitleHandler);
+    window.addEventListener(CANVAS_TITLE_CHANGED_EVENT, this.canvasTitleHandler);
 
     this.canvasListHandler = (event: Event) => {
-      const customEvent = event as CustomEvent<{
-        canvases?: Array<{
-          id?: string;
-          name?: string;
-          isFavorite?: boolean;
-          groupId?: string | null;
-          groupName?: string | null;
-        }>;
-        activeId?: string | null;
-      }>;
-      const rawCanvases = customEvent.detail?.canvases;
-      const parsedCanvases = Array.isArray(rawCanvases)
-        ? rawCanvases.map((canvas, index) => ({
-            id:
-              typeof canvas?.id === 'string' && canvas.id.length > 0
-                ? canvas.id
-                : `missing-id-${index}`,
-            name:
-              typeof canvas?.name === 'string' && canvas.name.trim().length > 0
-                ? canvas.name
-                : 'New canvas',
-            isFavorite: canvas?.isFavorite === true,
-            group: this.parseCanvasGroup({
-              groupId: canvas?.groupId,
-              groupName: canvas?.groupName,
-            }),
-          }))
-        : [];
-      this.canvases = parsedCanvases;
-      this.activeCanvasId = customEvent.detail?.activeId ?? null;
+      const customEvent = event as CustomEvent<unknown>;
+      if (!isCanvasListUpdatedDetail(customEvent.detail)) return;
+      this.canvases = customEvent.detail.canvases.map((canvas) => ({
+        id: canvas.id,
+        name: canvas.name,
+        isFavorite: canvas.isFavorite,
+        group: this.parseCanvasGroup({
+          groupId: canvas.groupId,
+          groupName: canvas.groupName,
+        }),
+      }));
+      this.activeCanvasId = customEvent.detail.activeId ?? null;
       this.renderCanvasList();
     };
-    window.addEventListener('canvasListUpdated', this.canvasListHandler);
+    window.addEventListener(CANVAS_LIST_UPDATED_EVENT, this.canvasListHandler);
 
     this.canvasFavoriteToggleFailedHandler = (event: Event) => {
-      const customEvent = event as CustomEvent<{
-        id?: string;
-        previousIsFavorite?: boolean;
-      }>;
-      const id = customEvent.detail?.id;
-      const previousIsFavorite = customEvent.detail?.previousIsFavorite;
-      if (!id || typeof previousIsFavorite !== 'boolean') return;
+      const customEvent = event as CustomEvent<unknown>;
+      if (!isCanvasFavoriteToggleFailedDetail(customEvent.detail)) return;
+      const { id, previousIsFavorite } = customEvent.detail;
       this.setCanvasFavorite(id, previousIsFavorite);
     };
     window.addEventListener(
-      'canvasFavoriteToggleFailed',
+      CANVAS_FAVORITE_TOGGLE_FAILED_EVENT,
       this.canvasFavoriteToggleFailedHandler
     );
 
     this.canvasGroupUpdateFailedHandler = (event: Event) => {
-      const customEvent = event as CustomEvent<{
-        id?: string;
-        previousGroupId?: string | null;
-        previousGroupName?: string | null;
-      }>;
-      const id = customEvent.detail?.id;
-      if (!id) return;
+      const customEvent = event as CustomEvent<unknown>;
+      if (!isCanvasGroupUpdateFailedDetail(customEvent.detail)) return;
+      const { id, previousGroupId, previousGroupName } = customEvent.detail;
       this.updateItem(id, {
-        groupId: customEvent.detail?.previousGroupId ?? null,
-        groupName: customEvent.detail?.previousGroupName ?? null,
+        groupId: previousGroupId ?? null,
+        groupName: previousGroupName ?? null,
       });
     };
     window.addEventListener(
-      'canvasGroupUpdateFailed',
+      CANVAS_GROUP_UPDATE_FAILED_EVENT,
       this.canvasGroupUpdateFailedHandler
     );
     this.itemActionsMenuController.mount();
@@ -246,23 +237,26 @@ export class CanvasBoardSelector {
 
   public unmount(): void {
     if (this.canvasTitleHandler) {
-      window.removeEventListener('canvasTitleChanged', this.canvasTitleHandler);
+      window.removeEventListener(
+        CANVAS_TITLE_CHANGED_EVENT,
+        this.canvasTitleHandler
+      );
       this.canvasTitleHandler = null;
     }
     if (this.canvasListHandler) {
-      window.removeEventListener('canvasListUpdated', this.canvasListHandler);
+      window.removeEventListener(CANVAS_LIST_UPDATED_EVENT, this.canvasListHandler);
       this.canvasListHandler = null;
     }
     if (this.canvasFavoriteToggleFailedHandler) {
       window.removeEventListener(
-        'canvasFavoriteToggleFailed',
+        CANVAS_FAVORITE_TOGGLE_FAILED_EVENT,
         this.canvasFavoriteToggleFailedHandler
       );
       this.canvasFavoriteToggleFailedHandler = null;
     }
     if (this.canvasGroupUpdateFailedHandler) {
       window.removeEventListener(
-        'canvasGroupUpdateFailed',
+        CANVAS_GROUP_UPDATE_FAILED_EVENT,
         this.canvasGroupUpdateFailedHandler
       );
       this.canvasGroupUpdateFailedHandler = null;
@@ -300,9 +294,7 @@ export class CanvasBoardSelector {
       this.titleInput = null;
       this.isEditingTitle = false;
       if (apply) {
-        window.dispatchEvent(
-          new CustomEvent('canvasTitleEdited', { detail: { title: nextTitle } })
-        );
+        emitCanvasTitleEdited(nextTitle);
       }
     };
 
@@ -422,11 +414,7 @@ export class CanvasBoardSelector {
       tertiaryRevealOnHover: true,
       onPrimaryClick: () => {
         if (isUnavailable) return;
-        window.dispatchEvent(
-          new CustomEvent('canvasSelected', {
-            detail: { id: canvas.id, name: canvas.name },
-          })
-        );
+        emitCanvasSelected(canvas.id, canvas.name);
         this.setDropdownOpen(false);
       },
       onSecondaryClick: () => {
@@ -588,11 +576,7 @@ export class CanvasBoardSelector {
       variant: 'danger',
       onClick: (event) => {
         event.stopPropagation();
-        window.dispatchEvent(
-          new CustomEvent('canvasDeleteRequested', {
-            detail: { id: canvas.id },
-          })
-        );
+        emitCanvasDeleteRequested(canvas.id);
         this.closeItemActionsMenu();
       },
     });
@@ -725,14 +709,10 @@ export class CanvasBoardSelector {
       this.renameCanvasInputCanvasId = null;
 
       if (nextName.length > 0 && nextName !== previousName) {
-        window.dispatchEvent(
-          new CustomEvent('canvasRenameRequested', {
-            detail: {
-              id: canvasId,
-              name: nextName,
-            },
-          })
-        );
+        emitCanvasRenameRequested({
+          id: canvasId,
+          name: nextName,
+        });
         this.closeItemActionsMenu();
         return;
       }
@@ -807,31 +787,23 @@ export class CanvasBoardSelector {
 
     this.updateItem(id, nextGroup);
     this.closeItemActionsMenu();
-    window.dispatchEvent(
-      new CustomEvent('canvasGroupUpdated', {
-        detail: {
-          id,
-          groupId: parsedGroup?.id ?? null,
-          groupName: parsedGroup?.name ?? null,
-          previousGroupId,
-          previousGroupName,
-        },
-      })
-    );
+    emitCanvasGroupUpdated({
+      id,
+      groupId: parsedGroup?.id ?? null,
+      groupName: parsedGroup?.name ?? null,
+      previousGroupId,
+      previousGroupName,
+    });
   }
 
   private handleFavoriteToggle(canvas: CanvasItem): void {
     const nextIsFavorite = !canvas.isFavorite;
     this.setCanvasFavorite(canvas.id, nextIsFavorite);
-    window.dispatchEvent(
-      new CustomEvent('canvasFavoriteToggled', {
-        detail: {
-          id: canvas.id,
-          isFavorite: nextIsFavorite,
-          previousIsFavorite: canvas.isFavorite,
-        },
-      })
-    );
+    emitCanvasFavoriteToggled({
+      id: canvas.id,
+      isFavorite: nextIsFavorite,
+      previousIsFavorite: canvas.isFavorite,
+    });
   }
 
   private setCanvasFavorite(id: string, isFavorite: boolean): void {

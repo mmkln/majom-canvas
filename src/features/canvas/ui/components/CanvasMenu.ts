@@ -5,6 +5,8 @@ import { UserApiService } from '../../../../majom-wrapper/data-access/user-api-s
 import { notify } from '../../core/services/NotificationService.ts';
 import { AuthController, type AuthState } from '../auth/AuthController.ts';
 import { authFlowService } from '../auth/authFlowService.ts';
+import { CANVAS_REFRESH_DATA_EVENT } from '../../core/canvasDataLifecycle.ts';
+import { emitCanvasDeleteRequested } from '../../core/canvasBoardLifecycle.ts';
 import {
   createDivider,
   createDropdownItem,
@@ -60,7 +62,7 @@ export class CanvasMenu {
       variant: 'default',
       onClick: () => {
         this.setDropdownOpen(false);
-        window.dispatchEvent(new CustomEvent('canvasDeleteRequested'));
+        emitCanvasDeleteRequested();
       },
     });
 
@@ -87,7 +89,7 @@ export class CanvasMenu {
     if (this.mounted) return;
     parent.appendChild(this.container);
     this.dropdownController.mount();
-    window.addEventListener('refreshCanvasData', this.refreshHandler);
+    window.addEventListener(CANVAS_REFRESH_DATA_EVENT, this.refreshHandler);
 
     // Initialize auth state before subscribing, otherwise the initial
     // BehaviorSubject emission (default unauthenticated) can trigger a
@@ -104,7 +106,7 @@ export class CanvasMenu {
     if (!this.mounted) return;
     this.setDropdownOpen(false);
     this.dropdownController.unmount();
-    window.removeEventListener('refreshCanvasData', this.refreshHandler);
+    window.removeEventListener(CANVAS_REFRESH_DATA_EVENT, this.refreshHandler);
     this.stateSubscription?.unsubscribe();
     this.stateSubscription = null;
     this.container.remove();

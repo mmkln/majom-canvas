@@ -14,6 +14,7 @@ export class PanZoomManager {
   scrollX: number = 0;
   scrollY: number = 0;
   scale: number = 1.25;
+  maxScale: number = 3;
   // Virtual content dimensions (can be adjusted or passed in)
   virtualWidth: number = 40000;
   virtualHeight: number = 24000;
@@ -34,6 +35,19 @@ export class PanZoomManager {
   public viewChanges: Subject<IViewState> = new Subject<IViewState>();
 
   constructor(private canvas: HTMLCanvasElement) {}
+
+  public getMinScale(): number {
+    const viewportWidth = this.canvas.width - this.scrollbarWidth;
+    const viewportHeight = this.canvas.height - this.scrollbarWidth;
+    return Math.max(
+      viewportWidth / this.virtualWidth,
+      viewportHeight / this.virtualHeight
+    );
+  }
+
+  public clampScale(scale: number): number {
+    return Math.min(Math.max(scale, this.getMinScale()), this.maxScale);
+  }
 
   clampScroll(): void {
     const viewportWidth = this.canvas.width - this.scrollbarWidth;
@@ -65,8 +79,7 @@ export class PanZoomManager {
     const centerY = canvas.height / 2;
     const contentX = (centerX + this.scrollX) / oldScale;
     const contentY = (centerY + this.scrollY) / oldScale;
-    const maxScale = 1.25;
-    this.scale = Math.min(oldScale * 1.15, maxScale);
+    this.scale = this.clampScale(oldScale * 1.15);
     // adjust scroll to keep center fixed
     this.scrollX = contentX * this.scale - centerX;
     this.scrollY = contentY * this.scale - centerY;
@@ -81,11 +94,7 @@ export class PanZoomManager {
     const centerY = canvas.height / 2;
     const contentX = (centerX + this.scrollX) / oldScale;
     const contentY = (centerY + this.scrollY) / oldScale;
-    const minScale = Math.max(
-      (canvas.width - this.scrollbarWidth) / this.virtualWidth,
-      (canvas.height - this.scrollbarWidth) / this.virtualHeight
-    );
-    this.scale = Math.max(oldScale / 1.15, minScale);
+    this.scale = this.clampScale(oldScale / 1.15);
     // adjust scroll to keep center fixed
     this.scrollX = contentX * this.scale - centerX;
     this.scrollY = contentY * this.scale - centerY;
@@ -94,7 +103,7 @@ export class PanZoomManager {
   }
 
   public center(canvas: HTMLCanvasElement): void {
-    this.scale = 1;
+    this.scale = this.clampScale(1);
     this.scrollX = (this.virtualWidth * this.scale - canvas.width) / 2;
     this.scrollY = (this.virtualHeight * this.scale - canvas.height) / 2;
     this.clampScroll();
@@ -106,7 +115,6 @@ export class PanZoomManager {
    */
   public handleWheelEvent(
     e: WheelEvent,
-    canvas: HTMLCanvasElement,
     mouseX: number,
     mouseY: number
   ): void {
@@ -115,14 +123,7 @@ export class PanZoomManager {
       const zoomFactor = Math.pow(1.005, -e.deltaY);
       const oldScale = this.scale;
       let newScale = oldScale * zoomFactor;
-      const viewportWidth = canvas.width - this.scrollbarWidth;
-      const viewportHeight = canvas.height - this.scrollbarWidth;
-      const minScale = Math.max(
-        viewportWidth / this.virtualWidth,
-        viewportHeight / this.virtualHeight
-      );
-      const maxScale = 1.25;
-      newScale = Math.min(Math.max(newScale, minScale), maxScale);
+      newScale = this.clampScale(newScale);
       const contentX = (mouseX + this.scrollX) / oldScale;
       const contentY = (mouseY + this.scrollY) / oldScale;
       this.scale = newScale;
@@ -162,7 +163,7 @@ export class PanZoomManager {
   public setViewState(state: IViewState): void {
     this.scrollX = state.scrollX;
     this.scrollY = state.scrollY;
-    this.scale = state.scale;
+    this.scale = this.clampScale(state.scale);
     this.clampScroll();
     this.emitZoomChange();
   }

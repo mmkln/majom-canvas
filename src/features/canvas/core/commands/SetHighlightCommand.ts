@@ -1,6 +1,7 @@
 import { Command } from './Command.ts';
 import { Scene } from '../scene/Scene.ts';
 import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
+import { emitCanvasPositionsDirty } from '../canvasPositionsLifecycle.ts';
 
 /**
  * Command to set/clear highlighted element with undo/redo support.
@@ -31,15 +32,10 @@ export class SetHighlightCommand extends Command {
   }
 
   private notifyPositionsDirty(): void {
-    if (typeof window === 'undefined') return;
     const element = this.scene
       .getElements()
       .find((candidate) => candidate.id === this.elementId);
     if (!element || !isPlanningElement(element)) return;
-    window.dispatchEvent(
-      new CustomEvent('canvasPositionsDirty', {
-        detail: { elements: [element] },
-      })
-    );
+    emitCanvasPositionsDirty([element]);
   }
 }

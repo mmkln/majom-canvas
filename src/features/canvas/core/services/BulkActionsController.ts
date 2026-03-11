@@ -4,6 +4,10 @@ import { CopyCommand } from '../commands/CopyCommand.ts';
 import { DeleteCommand } from '../commands/DeleteCommand.ts';
 import { ElementStatus } from '../../elements/ElementStatus.ts';
 import type { PlanningElement } from './SelectionContext.ts';
+import {
+  emitCanvasElementDeleteRequested,
+  emitCanvasElementDetailsEdited,
+} from '../canvasElementLifecycle.ts';
 
 export class BulkActionsController {
   constructor(private readonly scene: Scene) {}
@@ -21,11 +25,7 @@ export class BulkActionsController {
   public deletePermanently(elements: PlanningElement[]): void {
     if (elements.length === 0) return;
     elements.forEach((element) => {
-      window.dispatchEvent(
-        new CustomEvent('elementDeleteRequested', {
-          detail: { element },
-        })
-      );
+      emitCanvasElementDeleteRequested(element);
     });
   }
 
@@ -39,11 +39,7 @@ export class BulkActionsController {
     elements.forEach((element) => {
       if (element.status === status) return;
       element.status = status;
-      window.dispatchEvent(
-        new CustomEvent('elementDetailsEdited', {
-          detail: { element, patch: { status } },
-        })
-      );
+      emitCanvasElementDetailsEdited(element, { status });
     });
     this.scene.changes.next();
   }

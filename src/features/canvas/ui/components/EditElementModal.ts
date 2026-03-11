@@ -19,6 +19,8 @@ import {
   ELEMENT_STATUS_OPTIONS,
   ElementStatus,
 } from '../../elements/ElementStatus.ts';
+import { emitCanvasPositionsDirty } from '../../core/canvasPositionsLifecycle.ts';
+import { emitCanvasElementDetailsEdited } from '../../core/canvasElementLifecycle.ts';
 
 // Modal for editing title, status, and priority of an element
 export class EditElementModal {
@@ -267,18 +269,10 @@ export class EditElementModal {
       }
       this.scene.changes.next();
       if (Object.keys(patch).length > 0) {
-        window.dispatchEvent(
-          new CustomEvent('elementDetailsEdited', {
-            detail: { element: this.element, patch },
-          })
-        );
+        emitCanvasElementDetailsEdited(this.element, patch);
       }
       if (scaleChanged) {
-        window.dispatchEvent(
-          new CustomEvent('canvasPositionsDirty', {
-            detail: { elements: [this.element] },
-          })
-        );
+        emitCanvasPositionsDirty([this.element]);
       }
       this.close();
     };

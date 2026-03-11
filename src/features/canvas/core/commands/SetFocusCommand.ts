@@ -2,6 +2,7 @@ import { Command } from './Command.ts';
 import { Scene } from '../scene/Scene.ts';
 import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
 import type { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
+import { emitCanvasPositionsDirty } from '../canvasPositionsLifecycle.ts';
 
 /**
  * Command to set/clear focused element with undo/redo support.
@@ -33,7 +34,6 @@ export class SetFocusCommand extends Command {
     fromId: string | null,
     toId: string | null
   ): void {
-    if (typeof window === 'undefined') return;
     const affected = new Set<string>();
     if (fromId) affected.add(fromId);
     if (toId) affected.add(toId);
@@ -43,11 +43,6 @@ export class SetFocusCommand extends Command {
       .filter(
         (el): el is IPlanningElement => Boolean(el) && isPlanningElement(el)
       );
-    if (elements.length === 0) return;
-    window.dispatchEvent(
-      new CustomEvent('canvasPositionsDirty', {
-        detail: { elements },
-      })
-    );
+    emitCanvasPositionsDirty(elements);
   }
 }

@@ -3,6 +3,7 @@ import { Command } from './Command.ts';
 import { Scene } from '../scene/Scene.ts';
 import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
 import type { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
+import { emitCanvasPositionsDirty } from '../canvasPositionsLifecycle.ts';
 
 /**
  * Command to resize elements: supports undo/redo of size and position changes.
@@ -59,17 +60,11 @@ export class ResizeCommand extends Command {
   }
 
   private notifyPositionsDirty(ids: Iterable<string>): void {
-    if (typeof window === 'undefined') return;
     const elements = Array.from(ids)
       .map((id) => this.scene.getElements().find((e) => e.id === id))
       .filter(
         (el): el is IPlanningElement => Boolean(el) && isPlanningElement(el)
       );
-    if (elements.length === 0) return;
-    window.dispatchEvent(
-      new CustomEvent('canvasPositionsDirty', {
-        detail: { elements },
-      })
-    );
+    emitCanvasPositionsDirty(elements);
   }
 }

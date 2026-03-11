@@ -3,6 +3,7 @@ import { SaveButton } from './SaveButton.ts';
 import { UndoRedoControls } from '../UndoRedoControls.ts';
 import { CanvasMenu } from './CanvasMenu.ts';
 import { createSurface } from '../primitives/index.ts';
+import { CANVAS_REFRESH_DATA_EVENT } from '../../core/canvasDataLifecycle.ts';
 
 /**
  * SaveControls: wraps save and auth actions in a shared HUD layout.
@@ -38,12 +39,12 @@ export class SaveControls {
     this.actionsContainer.appendChild(this.saveGroup);
     this.saveButton.mount(this.saveGroup);
     this.canvasMenu.mount(this.actionsContainer);
-    window.addEventListener('refreshCanvasData', this.refreshHandler);
+    window.addEventListener(CANVAS_REFRESH_DATA_EVENT, this.refreshHandler);
     this.updateVisibility();
   }
 
   unmount(): void {
-    window.removeEventListener('refreshCanvasData', this.refreshHandler);
+    window.removeEventListener(CANVAS_REFRESH_DATA_EVENT, this.refreshHandler);
     this.undoRedoControls.unmount();
     this.saveButton.unmount();
     this.canvasMenu.unmount();

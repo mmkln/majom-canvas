@@ -1,70 +1,26 @@
+import { ShortcutManager as CoreShortcutManager } from 'majom-canvas-core';
 import { modalService } from '../../../../ui-lib/src/services/ModalService.ts';
-import { normalizeKeyboardKey } from '../utils/keyboardUtils.ts';
-
-type ShortcutHandler = (e: KeyboardEvent) => void;
 
 /**
  * Centralized shortcut manager: maps key combinations to handlers.
  */
-export class ShortcutManager {
-  private handlers: Map<string, ShortcutHandler[]> = new Map();
-
+export class ShortcutManager extends CoreShortcutManager {
   constructor() {
-    document.addEventListener('keydown', this.handleKeyDown.bind(this));
-  }
-
-  /** Register a handler for a key combo, e.g. 'ctrl+z' or 'Backspace' */
-  public register(combo: string, handler: ShortcutHandler): void {
-    const key: string = combo.toLowerCase();
-    if (!this.handlers.has(key)) this.handlers.set(key, []);
-    this.handlers.get(key)!.push(handler);
-  }
-
-  /** Unregister a handler or all handlers for a combo */
-  public unregister(combo: string, handler?: ShortcutHandler): void {
-    const key: string = combo.toLowerCase();
-    if (!this.handlers.has(key)) return;
-    if (!handler) {
-      this.handlers.delete(key);
-    } else {
-      const arr: ShortcutHandler[] = this.handlers
-        .get(key)!
-        .filter((h) => h !== handler);
-      if (arr.length) this.handlers.set(key, arr);
-      else this.handlers.delete(key);
-    }
-  }
-
-  private handleKeyDown(e: KeyboardEvent): void {
-    // Ignore when modal open
-    if (modalService.hasBlockingOverlay()) return;
-    // Ignore editable fields
-    const tgt: HTMLElement = e.target as HTMLElement;
-    if (
-      tgt.tagName === 'INPUT' ||
-      tgt.tagName === 'TEXTAREA' ||
-      tgt.tagName === 'SELECT' ||
-      tgt.isContentEditable
-    )
-      return;
-    const combo: string = this.normalize(e);
-    const handlers: ShortcutHandler[] = this.handlers.get(combo) || [];
-    if (handlers.length) {
-      e.preventDefault();
-      e.stopPropagation();
-      handlers.forEach((h) => h(e));
-    }
-  }
-
-  private normalize(e: KeyboardEvent): string {
-    const parts: string[] = [];
-    if (e.ctrlKey) parts.push('ctrl');
-    if (e.shiftKey) parts.push('shift');
-    if (e.altKey) parts.push('alt');
-    if (e.metaKey) parts.push('meta');
-    parts.push(normalizeKeyboardKey(e));
-    return parts.join('+');
+    super({
+      shouldHandleEvent: (event) => {
+        if (modalService.hasBlockingOverlay()) return false;
+        const target = event.target as HTMLElement | null;
+        if (!target) return true;
+        if (target.isContentEditable) return false;
+        const tagName = target.tagName;
+        if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') {
+          return false;
+        }
+        return true;
+      },
+    });
   }
 }
 
 export const shortcutManager: ShortcutManager = new ShortcutManager();
+

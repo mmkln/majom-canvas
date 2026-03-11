@@ -11,7 +11,6 @@ import {
   CanvasApiService,
   CanvasRelationsApiService,
   CanvasDataService,
-  type CanvasPositionWriteDTO,
   type CanvasElementsLoadOptions,
 } from '../../majom-wrapper/index.ts';
 import { UIManager } from './ui/UIManager.ts';
@@ -20,11 +19,16 @@ import { commandManager } from './core/managers/CommandManager.ts';
 import { historyService } from './core/services/HistoryService.ts';
 import { getCommandConfigs } from './core/config/commandConfigs.ts';
 import { environment } from '../../config/environment.ts';
+import { CanvasCoreBridge } from './core/adapters/CanvasCoreBridge.ts';
+import {
+  dedupeLayoutPositions,
+  mapPlanningElementsToLayoutPositions,
+} from './core/adapters/layoutPositionMapper.ts';
+import { RelationSyncAdapter } from './core/adapters/RelationSyncAdapter.ts';
 import { TaskElement } from './elements/TaskElement.ts';
 import { StoryElement } from './elements/StoryElement.ts';
 import { GoalElement } from './elements/GoalElement.ts';
 import { isPlanningElement } from './elements/utils/typeGuards.ts';
-import { ElementStatus } from './elements/ElementStatus.ts';
 import {
   ConnectionRelationType,
   type IConnection,
@@ -36,23 +40,52 @@ import {
   isCanvasLinkLifecycleDetail,
 } from './core/canvasLinkLifecycle.ts';
 import {
+  CANVAS_CREATE_REQUESTED_EVENT,
+  CANVAS_DELETE_REQUESTED_EVENT,
+  CANVAS_FAVORITE_TOGGLED_EVENT,
+  CANVAS_GROUP_UPDATED_EVENT,
+  CANVAS_RENAME_REQUESTED_EVENT,
+  CANVAS_SELECTED_EVENT,
+  type CanvasBoardListItem,
+  CANVAS_TITLE_EDITED_EVENT,
+  emitCanvasFavoriteToggleFailed,
+  emitCanvasGroupUpdateFailed,
+  emitCanvasListUpdated,
+  emitCanvasTitleChanged,
+  isCanvasDeleteRequestedDetail,
+  isCanvasFavoriteToggledDetail,
+  isCanvasGroupUpdatedDetail,
+  isCanvasRenameRequestedDetail,
+  isCanvasSelectedDetail,
+  isCanvasTitleEditedDetail,
+} from './core/canvasBoardLifecycle.ts';
+import {
+  CANVAS_REFRESH_DATA_EVENT,
+  CANVAS_SAVE_LAYOUT_REQUESTED_EVENT,
+} from './core/canvasDataLifecycle.ts';
+import {
+  CANVAS_POSITIONS_DIRTY_EVENT,
+  isCanvasPositionsDirtyDetail,
+} from './core/canvasPositionsLifecycle.ts';
+import {
+  CANVAS_ELEMENT_DELETE_REQUESTED_EVENT,
+  CANVAS_ELEMENT_DETAILS_EDITED_EVENT,
+  isCanvasElementDeleteRequestedDetail,
+  isCanvasElementDetailsEditedDetail,
+} from './core/canvasElementLifecycle.ts';
+import {
   emitCanvasSaveFinished,
   emitCanvasSaveStarted,
   type CanvasSaveSource,
 } from './core/canvasSaveLifecycle.ts';
+import { emitElementAutosaveStatus } from './core/elementAutosaveLifecycle.ts';
 import { confirmReplaceStoryGoalModal } from './ui/components/ConfirmReplaceStoryGoalModal.ts';
 import { confirmDeleteCanvasModal } from './ui/components/ConfirmDeleteCanvasModal.ts';
 import { authFlowService } from './ui/auth/authFlowService.ts';
 import { firstValueFrom, Observable, of, Subscription, throwError } from 'rxjs';
 import { catchError, finalize, map, switchMap } from 'rxjs/operators';
 
-type CanvasListUiItem = {
-  id: string;
-  name: string;
-  isFavorite: boolean;
-  groupId: string | null;
-  groupName: string | null;
-};
+type CanvasListUiItem = CanvasBoardListItem;
 
 type CanvasListCacheItem = {
   id: string;
@@ -60,11 +93,18 @@ type CanvasListCacheItem = {
   meta?: Record<string, unknown> | null;
 };
 
+type WindowEventBinding = {
+  eventName: string;
+  handler: EventListener;
+};
+
 export class CanvasApp {
   private readonly dataProvider: IDataProvider;
   private readonly canvas: HTMLCanvasElement;
   private readonly scene: Scene;
   private readonly canvasManager: CanvasManager;
+  private readonly canvasCoreBridge: CanvasCoreBridge;
+  private readonly relationSyncAdapter: RelationSyncAdapter;
   private readonly diagramRepository: DiagramRepository;
   private readonly authService: AuthService;
   private readonly uiManager: UIManager;
@@ -111,6 +151,60 @@ export class CanvasApp {
     this.handleElementDeleteRequested(event);
   private readonly canvasLinkLifecycleHandler = (event: Event): void =>
     this.handleCanvasLinkLifecycle(event);
+  private readonly windowEventBindings: WindowEventBinding[] = [
+    {
+      eventName: CANVAS_REFRESH_DATA_EVENT,
+      handler: this.refreshCanvasDataHandler as EventListener,
+    },
+    {
+      eventName: CANVAS_SAVE_LAYOUT_REQUESTED_EVENT,
+      handler: this.saveCanvasLayoutHandler as EventListener,
+    },
+    {
+      eventName: CANVAS_TITLE_EDITED_EVENT,
+      handler: this.canvasTitleEditedHandler as EventListener,
+    },
+    {
+      eventName: CANVAS_SELECTED_EVENT,
+      handler: this.canvasSelectedHandler as EventListener,
+    },
+    {
+      eventName: CANVAS_CREATE_REQUESTED_EVENT,
+      handler: this.canvasCreateRequestedHandler as EventListener,
+    },
+    {
+      eventName: CANVAS_FAVORITE_TOGGLED_EVENT,
+      handler: this.canvasFavoriteToggledHandler as EventListener,
+    },
+    {
+      eventName: CANVAS_GROUP_UPDATED_EVENT,
+      handler: this.canvasGroupUpdatedHandler as EventListener,
+    },
+    {
+      eventName: CANVAS_RENAME_REQUESTED_EVENT,
+      handler: this.canvasRenameRequestedHandler as EventListener,
+    },
+    {
+      eventName: CANVAS_DELETE_REQUESTED_EVENT,
+      handler: this.canvasDeleteRequestedHandler as EventListener,
+    },
+    {
+      eventName: CANVAS_ELEMENT_DETAILS_EDITED_EVENT,
+      handler: this.elementDetailsEditedHandler as EventListener,
+    },
+    {
+      eventName: CANVAS_POSITIONS_DIRTY_EVENT,
+      handler: this.canvasPositionsDirtyHandler as EventListener,
+    },
+    {
+      eventName: CANVAS_ELEMENT_DELETE_REQUESTED_EVENT,
+      handler: this.elementDeleteRequestedHandler as EventListener,
+    },
+    {
+      eventName: CANVAS_LINK_LIFECYCLE_EVENT,
+      handler: this.canvasLinkLifecycleHandler as EventListener,
+    },
+  ];
 
   constructor(dataProvider: IDataProvider, canvasElement?: HTMLCanvasElement) {
     this.dataProvider = dataProvider;
@@ -125,6 +219,11 @@ export class CanvasApp {
 
     // Передаємо сцену в CanvasManager, щоб менеджер міг працювати з даними
     this.canvasManager = new CanvasManager(this.canvas, this.scene);
+    this.canvasCoreBridge = new CanvasCoreBridge(
+      this.scene,
+      this.canvasManager.getPanZoomManager(),
+      historyService
+    );
     // Використовуємо провайдера для створення репозиторію діаграми
     this.diagramRepository = new DiagramRepository(dataProvider);
     // Ініціалізація сервісу аутентифікації
@@ -137,6 +236,14 @@ export class CanvasApp {
       new CanvasApiService(http),
       new CanvasRelationsApiService(http)
     );
+    this.relationSyncAdapter = new RelationSyncAdapter(
+      this.canvasDataService,
+      () => this.scene.getConnections(),
+      (message) => notify(message, 'error'),
+      (message, error) => console.error(message, error),
+      (draftId, payload) =>
+        this.queueUnsyncedDraft(draftId, 'relations', payload)
+    );
     // Створюємо компонент для авторизації
     // Використовуємо UIManager для монтування UI-компонентів
     this.uiManager = new UIManager(
@@ -148,9 +255,7 @@ export class CanvasApp {
 
     this.elementUpdateStatusSubscription =
       this.canvasDataService.elementUpdateStatusChanges.subscribe((status) => {
-        window.dispatchEvent(
-          new CustomEvent('elementAutosaveStatus', { detail: status })
-        );
+        emitElementAutosaveStatus(status);
       });
 
     // Register commands from config
@@ -162,95 +267,15 @@ export class CanvasApp {
   }
 
   private registerWindowEvents(): void {
-    window.addEventListener('refreshCanvasData', this.refreshCanvasDataHandler);
-    window.addEventListener('saveCanvasLayout', this.saveCanvasLayoutHandler);
-    window.addEventListener('canvasTitleEdited', this.canvasTitleEditedHandler);
-    window.addEventListener('canvasSelected', this.canvasSelectedHandler);
-    window.addEventListener(
-      'canvasCreateRequested',
-      this.canvasCreateRequestedHandler
-    );
-    window.addEventListener(
-      'canvasFavoriteToggled',
-      this.canvasFavoriteToggledHandler
-    );
-    window.addEventListener('canvasGroupUpdated', this.canvasGroupUpdatedHandler);
-    window.addEventListener(
-      'canvasRenameRequested',
-      this.canvasRenameRequestedHandler
-    );
-    window.addEventListener(
-      'canvasDeleteRequested',
-      this.canvasDeleteRequestedHandler
-    );
-    window.addEventListener(
-      'elementDetailsEdited',
-      this.elementDetailsEditedHandler
-    );
-    window.addEventListener(
-      'canvasPositionsDirty',
-      this.canvasPositionsDirtyHandler
-    );
-    window.addEventListener(
-      'elementDeleteRequested',
-      this.elementDeleteRequestedHandler
-    );
-    window.addEventListener(
-      CANVAS_LINK_LIFECYCLE_EVENT,
-      this.canvasLinkLifecycleHandler
-    );
+    this.windowEventBindings.forEach(({ eventName, handler }) => {
+      window.addEventListener(eventName, handler);
+    });
   }
 
   private unregisterWindowEvents(): void {
-    window.removeEventListener(
-      'refreshCanvasData',
-      this.refreshCanvasDataHandler
-    );
-    window.removeEventListener(
-      'saveCanvasLayout',
-      this.saveCanvasLayoutHandler
-    );
-    window.removeEventListener(
-      'canvasTitleEdited',
-      this.canvasTitleEditedHandler
-    );
-    window.removeEventListener('canvasSelected', this.canvasSelectedHandler);
-    window.removeEventListener(
-      'canvasCreateRequested',
-      this.canvasCreateRequestedHandler
-    );
-    window.removeEventListener(
-      'canvasFavoriteToggled',
-      this.canvasFavoriteToggledHandler
-    );
-    window.removeEventListener(
-      'canvasGroupUpdated',
-      this.canvasGroupUpdatedHandler
-    );
-    window.removeEventListener(
-      'canvasRenameRequested',
-      this.canvasRenameRequestedHandler
-    );
-    window.removeEventListener(
-      'canvasDeleteRequested',
-      this.canvasDeleteRequestedHandler
-    );
-    window.removeEventListener(
-      'elementDetailsEdited',
-      this.elementDetailsEditedHandler
-    );
-    window.removeEventListener(
-      'canvasPositionsDirty',
-      this.canvasPositionsDirtyHandler
-    );
-    window.removeEventListener(
-      'elementDeleteRequested',
-      this.elementDeleteRequestedHandler
-    );
-    window.removeEventListener(
-      CANVAS_LINK_LIFECYCLE_EVENT,
-      this.canvasLinkLifecycleHandler
-    );
+    this.windowEventBindings.forEach(({ eventName, handler }) => {
+      window.removeEventListener(eventName, handler);
+    });
   }
 
   private handleSaveCanvasLayoutRequest(): void {
@@ -268,9 +293,9 @@ export class CanvasApp {
   }
 
   private handleCanvasTitleEdited(event: Event): void {
-    const customEvent = event as CustomEvent<{ title?: string }>;
-    const title = customEvent.detail?.title;
-    if (typeof title !== 'string') return;
+    const customEvent = event as CustomEvent<unknown>;
+    if (!isCanvasTitleEditedDetail(customEvent.detail)) return;
+    const { title } = customEvent.detail;
     if (!this.authService.isLoggedIn()) {
       authFlowService.requestLogin('protected-action');
       this.setCanvasTitle(this.canvasTitle);
@@ -291,19 +316,16 @@ export class CanvasApp {
   }
 
   private handleCanvasSelected(event: Event): void {
-    const customEvent = event as CustomEvent<{
-      id?: string;
-      name?: string;
-    }>;
-    const id = customEvent.detail?.id;
-    if (!id) return;
+    const customEvent = event as CustomEvent<unknown>;
+    if (!isCanvasSelectedDetail(customEvent.detail)) return;
+    const { id, name: detailName } = customEvent.detail;
     const activeCanvasId = this.canvasDataService.getActiveCanvasId();
     const isCanvasSwitched = activeCanvasId !== id;
     if (!this.authService.isLoggedIn()) {
       authFlowService.requestLogin('canvas-access');
       return;
     }
-    const name = customEvent.detail?.name || 'New canvas';
+    const name = detailName || 'New canvas';
     this.canvasDataService.loadCanvasDetails(id).subscribe({
       next: (canvas) => {
         if (isCanvasSwitched) {
@@ -352,20 +374,13 @@ export class CanvasApp {
   }
 
   private handleCanvasFavoriteToggled(event: Event): void {
-    const customEvent = event as CustomEvent<{
-      id?: string;
-      isFavorite?: boolean;
-      previousIsFavorite?: boolean;
-    }>;
-    const id = customEvent.detail?.id;
-    const isFavorite = customEvent.detail?.isFavorite;
-    if (!id || typeof isFavorite !== 'boolean') return;
-
-    const previousIsFavorite = customEvent.detail?.previousIsFavorite;
+    const customEvent = event as CustomEvent<unknown>;
+    if (!isCanvasFavoriteToggledDetail(customEvent.detail)) return;
+    const { id, isFavorite, previousIsFavorite } = customEvent.detail;
     if (!this.authService.isLoggedIn()) {
       authFlowService.requestLogin('protected-action');
       if (typeof previousIsFavorite === 'boolean') {
-        this.emitCanvasFavoriteToggleFailed(id, previousIsFavorite);
+        emitCanvasFavoriteToggleFailed(id, previousIsFavorite);
       }
       return;
     }
@@ -395,30 +410,27 @@ export class CanvasApp {
           console.error('Failed to update canvas favourite', err);
           notify('Failed to update favourite', 'error');
           if (typeof previousIsFavorite === 'boolean') {
-            this.emitCanvasFavoriteToggleFailed(id, previousIsFavorite);
+            emitCanvasFavoriteToggleFailed(id, previousIsFavorite);
           }
         },
       });
   }
 
   private handleCanvasGroupUpdated(event: Event): void {
-    const customEvent = event as CustomEvent<{
-      id?: string;
-      groupId?: string | null;
-      groupName?: string | null;
-      previousGroupId?: string | null;
-      previousGroupName?: string | null;
-    }>;
-    const id = customEvent.detail?.id;
-    if (!id) return;
+    const customEvent = event as CustomEvent<unknown>;
+    if (!isCanvasGroupUpdatedDetail(customEvent.detail)) return;
+    const {
+      id,
+      groupId,
+      groupName,
+      previousGroupId,
+      previousGroupName,
+    } = customEvent.detail;
 
-    const nextGroup = this.normalizeCanvasGroup(
-      customEvent.detail?.groupId,
-      customEvent.detail?.groupName
-    );
+    const nextGroup = this.normalizeCanvasGroup(groupId, groupName);
     const previousGroupFromEvent = this.normalizeCanvasGroup(
-      customEvent.detail?.previousGroupId,
-      customEvent.detail?.previousGroupName
+      previousGroupId,
+      previousGroupName
     );
 
     const cachedCanvas = this.canvasListCache.get(id);
@@ -427,7 +439,11 @@ export class CanvasApp {
 
     if (!this.authService.isLoggedIn()) {
       authFlowService.requestLogin('protected-action');
-      this.emitCanvasGroupUpdateFailed(id, previousGroup);
+      emitCanvasGroupUpdateFailed(
+        id,
+        previousGroup?.id ?? null,
+        previousGroup?.name ?? null
+      );
       return;
     }
 
@@ -455,19 +471,19 @@ export class CanvasApp {
         error: (err) => {
           console.error('Failed to update canvas group', err);
           notify('Failed to update group', 'error');
-          this.emitCanvasGroupUpdateFailed(id, previousGroup);
+          emitCanvasGroupUpdateFailed(
+            id,
+            previousGroup?.id ?? null,
+            previousGroup?.name ?? null
+          );
         },
       });
   }
 
   private handleCanvasRenameRequested(event: Event): void {
-    const customEvent = event as CustomEvent<{
-      id?: string;
-      name?: string;
-    }>;
-    const id = customEvent.detail?.id;
-    const name = customEvent.detail?.name;
-    if (!id || typeof name !== 'string') return;
+    const customEvent = event as CustomEvent<unknown>;
+    if (!isCanvasRenameRequestedDetail(customEvent.detail)) return;
+    const { id, name } = customEvent.detail;
     const nextName = name.trim();
     if (nextName.length === 0) return;
 
@@ -501,19 +517,9 @@ export class CanvasApp {
   }
 
   private handleElementDetailsEdited(event: Event): void {
-    const customEvent = event as CustomEvent<{
-      element?: TaskElement | StoryElement | GoalElement;
-      patch?: Partial<{
-        title: string;
-        description: string;
-        status: ElementStatus;
-        priority: 'low' | 'medium' | 'high';
-        dueDate: Date | null;
-      }>;
-    }>;
-    const element = customEvent.detail?.element;
-    const patch = customEvent.detail?.patch;
-    if (!element || !patch) return;
+    const customEvent = event as CustomEvent<unknown>;
+    if (!isCanvasElementDetailsEditedDetail(customEvent.detail)) return;
+    const { element, patch } = customEvent.detail;
     if (!this.authService.isLoggedIn()) {
       return;
     }
@@ -521,25 +527,19 @@ export class CanvasApp {
   }
 
   private handleCanvasPositionsDirty(event: Event): void {
-    const customEvent = event as CustomEvent<{
-      elements?: Array<TaskElement | StoryElement | GoalElement>;
-    }>;
-    const elements = (customEvent.detail?.elements ?? []).filter(
-      (el): el is TaskElement | StoryElement | GoalElement =>
-        el instanceof TaskElement ||
-        el instanceof StoryElement ||
-        el instanceof GoalElement
-    );
+    const customEvent = event as CustomEvent<unknown>;
+    if (!isCanvasPositionsDirtyDetail(customEvent.detail)) return;
+    const elements = customEvent.detail.elements.filter(
+      isPlanningElement
+    ) as Array<TaskElement | StoryElement | GoalElement>;
     if (elements.length === 0) return;
     this.canvasDataService.markPositionsDirty(elements);
   }
 
   private handleElementDeleteRequested(event: Event): void {
-    const customEvent = event as CustomEvent<{
-      element?: TaskElement | StoryElement | GoalElement;
-    }>;
-    const element = customEvent.detail?.element;
-    if (!element) return;
+    const customEvent = event as CustomEvent<unknown>;
+    if (!isCanvasElementDeleteRequestedDetail(customEvent.detail)) return;
+    const { element } = customEvent.detail;
     if (!this.authService.isLoggedIn()) {
       authFlowService.requestLogin('protected-action');
       return;
@@ -584,6 +584,7 @@ export class CanvasApp {
     const view: IViewState = await this.dataProvider.loadViewState();
     const panZoom = this.canvasManager.getPanZoomManager();
     panZoom.setViewState(view);
+    this.canvasCoreBridge.start();
     if (this.authService.isLoggedIn()) {
       this.loadCanvasFromApi();
     } else {
@@ -607,6 +608,7 @@ export class CanvasApp {
   public destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
+    this.canvasCoreBridge.stop();
     this.unregisterWindowEvents();
     if (this.autosaveTimer !== null) {
       window.clearInterval(this.autosaveTimer);
@@ -624,6 +626,10 @@ export class CanvasApp {
     this.elementUpdateStatusSubscription = null;
     this.uiManager.unmountAll();
     this.canvasManager.destroy();
+  }
+
+  public getCanvasCoreBridge(): CanvasCoreBridge {
+    return this.canvasCoreBridge;
   }
 
   private loadCanvasFromApi(): void {
@@ -675,11 +681,7 @@ export class CanvasApp {
       }
       return of(false);
     }
-    const elements = this.scene
-      .getElements()
-      .filter(isPlanningElement) as Array<
-      TaskElement | StoryElement | GoalElement
-    >;
+    const elements = this.getPlanningElements();
     const saveSource: CanvasSaveSource = showNotifications
       ? 'manual'
       : 'autosave';
@@ -700,47 +702,13 @@ export class CanvasApp {
     elements: Array<TaskElement | StoryElement | GoalElement>,
     showNotifications: boolean
   ): Observable<boolean> {
-    const positions: CanvasPositionWriteDTO[] = [];
-    const missingIds: string[] = [];
-
-    elements.forEach((el) => {
-      const elementType =
-        el instanceof TaskElement
-          ? 'task'
-          : el instanceof StoryElement
-            ? 'story'
-            : 'goal';
-      const elementUuid = el.uuid;
-      if (!elementUuid) {
-        missingIds.push(String((el as any).id));
-        return;
+    const { positions, missingIds } = mapPlanningElementsToLayoutPositions(
+      elements,
+      {
+        isFocused: (element) => this.scene.isFocused(element),
+        isHighlighted: (element) => this.scene.isHighlighted(element),
       }
-      const meta =
-        el instanceof StoryElement
-          ? {
-              width: el.width,
-              height: el.height,
-              focused: this.scene.isFocused(el),
-              highlighted: this.scene.isHighlighted(el),
-            }
-          : el instanceof GoalElement
-            ? {
-                goalScale: el.scale,
-                focused: this.scene.isFocused(el),
-                highlighted: this.scene.isHighlighted(el),
-              }
-            : {
-                focused: this.scene.isFocused(el),
-                highlighted: this.scene.isHighlighted(el),
-              };
-      positions.push({
-        element_type: elementType,
-        element_uuid: elementUuid,
-        x: el.x,
-        y: el.y,
-        meta,
-      });
-    });
+    );
 
     if (missingIds.length > 0) {
       if (showNotifications) {
@@ -755,11 +723,9 @@ export class CanvasApp {
       this.canvasDataService.getRemovedPositionIds(elements);
     const needsPositionRefresh =
       this.canvasDataService.needsPositionRefresh(elements);
-    const hasRelationChanges = this.canvasDataService.hasRelationChanges(
-      this.scene.getConnections(),
-      elements
-    );
-    const uniquePositions = this.dedupeLayoutPositions(positions);
+    const hasRelationChanges =
+      this.relationSyncAdapter.hasPendingChanges(elements);
+    const uniquePositions = dedupeLayoutPositions(positions);
     const changedPositions =
       this.canvasDataService.filterPositionUpdates(uniquePositions);
     const layoutDraftId = 'layout-sync';
@@ -793,21 +759,11 @@ export class CanvasApp {
         );
       }),
       switchMap(() =>
-        this.canvasDataService
-          .updateCanvasRelations(this.scene.getConnections(), elements)
-          .pipe(
-            catchError((err) => {
-              this.queueUnsyncedDraft(relationsDraftId, 'relations', {
-                relationCount: this.scene.getConnections().length,
-                elementCount: elements.length,
-              });
-              console.error('Failed to save relations', err);
-              if (showNotifications) {
-                notify('Failed to save relations', 'error');
-              }
-              return throwError(() => err);
-            })
-          )
+        this.relationSyncAdapter.sync$(elements, {
+          showNotifications,
+          relationDraftId: relationsDraftId,
+          throwOnError: true,
+        })
       ),
       map(() => {
         this.removeUnsyncedDraft(layoutDraftId);
@@ -830,17 +786,6 @@ export class CanvasApp {
         return throwError(() => err);
       })
     );
-  }
-  private dedupeLayoutPositions(
-    positions: CanvasPositionWriteDTO[]
-  ): CanvasPositionWriteDTO[] {
-    const map = new Map<string, CanvasPositionWriteDTO>();
-    positions.forEach((pos) => {
-      const ref = pos.element_uuid ?? 'na';
-      const key = `${pos.element_type ?? 'na'}:${ref}`;
-      map.set(key, pos);
-    });
-    return Array.from(map.values());
   }
 
   private async restoreCanvasViewState(
@@ -1069,12 +1014,11 @@ export class CanvasApp {
       return;
     }
 
-    const customEvent = event as
-      | CustomEvent<{
-          id?: string;
-        }>
-      | undefined;
-    const requestedCanvasId = customEvent?.detail?.id;
+    const customEvent = event as CustomEvent<unknown> | undefined;
+    const requestedCanvasId =
+      customEvent && isCanvasDeleteRequestedDetail(customEvent.detail)
+        ? customEvent.detail.id
+        : undefined;
     const activeCanvasId = this.canvasDataService.getActiveCanvasId();
     const canvasIdToDelete = requestedCanvasId || activeCanvasId;
     if (!canvasIdToDelete) {
@@ -1177,18 +1121,12 @@ export class CanvasApp {
     canvases: CanvasListUiItem[],
     activeId: string | null
   ): void {
-    window.dispatchEvent(
-      new CustomEvent('canvasListUpdated', {
-        detail: { canvases, activeId },
-      })
-    );
+    emitCanvasListUpdated(canvases, activeId);
   }
 
   private setCanvasTitle(title: string): void {
     this.canvasTitle = title;
-    window.dispatchEvent(
-      new CustomEvent('canvasTitleChanged', { detail: { title } })
-    );
+    emitCanvasTitleChanged(title);
   }
 
   private mapCanvasListUiItem(canvas: {
@@ -1288,32 +1226,6 @@ export class CanvasApp {
     return '';
   }
 
-  private emitCanvasFavoriteToggleFailed(
-    id: string,
-    previousIsFavorite: boolean
-  ): void {
-    window.dispatchEvent(
-      new CustomEvent('canvasFavoriteToggleFailed', {
-        detail: { id, previousIsFavorite },
-      })
-    );
-  }
-
-  private emitCanvasGroupUpdateFailed(
-    id: string,
-    previousGroup: { id: string; name: string } | null
-  ): void {
-    window.dispatchEvent(
-      new CustomEvent('canvasGroupUpdateFailed', {
-        detail: {
-          id,
-          previousGroupId: previousGroup?.id ?? null,
-          previousGroupName: previousGroup?.name ?? null,
-        },
-      })
-    );
-  }
-
   private normalizeCanvasGroup(
     groupId: string | null | undefined,
     groupName: string | null | undefined
@@ -1332,7 +1244,6 @@ export class CanvasApp {
     goal: GoalElement
   ): Promise<void> {
     this.beginLinkDecision();
-    // TODO(relation-policy): extract this branch into a dedicated policy orchestrator.
     const storyRef = this.getLinkElementRef(story);
     const goalRef = this.getLinkElementRef(goal);
     const currentGoalId = Number.isFinite(story.goalBackendId)
@@ -1398,27 +1309,24 @@ export class CanvasApp {
 
   private syncCanvasRelationsNow(): void {
     if (!this.authService.isLoggedIn()) return;
-    const elements = this.scene
-      .getElements()
-      .filter(isPlanningElement) as Array<
+    const elements = this.getPlanningElements();
+    this.relationSyncAdapter
+      .sync$(elements, {
+        showNotifications: true,
+        throwOnError: false,
+        errorMessage: 'Failed to sync canvas relations',
+      })
+      .subscribe({
+        next: () => undefined,
+      });
+  }
+
+  private getPlanningElements(): Array<
+    TaskElement | StoryElement | GoalElement
+  > {
+    return this.scene.getElements().filter(isPlanningElement) as Array<
       TaskElement | StoryElement | GoalElement
     >;
-    if (
-      !this.canvasDataService.hasRelationChanges(
-        this.scene.getConnections(),
-        elements
-      )
-    ) {
-      return;
-    }
-    this.canvasDataService
-      .updateCanvasRelations(this.scene.getConnections(), elements)
-      .subscribe({
-        error: (err) => {
-          console.error('Failed to sync canvas relations', err);
-          notify('Failed to sync canvas relations', 'error');
-        },
-      });
   }
 
   private getLinkElementRef(element: { id: string; uuid?: string }): string {

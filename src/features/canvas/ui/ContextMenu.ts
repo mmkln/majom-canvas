@@ -39,12 +39,14 @@ import {
   STATUS_ICON_TONE_CLASS,
   STATUS_ORDER,
 } from './statusPresentation.ts';
-
-type ContextMenuDetail = {
-  element: ICanvasElement | null;
-  sceneX: number;
-  sceneY: number;
-};
+import { emitCanvasElementDeleteRequested } from '../core/canvasElementLifecycle.ts';
+import {
+  CANVAS_CONTEXT_MENU_REQUESTED_EVENT,
+  type CanvasContextMenuDetail,
+  isCanvasContextMenuDetail,
+} from '../core/canvasContextMenuLifecycle.ts';
+import { emitRelatedItemsPickerRequested } from './events/relatedItemsPickerEvents.ts';
+type ContextMenuDetail = CanvasContextMenuDetail;
 
 type MenuActionResult = 'keep-open' | void;
 
@@ -131,10 +133,11 @@ export class ContextMenu {
     parent.appendChild(this.menu);
     parent.appendChild(this.submenu);
     this.handler = (event: Event) => {
-      const customEvent = event as CustomEvent<ContextMenuDetail>;
+      const customEvent = event as CustomEvent<unknown>;
+      if (!isCanvasContextMenuDetail(customEvent.detail)) return;
       this.show(customEvent.detail);
     };
-    window.addEventListener('contextMenuRequested', this.handler);
+    window.addEventListener(CANVAS_CONTEXT_MENU_REQUESTED_EVENT, this.handler);
     this.viewSubscription = this.canvasManager
       .getPanZoomManager()
       .viewChanges.subscribe(() => this.onViewportChange());
@@ -142,7 +145,7 @@ export class ContextMenu {
 
   unmount(): void {
     if (this.handler) {
-      window.removeEventListener('contextMenuRequested', this.handler);
+      window.removeEventListener(CANVAS_CONTEXT_MENU_REQUESTED_EVENT, this.handler);
       this.handler = null;
     }
     if (this.viewSubscription) {
@@ -411,11 +414,7 @@ export class ContextMenu {
                 return 'keep-open';
               }
               this.confirmState = null;
-              window.dispatchEvent(
-                new CustomEvent('elementDeleteRequested', {
-                  detail: { element },
-                })
-              );
+              emitCanvasElementDeleteRequested(element);
             },
           },
         ],
@@ -810,11 +809,7 @@ export class ContextMenu {
   }
 
   private openRelatedItemsPicker(element: StoryElement | GoalElement): void {
-    window.dispatchEvent(
-      new CustomEvent('relatedItemsPickerRequested', {
-        detail: { element },
-      })
-    );
+    emitRelatedItemsPickerRequested(element);
   }
 
   private createStoryAt(sceneX: number, sceneY: number): void {

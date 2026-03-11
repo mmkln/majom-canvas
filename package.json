@@ -7,6 +7,9 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "build:canvas-core": "vite build -c vite.canvas-core.config.ts && npm run build:canvas-core:types",
+    "build:canvas-core:types": "tsc -p tsconfig.canvas-core.json",
+    "pack:canvas-core": "npm run build:canvas-core && npm pack ./packages/canvas-core",
     "build:repo": "vite build --base=/majom-canvas/",
     "build:domain": "vite build --base=/",
     "predeploy": "npm run build",
@@ -21,7 +24,8 @@
     "deploy:repo": "npm run build:repo && npm run deploy",
     "deploy:domain": "npm run build:domain && npm run deploy",
     "go": "npm run deploy:domain",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:canvas-core": "vitest run src/canvas-core"
   },
   "keywords": [
     "canvas",

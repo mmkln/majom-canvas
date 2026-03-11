@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "declarationMap": true,
+    "rootDir": "./src/canvas-core",
+    "outDir": "./packages/canvas-core/dist"
+  },
+  "include": ["src/canvas-core/**/*.ts"],
+  "exclude": ["src/canvas-core/**/*.test.ts"]
+}

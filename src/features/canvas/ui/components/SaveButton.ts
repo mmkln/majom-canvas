@@ -6,6 +6,10 @@ import {
   isCanvasSaveLifecycleDetail,
 } from '../../core/canvasSaveLifecycle.ts';
 import {
+  CANVAS_REFRESH_DATA_EVENT,
+  emitCanvasSaveLayoutRequested,
+} from '../../core/canvasDataLifecycle.ts';
+import {
   createTextButton,
   type TextButtonElement,
 } from '../primitives/index.ts';
@@ -46,7 +50,7 @@ export class SaveButton {
       this.updateButtonState()
     );
     this.refreshHandler = () => this.updateButtonState();
-    window.addEventListener('refreshCanvasData', this.refreshHandler);
+    window.addEventListener(CANVAS_REFRESH_DATA_EVENT, this.refreshHandler);
 
     this.lifecycleHandler = (event: Event) =>
       this.handleSaveLifecycleEvent(event);
@@ -60,7 +64,7 @@ export class SaveButton {
       authFlowService.requestLogin('save');
       return;
     }
-    window.dispatchEvent(new CustomEvent('saveCanvasLayout'));
+    emitCanvasSaveLayoutRequested();
   }
 
   private handleSaveLifecycleEvent(event: Event): void {
@@ -127,7 +131,7 @@ export class SaveButton {
   }
 
   unmount(): void {
-    window.removeEventListener('refreshCanvasData', this.refreshHandler);
+    window.removeEventListener(CANVAS_REFRESH_DATA_EVENT, this.refreshHandler);
     window.removeEventListener(
       CANVAS_SAVE_LIFECYCLE_EVENT,
       this.lifecycleHandler

@@ -3,6 +3,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { TaskElement } from './elements/TaskElement.ts';
 import { CanvasApp } from './CanvasApp.ts';
 import { notify } from './core/services/NotificationService.ts';
+import { RelationSyncAdapter } from './core/adapters/RelationSyncAdapter.ts';
 
 vi.mock('./core/services/NotificationService.ts', () => ({
   notify: vi.fn(),
@@ -63,10 +64,17 @@ function createHarness(): {
   };
   const queueUnsyncedDraft = vi.fn();
   const removeUnsyncedDraft = vi.fn();
+  const relationSyncAdapter = new RelationSyncAdapter(
+    canvasDataService,
+    () => scene.getConnections(),
+    (message) => notify(message, 'error'),
+    (_message, _error) => undefined,
+    (draftId, payload) => queueUnsyncedDraft(draftId, 'relations', payload)
+  );
   const app: SaveLayoutHarness = {
     canvasDataService,
     scene,
-    dedupeLayoutPositions: (positions: unknown[]) => positions,
+    relationSyncAdapter,
     queueUnsyncedDraft,
     removeUnsyncedDraft,
   };
@@ -160,7 +168,7 @@ describe('CanvasApp.saveLayoutPositions', () => {
       changedPosition,
     ]);
     expect(canvasDataService.deletePositions).toHaveBeenCalledWith([]);
-    expect(canvasDataService.updateCanvasRelations).toHaveBeenCalledTimes(1);
+    expect(canvasDataService.updateCanvasRelations).not.toHaveBeenCalled();
     expect(removeUnsyncedDraft).toHaveBeenCalledWith('layout-sync');
     expect(removeUnsyncedDraft).toHaveBeenCalledWith('relations-sync');
     expect(notify).toHaveBeenCalledWith('Layout saved', 'success');
@@ -178,7 +186,7 @@ describe('CanvasApp.saveLayoutPositions', () => {
     expect(canvasDataService.deletePositions).toHaveBeenCalledWith([
       'position-1',
     ]);
-    expect(canvasDataService.updateCanvasRelations).toHaveBeenCalledTimes(1);
+    expect(canvasDataService.updateCanvasRelations).not.toHaveBeenCalled();
   });
 
   it('syncs relations when only relation changes exist', async () => {

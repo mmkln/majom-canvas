@@ -1,4 +1,5 @@
 // vite.config.ts
+import { resolve } from 'node:path';
 import { defineConfig, loadEnv } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
 
@@ -20,6 +21,11 @@ export default defineConfig(({ mode }) => {
       outDir: '../dist',
       // Empty out the output directory before building
       emptyOutDir: true,
+    },
+    resolve: {
+      alias: {
+        'majom-canvas-core': resolve(__dirname, 'src/canvas-core/index.ts'),
+      },
     },
     plugins: [tailwindcss()],
   };

@@ -20,6 +20,12 @@ import { addTaskToStory } from './storyTaskActions.ts';
 import { editElement$ } from '../core/eventBus.ts';
 import { createIconButton, createSurface } from './primitives/index.ts';
 import { StatusSelector } from './components/StatusSelector.ts';
+import { emitRelatedItemsPickerRequested } from './events/relatedItemsPickerEvents.ts';
+import {
+  CANVAS_INTERACTION_END_EVENT,
+  CANVAS_INTERACTION_START_EVENT,
+  type CanvasInteractionKind,
+} from '../core/canvasInteractionLifecycle.ts';
 
 type ActionContext = {
   elements: PlanningElement[];
@@ -60,14 +66,14 @@ export class SelectionActionMenu {
   private statusSelector: StatusSelector | null = null;
   private subscriptions: Subscription[] = [];
   private suspendUpdates = false;
-  private activeInteractions = new Set<'drag' | 'resize' | 'select'>();
+  private activeInteractions = new Set<CanvasInteractionKind>();
   private deleteConfirmState: { key: string; expiresAt: number } | null = null;
   private deleteConfirmTimer: number | null = null;
   private readonly confirmTimeoutMs = 4000;
   private resizeHandler = () => this.requestUpdate();
   private interactionStartHandler = (event: Event): void => {
     const detail = (
-      event as CustomEvent<{ kind?: 'drag' | 'resize' | 'select' }>
+      event as CustomEvent<{ kind?: CanvasInteractionKind }>
     ).detail;
     const kind = detail?.kind;
     if (!kind) return;
@@ -77,7 +83,7 @@ export class SelectionActionMenu {
   };
   private interactionEndHandler = (event: Event): void => {
     const detail = (
-      event as CustomEvent<{ kind?: 'drag' | 'resize' | 'select' }>
+      event as CustomEvent<{ kind?: CanvasInteractionKind }>
     ).detail;
     const kind = detail?.kind;
     if (!kind) return;
@@ -116,10 +122,13 @@ export class SelectionActionMenu {
     );
     window.addEventListener('resize', this.resizeHandler);
     window.addEventListener(
-      'canvasInteractionStart',
+      CANVAS_INTERACTION_START_EVENT,
       this.interactionStartHandler
     );
-    window.addEventListener('canvasInteractionEnd', this.interactionEndHandler);
+    window.addEventListener(
+      CANVAS_INTERACTION_END_EVENT,
+      this.interactionEndHandler
+    );
     this.requestUpdate();
   }
 
@@ -130,11 +139,11 @@ export class SelectionActionMenu {
     this.statusSelector = null;
     window.removeEventListener('resize', this.resizeHandler);
     window.removeEventListener(
-      'canvasInteractionStart',
+      CANVAS_INTERACTION_START_EVENT,
       this.interactionStartHandler
     );
     window.removeEventListener(
-      'canvasInteractionEnd',
+      CANVAS_INTERACTION_END_EVENT,
       this.interactionEndHandler
     );
     this.container.remove();
@@ -458,11 +467,7 @@ export class SelectionActionMenu {
     ) {
       return;
     }
-    window.dispatchEvent(
-      new CustomEvent('relatedItemsPickerRequested', {
-        detail: { element: this.activeElement },
-      })
-    );
+    emitRelatedItemsPickerRequested(this.activeElement);
   }
 
   private handleCreateTask(): void {

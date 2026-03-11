@@ -2,12 +2,13 @@
 import { Scene } from '../scene/Scene.ts';
 import { PanZoomManager } from '../managers/PanZoomManager.ts';
 import type { IConnectable } from '../interfaces/connectable.ts';
-import type { ConnectionPoint } from '../interfaces/shape.ts';
-import type { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
-import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
-import { TaskElement } from '../../elements/TaskElement.ts';
-import { StoryElement } from '../../elements/StoryElement.ts';
-import { GoalElement } from '../../elements/GoalElement.ts';
+import {
+  AllowAllRelationPolicy,
+  ConnectionInteractionRuntime,
+  type RelationPolicy,
+  type RuntimeConnectable,
+  type RuntimeConnection,
+} from 'majom-canvas-core';
 import { getOrderedConnectables } from '../utils/connectableUtils.ts';
 import {
   ConnectionRelationType,
@@ -16,160 +17,107 @@ import {
 import { historyService } from './HistoryService.ts';
 import { ConnectCommand } from '../commands/ConnectCommand.ts';
 import {
+  noopConnectionLifecycleAdapter,
+  type ConnectionLifecycleAdapter,
+} from '../adapters/ConnectionLifecycleAdapter.ts';
+import {
   buildCanvasRelationEndpoint,
   emitCanvasRelationLifecycle,
 } from '../canvasRelationLifecycle.ts';
-import { emitStoryGoalLinkSet } from '../canvasLinkLifecycle.ts';
 
 export class ConnectionInteractionService {
-  private creating = false;
-  private startShape: IConnectable | null = null;
-  private startPoint: ConnectionPoint | null = null;
-  private tempLine: {
-    startX: number;
-    startY: number;
-    endX: number;
-    endY: number;
-  } | null = null;
+  private readonly runtime: ConnectionInteractionRuntime<
+    RuntimeConnectable,
+    RuntimeConnection<RuntimeConnectable>
+  >;
 
   constructor(
     private scene: Scene,
-    private panZoom: PanZoomManager
-  ) {}
+    private panZoom: PanZoomManager,
+    private relationPolicy: RelationPolicy<IConnectable> = new AllowAllRelationPolicy<IConnectable>(),
+    private lifecycleAdapter: ConnectionLifecycleAdapter = noopConnectionLifecycleAdapter
+  ) {
+    this.runtime = new ConnectionInteractionRuntime({
+      getConnectables: () => getOrderedConnectables(this.scene),
+      getConnections: () =>
+        this.scene.getConnections() as RuntimeConnection<RuntimeConnectable>[],
+      getScale: () => this.panZoom.scale,
+      relationPolicy: this.relationPolicy as RelationPolicy<RuntimeConnectable>,
+      notifyChanged: () => {
+        this.scene.changes.next();
+      },
+      resolveElementRef: (element) => this.getElementRef(element as IConnectable),
+      mapRelationType: (value) => this.toRelationType(value),
+      normalizeConnection: ({ relationType, source, target }) => {
+        const parsed = this.toRelationType(relationType);
+        if (!parsed) return null;
+        const normalized = this.normalizeConnectionRefs(
+          parsed,
+          source as IConnectable,
+          target as IConnectable
+        );
+        if (!normalized) return null;
+        return {
+          source: normalized.from as RuntimeConnectable,
+          target: normalized.to as RuntimeConnectable,
+        };
+      },
+      resolveHitTolerance: ({ relationType, scale, baseTolerance }) =>
+        this.resolveHitTolerance(relationType, scale, baseTolerance),
+      defaultRelationType: ConnectionRelationType.RelatesTo,
+      onConnectionCreate: (payload) => {
+        const source = payload.source as IConnectable;
+        const target = payload.target as IConnectable;
+        const relationType = this.toRelationType(payload.relationType);
+        if (!relationType) return;
+        const fromRef = this.getElementRef(source);
+        const toRef = this.getElementRef(target);
+        historyService.execute(
+          new ConnectCommand(this.scene, fromRef, toRef, relationType)
+        );
+        emitCanvasRelationLifecycle({
+          action: 'created',
+          relationType,
+          from: buildCanvasRelationEndpoint(source, fromRef),
+          to: buildCanvasRelationEndpoint(target, toRef),
+        });
+        this.lifecycleAdapter.onConnectionCreated?.({
+          relationType,
+          from: source,
+          to: target,
+        });
+      },
+    });
+  }
 
   /** Hit test existing connections */
   public hitTest(x: number, y: number): IConnection | null {
-    const planningEls = this.scene
-      .getElements()
-      .filter(isPlanningElement) as IPlanningElement[];
-    const connectables: IConnectable[] = [
-      ...this.scene.getShapes(),
-      ...planningEls,
-    ];
-    const connections = this.scene.getConnections();
-    for (let i = connections.length - 1; i >= 0; i--) {
-      const conn = connections[i];
-      // use fixed screen-pixel tolerance (5px)
-      const baseTol = 5 / this.panZoom.scale;
-      const tol =
-        conn.relationType === ConnectionRelationType.LeadsTo ||
-        conn.relationType === ConnectionRelationType.ParentChild
-          ? Math.max(baseTol, 8 / this.panZoom.scale)
-          : baseTol;
-      if (conn.isNearPoint(x, y, connectables, tol, this.panZoom.scale)) {
-        return conn;
-      }
-    }
-    return null;
+    return this.runtime.hitTest(x, y) as IConnection | null;
   }
 
   /** Start drawing a new connection */
   public start(x: number, y: number): boolean {
-    const connectables = getOrderedConnectables(this.scene);
-    const hit = this.findPoint(x, y, connectables);
-    if (!hit) return false;
-    this.creating = true;
-    this.startShape = hit.shape;
-    this.startPoint = hit.point;
-    this.tempLine = {
-      startX: hit.point.x,
-      startY: hit.point.y,
-      endX: x,
-      endY: y,
-    };
-    this.scene.changes.next();
-    return true;
+    return this.runtime.start(x, y);
   }
 
   /** Update the temporary connection line */
   public update(x: number, y: number): boolean {
-    if (!this.creating || !this.tempLine) return false;
-    this.tempLine.endX = x;
-    this.tempLine.endY = y;
-    this.scene.changes.next();
-    return true;
+    return this.runtime.update(x, y);
   }
 
   /** Finish and execute the connection command */
   public finish(): boolean {
-    if (!this.creating || !this.startShape || !this.tempLine) return false;
-    let target: IConnectable | null = null;
-    const connectables = getOrderedConnectables(this.scene);
-    const x = this.tempLine.endX,
-      y = this.tempLine.endY;
-    // Try connection point hit
-    target = this.findPoint(x, y, connectables)?.shape || null;
-    // Fallback to contains hit
-    if (!target) {
-      for (let i = connectables.length - 1; i >= 0; i--) {
-        const el = connectables[i];
-        if (el !== this.startShape && el.contains(x, y)) {
-          target = el;
-          break;
-        }
-      }
-    }
-    if (target) {
-      const src = this.startShape;
-      const dst = target;
-      const invalid =
-        src === dst ||
-        (src instanceof StoryElement &&
-          dst instanceof TaskElement &&
-          src.tasks.some((t) => t.id === dst.id)) ||
-        (src instanceof TaskElement &&
-          dst instanceof StoryElement &&
-          dst.tasks.some((t) => t.id === src.id));
-      if (!invalid) {
-        const relationType =
-          src instanceof GoalElement && dst instanceof GoalElement
-            ? ConnectionRelationType.LeadsTo
-            : this.isParentChildPair(src, dst)
-              ? ConnectionRelationType.ParentChild
-              : ConnectionRelationType.RelatesTo;
-        const normalized = this.normalizeConnectionRefs(relationType, src, dst);
-        if (normalized) {
-          const fromRef = this.getElementRef(normalized.from);
-          const toRef = this.getElementRef(normalized.to);
-          historyService.execute(
-            new ConnectCommand(this.scene, fromRef, toRef, relationType)
-          );
-          emitCanvasRelationLifecycle({
-            action: 'created',
-            relationType,
-            from: buildCanvasRelationEndpoint(normalized.from, fromRef),
-            to: buildCanvasRelationEndpoint(normalized.to, toRef),
-          });
-          if (
-            relationType === ConnectionRelationType.ParentChild &&
-            normalized.from instanceof GoalElement &&
-            normalized.to instanceof StoryElement
-          ) {
-            emitStoryGoalLinkSet(normalized.to, normalized.from);
-          }
-        }
-      }
-    }
-    this.creating = false;
-    this.startShape = null;
-    this.startPoint = null;
-    this.tempLine = null;
-    this.scene.changes.next();
-    return true;
+    return this.runtime.finish();
   }
 
   /** Check if a connection is being created */
   public isCreating(): boolean {
-    return this.creating;
+    return this.runtime.isCreating();
   }
 
   /** Cancel in-progress connection drawing */
   public cancel(): void {
-    this.creating = false;
-    this.startShape = null;
-    this.startPoint = null;
-    this.tempLine = null;
-    this.scene.changes.next();
+    this.runtime.cancel();
   }
 
   /** Get the temporary line for rendering */
@@ -179,28 +127,7 @@ export class ConnectionInteractionService {
     endX: number;
     endY: number;
   } | null {
-    return this.tempLine;
-  }
-
-  /** Internal helper to find a connection point on shapes */
-  private findPoint(
-    x: number,
-    y: number,
-    elements: IConnectable[]
-  ): { shape: IConnectable; point: ConnectionPoint } | null {
-    for (let i = elements.length - 1; i >= 0; i--) {
-      const shape = elements[i];
-      const points = shape.getConnectionPoints();
-      for (const point of points) {
-        const dx = x - point.x;
-        const dy = y - point.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        if (distance < 8 / this.panZoom.scale) {
-          return { shape, point };
-        }
-      }
-    }
-    return null;
+    return this.runtime.getTemporaryLine();
   }
 
   private getElementRef(element: IConnectable): string {
@@ -208,11 +135,37 @@ export class ConnectionInteractionService {
     return uuid ?? element.id;
   }
 
-  private isParentChildPair(a: IConnectable, b: IConnectable): boolean {
-    return (
-      (a instanceof GoalElement && b instanceof StoryElement) ||
-      (a instanceof StoryElement && b instanceof GoalElement)
-    );
+  private toRelationType(
+    value: string | undefined
+  ): ConnectionRelationType | null {
+    if (!value) return null;
+    switch (value) {
+      case ConnectionRelationType.LeadsTo:
+        return ConnectionRelationType.LeadsTo;
+      case ConnectionRelationType.Blocks:
+        return ConnectionRelationType.Blocks;
+      case ConnectionRelationType.ParentChild:
+        return ConnectionRelationType.ParentChild;
+      case ConnectionRelationType.RelatesTo:
+        return ConnectionRelationType.RelatesTo;
+      default:
+        return null;
+    }
+  }
+
+  private resolveHitTolerance(
+    relationType: string,
+    scale: number,
+    baseTolerance: number
+  ): number {
+    const parsedRelationType = this.toRelationType(relationType);
+    if (
+      parsedRelationType === ConnectionRelationType.LeadsTo ||
+      parsedRelationType === ConnectionRelationType.ParentChild
+    ) {
+      return Math.max(baseTolerance, 8 / scale);
+    }
+    return baseTolerance;
   }
 
   private normalizeConnectionRefs(
@@ -220,15 +173,7 @@ export class ConnectionInteractionService {
     from: IConnectable,
     to: IConnectable
   ): { from: IConnectable; to: IConnectable } | null {
-    if (relationType !== ConnectionRelationType.ParentChild) {
-      return { from, to };
-    }
-    if (from instanceof GoalElement && to instanceof StoryElement) {
-      return { from, to };
-    }
-    if (from instanceof StoryElement && to instanceof GoalElement) {
-      return { from: to, to: from };
-    }
-    return null;
+    return this.lifecycleAdapter.normalizeConnectionRefs(relationType, from, to);
   }
 }
+

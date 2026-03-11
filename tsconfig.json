@@ -9,6 +9,10 @@
     "forceConsistentCasingInFileNames": true,
     "outDir": "./dist",
     "lib": ["ES2018", "DOM"],
+    "baseUrl": ".",
+    "paths": {
+      "majom-canvas-core": ["src/canvas-core/index.ts"]
+    },
     "skipLibCheck": true,
     "noEmit": true
   },

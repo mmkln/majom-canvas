@@ -1,5 +1,6 @@
 /node_modules/
 /dist/
+/packages/canvas-core/dist/
 /.idea/
 .env
 .env.*
