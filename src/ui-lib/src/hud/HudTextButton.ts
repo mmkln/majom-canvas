@@ -72,6 +72,7 @@ class HudTextButton extends HudButtonBase {
       ariaLabel: options.ariaLabel,
       onClick: options.onClick,
     });
+    this.setComponentName('HudTextButton');
     const element = this.getElement();
     if (options.text !== undefined) {
       element.textContent = options.text;

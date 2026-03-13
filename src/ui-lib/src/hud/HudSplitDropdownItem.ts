@@ -68,6 +68,7 @@ export function createHudSplitDropdownItem(
   options: HudSplitDropdownItemOptions
 ): HTMLDivElement {
   const row = document.createElement('div');
+  row.setAttribute('data-component', 'HudSplitDropdownItem');
   const isSelected = options.variant === 'selected';
   row.className =
     `group flex w-full items-stretch overflow-hidden transition-colors ${isSelected ? 'bg-indigo-50' : ''}`.trim();
@@ -144,6 +145,7 @@ function createActionButton(options: {
   onClick?: (event: MouseEvent, button: HTMLButtonElement) => void;
 }): HTMLButtonElement {
   const button = document.createElement('button');
+  button.setAttribute('data-component', 'HudSplitDropdownAction');
   button.type = 'button';
   const baseClass = options.disabled
     ? SECONDARY_DISABLED_CLASS

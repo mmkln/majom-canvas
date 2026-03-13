@@ -73,6 +73,7 @@ export class Checkbox {
 
   private createElement(): HTMLLabelElement {
     const root = document.createElement('label');
+    root.setAttribute('data-component', 'Checkbox');
     root.addEventListener('click', (event) => {
       if (this.stopPropagationValue) {
         event.stopPropagation();

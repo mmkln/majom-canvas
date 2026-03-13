@@ -43,6 +43,7 @@ export function createModalShell(
   footer: HTMLDivElement;
 } {
   const overlay = document.createElement('div');
+  overlay.setAttribute('data-component', 'ModalOverlay');
   const previousActiveElement =
     document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const closeOnBackdrop = options?.closeOnBackdrop ?? true;
@@ -66,6 +67,7 @@ export function createModalShell(
   overlay.style.zIndex = zIndexValue.toString();
 
   const container = document.createElement('div');
+  container.setAttribute('data-component', 'ModalContainer');
   container.className = getModalContainerClass(presentation);
   container.style.maxHeight = getModalContainerMaxHeight(presentation);
   container.style.overflowY = 'hidden';

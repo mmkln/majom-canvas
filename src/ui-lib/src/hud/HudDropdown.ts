@@ -16,6 +16,8 @@ export class HudDropdown {
   constructor(options: HudDropdownOptions) {
     this.container = options.container;
     this.panel = options.panel;
+    this.container.setAttribute('data-component', 'HudDropdown');
+    this.panel.setAttribute('data-component', 'HudDropdownPanel');
     this.onOpenChange = options.onOpenChange;
     this.open = !this.panel.classList.contains('hidden');
 

@@ -8,6 +8,7 @@ abstract class Component<T extends ComponentProps> {
 
   constructor(protected props: T) {
     this.element = this.createElement();
+    this.attachComponentName(this.element);
   }
 
   protected abstract createElement(): HTMLElement;
@@ -23,12 +24,21 @@ abstract class Component<T extends ComponentProps> {
 
   public update(): void {
     const newElement = this.createElement();
+    this.attachComponentName(newElement);
     this.element.replaceWith(newElement);
     this.element = newElement;
   }
 
   public getElement(): HTMLElement {
     return this.element;
+  }
+
+  protected getComponentName(): string {
+    return this.constructor.name;
+  }
+
+  private attachComponentName(element: HTMLElement): void {
+    element.setAttribute('data-component', this.getComponentName());
   }
 }
 

@@ -36,6 +36,7 @@ export function createHudInputBase(
   options: HudInputBaseOptions = {}
 ): HTMLInputElement {
   const input = document.createElement('input');
+  input.setAttribute('data-component', 'HudInputBase');
   input.type = options.type ?? 'text';
   if (options.value !== undefined) input.value = options.value;
   if (options.placeholder !== undefined)

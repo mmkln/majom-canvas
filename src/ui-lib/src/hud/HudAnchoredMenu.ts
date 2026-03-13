@@ -85,6 +85,8 @@ export class HudAnchoredMenu {
   constructor(options: HudAnchoredMenuOptions) {
     this.container = options.container;
     this.panel = options.panel;
+    this.container.setAttribute('data-component', 'HudAnchoredMenu');
+    this.panel.setAttribute('data-component', 'HudAnchoredMenuPanel');
     this.onOpenChange = options.onOpenChange;
     this.open = !this.panel.classList.contains('hidden');
     this.modernPlacement = {

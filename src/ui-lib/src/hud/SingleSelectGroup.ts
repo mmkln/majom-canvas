@@ -65,6 +65,7 @@ export class SingleSelectGroup<T> {
     this.isExpanded = this.collapseMode === 'none';
 
     this.element = document.createElement('div');
+    this.element.setAttribute('data-component', 'SingleSelectGroup');
     this.element.style.display = 'inline-flex';
     this.element.style.alignItems = 'center';
     this.element.style.gap = '0';

@@ -102,6 +102,7 @@ function mergeDescribedBy(
 
 export function createHudField(options: HudFieldOptions): HudField {
   const element = document.createElement('div');
+  element.setAttribute('data-component', 'HudField');
   element.className = `${HUD_FIELD_CLASS} ${options.className ?? ''}`.trim();
 
   const label = document.createElement('label');

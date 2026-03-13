@@ -37,6 +37,7 @@ export function createHudFormMessage(
   options: HudFormMessageOptions = {}
 ): HudFormMessage {
   const element = document.createElement('div');
+  element.setAttribute('data-component', 'HudFormMessage');
   const baseClass = 'hidden rounded-lg border px-3 py-2.5 text-sm';
   const tone = options.tone ?? 'error';
   element.className =

@@ -46,6 +46,7 @@ export function createHudDropdownItem(
   options: HudDropdownItemOptions
 ): HTMLButtonElement {
   const button = document.createElement('button');
+  button.setAttribute('data-component', 'HudDropdownItem');
   button.type = 'button';
   const explicitVariant = options.variant;
   const fallbackVariant = options.active

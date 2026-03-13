@@ -28,6 +28,7 @@ export function createModalActionRow(
   options: ModalActionRowOptions = {}
 ): HTMLDivElement {
   const row = document.createElement('div');
+  row.setAttribute('data-component', 'ModalActionRow');
   const variant = options.variant ?? 'confirm';
   const variantClass =
     variant === 'form'

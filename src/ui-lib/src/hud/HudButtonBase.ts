@@ -27,6 +27,7 @@ export abstract class HudButtonBase {
 
   protected constructor(options: HudButtonBaseOptions) {
     const button = document.createElement('button') as HudButtonElement;
+    button.setAttribute('data-component', 'HudButtonBase');
     button.type = options.type ?? 'button';
     button.className = options.className;
     if (options.title) {
@@ -45,6 +46,10 @@ export abstract class HudButtonBase {
 
   public getElement(): HudButtonElement {
     return this.button;
+  }
+
+  protected setComponentName(name: string): void {
+    this.button.setAttribute('data-component', name);
   }
 
   protected initializeState(state: HudButtonState): void {

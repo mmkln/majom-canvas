@@ -62,6 +62,7 @@ class HudIconButton extends HudButtonBase {
       ariaLabel: options.ariaLabel,
       onClick: options.onClick,
     });
+    this.setComponentName('HudIconButton');
     const iconSize = options.iconSize ?? iconSizeByButtonSize[buttonSize];
     this.loadingSize = iconSize;
     this.loadingStrokeWidth = options.iconStrokeWidth ?? 2;

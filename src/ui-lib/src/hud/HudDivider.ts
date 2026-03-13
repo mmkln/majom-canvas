@@ -18,6 +18,7 @@ export function createHudDivider(
   options: HudDividerOptions = {}
 ): HTMLDivElement {
   const divider = document.createElement('div');
+  divider.setAttribute('data-component', 'HudDivider');
   const toneClass =
     options.tone === 'soft'
       ? HUD_DIVIDER_SOFT_TONE_CLASS

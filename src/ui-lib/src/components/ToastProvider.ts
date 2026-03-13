@@ -29,6 +29,7 @@ export class ToastProvider {
     this.duration = options.duration ?? 3000;
     this.maxToasts = options.maxToasts ?? 3;
     this.container = document.createElement('div');
+    this.container.setAttribute('data-component', 'ToastProvider');
     // Position classes
     const posClasses: Record<string, string> = {
       'top-right': 'fixed top-4 right-4 flex flex-col space-y-2',

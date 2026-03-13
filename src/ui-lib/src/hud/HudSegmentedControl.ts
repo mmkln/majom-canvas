@@ -65,6 +65,7 @@ export class HudSegmentedControl<T> {
     this.value = options.value ?? null;
 
     this.element = document.createElement('div');
+    this.element.setAttribute('data-component', 'HudSegmentedControl');
     this.element.className =
       `${HUD_SEGMENTED_CONTROL_CLASS} ${options.className ?? ''}`.trim();
     if (options.fullWidth) {

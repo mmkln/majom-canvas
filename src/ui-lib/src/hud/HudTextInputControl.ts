@@ -91,6 +91,7 @@ export function createHudInput(options: HudInputOptions = {}): HudInput {
     if (options.className) {
       input.className = `${input.className} ${options.className}`.trim();
     }
+    input.setAttribute('data-component', 'HudInput');
     return {
       element: input,
       input,
@@ -106,6 +107,7 @@ export function createHudInput(options: HudInputOptions = {}): HudInput {
   input.className = `${input.className} pr-11`.trim();
 
   const wrapper = document.createElement('div');
+  wrapper.setAttribute('data-component', 'HudInput');
   wrapper.className = `relative ${options.className ?? ''}`.trim();
 
   const toggleButton = createHudIconButton({
