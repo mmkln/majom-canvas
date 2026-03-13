@@ -60,6 +60,8 @@ type CanvasListCacheItem = {
   meta?: Record<string, unknown> | null;
 };
 
+const APP_DOCUMENT_TITLE = 'Majom Canvas';
+
 export class CanvasApp {
   private readonly dataProvider: IDataProvider;
   private readonly canvas: HTMLCanvasElement;
@@ -1186,6 +1188,11 @@ export class CanvasApp {
 
   private setCanvasTitle(title: string): void {
     this.canvasTitle = title;
+    const normalizedTitle = title.trim();
+    document.title =
+      normalizedTitle.length > 0
+        ? `${normalizedTitle} - ${APP_DOCUMENT_TITLE}`
+        : APP_DOCUMENT_TITLE;
     window.dispatchEvent(
       new CustomEvent('canvasTitleChanged', { detail: { title } })
     );
