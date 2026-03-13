@@ -5,10 +5,15 @@ import {
 } from '../../../../ui-lib/src/components/Modal.ts';
 import { createTextButton } from '../primitives/index.ts';
 
-export function confirmUnsavedChangesModal(): Promise<boolean> {
+export type ConfirmUnsavedChangesAction =
+  | 'keep-editing'
+  | 'discard'
+  | 'save-and-close';
+
+export function confirmUnsavedChangesModal(): Promise<ConfirmUnsavedChangesAction> {
   return new Promise((resolve) => {
     let settled = false;
-    const settle = (value: boolean): void => {
+    const settle = (value: ConfirmUnsavedChangesAction): void => {
       if (settled) return;
       settled = true;
       resolve(value);
@@ -22,7 +27,7 @@ export function confirmUnsavedChangesModal(): Promise<boolean> {
       'Discard unsaved changes?',
       {
         onClose: () => {
-          settle(false);
+          settle('keep-editing');
           close();
         },
         intent: 'confirm',
@@ -40,13 +45,25 @@ export function confirmUnsavedChangesModal(): Promise<boolean> {
 
     const row = createModalActionRow({ variant: 'confirm' });
 
+    const saveAndCloseButton = createTextButton({
+      text: 'Save changes',
+      tone: 'secondary',
+      size: 'md',
+      className: `${getModalActionButtonClass('default')} md:mr-auto`,
+      onClick: () => {
+        settle('save-and-close');
+        close();
+      },
+    });
+    row.appendChild(saveAndCloseButton);
+
     const keepEditingButton = createTextButton({
       text: 'Keep editing',
       tone: 'text',
       size: 'md',
       className: getModalActionButtonClass('wide'),
       onClick: () => {
-        settle(false);
+        settle('keep-editing');
         close();
       },
     });
@@ -58,7 +75,7 @@ export function confirmUnsavedChangesModal(): Promise<boolean> {
       size: 'md',
       className: getModalActionButtonClass('medium'),
       onClick: () => {
-        settle(true);
+        settle('discard');
         close();
       },
     });
@@ -69,7 +86,7 @@ export function confirmUnsavedChangesModal(): Promise<boolean> {
       event.stopPropagation();
       if (event.key !== 'Escape') return;
       event.preventDefault();
-      settle(false);
+      settle('keep-editing');
       close();
     });
   });

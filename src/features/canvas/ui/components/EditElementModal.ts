@@ -8,7 +8,10 @@ import {
   getModalActionButtonClass,
   createModalShell,
 } from '../../../../ui-lib/src/components/Modal.ts';
-import { confirmUnsavedChangesModal } from './ConfirmUnsavedChangesModal.ts';
+import {
+  type ConfirmUnsavedChangesAction,
+  confirmUnsavedChangesModal,
+} from './ConfirmUnsavedChangesModal.ts';
 import {
   createField,
   createSegmentedControl,
@@ -76,6 +79,7 @@ export class EditElementModal {
     let tempScale: GoalScale = originalScale ?? 1;
     let tempDueDateValue = originalDueDateValue;
     let closeGuardOpen = false;
+    let saveAndClose: (() => void) | null = null;
 
     const hasUnsavedChanges = (): boolean => {
       const normalizedTitle = tempTitle.trim();
@@ -88,18 +92,43 @@ export class EditElementModal {
       return false;
     };
 
+    const withCloseGuard = async (
+      work: () => Promise<void>
+    ): Promise<void> => {
+      if (closeGuardOpen) return;
+      closeGuardOpen = true;
+      try {
+        await work();
+      } finally {
+        closeGuardOpen = false;
+      }
+    };
+
+    const applyCloseAction = (action: ConfirmUnsavedChangesAction): void => {
+      const handlers: Record<ConfirmUnsavedChangesAction, () => void> = {
+        'keep-editing': () => {
+          return;
+        },
+        discard: () => {
+          this.close();
+        },
+        'save-and-close': () => {
+          saveAndClose?.();
+        },
+      };
+      handlers[action]();
+    };
+
     const requestClose = async (): Promise<void> => {
       if (!this.modal) return;
       if (!hasUnsavedChanges()) {
         this.close();
         return;
       }
-      if (closeGuardOpen) return;
-      closeGuardOpen = true;
-      const canDiscard = await confirmUnsavedChangesModal();
-      closeGuardOpen = false;
-      if (!canDiscard) return;
-      this.close();
+      await withCloseGuard(async () => {
+        const action = await confirmUnsavedChangesModal();
+        applyCloseAction(action);
+      });
     };
 
     const { overlay, container, body, footer } = createModalShell(
@@ -227,7 +256,7 @@ export class EditElementModal {
     }
 
     // Save function
-    const saveAndClose = () => {
+    saveAndClose = () => {
       const normalizedTitle = tempTitle.trim();
       if (normalizedTitle.length === 0) {
         titleField.setState({ invalid: true, error: 'Title is required' });
@@ -299,7 +328,9 @@ export class EditElementModal {
       tone: 'primary',
       size: 'md',
       className: getModalActionButtonClass('default'),
-      onClick: saveAndClose,
+      onClick: () => {
+        saveAndClose?.();
+      },
     });
     btnRow.append(cancelBtn, saveBtn);
     footer.appendChild(btnRow);
@@ -317,7 +348,7 @@ export class EditElementModal {
           return;
         }
         e.preventDefault();
-        saveAndClose();
+        saveAndClose?.();
       }
       if (e.key === 'Escape') {
         e.preventDefault();
