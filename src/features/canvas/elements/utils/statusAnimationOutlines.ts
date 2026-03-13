@@ -164,19 +164,34 @@ export const createHexOutline = ({
   centerY: number;
   radius: number;
 }): OutlinePath => {
-  const angleOffset = -Math.PI / 2;
+  const sides = 8;
+  const angleStep = (Math.PI * 2) / sides;
+  const angleOffset = -Math.PI / 2 - angleStep / 2;
   const getRadius = (offset: number) => Math.max(0, radius + offset);
   const getVertices = (offset: number) => {
     const r = getRadius(offset);
     const vertices: Array<{ x: number; y: number }> = [];
-    for (let i = 0; i < 6; i += 1) {
-      const angle = angleOffset + (Math.PI / 3) * i;
+    for (let i = 0; i < sides; i += 1) {
+      const angle = angleOffset + angleStep * i;
       vertices.push({
         x: centerX + r * Math.cos(angle),
         y: centerY + r * Math.sin(angle),
       });
     }
     return vertices;
+  };
+  const getPolygonData = (offset: number) => {
+    const vertices = getVertices(offset);
+    const edgeLengths: number[] = [];
+    let totalLength = 0;
+    for (let i = 0; i < vertices.length; i += 1) {
+      const a = vertices[i];
+      const b = vertices[(i + 1) % vertices.length];
+      const edgeLength = Math.hypot(b.x - a.x, b.y - a.y);
+      edgeLengths.push(edgeLength);
+      totalLength += edgeLength;
+    }
+    return { vertices, edgeLengths, totalLength };
   };
 
   return {
@@ -188,22 +203,26 @@ export const createHexOutline = ({
       });
       ctx.closePath();
     },
-    perimeter: (offset) => 6 * getRadius(offset),
+    perimeter: (offset) => getPolygonData(offset).totalLength,
     pointAt: (t, offset) => {
       const progress = ((t % 1) + 1) % 1;
-      const r = getRadius(offset);
-      const edgeLength = r;
-      const perim = edgeLength * 6;
-      const dist = progress * perim;
-      const edgeIndex = Math.floor(dist / edgeLength) % 6;
-      const edgeT = (dist - edgeIndex * edgeLength) / edgeLength;
-      const vertices = getVertices(offset);
-      const a = vertices[edgeIndex];
-      const b = vertices[(edgeIndex + 1) % 6];
-      return {
-        x: a.x + (b.x - a.x) * edgeT,
-        y: a.y + (b.y - a.y) * edgeT,
-      };
+      const { vertices, edgeLengths, totalLength } = getPolygonData(offset);
+      if (totalLength <= 0) return { x: centerX, y: centerY };
+      let remaining = progress * totalLength;
+      for (let i = 0; i < vertices.length; i += 1) {
+        const length = edgeLengths[i];
+        if (remaining <= length || i === vertices.length - 1) {
+          const a = vertices[i];
+          const b = vertices[(i + 1) % vertices.length];
+          const edgeT = length > 0 ? remaining / length : 0;
+          return {
+            x: a.x + (b.x - a.x) * edgeT,
+            y: a.y + (b.y - a.y) * edgeT,
+          };
+        }
+        remaining -= length;
+      }
+      return vertices[0];
     },
   };
 };

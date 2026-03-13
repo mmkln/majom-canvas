@@ -353,7 +353,7 @@ export class UIManager {
     preview.style.border = '2px dashed #22c55e';
     preview.style.background = 'rgba(34, 197, 94, 0.12)';
     preview.style.clipPath =
-      'polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)';
+      'polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)';
     preview.style.pointerEvents = 'none';
     preview.style.display = 'none';
     preview.style.transform = 'translate(-50%, -50%)';

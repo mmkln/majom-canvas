@@ -24,6 +24,10 @@ import { drawStatusAnimationHex } from './utils/statusAnimations.ts';
 export type GoalScale = 1 | 2 | 3;
 
 const DEFAULT_GOAL_SCALE: GoalScale = 1;
+const GOAL_POLYGON_SIDES = 8;
+const GOAL_POLYGON_ANGLE_STEP = (Math.PI * 2) / GOAL_POLYGON_SIDES;
+const GOAL_POLYGON_ANGLE_OFFSET =
+  -Math.PI / 2 - GOAL_POLYGON_ANGLE_STEP / 2;
 const GOAL_SCALE_FACTORS: Record<GoalScale, number> = {
   1: 0.7,
   2: 1,
@@ -118,12 +122,12 @@ export class GoalElement extends PlanningElement {
     const centerX = x + width / 2;
     const centerY = y + height / 2;
     const radius = width / 2;
-    const hexVertices = this.getHexVertices(centerX, centerY, radius);
+    const goalVertices = this.getGoalVertices(centerX, centerY, radius);
 
-    // Background hex
+    // Background polygon
     ctx.fillStyle = fillColor;
     ctx.beginPath();
-    this.drawHexPath(ctx, hexVertices);
+    this.drawGoalPath(ctx, goalVertices);
     ctx.fill();
 
 
@@ -137,7 +141,7 @@ export class GoalElement extends PlanningElement {
           : style.borderColor;
     ctx.lineWidth = this.lineWidth / panZoom.scale;
     ctx.beginPath();
-    this.drawHexPath(ctx, hexVertices);
+    this.drawGoalPath(ctx, goalVertices);
     ctx.stroke();
     if (showAnim) {
       drawStatusAnimationHex({
@@ -203,7 +207,7 @@ export class GoalElement extends PlanningElement {
     const centerX = this.x + this.width / 2;
     const centerY = this.y + this.height / 2;
     const radius = this.width / 2;
-    const vertices = this.getHexVertices(centerX, centerY, radius);
+    const vertices = this.getGoalVertices(centerX, centerY, radius);
     return this.isPointInPolygon(vertices, px, py);
   }
 
@@ -211,7 +215,7 @@ export class GoalElement extends PlanningElement {
     const centerX = this.x + this.width / 2;
     const centerY = this.y + this.height / 2;
     const radius = this.width / 2;
-    const vertices = this.getHexVertices(centerX, centerY, radius);
+    const vertices = this.getGoalVertices(centerX, centerY, radius);
     const ray = { x: Math.cos(angle), y: Math.sin(angle) };
     let closest: { x: number; y: number } | null = null;
     let minT = Infinity;
@@ -246,7 +250,7 @@ export class GoalElement extends PlanningElement {
   getConnectionPoints(): ConnectionPoint[] {
     const centerX = this.x + this.width / 2;
     const centerY = this.y + this.height / 2;
-    const vertices = this.getHexVertices(centerX, centerY, this.width / 2);
+    const vertices = this.getGoalVertices(centerX, centerY, this.width / 2);
     const points: ConnectionPoint[] = [];
     for (let i = 0; i < vertices.length; i += 1) {
       const a = vertices[i];
@@ -287,15 +291,14 @@ export class GoalElement extends PlanningElement {
     editElement$.next(this);
   }
 
-  private getHexVertices(
+  private getGoalVertices(
     centerX: number,
     centerY: number,
     radius: number
   ): Array<{ x: number; y: number }> {
     const vertices: Array<{ x: number; y: number }> = [];
-    const angleOffset = -Math.PI / 2;
-    for (let i = 0; i < 6; i += 1) {
-      const angle = angleOffset + (Math.PI / 3) * i;
+    for (let i = 0; i < GOAL_POLYGON_SIDES; i += 1) {
+      const angle = GOAL_POLYGON_ANGLE_OFFSET + GOAL_POLYGON_ANGLE_STEP * i;
       vertices.push({
         x: centerX + radius * Math.cos(angle),
         y: centerY + radius * Math.sin(angle),
@@ -304,7 +307,7 @@ export class GoalElement extends PlanningElement {
     return vertices;
   }
 
-  private drawHexPath(
+  private drawGoalPath(
     ctx: CanvasRenderingContext2D,
     vertices: Array<{ x: number; y: number }>
   ): void {

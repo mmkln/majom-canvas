@@ -588,7 +588,7 @@ export class CanvasManager {
         const centerY = y + height / 2;
         const radius = Math.min(width, height) / 2;
         this.ctx.beginPath();
-        this.drawHexPath(centerX, centerY, radius);
+        this.drawGoalPath(centerX, centerY, radius);
         this.ctx.fill();
       }
       this.ctx.restore();
@@ -607,17 +607,19 @@ export class CanvasManager {
         const centerX = x + width / 2;
         const centerY = y + height / 2;
         const radius = Math.min(width, height) / 2;
-        this.drawHexPath(centerX, centerY, radius);
+        this.drawGoalPath(centerX, centerY, radius);
       }
       this.ctx.stroke();
       this.ctx.restore();
     });
   }
 
-  private drawHexPath(cx: number, cy: number, radius: number): void {
-    const angleOffset = -Math.PI / 2;
-    for (let i = 0; i < 6; i += 1) {
-      const angle = angleOffset + (Math.PI / 3) * i;
+  private drawGoalPath(cx: number, cy: number, radius: number): void {
+    const sides = 8;
+    const angleStep = (Math.PI * 2) / sides;
+    const angleOffset = -Math.PI / 2 - angleStep / 2;
+    for (let i = 0; i < sides; i += 1) {
+      const angle = angleOffset + angleStep * i;
       const pointX = cx + radius * Math.cos(angle);
       const pointY = cy + radius * Math.sin(angle);
       if (i === 0) {
