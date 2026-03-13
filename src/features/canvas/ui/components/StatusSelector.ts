@@ -99,7 +99,7 @@ export class StatusSelector {
 
     this.panel = document.createElement('div');
     this.panel.className =
-      'absolute left-0 top-[calc(100%+8px)] z-[90] hidden min-w-[176px] max-w-[216px] overflow-hidden rounded-xl border border-slate-200/90 bg-white/98 shadow-[0_10px_22px_rgba(15,23,42,0.10)] backdrop-blur-[1px]';
+      'absolute left-0 top-[calc(100%+8px)] z-[90] hidden min-w-[176px] max-w-[216px] overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-[0_10px_22px_rgba(15,23,42,0.10)]';
 
     this.element.append(
       this.prevBtn,

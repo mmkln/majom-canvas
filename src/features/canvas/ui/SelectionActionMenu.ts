@@ -96,7 +96,7 @@ export class SelectionActionMenu {
   ) {
     this.container = createSurface({
       className:
-        'fixed z-40 hidden translate-x-0 items-center gap-1 rounded-full bg-white/96 p-1.5 pr-2.5 shadow-[0_8px_18px_rgba(15,23,42,0.12)] backdrop-blur-[2px]',
+        'fixed z-40 hidden translate-x-0 items-center gap-1 rounded-full bg-white p-1.5 pr-2.5 shadow-[0_8px_18px_rgba(15,23,42,0.12)]',
     });
 
     this.actionNodes = this.buildActionNodes();

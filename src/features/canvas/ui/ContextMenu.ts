@@ -108,13 +108,13 @@ export class ContextMenu {
     this.bulkActions = new BulkActionsController(scene);
     this.menu = document.createElement('div');
     this.menu.className =
-      'fixed z-50 min-w-[200px] overflow-hidden rounded-xl border border-slate-200 bg-white/95 p-0 text-sm text-slate-800 shadow-[0_18px_42px_rgba(15,23,42,0.18)] backdrop-blur-sm';
+      'fixed z-50 min-w-[200px] overflow-hidden rounded-xl border border-slate-200 bg-white p-0 text-sm text-slate-800 shadow-[0_18px_42px_rgba(15,23,42,0.18)]';
     this.menu.style.display = 'none';
     this.menu.setAttribute('role', 'menu');
 
     this.submenu = document.createElement('div');
     this.submenu.className =
-      'fixed z-[60] min-w-[180px] overflow-hidden rounded-xl border border-slate-200 bg-white/95 p-0 text-sm text-slate-800 shadow-[0_18px_42px_rgba(15,23,42,0.18)] backdrop-blur-sm';
+      'fixed z-[60] min-w-[180px] overflow-hidden rounded-xl border border-slate-200 bg-white p-0 text-sm text-slate-800 shadow-[0_18px_42px_rgba(15,23,42,0.18)]';
     this.submenu.style.display = 'none';
     this.submenu.setAttribute('role', 'menu');
     this.submenu.addEventListener('mouseenter', () => {
