@@ -12,6 +12,7 @@ type HudSplitSecondaryTone =
 
 export type HudSplitDropdownItemOptions = {
   label: string;
+  primaryTooltip?: string;
   variant?: HudMenuItemVariant;
   tone?: HudDropdownItemTone;
   className?: string;
@@ -75,6 +76,7 @@ export function createHudSplitDropdownItem(
 
   const primary = createHudDropdownItem({
     label: options.label,
+    tooltip: options.primaryTooltip,
     variant: options.variant,
     tone: options.tone,
     className:

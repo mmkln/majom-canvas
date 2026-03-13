@@ -400,6 +400,7 @@ export class CanvasBoardSelector {
     const shouldIndentGroup = canvas.group && options?.noGroupIndent !== true;
     return createSplitDropdownItem({
       label: canvas.name,
+      primaryTooltip: canvas.name,
       variant: isActive ? 'selected' : 'default',
       tone: 'default',
       primaryTransparent: !isActive,

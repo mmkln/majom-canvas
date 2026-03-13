@@ -22,6 +22,7 @@ type HudDropdownItemOptions = {
   tone?: HudDropdownItemTone;
   active?: boolean;
   disabled?: boolean;
+  tooltip?: string;
   className?: string;
   leading?: HTMLElement | null;
   trailing?: HTMLElement | null;
@@ -48,6 +49,11 @@ export function createHudDropdownItem(
   const button = document.createElement('button');
   button.setAttribute('data-component', 'HudDropdownItem');
   button.type = 'button';
+  const tooltip =
+    typeof options.tooltip === 'string' ? options.tooltip.trim() : '';
+  if (tooltip.length > 0) {
+    button.title = tooltip;
+  }
   const explicitVariant = options.variant;
   const fallbackVariant = options.active
     ? 'selected'
