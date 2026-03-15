@@ -87,7 +87,7 @@ export function createModalShell(
 
   if (options?.subtitle) {
     const subtitleEl = document.createElement('p');
-    subtitleEl.className = 'mt-1 text-sm leading-5 text-slate-600';
+    subtitleEl.className = 'mt-1 text-sm leading-5 text-slate-500';
     subtitleEl.textContent = options.subtitle;
     const subtitleId = `modal-subtitle-${Math.random().toString(36).slice(2, 11)}`;
     subtitleEl.id = subtitleId;
