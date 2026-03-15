@@ -4,6 +4,7 @@ export type HudToggleSwitchOptions = {
   disabled?: boolean;
   className?: string;
   labelClassName?: string;
+  togglePosition?: 'left' | 'right';
   onChange?: (checked: boolean, event: Event) => void;
 };
 
@@ -13,6 +14,7 @@ export function createHudToggleSwitch(
   const root = document.createElement('label');
   root.setAttribute('data-component', 'HudToggleSwitch');
   const disabled = options.disabled === true;
+  const togglePosition = options.togglePosition ?? 'left';
   root.className =
     `inline-flex w-full items-center px-4 py-3 ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${options.className ?? ''}`.trim();
 
@@ -32,7 +34,7 @@ export function createHudToggleSwitch(
 
   const text = document.createElement('span');
   text.className =
-    `ms-3 select-none text-sm font-medium text-heading text-slate-700 ${options.labelClassName ?? ''}`.trim();
+    `${togglePosition === 'right' ? 'me-3' : 'ms-3'} select-none text-sm font-medium text-heading text-slate-700 ${options.labelClassName ?? ''}`.trim();
   text.textContent = options.label;
 
   input.addEventListener('change', (event) => {
@@ -42,7 +44,11 @@ export function createHudToggleSwitch(
     options.onChange?.(checked, event);
   });
 
-  root.append(input, track, text);
+  if (togglePosition === 'right') {
+    text.classList.add('flex-1');
+    root.append(input, text, track);
+  } else {
+    root.append(input, track, text);
+  }
   return root;
 }
-

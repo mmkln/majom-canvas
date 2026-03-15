@@ -177,6 +177,7 @@ export class CanvasMenu {
     const animationsToggle = createToggleSwitch({
       label: 'Canvas animations',
       labelClassName: '!font-normal',
+      togglePosition: 'right',
       checked: this.animationsEnabled,
       onChange: (checked) => this.handleAnimationsToggle(checked),
     });
