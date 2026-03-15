@@ -5,10 +5,10 @@ import { ScrollbarManager } from './ScrollbarManager.ts';
 import { CanvasRenderer } from './CanvasRenderer.ts';
 import { InteractionManager } from './InteractionManager.ts';
 import { KeyboardManager } from './KeyboardManager.ts';
-import { isShape } from '../utils/typeGuards.ts';
 import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
 import type { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
 import type { IShape } from '../interfaces/shape.ts';
+import type { IConnectable } from '../interfaces/connectable.ts';
 import {
   ConnectionRelationType,
   type IConnection,
@@ -26,6 +26,8 @@ import {
   SHOW_TASK_TEXT_SCALE,
   SHOW_ANIM_SCALE,
   TASK_DROP_PLACEHOLDER_FILL,
+  SMART_GUIDE_COLOR,
+  SMART_GUIDE_LINE_WIDTH,
 } from '../constants.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
 import { GoalElement } from '../../elements/GoalElement.ts';
@@ -35,6 +37,7 @@ import { getBoundingBox } from '../utils/geometryUtils.ts';
 import { hasStatusAnimation } from '../../elements/utils/statusAnimations.ts';
 import { CANVAS_PERF_LOG } from '../../../../config/env/index.ts';
 import { isCircleVisible, isRectVisible } from '../utils/viewBounds.ts';
+import { drawSmartGuides } from '../utils/smartGuideRenderer.ts';
 import { BehaviorSubject, Subject, Subscription } from 'rxjs';
 import { CanvasClientStorage } from '../services/CanvasClientStorage.ts';
 import type {
@@ -46,10 +49,19 @@ type CanvasLoadingPlaceholderRenderState = CanvasLoadingPlaceholder & {
   isFocused: boolean;
 };
 
+type ViewBounds = {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+};
+
 export type CanvasLoadingElementPreview = CanvasLoadingPlaceholderRenderState;
 
 export class CanvasManager {
   canvas: HTMLCanvasElement;
+  private backgroundCanvas: HTMLCanvasElement | null = null;
+  private backgroundCtx: CanvasRenderingContext2D | null = null;
   scene: Scene;
   ctx: CanvasRenderingContext2D;
 
@@ -101,10 +113,15 @@ export class CanvasManager {
   private pinchZoomCenterScene: { x: number; y: number } | null = null;
   private animationFrameId: number | null = null;
   private isAnimationRunning: boolean = false;
+  private readonly animationFpsCap = 45;
+  private readonly animationFrameIntervalMs = 1000 / this.animationFpsCap;
+  private nextAnimationFrameAtMs: number = 0;
+  private readonly cullPaddingPx = 96;
   private drawQueued: boolean = false;
   private animationTimeMs: number = 0;
   private lastAnimationFrameMs: number = 0;
   private animationsEnabled: boolean = true;
+  private smartGuidesEnabled: boolean = true;
   private readonly enablePerfLogging: boolean = CANVAS_PERF_LOG;
   private readonly perfLogIntervalMs: number = 1000;
   private perfStats = {
@@ -118,6 +135,13 @@ export class CanvasManager {
   private cachedShapes: IShape[] = [];
   private cachedPlanningElements: IPlanningElement[] = [];
   private cachedPlanningElementsSorted: IPlanningElement[] = [];
+  private cachedTaskElements: TaskElement[] = [];
+  private cachedGoalElements: GoalElement[] = [];
+  private cachedConnectables: IConnectable[] = [];
+  private cachedConnectableLookup: Map<string, IConnectable> = new Map();
+  private readonly visibleConnectionsBuffer: IConnection[] = [];
+  private readonly highlightedElementIds: Set<string> = new Set<string>();
+  private goalProgressDirty = true;
   private loadingPlaceholders: CanvasLoadingPlaceholderRenderState[] = [];
   private readonly loadingPlaceholdersChangesSubject: Subject<void> =
     new Subject<void>();
@@ -162,15 +186,21 @@ export class CanvasManager {
     this.canvas.style.touchAction = 'none';
     this.canvas.style.userSelect = 'none';
     this.scene = scene;
+    this.scene.getHighlightedElementIds().forEach((id) =>
+      this.highlightedElementIds.add(id)
+    );
     this.animationsEnabled = CanvasClientStorage.getCanvasAnimationsEnabled(
       true
     );
+    this.smartGuidesEnabled =
+      CanvasClientStorage.getCanvasSmartGuidesEnabled(true);
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Canvas 2D context not available');
     this.ctx = ctx;
 
+    this.setupBackgroundLayer();
     this.panZoom = new PanZoomManager(canvas);
-    this.renderer = new CanvasRenderer(this.ctx, this.panZoom);
+    this.renderer = new CanvasRenderer(this.panZoom);
     this.scrollbarManager = new ScrollbarManager(
       canvas,
       this.ctx,
@@ -181,16 +211,22 @@ export class CanvasManager {
       scene,
       this.panZoom
     );
+    this.interactionManager.setSmartGuidesEnabled(this.smartGuidesEnabled);
     this.keyboardManager = new KeyboardManager(scene, this);
 
-    this.sceneChangesSubscription = this.scene.changes.subscribe(() =>
-      this.requestDraw()
-    );
+    this.sceneChangesSubscription = this.scene.changes.subscribe(() => {
+      this.goalProgressDirty = true;
+      this.requestDraw();
+    });
     this.sceneFocusChangesSubscription = this.scene.focusChanges.subscribe(() =>
       this.requestDraw()
     );
     this.sceneHighlightChangesSubscription =
-      this.scene.highlightChanges.subscribe(() => this.requestDraw());
+      this.scene.highlightChanges.subscribe(({ addedIds, removedIds }) => {
+        addedIds.forEach((id) => this.highlightedElementIds.add(id));
+        removedIds.forEach((id) => this.highlightedElementIds.delete(id));
+        this.requestDraw();
+      });
 
     this.canvas.addEventListener('wheel', this.wheelHandler);
     window.addEventListener('resize', this.resizeHandler);
@@ -274,13 +310,30 @@ export class CanvasManager {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
     }
+    this.renderer.clearBackgroundCache();
+    if (this.backgroundCanvas) {
+      this.backgroundCanvas.remove();
+      this.backgroundCanvas = null;
+      this.backgroundCtx = null;
+    }
     this.isAnimationRunning = false;
     this.drawQueued = false;
   }
 
   resizeCanvas(): void {
-    this.canvas.width = window.innerWidth - 2;
-    this.canvas.height = window.innerHeight - 2;
+    const width = Math.max(1, window.innerWidth - 2);
+    const height = Math.max(1, window.innerHeight - 2);
+    this.canvas.width = width;
+    this.canvas.height = height;
+    this.canvas.style.width = `${width}px`;
+    this.canvas.style.height = `${height}px`;
+    if (this.backgroundCanvas) {
+      this.backgroundCanvas.width = width;
+      this.backgroundCanvas.height = height;
+      this.backgroundCanvas.style.width = `${width}px`;
+      this.backgroundCanvas.style.height = `${height}px`;
+    }
+    this.renderer.invalidateBackground();
     this.requestDraw();
   }
 
@@ -309,6 +362,7 @@ export class CanvasManager {
       maxX: viewMaxX,
       maxY: viewMaxY,
     };
+    const cullBounds = this.expandViewBounds(this.panZoom.viewBounds);
     this.panZoom.renderFlags = {
       showDetails: this.panZoom.scale >= SHOW_DETAILS_SCALE,
       showTaskText: this.panZoom.scale >= SHOW_TASK_TEXT_SCALE,
@@ -316,12 +370,22 @@ export class CanvasManager {
       showGoalText: this.panZoom.scale >= SHOW_GOAL_TEXT_SCALE,
       showAnim: this.animationsEnabled && this.panZoom.scale >= SHOW_ANIM_SCALE,
     };
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    if (this.backgroundCtx) {
+      this.renderer.drawBackground(
+        this.backgroundCtx,
+        this.canvas.width,
+        this.canvas.height
+      );
+      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    } else {
+      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      // Fallback path if layered background cannot be created in the DOM.
+      this.renderer.invalidateBackground();
+      this.renderer.drawBackground(this.ctx, this.canvas.width, this.canvas.height);
+    }
     this.ctx.save();
     this.ctx.translate(-this.panZoom.scrollX, -this.panZoom.scrollY);
     this.ctx.scale(this.panZoom.scale, this.panZoom.scale);
-
-    this.renderer.drawContent();
     this.drawLoadingPlaceholders();
 
     const elementsVersion = this.scene.getElementsVersion();
@@ -334,37 +398,50 @@ export class CanvasManager {
       this.cachedPlanningElementsSorted = [...this.cachedPlanningElements].sort(
         (a, b) => a.zIndex - b.zIndex
       );
+      this.cachedTaskElements = [];
+      this.cachedGoalElements = [];
+      this.cachedPlanningElements.forEach((element) => {
+        if (element instanceof TaskElement) {
+          this.cachedTaskElements.push(element);
+        } else if (element instanceof GoalElement) {
+          this.cachedGoalElements.push(element);
+        }
+      });
+      this.cachedConnectables = [...this.cachedShapes, ...this.cachedPlanningElements];
+      this.cachedConnectableLookup = this.buildConnectableLookup(
+        this.cachedConnectables
+      );
+      this.goalProgressDirty = true;
       this.cachedElementsVersion = elementsVersion;
     }
     const shapes = this.cachedShapes;
     const planningEls = this.cachedPlanningElements;
     const planningElsSorted = this.cachedPlanningElementsSorted;
     const focusedId = this.scene.getFocusedElementId();
-    const highlightedIds = new Set(this.scene.getHighlightedElementIds());
     planningEls.forEach((element) => {
       element.focused = element.id === focusedId;
-      element.highlighted = highlightedIds.has(element.id);
+      element.highlighted = this.highlightedElementIds.has(element.id);
     });
-    const connectables = [...shapes, ...planningEls];
+    const connectables = this.cachedConnectables;
 
     const connections = this.scene.getConnections();
-    const viewBounds = this.panZoom.viewBounds;
-    const isVisible = (el: any): boolean => {
-      if (!viewBounds) return true;
-      if (typeof el.width === 'number' && typeof el.height === 'number') {
-        return isRectVisible(viewBounds, el.x, el.y, el.width, el.height);
-      }
-      if (typeof el.radius === 'number') {
-        return isCircleVisible(viewBounds, el.x, el.y, el.radius);
-      }
-      return true;
-    };
-    const animatedElements = planningEls.filter(
-      (el) => 'status' in el && hasStatusAnimation((el as any).status)
+    const visibleConnections = this.collectVisibleConnections(
+      connections,
+      this.cachedConnectableLookup,
+      cullBounds
     );
-    const animatedVisible = animatedElements.filter((el) => isVisible(el));
-    const hasAnimatedStatus = animatedVisible.length > 0;
-    const hasAnimatedConnections = connections.some(
+    let animatedTotal = 0;
+    let animatedVisibleCount = 0;
+    planningEls.forEach((element) => {
+      if (!('status' in element) || !hasStatusAnimation((element as any).status))
+        return;
+      animatedTotal += 1;
+      if (this.isElementVisible(element, cullBounds)) {
+        animatedVisibleCount += 1;
+      }
+    });
+    const hasAnimatedStatus = animatedVisibleCount > 0;
+    const hasAnimatedConnections = visibleConnections.some(
       (conn) =>
         conn.relationType === ConnectionRelationType.LeadsTo ||
         conn.relationType === ConnectionRelationType.ParentChild
@@ -375,35 +452,13 @@ export class CanvasManager {
         (this.panZoom.renderFlags.showAnim && hasAnimatedStatus));
     this.updateAnimationLoop(shouldAnimate);
 
-    // Update goal links and progress (only track task relations)
-    planningEls
-      .filter((el) => el instanceof GoalElement)
-      .forEach((goal: GoalElement) => {
-        const linkedIds = connections
-          .map((c) => ({
-            from: c.fromId,
-            to: c.toId,
-          }))
-          .filter((c) => c.from === goal.id || c.to === goal.id)
-          .map((c) => (c.from === goal.id ? c.to : c.from));
-        const taskEls = planningEls.filter(
-          (el) => el instanceof TaskElement
-        ) as TaskElement[];
-        const taskIds = new Set(taskEls.map((t) => t.id));
-        goal.links = Array.from(new Set(linkedIds)).filter((id) =>
-          taskIds.has(id)
-        );
-        const linkedTasks = taskEls.filter(
-          (t) => goal.links.indexOf(t.id) !== -1
-        );
-        goal.progress = linkedTasks.length
-          ? linkedTasks.filter((t) => t.status === 'done').length /
-            linkedTasks.length
-          : 0;
-      });
+    this.updateGoalLinksAndProgressIfNeeded(connections);
 
     // draw shapes
-    shapes.forEach((shape) => shape.draw(this.ctx, this.panZoom));
+    shapes.forEach((shape) => {
+      if (!this.isElementVisible(shape, cullBounds)) return;
+      shape.draw(this.ctx, this.panZoom);
+    });
 
     const resizePreviewByStoryId = new Map(
       this.interactionManager
@@ -418,6 +473,13 @@ export class CanvasManager {
       if (el instanceof StoryElement) {
         const preview = resizePreviewByStoryId.get(el.id);
         if (preview && preview.previewHeight > el.height) {
+          if (
+            !this.isElementVisible(el, cullBounds, {
+              height: preview.previewHeight,
+            })
+          ) {
+            return;
+          }
           this.drawPlanningElementWithOverrides(el, {
             height: preview.previewHeight,
           });
@@ -427,6 +489,14 @@ export class CanvasManager {
       if (el instanceof TaskElement) {
         const preview = taskReflowPreviewByTaskId.get(el.id);
         if (preview) {
+          if (
+            !this.isElementVisible(el, cullBounds, {
+              x: preview.x,
+              y: preview.y,
+            })
+          ) {
+            return;
+          }
           this.drawPlanningElementWithOverrides(el, {
             x: preview.x,
             y: preview.y,
@@ -434,6 +504,7 @@ export class CanvasManager {
           return;
         }
       }
+      if (!this.isElementVisible(el, cullBounds)) return;
       el.draw(this.ctx, this.panZoom);
     });
 
@@ -487,7 +558,7 @@ export class CanvasManager {
     }
 
     // draw connections between all connectable elements
-    (this.scene.getConnections() as IConnection[]).forEach((conn) => {
+    visibleConnections.forEach((conn) => {
       (conn as any).draw(this.ctx, this.panZoom, connectables);
     });
 
@@ -514,6 +585,15 @@ export class CanvasManager {
       this.ctx.stroke();
       this.ctx.restore();
     }
+
+    const smartGuideLines = this.interactionManager.getSmartGuideLines();
+    drawSmartGuides({
+      ctx: this.ctx,
+      guides: smartGuideLines,
+      scale: this.panZoom.scale,
+      color: SMART_GUIDE_COLOR,
+      lineWidth: SMART_GUIDE_LINE_WIDTH,
+    });
 
     // draw bounding box for multiple selected elements using geometryUtils
     const selectedEls = this.scene.getSelectedElements() as any[];
@@ -560,8 +640,8 @@ export class CanvasManager {
     this.scrollbarManager.drawScrollbars();
     this.updatePerfStats(
       performance.now() - frameStartMs,
-      animatedElements.length,
-      animatedVisible.length
+      animatedTotal,
+      animatedVisibleCount
     );
   }
 
@@ -643,35 +723,278 @@ export class CanvasManager {
     this.ctx.closePath();
   }
 
+  private setupBackgroundLayer(): void {
+    const parent = this.canvas.parentElement;
+    if (!parent) return;
+    const backgroundCanvas = document.createElement('canvas');
+    const backgroundCtx = backgroundCanvas.getContext('2d');
+    if (!backgroundCtx) return;
+
+    const parentStyle = window.getComputedStyle(parent);
+    if (parentStyle.position === 'static') {
+      parent.style.position = 'relative';
+    }
+
+    this.canvas.style.position = 'absolute';
+    this.canvas.style.left = '0';
+    this.canvas.style.top = '0';
+    this.canvas.style.zIndex = '1';
+
+    backgroundCanvas.style.position = 'absolute';
+    backgroundCanvas.style.left = '0';
+    backgroundCanvas.style.top = '0';
+    backgroundCanvas.style.zIndex = '0';
+    backgroundCanvas.style.pointerEvents = 'none';
+    backgroundCanvas.style.border = 'none';
+    backgroundCanvas.style.display = 'block';
+
+    parent.insertBefore(backgroundCanvas, this.canvas);
+    this.backgroundCanvas = backgroundCanvas;
+    this.backgroundCtx = backgroundCtx;
+  }
+
   private getElementBounds(
-    element: any
+    element: any,
+    overrides: Partial<{
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      radius: number;
+    }> = {}
   ): { x: number; y: number; width: number; height: number } | null {
+    const x = overrides.x ?? element?.x;
+    const y = overrides.y ?? element?.y;
+    const width = overrides.width ?? element?.width;
+    const height = overrides.height ?? element?.height;
+    const radius = overrides.radius ?? element?.radius;
+
     if (
-      typeof element?.x === 'number' &&
-      typeof element?.y === 'number' &&
-      typeof element?.width === 'number' &&
-      typeof element?.height === 'number'
+      typeof x === 'number' &&
+      typeof y === 'number' &&
+      typeof width === 'number' &&
+      typeof height === 'number'
     ) {
       return {
-        x: element.x,
-        y: element.y,
-        width: element.width,
-        height: element.height,
+        x,
+        y,
+        width,
+        height,
       };
     }
     if (
-      typeof element?.x === 'number' &&
-      typeof element?.y === 'number' &&
-      typeof element?.radius === 'number'
+      typeof x === 'number' &&
+      typeof y === 'number' &&
+      typeof radius === 'number'
     ) {
       return {
-        x: element.x - element.radius,
-        y: element.y - element.radius,
-        width: element.radius * 2,
-        height: element.radius * 2,
+        x: x - radius,
+        y: y - radius,
+        width: radius * 2,
+        height: radius * 2,
       };
     }
     return null;
+  }
+
+  private isElementVisible(
+    element: any,
+    viewBounds: ViewBounds | null,
+    overrides: Partial<{
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      radius: number;
+    }> = {}
+  ): boolean {
+    if (!viewBounds) return true;
+    const bounds = this.getElementBounds(element, overrides);
+    if (!bounds) return true;
+    return isRectVisible(
+      viewBounds,
+      bounds.x,
+      bounds.y,
+      bounds.width,
+      bounds.height
+    );
+  }
+
+  private expandViewBounds(viewBounds: ViewBounds | null): ViewBounds | null {
+    if (!viewBounds) return null;
+    const scale = this.panZoom.scale || 1;
+    const padding = this.cullPaddingPx / scale;
+    return {
+      minX: viewBounds.minX - padding,
+      minY: viewBounds.minY - padding,
+      maxX: viewBounds.maxX + padding,
+      maxY: viewBounds.maxY + padding,
+    };
+  }
+
+  private buildConnectableLookup(
+    connectables: IConnectable[]
+  ): Map<string, IConnectable> {
+    const lookup = new Map<string, IConnectable>();
+    connectables.forEach((connectable) => {
+      lookup.set(connectable.id, connectable);
+      const uuid = (connectable as { uuid?: string }).uuid;
+      if (uuid) {
+        lookup.set(uuid, connectable);
+      }
+    });
+    return lookup;
+  }
+
+  private collectVisibleConnections(
+    connections: IConnection[],
+    connectableLookup: Map<string, IConnectable>,
+    viewBounds: ViewBounds | null
+  ): IConnection[] {
+    this.visibleConnectionsBuffer.length = 0;
+    connections.forEach((connection) => {
+      if (!this.isConnectionVisible(connection, connectableLookup, viewBounds))
+        return;
+      this.visibleConnectionsBuffer.push(connection);
+    });
+    return this.visibleConnectionsBuffer;
+  }
+
+  private getConnectionCurveBounds(
+    connection: IConnection,
+    from: IConnectable,
+    to: IConnectable
+  ): { x: number; y: number; width: number; height: number } | null {
+    const curveConnection = connection as IConnection & {
+      getCurvePoints?: (
+        source: IConnectable,
+        target: IConnectable
+      ) => {
+        start: { x: number; y: number };
+        end: { x: number; y: number };
+        cp1: { x: number; y: number };
+        cp2: { x: number; y: number };
+        isBezier: boolean;
+      };
+    };
+
+    if (typeof curveConnection.getCurvePoints !== 'function') {
+      const fromBounds = this.getElementBounds(from);
+      const toBounds = this.getElementBounds(to);
+      if (!fromBounds || !toBounds) return null;
+      const minX = Math.min(fromBounds.x, toBounds.x);
+      const minY = Math.min(fromBounds.y, toBounds.y);
+      const maxX = Math.max(
+        fromBounds.x + fromBounds.width,
+        toBounds.x + toBounds.width
+      );
+      const maxY = Math.max(
+        fromBounds.y + fromBounds.height,
+        toBounds.y + toBounds.height
+      );
+      return {
+        x: minX,
+        y: minY,
+        width: Math.max(1, maxX - minX),
+        height: Math.max(1, maxY - minY),
+      };
+    }
+
+    const curve = curveConnection.getCurvePoints(from, to);
+    const controlPoints =
+      connection.relationType === ConnectionRelationType.LeadsTo ||
+      connection.relationType === ConnectionRelationType.ParentChild
+        ? [curve.start, curve.end]
+        : [curve.start, curve.end, curve.cp1, curve.cp2];
+    const xs = controlPoints.map((point) => point.x);
+    const ys = controlPoints.map((point) => point.y);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    const maxX = Math.max(...xs);
+    const maxY = Math.max(...ys);
+    return {
+      x: minX,
+      y: minY,
+      width: Math.max(1, maxX - minX),
+      height: Math.max(1, maxY - minY),
+    };
+  }
+
+  private isConnectionVisible(
+    connection: IConnection,
+    connectableLookup: Map<string, IConnectable>,
+    viewBounds: ViewBounds | null
+  ): boolean {
+    if (!viewBounds) return true;
+    const from = connectableLookup.get(connection.fromId);
+    const to = connectableLookup.get(connection.toId);
+    if (!from || !to) return false;
+
+    // Keep the connection visible when one side is on screen and the other is off screen.
+    if (
+      this.isElementVisible(from, viewBounds) ||
+      this.isElementVisible(to, viewBounds)
+    ) {
+      return true;
+    }
+
+    const curveBounds = this.getConnectionCurveBounds(connection, from, to);
+    if (!curveBounds) return true;
+    return isRectVisible(
+      viewBounds,
+      curveBounds.x,
+      curveBounds.y,
+      curveBounds.width,
+      curveBounds.height
+    );
+  }
+
+  private updateGoalLinksAndProgressIfNeeded(connections: IConnection[]): void {
+    if (!this.goalProgressDirty) return;
+    this.goalProgressDirty = false;
+    if (this.cachedGoalElements.length === 0) return;
+
+    const taskIds = new Set<string>();
+    const taskDoneIds = new Set<string>();
+    this.cachedTaskElements.forEach((task) => {
+      taskIds.add(task.id);
+      if (task.status === 'done') {
+        taskDoneIds.add(task.id);
+      }
+    });
+
+    const goalTaskLinks = new Map<string, Set<string>>();
+    connections.forEach((connection) => {
+      const from = this.cachedConnectableLookup.get(connection.fromId);
+      const to = this.cachedConnectableLookup.get(connection.toId);
+      if (!from || !to) return;
+      const goal = from instanceof GoalElement ? from : to instanceof GoalElement ? to : null;
+      const task = from instanceof TaskElement ? from : to instanceof TaskElement ? to : null;
+      if (!goal || !task) return;
+      if (!taskIds.has(task.id)) return;
+      if (!goalTaskLinks.has(goal.id)) {
+        goalTaskLinks.set(goal.id, new Set<string>());
+      }
+      goalTaskLinks.get(goal.id)!.add(task.id);
+    });
+
+    this.cachedGoalElements.forEach((goal) => {
+      const linkedTaskIds = goalTaskLinks.get(goal.id);
+      if (!linkedTaskIds || linkedTaskIds.size === 0) {
+        goal.links = [];
+        goal.progress = 0;
+        return;
+      }
+      const links = Array.from(linkedTaskIds);
+      goal.links = links;
+      let doneCount = 0;
+      links.forEach((taskId) => {
+        if (taskDoneIds.has(taskId)) {
+          doneCount += 1;
+        }
+      });
+      goal.progress = doneCount / links.length;
+    });
   }
 
   private requestDraw(): void {
@@ -734,9 +1057,19 @@ export class CanvasManager {
     if (this.isAnimationRunning) return;
     if (!this.animationsEnabled) return;
     this.isAnimationRunning = true;
-    const tick = (): void => {
+    const tick = (now: number): void => {
       if (!this.isAnimationRunning) return;
-      this.draw();
+      if (this.nextAnimationFrameAtMs === 0) {
+        this.nextAnimationFrameAtMs = now;
+      }
+      if (now >= this.nextAnimationFrameAtMs) {
+        this.draw();
+        const behindBy = now - this.nextAnimationFrameAtMs;
+        const stepsToAdvance =
+          Math.floor(behindBy / this.animationFrameIntervalMs) + 1;
+        this.nextAnimationFrameAtMs +=
+          stepsToAdvance * this.animationFrameIntervalMs;
+      }
       this.animationFrameId = requestAnimationFrame(tick);
     };
     this.animationFrameId = requestAnimationFrame(tick);
@@ -749,6 +1082,7 @@ export class CanvasManager {
     }
     this.animationFrameId = null;
     this.isAnimationRunning = false;
+    this.nextAnimationFrameAtMs = 0;
   }
 
   private updateAnimationLoop(shouldAnimate: boolean): void {
@@ -763,6 +1097,10 @@ export class CanvasManager {
     return this.animationsEnabled;
   }
 
+  public getSmartGuidesEnabled(): boolean {
+    return this.smartGuidesEnabled;
+  }
+
   public setAnimationsEnabled(enabled: boolean): void {
     if (this.animationsEnabled === enabled) return;
     this.animationsEnabled = enabled;
@@ -772,6 +1110,14 @@ export class CanvasManager {
       this.lastAnimationFrameMs = 0;
       this.stopAnimationLoop();
     }
+    this.requestDraw();
+  }
+
+  public setSmartGuidesEnabled(enabled: boolean): void {
+    if (this.smartGuidesEnabled === enabled) return;
+    this.smartGuidesEnabled = enabled;
+    CanvasClientStorage.setCanvasSmartGuidesEnabled(enabled);
+    this.interactionManager.setSmartGuidesEnabled(enabled);
     this.requestDraw();
   }
 
@@ -879,7 +1225,9 @@ export class CanvasManager {
       this.panZoom.setScroll(this.panZoom.scrollX, nextScrollY);
       this.requestDraw();
     } else {
-      this.interactionManager.handleMouseMove(sceneX, sceneY);
+      this.interactionManager.handleMouseMove(sceneX, sceneY, {
+        disableSmartSnap: e.altKey,
+      });
       this.requestDraw();
     }
   }

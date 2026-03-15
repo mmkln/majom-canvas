@@ -86,6 +86,9 @@ export class UIManager {
       initialAnimationsEnabled: this.canvasManager.getAnimationsEnabled(),
       onAnimationsToggle: (enabled) =>
         this.canvasManager.setAnimationsEnabled(enabled),
+      initialSmartGuidesEnabled: this.canvasManager.getSmartGuidesEnabled(),
+      onSmartGuidesToggle: (enabled) =>
+        this.canvasManager.setSmartGuidesEnabled(enabled),
     });
     const saveControls = new SaveControls(canvasMenu);
     this.addExistingTaskService = new AddExistingTaskService(

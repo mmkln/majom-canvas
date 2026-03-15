@@ -25,6 +25,22 @@ import {
   type TaskDropPlaceholder,
   type TaskReflowPreview,
 } from '../services/StoryDragPreviewService.ts';
+import {
+  SmartAlignmentService,
+  createAlignmentRect,
+  type SmartAlignmentRect,
+  type SmartAlignmentCandidate,
+  type SmartGuideLine,
+  getElementAlignmentRect,
+} from '../services/SmartAlignmentService.ts';
+import {
+  SMART_GUIDES_CANDIDATE_BUFFER_PX,
+  SMART_GUIDES_MAX_DISTANCE_PX,
+  SMART_GUIDES_MAX_LINE_LENGTH_PX,
+  SMART_GUIDES_MIN_LINE_LENGTH_PX,
+  SMART_GUIDES_RELEASE_PX,
+  SMART_GUIDES_THRESHOLD_PX,
+} from '../config/smartGuides.ts';
 import type { IDraggable } from '../interfaces/draggable.ts';
 import { getBoundingBox } from '../utils/geometryUtils.ts';
 import { emitTaskStoryLinkSet } from '../canvasLinkLifecycle.ts';
@@ -75,6 +91,17 @@ export class InteractionManager {
   private storyDropPlans: Map<string, StoryDropPlan> = new Map();
   private storyResizePreviews: StoryResizePreview[] = [];
   private taskReflowPreviews: Map<string, TaskReflowPreview> = new Map();
+  private readonly smartAlignmentService = new SmartAlignmentService();
+  private smartGuideLines: SmartGuideLine[] = [];
+  private smartGuidesEnabled: boolean = true;
+  private snappedVerticalGuide: Extract<
+    SmartGuideLine,
+    { orientation: 'vertical' }
+  > | null = null;
+  private snappedHorizontalGuide: Extract<
+    SmartGuideLine,
+    { orientation: 'horizontal' }
+  > | null = null;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -100,6 +127,7 @@ export class InteractionManager {
   // Очищаємо стан створення зв’язку (наприклад, для скасування через Esc)
   public cancelConnectionCreation(): void {
     this.connectionService.cancel();
+    this.clearSmartGuides();
     this.scene.changes.next();
   }
 
@@ -214,6 +242,7 @@ export class InteractionManager {
 
   handleMouseDown(e: MouseEvent, sceneX: number, sceneY: number): boolean {
     this.clearTaskDropPreviewState();
+    this.clearSmartGuides();
     if (e.button === 2) {
       this.rightClickTarget = this.findTopElementAt(sceneX, sceneY);
       this.rightClickSceneX = sceneX;
@@ -360,9 +389,15 @@ export class InteractionManager {
     return false;
   }
 
-  handleMouseMove(sceneX: number, sceneY: number): void {
+  handleMouseMove(
+    sceneX: number,
+    sceneY: number,
+    options: { disableSmartSnap?: boolean } = {}
+  ): void {
+    const disableSmartSnap = options.disableSmartSnap === true;
     if (!this.draggingItem && !this.draggingGroup) {
       this.clearTaskDropPreviewState();
+      this.clearSmartGuides();
     }
     const rawShapes = this.scene.getShapes();
     const planningEls = this.scene
@@ -413,6 +448,7 @@ export class InteractionManager {
     // connection creation update via service
     if (this.connectionService.isCreating()) {
       this.clearTaskDropPreviewState();
+      this.clearSmartGuides();
       this.connectionService.update(sceneX, sceneY);
       return;
     }
@@ -496,6 +532,21 @@ export class InteractionManager {
         }
       });
       this.updateTaskDropPlaceholders(sceneX, sceneY);
+      const shouldSuppressSmartSnap = this.shouldSuppressSmartSnapForTaskDrop();
+      if (shouldSuppressSmartSnap) {
+        this.clearSmartGuides();
+      } else {
+        const snap = this.updateSmartGuidesForElements(this.draggingGroup, {
+          allowSnap: !disableSmartSnap,
+        });
+        if (snap.snapOffsetX !== 0 || snap.snapOffsetY !== 0) {
+          this.draggingGroup.forEach((el) => {
+            const element = el as any;
+            element.x += snap.snapOffsetX;
+            element.y += snap.snapOffsetY;
+          });
+        }
+      }
       this.scene.changes.next();
       return;
     }
@@ -503,6 +554,7 @@ export class InteractionManager {
     // update region-select drag
     if (this.isRegionSelecting) {
       this.clearTaskDropPreviewState();
+      this.clearSmartGuides();
       this.regionCurrentX = sceneX;
       this.regionCurrentY = sceneY;
       // compute current region rectangle
@@ -557,10 +609,30 @@ export class InteractionManager {
             const newY = origin.y + dy;
             (elem as any).x = newX;
             (elem as any).y = newY;
-            if ((elem as any).onDrag) (elem as any).onDrag(newX, newY);
           }
         });
         this.updateTaskDropPlaceholders(sceneX, sceneY);
+        const shouldSuppressSmartSnap = this.shouldSuppressSmartSnapForTaskDrop();
+        if (shouldSuppressSmartSnap) {
+          this.clearSmartGuides();
+        } else {
+          const snap = this.updateSmartGuidesForElements(dragGroup, {
+            allowSnap: !disableSmartSnap,
+          });
+          if (snap.snapOffsetX !== 0 || snap.snapOffsetY !== 0) {
+            dragGroup.forEach((elem) => {
+              const element = elem as any;
+              element.x += snap.snapOffsetX;
+              element.y += snap.snapOffsetY;
+            });
+          }
+        }
+        dragGroup.forEach((elem) => {
+          const element = elem as any;
+          if (element.onDrag) {
+            element.onDrag(element.x, element.y);
+          }
+        });
         this.scene.changes.next();
       }
       return;
@@ -569,6 +641,7 @@ export class InteractionManager {
     // handle resizing
     if (this.resizingElement && this.resizeDirection) {
       this.clearTaskDropPreviewState();
+      this.clearSmartGuides();
       const dx = sceneX - this.resizeStartX;
       const dy = sceneY - this.resizeStartY;
       let newW = this.initialWidth;
@@ -626,6 +699,7 @@ export class InteractionManager {
     // finish connection via service
     if (this.connectionService.isCreating()) {
       this.clearTaskDropPreviewState();
+      this.clearSmartGuides();
       this.connectionService.finish();
       return;
     }
@@ -676,6 +750,7 @@ export class InteractionManager {
       this.isRegionSelecting = false;
       this.scene.changes.next();
       this.clearTaskDropPreviewState();
+      this.clearSmartGuides();
       this.notifyInteractionEnd('select');
       return;
     }
@@ -731,6 +806,7 @@ export class InteractionManager {
       this.initialPositions.clear();
       this.draggingGroup = null;
       this.clearTaskDropPreviewState();
+      this.clearSmartGuides();
       this.scene.changes.next();
       this.notifyInteractionEnd('drag');
       return;
@@ -807,6 +883,7 @@ export class InteractionManager {
       this.initialPositions.clear();
       this.draggingItem = null;
       this.clearTaskDropPreviewState();
+      this.clearSmartGuides();
       this.scene.changes.next();
       this.notifyInteractionEnd('drag');
     }
@@ -863,11 +940,13 @@ export class InteractionManager {
         .filter((el): el is StoryElement => el instanceof StoryElement)
         .forEach((s) => (s.hoveredResizeHandle = null));
       this.clearTaskDropPreviewState();
+      this.clearSmartGuides();
       this.scene.changes.next();
       this.notifyInteractionEnd('resize');
       return;
     }
     this.clearTaskDropPreviewState();
+    this.clearSmartGuides();
   }
 
   handleDoubleClick(sceneX: number, sceneY: number): void {
@@ -932,6 +1011,22 @@ export class InteractionManager {
     return this.taskReflowPreviews;
   }
 
+  public getSmartGuideLines(): ReadonlyArray<SmartGuideLine> {
+    return this.smartGuideLines;
+  }
+
+  public getSmartGuidesEnabled(): boolean {
+    return this.smartGuidesEnabled;
+  }
+
+  public setSmartGuidesEnabled(enabled: boolean): void {
+    if (this.smartGuidesEnabled === enabled) return;
+    this.smartGuidesEnabled = enabled;
+    if (!enabled) {
+      this.clearSmartGuides();
+    }
+  }
+
   public get isResizingStory(): boolean {
     return this.resizingElement !== null;
   }
@@ -941,6 +1036,352 @@ export class InteractionManager {
     this.storyDropPlans.clear();
     this.storyResizePreviews = [];
     this.taskReflowPreviews.clear();
+  }
+
+  private clearSmartGuides(): void {
+    this.smartGuideLines = [];
+    this.snappedVerticalGuide = null;
+    this.snappedHorizontalGuide = null;
+  }
+
+  private updateSmartGuidesForElements(
+    elements: ICanvasElement[],
+    options: { allowSnap?: boolean } = {}
+  ): {
+    snapOffsetX: number;
+    snapOffsetY: number;
+  } {
+    if (!this.smartGuidesEnabled) {
+      this.clearSmartGuides();
+      return { snapOffsetX: 0, snapOffsetY: 0 };
+    }
+    const allowSnap = options.allowSnap !== false;
+    if (elements.length === 0) {
+      this.clearSmartGuides();
+      return { snapOffsetX: 0, snapOffsetY: 0 };
+    }
+    const movingBounds = this.getBoundsForElements(elements);
+    if (!movingBounds) {
+      this.clearSmartGuides();
+      return { snapOffsetX: 0, snapOffsetY: 0 };
+    }
+    const candidates = this.getSmartAlignmentCandidates(elements);
+    const threshold = SMART_GUIDES_THRESHOLD_PX / this.panZoom.scale;
+    const maxSecondaryDistance =
+      SMART_GUIDES_MAX_DISTANCE_PX / this.panZoom.scale;
+    const minGuideLength =
+      SMART_GUIDES_MIN_LINE_LENGTH_PX / this.panZoom.scale;
+    const maxGuideLength =
+      SMART_GUIDES_MAX_LINE_LENGTH_PX / this.panZoom.scale;
+    const result = this.smartAlignmentService.compute({
+      movingBounds,
+      candidates,
+      threshold,
+      maxSecondaryDistance,
+      minGuideLength,
+      maxGuideLength,
+      preferredVerticalGuide: this.snappedVerticalGuide,
+      preferredHorizontalGuide: this.snappedHorizontalGuide,
+    });
+    if (!allowSnap) {
+      this.smartGuideLines = result.guides;
+      this.snappedVerticalGuide = null;
+      this.snappedHorizontalGuide = null;
+      return { snapOffsetX: 0, snapOffsetY: 0 };
+    }
+    const releaseThreshold = SMART_GUIDES_RELEASE_PX / this.panZoom.scale;
+    const verticalCandidate = result.guides.find(
+      (guide): guide is Extract<SmartGuideLine, { orientation: 'vertical' }> =>
+        guide.orientation === 'vertical'
+    );
+    const horizontalCandidate = result.guides.find(
+      (
+        guide
+      ): guide is Extract<SmartGuideLine, { orientation: 'horizontal' }> =>
+        guide.orientation === 'horizontal'
+    );
+
+    let snapOffsetX = 0;
+    let snapOffsetY = 0;
+    const nextGuides: SmartGuideLine[] = [];
+
+    const lockedVertical = this.getLockedVerticalGuideOffset(
+      movingBounds,
+      releaseThreshold,
+      maxSecondaryDistance,
+      minGuideLength,
+      maxGuideLength
+    );
+    if (lockedVertical) {
+      this.snappedVerticalGuide = lockedVertical.guide;
+      snapOffsetX = lockedVertical.offset;
+      nextGuides.push(lockedVertical.guide);
+    } else if (verticalCandidate) {
+      this.snappedVerticalGuide = verticalCandidate;
+      snapOffsetX = verticalCandidate.offset;
+      nextGuides.push(verticalCandidate);
+    } else {
+      this.snappedVerticalGuide = null;
+    }
+
+    const boundsWithXOffset =
+      snapOffsetX === 0 ? movingBounds : this.shiftRect(movingBounds, snapOffsetX, 0);
+    const lockedHorizontal = this.getLockedHorizontalGuideOffset(
+      boundsWithXOffset,
+      releaseThreshold,
+      maxSecondaryDistance,
+      minGuideLength,
+      maxGuideLength
+    );
+    if (lockedHorizontal) {
+      this.snappedHorizontalGuide = lockedHorizontal.guide;
+      snapOffsetY = lockedHorizontal.offset;
+      nextGuides.push(lockedHorizontal.guide);
+    } else if (horizontalCandidate) {
+      this.snappedHorizontalGuide = horizontalCandidate;
+      snapOffsetY = horizontalCandidate.offset;
+      nextGuides.push(horizontalCandidate);
+    } else {
+      this.snappedHorizontalGuide = null;
+    }
+
+    this.smartGuideLines = nextGuides;
+    return { snapOffsetX, snapOffsetY };
+  }
+
+  private getBoundsForElements(
+    elements: ICanvasElement[]
+  ): SmartAlignmentRect | null {
+    let minX = Number.POSITIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+
+    elements.forEach((element) => {
+      const bounds = getElementAlignmentRect(element);
+      if (!bounds) return;
+      minX = Math.min(minX, bounds.left);
+      minY = Math.min(minY, bounds.top);
+      maxX = Math.max(maxX, bounds.right);
+      maxY = Math.max(maxY, bounds.bottom);
+    });
+
+    if (
+      !Number.isFinite(minX) ||
+      !Number.isFinite(minY) ||
+      !Number.isFinite(maxX) ||
+      !Number.isFinite(maxY)
+    ) {
+      return null;
+    }
+
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+      left: minX,
+      right: maxX,
+      top: minY,
+      bottom: maxY,
+      centerX: minX + (maxX - minX) / 2,
+      centerY: minY + (maxY - minY) / 2,
+    };
+  }
+
+  private getSmartAlignmentCandidates(
+    movingElements: ICanvasElement[]
+  ): SmartAlignmentCandidate[] {
+    const movingIds = new Set(movingElements.map((element) => element.id));
+    const buffer = SMART_GUIDES_CANDIDATE_BUFFER_PX / this.panZoom.scale;
+    const viewport = this.getViewportBounds(buffer);
+    return this.scene
+      .getElements()
+      .filter((element) => !movingIds.has(element.id))
+      .map((element) => {
+        const bounds = getElementAlignmentRect(element);
+        if (!bounds) return null;
+        if (!this.isRectVisibleInViewport(bounds, viewport)) return null;
+        return { id: element.id, bounds };
+      })
+      .filter(
+        (candidate): candidate is SmartAlignmentCandidate => candidate !== null
+      );
+  }
+
+  private getViewportBounds(buffer: number): {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+  } {
+    const minX = this.panZoom.scrollX / this.panZoom.scale - buffer;
+    const minY = this.panZoom.scrollY / this.panZoom.scale - buffer;
+    const maxX =
+      (this.panZoom.scrollX + this.canvas.width) / this.panZoom.scale + buffer;
+    const maxY =
+      (this.panZoom.scrollY + this.canvas.height) / this.panZoom.scale + buffer;
+    return { minX, minY, maxX, maxY };
+  }
+
+  private isRectVisibleInViewport(
+    rect: SmartAlignmentRect,
+    viewport: { minX: number; minY: number; maxX: number; maxY: number }
+  ): boolean {
+    return (
+      rect.right >= viewport.minX &&
+      rect.left <= viewport.maxX &&
+      rect.bottom >= viewport.minY &&
+      rect.top <= viewport.maxY
+    );
+  }
+
+  private shouldSuppressSmartSnapForTaskDrop(): boolean {
+    return (
+      this.taskDropPlaceholders.length > 0 ||
+      this.storyResizePreviews.length > 0 ||
+      this.taskReflowPreviews.size > 0
+    );
+  }
+
+  private getLockedVerticalGuideOffset(
+    movingBounds: SmartAlignmentRect,
+    releaseThreshold: number,
+    maxSecondaryDistance: number,
+    minGuideLength: number,
+    maxGuideLength: number
+  ): {
+    guide: Extract<SmartGuideLine, { orientation: 'vertical' }>;
+    offset: number;
+  } | null {
+    const guide = this.snappedVerticalGuide;
+    if (!guide) return null;
+    const movingValue =
+      guide.movingAnchor === 'left'
+        ? movingBounds.left
+        : guide.movingAnchor === 'center'
+          ? movingBounds.centerX
+          : movingBounds.right;
+    const offset = guide.position - movingValue;
+    if (Math.abs(offset) > releaseThreshold) return null;
+    const secondaryDistance = this.getRangeDistance(
+      movingBounds.top,
+      movingBounds.bottom,
+      guide.start,
+      guide.end
+    );
+    if (secondaryDistance > maxSecondaryDistance) return null;
+    const span = this.clampSpan(
+      Math.min(guide.start, movingBounds.top),
+      Math.max(guide.end, movingBounds.bottom),
+      minGuideLength,
+      maxGuideLength
+    );
+    return {
+      guide: {
+        ...guide,
+        offset,
+        start: span.start,
+        end: span.end,
+      },
+      offset,
+    };
+  }
+
+  private getLockedHorizontalGuideOffset(
+    movingBounds: SmartAlignmentRect,
+    releaseThreshold: number,
+    maxSecondaryDistance: number,
+    minGuideLength: number,
+    maxGuideLength: number
+  ): {
+    guide: Extract<SmartGuideLine, { orientation: 'horizontal' }>;
+    offset: number;
+  } | null {
+    const guide = this.snappedHorizontalGuide;
+    if (!guide) return null;
+    const movingValue =
+      guide.movingAnchor === 'top'
+        ? movingBounds.top
+        : guide.movingAnchor === 'middle'
+          ? movingBounds.centerY
+          : movingBounds.bottom;
+    const offset = guide.position - movingValue;
+    if (Math.abs(offset) > releaseThreshold) return null;
+    const secondaryDistance = this.getRangeDistance(
+      movingBounds.left,
+      movingBounds.right,
+      guide.start,
+      guide.end
+    );
+    if (secondaryDistance > maxSecondaryDistance) return null;
+    const span = this.clampSpan(
+      Math.min(guide.start, movingBounds.left),
+      Math.max(guide.end, movingBounds.right),
+      minGuideLength,
+      maxGuideLength
+    );
+    return {
+      guide: {
+        ...guide,
+        offset,
+        start: span.start,
+        end: span.end,
+      },
+      offset,
+    };
+  }
+
+  private shiftRect(
+    rect: SmartAlignmentRect,
+    offsetX: number,
+    offsetY: number
+  ): SmartAlignmentRect {
+    return createAlignmentRect({
+      x: rect.x + offsetX,
+      y: rect.y + offsetY,
+      width: rect.width,
+      height: rect.height,
+    });
+  }
+
+  private getRangeDistance(
+    aStart: number,
+    aEnd: number,
+    bStart: number,
+    bEnd: number
+  ): number {
+    const overlapStart = Math.max(aStart, bStart);
+    const overlapEnd = Math.min(aEnd, bEnd);
+    if (overlapStart <= overlapEnd) return 0;
+    return Math.min(Math.abs(bStart - aEnd), Math.abs(aStart - bEnd));
+  }
+
+  private clampSpan(
+    start: number,
+    end: number,
+    minLength: number,
+    maxLength: number
+  ): { start: number; end: number } {
+    let nextStart = start;
+    let nextEnd = end;
+    let length = nextEnd - nextStart;
+    if (length < minLength) {
+      const center = nextStart + length / 2;
+      const half = minLength / 2;
+      nextStart = center - half;
+      nextEnd = center + half;
+      length = minLength;
+    }
+    if (!Number.isFinite(maxLength) || maxLength <= 0 || length <= maxLength) {
+      return { start: nextStart, end: nextEnd };
+    }
+    const center = nextStart + length / 2;
+    const half = maxLength / 2;
+    return {
+      start: center - half,
+      end: center + half,
+    };
   }
 
   private updateTaskDropPlaceholders(sceneX: number, sceneY: number): void {

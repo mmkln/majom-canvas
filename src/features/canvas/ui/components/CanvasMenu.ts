@@ -23,6 +23,8 @@ type CanvasMenuOptions = {
   containerClassName?: string;
   initialAnimationsEnabled?: boolean;
   onAnimationsToggle?: (enabled: boolean) => void;
+  initialSmartGuidesEnabled?: boolean;
+  onSmartGuidesToggle?: (enabled: boolean) => void;
 };
 
 export class CanvasMenu {
@@ -34,7 +36,9 @@ export class CanvasMenu {
   private readonly logoutButton: HTMLButtonElement;
   private readonly authController: AuthController;
   private readonly animationsToggleHandler: ((enabled: boolean) => void) | null;
+  private readonly smartGuidesToggleHandler: ((enabled: boolean) => void) | null;
   private animationsEnabled: boolean;
+  private smartGuidesEnabled: boolean;
   private autosaveEnabled: boolean;
   private stateSubscription: Subscription | null = null;
   private readonly refreshHandler: () => void;
@@ -68,6 +72,10 @@ export class CanvasMenu {
 
     this.animationsEnabled = options.initialAnimationsEnabled ?? true;
     this.animationsToggleHandler = options.onAnimationsToggle ?? null;
+    this.smartGuidesEnabled =
+      options.initialSmartGuidesEnabled ??
+      CanvasClientStorage.getCanvasSmartGuidesEnabled(true);
+    this.smartGuidesToggleHandler = options.onSmartGuidesToggle ?? null;
     this.autosaveEnabled = CanvasClientStorage.getCanvasAutosaveEnabled(true);
 
     this.deleteCanvasButton = createDropdownItem({
@@ -192,8 +200,16 @@ export class CanvasMenu {
       checked: this.autosaveEnabled,
       onChange: (checked) => this.handleAutosaveToggle(checked),
     });
+    const smartGuidesToggle = createToggleSwitch({
+      label: 'Smart guides',
+      labelClassName: '!font-normal',
+      togglePosition: 'right',
+      checked: this.smartGuidesEnabled,
+      onChange: (checked) => this.handleSmartGuidesToggle(checked),
+    });
     actions.append(
       animationsToggle,
+      smartGuidesToggle,
       autosaveToggle,
       this.deleteCanvasButton,
       this.logoutButton
@@ -266,5 +282,12 @@ export class CanvasMenu {
     this.autosaveEnabled = checked;
     CanvasClientStorage.setCanvasAutosaveEnabled(checked);
     emitCanvasAutosaveToggled(checked);
+  }
+
+  private handleSmartGuidesToggle(checked: boolean): void {
+    if (this.smartGuidesEnabled === checked) return;
+    this.smartGuidesEnabled = checked;
+    CanvasClientStorage.setCanvasSmartGuidesEnabled(checked);
+    this.smartGuidesToggleHandler?.(checked);
   }
 }

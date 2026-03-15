@@ -26,6 +26,7 @@ const DRAFTS_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const MINI_MAP_VISIBLE_KEY = 'ui:minimap-visible';
 const CANVAS_ANIMATIONS_ENABLED_KEY = 'ui:canvas-animations-enabled';
 const CANVAS_AUTOSAVE_ENABLED_KEY = 'ui:canvas-autosave-enabled';
+const CANVAS_SMART_GUIDES_ENABLED_KEY = 'ui:canvas-smart-guides-enabled';
 
 function getDraftsKey(canvasId: string): string {
   return `${DRAFTS_KEY_PREFIX}:${canvasId}`;
@@ -93,6 +94,15 @@ export class CanvasClientStorage {
 
   public static setCanvasAnimationsEnabled(enabled: boolean): void {
     writeEnvelope(CANVAS_ANIMATIONS_ENABLED_KEY, enabled, null);
+  }
+
+  public static getCanvasSmartGuidesEnabled(defaultEnabled = true): boolean {
+    const stored = readEnvelope<unknown>(CANVAS_SMART_GUIDES_ENABLED_KEY);
+    return typeof stored === 'boolean' ? stored : defaultEnabled;
+  }
+
+  public static setCanvasSmartGuidesEnabled(enabled: boolean): void {
+    writeEnvelope(CANVAS_SMART_GUIDES_ENABLED_KEY, enabled, null);
   }
 
   public static getMiniMapVisible(defaultVisible = true): boolean {
