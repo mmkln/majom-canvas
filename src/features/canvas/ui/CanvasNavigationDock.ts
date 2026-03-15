@@ -20,10 +20,10 @@ export class CanvasNavigationDock {
     this.miniMapVisible = CanvasClientStorage.getMiniMapVisible(true);
     this.container = createSurface({
       className:
-        'absolute right-4 bottom-4 z-20 flex flex-col overflow-hidden p-0',
+        'absolute right-4 bottom-4 z-20 flex flex-col overflow-visible p-0',
     });
     this.miniMapSlot = document.createElement('div');
-    this.miniMapSlot.className = 'w-full';
+    this.miniMapSlot.className = 'w-full overflow-hidden rounded-t-2xl';
 
     this.miniMap = new MiniMap(scene, canvasManager, {
       embedded: true,

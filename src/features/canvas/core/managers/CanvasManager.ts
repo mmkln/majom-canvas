@@ -920,6 +920,10 @@ export class CanvasManager {
     this.panZoom.zoomOut(this.canvas);
     this.requestDraw();
   }
+  public setZoomScale(scale: number): void {
+    this.panZoom.setScale(this.canvas, scale);
+    this.requestDraw();
+  }
   public centerCanvas(): void {
     this.panZoom.center(this.canvas);
     this.requestDraw();

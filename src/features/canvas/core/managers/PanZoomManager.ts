@@ -35,6 +35,19 @@ export class PanZoomManager {
 
   constructor(private canvas: HTMLCanvasElement) {}
 
+  public getMinScale(canvas: HTMLCanvasElement = this.canvas): number {
+    const viewportWidth = canvas.width - this.scrollbarWidth;
+    const viewportHeight = canvas.height - this.scrollbarWidth;
+    return Math.max(
+      viewportWidth / this.virtualWidth,
+      viewportHeight / this.virtualHeight
+    );
+  }
+
+  public getMaxScale(): number {
+    return 1.25;
+  }
+
   clampScroll(): void {
     const viewportWidth = this.canvas.width - this.scrollbarWidth;
     const viewportHeight = this.canvas.height - this.scrollbarWidth;
@@ -57,40 +70,42 @@ export class PanZoomManager {
     this.emitZoomChange();
   }
 
-  // --- Canvas controls logic ---
-  public zoomIn(canvas: HTMLCanvasElement): void {
-    // Zoom relative to canvas center
-    const oldScale = this.scale;
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    const contentX = (centerX + this.scrollX) / oldScale;
-    const contentY = (centerY + this.scrollY) / oldScale;
-    const maxScale = 1.25;
-    this.scale = Math.min(oldScale * 1.15, maxScale);
-    // adjust scroll to keep center fixed
-    this.scrollX = contentX * this.scale - centerX;
-    this.scrollY = contentY * this.scale - centerY;
+  public setScale(
+    canvas: HTMLCanvasElement,
+    nextScale: number,
+    anchorX: number = canvas.width / 2,
+    anchorY: number = canvas.height / 2
+  ): void {
+    const oldScale = this.scale || 1;
+    const contentX = (anchorX + this.scrollX) / oldScale;
+    const contentY = (anchorY + this.scrollY) / oldScale;
+    const minScale = this.getMinScale(canvas);
+    const maxScale = this.getMaxScale();
+    const clampedScale = Math.min(Math.max(nextScale, minScale), maxScale);
+    this.scale = clampedScale;
+    this.scrollX = contentX * clampedScale - anchorX;
+    this.scrollY = contentY * clampedScale - anchorY;
     this.clampScroll();
     this.emitZoomChange();
   }
 
-  public zoomOut(canvas: HTMLCanvasElement): void {
-    // Zoom out relative to canvas center
-    const oldScale = this.scale;
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    const contentX = (centerX + this.scrollX) / oldScale;
-    const contentY = (centerY + this.scrollY) / oldScale;
-    const minScale = Math.max(
-      (canvas.width - this.scrollbarWidth) / this.virtualWidth,
-      (canvas.height - this.scrollbarWidth) / this.virtualHeight
+  // --- Canvas controls logic ---
+  public zoomIn(canvas: HTMLCanvasElement): void {
+    this.setScale(
+      canvas,
+      this.scale * 1.15,
+      canvas.width / 2,
+      canvas.height / 2
     );
-    this.scale = Math.max(oldScale / 1.15, minScale);
-    // adjust scroll to keep center fixed
-    this.scrollX = contentX * this.scale - centerX;
-    this.scrollY = contentY * this.scale - centerY;
-    this.clampScroll();
-    this.emitZoomChange();
+  }
+
+  public zoomOut(canvas: HTMLCanvasElement): void {
+    this.setScale(
+      canvas,
+      this.scale / 1.15,
+      canvas.width / 2,
+      canvas.height / 2
+    );
   }
 
   public center(canvas: HTMLCanvasElement): void {
@@ -113,21 +128,8 @@ export class PanZoomManager {
     if (e.ctrlKey || e.metaKey) {
       // increase zoom speed for touchpad zoom
       const zoomFactor = Math.pow(1.005, -e.deltaY);
-      const oldScale = this.scale;
-      let newScale = oldScale * zoomFactor;
-      const viewportWidth = canvas.width - this.scrollbarWidth;
-      const viewportHeight = canvas.height - this.scrollbarWidth;
-      const minScale = Math.max(
-        viewportWidth / this.virtualWidth,
-        viewportHeight / this.virtualHeight
-      );
-      const maxScale = 1.25;
-      newScale = Math.min(Math.max(newScale, minScale), maxScale);
-      const contentX = (mouseX + this.scrollX) / oldScale;
-      const contentY = (mouseY + this.scrollY) / oldScale;
-      this.scale = newScale;
-      this.scrollX = contentX * newScale - mouseX;
-      this.scrollY = contentY * newScale - mouseY;
+      this.setScale(canvas, this.scale * zoomFactor, mouseX, mouseY);
+      return;
     } else {
       this.scrollX += e.deltaX;
       this.scrollY += e.deltaY;

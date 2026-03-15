@@ -3,7 +3,13 @@ import { CanvasManager } from '../core/managers/CanvasManager.ts';
 import { Scene } from '../core/scene/Scene.ts';
 import { Subscription } from 'rxjs';
 import { createIcon } from './icons.ts';
-import { createIconButton, createSurface } from './primitives/index.ts';
+import {
+  AnchoredMenu,
+  createDropdownItem,
+  createIconButton,
+  createSurface,
+  createTextButton,
+} from './primitives/index.ts';
 
 type MiniMapToggleOptions = {
   initialVisible?: boolean;
@@ -26,6 +32,9 @@ export class CanvasControls {
   private readonly miniMapToggleBtn: HTMLButtonElement | null;
   private readonly miniMapToggleHandler: ((visible: boolean) => void) | null;
   private readonly zoomValueEl: HTMLSpanElement | null;
+  private readonly zoomIndicatorBtn: HTMLButtonElement | null;
+  private readonly zoomMenuController: AnchoredMenu | null;
+  private readonly zoomMenuPanel: HTMLDivElement | null;
   private focusSubscription: Subscription;
   private unsubscribeZoomChange: (() => void) | null = null;
   private miniMapVisible = true;
@@ -69,23 +78,53 @@ export class CanvasControls {
 
     const zoomCluster = document.createElement('div');
     zoomCluster.className = isHorizontal
-      ? 'inline-flex items-center gap-1'
-      : 'inline-flex flex-col items-center gap-1';
+      ? 'inline-flex items-center gap-0.5'
+      : 'inline-flex flex-col items-center gap-0.5';
 
     let zoomWrap: HTMLDivElement | null = null;
     if (options.showZoomIndicator) {
       zoomWrap = document.createElement('div');
-      zoomWrap.className =
-        options.zoomIndicatorClassName ??
-        'inline-flex min-w-[52px] items-center justify-center px-1 text-[0.95rem] font-semibold leading-none tracking-[0.02em] text-slate-900';
+      zoomWrap.className = 'relative inline-flex';
+
+      this.zoomIndicatorBtn = createTextButton({
+        text: '',
+        tone: 'text',
+        size: 'md',
+        className:
+          options.zoomIndicatorClassName ??
+          'min-w-[58px] justify-center px-2 text-[0.95rem] font-semibold leading-none tracking-[0.02em]',
+        onClick: (event) => {
+          event.stopPropagation();
+          this.toggleZoomMenu();
+        },
+      });
+      this.zoomIndicatorBtn.setAttribute('aria-haspopup', 'menu');
+      this.zoomIndicatorBtn.setAttribute('aria-expanded', 'false');
+
       this.zoomValueEl = document.createElement('span');
-      zoomWrap.appendChild(this.zoomValueEl);
+      this.zoomIndicatorBtn.appendChild(this.zoomValueEl);
+
+      this.zoomMenuPanel = createSurface({
+        elevated: true,
+        className:
+          'absolute left-0 top-0 z-30 hidden min-w-[168px] overflow-hidden',
+      });
+      this.zoomMenuController = new AnchoredMenu({
+        container: zoomWrap,
+        panel: this.zoomMenuPanel,
+        onOpenChange: (open) => this.handleZoomMenuOpenChange(open),
+      });
+      zoomWrap.append(this.zoomIndicatorBtn, this.zoomMenuPanel);
+
       this.unsubscribeZoomChange = this.canvasManager.panZoom.onZoomChange(() =>
         this.updateZoomIndicator()
       );
       this.updateZoomIndicator();
     } else {
       this.zoomValueEl = null;
+      this.zoomIndicatorBtn = null;
+      this.zoomMenuController = null;
+      this.zoomMenuPanel = null;
     }
 
     if (isHorizontal) {
@@ -160,6 +199,7 @@ export class CanvasControls {
 
   public mount(parent: HTMLElement = document.body) {
     parent.appendChild(this.container);
+    this.zoomMenuController?.mount();
   }
 
   public getElement(): HTMLDivElement {
@@ -170,6 +210,8 @@ export class CanvasControls {
     this.focusSubscription.unsubscribe();
     this.unsubscribeZoomChange?.();
     this.unsubscribeZoomChange = null;
+    this.zoomMenuController?.close();
+    this.zoomMenuController?.unmount();
     this.container.remove();
   }
 
@@ -207,5 +249,77 @@ export class CanvasControls {
     if (!this.zoomValueEl) return;
     const percent = Math.round(this.canvasManager.panZoom.scale * 100);
     this.zoomValueEl.textContent = `${percent}%`;
+    if (this.zoomIndicatorBtn) {
+      const label = `Zoom ${percent} percent. Open zoom options`;
+      this.zoomIndicatorBtn.title = label;
+      this.zoomIndicatorBtn.setAttribute('aria-label', label);
+    }
+    if (this.zoomMenuController?.isOpen()) {
+      this.renderZoomMenu();
+    }
+  }
+
+  private toggleZoomMenu(): void {
+    if (!this.zoomMenuController || !this.zoomIndicatorBtn) return;
+    if (this.zoomMenuController.isOpen()) {
+      this.zoomMenuController.close();
+      return;
+    }
+    this.renderZoomMenu();
+    this.zoomMenuController.openAt({
+      anchor: this.zoomIndicatorBtn,
+      placement: 'top-start',
+      fallbackPlacements: ['top-end', 'bottom-start', 'bottom-end'],
+      gap: 6,
+      margin: 8,
+      lockPlacementAfterOpen: true,
+    });
+  }
+
+  private handleZoomMenuOpenChange(open: boolean): void {
+    if (this.zoomIndicatorBtn) {
+      this.zoomIndicatorBtn.setAttribute(
+        'aria-expanded',
+        open ? 'true' : 'false'
+      );
+      this.zoomIndicatorBtn.classList.toggle('bg-slate-100', open);
+      this.zoomIndicatorBtn.classList.toggle('text-slate-800', open);
+    }
+    if (open) {
+      this.renderZoomMenu();
+    }
+  }
+
+  private renderZoomMenu(): void {
+    if (!this.zoomMenuPanel) return;
+    const panZoom = this.canvasManager.getPanZoomManager();
+    const minScale = panZoom.getMinScale();
+    const maxScale = panZoom.getMaxScale();
+    const currentScale = panZoom.scale;
+    const zoomList = document.createElement('div');
+    const closeMenu = () => this.zoomMenuController?.close();
+
+    [25, 50, 75, 100].forEach((percent) => {
+      const targetScale = percent / 100;
+      const disabled =
+        targetScale < minScale - 0.001 || targetScale > maxScale + 0.001;
+      const isActive = Math.abs(currentScale - targetScale) < 0.005;
+      zoomList.appendChild(
+        createDropdownItem({
+          label: `${percent}%`,
+          variant: isActive ? 'selected' : 'default',
+          disabled,
+          onClick: () => {
+            this.canvasManager.setZoomScale(targetScale);
+            closeMenu();
+          },
+        })
+      );
+    });
+
+    this.zoomMenuPanel.replaceChildren(zoomList);
+    if (this.zoomMenuController?.isOpen()) {
+      this.zoomMenuController.reposition();
+    }
   }
 }
