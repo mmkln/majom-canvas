@@ -594,22 +594,32 @@ export class ExistingEntityPicker<TItem> {
   }
 
   private getStatusChipPalette(status: unknown): string {
-    const normalized = typeof status === 'string' ? status.toLowerCase() : '';
-    if (normalized.includes('done')) {
+    const normalized = this.normalizeChipValue(status);
+    if (
+      normalized.includes('completed') ||
+      normalized.includes('done') ||
+      normalized.includes('archived')
+    ) {
       return 'border-emerald-200 bg-emerald-100 text-emerald-700';
     }
-    if (normalized.includes('progress')) {
+    if (
+      normalized.includes('active') ||
+      normalized.includes('in progress') ||
+      normalized.includes('progress')
+    ) {
       return 'border-blue-200 bg-blue-100 text-blue-700';
     }
-    if (normalized.includes('pending')) {
+    if (normalized.includes('pending') || normalized.includes('described')) {
       return 'border-yellow-200 bg-yellow-100 text-yellow-700';
+    }
+    if (normalized.includes('cancelled') || normalized.includes('canceled')) {
+      return 'border-amber-200 bg-amber-100 text-amber-700';
     }
     return 'border-slate-200 bg-slate-100 text-slate-600';
   }
 
   private getPriorityChipPalette(priority: unknown): string {
-    const normalized =
-      typeof priority === 'string' ? priority.toLowerCase() : '';
+    const normalized = this.normalizeChipValue(priority);
     if (normalized === 'high') {
       return 'border-rose-200 bg-rose-100 text-rose-700';
     }
@@ -620,6 +630,12 @@ export class ExistingEntityPicker<TItem> {
       return 'border-emerald-200 bg-emerald-100 text-emerald-700';
     }
     return 'border-slate-200 bg-slate-100 text-slate-600';
+  }
+
+  private normalizeChipValue(value: unknown): string {
+    return typeof value === 'string'
+      ? value.trim().toLowerCase().replace(/[_-]+/g, ' ')
+      : '';
   }
 
   private formatEnum(value: unknown): string {
