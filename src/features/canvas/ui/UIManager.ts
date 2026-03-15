@@ -83,6 +83,9 @@ export class UIManager {
     const userApi = new UserApiService(http);
     const canvasMenu = new CanvasMenu(this.authService, userApi, {
       containerClassName: 'relative z-30 flex items-center',
+      initialAnimationsEnabled: this.canvasManager.getAnimationsEnabled(),
+      onAnimationsToggle: (enabled) =>
+        this.canvasManager.setAnimationsEnabled(enabled),
     });
     const saveControls = new SaveControls(canvasMenu);
     this.addExistingTaskService = new AddExistingTaskService(

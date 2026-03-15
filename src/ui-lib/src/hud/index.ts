@@ -69,6 +69,11 @@ export {
   type HudSegmentedControlSize as SegmentedControlSize,
 } from './HudSegmentedControl.ts';
 
+export {
+  createHudToggleSwitch as createToggleSwitch,
+  type HudToggleSwitchOptions as ToggleSwitchOptions,
+} from './HudToggleSwitch.ts';
+
 export { createHudSurface as createSurface } from './HudSurface.ts';
 export { SingleSelectGroup } from './SingleSelectGroup.ts';
 
@@ -135,4 +140,8 @@ export {
   type HudSegmentedControlOption,
   type HudSegmentedControlSize,
 } from './HudSegmentedControl.ts';
+export {
+  createHudToggleSwitch,
+  type HudToggleSwitchOptions,
+} from './HudToggleSwitch.ts';
 export { createHudSurface } from './HudSurface.ts';

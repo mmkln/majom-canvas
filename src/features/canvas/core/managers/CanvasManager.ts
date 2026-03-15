@@ -36,6 +36,7 @@ import { hasStatusAnimation } from '../../elements/utils/statusAnimations.ts';
 import { CANVAS_PERF_LOG } from '../../../../config/env/index.ts';
 import { isCircleVisible, isRectVisible } from '../utils/viewBounds.ts';
 import { BehaviorSubject, Subject, Subscription } from 'rxjs';
+import { CanvasClientStorage } from '../services/CanvasClientStorage.ts';
 import type {
   CanvasLoadPhase,
   CanvasLoadingPlaceholder,
@@ -103,6 +104,7 @@ export class CanvasManager {
   private drawQueued: boolean = false;
   private animationTimeMs: number = 0;
   private lastAnimationFrameMs: number = 0;
+  private animationsEnabled: boolean = true;
   private readonly enablePerfLogging: boolean = CANVAS_PERF_LOG;
   private readonly perfLogIntervalMs: number = 1000;
   private perfStats = {
@@ -160,6 +162,9 @@ export class CanvasManager {
     this.canvas.style.touchAction = 'none';
     this.canvas.style.userSelect = 'none';
     this.scene = scene;
+    this.animationsEnabled = CanvasClientStorage.getCanvasAnimationsEnabled(
+      true
+    );
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Canvas 2D context not available');
     this.ctx = ctx;
@@ -285,7 +290,13 @@ export class CanvasManager {
 
   draw(): void {
     const frameStartMs = performance.now();
-    this.panZoom.timeMs = this.getAnimationTimeMs(frameStartMs);
+    if (this.animationsEnabled) {
+      this.panZoom.timeMs = this.getAnimationTimeMs(frameStartMs);
+    } else {
+      this.panZoom.timeMs = 0;
+      this.animationTimeMs = 0;
+      this.lastAnimationFrameMs = 0;
+    }
     const viewMinX = this.panZoom.scrollX / this.panZoom.scale;
     const viewMinY = this.panZoom.scrollY / this.panZoom.scale;
     const viewMaxX =
@@ -303,7 +314,7 @@ export class CanvasManager {
       showTaskText: this.panZoom.scale >= SHOW_TASK_TEXT_SCALE,
       showStoryText: this.panZoom.scale >= SHOW_STORY_TEXT_SCALE,
       showGoalText: this.panZoom.scale >= SHOW_GOAL_TEXT_SCALE,
-      showAnim: this.panZoom.scale >= SHOW_ANIM_SCALE,
+      showAnim: this.animationsEnabled && this.panZoom.scale >= SHOW_ANIM_SCALE,
     };
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.ctx.save();
@@ -359,8 +370,9 @@ export class CanvasManager {
         conn.relationType === ConnectionRelationType.ParentChild
     );
     const shouldAnimate =
-      hasAnimatedConnections ||
-      (this.panZoom.renderFlags.showAnim && hasAnimatedStatus);
+      this.animationsEnabled &&
+      (hasAnimatedConnections ||
+        (this.panZoom.renderFlags.showAnim && hasAnimatedStatus));
     this.updateAnimationLoop(shouldAnimate);
 
     // Update goal links and progress (only track task relations)
@@ -720,6 +732,7 @@ export class CanvasManager {
 
   private startAnimationLoop(): void {
     if (this.isAnimationRunning) return;
+    if (!this.animationsEnabled) return;
     this.isAnimationRunning = true;
     const tick = (): void => {
       if (!this.isAnimationRunning) return;
@@ -744,6 +757,22 @@ export class CanvasManager {
     } else {
       this.stopAnimationLoop();
     }
+  }
+
+  public getAnimationsEnabled(): boolean {
+    return this.animationsEnabled;
+  }
+
+  public setAnimationsEnabled(enabled: boolean): void {
+    if (this.animationsEnabled === enabled) return;
+    this.animationsEnabled = enabled;
+    CanvasClientStorage.setCanvasAnimationsEnabled(enabled);
+    if (!enabled) {
+      this.animationTimeMs = 0;
+      this.lastAnimationFrameMs = 0;
+      this.stopAnimationLoop();
+    }
+    this.requestDraw();
   }
 
   private getSceneCoords(e: MouseEvent): { sceneX: number; sceneY: number } {

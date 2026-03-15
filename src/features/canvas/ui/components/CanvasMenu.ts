@@ -11,6 +11,7 @@ import {
   createDropdownItem,
   createIconButton,
   createSurface,
+  createToggleSwitch,
 } from '../primitives/index.ts';
 import {
   openTopbarDropdown,
@@ -18,6 +19,8 @@ import {
 
 type CanvasMenuOptions = {
   containerClassName?: string;
+  initialAnimationsEnabled?: boolean;
+  onAnimationsToggle?: (enabled: boolean) => void;
 };
 
 export class CanvasMenu {
@@ -28,6 +31,8 @@ export class CanvasMenu {
   private readonly deleteCanvasButton: HTMLButtonElement;
   private readonly logoutButton: HTMLButtonElement;
   private readonly authController: AuthController;
+  private readonly animationsToggleHandler: ((enabled: boolean) => void) | null;
+  private animationsEnabled: boolean;
   private stateSubscription: Subscription | null = null;
   private readonly refreshHandler: () => void;
   private logoutRequested = false;
@@ -57,6 +62,9 @@ export class CanvasMenu {
       className:
         'absolute left-0 top-0 z-30 hidden w-72 overflow-hidden',
     });
+
+    this.animationsEnabled = options.initialAnimationsEnabled ?? true;
+    this.animationsToggleHandler = options.onAnimationsToggle ?? null;
 
     this.deleteCanvasButton = createDropdownItem({
       label: 'Delete canvas',
@@ -166,7 +174,17 @@ export class CanvasMenu {
     }
 
     const actions = document.createElement('div');
-    actions.append(this.deleteCanvasButton, this.logoutButton);
+    const animationsToggle = createToggleSwitch({
+      label: 'Canvas animations',
+      labelClassName: '!font-normal',
+      checked: this.animationsEnabled,
+      onChange: (checked) => this.handleAnimationsToggle(checked),
+    });
+    actions.append(
+      animationsToggle,
+      this.deleteCanvasButton,
+      this.logoutButton
+    );
     this.dropdownMenu.appendChild(actions);
     if (this.dropdownController.isOpen()) {
       this.dropdownController.reposition();
@@ -222,5 +240,11 @@ export class CanvasMenu {
       this.logoutRequested = true;
       authFlowService.requestLogout('manual');
     }
+  }
+
+  private handleAnimationsToggle(checked: boolean): void {
+    if (this.animationsEnabled === checked) return;
+    this.animationsEnabled = checked;
+    this.animationsToggleHandler?.(this.animationsEnabled);
   }
 }

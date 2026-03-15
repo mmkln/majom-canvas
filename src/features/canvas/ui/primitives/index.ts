@@ -56,6 +56,10 @@ export {
   type HudSegmentedControlOption,
   type HudSegmentedControlSize,
 } from '../../../../ui-lib/src/hud/index.ts';
+export {
+  createHudToggleSwitch,
+  type HudToggleSwitchOptions,
+} from '../../../../ui-lib/src/hud/index.ts';
 export { createHudSurface } from '../../../../ui-lib/src/hud/index.ts';
 
 // Prefix-free exports for new code
@@ -102,5 +106,7 @@ export {
   SegmentedControl,
   type SegmentedControlOption,
   type SegmentedControlSize,
+  createToggleSwitch,
+  type ToggleSwitchOptions,
   createSurface,
 } from '../../../../ui-lib/src/hud/index.ts';
