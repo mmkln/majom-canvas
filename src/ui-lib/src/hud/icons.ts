@@ -28,6 +28,7 @@ export type IconName =
   | 'eye'
   | 'eye-slash'
   | 'check'
+  | 'check-circle'
   | 'trash'
   | 'arrow-path'
   | 'arrow-ultum-left'
@@ -303,6 +304,13 @@ export function createIcon(
 
   if (name === 'check') {
     svg.appendChild(makePath('m4.5 12.75 6 6 9-13.5'));
+    return svg;
+  }
+
+  if (name === 'check-circle') {
+    svg.appendChild(
+      makePath('M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z')
+    );
     return svg;
   }
 
