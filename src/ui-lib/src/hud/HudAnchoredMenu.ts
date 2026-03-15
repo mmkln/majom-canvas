@@ -72,10 +72,10 @@ export class HudAnchoredMenu {
   private modernPlacement: {
     placement: HudAnchoredPlacement;
     fallbackPlacements: HudAnchoredResolvedPlacement[];
-    gap: 4,
-    margin: 8,
-    matchAnchorWidth: false,
-    lockPlacementAfterOpen: false,
+    gap: number;
+    margin: number;
+    matchAnchorWidth: boolean;
+    lockPlacementAfterOpen: boolean;
   };
   private mounted = false;
   private resolvedSide: HudAnchoredResolvedSide | null = null;
@@ -524,7 +524,8 @@ export class HudAnchoredMenu {
         value: window.innerHeight - margin - anchorRect.bottom - gap,
       },
       { side: 'top', value: anchorRect.top - margin - gap },
-    ].sort((left, right) => right.value - left.value);
+    ];
+    spaces.sort((left, right) => right.value - left.value);
 
     const candidates: HudAnchoredResolvedPlacement[] = [];
     spaces.forEach((entry) => {
