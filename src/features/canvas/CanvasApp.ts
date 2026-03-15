@@ -40,6 +40,10 @@ import {
   emitCanvasSaveStarted,
   type CanvasSaveSource,
 } from './core/canvasSaveLifecycle.ts';
+import {
+  CANVAS_AUTOSAVE_TOGGLE_EVENT,
+  isCanvasAutosaveToggleDetail,
+} from './core/canvasAutosaveLifecycle.ts';
 import { confirmReplaceStoryGoalModal } from './ui/components/ConfirmReplaceStoryGoalModal.ts';
 import { confirmDeleteCanvasModal } from './ui/components/ConfirmDeleteCanvasModal.ts';
 import { authFlowService } from './ui/auth/authFlowService.ts';
@@ -73,6 +77,7 @@ export class CanvasApp {
   private readonly canvasDataService: CanvasDataService;
   private canvasTitle: string = 'New canvas';
   private autosaveTimer: number | null = null;
+  private autosaveEnabled = CanvasClientStorage.getCanvasAutosaveEnabled(true);
   private autosaveInFlight = false;
   private pendingLinkDecisions = 0;
   private isHydratingCanvas = false;
@@ -113,6 +118,8 @@ export class CanvasApp {
     this.handleElementDeleteRequested(event);
   private readonly canvasLinkLifecycleHandler = (event: Event): void =>
     this.handleCanvasLinkLifecycle(event);
+  private readonly canvasAutosaveToggledHandler = (event: Event): void =>
+    this.handleCanvasAutosaveToggled(event);
 
   constructor(dataProvider: IDataProvider, canvasElement?: HTMLCanvasElement) {
     this.dataProvider = dataProvider;
@@ -201,6 +208,10 @@ export class CanvasApp {
       CANVAS_LINK_LIFECYCLE_EVENT,
       this.canvasLinkLifecycleHandler
     );
+    window.addEventListener(
+      CANVAS_AUTOSAVE_TOGGLE_EVENT,
+      this.canvasAutosaveToggledHandler
+    );
   }
 
   private unregisterWindowEvents(): void {
@@ -253,6 +264,10 @@ export class CanvasApp {
       CANVAS_LINK_LIFECYCLE_EVENT,
       this.canvasLinkLifecycleHandler
     );
+    window.removeEventListener(
+      CANVAS_AUTOSAVE_TOGGLE_EVENT,
+      this.canvasAutosaveToggledHandler
+    );
   }
 
   private handleSaveCanvasLayoutRequest(): void {
@@ -267,6 +282,21 @@ export class CanvasApp {
         console.error('Failed to save layout', err);
       },
     });
+  }
+
+  private handleCanvasAutosaveToggled(event: Event): void {
+    const customEvent = event as CustomEvent<unknown>;
+    if (!isCanvasAutosaveToggleDetail(customEvent.detail)) return;
+    const { enabled } = customEvent.detail;
+    if (this.autosaveEnabled === enabled) return;
+    this.autosaveEnabled = enabled;
+    CanvasClientStorage.setCanvasAutosaveEnabled(enabled);
+    if (enabled) {
+      this.startAutosave();
+      this.runAutosaveTick();
+      return;
+    }
+    this.stopAutosave();
   }
 
   private handleCanvasTitleEdited(event: Event): void {
@@ -610,10 +640,7 @@ export class CanvasApp {
     if (this.destroyed) return;
     this.destroyed = true;
     this.unregisterWindowEvents();
-    if (this.autosaveTimer !== null) {
-      window.clearInterval(this.autosaveTimer);
-      this.autosaveTimer = null;
-    }
+    this.stopAutosave();
     this.activeCanvasElementsSubscription?.unsubscribe();
     this.activeCanvasElementsSubscription = null;
     this.activeCanvasRelationsSubscription?.unsubscribe();
@@ -881,13 +908,21 @@ export class CanvasApp {
   }
 
   private startAutosave(): void {
+    if (!this.autosaveEnabled) return;
     if (this.autosaveTimer) return;
     this.autosaveTimer = window.setInterval(() => {
       this.runAutosaveTick();
     }, 5000);
   }
 
+  private stopAutosave(): void {
+    if (this.autosaveTimer === null) return;
+    window.clearInterval(this.autosaveTimer);
+    this.autosaveTimer = null;
+  }
+
   private runAutosaveTick(): void {
+    if (!this.autosaveEnabled) return;
     if (!this.authService.isLoggedIn()) return;
     if (this.autosaveInFlight) return;
     if (this.isLinkDecisionPending()) return;

@@ -3,6 +3,8 @@ import { AuthService } from '../../../../majom-wrapper/data-access/auth-service.
 import type { User } from '../../../../majom-wrapper/interfaces/auth-interfaces.ts';
 import { UserApiService } from '../../../../majom-wrapper/data-access/user-api-service.ts';
 import { notify } from '../../core/services/NotificationService.ts';
+import { CanvasClientStorage } from '../../core/services/CanvasClientStorage.ts';
+import { emitCanvasAutosaveToggled } from '../../core/canvasAutosaveLifecycle.ts';
 import { AuthController, type AuthState } from '../auth/AuthController.ts';
 import { authFlowService } from '../auth/authFlowService.ts';
 import {
@@ -33,6 +35,7 @@ export class CanvasMenu {
   private readonly authController: AuthController;
   private readonly animationsToggleHandler: ((enabled: boolean) => void) | null;
   private animationsEnabled: boolean;
+  private autosaveEnabled: boolean;
   private stateSubscription: Subscription | null = null;
   private readonly refreshHandler: () => void;
   private logoutRequested = false;
@@ -65,6 +68,7 @@ export class CanvasMenu {
 
     this.animationsEnabled = options.initialAnimationsEnabled ?? true;
     this.animationsToggleHandler = options.onAnimationsToggle ?? null;
+    this.autosaveEnabled = CanvasClientStorage.getCanvasAutosaveEnabled(true);
 
     this.deleteCanvasButton = createDropdownItem({
       label: 'Delete canvas',
@@ -181,8 +185,16 @@ export class CanvasMenu {
       checked: this.animationsEnabled,
       onChange: (checked) => this.handleAnimationsToggle(checked),
     });
+    const autosaveToggle = createToggleSwitch({
+      label: 'Autosave',
+      labelClassName: '!font-normal',
+      togglePosition: 'right',
+      checked: this.autosaveEnabled,
+      onChange: (checked) => this.handleAutosaveToggle(checked),
+    });
     actions.append(
       animationsToggle,
+      autosaveToggle,
       this.deleteCanvasButton,
       this.logoutButton
     );
@@ -247,5 +259,12 @@ export class CanvasMenu {
     if (this.animationsEnabled === checked) return;
     this.animationsEnabled = checked;
     this.animationsToggleHandler?.(this.animationsEnabled);
+  }
+
+  private handleAutosaveToggle(checked: boolean): void {
+    if (this.autosaveEnabled === checked) return;
+    this.autosaveEnabled = checked;
+    CanvasClientStorage.setCanvasAutosaveEnabled(checked);
+    emitCanvasAutosaveToggled(checked);
   }
 }

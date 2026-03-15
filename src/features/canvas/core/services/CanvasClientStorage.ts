@@ -25,6 +25,7 @@ const DRAFTS_KEY_PREFIX = 'draft-unsynced-changes';
 const DRAFTS_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const MINI_MAP_VISIBLE_KEY = 'ui:minimap-visible';
 const CANVAS_ANIMATIONS_ENABLED_KEY = 'ui:canvas-animations-enabled';
+const CANVAS_AUTOSAVE_ENABLED_KEY = 'ui:canvas-autosave-enabled';
 
 function getDraftsKey(canvasId: string): string {
   return `${DRAFTS_KEY_PREFIX}:${canvasId}`;
@@ -76,6 +77,15 @@ function writeEnvelope<T>(
 }
 
 export class CanvasClientStorage {
+  public static getCanvasAutosaveEnabled(defaultEnabled = true): boolean {
+    const stored = readEnvelope<unknown>(CANVAS_AUTOSAVE_ENABLED_KEY);
+    return typeof stored === 'boolean' ? stored : defaultEnabled;
+  }
+
+  public static setCanvasAutosaveEnabled(enabled: boolean): void {
+    writeEnvelope(CANVAS_AUTOSAVE_ENABLED_KEY, enabled, null);
+  }
+
   public static getCanvasAnimationsEnabled(defaultEnabled = true): boolean {
     const stored = readEnvelope<unknown>(CANVAS_ANIMATIONS_ENABLED_KEY);
     return typeof stored === 'boolean' ? stored : defaultEnabled;
