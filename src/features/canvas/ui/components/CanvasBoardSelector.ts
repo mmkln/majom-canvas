@@ -6,11 +6,13 @@ import {
   createIconButton,
   createSplitDropdownItem,
   createTextButton,
-  Dropdown,
   createSurface,
 } from '../primitives/index.ts';
 import { createIcon } from '../icons.ts';
 import { MenuItemGroup } from './MenuItemGroup.ts';
+import {
+  openTopbarDropdown,
+} from './topbarDropdownLayout.ts';
 
 type CanvasGroup = { id: string; name: string };
 type CanvasItem = {
@@ -51,7 +53,7 @@ export class CanvasBoardSelector {
     null;
   private canvasGroupUpdateFailedHandler: ((event: Event) => void) | null =
     null;
-  private readonly dropdownController: Dropdown;
+  private readonly dropdownController: AnchoredMenu;
   private readonly itemActionsMenuController: AnchoredMenu;
 
   constructor() {
@@ -88,7 +90,7 @@ export class CanvasBoardSelector {
       title: 'Select canvas',
       onClick: (event) => {
         event.stopPropagation();
-        this.dropdownController.toggle();
+        this.toggleDropdown();
       },
     });
 
@@ -97,7 +99,7 @@ export class CanvasBoardSelector {
     this.dropdown = createSurface({
       elevated: true,
       className:
-        'mt-1 hidden grid max-h-[70vh] w-[300px] grid-rows-[minmax(0,1fr)_auto_auto] overflow-hidden',
+        'absolute left-0 top-0 z-30 hidden grid max-h-[70vh] w-[300px] grid-rows-[minmax(0,1fr)_auto_auto] overflow-hidden',
     });
 
     this.listWrap = document.createElement('div');
@@ -144,7 +146,7 @@ export class CanvasBoardSelector {
       },
     });
 
-    this.dropdownController = new Dropdown({
+    this.dropdownController = new AnchoredMenu({
       container: this.container,
       panel: this.dropdown,
       onOpenChange: (open) => {
@@ -274,7 +276,27 @@ export class CanvasBoardSelector {
   }
 
   private setDropdownOpen(open: boolean): void {
-    this.dropdownController.setOpen(open);
+    if (open) {
+      this.openDropdown();
+      return;
+    }
+    this.dropdownController.close();
+  }
+
+  private toggleDropdown(): void {
+    if (this.dropdownController.isOpen()) {
+      this.dropdownController.close();
+      return;
+    }
+    this.openDropdown();
+  }
+
+  private openDropdown(): void {
+    openTopbarDropdown({
+      controller: this.dropdownController,
+      anchor: this.header,
+      align: 'start',
+    });
   }
 
   private startTitleEdit(): void {
@@ -389,6 +411,10 @@ export class CanvasBoardSelector {
     ungroupedCanvases.forEach((canvas) => {
       this.listWrap.appendChild(this.createCanvasRow(canvas));
     });
+
+    if (this.dropdownController.isOpen()) {
+      this.dropdownController.reposition();
+    }
   }
 
   private createCanvasRow(

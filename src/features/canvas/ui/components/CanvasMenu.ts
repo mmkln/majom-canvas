@@ -6,12 +6,15 @@ import { notify } from '../../core/services/NotificationService.ts';
 import { AuthController, type AuthState } from '../auth/AuthController.ts';
 import { authFlowService } from '../auth/authFlowService.ts';
 import {
+  AnchoredMenu,
   createDivider,
   createDropdownItem,
   createIconButton,
   createSurface,
-  Dropdown,
 } from '../primitives/index.ts';
+import {
+  openTopbarDropdown,
+} from './topbarDropdownLayout.ts';
 
 type CanvasMenuOptions = {
   containerClassName?: string;
@@ -21,7 +24,7 @@ export class CanvasMenu {
   private readonly container: HTMLDivElement;
   private readonly menuButton: HTMLButtonElement;
   private readonly dropdownMenu: HTMLDivElement;
-  private readonly dropdownController: Dropdown;
+  private readonly dropdownController: AnchoredMenu;
   private readonly deleteCanvasButton: HTMLButtonElement;
   private readonly logoutButton: HTMLButtonElement;
   private readonly authController: AuthController;
@@ -52,7 +55,7 @@ export class CanvasMenu {
     this.dropdownMenu = createSurface({
       elevated: true,
       className:
-        'absolute right-[-10px] top-full mt-3.5 z-30 hidden w-72 overflow-hidden',
+        'absolute left-0 top-0 z-30 hidden w-72 overflow-hidden',
     });
 
     this.deleteCanvasButton = createDropdownItem({
@@ -70,9 +73,10 @@ export class CanvasMenu {
       onClick: () => this.handleLogout(),
     });
 
-    this.dropdownController = new Dropdown({
+    this.dropdownController = new AnchoredMenu({
       container: this.container,
       panel: this.dropdownMenu,
+      
       onOpenChange: (open) => {
         this.menuButton.classList.toggle('bg-indigo-50', open);
         this.menuButton.classList.toggle('text-indigo-700', open);
@@ -164,12 +168,20 @@ export class CanvasMenu {
     const actions = document.createElement('div');
     actions.append(this.deleteCanvasButton, this.logoutButton);
     this.dropdownMenu.appendChild(actions);
+    if (this.dropdownController.isOpen()) {
+      this.dropdownController.reposition();
+    }
   }
 
   private toggleDropdown(): void {
     const willOpen = !this.dropdownController.isOpen();
-    this.dropdownController.toggle();
-    if (!willOpen) return;
+    if (willOpen) {
+      this.openDropdown();
+    } else {
+      this.dropdownController.close();
+      return;
+    }
+
     const state = this.authController.getState();
     if (!state.user && !state.isUserLoading) {
       this.authController.loadUserIfNeeded();
@@ -177,7 +189,29 @@ export class CanvasMenu {
   }
 
   private setDropdownOpen(open: boolean): void {
-    this.dropdownController.setOpen(open);
+    if (open) {
+      this.openDropdown();
+      return;
+    }
+    this.dropdownController.close();
+  }
+
+  private openDropdown(): void {
+    openTopbarDropdown({
+      controller: this.dropdownController,
+      anchor: this.resolveDropdownAnchor(),
+      align: 'end',
+    });
+  }
+
+  private resolveDropdownAnchor(): HTMLElement {
+    const surfaceAnchor = this.container.closest(
+      '[data-component="HudSurface"]'
+    );
+    if (surfaceAnchor instanceof HTMLElement) {
+      return surfaceAnchor;
+    }
+    return this.container;
   }
 
   private handleLogout(): void {
