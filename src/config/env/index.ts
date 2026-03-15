@@ -18,5 +18,7 @@ export const CANVAS_PERF_LOG =
 export const KANBAN_DEV_ENABLED =
   import.meta.env.DEV &&
   (parseOptionalBoolean(import.meta.env.VITE_ENABLE_KANBAN_DEV) ?? true);
+export const ROUTINES_ENABLED =
+  parseOptionalBoolean(import.meta.env.VITE_ENABLE_ROUTINES) ?? true;
 export const API_URL =
   parseOptionalString(import.meta.env.VITE_API_URL) ?? DEFAULT_API_URL;

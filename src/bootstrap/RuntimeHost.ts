@@ -1,5 +1,5 @@
 import { Subscription } from 'rxjs';
-import { KANBAN_DEV_ENABLED } from '../config/env/index.ts';
+import { KANBAN_DEV_ENABLED, ROUTINES_ENABLED } from '../config/env/index.ts';
 import { CanvasModule } from '../features/canvas/CanvasModule.ts';
 import { WallpaperService } from '../features/shell/services/WallpaperService.ts';
 import type { WorkspaceModule } from '../features/shell/WorkspaceModule.ts';
@@ -60,6 +60,7 @@ export class RuntimeHost {
     this.activeView = this.loadActiveView();
     this.viewSwitcher = new WorkspaceViewSwitcher(this.activeView, {
       showKanban: KANBAN_DEV_ENABLED,
+      showRoutines: ROUTINES_ENABLED,
     });
     this.viewSwitcher.mount(document.body);
     this.viewSwitcher.setVisible(false);
