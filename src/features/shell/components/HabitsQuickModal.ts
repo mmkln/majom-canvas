@@ -136,6 +136,16 @@ export class HabitsQuickModal {
   private readonly pendingCellKeys = new Set<string>();
   private readonly pendingHabitIds = new Set<number>();
   private readonly rowMenuControllers = new Set<AnchoredMenu>();
+  private streakOverlayWrap: HTMLDivElement | null = null;
+  private streakOverlayRows: StreakRowOverlayMeta[] = [];
+  private streakOverlayRafId: number | null = null;
+  private streakOverlayObserver: ResizeObserver | null = null;
+  private readonly handleStreakOverlayScroll = (): void => {
+    this.scheduleStreakOverlayRender();
+  };
+  private readonly handleStreakOverlayWindowResize = (): void => {
+    this.scheduleStreakOverlayRender();
+  };
 
   constructor(service: HabitsQuickModalService = new ShellHabitsService()) {
     this.service = service;
@@ -163,6 +173,7 @@ export class HabitsQuickModal {
 
   public close(): void {
     if (!this.overlay) return;
+    this.detachStreakOverlay();
     this.overlay.remove();
     this.closeCreateModal();
     this.overlay = null;
@@ -310,6 +321,65 @@ export class HabitsQuickModal {
     tableWrap.appendChild(svg);
   }
 
+  private scheduleStreakOverlayRender(): void {
+    if (!this.streakOverlayWrap) return;
+    if (typeof window === 'undefined') {
+      this.renderStreakOverlay(this.streakOverlayWrap, this.streakOverlayRows);
+      return;
+    }
+    if (this.streakOverlayRafId !== null) return;
+    this.streakOverlayRafId = window.requestAnimationFrame(() => {
+      this.streakOverlayRafId = null;
+      if (!this.streakOverlayWrap || !this.streakOverlayWrap.isConnected) return;
+      this.renderStreakOverlay(this.streakOverlayWrap, this.streakOverlayRows);
+    });
+  }
+
+  private detachStreakOverlay(): void {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('resize', this.handleStreakOverlayWindowResize);
+      if (this.streakOverlayRafId !== null) {
+        window.cancelAnimationFrame(this.streakOverlayRafId);
+      }
+    }
+    this.streakOverlayRafId = null;
+    this.streakOverlayObserver?.disconnect();
+    this.streakOverlayObserver = null;
+    this.streakOverlayWrap?.removeEventListener('scroll', this.handleStreakOverlayScroll);
+    this.streakOverlayWrap = null;
+    this.streakOverlayRows = [];
+  }
+
+  private bindStreakOverlay(
+    tableWrap: HTMLDivElement,
+    table: HTMLTableElement,
+    rows: StreakRowOverlayMeta[]
+  ): void {
+    this.detachStreakOverlay();
+    this.streakOverlayWrap = tableWrap;
+    this.streakOverlayRows = rows;
+    tableWrap.addEventListener('scroll', this.handleStreakOverlayScroll, {
+      passive: true,
+    });
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', this.handleStreakOverlayWindowResize, {
+        passive: true,
+      });
+    }
+    if (typeof ResizeObserver !== 'undefined') {
+      this.streakOverlayObserver = new ResizeObserver(() => {
+        this.scheduleStreakOverlayRender();
+      });
+      this.streakOverlayObserver.observe(tableWrap);
+      this.streakOverlayObserver.observe(table);
+      const tbody = table.tBodies.item(0);
+      if (tbody) {
+        this.streakOverlayObserver.observe(tbody);
+      }
+    }
+    this.scheduleStreakOverlayRender();
+  }
+
   private renderFooter(): void {
     if (!this.footer) return;
     this.footer.replaceChildren();
@@ -455,6 +525,7 @@ export class HabitsQuickModal {
   private renderBody(): void {
     if (!this.body) return;
     this.disposeRowMenus();
+    this.detachStreakOverlay();
     this.body.replaceChildren();
 
     const content = document.createElement('div');
@@ -729,7 +800,7 @@ export class HabitsQuickModal {
     tableWrap.appendChild(table);
     content.appendChild(tableWrap);
     this.body.appendChild(content);
-    this.renderStreakOverlay(tableWrap, streakRows);
+    this.bindStreakOverlay(tableWrap, table, streakRows);
   }
 
   private async refresh(): Promise<void> {
