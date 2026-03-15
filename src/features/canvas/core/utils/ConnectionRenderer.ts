@@ -90,7 +90,7 @@ class ConnectionRenderer {
     const scale = panZoom.scale ?? 1;
     const timeMs = (panZoom.timeMs ?? performance.now()) * 0.02;
     const baseColor = connection.selected
-      ? '#008dff'
+      ? SELECT_COLOR
       : this.getRelationColor(connection);
     const dash = 24 / scale;
     const gap = 12 / scale;
@@ -283,7 +283,7 @@ class ConnectionRenderer {
       ctx.restore();
       return;
     }
-    ctx.fillStyle = connection.selected ? '#008dff' : baseColor;
+    ctx.fillStyle = connection.selected ? SELECT_COLOR : baseColor;
     ctx.fill();
   }
 
@@ -337,7 +337,7 @@ class ConnectionRenderer {
   ): void {
     ctx.setLineDash([]);
     const baseColor = this.getRelationColor(connection);
-    ctx.strokeStyle = connection.selected ? '#008dff' : baseColor;
+    ctx.strokeStyle = connection.selected ? SELECT_COLOR : baseColor;
     ctx.lineWidth = 2;
   }
 
