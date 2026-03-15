@@ -97,15 +97,15 @@ export const HUD_SEGMENTED_CONTROL_CLASS =
   'inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1';
 
 export const HUD_SEGMENTED_ITEM_CLASS =
-  'inline-flex items-center justify-center rounded-md px-2.5 text-sm font-medium text-slate-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:ring-offset-0';
+  'inline-flex items-center justify-center rounded-md px-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:ring-offset-0';
 
 export const HUD_SEGMENTED_ITEM_SM_CLASS = 'h-7 min-w-7 text-xs';
 export const HUD_SEGMENTED_ITEM_MD_CLASS = 'h-8 min-w-8 text-sm';
 
-export const HUD_SEGMENTED_ITEM_ACTIVE_CLASS = 'bg-slate-100 text-slate-900';
+export const HUD_SEGMENTED_ITEM_ACTIVE_CLASS = 'bg-indigo-50 text-indigo-800';
 
 export const HUD_SEGMENTED_ITEM_INACTIVE_CLASS =
-  'hover:bg-slate-50 hover:text-slate-800';
+  'text-slate-600 hover:bg-slate-50 hover:text-slate-800';
 
 export const HUD_SEGMENTED_ITEM_DISABLED_CLASS =
   'cursor-not-allowed text-slate-400 hover:bg-transparent hover:text-slate-400';
