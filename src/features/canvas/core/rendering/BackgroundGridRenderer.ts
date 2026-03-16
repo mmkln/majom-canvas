@@ -1,10 +1,6 @@
 import type { PanZoomManager } from '../managers/PanZoomManager.ts';
 
-type GridMode = 'none' | 'dots' | 'hex';
-
 type GridConfig = {
-  mode: GridMode;
-  spacing: number;
   radius: number;
   color: string;
   alpha: number;
@@ -22,8 +18,6 @@ type BackgroundSnapshot = {
   scrollX: number;
   scrollY: number;
   scaleBucket: number;
-  mode: GridMode;
-  spacing: number;
 };
 
 type DrawInput = {
@@ -40,8 +34,6 @@ export class BackgroundGridRenderer {
   private readonly tileCache = new Map<string, GridTile>();
   private readonly maxTileCacheSize = 24;
   private readonly zoomBucketStep = 0.1;
-  private readonly minDotsScale = 0.18;
-  private readonly minHexScale = 0.42;
   private lastSnapshot: BackgroundSnapshot | null = null;
 
   public draw({ ctx, panZoom, viewportWidth, viewportHeight }: DrawInput): void {
@@ -54,8 +46,6 @@ export class BackgroundGridRenderer {
       scrollX: panZoom.scrollX,
       scrollY: panZoom.scrollY,
       scaleBucket,
-      mode: config.mode,
-      spacing: config.spacing,
     });
     if (this.isSnapshotEqual(this.lastSnapshot, snapshot)) {
       return;
@@ -63,7 +53,6 @@ export class BackgroundGridRenderer {
     this.lastSnapshot = snapshot;
 
     ctx.clearRect(0, 0, viewportWidth, viewportHeight);
-    if (config.mode === 'none') return;
 
     const tileKey = this.buildTileKey(config, scaleBucket);
     const tile = this.getOrCreateTile(tileKey, config, scaleBucket);
@@ -102,36 +91,30 @@ export class BackgroundGridRenderer {
   }
 
   private resolveGridConfig(scale: number): GridConfig {
-    if (scale < this.minDotsScale) {
+    // Keep the hex grid visible at every zoom level.
+    // At low scales we use larger cells and lower alpha to keep fill cost stable.
+    if (scale < 0.28) {
       return {
-        mode: 'none',
-        spacing: 1,
-        radius: 0,
-        color: '#000000',
-        alpha: 0,
+        radius: 150,
+        color: '#d1d5db',
+        alpha: 0.1,
       };
     }
-    if (scale < this.minHexScale) {
+    if (scale < 0.55) {
       return {
-        mode: 'dots',
-        spacing: 220,
-        radius: 0,
+        radius: 120,
         color: '#d1d5db',
-        alpha: 0.22,
+        alpha: 0.12,
       };
     }
     if (scale < 0.78) {
       return {
-        mode: 'hex',
-        spacing: 0,
         radius: 96,
         color: '#d1d5db',
         alpha: 0.14,
       };
     }
     return {
-      mode: 'hex',
-      spacing: 0,
       radius: 60,
       color: '#d1d5db',
       alpha: 0.15,
@@ -146,7 +129,7 @@ export class BackgroundGridRenderer {
   }
 
   private buildTileKey(config: GridConfig, scaleBucket: number): string {
-    return `${config.mode}:${config.spacing}:${config.radius}:${config.alpha}:${scaleBucket.toFixed(2)}`;
+    return `hex:${config.radius}:${config.alpha}:${scaleBucket.toFixed(2)}`;
   }
 
   private getOrCreateTile(
@@ -157,29 +140,10 @@ export class BackgroundGridRenderer {
     const existing = this.tileCache.get(key);
     if (existing) return existing;
 
-    const tile =
-      config.mode === 'dots'
-        ? this.createDotTile(config, scaleBucket)
-        : this.createHexTile(config, scaleBucket);
+    const tile = this.createHexTile(config, scaleBucket);
     this.tileCache.set(key, tile);
     this.evictCacheIfNeeded();
     return tile;
-  }
-
-  private createDotTile(config: GridConfig, scaleBucket: number): GridTile {
-    const size = Math.max(16, Math.round(config.spacing));
-    const canvas = this.createTileCanvas(size, size);
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      return { canvas, width: size, height: size };
-    }
-    ctx.clearRect(0, 0, size, size);
-    ctx.fillStyle = this.toRgba(config.color, config.alpha);
-    const radius = Math.max(0.5, 1.5 / scaleBucket);
-    ctx.beginPath();
-    ctx.arc(size / 2, size / 2, radius, 0, Math.PI * 2);
-    ctx.fill();
-    return { canvas, width: size, height: size };
   }
 
   private createHexTile(config: GridConfig, scaleBucket: number): GridTile {
@@ -268,8 +232,6 @@ export class BackgroundGridRenderer {
       scrollX: roundToPrecision(input.scrollX, 0.5),
       scrollY: roundToPrecision(input.scrollY, 0.5),
       scaleBucket: input.scaleBucket,
-      mode: input.mode,
-      spacing: input.spacing,
     };
   }
 
@@ -283,9 +245,7 @@ export class BackgroundGridRenderer {
       previous.viewportHeight === next.viewportHeight &&
       previous.scrollX === next.scrollX &&
       previous.scrollY === next.scrollY &&
-      previous.scaleBucket === next.scaleBucket &&
-      previous.mode === next.mode &&
-      previous.spacing === next.spacing
+      previous.scaleBucket === next.scaleBucket
     );
   }
 }

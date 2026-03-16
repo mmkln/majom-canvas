@@ -2,36 +2,34 @@ import { describe, expect, it } from 'vitest';
 import { BackgroundGridRenderer } from './BackgroundGridRenderer.ts';
 
 describe('BackgroundGridRenderer LOD config', () => {
-  it('switches to none at very low scales', () => {
+  it('uses coarse cells at very low scales', () => {
     const renderer = new BackgroundGridRenderer();
     const config = (
       renderer as unknown as {
-        resolveGridConfig: (scale: number) => { mode: string };
+        resolveGridConfig: (scale: number) => { radius: number };
       }
     ).resolveGridConfig(0.12);
-    expect(config.mode).toBe('none');
+    expect(config.radius).toBeGreaterThan(100);
   });
 
-  it('switches to dots at low-mid scales', () => {
+  it('uses larger hex cells at low-mid scales', () => {
     const renderer = new BackgroundGridRenderer();
     const config = (
       renderer as unknown as {
-        resolveGridConfig: (scale: number) => { mode: string; spacing: number };
+        resolveGridConfig: (scale: number) => { radius: number };
       }
     ).resolveGridConfig(0.3);
-    expect(config.mode).toBe('dots');
-    expect(config.spacing).toBeGreaterThan(0);
+    expect(config.radius).toBeGreaterThan(100);
   });
 
-  it('switches to hex at higher scales', () => {
+  it('uses finer cells at higher scales', () => {
     const renderer = new BackgroundGridRenderer();
     const config = (
       renderer as unknown as {
-        resolveGridConfig: (scale: number) => { mode: string; radius: number };
+        resolveGridConfig: (scale: number) => { radius: number };
       }
     ).resolveGridConfig(0.9);
-    expect(config.mode).toBe('hex');
-    expect(config.radius).toBeGreaterThan(0);
+    expect(config.radius).toBeLessThan(100);
   });
 });
 
@@ -64,8 +62,6 @@ describe('BackgroundGridRenderer snapshot normalization', () => {
           scrollX: number;
           scrollY: number;
           scaleBucket: number;
-          mode: 'none' | 'dots' | 'hex';
-          spacing: number;
         }) => {
           viewportWidth: number;
           viewportHeight: number;
@@ -79,8 +75,6 @@ describe('BackgroundGridRenderer snapshot normalization', () => {
       scrollX: 10.24,
       scrollY: -3.26,
       scaleBucket: 0.5,
-      mode: 'dots',
-      spacing: 220,
     });
 
     expect(snapshot.viewportWidth).toBe(1000);
