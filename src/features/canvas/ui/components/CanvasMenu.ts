@@ -211,9 +211,9 @@ export class CanvasMenu {
       animationsToggle,
       smartGuidesToggle,
       autosaveToggle,
-      this.logoutButton,
+      this.deleteCanvasButton,
       createDivider(),
-      this.deleteCanvasButton
+      this.logoutButton
     );
     this.dropdownMenu.appendChild(actions);
     if (this.dropdownController.isOpen()) {
