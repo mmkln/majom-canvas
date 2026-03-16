@@ -79,7 +79,7 @@ describe('statusAnimationEffects reduced detail', () => {
     expect(fullStrokeCount).toBeGreaterThan(reducedStrokeCount);
   });
 
-  it('avoids pulse fill rings in reduced in-progress mode', () => {
+  it('keeps a lighter pulse ring in reduced in-progress mode', () => {
     const fullCtx = createCtxStub();
     drawStatusAnimationEffect({
       status: ElementStatus.InProgress,
@@ -111,6 +111,7 @@ describe('statusAnimationEffects reduced detail', () => {
     ).mock.calls.length;
 
     expect(fullFillCount).toBeGreaterThan(0);
-    expect(reducedFillCount).toBe(0);
+    expect(reducedFillCount).toBeGreaterThan(0);
+    expect(reducedFillCount).toBeLessThanOrEqual(fullFillCount);
   });
 });

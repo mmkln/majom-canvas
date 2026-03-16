@@ -114,21 +114,46 @@ const drawInProgressPulse = ({
     const innerAlpha = Math.min(0.9, alpha * 1.4);
 
     if (animDetail === 'reduced') {
-      ctx.save();
-      ctx.strokeStyle = pulseColor;
-      ctx.globalAlpha = Math.min(0.65, innerAlpha * 0.9);
-      ctx.lineWidth = lineWidth;
-      ctx.beginPath();
-      outline.drawPath(ctx, 0);
-      ctx.stroke();
-      ctx.restore();
+      const drawReducedPulse = (
+        pulseProgress: number,
+        intensity: number
+      ): void => {
+        const pulseAlpha = getPulseAlpha(pulseProgress);
+        const pulseExpand = getPulseExpand(pulseProgress, scale);
+        const ringExpand = pulseExpand * (0.46 + intensity * 0.2);
+        const ringAlpha = pulseAlpha * (0.16 + intensity * 0.2);
+
+        ctx.save();
+        ctx.fillStyle = pulseColor;
+        ctx.globalAlpha = ringAlpha;
+        ctx.beginPath();
+        outline.drawPath(ctx, ringExpand);
+        outline.drawPath(ctx, 0);
+        ctx.fill('evenodd');
+        ctx.restore();
+
+        ctx.save();
+        ctx.strokeStyle = pulseColor;
+        ctx.globalAlpha = pulseAlpha * (0.25 + intensity * 0.3);
+        ctx.lineWidth = Math.max(
+          0.45 / scale,
+          lineWidth * (0.74 + intensity * 0.18)
+        );
+        ctx.beginPath();
+        outline.drawPath(ctx, ringExpand);
+        ctx.stroke();
+        ctx.restore();
+      };
+
+      drawReducedPulse(progress, 1);
+      drawReducedPulse((progress + 0.48) % 1, 0.62);
 
       ctx.save();
       ctx.strokeStyle = pulseColor;
-      ctx.globalAlpha = baseAlpha * 0.5;
-      ctx.lineWidth = Math.max(0.5 / scale, lineWidth * 0.85);
+      ctx.globalAlpha = Math.min(0.82, innerAlpha * 1.06);
+      ctx.lineWidth = lineWidth;
       ctx.beginPath();
-      outline.drawPath(ctx, expand * 0.65);
+      outline.drawPath(ctx, 0);
       ctx.stroke();
       ctx.restore();
       return;
