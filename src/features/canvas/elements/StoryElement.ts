@@ -23,6 +23,7 @@ import { v4 } from 'uuid';
 import { TextRenderer } from '../utils/TextRenderer.ts';
 import { drawStatusAnimationRect } from './utils/statusAnimations.ts';
 import type { UiPriority } from '../../../majom-wrapper/utils/priorityMapping.ts';
+import { getPriorityStrokeWidth } from './utils/priorityStroke.ts';
 
 /**
  * Story representation on the canvas - a container for tasks
@@ -123,6 +124,7 @@ export class StoryElement extends PlanningElement {
       : this.highlighted
         ? HIGHLIGHT_STORY_FILL
         : style.fillColor;
+    const strokeWidth = getPriorityStrokeWidth(this.priority) / panZoom.scale;
     this.fillColor = fillColor;
     this.borderColor = chromeColor;
     const radius = 8 * panZoom.scale;
@@ -141,7 +143,7 @@ export class StoryElement extends PlanningElement {
         : this.selected
           ? SELECT_COLOR
           : style.borderColor;
-    ctx.lineWidth = this.lineWidth / panZoom.scale;
+    ctx.lineWidth = strokeWidth;
     ctx.stroke();
     if (showAnim) {
       drawStatusAnimationRect({
@@ -152,7 +154,7 @@ export class StoryElement extends PlanningElement {
         width: this.width,
         height: this.height,
         radius,
-        lineWidth: this.lineWidth / panZoom.scale,
+        lineWidth: strokeWidth,
         scale: panZoom.scale,
         color: chromeColor,
         timeMs: panZoom.timeMs,

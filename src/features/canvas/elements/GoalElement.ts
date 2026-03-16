@@ -21,6 +21,7 @@ import { ElementStatus } from './ElementStatus.ts';
 import { TextRenderer } from '../utils/TextRenderer.ts';
 import { drawStatusAnimationHex } from './utils/statusAnimations.ts';
 import type { UiPriority } from '../../../majom-wrapper/utils/priorityMapping.ts';
+import { getPriorityStrokeWidth } from './utils/priorityStroke.ts';
 
 export type GoalScale = 1 | 2 | 3;
 
@@ -118,6 +119,7 @@ export class GoalElement extends PlanningElement {
       : this.highlighted
         ? HIGHLIGHT_GOAL_FILL
         : style.fillColor;
+    const strokeWidth = getPriorityStrokeWidth(this.priority) / panZoom.scale;
     this.fillColor = fillColor;
     this.borderColor = chromeColor;
     const centerX = x + width / 2;
@@ -140,7 +142,7 @@ export class GoalElement extends PlanningElement {
         : this.selected
           ? SELECT_COLOR
           : style.borderColor;
-    ctx.lineWidth = this.lineWidth / panZoom.scale;
+    ctx.lineWidth = strokeWidth;
     ctx.beginPath();
     this.drawGoalPath(ctx, goalVertices);
     ctx.stroke();
@@ -151,7 +153,7 @@ export class GoalElement extends PlanningElement {
         centerX,
         centerY,
         radius,
-        lineWidth: this.lineWidth / panZoom.scale,
+        lineWidth: strokeWidth,
         scale: panZoom.scale,
         color: chromeColor,
         timeMs: panZoom.timeMs,

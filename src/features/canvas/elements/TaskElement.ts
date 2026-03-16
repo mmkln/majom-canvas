@@ -16,6 +16,7 @@ import { v4 } from 'uuid';
 import { TextRenderer } from '../utils/TextRenderer.ts';
 import { drawStatusAnimationRect } from './utils/statusAnimations.ts';
 import type { UiPriority } from '../../../majom-wrapper/utils/priorityMapping.ts';
+import { getPriorityStrokeWidth } from './utils/priorityStroke.ts';
 
 /**
  * Task representation on the canvas
@@ -88,6 +89,7 @@ export class TaskElement extends PlanningElement {
     const y = this.y;
     const w = TaskElement.width;
     const h = TaskElement.height;
+    const strokeWidth = getPriorityStrokeWidth(this.priority) / panZoom.scale;
     // Background
     const style = taskStyles[this.status];
     const chromeColor = this.focused
@@ -110,7 +112,7 @@ export class TaskElement extends PlanningElement {
         : this.selected
           ? SELECT_COLOR
           : style.borderColor;
-    ctx.lineWidth = 2 / panZoom.scale;
+    ctx.lineWidth = strokeWidth;
     ctx.lineJoin = 'round';
     ctx.stroke();
     if (showAnim) {
@@ -122,7 +124,7 @@ export class TaskElement extends PlanningElement {
         width: w,
         height: h,
         radius,
-        lineWidth: 2 / panZoom.scale,
+        lineWidth: strokeWidth,
         scale: panZoom.scale,
         color: chromeColor,
         timeMs: panZoom.timeMs,
