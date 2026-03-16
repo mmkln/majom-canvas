@@ -96,7 +96,7 @@ export class CanvasClientStorage {
     writeEnvelope(CANVAS_ANIMATIONS_ENABLED_KEY, enabled, null);
   }
 
-  public static getCanvasSmartGuidesEnabled(defaultEnabled = true): boolean {
+  public static getCanvasSmartGuidesEnabled(defaultEnabled = false): boolean {
     const stored = readEnvelope<unknown>(CANVAS_SMART_GUIDES_ENABLED_KEY);
     return typeof stored === 'boolean' ? stored : defaultEnabled;
   }

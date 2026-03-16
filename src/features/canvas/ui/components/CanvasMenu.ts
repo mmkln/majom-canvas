@@ -74,7 +74,7 @@ export class CanvasMenu {
     this.animationsToggleHandler = options.onAnimationsToggle ?? null;
     this.smartGuidesEnabled =
       options.initialSmartGuidesEnabled ??
-      CanvasClientStorage.getCanvasSmartGuidesEnabled(true);
+      CanvasClientStorage.getCanvasSmartGuidesEnabled(false);
     this.smartGuidesToggleHandler = options.onSmartGuidesToggle ?? null;
     this.autosaveEnabled = CanvasClientStorage.getCanvasAutosaveEnabled(true);
 
@@ -201,7 +201,7 @@ export class CanvasMenu {
       onChange: (checked) => this.handleAutosaveToggle(checked),
     });
     const smartGuidesToggle = createToggleSwitch({
-      label: 'Smart guides',
+      label: 'Alignment guides',
       labelClassName: '!font-normal',
       togglePosition: 'right',
       checked: this.smartGuidesEnabled,
@@ -211,8 +211,9 @@ export class CanvasMenu {
       animationsToggle,
       smartGuidesToggle,
       autosaveToggle,
-      this.deleteCanvasButton,
-      this.logoutButton
+      this.logoutButton,
+      createDivider(),
+      this.deleteCanvasButton
     );
     this.dropdownMenu.appendChild(actions);
     if (this.dropdownController.isOpen()) {
