@@ -2,6 +2,7 @@ import { Story as StoryDto } from '../../../majom-wrapper/interfaces/index.ts';
 import { CanvasPositionReadDTO } from '../../../majom-wrapper/data-access/canvas-position-dto.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { mapStatus } from '../../../majom-wrapper/utils/statusMapping.ts';
+import { normalizeUiPriority } from '../../../majom-wrapper/utils/priorityMapping.ts';
 
 const DEFAULT_X = 0;
 const DEFAULT_Y = 0;
@@ -35,5 +36,6 @@ export function mapStory(
     title: dto.title,
     status: mapStatus(dto.status),
     description: dto.description,
+    priority: normalizeUiPriority(dto.priority),
   });
 }

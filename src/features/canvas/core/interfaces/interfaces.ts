@@ -8,7 +8,7 @@ export interface ITask {
   title: string; // Назва задачі
   description: string; // Короткий опис задачі
   status: ElementStatus; // Статус виконання
-  priority: 'low' | 'medium' | 'high'; // Пріоритет задачі
+  priority: 'lowest' | 'low' | 'medium' | 'high' | 'highest'; // Пріоритет задачі
   dueDate: Date | null; // Кінцевий термін виконання
   x: number; // Координата X на полотні
   y: number; // Координата Y на полотні
@@ -33,7 +33,7 @@ export interface IStory {
   title: string;
   description: string;
   status: ElementStatus;
-  priority: 'low' | 'medium' | 'high';
+  priority: 'lowest' | 'low' | 'medium' | 'high' | 'highest';
   tasks: string[]; // id задач, що належать цій Story
 }
 
@@ -48,7 +48,7 @@ export interface IGoal {
   height: number;
   title: string;
   status: ElementStatus;
-  priority: 'low' | 'medium' | 'high';
+  priority: 'lowest' | 'low' | 'medium' | 'high' | 'highest';
   progress: number;
   links: string[];
 }

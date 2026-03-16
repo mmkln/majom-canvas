@@ -3,6 +3,7 @@ import type { CanvasManager } from '../managers/CanvasManager.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
 import type { PlatformTask } from '../../../../majom-wrapper/interfaces/index.ts';
 import { mapStatus } from '../../../../majom-wrapper/utils/statusMapping.ts';
+import { normalizeUiPriority } from '../../../../majom-wrapper/utils/priorityMapping.ts';
 import { historyService } from './HistoryService.ts';
 import { AddElementCommand } from '../commands/AddElementCommand.ts';
 
@@ -24,12 +25,7 @@ export class AddExistingTaskService {
       return;
     }
 
-    const normalizedPriority =
-      task.priority === 'low' ||
-      task.priority === 'medium' ||
-      task.priority === 'high'
-        ? task.priority
-        : 'medium';
+    const normalizedPriority = normalizeUiPriority(task.priority);
 
     const dueDateRaw = task.due_date;
     let dueDate: Date | null = null;

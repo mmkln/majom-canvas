@@ -22,6 +22,7 @@ import { ElementStatus } from './ElementStatus.ts';
 import { v4 } from 'uuid';
 import { TextRenderer } from '../utils/TextRenderer.ts';
 import { drawStatusAnimationRect } from './utils/statusAnimations.ts';
+import type { UiPriority } from '../../../majom-wrapper/utils/priorityMapping.ts';
 
 /**
  * Story representation on the canvas - a container for tasks
@@ -36,7 +37,7 @@ export class StoryElement extends PlanningElement {
 
   status: ElementStatus = ElementStatus.Defined;
   tasks: TaskElement[] = [];
-  public priority: 'low' | 'medium' | 'high' = 'medium';
+  public priority: UiPriority = 'low';
   public goalBackendId: number | null = null;
   /** Currently hovered resize direction */
   public hoveredResizeHandle: 'nw' | 'ne' | 'se' | 'sw' | null = null;
@@ -53,7 +54,7 @@ export class StoryElement extends PlanningElement {
     title = 'New Story',
     description = '',
     status = ElementStatus.Defined,
-    priority = 'medium',
+    priority = 'low',
     tasks = [],
     selected = false,
     backendId,
@@ -68,7 +69,7 @@ export class StoryElement extends PlanningElement {
     title?: string;
     description?: string;
     status?: ElementStatus;
-    priority?: 'low' | 'medium' | 'high';
+    priority?: UiPriority;
     tasks?: TaskElement[];
     selected?: boolean;
     backendId?: number;

@@ -22,11 +22,12 @@ import {
   ELEMENT_STATUS_OPTIONS,
   ElementStatus,
 } from '../../elements/ElementStatus.ts';
+import type { UiPriority } from '../../../../majom-wrapper/utils/priorityMapping.ts';
 
 // Modal for editing title, status, and priority of an element
 export class EditElementModal {
   private modal: HTMLDivElement | null = null;
-  private priorityControl: SegmentedControl<'low' | 'medium' | 'high'> | null =
+  private priorityControl: SegmentedControl<UiPriority> | null =
     null;
   private scaleControl: SegmentedControl<GoalScale> | null = null;
 
@@ -202,9 +203,11 @@ export class EditElementModal {
       fullWidth: true,
       ariaLabel: 'Priority',
       options: [
+        { id: 'priority-lowest', value: 'lowest', label: 'Lowest' },
         { id: 'priority-low', value: 'low', label: 'Low' },
         { id: 'priority-medium', value: 'medium', label: 'Medium' },
         { id: 'priority-high', value: 'high', label: 'High' },
+        { id: 'priority-highest', value: 'highest', label: 'Highest' },
       ],
       value: tempPriority,
       onChange: (value) => {
@@ -269,7 +272,7 @@ export class EditElementModal {
         title: string;
         description: string;
         status: ElementStatus;
-        priority: 'low' | 'medium' | 'high';
+        priority: UiPriority;
         dueDate: Date | null;
       }> = {};
       if (normalizedTitle !== originalTitle) patch.title = normalizedTitle;

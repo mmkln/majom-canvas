@@ -31,7 +31,10 @@ import { TaskElement } from '../../features/canvas/elements/TaskElement.ts';
 import { StoryElement } from '../../features/canvas/elements/StoryElement.ts';
 import { GoalElement } from '../../features/canvas/elements/GoalElement.ts';
 import { mapStatusToBackend } from '../utils/statusMapping.ts';
-import { mapPriorityToBackend } from '../utils/priorityMapping.ts';
+import {
+  mapPriorityToBackend,
+  type UiPriority,
+} from '../utils/priorityMapping.ts';
 import type {
   CanvasRelation,
   CanvasRelationCreate,
@@ -53,7 +56,7 @@ type ElementPatch = Partial<{
   title: string;
   description: string;
   status: ElementStatus;
-  priority: 'low' | 'medium' | 'high';
+  priority: UiPriority;
   dueDate: Date | null;
 }>;
 

@@ -15,6 +15,7 @@ import { HttpInterceptorClient } from '../../../majom-wrapper/data-access/http-i
 import { StoriesApiService } from '../../../majom-wrapper/data-access/stories-api-service.ts';
 import { GoalsApiService } from '../../../majom-wrapper/data-access/goals-api-service.ts';
 import { mapStatus } from '../../../majom-wrapper/utils/statusMapping.ts';
+import { normalizeUiPriority } from '../../../majom-wrapper/utils/priorityMapping.ts';
 import type {
   PlatformTask,
   Story,
@@ -733,7 +734,7 @@ export class RelatedItemsPicker {
       title: item.title,
       description: item.description,
       status: mapStatus(item.status),
-      priority: 'medium',
+      priority: normalizeUiPriority(item.priority),
     });
   }
 
@@ -747,6 +748,7 @@ export class RelatedItemsPicker {
       title: item.title,
       description: item.description,
       status: mapStatus(item.status),
+      priority: normalizeUiPriority(item.priority),
     });
   }
 

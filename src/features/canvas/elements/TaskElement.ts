@@ -15,6 +15,7 @@ import { editElement$ } from '../core/eventBus.ts';
 import { v4 } from 'uuid';
 import { TextRenderer } from '../utils/TextRenderer.ts';
 import { drawStatusAnimationRect } from './utils/statusAnimations.ts';
+import type { UiPriority } from '../../../majom-wrapper/utils/priorityMapping.ts';
 
 /**
  * Task representation on the canvas
@@ -23,7 +24,7 @@ export class TaskElement extends PlanningElement {
   title: string;
   status: ElementStatus = ElementStatus.Defined;
   public borderColor: string = taskStyles[ElementStatus.Defined].borderColor;
-  priority: 'low' | 'medium' | 'high';
+  priority: UiPriority;
   dueDate: Date | null = null;
 
   static width: number = 272;
@@ -37,7 +38,7 @@ export class TaskElement extends PlanningElement {
     description = '',
     status = ElementStatus.Defined,
     selected = false,
-    priority = 'medium',
+    priority = 'low',
     dueDate = null,
     backendId,
     uuid,
@@ -49,7 +50,7 @@ export class TaskElement extends PlanningElement {
     description?: string;
     status?: ElementStatus;
     selected?: boolean;
-    priority?: 'low' | 'medium' | 'high';
+    priority?: UiPriority;
     dueDate?: Date | null;
     backendId?: number;
     uuid?: string;

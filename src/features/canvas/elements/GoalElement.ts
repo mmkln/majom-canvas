@@ -20,6 +20,7 @@ import { goalStyles } from './styles/goalStyles.ts';
 import { ElementStatus } from './ElementStatus.ts';
 import { TextRenderer } from '../utils/TextRenderer.ts';
 import { drawStatusAnimationHex } from './utils/statusAnimations.ts';
+import type { UiPriority } from '../../../majom-wrapper/utils/priorityMapping.ts';
 
 export type GoalScale = 1 | 2 | 3;
 
@@ -39,7 +40,7 @@ export class GoalElement extends PlanningElement {
   progress: number = 0;
   public status: ElementStatus = ElementStatus.Defined;
   public borderColor: string = goalStyles[ElementStatus.Defined].borderColor;
-  public priority: 'low' | 'medium' | 'high' = 'medium';
+  public priority: UiPriority = 'low';
   public scale: GoalScale = DEFAULT_GOAL_SCALE;
 
   static baseDiameter: number = 400;
@@ -53,7 +54,7 @@ export class GoalElement extends PlanningElement {
     y = 0,
     title = 'New Goal',
     status = ElementStatus.Defined,
-    priority = 'medium',
+    priority = 'low',
     selected = false,
     description = '',
     scale,
@@ -67,7 +68,7 @@ export class GoalElement extends PlanningElement {
     y?: number;
     title?: string;
     status?: ElementStatus;
-    priority?: 'low' | 'medium' | 'high';
+    priority?: UiPriority;
     selected?: boolean;
     description?: string;
     scale?: number;

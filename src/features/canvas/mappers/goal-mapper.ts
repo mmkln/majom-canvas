@@ -2,6 +2,7 @@ import { Goal as GoalDto } from '../../../majom-wrapper/interfaces/index.ts';
 import { CanvasPositionReadDTO } from '../../../majom-wrapper/data-access/canvas-position-dto.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
 import { mapStatus } from '../../../majom-wrapper/utils/statusMapping.ts';
+import { normalizeUiPriority } from '../../../majom-wrapper/utils/priorityMapping.ts';
 
 const DEFAULT_X = 0;
 const DEFAULT_Y = 0;
@@ -29,6 +30,7 @@ export function mapGoal(
     title: dto.title,
     status: mapStatus(dto.status),
     description: dto.description,
+    priority: normalizeUiPriority(dto.priority),
     scale: typeof scale === 'number' ? scale : undefined,
   });
 }

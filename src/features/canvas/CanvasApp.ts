@@ -49,6 +49,7 @@ import { confirmDeleteCanvasModal } from './ui/components/ConfirmDeleteCanvasMod
 import { authFlowService } from './ui/auth/authFlowService.ts';
 import { firstValueFrom, Observable, of, Subscription, throwError } from 'rxjs';
 import { catchError, finalize, map, switchMap } from 'rxjs/operators';
+import type { UiPriority } from '../../majom-wrapper/utils/priorityMapping.ts';
 
 type CanvasListUiItem = {
   id: string;
@@ -539,7 +540,7 @@ export class CanvasApp {
         title: string;
         description: string;
         status: ElementStatus;
-        priority: 'low' | 'medium' | 'high';
+        priority: UiPriority;
         dueDate: Date | null;
       }>;
     }>;

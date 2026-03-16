@@ -3,6 +3,7 @@ import type { CanvasManager } from '../managers/CanvasManager.ts';
 import { StoryElement } from '../../elements/StoryElement.ts';
 import type { Story } from '../../../../majom-wrapper/interfaces/index.ts';
 import { mapStatus } from '../../../../majom-wrapper/utils/statusMapping.ts';
+import { normalizeUiPriority } from '../../../../majom-wrapper/utils/priorityMapping.ts';
 import { historyService } from './HistoryService.ts';
 import { AddElementCommand } from '../commands/AddElementCommand.ts';
 
@@ -24,12 +25,7 @@ export class AddExistingStoryService {
       return;
     }
 
-    const normalizedPriority =
-      story.priority === 'low' ||
-      story.priority === 'medium' ||
-      story.priority === 'high'
-        ? story.priority
-        : 'medium';
+    const normalizedPriority = normalizeUiPriority(story.priority);
 
     const rawGoalId =
       story.goal_id ??
