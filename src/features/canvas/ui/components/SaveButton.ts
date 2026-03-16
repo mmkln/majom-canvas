@@ -30,7 +30,6 @@ export class SaveButton {
   private readonly autosaveToggleHandler: (event: Event) => void;
   private autosaveEnabled = CanvasClientStorage.getCanvasAutosaveEnabled(true);
   private autosaveFailed = false;
-  private manualSaveSucceeded = false;
   private manualSavesInFlight = 0;
   private autosaveSavesInFlight = 0;
   private loadingSince = 0;
@@ -44,7 +43,7 @@ export class SaveButton {
     this.button = createTextButton({
       tone: 'primary',
       size: 'md',
-      text: this.autosaveEnabled ? 'Save now' : 'Save',
+      text: 'Save',
       className: 'min-w-[96px]',
       loadingText: 'Saving...',
       disabled: true,
@@ -88,12 +87,10 @@ export class SaveButton {
     if (detail.source === 'manual') {
       if (detail.action === 'started') {
         this.manualSavesInFlight += 1;
-        this.manualSaveSucceeded = false;
         this.showLoading();
         return;
       }
       this.manualSavesInFlight = Math.max(0, this.manualSavesInFlight - 1);
-      this.manualSaveSucceeded = !historyService.hasUnsavedChanges();
       if (this.manualSavesInFlight === 0) {
         this.hideLoadingWithDelay();
       }
@@ -167,9 +164,6 @@ export class SaveButton {
   }
 
   private updateUiState(): void {
-    if (historyService.hasUnsavedChanges()) {
-      this.manualSaveSucceeded = false;
-    }
     this.updateButtonContent();
     this.updateButtonState();
   }
@@ -183,17 +177,16 @@ export class SaveButton {
     const content = document.createElement('span');
     content.className = 'inline-flex items-center justify-center gap-2';
 
-    const labelSpan = document.createElement('span');
-    labelSpan.textContent = label;
-    content.appendChild(labelSpan);
-
     if (label === 'Saved') {
       const indicator = this.createSavedIndicator();
       content.appendChild(indicator);
     }
+    const labelSpan = document.createElement('span');
+    labelSpan.textContent = label;
+    content.appendChild(labelSpan);
 
     this.button.appendChild(content);
-    const statusLabel = this.getAutosaveStatusLabel(status);
+    const statusLabel = this.getAutosaveStatusLabel(status, label);
     const aria = statusLabel ? `${label}. ${statusLabel}` : label;
     this.button.setAttribute('aria-label', aria);
     this.button.title = aria;
@@ -203,13 +196,13 @@ export class SaveButton {
     status: ReturnType<SaveButton['getAutosaveVisualStatus']>
   ): string {
     if (!this.autosaveEnabled) {
-      if (this.manualSaveSucceeded && !historyService.hasUnsavedChanges()) {
+      if (!historyService.hasUnsavedChanges()) {
         return 'Saved';
       }
       return 'Save';
     }
     if (status === 'saved') return 'Saved';
-    return 'Save now';
+    return 'Save';
   }
 
   private updateButtonState(): void {
@@ -235,8 +228,12 @@ export class SaveButton {
   }
 
   private getAutosaveStatusLabel(
-    status: ReturnType<SaveButton['getAutosaveVisualStatus']>
+    status: ReturnType<SaveButton['getAutosaveVisualStatus']>,
+    label: string
   ): string {
+    if (status === null && label === 'Saved') {
+      return 'All changes saved';
+    }
     switch (status) {
       case 'saving':
         return 'Autosave in progress';
