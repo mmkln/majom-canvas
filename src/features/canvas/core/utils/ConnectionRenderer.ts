@@ -13,6 +13,15 @@ type ConnectionCurve = {
   isBezier: boolean;
 };
 
+type CyberPathGeometry = {
+  start: ConnectionPoint;
+  end: ConnectionPoint;
+  path: Array<{ x: number; y: number }>;
+  corners: Array<{ x: number; y: number }>;
+};
+
+type ConnectionAnimDetail = 'full' | 'reduced';
+
 type RGBColor = { r: number; g: number; b: number };
 
 type RenderableConnection = {
@@ -39,41 +48,53 @@ class ConnectionRenderer {
     from: IConnectable,
     to: IConnectable
   ): void {
-    if (connection.relationType === ConnectionRelationType.LeadsTo) {
-      this.drawCyberLine(connection, ctx, from, to, panZoom);
-    } else if (connection.relationType === ConnectionRelationType.ParentChild) {
-      this.drawCyberLine(connection, ctx, from, to, panZoom, true);
+    const animDetail = this.getConnectionAnimDetail(panZoom);
+    const isCyberRelation =
+      connection.relationType === ConnectionRelationType.LeadsTo ||
+      connection.relationType === ConnectionRelationType.ParentChild;
+    let curve: ConnectionCurve | null = null;
+    let cyberGeometry: CyberPathGeometry | null = null;
+
+    if (isCyberRelation) {
+      const scale = panZoom.scale ?? 1;
+      const { start, end } = connection.getClosestConnectionPoints(from, to);
+      const { path, corners } = buildCyberPath(start, end, scale);
+      cyberGeometry = { start, end, path, corners };
+      this.drawCyberLine(
+        connection,
+        ctx,
+        from,
+        to,
+        panZoom,
+        animDetail,
+        connection.relationType === ConnectionRelationType.ParentChild,
+        cyberGeometry
+      );
     } else {
-      this.drawLine(connection, ctx, from, to);
+      curve = connection.getCurvePoints(from, to);
+      this.drawLine(connection, ctx, curve);
     }
 
     if (connection.selected) {
-      if (
-        connection.relationType === ConnectionRelationType.LeadsTo ||
-        connection.relationType === ConnectionRelationType.ParentChild
-      ) {
-        this.drawCyberSelection(connection, ctx, from, to, panZoom);
-      } else {
-        const curve = connection.getCurvePoints(from, to);
+      if (isCyberRelation) {
+        if (cyberGeometry) {
+          this.drawCyberSelection(ctx, panZoom, cyberGeometry);
+        }
+      } else if (curve) {
         this.drawSelectionOutline(connection, ctx, curve, panZoom);
       }
     }
 
-    if (
-      connection.relationType !== ConnectionRelationType.ParentChild &&
-      connection.relationType !== ConnectionRelationType.LeadsTo
-    ) {
-      this.drawArrowHead(connection, ctx, from, to, panZoom);
+    if (!isCyberRelation && curve) {
+      this.drawArrowHead(connection, ctx, curve.end, panZoom, animDetail);
     }
   }
 
   private drawLine(
     connection: RenderableConnection,
     ctx: CanvasRenderingContext2D,
-    from: IConnectable,
-    to: IConnectable
+    curve: ConnectionCurve
   ): void {
-    const curve = connection.getCurvePoints(from, to);
     connection.buildPath(ctx, curve);
     this.setStrokeProperties(connection, ctx);
     ctx.stroke();
@@ -174,12 +195,13 @@ class ConnectionRenderer {
     from: IConnectable,
     to: IConnectable,
     panZoom: PanZoomManager,
-    reverceAnimation: boolean = false
+    detail: ConnectionAnimDetail,
+    reverceAnimation: boolean = false,
+    geometry: CyberPathGeometry
   ): void {
     const scale = panZoom.scale ?? 1;
     const timeMs = panZoom.timeMs ?? performance.now();
-    const { start, end } = connection.getClosestConnectionPoints(from, to);
-    const { path, corners } = buildCyberPath(start, end, scale);
+    const { start, end, path, corners } = geometry;
     const dash = 18 / scale;
     const gap = 10 / scale;
     const direction = reverceAnimation ? -1 : 1;
@@ -210,36 +232,41 @@ class ConnectionRenderer {
     ctx.globalAlpha = 0.9;
     this.strokePath(ctx, path);
 
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.shadowBlur = 8 / scale;
-    ctx.shadowColor = this.toRgba(midColor, 0.75);
-    ctx.lineWidth = 3 / scale;
-    ctx.globalAlpha = 0.35;
-    this.strokePath(ctx, path);
+    if (detail === 'full') {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.shadowBlur = 8 / scale;
+      ctx.shadowColor = this.toRgba(midColor, 0.75);
+      ctx.lineWidth = 3 / scale;
+      ctx.globalAlpha = 0.35;
+      this.strokePath(ctx, path);
 
-    const nodeRadius = 2.4 / scale;
-    for (const corner of corners) {
-      ctx.beginPath();
-      ctx.fillStyle = this.toRgba(midColor, 0.85);
-      ctx.shadowBlur = 6 / scale;
-      ctx.shadowColor = this.toRgba(midColor, 0.8);
-      ctx.arc(corner.x, corner.y, nodeRadius, 0, Math.PI * 2);
-      ctx.fill();
+      const nodeRadius = 2.4 / scale;
+      for (const corner of corners) {
+        ctx.beginPath();
+        ctx.fillStyle = this.toRgba(midColor, 0.85);
+        ctx.shadowBlur = 6 / scale;
+        ctx.shadowColor = this.toRgba(midColor, 0.8);
+        ctx.arc(corner.x, corner.y, nodeRadius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      ctx.setLineDash([]);
+      ctx.lineWidth = 2.2 / scale;
+      ctx.globalAlpha = 0.18;
+      ctx.strokeStyle = this.toRgba(midColor, 0.6);
+      this.strokePath(ctx, path);
     }
 
     ctx.restore();
   }
 
   private drawCyberSelection(
-    connection: RenderableConnection,
     ctx: CanvasRenderingContext2D,
-    from: IConnectable,
-    to: IConnectable,
-    panZoom: PanZoomManager
+    panZoom: PanZoomManager,
+    geometry: CyberPathGeometry
   ): void {
     const scale = panZoom.scale ?? 1;
-    const { start, end } = connection.getClosestConnectionPoints(from, to);
-    const { path } = buildCyberPath(start, end, scale);
+    const { path } = geometry;
     ctx.save();
     ctx.setLineDash([]);
     ctx.strokeStyle = SELECT_COLOR;
@@ -254,11 +281,10 @@ class ConnectionRenderer {
   private drawArrowHead(
     connection: RenderableConnection,
     ctx: CanvasRenderingContext2D,
-    from: IConnectable,
-    to: IConnectable,
-    panZoom: PanZoomManager
+    end: ConnectionPoint,
+    panZoom: PanZoomManager,
+    detail: ConnectionAnimDetail
   ): void {
-    const { end } = connection.getClosestConnectionPoints(from, to);
     const angle = connection.getTangentAngle();
     const headLength = 15;
     const scale = panZoom.scale ?? 1;
@@ -274,7 +300,10 @@ class ConnectionRenderer {
       end.y - headLength * Math.sin(angle + Math.PI / 6)
     );
     ctx.closePath();
-    if (connection.relationType === ConnectionRelationType.LeadsTo) {
+    if (
+      connection.relationType === ConnectionRelationType.LeadsTo &&
+      detail === 'full'
+    ) {
       ctx.save();
       ctx.shadowBlur = 14 / scale;
       ctx.shadowColor = baseColor;
@@ -285,6 +314,13 @@ class ConnectionRenderer {
     }
     ctx.fillStyle = connection.selected ? SELECT_COLOR : baseColor;
     ctx.fill();
+  }
+
+  private getConnectionAnimDetail(
+    panZoom: PanZoomManager
+  ): ConnectionAnimDetail {
+    const detail = panZoom.renderFlags?.connectionAnimDetail;
+    return detail === 'reduced' ? 'reduced' : 'full';
   }
 
   private drawSelectionOutline(

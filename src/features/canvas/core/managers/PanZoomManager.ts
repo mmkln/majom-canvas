@@ -8,6 +8,8 @@ export type RenderFlags = {
   showStoryText: boolean;
   showGoalText: boolean;
   showAnim: boolean;
+  connectionAnimDetail?: 'full' | 'reduced';
+  statusAnimDetail?: 'full' | 'reduced';
 };
 
 export class PanZoomManager {

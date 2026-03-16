@@ -5,6 +5,8 @@ import { ScrollbarManager } from './ScrollbarManager.ts';
 import { CanvasRenderer } from './CanvasRenderer.ts';
 import { InteractionManager } from './InteractionManager.ts';
 import { KeyboardManager } from './KeyboardManager.ts';
+import { Canvas2DConnectionRenderBackend } from '../rendering/Canvas2DConnectionRenderBackend.ts';
+import type { ConnectionRenderBackend } from '../rendering/ConnectionRenderBackend.ts';
 import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
 import type { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
 import type { IShape } from '../interfaces/shape.ts';
@@ -58,6 +60,18 @@ type ViewBounds = {
 
 export type CanvasLoadingElementPreview = CanvasLoadingPlaceholderRenderState;
 
+export type CanvasPerfSnapshot = {
+  avgDrawMs: number;
+  fps: number;
+  fpsCap: number;
+  animatedTotal: number;
+  animatedVisible: number;
+  animatedConnectionsVisible: number;
+  connectionAnimDetail: 'full' | 'reduced';
+  statusAnimDetail: 'full' | 'reduced';
+  timestampMs: number;
+};
+
 export class CanvasManager {
   canvas: HTMLCanvasElement;
   private backgroundCanvas: HTMLCanvasElement | null = null;
@@ -68,6 +82,7 @@ export class CanvasManager {
   panZoom: PanZoomManager;
   scrollbarManager: ScrollbarManager;
   renderer: CanvasRenderer;
+  connectionRenderBackend: ConnectionRenderBackend;
   interactionManager: InteractionManager;
   keyboardManager: KeyboardManager;
 
@@ -113,8 +128,14 @@ export class CanvasManager {
   private pinchZoomCenterScene: { x: number; y: number } | null = null;
   private animationFrameId: number | null = null;
   private isAnimationRunning: boolean = false;
-  private readonly animationFpsCap = 45;
-  private readonly animationFrameIntervalMs = 1000 / this.animationFpsCap;
+  private readonly maxAnimationFpsCap = 45;
+  private readonly reducedAnimationFpsCap = 30;
+  private readonly heavyAnimationFpsCap = 24;
+  private readonly mediumAnimationWorkloadThreshold = 28;
+  private readonly heavyAnimationWorkloadThreshold = 48;
+  private animationFrameIntervalMs = 1000 / this.maxAnimationFpsCap;
+  private readonly fullConnectionAnimDetailMaxVisible = 18;
+  private readonly fullStatusAnimDetailMaxVisible = 24;
   private nextAnimationFrameAtMs: number = 0;
   private readonly cullPaddingPx = 96;
   private drawQueued: boolean = false;
@@ -124,12 +145,16 @@ export class CanvasManager {
   private smartGuidesEnabled: boolean = true;
   private readonly enablePerfLogging: boolean = CANVAS_PERF_LOG;
   private readonly perfLogIntervalMs: number = 1000;
+  private currentConnectionAnimDetail: 'full' | 'reduced' = 'full';
+  private currentStatusAnimDetail: 'full' | 'reduced' = 'full';
+  private currentAnimationFpsCap: number = this.maxAnimationFpsCap;
   private perfStats = {
     lastLogMs: 0,
     frameCount: 0,
     totalDrawMs: 0,
     animatedTotal: 0,
     animatedVisible: 0,
+    animatedConnectionsVisible: 0,
   };
   private cachedElementsVersion = -1;
   private cachedShapes: IShape[] = [];
@@ -151,6 +176,9 @@ export class CanvasManager {
     'idle'
   );
   public readonly loadPhase$ = this.loadPhaseSubject.asObservable();
+  private readonly perfSnapshotSubject: Subject<CanvasPerfSnapshot> =
+    new Subject<CanvasPerfSnapshot>();
+  public readonly perfSnapshot$ = this.perfSnapshotSubject.asObservable();
   private sceneChangesSubscription: Subscription | null = null;
   private sceneFocusChangesSubscription: Subscription | null = null;
   private sceneHighlightChangesSubscription: Subscription | null = null;
@@ -201,6 +229,7 @@ export class CanvasManager {
     this.setupBackgroundLayer();
     this.panZoom = new PanZoomManager(canvas);
     this.renderer = new CanvasRenderer(this.panZoom);
+    this.connectionRenderBackend = new Canvas2DConnectionRenderBackend();
     this.scrollbarManager = new ScrollbarManager(
       canvas,
       this.ctx,
@@ -316,6 +345,7 @@ export class CanvasManager {
       this.backgroundCanvas = null;
       this.backgroundCtx = null;
     }
+    this.perfSnapshotSubject.complete();
     this.isAnimationRunning = false;
     this.drawQueued = false;
   }
@@ -369,6 +399,8 @@ export class CanvasManager {
       showStoryText: this.panZoom.scale >= SHOW_STORY_TEXT_SCALE,
       showGoalText: this.panZoom.scale >= SHOW_GOAL_TEXT_SCALE,
       showAnim: this.animationsEnabled && this.panZoom.scale >= SHOW_ANIM_SCALE,
+      connectionAnimDetail: 'full',
+      statusAnimDetail: 'full',
     };
     if (this.backgroundCtx) {
       this.renderer.drawBackground(
@@ -441,11 +473,37 @@ export class CanvasManager {
       }
     });
     const hasAnimatedStatus = animatedVisibleCount > 0;
-    const hasAnimatedConnections = visibleConnections.some(
-      (conn) =>
+    let animatedConnectionVisibleCount = 0;
+    visibleConnections.forEach((conn) => {
+      if (
         conn.relationType === ConnectionRelationType.LeadsTo ||
         conn.relationType === ConnectionRelationType.ParentChild
+      ) {
+        animatedConnectionVisibleCount += 1;
+      }
+    });
+    const hasAnimatedConnections = animatedConnectionVisibleCount > 0;
+    let connectionAnimDetail: 'full' | 'reduced' = 'full';
+    let statusAnimDetail: 'full' | 'reduced' = 'full';
+    if (this.panZoom.renderFlags) {
+      connectionAnimDetail = this.resolveConnectionAnimDetail(
+        animatedConnectionVisibleCount
+      );
+      statusAnimDetail = this.resolveStatusAnimDetail(
+        animatedVisibleCount
+      );
+      this.panZoom.renderFlags.connectionAnimDetail = connectionAnimDetail;
+      this.panZoom.renderFlags.statusAnimDetail = statusAnimDetail;
+    }
+    this.currentConnectionAnimDetail = connectionAnimDetail;
+    this.currentStatusAnimDetail = statusAnimDetail;
+    this.currentAnimationFpsCap = this.resolveAnimationFpsCap(
+      animatedConnectionVisibleCount,
+      animatedVisibleCount,
+      connectionAnimDetail,
+      statusAnimDetail
     );
+    this.animationFrameIntervalMs = 1000 / this.currentAnimationFpsCap;
     const shouldAnimate =
       this.animationsEnabled &&
       (hasAnimatedConnections ||
@@ -558,8 +616,12 @@ export class CanvasManager {
     }
 
     // draw connections between all connectable elements
-    visibleConnections.forEach((conn) => {
-      (conn as any).draw(this.ctx, this.panZoom, connectables);
+    this.connectionRenderBackend.draw({
+      ctx: this.ctx,
+      panZoom: this.panZoom,
+      connections: visibleConnections,
+      connectables,
+      connectableLookup: this.cachedConnectableLookup,
     });
 
     const tempLine = this.interactionManager.getTempConnectionLine();
@@ -641,7 +703,8 @@ export class CanvasManager {
     this.updatePerfStats(
       performance.now() - frameStartMs,
       animatedTotal,
-      animatedVisibleCount
+      animatedVisibleCount,
+      animatedConnectionVisibleCount
     );
   }
 
@@ -832,6 +895,51 @@ export class CanvasManager {
     };
   }
 
+  private resolveConnectionAnimDetail(
+    visibleAnimatedConnections: number
+  ): 'full' | 'reduced' {
+    return visibleAnimatedConnections >
+      this.fullConnectionAnimDetailMaxVisible
+      ? 'reduced'
+      : 'full';
+  }
+
+  private resolveStatusAnimDetail(
+    visibleAnimatedStatuses: number
+  ): 'full' | 'reduced' {
+    return visibleAnimatedStatuses > this.fullStatusAnimDetailMaxVisible
+      ? 'reduced'
+      : 'full';
+  }
+
+  private resolveAnimationFpsCap(
+    visibleAnimatedConnections: number,
+    visibleAnimatedStatuses: number,
+    connectionAnimDetail: 'full' | 'reduced',
+    statusAnimDetail: 'full' | 'reduced'
+  ): number {
+    const animatedVisibleTotal =
+      visibleAnimatedConnections + visibleAnimatedStatuses;
+    const hasReducedDetail =
+      connectionAnimDetail === 'reduced' || statusAnimDetail === 'reduced';
+    if (animatedVisibleTotal >= this.heavyAnimationWorkloadThreshold) {
+      return this.heavyAnimationFpsCap;
+    }
+    if (
+      hasReducedDetail &&
+      animatedVisibleTotal >= this.mediumAnimationWorkloadThreshold
+    ) {
+      return this.heavyAnimationFpsCap;
+    }
+    if (
+      hasReducedDetail ||
+      animatedVisibleTotal >= this.mediumAnimationWorkloadThreshold
+    ) {
+      return this.reducedAnimationFpsCap;
+    }
+    return this.maxAnimationFpsCap;
+  }
+
   private buildConnectableLookup(
     connectables: IConnectable[]
   ): Map<string, IConnectable> {
@@ -1010,7 +1118,8 @@ export class CanvasManager {
   private updatePerfStats(
     frameMs: number,
     animatedTotal: number,
-    animatedVisible: number
+    animatedVisible: number,
+    animatedConnectionsVisible: number
   ): void {
     if (!this.enablePerfLogging) return;
     const now = performance.now();
@@ -1021,6 +1130,7 @@ export class CanvasManager {
     this.perfStats.totalDrawMs += frameMs;
     this.perfStats.animatedTotal = animatedTotal;
     this.perfStats.animatedVisible = animatedVisible;
+    this.perfStats.animatedConnectionsVisible = animatedConnectionsVisible;
 
     const elapsed = now - this.perfStats.lastLogMs;
     if (elapsed < this.perfLogIntervalMs) return;
@@ -1032,8 +1142,19 @@ export class CanvasManager {
     console.log(
       `[canvas] avg draw ${avgDrawMs.toFixed(
         2
-      )}ms | fps ${fps.toFixed(1)} | animated ${animatedVisible}/${animatedTotal} (${visibleRatio.toFixed(0)}%)`
+      )}ms | fps ${fps.toFixed(1)} (cap ${this.currentAnimationFpsCap}) | animated ${animatedVisible}/${animatedTotal} (${visibleRatio.toFixed(0)}%) | links ${animatedConnectionsVisible} | fx ${this.currentConnectionAnimDetail}/${this.currentStatusAnimDetail}`
     );
+    this.perfSnapshotSubject.next({
+      avgDrawMs,
+      fps,
+      fpsCap: this.currentAnimationFpsCap,
+      animatedTotal,
+      animatedVisible,
+      animatedConnectionsVisible,
+      connectionAnimDetail: this.currentConnectionAnimDetail,
+      statusAnimDetail: this.currentStatusAnimDetail,
+      timestampMs: now,
+    });
 
     this.perfStats.lastLogMs = now;
     this.perfStats.frameCount = 0;
@@ -1108,6 +1229,8 @@ export class CanvasManager {
     if (!enabled) {
       this.animationTimeMs = 0;
       this.lastAnimationFrameMs = 0;
+      this.currentAnimationFpsCap = this.maxAnimationFpsCap;
+      this.animationFrameIntervalMs = 1000 / this.currentAnimationFpsCap;
       this.stopAnimationLoop();
     }
     this.requestDraw();

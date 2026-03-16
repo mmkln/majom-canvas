@@ -2,6 +2,7 @@ import { ElementStatus } from '../ElementStatus.ts';
 import type {
   OutlineAnimationParams,
   OutlineEffectParams,
+  StatusAnimationDetail,
 } from './statusAnimationTypes.ts';
 
 const SWEEP_DURATION_MS = 9600;
@@ -48,13 +49,19 @@ const getPulseAlpha = (progress: number): number =>
 const getPulseExpand = (progress: number, scale: number): number =>
   (PULSE_EXPAND_MAX * progress) / scale;
 
+const getAnimDetail = (
+  detail?: StatusAnimationDetail
+): StatusAnimationDetail => (detail === 'reduced' ? 'reduced' : 'full');
+
 const drawDoneBorderSweep = ({
   ctx,
   outline,
   lineWidth,
   scale,
   timeMs,
+  detail,
 }: OutlineEffectParams): void => {
+  const animDetail = getAnimDetail(detail);
   const progress = getSweepProgress(timeMs);
   const perimeter = Math.max(1, outline.perimeter(0));
   const centerOffset = -perimeter * progress;
@@ -62,7 +69,7 @@ const drawDoneBorderSweep = ({
     perimeter * 0.18,
     Math.max(34 / scale, perimeter * 0.08)
   );
-  const sampleCount = 12;
+  const sampleCount = animDetail === 'reduced' ? 4 : 12;
   const sampleSpacing = halfSpan / sampleCount;
   const sparkleLength = Math.max(6 / scale, sampleSpacing * 1.9);
   const sparkleGap = Math.max(1, perimeter - sparkleLength);
@@ -77,7 +84,9 @@ const drawDoneBorderSweep = ({
     const normalized = 1 - Math.abs(i) / sampleCount;
     if (normalized <= 0) continue;
     const offset = centerOffset - i * sampleSpacing;
-    const alpha = 0.92 * Math.pow(normalized, 2.2);
+    const alphaBase = animDetail === 'reduced' ? 0.55 : 0.92;
+    const alphaPow = animDetail === 'reduced' ? 1.8 : 2.2;
+    const alpha = alphaBase * Math.pow(normalized, alphaPow);
     ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
     ctx.lineDashOffset = offset;
     ctx.beginPath();
@@ -94,13 +103,36 @@ const drawInProgressPulse = ({
   scale,
   color,
   timeMs,
+  detail,
 }: OutlineEffectParams): void => {
+  const animDetail = getAnimDetail(detail);
   const pulseColor = color ?? '#1890ff';
   const drawPulse = (progress: number): void => {
     const alpha = getPulseAlpha(progress);
     const expand = getPulseExpand(progress, scale);
     const baseAlpha = alpha * 0.55;
     const innerAlpha = Math.min(0.9, alpha * 1.4);
+
+    if (animDetail === 'reduced') {
+      ctx.save();
+      ctx.strokeStyle = pulseColor;
+      ctx.globalAlpha = Math.min(0.65, innerAlpha * 0.9);
+      ctx.lineWidth = lineWidth;
+      ctx.beginPath();
+      outline.drawPath(ctx, 0);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.save();
+      ctx.strokeStyle = pulseColor;
+      ctx.globalAlpha = baseAlpha * 0.5;
+      ctx.lineWidth = Math.max(0.5 / scale, lineWidth * 0.85);
+      ctx.beginPath();
+      outline.drawPath(ctx, expand * 0.65);
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
 
     ctx.save();
     ctx.fillStyle = pulseColor;
@@ -132,7 +164,9 @@ const drawInProgressPulse = ({
 
   const progress = getPulseProgress(timeMs);
   drawPulse(progress);
-  drawPulse((progress + PULSE_OVERLAP_OFFSET) % 1);
+  if (animDetail === 'full') {
+    drawPulse((progress + PULSE_OVERLAP_OFFSET) % 1);
+  }
 };
 
 const drawPendingMarchingAnts = ({
@@ -142,14 +176,21 @@ const drawPendingMarchingAnts = ({
   scale,
   color,
   timeMs,
+  detail,
 }: OutlineEffectParams): void => {
   if (!color) return;
+  const animDetail = getAnimDetail(detail);
   const offset = ANTS_OFFSET / scale;
   ctx.save();
-  ctx.globalAlpha = ANTS_ALPHA;
+  ctx.globalAlpha = animDetail === 'reduced' ? ANTS_ALPHA * 0.65 : ANTS_ALPHA;
   ctx.strokeStyle = color;
-  ctx.lineWidth = lineWidth * ANTS_LINE_MULTIPLIER;
-  ctx.setLineDash([ANTS_DASH / scale, ANTS_GAP / scale]);
+  ctx.lineWidth =
+    lineWidth *
+    ANTS_LINE_MULTIPLIER *
+    (animDetail === 'reduced' ? 0.85 : 1);
+  const dash = animDetail === 'reduced' ? ANTS_DASH * 1.35 : ANTS_DASH;
+  const gap = animDetail === 'reduced' ? ANTS_GAP * 1.5 : ANTS_GAP;
+  ctx.setLineDash([dash / scale, gap / scale]);
   ctx.lineDashOffset = getAntsOffset(timeMs, scale);
   ctx.beginPath();
   outline.drawPath(ctx, offset);
@@ -164,8 +205,10 @@ const drawDefinedBorder = ({
   scale,
   color,
   timeMs,
+  detail,
 }: OutlineEffectParams): void => {
   if (!color) return;
+  const animDetail = getAnimDetail(detail);
   const cycleProgress = getDefinedProgress(timeMs);
   const activePortion = DEFINED_DRAW_DURATION_MS / DEFINED_CYCLE_MS;
   if (cycleProgress <= 0 || cycleProgress > activePortion) return;
@@ -173,12 +216,14 @@ const drawDefinedBorder = ({
   const offset = DEFINED_OFFSET / scale;
   const perimeter = outline.perimeter(offset);
   const segmentFactor = getDefinedSegmentFactor(drawProgress);
-  const segmentLength = perimeter * DEFINED_SEGMENT_RATIO * segmentFactor;
+  const segmentRatio =
+    animDetail === 'reduced' ? DEFINED_SEGMENT_RATIO * 0.7 : DEFINED_SEGMENT_RATIO;
+  const segmentLength = perimeter * segmentRatio * segmentFactor;
 
   ctx.save();
-  ctx.globalAlpha = DEFINED_ALPHA;
+  ctx.globalAlpha = animDetail === 'reduced' ? DEFINED_ALPHA * 0.75 : DEFINED_ALPHA;
   ctx.strokeStyle = color;
-  ctx.lineWidth = lineWidth * 0.7;
+  ctx.lineWidth = lineWidth * (animDetail === 'reduced' ? 0.6 : 0.7);
   ctx.setLineDash([segmentLength, perimeter]);
   ctx.lineDashOffset = -perimeter * drawProgress;
   ctx.beginPath();

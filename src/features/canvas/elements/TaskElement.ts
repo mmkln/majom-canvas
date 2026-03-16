@@ -126,6 +126,7 @@ export class TaskElement extends PlanningElement {
         color: chromeColor,
         timeMs: panZoom.timeMs,
         viewBounds: panZoom.viewBounds,
+        detail: renderFlags?.statusAnimDetail,
       });
     }
     if (showText) {

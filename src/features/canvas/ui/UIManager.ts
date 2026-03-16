@@ -28,6 +28,8 @@ import { AddExistingStoryService } from '../core/services/AddExistingStoryServic
 import { AuthService } from '../../../majom-wrapper/data-access/auth-service.ts';
 import { UserApiService } from '../../../majom-wrapper/data-access/user-api-service.ts';
 import { CanvasMenu } from './components/CanvasMenu.ts';
+import { CanvasPerfHud } from './CanvasPerfHud.ts';
+import { CANVAS_PERF_LOG } from '../../../config/env/index.ts';
 import {
   EXISTING_PICKER_EVENT_NAMES,
   emitExistingPickerDropCompleted,
@@ -185,6 +187,9 @@ export class UIManager {
     // Notification container
     const notificationContainer = new NotificationContainer();
     this.components.push(notificationContainer);
+    if (CANVAS_PERF_LOG) {
+      this.components.push(new CanvasPerfHud(this.canvasManager));
+    }
     // Show modal on edit requests via RxJS bus
     this.editElementSubscription = editElement$.subscribe((el) =>
       new EditElementModal(el, this.scene).show()
@@ -199,7 +204,8 @@ export class UIManager {
     this.components.forEach((c) => c.mount(this.uiRoot!));
     Array.from(this.uiRoot.children).forEach((child) => {
       if (child instanceof HTMLElement) {
-        child.style.pointerEvents = 'auto';
+        child.style.pointerEvents =
+          child.dataset.uiPointerEvents === 'none' ? 'none' : 'auto';
       }
     });
 

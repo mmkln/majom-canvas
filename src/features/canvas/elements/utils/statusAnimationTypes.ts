@@ -1,5 +1,7 @@
 import { ElementStatus } from '../ElementStatus.ts';
 
+export type StatusAnimationDetail = 'full' | 'reduced';
+
 export type ViewBounds =
   | {
       minX: number;
@@ -23,6 +25,7 @@ export type RectAnimationParams = {
   color?: string;
   timeMs: number;
   viewBounds?: ViewBounds;
+  detail?: StatusAnimationDetail;
 };
 
 export type CircleAnimationParams = {
@@ -36,6 +39,7 @@ export type CircleAnimationParams = {
   color?: string;
   timeMs: number;
   viewBounds?: ViewBounds;
+  detail?: StatusAnimationDetail;
 };
 
 export type HexAnimationParams = {
@@ -49,6 +53,7 @@ export type HexAnimationParams = {
   color?: string;
   timeMs: number;
   viewBounds?: ViewBounds;
+  detail?: StatusAnimationDetail;
 };
 
 export type OutlinePath = {
@@ -66,6 +71,7 @@ export type OutlineAnimationParams = {
   color?: string;
   timeMs: number;
   viewBounds?: ViewBounds;
+  detail?: StatusAnimationDetail;
 };
 
 export type OutlineEffectParams = Omit<OutlineAnimationParams, 'status'>;

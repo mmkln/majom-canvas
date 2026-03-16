@@ -157,6 +157,19 @@ export default class Connection implements IConnection {
     connectionRenderer.draw(this, ctx, panZoom, from, to);
   }
 
+  public drawWithConnectableLookup(
+    ctx: CanvasRenderingContext2D,
+    panZoom: PanZoomManager,
+    lookup: ReadonlyMap<string, IConnectable>
+  ): void {
+    const from = lookup.get(this.fromId);
+    const to = lookup.get(this.toId);
+    if (!from || !to) {
+      return;
+    }
+    connectionRenderer.draw(this, ctx, panZoom, from, to);
+  }
+
   private distanceToLineSegment(
     px: number,
     py: number,

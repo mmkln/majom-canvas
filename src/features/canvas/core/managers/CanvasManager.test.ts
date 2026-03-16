@@ -43,6 +43,40 @@ function runStopAnimationLoop(target: AnimationLoopHarness): void {
   ).stopAnimationLoop.call(target);
 }
 
+type AnimationFpsCapHarness = {
+  maxAnimationFpsCap: number;
+  reducedAnimationFpsCap: number;
+  heavyAnimationFpsCap: number;
+  mediumAnimationWorkloadThreshold: number;
+  heavyAnimationWorkloadThreshold: number;
+};
+
+function runResolveAnimationFpsCap(
+  target: AnimationFpsCapHarness,
+  visibleAnimatedConnections: number,
+  visibleAnimatedStatuses: number,
+  connectionAnimDetail: 'full' | 'reduced',
+  statusAnimDetail: 'full' | 'reduced'
+): number {
+  return (
+    CanvasManager.prototype as unknown as {
+      resolveAnimationFpsCap: (
+        this: AnimationFpsCapHarness,
+        visibleAnimatedConnections: number,
+        visibleAnimatedStatuses: number,
+        connectionAnimDetail: 'full' | 'reduced',
+        statusAnimDetail: 'full' | 'reduced'
+      ) => number;
+    }
+  ).resolveAnimationFpsCap.call(
+    target,
+    visibleAnimatedConnections,
+    visibleAnimatedStatuses,
+    connectionAnimDetail,
+    statusAnimDetail
+  );
+}
+
 describe('CanvasManager animation FPS cap', () => {
   let rafCallbacks: Map<number, RafCallback>;
   let nextRafId: number;
@@ -170,6 +204,34 @@ describe('CanvasManager animation FPS cap', () => {
     expect(harness.isAnimationRunning).toBe(false);
     expect(harness.animationFrameId).toBeNull();
     expect(harness.nextAnimationFrameAtMs).toBe(0);
+  });
+});
+
+describe('CanvasManager adaptive animation FPS cap', () => {
+  const harness: AnimationFpsCapHarness = {
+    maxAnimationFpsCap: 45,
+    reducedAnimationFpsCap: 30,
+    heavyAnimationFpsCap: 24,
+    mediumAnimationWorkloadThreshold: 28,
+    heavyAnimationWorkloadThreshold: 48,
+  };
+
+  it('keeps max cap for low workload in full detail mode', () => {
+    expect(runResolveAnimationFpsCap(harness, 6, 10, 'full', 'full')).toBe(45);
+  });
+
+  it('drops to reduced cap for medium workload in full detail mode', () => {
+    expect(runResolveAnimationFpsCap(harness, 12, 16, 'full', 'full')).toBe(30);
+  });
+
+  it('drops to heavy cap when workload is high regardless of detail mode', () => {
+    expect(runResolveAnimationFpsCap(harness, 20, 28, 'full', 'full')).toBe(24);
+  });
+
+  it('drops to heavy cap earlier when reduced detail is already active', () => {
+    expect(
+      runResolveAnimationFpsCap(harness, 10, 20, 'reduced', 'full')
+    ).toBe(24);
   });
 });
 
