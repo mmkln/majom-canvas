@@ -36,7 +36,7 @@ const GOAL_SCALE_FACTORS: Record<GoalScale, number> = {
   3: 1.4,
 };
 // Optical correction: on some fonts/renderers centered goal titles look a bit right-shifted.
-const GOAL_TITLE_OPTICAL_OFFSET_PX = 2;
+const GOAL_TITLE_OPTICAL_OFFSET_PX = 2.5;
 
 export class GoalElement extends PlanningElement {
   links: string[] = [];
