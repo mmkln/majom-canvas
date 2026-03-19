@@ -26,6 +26,21 @@ import type { UiPriority } from '../../../../majom-wrapper/utils/priorityMapping
 
 type DescriptionMode = 'view' | 'edit';
 
+type TitleFieldMode = 'view' | 'edit';
+
+type TitleFieldOptions = {
+  getValue: () => string;
+  setValue: (value: string) => void;
+};
+
+type TitleFieldController = {
+  field: ReturnType<typeof createField>;
+  setMode: (mode: TitleFieldMode, options?: { focus?: boolean }) => void;
+  focusInput: (options?: { select?: boolean }) => void;
+  focusPreview: () => void;
+  setRequiredError: (message: string) => void;
+};
+
 type DescriptionFieldOptions = {
   getValue: () => string;
   setValue: (value: string) => void;
@@ -156,25 +171,14 @@ export class EditElementModal {
     formContent.className = 'space-y-4 pb-2';
     body.appendChild(formContent);
 
-    // Title input with label
-    const titleField = createField({ label: 'Title', required: true });
-    const titleInput = ComponentFactory.createInput({
-      variant: 'default',
-      value: tempTitle,
-      onChange: (v: string) => {
-        tempTitle = v;
-        if (v.trim().length > 0) {
-          titleField.setState({ invalid: false, error: undefined });
-        }
+    const titleField = this.buildTitleField({
+      getValue: () => tempTitle,
+      setValue: (value) => {
+        tempTitle = value;
       },
-      autoFocus: true,
-      required: true,
-      className: 'w-full',
     });
-    titleInput.render(titleField.controlContainer);
-    const titleInputEl = titleInput.getElement() as HTMLInputElement;
-    titleField.setControl(titleInputEl);
-    formContent.appendChild(titleField.element);
+    titleField.setMode('view', { focus: false });
+    formContent.appendChild(titleField.field.element);
 
     const descriptionField = this.buildDescriptionField({
       getValue: () => tempDescription,
@@ -265,9 +269,9 @@ export class EditElementModal {
     saveAndClose = () => {
       const normalizedTitle = tempTitle.trim();
       if (normalizedTitle.length === 0) {
-        titleField.setState({ invalid: true, error: 'Title is required' });
-        titleInputEl.focus();
-        titleInputEl.select();
+        titleField.setRequiredError('Title is required');
+        titleField.setMode('edit', { focus: true });
+        titleField.focusInput({ select: true });
         return;
       }
 
@@ -341,8 +345,8 @@ export class EditElementModal {
     btnRow.append(cancelBtn, saveBtn);
     footer.appendChild(btnRow);
 
-    // Ensure title input receives focus when the modal opens.
-    titleInputEl.focus();
+    // Keep initial focus on title preview; click/Enter starts inline edit.
+    titleField.focusPreview();
 
     // Keyboard: handle modal shortcuts
     container.addEventListener('keydown', (e) => {
@@ -351,9 +355,14 @@ export class EditElementModal {
         const target = e.target;
         const targetEl = target instanceof HTMLElement ? target : null;
         const isTextarea = target instanceof HTMLTextAreaElement;
+        const isInlineTitleInput =
+          targetEl?.closest('[data-inline-title-input="true"]') !== null;
         const isButton =
           targetEl?.closest('[data-description-mode-toggle="true"]') !== null ||
           target instanceof HTMLButtonElement;
+        if (isInlineTitleInput) {
+          return;
+        }
         if (isTextarea && !e.metaKey && !e.ctrlKey) {
           return;
         }
@@ -368,6 +377,148 @@ export class EditElementModal {
         void requestClose();
       }
     });
+  }
+
+  private buildTitleField(options: TitleFieldOptions): TitleFieldController {
+    const field = createField({ label: 'Title', required: true });
+    const input = ComponentFactory.createInput({
+      variant: 'default',
+      value: options.getValue(),
+      required: true,
+      className: 'w-full',
+    });
+    const mount = document.createElement('div');
+    input.render(mount);
+    const inputEl = input.getElement() as HTMLInputElement;
+    inputEl.dataset.inlineTitleInput = 'true';
+
+    let mode: TitleFieldMode = 'view';
+    let editOrigin = options.getValue();
+
+    const renderTitlePreview = (preview: HTMLDivElement): void => {
+      const current = options.getValue().trim();
+      if (current.length > 0) {
+        preview.textContent = current;
+        preview.className =
+          'rounded-md px-3 py-2 text-[14px] leading-6 tracking-tight text-slate-900 whitespace-pre-wrap break-words transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80';
+        preview.setAttribute(
+          'aria-label',
+          'Title preview. Press Enter to edit.'
+        );
+        return;
+      }
+      preview.textContent = 'Untitled';
+      preview.className =
+        'h-10 rounded-md px-2 py-1 text-center text-[12px] italic leading-5 text-slate-400 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80';
+      preview.setAttribute('aria-label', 'Untitled. Press Enter to add title.');
+    };
+
+    const applyEdit = (apply: boolean): void => {
+      if (mode !== 'edit') return;
+      if (apply) {
+        const nextTitle = inputEl.value.trim();
+        if (nextTitle.length > 0) {
+          options.setValue(nextTitle);
+          field.setState({ invalid: false, error: undefined });
+        } else {
+          options.setValue(editOrigin);
+        }
+      } else {
+        options.setValue(editOrigin);
+      }
+      setMode('view', { focus: true });
+    };
+
+    const createViewControl = (): HTMLDivElement => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'pb-1';
+
+      const preview = document.createElement('div');
+      preview.dataset.titlePreview = 'true';
+      preview.tabIndex = 0;
+      preview.setAttribute('role', 'button');
+      renderTitlePreview(preview);
+
+      const startEdit = (): void => setMode('edit');
+      preview.addEventListener('click', startEdit);
+      preview.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        event.stopPropagation();
+        startEdit();
+      });
+
+      wrapper.appendChild(preview);
+      return wrapper;
+    };
+
+    const createEditControl = (): HTMLDivElement => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'pb-1';
+      wrapper.appendChild(inputEl);
+      return wrapper;
+    };
+
+    inputEl.addEventListener('input', () => {
+      if (inputEl.value.trim().length > 0) {
+        field.setState({ invalid: false, error: undefined });
+      }
+    });
+    inputEl.addEventListener('blur', () => applyEdit(true));
+    inputEl.addEventListener('keydown', (event: KeyboardEvent) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        event.stopPropagation();
+        applyEdit(true);
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        applyEdit(false);
+      }
+    });
+
+    function setMode(
+      nextMode: TitleFieldMode,
+      modeOptions: { focus?: boolean } = {}
+    ): void {
+      mode = nextMode;
+      const shouldFocus = modeOptions.focus ?? true;
+      if (nextMode === 'edit') {
+        editOrigin = options.getValue();
+        inputEl.value = editOrigin;
+        field.setControl(createEditControl());
+        if (shouldFocus) {
+          inputEl.focus();
+          inputEl.select();
+        }
+        return;
+      }
+
+      const viewControl = createViewControl();
+      field.setControl(viewControl);
+      if (shouldFocus) {
+        viewControl
+          .querySelector<HTMLElement>('[data-title-preview="true"]')
+          ?.focus();
+      }
+    }
+
+    return {
+      field,
+      setMode,
+      focusInput: ({ select = false } = {}) => {
+        inputEl.focus();
+        if (select) inputEl.select();
+      },
+      focusPreview: () => {
+        field.element
+          .querySelector<HTMLElement>('[data-title-preview="true"]')
+          ?.focus();
+      },
+      setRequiredError: (message: string) => {
+        field.setState({ invalid: true, error: message });
+      },
+    };
   }
 
   private createDescriptionModeButton(
@@ -444,8 +595,8 @@ export class EditElementModal {
           : 'No description yet. Press Enter to add description.'
       );
       preview.className = hasText
-        ? 'max-h-56 overflow-y-auto rounded-md px-3 py-1 text-[13px] leading-6 tracking-[0.005em] whitespace-pre-wrap break-words text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80'
-        : 'h-12 rounded-md px-3 py-1 text-center text-[12px] italic leading-5 text-slate-400 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80';
+        ? 'max-h-56 overflow-y-auto rounded-md px-3 py-2 text-[13px] leading-6 tracking-[0.005em] whitespace-pre-wrap break-words text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80'
+        : 'h-12 rounded-md px-3 py-2 text-center text-[12px] italic leading-5 text-slate-400 flex items-center justify-center transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80';
     };
 
     const createViewControl = (): HTMLDivElement => {
