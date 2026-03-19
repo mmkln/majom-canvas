@@ -24,11 +24,22 @@ import {
 } from '../../elements/ElementStatus.ts';
 import type { UiPriority } from '../../../../majom-wrapper/utils/priorityMapping.ts';
 
+type DescriptionMode = 'view' | 'edit';
+
+type DescriptionFieldOptions = {
+  getValue: () => string;
+  setValue: (value: string) => void;
+};
+
+type DescriptionFieldController = {
+  field: ReturnType<typeof createField>;
+  setMode: (mode: DescriptionMode, options?: { focus?: boolean }) => void;
+};
+
 // Modal for editing title, status, and priority of an element
 export class EditElementModal {
   private modal: HTMLDivElement | null = null;
-  private priorityControl: SegmentedControl<UiPriority> | null =
-    null;
+  private priorityControl: SegmentedControl<UiPriority> | null = null;
   private scaleControl: SegmentedControl<GoalScale> | null = null;
 
   constructor(
@@ -93,9 +104,7 @@ export class EditElementModal {
       return false;
     };
 
-    const withCloseGuard = async (
-      work: () => Promise<void>
-    ): Promise<void> => {
+    const withCloseGuard = async (work: () => Promise<void>): Promise<void> => {
       if (closeGuardOpen) return;
       closeGuardOpen = true;
       try {
@@ -167,20 +176,14 @@ export class EditElementModal {
     titleField.setControl(titleInputEl);
     formContent.appendChild(titleField.element);
 
-    // Description textarea with label
-    const descField = createField({ label: 'Description' });
-    const descTextarea = ComponentFactory.createTextarea({
-      variant: 'default',
-      value: tempDescription,
-      rows: 3,
-      onInput: (value: string) => {
+    const descriptionField = this.buildDescriptionField({
+      getValue: () => tempDescription,
+      setValue: (value) => {
         tempDescription = value;
       },
-      className: 'w-full',
     });
-    descTextarea.render(descField.controlContainer);
-    descField.setControl(descTextarea.getElement());
-    formContent.appendChild(descField.element);
+    descriptionField.setMode('view', { focus: false });
+    formContent.appendChild(descriptionField.field.element);
 
     // Status dropdown with label
     const statusField = createField({ label: 'Status' });
@@ -346,8 +349,15 @@ export class EditElementModal {
       e.stopPropagation();
       if (e.key === 'Enter') {
         const target = e.target;
+        const targetEl = target instanceof HTMLElement ? target : null;
         const isTextarea = target instanceof HTMLTextAreaElement;
+        const isButton =
+          targetEl?.closest('[data-description-mode-toggle="true"]') !== null ||
+          target instanceof HTMLButtonElement;
         if (isTextarea && !e.metaKey && !e.ctrlKey) {
+          return;
+        }
+        if (isButton) {
           return;
         }
         e.preventDefault();
@@ -358,6 +368,144 @@ export class EditElementModal {
         void requestClose();
       }
     });
+  }
+
+  private createDescriptionModeButton(
+    text: string,
+    className: string,
+    onClick: () => void
+  ): HTMLButtonElement {
+    const button = createTextButton({
+      text,
+      tone: 'text',
+      size: 'sm',
+      className,
+      onClick: (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onClick();
+      },
+    });
+    button.dataset.descriptionModeToggle = 'true';
+    return button;
+  }
+
+  private buildDescriptionField(
+    options: DescriptionFieldOptions
+  ): DescriptionFieldController {
+    const field = createField({ label: 'Description' });
+    const modeButtonClass = 'h-7 px-2 py-1 text-xs font-medium';
+    const textarea = ComponentFactory.createTextarea({
+      variant: 'default',
+      value: options.getValue(),
+      rows: 6,
+      onInput: (value: string) => {
+        options.setValue(value);
+      },
+      className:
+        'min-h-[144px] w-full text-[13px] leading-6 tracking-[0.005em] text-slate-800',
+    });
+    const mount = document.createElement('div');
+    textarea.render(mount);
+    const textareaEl = textarea.getElement() as HTMLTextAreaElement;
+
+    let currentMode: DescriptionMode = 'view';
+    const headerModeButton = this.createDescriptionModeButton(
+      'Edit',
+      modeButtonClass,
+      () => {
+        setMode(currentMode === 'view' ? 'edit' : 'view');
+      }
+    );
+    headerModeButton.classList.add('shrink-0');
+
+    const headerRow = document.createElement('div');
+    headerRow.className = 'flex items-center justify-between gap-2';
+    headerRow.append(field.label, headerModeButton);
+    field.element.insertBefore(headerRow, field.controlContainer);
+
+    const syncHeaderButtonLabel = (mode: DescriptionMode): void => {
+      if (mode === 'edit') {
+        headerModeButton.textContent = 'Done';
+        return;
+      }
+      headerModeButton.textContent =
+        options.getValue().trim().length > 0 ? 'Edit' : 'Add description';
+    };
+
+    const renderDescriptionPreview = (preview: HTMLDivElement): void => {
+      const value = options.getValue();
+      const hasText = value.trim().length > 0;
+      preview.textContent = hasText ? value : 'No description yet.';
+      preview.setAttribute(
+        'aria-label',
+        hasText
+          ? 'Description preview. Press Enter to edit.'
+          : 'No description yet. Press Enter to add description.'
+      );
+      preview.className = hasText
+        ? 'max-h-56 overflow-y-auto rounded-md px-3 py-1 text-[13px] leading-6 tracking-[0.005em] whitespace-pre-wrap break-words text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80'
+        : 'h-12 rounded-md px-3 py-1 text-center text-[12px] italic leading-5 text-slate-400 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80';
+    };
+
+    const createViewControl = (): HTMLDivElement => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'space-y-2 pb-1';
+
+      const preview = document.createElement('div');
+      preview.dataset.descriptionPreview = 'true';
+      preview.tabIndex = 0;
+      preview.setAttribute('role', 'button');
+      renderDescriptionPreview(preview);
+
+      const switchToEdit = (): void => setMode('edit');
+      preview.addEventListener('click', switchToEdit);
+      preview.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        event.stopPropagation();
+        switchToEdit();
+      });
+
+      wrapper.append(preview);
+      return wrapper;
+    };
+
+    const createEditControl = (): HTMLDivElement => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'pb-1';
+      wrapper.appendChild(textareaEl);
+      return wrapper;
+    };
+
+    function setMode(
+      mode: DescriptionMode,
+      modeOptions: { focus?: boolean } = {}
+    ): void {
+      currentMode = mode;
+      const shouldFocus = modeOptions.focus ?? true;
+      if (mode === 'edit') {
+        syncHeaderButtonLabel('edit');
+        field.setControl(createEditControl());
+        if (shouldFocus) {
+          textareaEl.focus();
+          const end = textareaEl.value.length;
+          textareaEl.setSelectionRange(end, end);
+        }
+        return;
+      }
+
+      syncHeaderButtonLabel('view');
+      const viewControl = createViewControl();
+      field.setControl(viewControl);
+      if (shouldFocus) {
+        viewControl
+          .querySelector<HTMLElement>('[data-description-preview="true"]')
+          ?.focus();
+      }
+    }
+
+    return { field, setMode };
   }
 
   private close(): void {
