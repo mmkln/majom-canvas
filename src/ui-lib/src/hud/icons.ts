@@ -21,8 +21,11 @@ export type IconName =
   | 'minus'
   | 'plus'
   | 'magnifying-glass'
+  | 'chevron-double-down'
   | 'chevron-down'
+  | 'bars-2'
   | 'chevron-up'
+  | 'chevron-double-up'
   | 'chevron-left'
   | 'chevron-right'
   | 'ellipsis-vertical'
@@ -260,8 +263,24 @@ export function createIcon(
     return svg;
   }
 
+  if (name === 'chevron-double-down') {
+    svg.appendChild(makePath('m4.5 5.25 7.5 7.5 7.5-7.5m-15 6 7.5 7.5 7.5-7.5'));
+    return svg;
+  }
+
+  if (name === 'bars-2') {
+    svg.appendChild(makePath('M3.75 9h16.5m-16.5 6.75h16.5'));
+    return svg;
+  }
+
   if (name === 'chevron-up') {
     svg.appendChild(makePath('m4.5 15.75 7.5-7.5 7.5 7.5'));
+    return svg;
+  }
+
+  if (name === 'chevron-double-up') {
+    svg.appendChild(makePath('m4.5 18.75 7.5-7.5 7.5 7.5'));
+    svg.appendChild(makePath('m4.5 12.75 7.5-7.5 7.5 7.5'));
     return svg;
   }
 

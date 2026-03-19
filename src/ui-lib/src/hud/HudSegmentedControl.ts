@@ -7,6 +7,7 @@ import {
   HUD_SEGMENTED_ITEM_MD_CLASS,
   HUD_SEGMENTED_ITEM_SM_CLASS,
 } from './classNames.ts';
+import { createIcon, type IconName } from './icons.ts';
 
 export type HudSegmentedControlSize = 'sm' | 'md';
 
@@ -14,6 +15,8 @@ export type HudSegmentedControlOption<T> = {
   id: string;
   value: T;
   label: string;
+  icon?: IconName;
+  iconColorClassName?: string;
   title?: string;
   disabled?: boolean;
 };
@@ -41,7 +44,7 @@ const classBySize: Record<HudSegmentedControlSize, string> = {
 };
 
 function toggleClassNames(
-  element: HTMLElement,
+  element: Element,
   classNames: string,
   enabled: boolean
 ): void {
@@ -120,7 +123,21 @@ export class HudSegmentedControl<T> {
       }
       button.setAttribute('role', 'radio');
       button.dataset.index = String(index);
-      button.textContent = option.label;
+      if (option.icon) {
+        const iconSize = (this.options.size ?? 'md') === 'sm' ? 12 : 14;
+        const icon = createIcon(option.icon, {
+          size: iconSize,
+          strokeWidth: 1.8,
+        });
+        icon.setAttribute('aria-hidden', 'true');
+        icon.setAttribute('focusable', 'false');
+        icon.classList.add('shrink-0');
+        button.appendChild(icon);
+        button.classList.add('gap-1.5');
+      }
+      const label = document.createElement('span');
+      label.textContent = option.label;
+      button.appendChild(label);
       if (option.title) {
         button.title = option.title;
       }
@@ -159,6 +176,22 @@ export class HudSegmentedControl<T> {
         HUD_SEGMENTED_ITEM_DISABLED_CLASS,
         isDisabled
       );
+
+      const icon = entry.button.querySelector('svg');
+      if (icon) {
+        const customIconColor = entry.option.iconColorClassName?.trim();
+        if (customIconColor && !isDisabled) {
+          toggleClassNames(icon, 'text-indigo-400 text-slate-500', false);
+          toggleClassNames(icon, customIconColor, true);
+        } else {
+          toggleClassNames(icon, 'text-indigo-400', isActive && !isDisabled);
+          toggleClassNames(icon, 'text-slate-500', !isActive && !isDisabled);
+          if (customIconColor) {
+            toggleClassNames(icon, customIconColor, false);
+          }
+        }
+        toggleClassNames(icon, 'text-slate-300', isDisabled);
+      }
     });
   }
 
