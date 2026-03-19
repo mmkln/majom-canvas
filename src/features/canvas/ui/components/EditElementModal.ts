@@ -357,9 +357,7 @@ export class EditElementModal {
         const isTextarea = target instanceof HTMLTextAreaElement;
         const isInlineTitleInput =
           targetEl?.closest('[data-inline-title-input="true"]') !== null;
-        const isButton =
-          targetEl?.closest('[data-description-mode-toggle="true"]') !== null ||
-          target instanceof HTMLButtonElement;
+        const isButton = target instanceof HTMLButtonElement;
         if (isInlineTitleInput) {
           return;
         }
@@ -521,31 +519,10 @@ export class EditElementModal {
     };
   }
 
-  private createDescriptionModeButton(
-    text: string,
-    className: string,
-    onClick: () => void
-  ): HTMLButtonElement {
-    const button = createTextButton({
-      text,
-      tone: 'text',
-      size: 'sm',
-      className,
-      onClick: (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        onClick();
-      },
-    });
-    button.dataset.descriptionModeToggle = 'true';
-    return button;
-  }
-
   private buildDescriptionField(
     options: DescriptionFieldOptions
   ): DescriptionFieldController {
     const field = createField({ label: 'Description' });
-    const modeButtonClass = 'h-7 px-2 py-1 text-xs font-medium';
     const textarea = ComponentFactory.createTextarea({
       variant: 'default',
       value: options.getValue(),
@@ -554,35 +531,14 @@ export class EditElementModal {
         options.setValue(value);
       },
       className:
-        'min-h-[144px] w-full text-[13px] leading-6 tracking-[0.005em] text-slate-800',
+        'min-h-[144px] w-full text-base leading-6 tracking-[0.005em] text-slate-800 md:text-[13px]',
     });
     const mount = document.createElement('div');
     textarea.render(mount);
     const textareaEl = textarea.getElement() as HTMLTextAreaElement;
-
-    let currentMode: DescriptionMode = 'view';
-    const headerModeButton = this.createDescriptionModeButton(
-      'Edit',
-      modeButtonClass,
-      () => {
-        setMode(currentMode === 'view' ? 'edit' : 'view');
-      }
-    );
-    headerModeButton.classList.add('shrink-0');
-
-    const headerRow = document.createElement('div');
-    headerRow.className = 'flex items-center justify-between gap-2';
-    headerRow.append(field.label, headerModeButton);
-    field.element.insertBefore(headerRow, field.controlContainer);
-
-    const syncHeaderButtonLabel = (mode: DescriptionMode): void => {
-      if (mode === 'edit') {
-        headerModeButton.textContent = 'Done';
-        return;
-      }
-      headerModeButton.textContent =
-        options.getValue().trim().length > 0 ? 'Edit' : 'Add description';
-    };
+    textareaEl.dataset.inlineDescriptionInput = 'true';
+    let mode: DescriptionMode = 'view';
+    let editOrigin = options.getValue();
 
     const renderDescriptionPreview = (preview: HTMLDivElement): void => {
       const value = options.getValue();
@@ -597,6 +553,17 @@ export class EditElementModal {
       preview.className = hasText
         ? 'max-h-56 overflow-y-auto rounded-md px-3 py-2 text-[13px] leading-6 tracking-[0.005em] whitespace-pre-wrap break-words text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80'
         : 'h-12 rounded-md px-3 py-2 text-center text-[12px] italic leading-5 text-slate-400 flex items-center justify-center transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80';
+    };
+
+    const applyEdit = (apply: boolean): void => {
+      if (mode !== 'edit') return;
+      if (apply) {
+        options.setValue(textareaEl.value);
+      } else {
+        options.setValue(editOrigin);
+        textareaEl.value = editOrigin;
+      }
+      setMode('view', { focus: true });
     };
 
     const createViewControl = (): HTMLDivElement => {
@@ -629,14 +596,30 @@ export class EditElementModal {
       return wrapper;
     };
 
+    textareaEl.addEventListener('blur', () => applyEdit(true));
+    textareaEl.addEventListener('keydown', (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        applyEdit(false);
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+        event.preventDefault();
+        event.stopPropagation();
+        applyEdit(true);
+      }
+    });
+
     function setMode(
-      mode: DescriptionMode,
+      nextMode: DescriptionMode,
       modeOptions: { focus?: boolean } = {}
     ): void {
-      currentMode = mode;
+      mode = nextMode;
       const shouldFocus = modeOptions.focus ?? true;
-      if (mode === 'edit') {
-        syncHeaderButtonLabel('edit');
+      if (nextMode === 'edit') {
+        editOrigin = options.getValue();
+        textareaEl.value = editOrigin;
         field.setControl(createEditControl());
         if (shouldFocus) {
           textareaEl.focus();
@@ -646,7 +629,6 @@ export class EditElementModal {
         return;
       }
 
-      syncHeaderButtonLabel('view');
       const viewControl = createViewControl();
       field.setControl(viewControl);
       if (shouldFocus) {
