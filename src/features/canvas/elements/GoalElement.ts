@@ -35,6 +35,8 @@ const GOAL_SCALE_FACTORS: Record<GoalScale, number> = {
   2: 1,
   3: 1.4,
 };
+// Optical correction: on some fonts/renderers centered goal titles look a bit right-shifted.
+const GOAL_TITLE_OPTICAL_OFFSET_PX = 2;
 
 export class GoalElement extends PlanningElement {
   links: string[] = [];
@@ -163,23 +165,27 @@ export class GoalElement extends PlanningElement {
     }
 
     if (showText) {
-      // Title with wrapping
+      // Center goal title inside the shape (horizontally and vertically).
+      ctx.save();
       ctx.fillStyle = '#000000';
       const fontSize = 26;
       const lineHeight = 1.3;
-      const maxTitleWidth = width * 0.8; // Use 80% of the circle's width
+      const lineStep = fontSize * lineHeight;
+      const maxTitleWidth = width * 0.8;
+      ctx.font = `${fontSize}px ${FONT_FAMILY}`;
 
-      // Center the text vertically and horizontally
-      TextRenderer.drawWrappedText(
-        ctx,
-        title,
-        centerX - maxTitleWidth / 2,
-        centerY - fontSize, // Offset up by half the font size
-        maxTitleWidth,
-        lineHeight,
-        3, // Max 3 lines for Goal title
-        fontSize
-      );
+      const lines = TextRenderer.wrapText(ctx, title, maxTitleWidth, 3);
+      const blockHeight =
+        lines.length > 0 ? (lines.length - 1) * lineStep : 0;
+      const startY = centerY - blockHeight / 2;
+      const textCenterX = centerX - GOAL_TITLE_OPTICAL_OFFSET_PX / panZoom.scale;
+
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      lines.forEach((line, index) => {
+        ctx.fillText(line, textCenterX, startY + index * lineStep);
+      });
+      ctx.restore();
     }
 
     // Percentage text
