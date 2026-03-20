@@ -738,6 +738,13 @@ export class CanvasManager {
         this.ctx.beginPath();
         this.ctx.roundRect(x, y, width, height, 8);
         this.ctx.fill();
+      } else if (placeholder.elementType === 'routine') {
+        const centerX = x + width / 2;
+        const centerY = y + height / 2;
+        const radius = Math.min(width, height) / 2;
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+        this.ctx.fill();
       } else {
         const centerX = x + width / 2;
         const centerY = y + height / 2;
@@ -758,6 +765,11 @@ export class CanvasManager {
         this.ctx.roundRect(x, y, width, height, 24);
       } else if (placeholder.elementType === 'story') {
         this.ctx.roundRect(x, y, width, height, 8);
+      } else if (placeholder.elementType === 'routine') {
+        const centerX = x + width / 2;
+        const centerY = y + height / 2;
+        const radius = Math.min(width, height) / 2;
+        this.ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
       } else {
         const centerX = x + width / 2;
         const centerY = y + height / 2;

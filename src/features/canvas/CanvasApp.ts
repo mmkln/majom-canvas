@@ -23,6 +23,7 @@ import { environment } from '../../config/environment.ts';
 import { TaskElement } from './elements/TaskElement.ts';
 import { StoryElement } from './elements/StoryElement.ts';
 import { GoalElement } from './elements/GoalElement.ts';
+import { RoutineElement } from './elements/RoutineElement.ts';
 import { isPlanningElement } from './elements/utils/typeGuards.ts';
 import { ElementStatus } from './elements/ElementStatus.ts';
 import {
@@ -50,6 +51,7 @@ import { authFlowService } from './ui/auth/authFlowService.ts';
 import { firstValueFrom, Observable, of, Subscription, throwError } from 'rxjs';
 import { catchError, finalize, map, switchMap } from 'rxjs/operators';
 import type { UiPriority } from '../../majom-wrapper/utils/priorityMapping.ts';
+import { HabitsApiService } from '../../majom-wrapper/data-access/habits-api-service.ts';
 
 type CanvasListUiItem = {
   id: string;
@@ -144,6 +146,7 @@ export class CanvasApp {
       new TasksApiService(http),
       new StoriesApiService(http),
       new GoalsApiService(http),
+      new HabitsApiService(http),
       new CanvasApiService(http),
       new CanvasRelationsApiService(http)
     );
@@ -535,7 +538,7 @@ export class CanvasApp {
 
   private handleElementDetailsEdited(event: Event): void {
     const customEvent = event as CustomEvent<{
-      element?: TaskElement | StoryElement | GoalElement;
+      element?: TaskElement | StoryElement | GoalElement | RoutineElement;
       patch?: Partial<{
         title: string;
         description: string;
@@ -555,13 +558,14 @@ export class CanvasApp {
 
   private handleCanvasPositionsDirty(event: Event): void {
     const customEvent = event as CustomEvent<{
-      elements?: Array<TaskElement | StoryElement | GoalElement>;
+      elements?: Array<TaskElement | StoryElement | GoalElement | RoutineElement>;
     }>;
     const elements = (customEvent.detail?.elements ?? []).filter(
-      (el): el is TaskElement | StoryElement | GoalElement =>
+      (el): el is TaskElement | StoryElement | GoalElement | RoutineElement =>
         el instanceof TaskElement ||
         el instanceof StoryElement ||
-        el instanceof GoalElement
+        el instanceof GoalElement ||
+        el instanceof RoutineElement
     );
     if (elements.length === 0) return;
     this.canvasDataService.markPositionsDirty(elements);
@@ -569,7 +573,7 @@ export class CanvasApp {
 
   private handleElementDeleteRequested(event: Event): void {
     const customEvent = event as CustomEvent<{
-      element?: TaskElement | StoryElement | GoalElement;
+      element?: TaskElement | StoryElement | GoalElement | RoutineElement;
     }>;
     const element = customEvent.detail?.element;
     if (!element) return;
@@ -708,7 +712,7 @@ export class CanvasApp {
     const elements = this.scene
       .getElements()
       .filter(isPlanningElement) as Array<
-      TaskElement | StoryElement | GoalElement
+      TaskElement | StoryElement | GoalElement | RoutineElement
     >;
     const saveSource: CanvasSaveSource = showNotifications
       ? 'manual'
@@ -727,7 +731,7 @@ export class CanvasApp {
     );
   }
   private saveLayoutPositions(
-    elements: Array<TaskElement | StoryElement | GoalElement>,
+    elements: Array<TaskElement | StoryElement | GoalElement | RoutineElement>,
     showNotifications: boolean
   ): Observable<boolean> {
     const positions: CanvasPositionWriteDTO[] = [];
@@ -739,8 +743,14 @@ export class CanvasApp {
           ? 'task'
           : el instanceof StoryElement
             ? 'story'
-            : 'goal';
-      const elementUuid = el.uuid;
+            : el instanceof GoalElement
+              ? 'goal'
+              : 'routine';
+      const elementUuid =
+        el.uuid ??
+        (el instanceof RoutineElement && Number.isFinite(el.backendId)
+          ? `habit-${el.backendId}`
+          : null);
       if (!elementUuid) {
         missingIds.push(String((el as any).id));
         return;
@@ -758,6 +768,12 @@ export class CanvasApp {
                 goalScale: el.scale,
                 focused: this.scene.isFocused(el),
                 highlighted: this.scene.isHighlighted(el),
+              }
+            : el instanceof RoutineElement
+            ? {
+                focused: this.scene.isFocused(el),
+                highlighted: this.scene.isHighlighted(el),
+                shape: 'circle',
               }
             : {
                 focused: this.scene.isFocused(el),
@@ -824,7 +840,15 @@ export class CanvasApp {
       }),
       switchMap(() =>
         this.canvasDataService
-          .updateCanvasRelations(this.scene.getConnections(), elements)
+          .updateCanvasRelations(
+            this.scene.getConnections(),
+            elements.filter(
+              (el): el is TaskElement | StoryElement | GoalElement =>
+                el instanceof TaskElement ||
+                el instanceof StoryElement ||
+                el instanceof GoalElement
+            )
+          )
           .pipe(
             catchError((err) => {
               this.queueUnsyncedDraft(relationsDraftId, 'relations', {
@@ -1006,7 +1030,7 @@ export class CanvasApp {
   }
 
   private applyFocusedElement(
-    elements: Array<TaskElement | StoryElement | GoalElement>,
+    elements: Array<TaskElement | StoryElement | GoalElement | RoutineElement>,
     focusedUuid: string | null
   ): void {
     const focusedElement =
@@ -1020,7 +1044,7 @@ export class CanvasApp {
   }
 
   private applyHighlightedElements(
-    elements: Array<TaskElement | StoryElement | GoalElement>,
+    elements: Array<TaskElement | StoryElement | GoalElement | RoutineElement>,
     highlightedUuids: string[]
   ): void {
     if (highlightedUuids.length === 0) {
@@ -1034,7 +1058,7 @@ export class CanvasApp {
             element.uuid === highlightedUuid || element.id === highlightedUuid
         )
       )
-      .filter((element): element is TaskElement | StoryElement | GoalElement =>
+      .filter((element): element is TaskElement | StoryElement | GoalElement | RoutineElement =>
         Boolean(element)
       )
       .map((element) => element.id);
@@ -1042,7 +1066,7 @@ export class CanvasApp {
   }
 
   private replacePlanningElements(
-    elements: Array<TaskElement | StoryElement | GoalElement>
+    elements: Array<TaskElement | StoryElement | GoalElement | RoutineElement>
   ): void {
     this.scene.replaceElements(isPlanningElement, elements);
   }
@@ -1444,7 +1468,7 @@ export class CanvasApp {
     const elements = this.scene
       .getElements()
       .filter(isPlanningElement) as Array<
-      TaskElement | StoryElement | GoalElement
+      TaskElement | StoryElement | GoalElement | RoutineElement
     >;
     if (
       !this.canvasDataService.hasRelationChanges(

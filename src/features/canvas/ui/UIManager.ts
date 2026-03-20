@@ -15,16 +15,19 @@ import { BulkActionsController } from '../core/services/BulkActionsController.ts
 import { ExistingTaskPicker } from './components/ExistingTaskPicker.ts';
 import { ExistingGoalPicker } from './components/ExistingGoalPicker.ts';
 import { ExistingStoryPicker } from './components/ExistingStoryPicker.ts';
+import { ExistingRoutinePicker } from './components/ExistingRoutinePicker.ts';
 import { environment } from '../../../config/environment.ts';
 import { HttpInterceptorClient } from '../../../majom-wrapper/data-access/http-interceptor.ts';
 import { TasksApiService } from '../../../majom-wrapper/data-access/tasks-api-service.ts';
 import { GoalsApiService } from '../../../majom-wrapper/data-access/goals-api-service.ts';
 import { StoriesApiService } from '../../../majom-wrapper/data-access/stories-api-service.ts';
+import { HabitsApiService } from '../../../majom-wrapper/data-access/habits-api-service.ts';
 import { map } from 'rxjs/operators';
 import type { Subscription } from 'rxjs';
 import { AddExistingTaskService } from '../core/services/AddExistingTaskService.ts';
 import { AddExistingGoalService } from '../core/services/AddExistingGoalService.ts';
 import { AddExistingStoryService } from '../core/services/AddExistingStoryService.ts';
+import { AddExistingRoutineService } from '../core/services/AddExistingRoutineService.ts';
 import { AuthService } from '../../../majom-wrapper/data-access/auth-service.ts';
 import { UserApiService } from '../../../majom-wrapper/data-access/user-api-service.ts';
 import { CanvasMenu } from './components/CanvasMenu.ts';
@@ -46,6 +49,7 @@ export class UIManager {
   private readonly addExistingTaskService: AddExistingTaskService;
   private readonly addExistingGoalService: AddExistingGoalService;
   private readonly addExistingStoryService: AddExistingStoryService;
+  private readonly addExistingRoutineService: AddExistingRoutineService;
   private existingPickerDragStateHandler: ((event: Event) => void) | null =
     null;
   private existingPickerDragMoveHandler: ((event: Event) => void) | null = null;
@@ -82,6 +86,7 @@ export class UIManager {
     const tasksApi = new TasksApiService(http);
     const goalsApi = new GoalsApiService(http);
     const storiesApi = new StoriesApiService(http);
+    const habitsApi = new HabitsApiService(http);
     const userApi = new UserApiService(http);
     const canvasMenu = new CanvasMenu(this.authService, userApi, {
       containerClassName: 'relative z-30 flex items-center',
@@ -102,6 +107,10 @@ export class UIManager {
       this.canvasManager
     );
     this.addExistingStoryService = new AddExistingStoryService(
+      this.scene,
+      this.canvasManager
+    );
+    this.addExistingRoutineService = new AddExistingRoutineService(
       this.scene,
       this.canvasManager
     );
@@ -148,15 +157,38 @@ export class UIManager {
             }))
           )
     );
+    const existingRoutinePicker = new ExistingRoutinePicker((term, page, pageSize) =>
+      habitsApi.getHabits().pipe(
+        map((items) => {
+          const normalizedTerm = term.trim().toLowerCase();
+          const filtered = normalizedTerm
+            ? items.filter((routine) =>
+                [routine.title, routine.description]
+                  .join(' ')
+                  .toLowerCase()
+                  .includes(normalizedTerm)
+              )
+            : items;
+          const start = (page - 1) * pageSize;
+          const pageItems = filtered.slice(start, start + pageSize);
+          return {
+            items: pageItems,
+            hasMore: start + pageSize < filtered.length,
+          };
+        })
+      )
+    );
     const contextMenu = new ContextMenu(
       this.scene,
       this.canvasManager,
       existingTaskPicker,
       existingGoalPicker,
       existingStoryPicker,
+      existingRoutinePicker,
       this.addExistingTaskService,
       this.addExistingGoalService,
-      this.addExistingStoryService
+      this.addExistingStoryService,
+      this.addExistingRoutineService
     );
     const bulkActions = new BulkActionsController(this.scene);
     const selectionActions = new SelectionActionMenu(
@@ -323,7 +355,8 @@ export class UIManager {
     const x = (clientX - rect.left + panZoom.scrollX) / panZoom.scale;
     const y = (clientY - rect.top + panZoom.scrollY) / panZoom.scale;
 
-    const existingItem = payload?.item ?? payload?.goal ?? payload?.story;
+    const existingItem =
+      payload?.item ?? payload?.goal ?? payload?.story ?? payload?.routine;
     if (payload?.kind === 'existing-goal' && existingItem) {
       this.addExistingGoalService.addOrFocus(existingItem, x, y);
       emitExistingPickerDropCompleted('existing-goal');
@@ -337,6 +370,11 @@ export class UIManager {
     if (payload?.kind === 'existing-story' && existingItem) {
       this.addExistingStoryService.addOrFocus(existingItem, x, y);
       emitExistingPickerDropCompleted('existing-story');
+      return;
+    }
+    if (payload?.kind === 'existing-routine' && existingItem) {
+      this.addExistingRoutineService.addOrFocus(existingItem, x, y);
+      emitExistingPickerDropCompleted('existing-routine');
       return;
     }
   }

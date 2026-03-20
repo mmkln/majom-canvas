@@ -13,6 +13,7 @@ import type { ICanvasElement } from '../core/interfaces/canvasElement.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
+import { RoutineElement } from '../elements/RoutineElement.ts';
 import { StoryLayoutService } from '../core/services/StoryLayoutService.ts';
 import { positionFixedElement } from './overlayPosition.ts';
 import { BulkActionsController } from '../core/services/BulkActionsController.ts';
@@ -21,10 +22,12 @@ import { addTaskToStory } from './storyTaskActions.ts';
 import { ExistingTaskPicker } from './components/ExistingTaskPicker.ts';
 import { ExistingGoalPicker } from './components/ExistingGoalPicker.ts';
 import { ExistingStoryPicker } from './components/ExistingStoryPicker.ts';
+import { ExistingRoutinePicker } from './components/ExistingRoutinePicker.ts';
 import { createMenuBadge } from './components/MenuBadge.ts';
 import { AddExistingTaskService } from '../core/services/AddExistingTaskService.ts';
 import { AddExistingGoalService } from '../core/services/AddExistingGoalService.ts';
 import { AddExistingStoryService } from '../core/services/AddExistingStoryService.ts';
+import { AddExistingRoutineService } from '../core/services/AddExistingRoutineService.ts';
 import {
   createDivider,
   createDropdownItem,
@@ -101,9 +104,11 @@ export class ContextMenu {
     private existingTaskPicker: ExistingTaskPicker,
     private existingGoalPicker: ExistingGoalPicker,
     private existingStoryPicker: ExistingStoryPicker,
+    private existingRoutinePicker: ExistingRoutinePicker,
     private addExistingTaskService: AddExistingTaskService,
     private addExistingGoalService: AddExistingGoalService,
-    private addExistingStoryService: AddExistingStoryService
+    private addExistingStoryService: AddExistingStoryService,
+    private addExistingRoutineService: AddExistingRoutineService
   ) {
     this.bulkActions = new BulkActionsController(scene);
     this.menu = document.createElement('div');
@@ -152,6 +157,7 @@ export class ContextMenu {
     this.existingTaskPicker.close();
     this.existingGoalPicker.close();
     this.existingStoryPicker.close();
+    this.existingRoutinePicker.close();
     this.closeSubmenu();
     this.submenu.removeEventListener('keydown', this.onSubmenuKeyDown);
     this.submenu.remove();
@@ -257,6 +263,13 @@ export class ContextMenu {
             secondaryIcon: 'magnifying-glass',
             secondaryLabel: 'Find existing task',
           },
+          {
+            label: 'Routine',
+            action: () => this.createRoutineAt(sceneX, sceneY),
+            secondaryAction: () => this.openExistingRoutinePicker(sceneX, sceneY),
+            secondaryIcon: 'magnifying-glass',
+            secondaryLabel: 'Find existing routine',
+          },
         ],
       });
       return sections;
@@ -265,7 +278,8 @@ export class ContextMenu {
     const isPlanningElement =
       element instanceof TaskElement ||
       element instanceof StoryElement ||
-      element instanceof GoalElement;
+      element instanceof GoalElement ||
+      element instanceof RoutineElement;
     const confirmKey = this.getElementConfirmKey(element);
     const isConfirming = this.isConfirmingDelete(confirmKey);
     const elementLabel = this.getElementLabel(element);
@@ -300,6 +314,7 @@ export class ContextMenu {
       if (el instanceof TaskElement) return 'Task';
       if (el instanceof StoryElement) return 'Story';
       if (el instanceof GoalElement) return 'Goal';
+      if (el instanceof RoutineElement) return 'Routine';
       return undefined;
     };
 
@@ -329,7 +344,8 @@ export class ContextMenu {
       const planningElement = element as
         | TaskElement
         | StoryElement
-        | GoalElement;
+        | GoalElement
+        | RoutineElement;
       const isFocused = this.scene.isFocused(planningElement);
       const isHighlighted = this.scene.isHighlighted(planningElement);
       sections.push({
@@ -367,7 +383,8 @@ export class ContextMenu {
       const planningElement = element as
         | TaskElement
         | StoryElement
-        | GoalElement;
+        | GoalElement
+        | RoutineElement;
       sections.push({
         title: 'Set status',
         items: STATUS_ORDER.map((status) => {
@@ -769,6 +786,7 @@ export class ContextMenu {
     if (element instanceof TaskElement) return `task:${element.id}`;
     if (element instanceof StoryElement) return `story:${element.id}`;
     if (element instanceof GoalElement) return `goal:${element.id}`;
+    if (element instanceof RoutineElement) return `routine:${element.id}`;
     return null;
   }
 
@@ -776,6 +794,7 @@ export class ContextMenu {
     if (element instanceof TaskElement) return 'Task';
     if (element instanceof StoryElement) return 'Story';
     if (element instanceof GoalElement) return 'Goal';
+    if (element instanceof RoutineElement) return 'Routine';
     return 'element';
   }
 
@@ -813,6 +832,16 @@ export class ContextMenu {
     });
     historyService.execute(new AddElementCommand(this.scene, story));
     this.scene.setSelected([story]);
+    this.canvasManager.draw();
+  }
+
+  private createRoutineAt(sceneX: number, sceneY: number): void {
+    const routine = new RoutineElement({
+      x: sceneX - RoutineElement.radius,
+      y: sceneY - RoutineElement.radius,
+    });
+    historyService.execute(new AddElementCommand(this.scene, routine));
+    this.scene.setSelected([routine]);
     this.canvasManager.draw();
   }
 
@@ -855,6 +884,17 @@ export class ContextMenu {
       isOnCanvas: (story) => this.addExistingStoryService.isOnCanvas(story),
       onPick: (story, storyX, storyY) => {
         this.addExistingStoryService.addOrFocus(story, storyX, storyY);
+      },
+    });
+  }
+
+  private openExistingRoutinePicker(sceneX: number, sceneY: number): void {
+    this.existingRoutinePicker.open({
+      sceneX,
+      sceneY,
+      isOnCanvas: (routine) => this.addExistingRoutineService.isOnCanvas(routine),
+      onPick: (routine, routineX, routineY) => {
+        this.addExistingRoutineService.addOrFocus(routine, routineX, routineY);
       },
     });
   }
