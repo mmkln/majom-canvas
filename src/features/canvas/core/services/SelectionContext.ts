@@ -3,9 +3,14 @@ import type { ICanvasElement } from '../interfaces/canvasElement.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
 import { StoryElement } from '../../elements/StoryElement.ts';
 import { GoalElement } from '../../elements/GoalElement.ts';
+import { RoutineElement } from '../../elements/RoutineElement.ts';
 import { ElementStatus } from '../../elements/ElementStatus.ts';
 
-export type PlanningElement = TaskElement | StoryElement | GoalElement;
+export type PlanningElement =
+  | TaskElement
+  | StoryElement
+  | GoalElement
+  | RoutineElement;
 
 export class SelectionContext {
   public static getPlanningSelection(scene: Scene): PlanningElement[] {
@@ -22,7 +27,8 @@ export class SelectionContext {
     return (
       element instanceof TaskElement ||
       element instanceof StoryElement ||
-      element instanceof GoalElement
+      element instanceof GoalElement ||
+      element instanceof RoutineElement
     );
   }
 

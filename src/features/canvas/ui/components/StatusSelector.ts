@@ -6,6 +6,12 @@ import {
   STATUS_ICON_TONE_CLASS,
   STATUS_ORDER,
 } from '../statusPresentation.ts';
+import {
+  getRoutineStatusIcon,
+  getRoutineStatusIconToneClass,
+  getRoutineStatusLabel,
+  ROUTINE_STATUS_ORDER,
+} from '../../elements/routineStatus.ts';
 
 const STATUS_LABEL_TONE_CLASS: Record<ElementStatus, string> = {
   [ElementStatus.Done]: 'text-emerald-700',
@@ -46,6 +52,45 @@ const STATUS_STEP_ORDER: readonly ElementStatus[] = [
   ElementStatus.Done,
 ];
 
+type StatusSelectorMode = 'default' | 'routine';
+
+type StatusSelectorPreset = {
+  order: readonly ElementStatus[];
+  getLabel: (status: ElementStatus) => string;
+  getIcon: (status: ElementStatus) => IconName;
+  getIconToneClass: (status: ElementStatus) => string;
+  getLabelToneClass: (status: ElementStatus) => string;
+  getTriggerBgClass: (status: ElementStatus) => string;
+  getStepToneClass: (status: ElementStatus) => string;
+};
+
+const STATUS_SELECTOR_PRESETS: Record<StatusSelectorMode, StatusSelectorPreset> =
+  {
+    default: {
+      order: STATUS_STEP_ORDER,
+      getLabel: getStatusLabel,
+      getIcon: (status) => STATUS_ICON_MAP[status],
+      getIconToneClass: (status) => STATUS_ICON_TONE_CLASS[status],
+      getLabelToneClass: (status) => STATUS_LABEL_TONE_CLASS[status],
+      getTriggerBgClass: (status) => STATUS_TRIGGER_BG_CLASS[status],
+      getStepToneClass: (status) => STATUS_STEP_TONE_CLASS[status],
+    },
+    routine: {
+      order: ROUTINE_STATUS_ORDER,
+      getLabel: getRoutineStatusLabel,
+      getIcon: getRoutineStatusIcon,
+      getIconToneClass: getRoutineStatusIconToneClass,
+      getLabelToneClass: (status) =>
+        status === ElementStatus.Done ? 'text-slate-700' : 'text-blue-700',
+      getTriggerBgClass: (status) =>
+        status === ElementStatus.Done ? 'bg-slate-100' : 'bg-blue-100/70',
+      getStepToneClass: (status) =>
+        status === ElementStatus.Done
+          ? 'bg-slate-100 text-slate-600 hover:bg-slate-200/80 hover:text-slate-700'
+          : 'bg-blue-100/60 text-blue-600 hover:bg-blue-100 hover:text-blue-700',
+    },
+  };
+
 type StatusSelectorOptions = {
   onStatusChange: (status: ElementStatus) => void;
 };
@@ -60,6 +105,7 @@ export class StatusSelector {
   private readonly panel: HTMLDivElement;
   private readonly statusLabel: HTMLSpanElement;
   private currentStatus: ElementStatus | null = null;
+  private mode: StatusSelectorMode = 'default';
   private open = false;
 
   constructor(options: StatusSelectorOptions) {
@@ -121,6 +167,12 @@ export class StatusSelector {
 
   public setState(status: ElementStatus | null): void {
     this.currentStatus = status;
+    this.syncUi();
+  }
+
+  public setMode(mode: StatusSelectorMode): void {
+    if (this.mode === mode) return;
+    this.mode = mode;
     this.syncUi();
   }
 
@@ -231,13 +283,14 @@ export class StatusSelector {
 
   private renderOptions(): void {
     this.panel.innerHTML = '';
-    STATUS_ORDER.forEach((status) => {
+    const preset = STATUS_SELECTOR_PRESETS[this.mode];
+    preset.order.forEach((status) => {
       const isActive = this.currentStatus === status;
-      const leading = createIcon(STATUS_ICON_MAP[status], {
+      const leading = createIcon(preset.getIcon(status), {
         size: 14,
         strokeWidth: 1.7,
       });
-      leading.classList.add('shrink-0', STATUS_ICON_TONE_CLASS[status]);
+      leading.classList.add('shrink-0', preset.getIconToneClass(status));
 
       const trailing = isActive
         ? createIcon('check', { size: 14, strokeWidth: 2 })
@@ -254,7 +307,7 @@ export class StatusSelector {
       content.className = 'inline-flex min-w-0 items-center gap-2';
       const label = document.createElement('span');
       label.className = 'truncate';
-      label.textContent = getStatusLabel(status);
+      label.textContent = preset.getLabel(status);
       content.append(leading, label);
       option.appendChild(content);
       if (trailing) {
@@ -289,19 +342,23 @@ export class StatusSelector {
       this.prevBtn.disabled = true;
       this.nextBtn.disabled = true;
     } else {
-      this.statusLabel.textContent = getStatusLabel(this.currentStatus);
+      this.statusLabel.textContent =
+        STATUS_SELECTOR_PRESETS[this.mode].getLabel(this.currentStatus);
       this.setStatusLabelTone(this.currentStatus);
       this.setTriggerStatusBackground(this.currentStatus);
       this.setStepButtonsStatusTone(this.currentStatus);
 
-      const index = STATUS_STEP_ORDER.indexOf(this.currentStatus);
+      const index = STATUS_SELECTOR_PRESETS[this.mode].order.indexOf(
+        this.currentStatus
+      );
       this.prevBtn.disabled = index <= 0;
-      this.nextBtn.disabled = index >= STATUS_STEP_ORDER.length - 1;
+      this.nextBtn.disabled =
+        index >= STATUS_SELECTOR_PRESETS[this.mode].order.length - 1;
     }
 
     const triggerText =
       this.currentStatus !== null
-        ? getStatusLabel(this.currentStatus)
+        ? STATUS_SELECTOR_PRESETS[this.mode].getLabel(this.currentStatus)
         : 'Mixed status';
     this.triggerBtn.title = `Status: ${triggerText}`;
     this.triggerBtn.setAttribute('aria-label', `Status: ${triggerText}`);
@@ -313,11 +370,12 @@ export class StatusSelector {
 
   private stepStatus(direction: -1 | 1): void {
     if (this.currentStatus === null) return;
-    const currentIndex = STATUS_STEP_ORDER.indexOf(this.currentStatus);
+    const order = STATUS_SELECTOR_PRESETS[this.mode].order;
+    const currentIndex = order.indexOf(this.currentStatus);
     if (currentIndex === -1) return;
     const nextIndex = currentIndex + direction;
-    if (nextIndex < 0 || nextIndex >= STATUS_STEP_ORDER.length) return;
-    const nextStatus = STATUS_STEP_ORDER[nextIndex];
+    if (nextIndex < 0 || nextIndex >= order.length) return;
+    const nextStatus = order[nextIndex];
     this.currentStatus = nextStatus;
     this.syncUi();
     this.onStatusChange(nextStatus);
@@ -333,7 +391,9 @@ export class StatusSelector {
       this.statusLabel.classList.add(STATUS_LABEL_MIXED_TONE_CLASS);
       return;
     }
-    this.statusLabel.classList.add(STATUS_LABEL_TONE_CLASS[status]);
+    this.statusLabel.classList.add(
+      STATUS_SELECTOR_PRESETS[this.mode].getLabelToneClass(status)
+    );
   }
 
   private setTriggerStatusBackground(status: ElementStatus | null): void {
@@ -345,7 +405,9 @@ export class StatusSelector {
       this.triggerBtn.classList.add(STATUS_TRIGGER_MIXED_BG_CLASS);
       return;
     }
-    this.triggerBtn.classList.add(STATUS_TRIGGER_BG_CLASS[status]);
+    this.triggerBtn.classList.add(
+      STATUS_SELECTOR_PRESETS[this.mode].getTriggerBgClass(status)
+    );
   }
 
   private setStepButtonsStatusTone(status: ElementStatus | null): void {
@@ -360,7 +422,7 @@ export class StatusSelector {
     const toneClass =
       status === null
         ? STATUS_STEP_MIXED_TONE_CLASS
-        : STATUS_STEP_TONE_CLASS[status];
+        : STATUS_SELECTOR_PRESETS[this.mode].getStepToneClass(status);
     const tokens = toneClass.split(' ').filter(Boolean);
     this.prevBtn.classList.add(...tokens);
     this.nextBtn.classList.add(...tokens);

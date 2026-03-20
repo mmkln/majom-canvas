@@ -35,6 +35,8 @@ type ExistingEntityPickerConfig<TItem> = {
   getTitle: (item: TItem) => string;
   getDescription?: (item: TItem) => string | null | undefined;
   getStatus?: (item: TItem) => unknown;
+  getStatusLabel?: (status: unknown, item: TItem) => string;
+  getStatusPalette?: (status: unknown, item: TItem) => string;
   getPriority?: (item: TItem) => unknown;
   getUpdatedAt?: (item: TItem) => unknown;
   onCanvasLabel?: string;
@@ -478,8 +480,10 @@ export class ExistingEntityPicker<TItem> {
       const statusValue = this.config.getStatus?.(item);
       if (statusValue !== undefined && statusValue !== null) {
         const statusChip = this.createChip(
-          this.formatEnum(statusValue),
-          this.getStatusChipPalette(statusValue)
+          this.config.getStatusLabel?.(statusValue, item) ??
+            this.formatEnum(statusValue),
+          this.config.getStatusPalette?.(statusValue, item) ??
+            this.getStatusChipPalette(statusValue)
         );
         meta.append(statusChip);
       }

@@ -39,7 +39,8 @@ export type IconName =
   | 'arrow-ultum-left'
   | 'arrow-ultum-right'
   | 'status-pending'
-  | 'status-defined';
+  | 'status-defined'
+  | 'archive-box';
 
 export type IconOptions = {
   size?: number;
@@ -378,6 +379,15 @@ export function createIcon(
     svg.appendChild(
       makePath(
         'M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z'
+      )
+    );
+    return svg;
+  }
+
+  if (name === 'archive-box') {
+    svg.appendChild(
+      makePath(
+        'm20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z'
       )
     );
     return svg;

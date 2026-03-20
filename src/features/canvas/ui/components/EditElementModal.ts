@@ -1,6 +1,7 @@
 import { TaskElement } from '../../elements/TaskElement.ts';
 import { StoryElement } from '../../elements/StoryElement.ts';
 import { GoalElement, GoalScale } from '../../elements/GoalElement.ts';
+import { RoutineElement } from '../../elements/RoutineElement.ts';
 import { Scene } from '../../core/scene/Scene.ts';
 import { ComponentFactory } from '../../../../ui-lib/src/core/ComponentFactory.ts';
 import {
@@ -23,6 +24,10 @@ import {
   ElementStatus,
 } from '../../elements/ElementStatus.ts';
 import type { UiPriority } from '../../../../majom-wrapper/utils/priorityMapping.ts';
+import {
+  ROUTINE_STATUS_OPTIONS,
+  normalizeRoutineStatus,
+} from '../../elements/routineStatus.ts';
 
 type DescriptionMode = 'view' | 'edit';
 
@@ -58,7 +63,7 @@ export class EditElementModal {
   private scaleControl: SegmentedControl<GoalScale> | null = null;
 
   constructor(
-    private element: TaskElement | StoryElement | GoalElement,
+    private element: TaskElement | StoryElement | GoalElement | RoutineElement,
     private scene: Scene
   ) {}
 
@@ -70,7 +75,9 @@ export class EditElementModal {
         ? 'Task'
         : this.element instanceof StoryElement
           ? 'Story'
-          : 'Goal';
+          : this.element instanceof GoalElement
+            ? 'Goal'
+            : 'Routine';
     const formatDateInputValue = (value: Date | null | undefined): string => {
       if (!value || !(value instanceof Date) || Number.isNaN(value.getTime())) {
         return '';
@@ -83,16 +90,22 @@ export class EditElementModal {
       return Number.isNaN(parsed.getTime()) ? null : parsed;
     };
     // Local temp state
-    const originalTitle = this.element.title;
-    const originalDescription = this.element.description;
-    const originalStatus: ElementStatus = this.element.status;
-    const originalPriority = this.element.priority;
+    const routineElement =
+      this.element instanceof RoutineElement ? this.element : null;
+    const isRoutine = routineElement !== null;
     const taskElement =
       this.element instanceof TaskElement ? this.element : null;
     const isTask = taskElement !== null;
     const goalElement =
       this.element instanceof GoalElement ? this.element : null;
     const isGoal = goalElement !== null;
+    const priorityElement = isRoutine ? null : this.element;
+    const originalTitle = this.element.title;
+    const originalDescription = this.element.description;
+    const originalStatus: ElementStatus = isRoutine
+      ? normalizeRoutineStatus(this.element.status)
+      : this.element.status;
+    const originalPriority = priorityElement?.priority ?? 'low';
     const originalScale: GoalScale | null = goalElement
       ? goalElement.scale
       : null;
@@ -113,7 +126,7 @@ export class EditElementModal {
       if (normalizedTitle !== originalTitle) return true;
       if (tempDescription !== originalDescription) return true;
       if (tempStatus !== originalStatus) return true;
-      if (tempPriority !== originalPriority) return true;
+      if (!isRoutine && tempPriority !== originalPriority) return true;
       if (isTask && tempDueDateValue !== originalDueDateValue) return true;
       if (isGoal && originalScale !== tempScale) return true;
       return false;
@@ -193,10 +206,12 @@ export class EditElementModal {
     const statusField = createField({ label: 'Status' });
     const statusSelect = ComponentFactory.createSelect({
       variant: 'default',
-      items: ELEMENT_STATUS_OPTIONS,
+      items: isRoutine ? ROUTINE_STATUS_OPTIONS : ELEMENT_STATUS_OPTIONS,
       selectedValue: tempStatus,
       onChange: (v: string) => {
-        tempStatus = v as ElementStatus;
+        tempStatus = isRoutine
+          ? normalizeRoutineStatus(v as ElementStatus)
+          : (v as ElementStatus);
       },
       className: 'w-full',
     });
@@ -205,62 +220,64 @@ export class EditElementModal {
     formContent.appendChild(statusField.element);
 
     // Priority segmented control with label
-    this.priorityControl = createSegmentedControl({
-      size: 'md',
-      fullWidth: true,
-      ariaLabel: 'Priority',
-      options: [
-        {
-          id: 'priority-lowest',
-          value: 'lowest',
-          label: 'Lowest',
-          icon: 'chevron-double-down',
-          iconColorClassName: 'text-sky-500',
-          title: 'Lowest priority. Can be ignored for now.',
+    if (!isRoutine) {
+      this.priorityControl = createSegmentedControl({
+        size: 'md',
+        fullWidth: true,
+        ariaLabel: 'Priority',
+        options: [
+          {
+            id: 'priority-lowest',
+            value: 'lowest',
+            label: 'Lowest',
+            icon: 'chevron-double-down',
+            iconColorClassName: 'text-sky-500',
+            title: 'Lowest priority. Can be ignored for now.',
+          },
+          {
+            id: 'priority-low',
+            value: 'low',
+            label: 'Low',
+            icon: 'chevron-down',
+            iconColorClassName: 'text-sky-500',
+            title: 'Low urgency. Important, but not time-sensitive.',
+          },
+          {
+            id: 'priority-medium',
+            value: 'medium',
+            label: 'Medium',
+            icon: 'bars-2',
+            iconColorClassName: 'text-orange-500',
+            title: 'Balanced priority for regular planning and execution.',
+          },
+          {
+            id: 'priority-high',
+            value: 'high',
+            label: 'High',
+            icon: 'chevron-up',
+            iconColorClassName: 'text-red-500',
+            title: 'High urgency. Should be scheduled and completed soon.',
+          },
+          {
+            id: 'priority-highest',
+            value: 'highest',
+            label: 'Highest',
+            icon: 'chevron-double-up',
+            iconColorClassName: 'text-red-500',
+            title: 'Highest priority. Super urgent and should be handled immediately.',
+          },
+        ],
+        value: tempPriority,
+        onChange: (value) => {
+          tempPriority = value;
         },
-        {
-          id: 'priority-low',
-          value: 'low',
-          label: 'Low',
-          icon: 'chevron-down',
-          iconColorClassName: 'text-sky-500',
-          title: 'Low urgency. Important, but not time-sensitive.',
-        },
-        {
-          id: 'priority-medium',
-          value: 'medium',
-          label: 'Medium',
-          icon: 'bars-2',
-          iconColorClassName: 'text-orange-500',
-          title: 'Balanced priority for regular planning and execution.',
-        },
-        {
-          id: 'priority-high',
-          value: 'high',
-          label: 'High',
-          icon: 'chevron-up',
-          iconColorClassName: 'text-red-500',
-          title: 'High urgency. Should be scheduled and completed soon.',
-        },
-        {
-          id: 'priority-highest',
-          value: 'highest',
-          label: 'Highest',
-          icon: 'chevron-double-up',
-          iconColorClassName: 'text-red-500',
-          title: 'Highest priority. Super urgent and should be handled immediately.',
-        },
-      ],
-      value: tempPriority,
-      onChange: (value) => {
-        tempPriority = value;
-      },
-    });
-    const priorityField = createField({
-      label: 'Priority',
-      control: this.priorityControl.element,
-    });
-    formContent.appendChild(priorityField.element);
+      });
+      const priorityField = createField({
+        label: 'Priority',
+        control: this.priorityControl.element,
+      });
+      formContent.appendChild(priorityField.element);
+    }
 
     if (isTask) {
       const dueDateField = createField({ label: 'Due date' });
@@ -337,7 +354,9 @@ export class EditElementModal {
         patch.description = tempDescription;
       }
       if (tempStatus !== originalStatus) patch.status = tempStatus;
-      if (tempPriority !== originalPriority) patch.priority = tempPriority;
+      if (!isRoutine && tempPriority !== originalPriority) {
+        patch.priority = tempPriority;
+      }
       if (isTask && tempDueDateValue !== originalDueDateValue) {
         const nextDueDate = parseDateInputValue(tempDueDateValue);
         patch.dueDate = nextDueDate;
@@ -346,7 +365,7 @@ export class EditElementModal {
       this.element.title = normalizedTitle;
       this.element.description = tempDescription;
       this.element.status = tempStatus;
-      this.element.priority = tempPriority;
+      if (priorityElement) priorityElement.priority = tempPriority;
       let scaleChanged = false;
       if (this.element instanceof GoalElement) {
         if (originalScale !== tempScale) {

@@ -48,6 +48,7 @@ import type {
   Habit,
 } from '../interfaces/index.ts';
 import { ElementStatus } from '../../features/canvas/elements/ElementStatus.ts';
+import { mapRoutineStatusToBackend } from '../../features/canvas/elements/routineStatus.ts';
 import Connection from '../../features/canvas/core/shapes/Connection.ts';
 import {
   ConnectionRelationType,
@@ -730,7 +731,7 @@ export class CanvasDataService {
         if (req.patch.description !== undefined)
           routinePayload.description = req.patch.description;
         if (req.patch.status !== undefined)
-          routinePayload.status = mapStatusToBackend(req.patch.status) as any;
+          routinePayload.status = mapRoutineStatusToBackend(req.patch.status);
         if (Object.keys(routinePayload).length === 0) return of(undefined);
         return this.habitsApi.patchHabit(ref, routinePayload);
       }),

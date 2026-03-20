@@ -41,6 +41,12 @@ import {
   STATUS_ICON_TONE_CLASS,
   STATUS_ORDER,
 } from './statusPresentation.ts';
+import {
+  getRoutineStatusIcon,
+  getRoutineStatusIconToneClass,
+  getRoutineStatusLabel,
+  ROUTINE_STATUS_ORDER,
+} from '../elements/routineStatus.ts';
 
 type ContextMenuDetail = {
   element: ICanvasElement | null;
@@ -263,6 +269,10 @@ export class ContextMenu {
             secondaryIcon: 'magnifying-glass',
             secondaryLabel: 'Find existing task',
           },
+        ],
+      });
+      sections.push({
+        items: [
           {
             label: 'Routine',
             action: () => this.createRoutineAt(sceneX, sceneY),
@@ -385,13 +395,21 @@ export class ContextMenu {
         | StoryElement
         | GoalElement
         | RoutineElement;
+      const isRoutine = planningElement instanceof RoutineElement;
+      const statusOrder = isRoutine ? ROUTINE_STATUS_ORDER : STATUS_ORDER;
       sections.push({
         title: 'Set status',
-        items: STATUS_ORDER.map((status) => {
+        items: statusOrder.map((status) => {
           const isCurrent = planningElement.status === status;
           return {
-            label: getStatusLabel(status),
-            leading: this.createStatusIcon(status),
+            label: isRoutine
+              ? getRoutineStatusLabel(status)
+              : getStatusLabel(status),
+            leading: this.createStatusIcon(
+              status,
+              isRoutine ? getRoutineStatusIcon(status) : undefined,
+              isRoutine ? getRoutineStatusIconToneClass(status) : undefined
+            ),
             trailing: isCurrent ? this.createActiveStatusCheck() : null,
             variant: isCurrent ? 'selected' : 'default',
             action: () => {
@@ -516,14 +534,18 @@ export class ContextMenu {
     return wrap;
   }
 
-  private createStatusIcon(status: ElementStatus): HTMLSpanElement {
+  private createStatusIcon(
+    status: ElementStatus,
+    iconName: IconName = STATUS_ICON_MAP[status],
+    toneClass: string = STATUS_ICON_TONE_CLASS[status]
+  ): HTMLSpanElement {
     const wrap = document.createElement('span');
     wrap.className = 'inline-flex items-center justify-center';
-    const icon = createIcon(STATUS_ICON_MAP[status], {
+    const icon = createIcon(iconName, {
       size: 14,
       strokeWidth: 1.7,
     });
-    icon.classList.add('shrink-0', STATUS_ICON_TONE_CLASS[status]);
+    icon.classList.add('shrink-0', toneClass);
     icon.setAttribute('aria-hidden', 'true');
     wrap.appendChild(icon);
     return wrap;

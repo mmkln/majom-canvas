@@ -5,6 +5,7 @@ import type { ICanvasElement } from '../core/interfaces/canvasElement.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
+import { RoutineElement } from '../elements/RoutineElement.ts';
 import { historyService } from '../core/services/HistoryService.ts';
 import { StoryLayoutService } from '../core/services/StoryLayoutService.ts';
 import {
@@ -252,6 +253,8 @@ export class SelectionActionMenu {
   private buildActionNodes(): ActionNode[] {
     const isSingle = (context: ActionContext): boolean => !context.isMulti;
     const isMulti = (context: ActionContext): boolean => context.isMulti;
+    const hasCompatibleStatuses = (context: ActionContext): boolean =>
+      !this.hasMixedRoutineStatuses(context.elements);
     const isStory = (context: ActionContext): boolean =>
       context.primary instanceof StoryElement;
     const isStoryOrGoal = (context: ActionContext): boolean =>
@@ -263,12 +266,13 @@ export class SelectionActionMenu {
         id: 'status',
         title: 'Change status',
         variant: 'status',
+        isVisible: hasCompatibleStatuses,
         onClick: () => {},
       },
       {
         kind: 'divider',
         id: 'divider-status',
-        isVisible: isMulti,
+        isVisible: (context) => isMulti(context) && hasCompatibleStatuses(context),
       },
       {
         kind: 'action',
@@ -503,8 +507,18 @@ export class SelectionActionMenu {
 
   private updateStatusSelector(elements: PlanningElement[]): void {
     if (!this.statusSelector || elements.length === 0) return;
+    const routineOnly = elements.every((element) => element instanceof RoutineElement);
+    this.statusSelector.setMode(routineOnly ? 'routine' : 'default');
     const status = SelectionContext.getMixedStatus(elements);
     this.statusSelector.setState(status ?? null);
+  }
+
+  private hasMixedRoutineStatuses(elements: PlanningElement[]): boolean {
+    const hasRoutine = elements.some((element) => element instanceof RoutineElement);
+    const hasNonRoutine = elements.some(
+      (element) => !(element instanceof RoutineElement)
+    );
+    return hasRoutine && hasNonRoutine;
   }
 
   private updateDeleteConfirmation(elements: PlanningElement[]): void {
@@ -567,6 +581,7 @@ export class SelectionActionMenu {
     if (element instanceof TaskElement) return `task:${element.id}`;
     if (element instanceof StoryElement) return `story:${element.id}`;
     if (element instanceof GoalElement) return `goal:${element.id}`;
+    if (element instanceof RoutineElement) return `routine:${element.id}`;
     return null;
   }
 

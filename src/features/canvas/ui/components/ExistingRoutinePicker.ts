@@ -1,5 +1,11 @@
 import type { Observable } from 'rxjs';
 import type { Habit } from '../../../../majom-wrapper/interfaces/index.ts';
+import { mapStatus } from '../../../../majom-wrapper/utils/statusMapping.ts';
+import {
+  getRoutineStatusChipPalette,
+  getRoutineStatusLabel,
+  normalizeRoutineStatus,
+} from '../../elements/routineStatus.ts';
 import {
   ExistingEntityPicker,
   type ExistingEntityPickerOpenOptions,
@@ -27,6 +33,14 @@ export class ExistingRoutinePicker {
         getTitle: (routine) => routine.title || 'Untitled routine',
         getDescription: (routine) => routine.description,
         getStatus: (routine) => routine.status,
+        getStatusLabel: (status) => {
+          const mapped = normalizeRoutineStatus(mapStatus(status as any));
+          return getRoutineStatusLabel(mapped);
+        },
+        getStatusPalette: (status) => {
+          const mapped = normalizeRoutineStatus(mapStatus(status as any));
+          return getRoutineStatusChipPalette(mapped);
+        },
         getUpdatedAt: (routine) =>
           (routine as Habit & { updated_at?: unknown }).updated_at,
       },

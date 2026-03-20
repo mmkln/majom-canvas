@@ -3,22 +3,27 @@ import { PlanningElement } from './PlanningElement.ts';
 import type { ConnectionPoint } from '../core/interfaces/shape.ts';
 import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { ElementStatus } from './ElementStatus.ts';
+import { editElement$ } from '../core/eventBus.ts';
 import {
   FOCUS_COLOR,
   HIGHLIGHT_COLOR,
+  FONT_FAMILY,
+  TITLE_FONT_SIZE,
   SELECT_COLOR,
-  SHOW_ANIM_SCALE,
 } from '../core/constants.ts';
+import { TextRenderer } from '../utils/TextRenderer.ts';
+import { normalizeRoutineStatus } from './routineStatus.ts';
+import { routineStyles } from './styles/routineStyles.ts';
 
-const ROUTINE_FILL = '#ECFDF3';
-const ROUTINE_STROKE = '#22C55E';
-const ROUTINE_TEXT = '#14532D';
+const ROUTINE_TEXT = '#000000';
 
 export class RoutineElement extends PlanningElement {
-  public static radius = 56;
+  public static radius = 92;
 
   title: string;
   status: ElementStatus = ElementStatus.Defined;
+  public borderColor: string =
+    routineStyles[ElementStatus.InProgress].borderColor;
 
   constructor({
     id = v4(),
@@ -27,7 +32,7 @@ export class RoutineElement extends PlanningElement {
     title = 'New Routine',
     description = '',
     selected = false,
-    status = ElementStatus.Defined,
+    status = ElementStatus.InProgress,
     backendId,
     uuid,
   }: {
@@ -42,13 +47,15 @@ export class RoutineElement extends PlanningElement {
     uuid?: string;
   }) {
     const diameter = RoutineElement.radius * 2;
+    const normalizedStatus = normalizeRoutineStatus(status);
+    const style = routineStyles[normalizedStatus];
     super({
       id,
       x,
       y,
       width: diameter,
       height: diameter,
-      fillColor: ROUTINE_FILL,
+      fillColor: style.fillColor,
       lineWidth: 2,
       title,
       description,
@@ -58,7 +65,8 @@ export class RoutineElement extends PlanningElement {
     this.zIndex = 2;
     this.title = title;
     this.selected = selected;
-    this.status = status;
+    this.status = normalizedStatus;
+    this.borderColor = style.borderColor;
   }
 
   draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
@@ -70,34 +78,41 @@ export class RoutineElement extends PlanningElement {
     ctx.setLineDash([]);
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-    ctx.fillStyle = ROUTINE_FILL;
+    const style = routineStyles[this.status];
+    this.fillColor = style.fillColor;
+    ctx.fillStyle = style.fillColor;
     ctx.fill();
+    this.borderColor = this.focused
+      ? FOCUS_COLOR
+      : this.highlighted
+        ? HIGHLIGHT_COLOR
+        : this.selected
+          ? SELECT_COLOR
+          : style.borderColor;
     ctx.strokeStyle = this.focused
       ? FOCUS_COLOR
       : this.highlighted
         ? HIGHLIGHT_COLOR
         : this.selected
           ? SELECT_COLOR
-          : ROUTINE_STROKE;
+          : style.borderColor;
     ctx.lineWidth = 2 / panZoom.scale;
     ctx.stroke();
 
-    if (panZoom.scale >= SHOW_ANIM_SCALE) {
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, radius - 6 / panZoom.scale, 0, 2 * Math.PI);
-      ctx.strokeStyle = 'rgba(34, 197, 94, 0.22)';
-      ctx.lineWidth = 1 / panZoom.scale;
-      ctx.stroke();
-    }
-
     ctx.fillStyle = ROUTINE_TEXT;
-    ctx.font = `${Math.max(11, 13 / panZoom.scale)}px Arial`;
+    const fontSize = Math.max(12, TITLE_FONT_SIZE / panZoom.scale);
+    ctx.font = `${fontSize}px ${FONT_FAMILY}`;
+    const label = (this.title || 'Routine').trim();
+    const maxTextWidth = radius * 1.45;
+    const lines = TextRenderer.wrapText(ctx, label, maxTextWidth, 2);
+    const lineHeight = fontSize * 1.25;
+    const blockHeight = lines.length > 0 ? (lines.length - 1) * lineHeight : 0;
+    const startY = centerY - blockHeight / 2;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const label = (this.title || 'Routine').trim();
-    const maxChars = 18;
-    const short = label.length > maxChars ? `${label.slice(0, maxChars - 1)}…` : label;
-    ctx.fillText(short, centerX, centerY, radius * 1.6);
+    lines.forEach((line, index) => {
+      ctx.fillText(line, centerX, startY + index * lineHeight);
+    });
 
     const hoveredPort: ConnectionPoint | undefined = (this as any).hoveredPort;
     if (this.selected || this.isHovered || hoveredPort) {
@@ -107,7 +122,13 @@ export class RoutineElement extends PlanningElement {
           : false;
         if (!(this.selected || this.isHovered) && !isPortHovered) return;
         ctx.beginPath();
-        ctx.arc(point.x, point.y, (isPortHovered ? 8 : 4) / panZoom.scale, 0, 2 * Math.PI);
+        ctx.arc(
+          point.x,
+          point.y,
+          (isPortHovered ? 8 : 4) / panZoom.scale,
+          0,
+          2 * Math.PI
+        );
         ctx.fillStyle = isPortHovered ? SELECT_COLOR : '#ffffff';
         ctx.fill();
         ctx.strokeStyle = '#000000';
@@ -186,5 +207,7 @@ export class RoutineElement extends PlanningElement {
     });
   }
 
-
+  public onDoubleClick(): void {
+    editElement$.next(this);
+  }
 }
