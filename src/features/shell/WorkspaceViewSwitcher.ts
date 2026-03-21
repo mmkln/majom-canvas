@@ -2,6 +2,7 @@ import type { WorkspaceView } from './WorkspaceView.ts';
 import { emitWorkspaceViewChangeRequested } from './workspaceEvents.ts';
 import { createIcon, type IconName } from '../canvas/ui/icons.ts';
 import { HabitsQuickModal } from './components/HabitsQuickModal.ts';
+import { emitWorkspaceChatToggleRequested } from './workspaceChatEvents.ts';
 
 type ViewOption = {
   view: WorkspaceView;
@@ -17,6 +18,7 @@ const VIEW_OPTIONS: ViewOption[] = [
 type WorkspaceViewSwitcherOptions = {
   showKanban?: boolean;
   showRoutines?: boolean;
+  showChat?: boolean;
 };
 
 export class WorkspaceViewSwitcher {
@@ -24,11 +26,13 @@ export class WorkspaceViewSwitcher {
   private readonly row: HTMLDivElement;
   private readonly group: HTMLDivElement;
   private readonly routinesButton: HTMLButtonElement;
+  private readonly chatButton: HTMLButtonElement;
   private readonly routinesModal = new HabitsQuickModal();
   private readonly shouldRenderViewGroup: boolean;
   private readonly shouldRender: boolean;
   private readonly buttons = new Map<WorkspaceView, HTMLButtonElement>();
   private activeView: WorkspaceView;
+  private chatOpen = false;
 
   constructor(
     initialView: WorkspaceView,
@@ -37,11 +41,12 @@ export class WorkspaceViewSwitcher {
     this.activeView = initialView;
     const showKanban = options.showKanban ?? true;
     const showRoutines = options.showRoutines ?? true;
+    const showChat = options.showChat ?? true;
     const viewOptions = showKanban
       ? VIEW_OPTIONS
       : VIEW_OPTIONS.filter((option) => option.view !== 'kanban');
     this.shouldRenderViewGroup = viewOptions.length > 1;
-    this.shouldRender = this.shouldRenderViewGroup || showRoutines;
+    this.shouldRender = this.shouldRenderViewGroup || showRoutines || showChat;
 
     this.container = document.createElement('div');
     this.container.id = 'workspace-view-switcher';
@@ -145,6 +150,27 @@ export class WorkspaceViewSwitcher {
     routinesLabel.style.lineHeight = '1';
     this.routinesButton.append(routinesIcon, routinesLabel);
 
+    this.chatButton = document.createElement('button');
+    this.chatButton.type = 'button';
+    this.chatButton.style.border = 'none';
+    this.chatButton.style.borderRadius = '9px';
+    this.chatButton.style.display = 'inline-flex';
+    this.chatButton.style.alignItems = 'center';
+    this.chatButton.style.justifyContent = 'center';
+    this.chatButton.style.padding = '0';
+    this.chatButton.style.width = '32px';
+    this.chatButton.style.height = '32px';
+    this.chatButton.style.cursor = 'pointer';
+    this.chatButton.style.transition = 'background-color 120ms ease, color 120ms ease';
+    this.chatButton.title = 'AI Chat';
+    this.chatButton.setAttribute('aria-label', 'Toggle AI chat panel');
+    this.chatButton.addEventListener('click', () => {
+      emitWorkspaceChatToggleRequested();
+    });
+    const chatIcon = createIcon('bars-2', { size: 14, strokeWidth: 1.8 });
+    chatIcon.setAttribute('aria-hidden', 'true');
+    this.chatButton.append(chatIcon);
+
     if (this.shouldRenderViewGroup) {
       this.row.appendChild(this.group);
     }
@@ -160,6 +186,19 @@ export class WorkspaceViewSwitcher {
     }
     if (showRoutines) {
       this.row.appendChild(this.routinesButton);
+    }
+    if (showChat) {
+      if (this.shouldRenderViewGroup || showRoutines) {
+        const chatDivider = document.createElement('span');
+        chatDivider.setAttribute('aria-hidden', 'true');
+        chatDivider.style.display = 'inline-block';
+        chatDivider.style.width = '1px';
+        chatDivider.style.height = '18px';
+        chatDivider.style.margin = '0 6px';
+        chatDivider.style.background = 'rgba(148, 163, 184, 0.45)';
+        this.row.appendChild(chatDivider);
+      }
+      this.row.appendChild(this.chatButton);
     }
     this.container.appendChild(this.row);
     this.syncButtons();
@@ -186,6 +225,11 @@ export class WorkspaceViewSwitcher {
     this.container.style.display = visible ? 'block' : 'none';
   }
 
+  public setChatOpen(open: boolean): void {
+    this.chatOpen = open;
+    this.syncButtons();
+  }
+
   private syncButtons(): void {
     this.buttons.forEach((button, view) => {
       const isActive = this.activeView === view;
@@ -194,5 +238,7 @@ export class WorkspaceViewSwitcher {
       button.style.background = isActive ? '#f1f5f9' : 'transparent';
       button.style.color = isActive ? '#0f172a' : '#475569';
     });
+    this.chatButton.style.background = this.chatOpen ? '#f1f5f9' : 'transparent';
+    this.chatButton.style.color = this.chatOpen ? '#0f172a' : '#475569';
   }
 }

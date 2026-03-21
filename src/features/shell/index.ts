@@ -13,3 +13,12 @@ export {
   type WorkspaceViewChangeRequestDetail,
   type WorkspaceViewChangedDetail,
 } from './workspaceEvents.ts';
+export {
+  WORKSPACE_CHAT_TOGGLE_REQUEST_EVENT,
+  WORKSPACE_CHAT_VISIBILITY_CHANGED_EVENT,
+  emitWorkspaceChatToggleRequested,
+  emitWorkspaceChatVisibilityChanged,
+  isWorkspaceChatToggleRequestDetail,
+  type WorkspaceChatToggleRequestDetail,
+  type WorkspaceChatVisibilityChangedDetail,
+} from './workspaceChatEvents.ts';

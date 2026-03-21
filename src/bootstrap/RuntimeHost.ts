@@ -9,10 +9,17 @@ import {
   emitWorkspaceViewChanged,
   isWorkspaceViewChangeRequestDetail,
 } from '../features/shell/workspaceEvents.ts';
+import {
+  WORKSPACE_CHAT_TOGGLE_REQUEST_EVENT,
+  emitWorkspaceChatVisibilityChanged,
+  isWorkspaceChatToggleRequestDetail,
+} from '../features/shell/workspaceChatEvents.ts';
 import type { WorkspaceView } from '../features/shell/WorkspaceView.ts';
 import { WorkspaceViewSwitcher } from '../features/shell/WorkspaceViewSwitcher.ts';
+import { GlobalChatPanel } from '../features/shell/components/GlobalChatPanel.ts';
 
 const ACTIVE_VIEW_STORAGE_KEY = 'workspace-active-view';
+const CHAT_OPEN_STORAGE_KEY = 'workspace-chat-open';
 const KANBAN_MODULE_IMPORT_PATH = '../features/kanban/KanbanModule.ts';
 
 type KanbanModuleNamespace = {
@@ -28,10 +35,13 @@ export class RuntimeHost {
   private readonly wallpaperSubscription: Subscription;
   private currentWallpaperUrl = '';
   private readonly viewSwitcher: WorkspaceViewSwitcher;
+  private readonly chatPanel: GlobalChatPanel;
   private activeView: WorkspaceView = 'canvas';
+  private chatOpen = false;
   private hostVisible = false;
   private starting = false;
   private readonly viewChangeHandler: (event: Event) => void;
+  private readonly chatToggleHandler: (event: Event) => void;
 
   constructor(wallpaperService: WallpaperService) {
     this.wallpaperService = wallpaperService;
@@ -46,6 +56,7 @@ export class RuntimeHost {
     this.workspaceRoot.style.backgroundSize = 'cover';
     this.workspaceRoot.style.backgroundPosition = 'center';
     this.workspaceRoot.style.backgroundRepeat = 'no-repeat';
+    this.workspaceRoot.style.transition = 'width 180ms ease, right 180ms ease';
     document.body.appendChild(this.workspaceRoot);
 
     this.wallpaperSubscription = this.wallpaperService.wallpaper$.subscribe(
@@ -62,16 +73,34 @@ export class RuntimeHost {
       showKanban: KANBAN_DEV_ENABLED,
       showRoutines: ROUTINES_ENABLED,
     });
+    this.chatPanel = new GlobalChatPanel();
+    this.chatPanel.mount(document.body);
+    this.chatOpen = this.loadChatOpen();
+    this.chatPanel.setVisible(false);
     this.viewSwitcher.mount(document.body);
     this.viewSwitcher.setVisible(false);
+    this.viewSwitcher.setChatOpen(this.chatOpen);
     this.viewChangeHandler = (event: Event) => {
       const customEvent = event as CustomEvent<unknown>;
       if (!isWorkspaceViewChangeRequestDetail(customEvent.detail)) return;
       void this.setActiveView(customEvent.detail.view);
     };
+    this.chatToggleHandler = (event: Event) => {
+      const customEvent = event as CustomEvent<unknown>;
+      if (!isWorkspaceChatToggleRequestDetail(customEvent.detail)) return;
+      if (typeof customEvent.detail?.open === 'boolean') {
+        this.setChatOpen(customEvent.detail.open);
+        return;
+      }
+      this.setChatOpen(!this.chatOpen);
+    };
     window.addEventListener(
       WORKSPACE_VIEW_CHANGE_REQUEST_EVENT,
       this.viewChangeHandler
+    );
+    window.addEventListener(
+      WORKSPACE_CHAT_TOGGLE_REQUEST_EVENT,
+      this.chatToggleHandler
     );
   }
 
@@ -102,6 +131,11 @@ export class RuntimeHost {
       WORKSPACE_VIEW_CHANGE_REQUEST_EVENT,
       this.viewChangeHandler
     );
+    window.removeEventListener(
+      WORKSPACE_CHAT_TOGGLE_REQUEST_EVENT,
+      this.chatToggleHandler
+    );
+    this.chatPanel.unmount();
   }
 
   public showCanvas(): void {
@@ -151,9 +185,12 @@ export class RuntimeHost {
   private applyVisibility(): void {
     const canvasUiRoot = document.getElementById('canvas-ui-root');
     const canvas = document.getElementById('myCanvas');
+    const chatWidth = this.chatOpen ? this.chatPanel.getWidthPx() : 0;
     if (!this.hostVisible) {
       this.workspaceRoot.style.display = 'none';
       this.workspaceRoot.style.pointerEvents = 'none';
+      this.workspaceRoot.style.width = '100vw';
+      this.workspaceRoot.style.right = '0';
       if (canvas instanceof HTMLCanvasElement) {
         canvas.style.display = 'none';
         canvas.style.pointerEvents = 'none';
@@ -161,8 +198,10 @@ export class RuntimeHost {
       if (canvasUiRoot instanceof HTMLElement) {
         canvasUiRoot.style.display = 'none';
         canvasUiRoot.style.pointerEvents = 'none';
+        canvasUiRoot.style.width = '100vw';
       }
       this.viewSwitcher.setVisible(false);
+      this.chatPanel.setVisible(false);
       this.syncWorkspaceWallpaper();
       return;
     }
@@ -170,6 +209,8 @@ export class RuntimeHost {
     const showCanvas = this.activeView === 'canvas';
     this.workspaceRoot.style.display = 'block';
     this.workspaceRoot.style.pointerEvents = 'auto';
+    this.workspaceRoot.style.width = `calc(100vw - ${chatWidth}px)`;
+    this.workspaceRoot.style.right = `${chatWidth}px`;
     if (canvas instanceof HTMLCanvasElement) {
       canvas.style.display = showCanvas ? 'block' : 'none';
       canvas.style.pointerEvents = showCanvas ? 'auto' : 'none';
@@ -177,8 +218,10 @@ export class RuntimeHost {
     if (canvasUiRoot instanceof HTMLElement) {
       canvasUiRoot.style.display = showCanvas ? 'block' : 'none';
       canvasUiRoot.style.pointerEvents = 'none';
+      canvasUiRoot.style.width = `calc(100vw - ${chatWidth}px)`;
     }
     this.viewSwitcher.setVisible(true);
+    this.chatPanel.setVisible(this.chatOpen);
     this.syncWorkspaceWallpaper();
   }
 
@@ -195,6 +238,30 @@ export class RuntimeHost {
   private persistActiveView(view: WorkspaceView): void {
     try {
       localStorage.setItem(ACTIVE_VIEW_STORAGE_KEY, view);
+    } catch {
+      // no-op
+    }
+  }
+
+  private setChatOpen(open: boolean): void {
+    this.chatOpen = open;
+    this.persistChatOpen(open);
+    this.viewSwitcher.setChatOpen(open);
+    emitWorkspaceChatVisibilityChanged(open);
+    this.applyVisibility();
+  }
+
+  private loadChatOpen(): boolean {
+    try {
+      return localStorage.getItem(CHAT_OPEN_STORAGE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  private persistChatOpen(open: boolean): void {
+    try {
+      localStorage.setItem(CHAT_OPEN_STORAGE_KEY, open ? '1' : '0');
     } catch {
       // no-op
     }
