@@ -31,6 +31,9 @@ import { getPriorityStrokeWidth } from './utils/priorityStroke.ts';
 export class StoryElement extends PlanningElement {
   static width: number = 344;
   static height: number = 240;
+  static collapsedHeight: number = 56;
+  static collapsedMinWidth: number = 168;
+  static collapsedMaxWidth: number = 244;
   public borderColor: string = storyStyles[ElementStatus.Defined].borderColor;
   /** Size for resize handles (in px) */
   // Size in px for the circular resize handle (larger for better UX)
@@ -40,6 +43,9 @@ export class StoryElement extends PlanningElement {
   tasks: TaskElement[] = [];
   public priority: UiPriority = 'low';
   public goalBackendId: number | null = null;
+  public isCollapsed: boolean = false;
+  public expandedWidth: number = StoryElement.width;
+  public expandedHeight: number = StoryElement.height;
   /** Currently hovered resize direction */
   public hoveredResizeHandle: 'nw' | 'ne' | 'se' | 'sw' | null = null;
 
@@ -61,6 +67,9 @@ export class StoryElement extends PlanningElement {
     backendId,
     uuid,
     goalBackendId = null,
+    isCollapsed = false,
+    expandedWidth,
+    expandedHeight,
   }: {
     id?: string;
     x?: number;
@@ -76,6 +85,9 @@ export class StoryElement extends PlanningElement {
     backendId?: number;
     uuid?: string;
     goalBackendId?: number | null;
+    isCollapsed?: boolean;
+    expandedWidth?: number;
+    expandedHeight?: number;
   }) {
     // determine style by status
     const style = storyStyles[status];
@@ -100,6 +112,24 @@ export class StoryElement extends PlanningElement {
     this.tasks = tasks;
     this.selected = selected;
     this.goalBackendId = goalBackendId;
+    this.expandedWidth =
+      typeof expandedWidth === 'number'
+        ? expandedWidth
+        : Math.max(width, StoryElement.collapsedMinWidth);
+    this.expandedHeight =
+      typeof expandedHeight === 'number'
+        ? expandedHeight
+        : Math.max(height, StoryElement.height);
+    if (isCollapsed) {
+      this.isCollapsed = true;
+      this.width = this.getPreferredCollapsedWidth();
+      this.height = StoryElement.collapsedHeight;
+    } else {
+      this.width = Math.max(width, StoryElement.collapsedMinWidth);
+      this.height = Math.max(height, StoryElement.collapsedHeight);
+      this.expandedWidth = this.width;
+      this.expandedHeight = this.height;
+    }
   }
 
   /**
@@ -162,18 +192,24 @@ export class StoryElement extends PlanningElement {
         detail: renderFlags?.statusAnimDetail,
       });
     }
+    this.drawCollapseToggle(ctx, panZoom);
+    if (this.isCollapsed) {
+      this.drawCollapsedContent(ctx, panZoom);
+      super.drawAnchors(ctx, panZoom);
+      return;
+    }
     if (showText) {
       // Title text with word wrapping
       ctx.fillStyle = '#000000';
       ctx.font = `bold ${TITLE_FONT_SIZE}px ${FONT_FAMILY}`;
       // Calculate max width for title, accounting for potential buttons
-      const maxTitleWidth = this.width - 90; // Leave space for buttons on the right
+      const maxTitleWidth = this.width - 126;
       const fontSize = 24;
       const lineHeight = 1.3;
       TextRenderer.drawWrappedText(
         ctx,
         this.title,
-        this.x + 16,
+        this.x + 48,
         this.y + 32,
         maxTitleWidth,
         lineHeight,
@@ -225,15 +261,223 @@ export class StoryElement extends PlanningElement {
     ctx.fillText(icon, x + 3 / panZoom.scale, y + 16 / panZoom.scale);
   }
 
+  private drawCollapseToggle(
+    ctx: CanvasRenderingContext2D,
+    panZoom: PanZoomManager
+  ): void {
+    const bounds = this.getCollapseToggleBounds(panZoom);
+    const radius = 6 / panZoom.scale;
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, radius);
+    ctx.fillStyle = 'rgba(255,255,255,0.78)';
+    ctx.fill();
+    ctx.strokeStyle = this.selected ? SELECT_COLOR : 'rgba(15,23,42,0.12)';
+    ctx.lineWidth = 1 / panZoom.scale;
+    ctx.stroke();
+
+    const cx = bounds.x + bounds.width / 2;
+    const cy = bounds.y + bounds.height / 2;
+    const arm = 4 / panZoom.scale;
+    ctx.beginPath();
+    if (this.isCollapsed) {
+      ctx.moveTo(cx - arm, cy - arm / 2);
+      ctx.lineTo(cx, cy + arm / 2);
+      ctx.lineTo(cx + arm, cy - arm / 2);
+    } else {
+      ctx.moveTo(cx - arm, cy + arm / 2);
+      ctx.lineTo(cx, cy - arm / 2);
+      ctx.lineTo(cx + arm, cy + arm / 2);
+    }
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 1.8 / panZoom.scale;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  private drawCollapsedContent(
+    ctx: CanvasRenderingContext2D,
+    panZoom: PanZoomManager
+  ): void {
+    const titleX = this.x + 48 / panZoom.scale;
+    const titleY = this.y + this.height / 2 + 5 / panZoom.scale;
+    const pillHeight = 22 / panZoom.scale;
+    const pillPaddingX = 10 / panZoom.scale;
+    const countLabel = `${this.tasks.length} ${this.tasks.length === 1 ? 'task' : 'tasks'}`;
+
+    ctx.save();
+    ctx.fillStyle = '#0f172a';
+    ctx.font = `600 ${TITLE_FONT_SIZE}px ${FONT_FAMILY}`;
+    const countWidth = ctx.measureText(countLabel).width + pillPaddingX * 2;
+    const pillWidth = Math.max(44 / panZoom.scale, countWidth);
+    const pillX = this.x + this.width - pillWidth - 14 / panZoom.scale;
+    const pillY = this.y + (this.height - pillHeight) / 2;
+
+    ctx.font = `600 ${TITLE_FONT_SIZE}px ${FONT_FAMILY}`;
+    TextRenderer.drawWrappedText(
+      ctx,
+      this.title,
+      titleX,
+      titleY,
+      Math.max(40, pillX - titleX - 12 / panZoom.scale),
+      1.2,
+      1,
+      TITLE_FONT_SIZE
+    );
+
+    ctx.beginPath();
+    ctx.roundRect(pillX, pillY, pillWidth, pillHeight, 999);
+    ctx.fillStyle = 'rgba(255,255,255,0.72)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(15,23,42,0.08)';
+    ctx.lineWidth = 1 / panZoom.scale;
+    ctx.stroke();
+
+    ctx.fillStyle = '#475569';
+    ctx.font = `500 11px ${FONT_FAMILY}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(countLabel, pillX + pillWidth / 2, pillY + pillHeight / 2 + 0.5);
+    ctx.restore();
+  }
+
   /**
    * Check if coordinates are within this story
    */
   contains(px: number, py: number): boolean {
+    const bounds = this.getVisibleBounds();
     return (
-      px >= this.x &&
-      px <= this.x + this.width &&
-      py >= this.y &&
-      py <= this.y + this.height
+      px >= bounds.x &&
+      px <= bounds.x + bounds.width &&
+      py >= bounds.y &&
+      py <= bounds.y + bounds.height
+    );
+  }
+
+  containsLogicalPoint(px: number, py: number): boolean {
+    const bounds = this.getLogicalBounds();
+    return (
+      px >= bounds.x &&
+      px <= bounds.x + bounds.width &&
+      py >= bounds.y &&
+      py <= bounds.y + bounds.height
+    );
+  }
+
+  containsTaskPoint(px: number, py: number, alreadyContained: boolean): boolean {
+    if (alreadyContained) {
+      return this.containsLogicalPoint(px, py);
+    }
+    return this.contains(px, py);
+  }
+
+  public getVisibleBounds(): {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } {
+    return { x: this.x, y: this.y, width: this.width, height: this.height };
+  }
+
+  public getLogicalBounds(): {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } {
+    return {
+      x: this.x,
+      y: this.y,
+      width: this.getLogicalWidth(),
+      height: this.getLogicalHeight(),
+    };
+  }
+
+  public getLogicalWidth(): number {
+    return this.isCollapsed ? this.expandedWidth : this.width;
+  }
+
+  public getLogicalHeight(): number {
+    return this.isCollapsed ? this.expandedHeight : this.height;
+  }
+
+  public setExpandedWidth(width: number): void {
+    const nextWidth = Math.max(width, StoryElement.collapsedMinWidth);
+    this.expandedWidth = nextWidth;
+    if (!this.isCollapsed) {
+      this.width = nextWidth;
+    }
+  }
+
+  public setExpandedHeight(height: number): void {
+    const nextHeight = Math.max(height, StoryElement.collapsedHeight);
+    this.expandedHeight = nextHeight;
+    if (!this.isCollapsed) {
+      this.height = nextHeight;
+    }
+  }
+
+  public setCollapsed(collapsed: boolean): void {
+    if (this.isCollapsed === collapsed) return;
+    if (collapsed) {
+      this.expandedWidth = Math.max(this.width, StoryElement.collapsedMinWidth);
+      this.expandedHeight = Math.max(this.height, StoryElement.collapsedHeight);
+      this.width = this.getPreferredCollapsedWidth();
+      this.height = StoryElement.collapsedHeight;
+      this.isCollapsed = true;
+      this.hoveredResizeHandle = null;
+      return;
+    }
+    const nextHeight = Math.max(
+      this.expandedHeight,
+      StoryElement.collapsedHeight
+    );
+    const nextWidth = Math.max(
+      this.expandedWidth,
+      StoryElement.collapsedMinWidth
+    );
+    this.width = nextWidth;
+    this.height = nextHeight;
+    this.expandedWidth = nextWidth;
+    this.expandedHeight = nextHeight;
+    this.isCollapsed = false;
+  }
+
+  public toggleCollapsed(): void {
+    this.setCollapsed(!this.isCollapsed);
+  }
+
+  public getCollapseToggleBounds(panZoom: PanZoomManager): {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } {
+    const size = 20 / panZoom.scale;
+    const inset = 10 / panZoom.scale;
+    return {
+      x: this.x + inset,
+      y: this.y + (this.isCollapsed ? (this.height - size) / 2 : inset),
+      width: size,
+      height: size,
+    };
+  }
+
+  public isCollapseToggleClicked(
+    px: number,
+    py: number,
+    panZoom: PanZoomManager
+  ): boolean {
+    const bounds = this.getCollapseToggleBounds(panZoom);
+    const padding = 4 / panZoom.scale;
+    return (
+      px >= bounds.x - padding &&
+      px <= bounds.x + bounds.width + padding &&
+      py >= bounds.y - padding &&
+      py <= bounds.y + bounds.height + padding
     );
   }
 
@@ -364,6 +608,9 @@ export class StoryElement extends PlanningElement {
   public getResizeHandles(
     panZoom: PanZoomManager
   ): { x: number; y: number; direction: 'nw' | 'ne' | 'se' | 'sw' }[] {
+    if (this.isCollapsed) {
+      return [];
+    }
     // Single handle: bottom-right corner only, to declutter UI and simplify resizing
     const offsetFromEdge = 1;
     return [
@@ -387,6 +634,9 @@ export class StoryElement extends PlanningElement {
     const detectSize = StoryElement.HANDLE_SIZE / panZoom.scale;
     const handles = this.getResizeHandles(panZoom);
     const handle = handles[0];
+    if (!handle) {
+      return null;
+    }
 
     const dx = px - handle.x;
     const dy = py - handle.y;
@@ -417,6 +667,25 @@ export class StoryElement extends PlanningElement {
       status: this.status,
       priority: this.priority,
       tasks: [],
+      isCollapsed: this.isCollapsed,
+      expandedWidth: this.expandedWidth,
+      expandedHeight: this.expandedHeight,
     });
+  }
+
+  private getPreferredCollapsedWidth(): number {
+    const trimmedTitle = this.title.trim();
+    const titleLength = trimmedTitle.length > 0 ? trimmedTitle.length : 10;
+    const titleWidth = Math.min(20, titleLength) * 7.2;
+    const countLabel = `${this.tasks.length} ${this.tasks.length === 1 ? 'task' : 'tasks'}`;
+    const countWidth = countLabel.length * 6.4;
+    const chromeWidth = 84;
+    return Math.max(
+      StoryElement.collapsedMinWidth,
+      Math.min(
+        StoryElement.collapsedMaxWidth,
+        Math.ceil(titleWidth + countWidth + chromeWidth)
+      )
+    );
   }
 }

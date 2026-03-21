@@ -44,6 +44,8 @@ import {
 import type { IDraggable } from '../interfaces/draggable.ts';
 import { getBoundingBox } from '../utils/geometryUtils.ts';
 import { emitTaskStoryLinkSet } from '../canvasLinkLifecycle.ts';
+import { getCollapsedStoryTaskIds } from '../utils/storyVisibility.ts';
+import { ToggleStoryCollapseCommand } from '../commands/ToggleStoryCollapseCommand.ts';
 
 export class InteractionManager {
   private draggingItem: (ICanvasElement & IDraggable) | null = null;
@@ -155,7 +157,9 @@ export class InteractionManager {
     stories.forEach((story) => {
       tasks.forEach((task) => {
         const anchor = this.getTaskAnchor(task);
-        if (story.contains(anchor.x, anchor.y)) story.addTask(task);
+        const inStory = story.tasks.some((existing) => existing.id === task.id);
+        const inside = story.containsTaskPoint(anchor.x, anchor.y, inStory);
+        if (inside) story.addTask(task);
         else story.removeTask(task.id);
       });
     });
@@ -254,6 +258,11 @@ export class InteractionManager {
     const planningEls = this.scene
       .getElements()
       .filter(isPlanningElement) as IPlanningElement[];
+    const hiddenTaskIds = this.getHiddenTaskIds();
+    const visiblePlanningEls = this.getVisiblePlanningElements(
+      planningEls,
+      hiddenTaskIds
+    );
     let clickedItem: (ICanvasElement & IDraggable) | null = null;
 
     // Resize handle detection on Story (independent of bounding box)
@@ -282,11 +291,21 @@ export class InteractionManager {
     clickedItem = this.findTopElementAt(sceneX, sceneY) as
       | (ICanvasElement & IDraggable)
       | null;
+    if (
+      clickedItem instanceof StoryElement &&
+      clickedItem.isCollapseToggleClicked(sceneX, sceneY, this.panZoom)
+    ) {
+      historyService.execute(
+        new ToggleStoryCollapseCommand(this.scene, clickedItem)
+      );
+      this.scene.setSelected([clickedItem]);
+      return true;
+    }
 
     // Check for connection point first to prioritize connection creation
     const connectables = [
       ...this.scene.getShapes(),
-      ...planningEls,
+      ...visiblePlanningEls,
     ] as IConnectable[];
     const connectionPointHit = this.findConnectionPointAt(
       sceneX,
@@ -374,7 +393,7 @@ export class InteractionManager {
     // start region-select when clicking empty space
     if (
       !rawShapes.some((el) => el.contains(sceneX, sceneY)) &&
-      !planningEls.some((el) => el.contains(sceneX, sceneY))
+      !visiblePlanningEls.some((el) => el.contains(sceneX, sceneY))
     ) {
       this.isRegionSelecting = true;
       this.regionStartX = sceneX;
@@ -403,21 +422,28 @@ export class InteractionManager {
     const planningEls = this.scene
       .getElements()
       .filter(isPlanningElement) as IPlanningElement[];
+    const hiddenTaskIds = this.getHiddenTaskIds();
+    const visiblePlanningEls = this.getVisiblePlanningElements(
+      planningEls,
+      hiddenTaskIds
+    );
     // reorder planning elements so tasks are prioritized during connection creation
     let connectables: IConnectable[];
     if (this.connectionService.isCreating()) {
-      const tasks = planningEls.filter(
+      const tasks = visiblePlanningEls.filter(
         (el) => el instanceof TaskElement
       ) as TaskElement[];
-      const others = planningEls.filter((el) => !(el instanceof TaskElement));
+      const others = visiblePlanningEls.filter(
+        (el) => !(el instanceof TaskElement)
+      );
       connectables = [...rawShapes, ...others, ...tasks];
     } else {
-      connectables = [...rawShapes, ...planningEls];
+      connectables = [...rawShapes, ...visiblePlanningEls];
     }
 
     // Unified hover state for all connectables (shapes + planning elements)
     let newHovered: IConnectable | null = null;
-    connectables.forEach((el) => ((el as any).isHovered = false));
+    [...rawShapes, ...planningEls].forEach((el) => ((el as any).isHovered = false));
     for (let i = connectables.length - 1; i >= 0; i--) {
       const el = connectables[i];
       if ((el as any).contains(sceneX, sceneY)) {
@@ -431,7 +457,9 @@ export class InteractionManager {
 
     // Оновлюємо стан наведення для точок з’єднання
     // Clear previous hoveredPort property
-    connectables.forEach((shape) => delete (shape as any).hoveredPort);
+    [...rawShapes, ...planningEls].forEach(
+      (shape) => delete (shape as any).hoveredPort
+    );
     const connectionPointHit = this.findConnectionPointAt(
       sceneX,
       sceneY,
@@ -567,7 +595,10 @@ export class InteractionManager {
       const planningEls = this.scene
         .getElements()
         .filter(isPlanningElement) as IPlanningElement[];
-      const all = [...rawShapes, ...planningEls] as (
+      const all = [
+        ...rawShapes,
+        ...this.getVisiblePlanningElements(planningEls, this.getHiddenTaskIds()),
+      ] as (
         | IShape
         | IPlanningElement
       )[];
@@ -960,7 +991,10 @@ export class InteractionManager {
     }
     // Check planning elements (Tasks/Stories/Goals) in zIndex order (highest first)
     const planningEls = [
-      ...(this.scene.getElements().filter(isPlanningElement) as any[]),
+      ...this.getVisiblePlanningElements(
+        this.scene.getElements().filter(isPlanningElement) as IPlanningElement[],
+        this.getHiddenTaskIds()
+      ),
     ];
     planningEls.sort((a, b) => (b.zIndex ?? 0) - (a.zIndex ?? 0));
     for (const el of planningEls) {
@@ -1439,9 +1473,11 @@ export class InteractionManager {
     const planningEls = this.scene
       .getElements()
       .filter(isPlanningElement) as IPlanningElement[];
+    const hiddenTaskIds = this.getHiddenTaskIds();
     // Task → Story → Other planning → Shape
     const taskEls = planningEls.filter(
-      (el): el is TaskElement => el instanceof TaskElement
+      (el): el is TaskElement =>
+        el instanceof TaskElement && !hiddenTaskIds.has(el.id)
     );
     for (let i = taskEls.length - 1; i >= 0; i--) {
       if (taskEls[i].contains(sceneX, sceneY)) return taskEls[i];
@@ -1467,6 +1503,20 @@ export class InteractionManager {
       if (shape.contains(sceneX, sceneY)) return shape;
     }
     return null;
+  }
+
+  private getHiddenTaskIds(): Set<string> {
+    return getCollapsedStoryTaskIds(this.scene.getElements());
+  }
+
+  private getVisiblePlanningElements(
+    planningEls: IPlanningElement[],
+    hiddenTaskIds: Set<string>
+  ): IPlanningElement[] {
+    return planningEls.filter(
+      (element) =>
+        !(element instanceof TaskElement) || !hiddenTaskIds.has(element.id)
+    );
   }
 
   private getTaskStoryMap(stories: StoryElement[]): Map<string, string> {

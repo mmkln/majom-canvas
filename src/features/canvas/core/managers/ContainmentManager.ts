@@ -27,8 +27,8 @@ export class ContainmentManager {
     const anchorX = task.x + TaskElement.width / 2;
     const anchorY = task.y + TaskElement.height / 2;
     stories.forEach((story) => {
-      const inside = story.contains(anchorX, anchorY);
       const inStory = story.tasks.some((t) => t.id === task.id);
+      const inside = story.containsTaskPoint(anchorX, anchorY, inStory);
       if (inside && !inStory) {
         story.addTask(task);
       } else if (!inside && inStory) {

@@ -8,6 +8,7 @@ import { Scene } from '../core/scene/Scene.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
+import { getCollapsedStoryTaskIds } from '../core/utils/storyVisibility.ts';
 import { createSurface } from './primitives/index.ts';
 
 type Rect = { x: number; y: number; width: number; height: number };
@@ -228,9 +229,13 @@ export class MiniMap {
     }
 
     const focusedId = this.scene.getFocusedElementId();
+    const hiddenTaskIds = getCollapsedStoryTaskIds(sceneElements);
     sceneElements.forEach((element: any) => {
       if (typeof element?.x !== 'number' || typeof element?.y !== 'number')
         return;
+      if (element instanceof TaskElement && hiddenTaskIds.has(element.id)) {
+        return;
+      }
       const baseColor = this.getColorByType(
         element instanceof TaskElement
           ? 'task'

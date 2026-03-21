@@ -750,6 +750,9 @@ export class CanvasApp {
           ? {
               width: el.width,
               height: el.height,
+              collapsed: el.isCollapsed,
+              expandedWidth: el.expandedWidth,
+              expandedHeight: el.expandedHeight,
               focused: this.scene.isFocused(el),
               highlighted: this.scene.isHighlighted(el),
             }

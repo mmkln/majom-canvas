@@ -46,6 +46,7 @@ import type {
   CanvasLoadPhase,
   CanvasLoadingPlaceholder,
 } from '../types/canvasLoading.ts';
+import { getCollapsedStoryTaskIds } from '../utils/storyVisibility.ts';
 
 type CanvasLoadingPlaceholderRenderState = CanvasLoadingPlaceholder & {
   isFocused: boolean;
@@ -451,6 +452,7 @@ export class CanvasManager {
     const shapes = this.cachedShapes;
     const planningEls = this.cachedPlanningElements;
     const planningElsSorted = this.cachedPlanningElementsSorted;
+    const hiddenTaskIds = getCollapsedStoryTaskIds(planningEls);
     const focusedId = this.scene.getFocusedElementId();
     planningEls.forEach((element) => {
       element.focused = element.id === focusedId;
@@ -458,7 +460,13 @@ export class CanvasManager {
     });
     const connectables = this.cachedConnectables;
 
-    const connections = this.scene.getConnections();
+    const connections = this.scene
+      .getConnections()
+      .filter(
+        (connection) =>
+          !hiddenTaskIds.has(connection.fromId) &&
+          !hiddenTaskIds.has(connection.toId)
+      );
     const visibleConnections = this.collectVisibleConnections(
       connections,
       this.cachedConnectableLookup,
@@ -467,6 +475,9 @@ export class CanvasManager {
     let animatedTotal = 0;
     let animatedVisibleCount = 0;
     planningEls.forEach((element) => {
+      if (element instanceof TaskElement && hiddenTaskIds.has(element.id)) {
+        return;
+      }
       if (!('status' in element) || !hasStatusAnimation((element as any).status))
         return;
       animatedTotal += 1;
@@ -530,6 +541,9 @@ export class CanvasManager {
 
     // draw planning elements in layer order with live drag/drop previews
     planningElsSorted.forEach((el) => {
+      if (el instanceof TaskElement && hiddenTaskIds.has(el.id)) {
+        return;
+      }
       if (el instanceof StoryElement) {
         const preview = resizePreviewByStoryId.get(el.id);
         if (preview && preview.previewHeight > el.height) {

@@ -1,6 +1,8 @@
 import type { Scene } from '../scene/Scene.ts';
 import type { IConnectable } from '../interfaces/connectable.ts';
 import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
+import { TaskElement } from '../../elements/TaskElement.ts';
+import { getCollapsedStoryTaskIds } from './storyVisibility.ts';
 
 /**
  * Returns all connectable elements (shapes + planning elements) sorted by zIndex ascending.
@@ -11,6 +13,11 @@ export function getOrderedConnectables(scene: Scene): IConnectable[] {
   const planningEls = scene
     .getElements()
     .filter(isPlanningElement) as IConnectable[];
+  const hiddenTaskIds = getCollapsedStoryTaskIds(scene.getElements());
   const items: IConnectable[] = [...shapes, ...planningEls];
-  return items.sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
+  return items
+    .filter(
+      (item) => !(item instanceof TaskElement) || !hiddenTaskIds.has(item.id)
+    )
+    .sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
 }

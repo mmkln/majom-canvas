@@ -9,6 +9,7 @@ import { TaskElement } from '../../elements/TaskElement.ts';
 import { StoryElement } from '../../elements/StoryElement.ts';
 import { GoalElement } from '../../elements/GoalElement.ts';
 import { getOrderedConnectables } from '../utils/connectableUtils.ts';
+import { getCollapsedStoryTaskIds } from '../utils/storyVisibility.ts';
 import {
   ConnectionRelationType,
   type IConnection,
@@ -39,14 +40,25 @@ export class ConnectionInteractionService {
 
   /** Hit test existing connections */
   public hitTest(x: number, y: number): IConnection | null {
+    const hiddenTaskIds = getCollapsedStoryTaskIds(this.scene.getElements());
     const planningEls = this.scene
       .getElements()
-      .filter(isPlanningElement) as IPlanningElement[];
+      .filter(isPlanningElement)
+      .filter(
+        (element) =>
+          !(element instanceof TaskElement) || !hiddenTaskIds.has(element.id)
+      ) as IPlanningElement[];
     const connectables: IConnectable[] = [
       ...this.scene.getShapes(),
       ...planningEls,
     ];
-    const connections = this.scene.getConnections();
+    const connections = this.scene
+      .getConnections()
+      .filter(
+        (connection) =>
+          !hiddenTaskIds.has(connection.fromId) &&
+          !hiddenTaskIds.has(connection.toId)
+      );
     for (let i = connections.length - 1; i >= 0; i--) {
       const conn = connections[i];
       // use fixed screen-pixel tolerance (5px)

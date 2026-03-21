@@ -6,6 +6,7 @@ import { PasteCommand } from '../core/commands/PasteCommand.ts';
 import { AddElementCommand } from '../core/commands/AddElementCommand.ts';
 import { SetFocusCommand } from '../core/commands/SetFocusCommand.ts';
 import { SetHighlightCommand } from '../core/commands/SetHighlightCommand.ts';
+import { ToggleStoryCollapseCommand } from '../core/commands/ToggleStoryCollapseCommand.ts';
 import { Scene } from '../core/scene/Scene.ts';
 import { clipboardService } from '../core/services/ClipboardService.ts';
 import type { CanvasManager } from '../core/managers/CanvasManager.ts';
@@ -281,6 +282,15 @@ export class ContextMenu {
         action: () => {
           (element as any).onDoubleClick?.();
         },
+      });
+    }
+    if (element instanceof StoryElement) {
+      actionItems.push({
+        label: element.isCollapsed ? 'Expand' : 'Collapse',
+        action: () =>
+          historyService.execute(
+            new ToggleStoryCollapseCommand(this.scene, element)
+          ),
       });
     }
     actionItems.push(
@@ -790,6 +800,7 @@ export class ContextMenu {
   }
 
   private createTaskInStory(story: StoryElement): void {
+    this.ensureStoryExpanded(story);
     addTaskToStory({
       story,
       scene: this.scene,
@@ -799,10 +810,20 @@ export class ContextMenu {
   }
 
   private openRelatedItemsPicker(element: StoryElement | GoalElement): void {
+    if (element instanceof StoryElement) {
+      this.ensureStoryExpanded(element);
+    }
     window.dispatchEvent(
       new CustomEvent('relatedItemsPickerRequested', {
         detail: { element },
       })
+    );
+  }
+
+  private ensureStoryExpanded(story: StoryElement): void {
+    if (!story.isCollapsed) return;
+    historyService.execute(
+      new ToggleStoryCollapseCommand(this.scene, story, false)
     );
   }
 

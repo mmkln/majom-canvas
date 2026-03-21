@@ -20,10 +20,22 @@ export function mapStory(
     return l.element_uuid === dto.uuid;
   });
   const meta = pos?.meta as
-    | { width?: number; height?: number; w?: number; h?: number }
+    | {
+        width?: number;
+        height?: number;
+        w?: number;
+        h?: number;
+        collapsed?: boolean;
+        isCollapsed?: boolean;
+        expandedWidth?: number;
+        expandedHeight?: number;
+      }
     | undefined;
   const width = meta?.width ?? meta?.w;
   const height = meta?.height ?? meta?.h;
+  const isCollapsed = meta?.collapsed === true || meta?.isCollapsed === true;
+  const expandedWidth = meta?.expandedWidth;
+  const expandedHeight = meta?.expandedHeight;
   return new StoryElement({
     id: dto.uuid ?? dto.id.toString(),
     x: pos?.x ?? DEFAULT_X,
@@ -37,5 +49,10 @@ export function mapStory(
     status: mapStatus(dto.status),
     description: dto.description,
     priority: normalizeUiPriority(dto.priority),
+    isCollapsed,
+    expandedWidth:
+      typeof expandedWidth === 'number' ? expandedWidth : undefined,
+    expandedHeight:
+      typeof expandedHeight === 'number' ? expandedHeight : undefined,
   });
 }

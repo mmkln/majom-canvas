@@ -88,7 +88,7 @@ export class ClipboardService {
       tasks.forEach((task) => {
         const anchorX = task.x + TaskElement.width / 2;
         const anchorY = task.y + TaskElement.height / 2;
-        if (story.contains(anchorX, anchorY)) {
+        if (story.containsLogicalPoint(anchorX, anchorY)) {
           story.addTask(task);
         }
       });

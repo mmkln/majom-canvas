@@ -57,7 +57,7 @@ export class StoryLayoutService {
   ): AlignLayoutPlan {
     const inside = this.getLayoutTasks(story, tasks);
     if (inside.length === 0) {
-      return { positions: new Map(), nextHeight: story.height };
+      return { positions: new Map(), nextHeight: story.getLogicalHeight() };
     }
     const ordered = this.getOrderedTasks(inside);
     const columns = this.getColumns(story);
@@ -137,7 +137,9 @@ export class StoryLayoutService {
     pointY: number,
     width: number = story.width
   ): number {
-    const columns = this.getColumnsForWidth(width);
+    const columns = this.getColumnsForWidth(
+      story.isCollapsed ? story.getLogicalWidth() : width
+    );
     const cellWidth = TaskElement.width + this.gap;
     const cellHeight = TaskElement.height + this.gap;
     const startX = story.x + this.paddingX;
@@ -190,7 +192,7 @@ export class StoryLayoutService {
   }
 
   private getColumns(story: StoryElement): number {
-    return this.getColumnsForWidth(story.width);
+    return this.getColumnsForWidth(story.getLogicalWidth());
   }
 
   private getColumnsForWidth(width: number): number {
@@ -216,7 +218,7 @@ export class StoryLayoutService {
   }
 
   private getRequiredHeight(story: StoryElement, rows: number): number {
-    return Math.max(story.height, this.getRequiredHeightForRows(rows));
+    return Math.max(story.getLogicalHeight(), this.getRequiredHeightForRows(rows));
   }
 
   private getRequiredHeightForRows(rows: number): number {
@@ -245,8 +247,8 @@ export class StoryLayoutService {
     const storyRect = {
       x: story.x,
       y: story.y,
-      width: story.width,
-      height: story.height,
+      width: story.getLogicalWidth(),
+      height: story.getLogicalHeight(),
     };
     return tasks.filter((task) =>
       this.intersects(storyRect, this.getTaskRect(task))

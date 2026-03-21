@@ -19,6 +19,7 @@ import { getViewBounds, isRectVisible } from '../core/utils/viewBounds.ts';
 import { addTaskToStory } from './storyTaskActions.ts';
 import { createIconButton, createSurface } from './primitives/index.ts';
 import { StatusSelector } from './components/StatusSelector.ts';
+import { ToggleStoryCollapseCommand } from '../core/commands/ToggleStoryCollapseCommand.ts';
 
 type ActionContext = {
   elements: PlanningElement[];
@@ -455,6 +456,11 @@ export class SelectionActionMenu {
     ) {
       return;
     }
+    if (this.activeElement instanceof StoryElement && this.activeElement.isCollapsed) {
+      historyService.execute(
+        new ToggleStoryCollapseCommand(this.scene, this.activeElement, false)
+      );
+    }
     window.dispatchEvent(
       new CustomEvent('relatedItemsPickerRequested', {
         detail: { element: this.activeElement },
@@ -464,6 +470,11 @@ export class SelectionActionMenu {
 
   private handleCreateTask(): void {
     if (!(this.activeElement instanceof StoryElement)) return;
+    if (this.activeElement.isCollapsed) {
+      historyService.execute(
+        new ToggleStoryCollapseCommand(this.scene, this.activeElement, false)
+      );
+    }
     addTaskToStory({
       story: this.activeElement,
       scene: this.scene,
