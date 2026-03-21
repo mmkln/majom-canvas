@@ -14,6 +14,7 @@ import {
   createSurface,
   createTextButton,
 } from '../primitives/index.ts';
+import { createIcon, type IconName } from '../icons.ts';
 import { OverlayController } from '../../../../ui-lib/src/services/OverlayController.ts';
 
 export type ExistingPickerPage<TItem> = {
@@ -126,8 +127,8 @@ export class ExistingEntityPicker<TItem> {
     const container = createSurface({
       elevated: true,
       className: this.mobilePresentation
-        ? 'fixed inset-x-0 bottom-0 top-auto h-[min(86dvh,44rem)] w-full rounded-none rounded-t-2xl p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-sm text-slate-700'
-        : 'fixed right-0 top-0 h-full w-[520px] max-w-[96vw] rounded-none rounded-l-2xl p-3 text-sm text-slate-700',
+        ? 'fixed inset-x-0 bottom-0 top-auto h-[min(86dvh,44rem)] w-full rounded-none rounded-t-[1.75rem] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-sm text-slate-700'
+        : 'fixed right-0 top-0 h-full w-[540px] max-w-[96vw] rounded-none rounded-l-[1.75rem] p-4 text-sm text-slate-700',
     });
     container.style.display = 'flex';
     container.style.flexDirection = 'column';
@@ -145,10 +146,16 @@ export class ExistingEntityPicker<TItem> {
     container.tabIndex = 0;
 
     const header = document.createElement('div');
-    header.className = 'mb-2 flex items-center justify-between gap-2 px-1';
+    header.className = 'mb-4 flex items-start justify-between gap-3';
+    const titleWrap = document.createElement('div');
+    titleWrap.className = 'min-w-0 flex-1';
     const title = document.createElement('div');
-    title.className = 'truncate text-sm font-semibold text-slate-900';
-    title.textContent = this.config.drawerTitle;
+    title.className = 'truncate text-[20px] font-semibold leading-7 text-slate-950';
+    title.textContent = 'Add to canvas';
+    const subtitle = document.createElement('div');
+    subtitle.className = 'mt-1.5 text-[12px] leading-5 text-slate-500';
+    subtitle.textContent = this.getDrawerSubtitle();
+    titleWrap.append(title, subtitle);
 
     const closeBtn = createIconButton({
       icon: 'x-mark',
@@ -158,12 +165,13 @@ export class ExistingEntityPicker<TItem> {
       ariaLabel: 'Close picker',
     });
     closeBtn.addEventListener('click', () => this.close());
-    header.append(title, closeBtn);
+    header.append(titleWrap, closeBtn);
 
     const searchInput = createInputBase({
       type: 'search',
       placeholder: this.config.searchPlaceholder,
-      className: 'mb-2 h-10',
+      className:
+        'mb-2 h-11 rounded-xl border-slate-200 bg-slate-50/80 px-4 text-[14px] shadow-none placeholder:text-slate-400 focus:border-slate-300 focus:bg-white',
     });
 
     const list = document.createElement('div');
@@ -171,23 +179,23 @@ export class ExistingEntityPicker<TItem> {
 
     const footerDivider = createDivider({ inset: false, tone: 'soft' });
     const footer = document.createElement('div');
-    footer.className = 'pt-2';
+    footer.className = 'pt-3';
 
     const compactPanel = document.createElement('div');
     compactPanel.className =
-      'hidden h-full flex-col items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 py-3 text-center';
+      'hidden h-full flex-col items-center justify-center gap-3 rounded-[1.25rem] bg-slate-50 px-3 py-4 text-center';
     compactPanel.style.display = 'none';
     const compactTitle = document.createElement('div');
     compactTitle.className =
-      'text-[10px] font-medium uppercase tracking-[0.06em] text-slate-500';
-    compactTitle.textContent = 'Picker minimized';
+      'text-[11px] font-medium tracking-[0.01em] text-slate-600';
+    compactTitle.textContent = 'Placing on canvas';
     const compactHint = document.createElement('div');
-    compactHint.className = 'text-[11px] text-slate-500';
-    compactHint.textContent = `Drop ${this.config.itemLabel.toLowerCase()} on canvas`;
+    compactHint.className = 'max-w-[12rem] text-[11px] leading-4 text-slate-500';
+    compactHint.textContent = `Drop the ${this.config.itemLabel.toLowerCase()} where you want it to appear.`;
     const expandBtn = createTextButton({
-      text: 'Expand',
+      text: 'Back to list',
       tone: 'soft',
-      className: 'px-2 py-1 text-[11px] font-medium',
+      className: 'px-3 py-1.5 text-[11px] font-medium',
     });
     expandBtn.addEventListener('click', () => this.setViewMode('full'));
     compactPanel.append(compactTitle, compactHint, expandBtn);
@@ -200,7 +208,14 @@ export class ExistingEntityPicker<TItem> {
       grabber.setAttribute('aria-hidden', 'true');
       containerParts.push(grabber);
     }
-    containerParts.push(header, searchInput, footerDivider, list, footer, compactPanel);
+    containerParts.push(
+      header,
+      searchInput,
+      footerDivider,
+      list,
+      footer,
+      compactPanel
+    );
     container.append(...containerParts);
     document.body.appendChild(backdrop);
     document.body.appendChild(container);
@@ -374,24 +389,26 @@ export class ExistingEntityPicker<TItem> {
     if (!this.list || !this.activeOptions) return;
     this.list.innerHTML = '';
     if (this.items.length === 0) {
-      this.renderMessage('No items found');
+      this.renderEmptyState();
       return;
     }
     this.items.forEach((item) => {
       const onCanvas = this.activeOptions?.isOnCanvas(item) ?? false;
       const row = document.createElement('div');
       row.className =
-        'mb-2 cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200';
+        'group mb-2 cursor-pointer rounded-2xl border border-transparent bg-slate-50/78 px-4 py-3 transition-all duration-150 hover:border-slate-200 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300';
       if (onCanvas) {
         row.classList.remove(
-          'border-slate-200',
-          'bg-white',
-          'hover:bg-slate-50'
+          'border-transparent',
+          'bg-slate-50/78',
+          'hover:border-slate-200',
+          'hover:bg-white'
         );
         row.classList.add(
-          'border-emerald-200',
-          'bg-emerald-50/60',
-          'hover:bg-emerald-50'
+          'border-slate-200',
+          'bg-slate-100/90',
+          'hover:border-slate-300',
+          'hover:bg-slate-100'
         );
       }
       row.setAttribute('role', 'button');
@@ -418,24 +435,23 @@ export class ExistingEntityPicker<TItem> {
       });
 
       const topRow = document.createElement('div');
-      topRow.className = 'flex items-start justify-between gap-2';
+      topRow.className = 'flex items-start justify-between gap-3';
 
       const textWrap = document.createElement('div');
       textWrap.className = 'min-w-0 flex-1';
       const title = document.createElement('div');
       title.className =
-        'truncate text-[14px] font-semibold leading-5 text-slate-900';
+        'truncate text-[15px] font-semibold leading-5 text-slate-950';
       title.textContent =
         this.config.getTitle(item) ||
         `Untitled ${this.config.itemLabel.toLowerCase()}`;
       textWrap.appendChild(title);
 
       if (onCanvas) {
-        const badge = document.createElement('span');
-        badge.className =
-          'mt-0.5 inline-flex w-fit rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.06em] text-emerald-700';
-        badge.textContent = this.config.onCanvasLabel ?? 'On canvas';
-        textWrap.appendChild(badge);
+        const statusLine = document.createElement('div');
+        statusLine.className = 'mt-1 text-[11px] font-medium text-slate-500';
+        statusLine.textContent = this.config.onCanvasLabel ?? 'Already on canvas';
+        textWrap.appendChild(statusLine);
       }
 
       const actionBtn = createTextButton({
@@ -443,7 +459,8 @@ export class ExistingEntityPicker<TItem> {
           ? (this.config.findLabel ?? 'Find')
           : (this.config.addLabel ?? 'Add'),
         tone: onCanvas ? 'text' : 'soft',
-        className: 'h-7 px-2 py-1 text-xs font-medium',
+        className:
+          'h-8 shrink-0 rounded-full px-3 py-1 text-[11px] font-medium',
       });
       actionBtn.addEventListener('click', (event: MouseEvent) => {
         event.stopPropagation();
@@ -454,7 +471,7 @@ export class ExistingEntityPicker<TItem> {
 
       const meta = document.createElement('div');
       meta.className =
-        'mt-1 flex items-center gap-2 overflow-hidden text-[11px] text-slate-500';
+        'mt-2 flex flex-wrap items-center gap-2 overflow-hidden text-[11px] text-slate-500';
 
       const statusValue = this.config.getStatus?.(item);
       if (statusValue !== undefined && statusValue !== null) {
@@ -466,10 +483,7 @@ export class ExistingEntityPicker<TItem> {
       }
       const priorityValue = this.config.getPriority?.(item);
       if (priorityValue !== undefined && priorityValue !== null) {
-        const priorityChip = this.createChip(
-          this.formatEnum(priorityValue),
-          this.getPriorityChipPalette(priorityValue)
-        );
+        const priorityChip = this.createPriorityChip(priorityValue);
         meta.append(priorityChip);
       }
       const updatedAtValue = this.config.getUpdatedAt?.(item);
@@ -491,7 +505,8 @@ export class ExistingEntityPicker<TItem> {
       );
       if (shortDescription.length > 0) {
         const description = document.createElement('div');
-        description.className = 'mt-1 truncate text-xs text-slate-600';
+        description.className =
+          'mt-2 truncate text-[12px] leading-5 text-slate-500';
         description.textContent = shortDescription;
         row.appendChild(description);
       }
@@ -506,6 +521,9 @@ export class ExistingEntityPicker<TItem> {
     if (this.footerDivider) {
       this.footerDivider.style.display = 'none';
     }
+    if (this.viewMode === 'mini') {
+      return;
+    }
     if (this.items.length === 0 && !this.hasMore && !this.loadMoreError) {
       return;
     }
@@ -513,10 +531,15 @@ export class ExistingEntityPicker<TItem> {
     if (this.hasMore || this.loadMoreError) {
       if (!this.loadMoreError) {
         const hint = document.createElement('div');
-        hint.className = 'px-1 text-[11px] text-slate-400';
-        hint.textContent = this.isLoading
-          ? 'Loading more...'
-          : 'Scroll down to load more';
+        hint.className =
+          'flex items-center justify-between gap-3 px-1 text-[11px] text-slate-400';
+        const label = document.createElement('span');
+        label.textContent = this.isLoading
+          ? 'Loading more results...'
+          : 'Scroll for more';
+        const meta = document.createElement('span');
+        meta.textContent = `${this.items.length} shown`;
+        hint.append(label, meta);
         this.footer.appendChild(hint);
         if (this.footerDivider) {
           this.footerDivider.style.display = '';
@@ -538,8 +561,17 @@ export class ExistingEntityPicker<TItem> {
     }
 
     const summary = document.createElement('div');
-    summary.className = 'px-1 text-[11px] text-slate-400';
-    summary.textContent = `Loaded ${this.items.length} items`;
+    summary.className =
+      'flex items-center justify-between gap-3 px-1 text-[11px] text-slate-400';
+    const loaded = document.createElement('span');
+    loaded.textContent = `${this.items.length} results`;
+    const onCanvasCount = this.items.filter((item) =>
+      this.activeOptions?.isOnCanvas(item)
+    ).length;
+    const state = document.createElement('span');
+    state.textContent =
+      onCanvasCount > 0 ? `${onCanvasCount} on canvas` : 'Ready to place';
+    summary.append(loaded, state);
     this.footer.appendChild(summary);
     if (this.footerDivider) {
       this.footerDivider.style.display = '';
@@ -561,9 +593,30 @@ export class ExistingEntityPicker<TItem> {
     if (!this.list) return;
     this.list.innerHTML = '';
     const row = document.createElement('div');
-    row.className = 'px-1 py-4 text-center text-xs text-slate-500';
+    row.className =
+      'rounded-[1.25rem] bg-slate-50 px-5 py-8 text-center text-sm text-slate-500';
     row.textContent = message;
     this.list.appendChild(row);
+  }
+
+  private renderEmptyState(): void {
+    if (!this.list) return;
+    this.list.innerHTML = '';
+    const card = document.createElement('div');
+    card.className =
+      'rounded-[1.25rem] bg-slate-50 px-5 py-8 text-center text-sm text-slate-500';
+    const title = document.createElement('div');
+    title.className = 'text-[14px] font-medium text-slate-700';
+    title.textContent = this.currentTerm
+      ? `No ${this.config.itemLabel.toLowerCase()}s found`
+      : `No ${this.config.itemLabel.toLowerCase()}s to show`;
+    const subtitle = document.createElement('div');
+    subtitle.className = 'mt-2 text-[12px] leading-5 text-slate-500';
+    subtitle.textContent = this.currentTerm
+      ? `Try a different keyword or drag another ${this.config.itemLabel.toLowerCase()} onto the canvas.`
+      : `Search existing ${this.config.itemLabel.toLowerCase()}s or add one directly from the canvas.`;
+    card.append(title, subtitle);
+    this.list.appendChild(card);
   }
 
   private refreshRenderedItems(): void {
@@ -718,8 +771,26 @@ export class ExistingEntityPicker<TItem> {
   private createChip(label: string, palette: string): HTMLSpanElement {
     const chip = document.createElement('span');
     chip.className =
-      `inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.06em] ${palette}`.trim();
+      `inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-[10px] font-medium ${palette}`.trim();
     chip.textContent = label;
+    return chip;
+  }
+
+  private createPriorityChip(priority: unknown): HTMLSpanElement {
+    const chip = document.createElement('span');
+    chip.className =
+      `inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium ${this.getPriorityChipPalette(priority)}`.trim();
+
+    const iconSpec = this.getPriorityIconSpec(priority);
+    if (iconSpec) {
+      const icon = createIcon(iconSpec.icon, { size: 12, strokeWidth: 2 });
+      icon.classList.add('shrink-0', iconSpec.iconColorClassName);
+      chip.appendChild(icon);
+    }
+
+    const label = document.createElement('span');
+    label.textContent = this.formatEnum(priority);
+    chip.appendChild(label);
     return chip;
   }
 
@@ -730,42 +801,79 @@ export class ExistingEntityPicker<TItem> {
       normalized.includes('done') ||
       normalized.includes('archived')
     ) {
-      return 'border-emerald-200 bg-emerald-100 text-emerald-700';
+      return 'border-emerald-200/80 bg-emerald-50 text-emerald-700';
     }
     if (
       normalized.includes('active') ||
       normalized.includes('in progress') ||
       normalized.includes('progress')
     ) {
-      return 'border-blue-200 bg-blue-100 text-blue-700';
+      return 'border-blue-200/80 bg-blue-50 text-blue-700';
     }
     if (normalized.includes('pending') || normalized.includes('described')) {
-      return 'border-yellow-200 bg-yellow-100 text-yellow-700';
+      return 'border-amber-200/80 bg-amber-50 text-amber-700';
     }
     if (normalized.includes('cancelled') || normalized.includes('canceled')) {
-      return 'border-amber-200 bg-amber-100 text-amber-700';
+      return 'border-slate-200 bg-slate-100 text-slate-600';
     }
-    return 'border-slate-200 bg-slate-100 text-slate-600';
+    return 'border-slate-200/80 bg-white text-slate-600';
   }
 
   private getPriorityChipPalette(priority: unknown): string {
     const normalized = this.normalizeChipValue(priority);
     if (normalized === 'highest') {
-      return 'border-rose-300 bg-rose-100 text-rose-800';
+      return 'border-rose-200/80 bg-rose-50 text-rose-700';
     }
     if (normalized === 'high') {
-      return 'border-rose-200 bg-rose-100 text-rose-700';
+      return 'border-rose-200/80 bg-rose-50 text-rose-700';
     }
     if (normalized === 'medium') {
-      return 'border-orange-200 bg-orange-100 text-orange-700';
+      return 'border-orange-200/80 bg-orange-50 text-orange-700';
     }
     if (normalized === 'low') {
-      return 'border-emerald-200 bg-emerald-100 text-emerald-700';
+      return 'border-emerald-200/80 bg-emerald-50 text-emerald-700';
     }
     if (normalized === 'lowest') {
-      return 'border-teal-200 bg-teal-100 text-teal-700';
+      return 'border-teal-200/80 bg-teal-50 text-teal-700';
     }
-    return 'border-slate-200 bg-slate-100 text-slate-600';
+    return 'border-slate-200/80 bg-white text-slate-600';
+  }
+
+  private getPriorityIconSpec(
+    priority: unknown
+  ): { icon: IconName; iconColorClassName: string } | null {
+    const normalized = this.normalizeChipValue(priority);
+    if (normalized === 'highest') {
+      return {
+        icon: 'chevron-double-up',
+        iconColorClassName: 'text-red-500',
+      };
+    }
+    if (normalized === 'high') {
+      return {
+        icon: 'chevron-up',
+        iconColorClassName: 'text-red-500',
+      };
+    }
+    if (normalized === 'medium') {
+      return {
+        icon: 'bars-2',
+        iconColorClassName: 'text-orange-500',
+      };
+    }
+    if (normalized === 'low') {
+      return {
+        icon: 'chevron-down',
+        iconColorClassName: 'text-sky-500',
+      };
+    }
+    if (normalized === 'lowest') {
+      return {
+        icon: 'chevron-double-down',
+        iconColorClassName: 'text-sky-500',
+      };
+    }
+    return null;
   }
 
   private normalizeChipValue(value: unknown): string {
@@ -814,6 +922,10 @@ export class ExistingEntityPicker<TItem> {
 
   private emitDragMove(clientX: number, clientY: number): void {
     emitExistingPickerDragMoved(this.config.dragKind, clientX, clientY);
+  }
+
+  private getDrawerSubtitle(): string {
+    return `Search existing ${this.config.itemLabel.toLowerCase()}s and place them where you need.`;
   }
 
   private shouldSuppressPick(): boolean {
