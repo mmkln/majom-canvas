@@ -13,6 +13,10 @@ export type HudInputOptions = {
   variant?: HudInputVariant;
   className?: string;
   inputClassName?: string;
+  leadingIcon?: IconName;
+  leadingIconClassName?: string;
+  trailingIcon?: IconName;
+  trailingIconClassName?: string;
   type?: string;
   value?: string;
   placeholder?: string;
@@ -86,8 +90,15 @@ export function createHudInput(options: HudInputOptions = {}): HudInput {
 
   const shouldRenderPasswordToggle =
     kind === 'password' && options.passwordToggle !== false;
+  const shouldRenderLeadingIcon = Boolean(options.leadingIcon);
+  const shouldRenderTrailingIcon =
+    Boolean(options.trailingIcon) && !shouldRenderPasswordToggle;
 
-  if (!shouldRenderPasswordToggle) {
+  if (
+    !shouldRenderPasswordToggle &&
+    !shouldRenderLeadingIcon &&
+    !shouldRenderTrailingIcon
+  ) {
     if (options.className) {
       input.className = `${input.className} ${options.className}`.trim();
     }
@@ -104,27 +115,63 @@ export function createHudInput(options: HudInputOptions = {}): HudInput {
     };
   }
 
-  input.className = `${input.className} pr-11`.trim();
+  if (shouldRenderLeadingIcon) {
+    input.className = `${input.className} pl-10`.trim();
+  }
+  if (shouldRenderTrailingIcon) {
+    input.className = `${input.className} pr-10`.trim();
+  }
+  if (shouldRenderPasswordToggle) {
+    input.className = `${input.className} pr-11`.trim();
+  }
 
   const wrapper = document.createElement('div');
   wrapper.setAttribute('data-component', 'HudInput');
   wrapper.className = `relative ${options.className ?? ''}`.trim();
 
-  const toggleButton = createHudIconButton({
-    icon: 'eye',
-    tone: 'text',
-    size: 'sm',
-    iconSize: 14,
-    iconStrokeWidth: 1.8,
-    ariaLabel: 'Show password',
-    type: 'button',
-    className:
-      'absolute right-1 top-1/2 -translate-y-1/2 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700',
-  });
-  toggleButton.setAttribute('aria-pressed', 'false');
-  toggleButton.title = 'Show password';
+  const createAdornment = (
+    iconName: IconName,
+    side: 'leading' | 'trailing',
+    className?: string
+  ): HTMLSpanElement => {
+    const adornment = document.createElement('span');
+    adornment.className = [
+      'pointer-events-none absolute top-1/2 -translate-y-1/2 text-slate-400',
+      side === 'leading' ? 'left-3' : 'right-3',
+      className ?? '',
+    ]
+      .join(' ')
+      .trim();
+    adornment.setAttribute('aria-hidden', 'true');
+    const icon = createIcon(iconName, { size: 15, strokeWidth: 1.9 });
+    icon.setAttribute('focusable', 'false');
+    adornment.appendChild(icon);
+    return adornment;
+  };
 
+  if (options.leadingIcon) {
+    wrapper.appendChild(
+      createAdornment(
+        options.leadingIcon,
+        'leading',
+        options.leadingIconClassName
+      )
+    );
+  }
+
+  if (options.trailingIcon && !shouldRenderPasswordToggle) {
+    wrapper.appendChild(
+      createAdornment(
+        options.trailingIcon,
+        'trailing',
+        options.trailingIconClassName
+      )
+    );
+  }
+
+  let toggleButton: HTMLButtonElement | null = null;
   const setToggleIcon = (iconName: IconName): void => {
+    if (!toggleButton) return;
     toggleButton.innerHTML = '';
     const icon = createIcon(iconName, { size: 14, strokeWidth: 1.8 });
     icon.setAttribute('aria-hidden', 'true');
@@ -132,6 +179,7 @@ export function createHudInput(options: HudInputOptions = {}): HudInput {
   };
 
   const syncToggleState = (): void => {
+    if (!toggleButton) return;
     const isPasswordVisible = input.type === 'text';
     setToggleIcon(isPasswordVisible ? 'eye-slash' : 'eye');
     toggleButton.setAttribute(
@@ -145,21 +193,39 @@ export function createHudInput(options: HudInputOptions = {}): HudInput {
     toggleButton.title = isPasswordVisible ? 'Hide password' : 'Show password';
   };
 
-  toggleButton.addEventListener('click', () => {
-    if (input.disabled) return;
-    input.type = input.type === 'password' ? 'text' : 'password';
-    syncToggleState();
-  });
+  if (shouldRenderPasswordToggle) {
+    toggleButton = createHudIconButton({
+      icon: 'eye',
+      tone: 'text',
+      size: 'sm',
+      iconSize: 14,
+      iconStrokeWidth: 1.8,
+      ariaLabel: 'Show password',
+      type: 'button',
+      className:
+        'absolute right-1 top-1/2 -translate-y-1/2 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700',
+    });
+    toggleButton.setAttribute('aria-pressed', 'false');
+    toggleButton.title = 'Show password';
+    toggleButton.addEventListener('click', () => {
+      if (input.disabled) return;
+      input.type = input.type === 'password' ? 'text' : 'password';
+      syncToggleState();
+    });
+  }
 
-  wrapper.append(input, toggleButton);
-  syncToggleState();
+  wrapper.appendChild(input);
+  if (toggleButton) {
+    wrapper.appendChild(toggleButton);
+    syncToggleState();
+  }
 
   return {
     element: wrapper,
     input,
     setState: (state) => {
       setHudInputState(input, state);
-      if (state.disabled !== undefined) {
+      if (toggleButton && state.disabled !== undefined) {
         toggleButton.disabled = state.disabled;
       }
     },

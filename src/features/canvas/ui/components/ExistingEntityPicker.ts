@@ -10,7 +10,7 @@ import {
 import {
   createDivider,
   createIconButton,
-  createInputBase,
+  createInput,
   createSurface,
   createTextButton,
 } from '../primitives/index.ts';
@@ -49,6 +49,7 @@ export class ExistingEntityPicker<TItem> {
   private backdrop: HTMLDivElement | null = null;
   private container: HTMLDivElement | null = null;
   private header: HTMLDivElement | null = null;
+  private searchField: HTMLElement | null = null;
   private searchInput: HTMLInputElement | null = null;
   private list: HTMLDivElement | null = null;
   private footerDivider: HTMLDivElement | null = null;
@@ -151,7 +152,7 @@ export class ExistingEntityPicker<TItem> {
     titleWrap.className = 'min-w-0 flex-1';
     const title = document.createElement('div');
     title.className = 'truncate text-[20px] font-semibold leading-7 text-slate-950';
-    title.textContent = 'Add to canvas';
+    title.textContent = this.getDrawerTitle();
     const subtitle = document.createElement('div');
     subtitle.className = 'mt-1.5 text-[12px] leading-5 text-slate-500';
     subtitle.textContent = this.getDrawerSubtitle();
@@ -167,12 +168,17 @@ export class ExistingEntityPicker<TItem> {
     closeBtn.addEventListener('click', () => this.close());
     header.append(titleWrap, closeBtn);
 
-    const searchInput = createInputBase({
+    const searchControl = createInput({
       type: 'search',
       placeholder: this.config.searchPlaceholder,
-      className:
-        'mb-2 h-11 rounded-xl border-slate-200 bg-slate-50/80 px-4 text-[14px] shadow-none placeholder:text-slate-400 focus:border-slate-300 focus:bg-white',
+      leadingIcon: 'magnifying-glass',
+      className: 'mb-2',
+      inputClassName:
+        'h-11 rounded-xl border-slate-200 bg-slate-50/80 pr-4 text-[14px] shadow-none placeholder:text-slate-400 focus:border-slate-300 focus:bg-white',
+      leadingIconClassName: 'text-slate-400',
     });
+    const searchField = searchControl.element;
+    const searchInput = searchControl.input;
 
     const list = document.createElement('div');
     list.className = 'min-h-0 flex-1 overflow-auto pr-1';
@@ -210,7 +216,7 @@ export class ExistingEntityPicker<TItem> {
     }
     containerParts.push(
       header,
-      searchInput,
+      searchField,
       footerDivider,
       list,
       footer,
@@ -230,6 +236,7 @@ export class ExistingEntityPicker<TItem> {
     this.backdrop = backdrop;
     this.container = container;
     this.header = header;
+    this.searchField = searchField;
     this.searchInput = searchInput;
     this.list = list;
     this.footerDivider = footerDivider;
@@ -315,6 +322,7 @@ export class ExistingEntityPicker<TItem> {
       this.list.removeEventListener('scroll', this.listScrollHandler);
     }
     this.header = null;
+    this.searchField = null;
     this.searchInput = null;
     this.list = null;
     this.footerDivider = null;
@@ -406,7 +414,8 @@ export class ExistingEntityPicker<TItem> {
         );
         row.classList.add(
           'border-slate-200',
-          'bg-slate-100/90',
+          'bg-slate-100/95',
+          'shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]',
           'hover:border-slate-300',
           'hover:bg-slate-100'
         );
@@ -446,13 +455,6 @@ export class ExistingEntityPicker<TItem> {
         this.config.getTitle(item) ||
         `Untitled ${this.config.itemLabel.toLowerCase()}`;
       textWrap.appendChild(title);
-
-      if (onCanvas) {
-        const statusLine = document.createElement('div');
-        statusLine.className = 'mt-1 text-[11px] font-medium text-slate-500';
-        statusLine.textContent = this.config.onCanvasLabel ?? 'Already on canvas';
-        textWrap.appendChild(statusLine);
-      }
 
       const actionBtn = createTextButton({
         text: onCanvas
@@ -498,17 +500,6 @@ export class ExistingEntityPicker<TItem> {
       row.append(topRow);
       if (meta.childNodes.length > 0) {
         row.append(meta);
-      }
-
-      const shortDescription = this.truncateDescription(
-        this.config.getDescription?.(item)
-      );
-      if (shortDescription.length > 0) {
-        const description = document.createElement('div');
-        description.className =
-          'mt-2 truncate text-[12px] leading-5 text-slate-500';
-        description.textContent = shortDescription;
-        row.appendChild(description);
       }
 
       this.list.appendChild(row);
@@ -894,16 +885,6 @@ export class ExistingEntityPicker<TItem> {
       .join(' ');
   }
 
-  private truncateDescription(
-    value: string | null | undefined,
-    maxLength: number = 120
-  ): string {
-    if (typeof value !== 'string') return '';
-    const normalized = value.trim().replace(/\s+/g, ' ');
-    if (normalized.length <= maxLength) return normalized;
-    return `${normalized.slice(0, maxLength - 1)}...`;
-  }
-
   private getUpdatedAtLabel(raw: unknown): string | null {
     if (raw === undefined || raw === null) return null;
     const date =
@@ -928,6 +909,20 @@ export class ExistingEntityPicker<TItem> {
     return `Search existing ${this.config.itemLabel.toLowerCase()}s and place them where you need.`;
   }
 
+  private getDrawerTitle(): string {
+    return this.pluralizeItemLabel(this.config.itemLabel);
+  }
+
+  private pluralizeItemLabel(label: string): string {
+    if (label.endsWith('y') && !/[aeiou]y$/i.test(label)) {
+      return `${label.slice(0, -1)}ies`;
+    }
+    if (label.endsWith('s')) {
+      return label;
+    }
+    return `${label}s`;
+  }
+
   private shouldSuppressPick(): boolean {
     return (
       this.pickerDragActive || performance.now() < this.suppressPickUntilTs
@@ -942,6 +937,7 @@ export class ExistingEntityPicker<TItem> {
     if (
       !this.container ||
       !this.header ||
+      !this.searchField ||
       !this.searchInput ||
       !this.list ||
       !this.footer ||
@@ -954,7 +950,7 @@ export class ExistingEntityPicker<TItem> {
       this.container.style.width = '132px';
       this.container.style.padding = '12px 8px';
       this.header.style.display = 'none';
-      this.searchInput.style.display = 'none';
+      this.searchField.style.display = 'none';
       if (this.footerDivider) {
         this.footerDivider.style.display = 'none';
       }
@@ -970,7 +966,7 @@ export class ExistingEntityPicker<TItem> {
     this.container.style.width = '';
     this.container.style.padding = '16px 14px 12px 14px';
     this.header.style.display = '';
-    this.searchInput.style.display = '';
+    this.searchField.style.display = '';
     if (this.footerDivider) {
       this.footerDivider.style.display = '';
     }
