@@ -830,6 +830,7 @@ export class ContextMenu {
     this.existingGoalPicker.open({
       sceneX,
       sceneY,
+      canvasChanges: this.scene.changes,
       isOnCanvas: (goal) => this.addExistingGoalService.isOnCanvas(goal),
       onPick: (goal, goalX, goalY) => {
         this.addExistingGoalService.addOrFocus(goal, goalX, goalY);
@@ -841,6 +842,7 @@ export class ContextMenu {
     this.existingTaskPicker.open({
       sceneX,
       sceneY,
+      canvasChanges: this.scene.changes,
       isOnCanvas: (task) => this.addExistingTaskService.isOnCanvas(task),
       onPick: (task, taskX, taskY) => {
         this.addExistingTaskService.addOrFocus(task, taskX, taskY);
@@ -852,6 +854,7 @@ export class ContextMenu {
     this.existingStoryPicker.open({
       sceneX,
       sceneY,
+      canvasChanges: this.scene.changes,
       isOnCanvas: (story) => this.addExistingStoryService.isOnCanvas(story),
       onPick: (story, storyX, storyY) => {
         this.addExistingStoryService.addOrFocus(story, storyX, storyY);

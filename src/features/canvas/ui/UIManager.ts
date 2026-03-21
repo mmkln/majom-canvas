@@ -25,6 +25,10 @@ import type { Subscription } from 'rxjs';
 import { AddExistingTaskService } from '../core/services/AddExistingTaskService.ts';
 import { AddExistingGoalService } from '../core/services/AddExistingGoalService.ts';
 import { AddExistingStoryService } from '../core/services/AddExistingStoryService.ts';
+import { GoalElement } from '../elements/GoalElement.ts';
+import { TaskElement } from '../elements/TaskElement.ts';
+import { StoryElement } from '../elements/StoryElement.ts';
+import type { CanvasLoadingPlaceholder } from '../core/types/canvasLoading.ts';
 import { AuthService } from '../../../majom-wrapper/data-access/auth-service.ts';
 import { UserApiService } from '../../../majom-wrapper/data-access/user-api-service.ts';
 import { CanvasMenu } from './components/CanvasMenu.ts';
@@ -33,8 +37,10 @@ import { CANVAS_PERF_LOG } from '../../../config/env/index.ts';
 import {
   EXISTING_PICKER_EVENT_NAMES,
   emitExistingPickerDropCompleted,
+  type ExistingPickerDragEndedDetail,
   type ExistingPickerDragMovedDetail,
-  type ExistingPickerDragStateDetail,
+  type ExistingPickerDragStartedDetail,
+  type ExistingPickerKind,
 } from './events/existingPickerEvents.ts';
 
 export class UIManager {
@@ -46,24 +52,25 @@ export class UIManager {
   private readonly addExistingTaskService: AddExistingTaskService;
   private readonly addExistingGoalService: AddExistingGoalService;
   private readonly addExistingStoryService: AddExistingStoryService;
-  private existingPickerDragStateHandler: ((event: Event) => void) | null =
+  private existingPickerDragStartHandler: ((event: Event) => void) | null =
     null;
   private existingPickerDragMoveHandler: ((event: Event) => void) | null = null;
+  private existingPickerDragEndHandler: ((event: Event) => void) | null = null;
   private externalGoalDragOverlay: HTMLDivElement | null = null;
   private externalGoalDropPreview: HTMLDivElement | null = null;
   private externalGoalDragActive = false;
+  private activeExistingPickerDrag:
+    | {
+        kind: ExistingPickerKind;
+        item: unknown;
+        title: string;
+      }
+    | null = null;
   private externalGoalDragPointer: { clientX: number; clientY: number } | null =
     null;
   private externalGoalLastDragOverAt = 0;
   private externalGoalPanVelocity: { x: number; y: number } = { x: 0, y: 0 };
   private externalGoalPanRafId: number | null = null;
-  private externalGoalGlobalDragOverHandler:
-    | ((event: DragEvent) => void)
-    | null = null;
-  private externalGoalGlobalDropHandler: ((event: DragEvent) => void) | null =
-    null;
-  private canvasDragOverHandler: ((event: DragEvent) => void) | null = null;
-  private canvasDropHandler: ((event: DragEvent) => void) | null = null;
   private uiRoot: HTMLDivElement | null = null;
   private editElementSubscription: Subscription | null = null;
 
@@ -209,25 +216,20 @@ export class UIManager {
       }
     });
 
-    // drag-and-drop from existing pickers to canvas
-    const canvas = this.canvasManager.getCanvas();
-    this.canvasDragOverHandler = (event: DragEvent) => event.preventDefault();
-    this.canvasDropHandler = (event: DragEvent) => {
-      event.preventDefault();
-      const payload = this.parseDragPayload(event.dataTransfer);
-      if (!payload) return;
-      this.handleCanvasDropPayload(payload, event.clientX, event.clientY);
-    };
-    canvas.addEventListener('dragover', this.canvasDragOverHandler);
-    canvas.addEventListener('drop', this.canvasDropHandler);
-
-    this.existingPickerDragStateHandler = (event: Event) => {
-      const customEvent = event as CustomEvent<ExistingPickerDragStateDetail>;
-      if (customEvent.detail?.active) {
-        this.startExternalGoalDragMode();
-      } else {
-        this.stopExternalGoalDragMode();
-      }
+    this.existingPickerDragStartHandler = (event: Event) => {
+      const customEvent = event as CustomEvent<ExistingPickerDragStartedDetail>;
+      const detail = customEvent.detail;
+      if (!detail?.item) return;
+      this.activeExistingPickerDrag = {
+        kind: detail.kind,
+        item: detail.item,
+        title: detail.title,
+      };
+      this.startExternalGoalDragMode(
+        detail.title,
+        detail.clientX,
+        detail.clientY
+      );
     };
     this.existingPickerDragMoveHandler = (event: Event) => {
       if (!this.externalGoalDragActive) return;
@@ -235,23 +237,45 @@ export class UIManager {
       const clientX = customEvent.detail?.clientX;
       const clientY = customEvent.detail?.clientY;
       if (typeof clientX !== 'number' || typeof clientY !== 'number') return;
-      this.externalGoalDragPointer = { clientX, clientY };
-      this.externalGoalLastDragOverAt = performance.now();
-      this.updateExternalGoalPanVelocity(clientX, clientY);
-      this.ensureExternalGoalPanLoop();
-      if (this.isInsideExternalGoalOverlay(clientX, clientY)) {
-        this.updateExternalGoalDropPreview(clientX, clientY);
-      } else if (this.externalGoalDropPreview) {
-        this.externalGoalDropPreview.style.display = 'none';
+      this.updateExternalGoalDragPointer(clientX, clientY);
+    };
+    this.existingPickerDragEndHandler = (event: Event) => {
+      const customEvent = event as CustomEvent<ExistingPickerDragEndedDetail>;
+      const detail = customEvent.detail;
+      const dragPayload = this.activeExistingPickerDrag;
+      if (!dragPayload) {
+        this.stopExternalGoalDragMode();
+        return;
       }
+      if (
+        detail &&
+        !detail.cancelled &&
+        typeof detail.clientX === 'number' &&
+        typeof detail.clientY === 'number' &&
+        this.isInsideExternalGoalOverlay(detail.clientX, detail.clientY)
+      ) {
+        this.handleCanvasDropPayload(
+          {
+            kind: dragPayload.kind,
+            item: dragPayload.item,
+          },
+          detail.clientX,
+          detail.clientY
+        );
+      }
+      this.stopExternalGoalDragMode();
     };
     window.addEventListener(
-      EXISTING_PICKER_EVENT_NAMES.dragStateChanged,
-      this.existingPickerDragStateHandler
+      EXISTING_PICKER_EVENT_NAMES.dragStarted,
+      this.existingPickerDragStartHandler
     );
     window.addEventListener(
       EXISTING_PICKER_EVENT_NAMES.dragMoved,
       this.existingPickerDragMoveHandler
+    );
+    window.addEventListener(
+      EXISTING_PICKER_EVENT_NAMES.dragEnded,
+      this.existingPickerDragEndHandler
     );
   }
 
@@ -259,12 +283,12 @@ export class UIManager {
     this.components.forEach((c) => c.unmount());
     this.editElementSubscription?.unsubscribe();
     this.editElementSubscription = null;
-    if (this.existingPickerDragStateHandler) {
+    if (this.existingPickerDragStartHandler) {
       window.removeEventListener(
-        EXISTING_PICKER_EVENT_NAMES.dragStateChanged,
-        this.existingPickerDragStateHandler
+        EXISTING_PICKER_EVENT_NAMES.dragStarted,
+        this.existingPickerDragStartHandler
       );
-      this.existingPickerDragStateHandler = null;
+      this.existingPickerDragStartHandler = null;
     }
     if (this.existingPickerDragMoveHandler) {
       window.removeEventListener(
@@ -273,14 +297,12 @@ export class UIManager {
       );
       this.existingPickerDragMoveHandler = null;
     }
-    const canvas = this.canvasManager.getCanvas();
-    if (this.canvasDragOverHandler) {
-      canvas.removeEventListener('dragover', this.canvasDragOverHandler);
-      this.canvasDragOverHandler = null;
-    }
-    if (this.canvasDropHandler) {
-      canvas.removeEventListener('drop', this.canvasDropHandler);
-      this.canvasDropHandler = null;
+    if (this.existingPickerDragEndHandler) {
+      window.removeEventListener(
+        EXISTING_PICKER_EVENT_NAMES.dragEnded,
+        this.existingPickerDragEndHandler
+      );
+      this.existingPickerDragEndHandler = null;
     }
     this.stopExternalGoalDragMode();
     if (this.uiRoot) {
@@ -300,16 +322,6 @@ export class UIManager {
     root.style.zIndex = '40';
     root.style.pointerEvents = 'none';
     return root;
-  }
-
-  private parseDragPayload(dataTransfer: DataTransfer | null): any | null {
-    const json = dataTransfer?.getData('application/json');
-    if (!json) return null;
-    try {
-      return JSON.parse(json);
-    } catch {
-      return null;
-    }
   }
 
   private handleCanvasDropPayload(
@@ -341,17 +353,16 @@ export class UIManager {
     }
   }
 
-  private startExternalGoalDragMode(): void {
+  private startExternalGoalDragMode(
+    title: string,
+    clientX: number,
+    clientY: number
+  ): void {
     if (this.externalGoalDragActive) return;
-    const canvas = this.canvasManager.getCanvas();
-    const rect = canvas.getBoundingClientRect();
 
     const overlay = document.createElement('div');
     overlay.style.position = 'fixed';
-    overlay.style.left = `${rect.left}px`;
-    overlay.style.top = `${rect.top}px`;
-    overlay.style.width = `${rect.width}px`;
-    overlay.style.height = `${rect.height}px`;
+    overlay.style.inset = '0';
     overlay.style.zIndex = '58';
     overlay.style.pointerEvents = 'auto';
     overlay.style.background = 'transparent';
@@ -359,89 +370,35 @@ export class UIManager {
     overlay.style.touchAction = 'none';
 
     const preview = document.createElement('div');
-    preview.style.position = 'absolute';
-    preview.style.width = '44px';
-    preview.style.height = '44px';
-    preview.style.border = '2px dashed #22c55e';
-    preview.style.background = 'rgba(34, 197, 94, 0.12)';
-    preview.style.clipPath =
-      'polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)';
+    preview.style.position = 'fixed';
+    preview.style.display = 'block';
+    preview.style.maxWidth = '280px';
+    preview.style.padding = '8px 12px';
+    preview.style.border = '1px solid rgba(148, 163, 184, 0.24)';
+    preview.style.borderRadius = '999px';
+    preview.style.background =
+      'rgba(255,255,255,0.92)';
+    preview.style.backdropFilter = 'blur(10px)';
+    preview.style.boxShadow = '0 10px 24px rgba(15, 23, 42, 0.10)';
+    preview.style.color = '#0f172a';
     preview.style.pointerEvents = 'none';
-    preview.style.display = 'none';
-    preview.style.transform = 'translate(-50%, -50%)';
-    overlay.appendChild(preview);
-
-    overlay.addEventListener('dragover', (event: DragEvent) => {
-      event.preventDefault();
-      if (event.dataTransfer) {
-        event.dataTransfer.dropEffect = 'copy';
-      }
-      this.externalGoalDragPointer = {
-        clientX: event.clientX,
-        clientY: event.clientY,
-      };
-      this.externalGoalLastDragOverAt = performance.now();
-      this.updateExternalGoalDropPreview(event.clientX, event.clientY);
-      this.updateExternalGoalPanVelocity(event.clientX, event.clientY);
-      this.ensureExternalGoalPanLoop();
-    });
-
-    overlay.addEventListener('drop', (event: DragEvent) => {
-      event.preventDefault();
-      const payload = this.parseDragPayload(event.dataTransfer);
-      if (!payload) return;
-      this.handleCanvasDropPayload(payload, event.clientX, event.clientY);
-      this.stopExternalGoalDragMode();
-    });
-
-    overlay.addEventListener('dragleave', (event: DragEvent) => {
-      const next = event.relatedTarget as Node | null;
-      if (!next || !overlay.contains(next)) {
-        preview.style.display = 'none';
-      }
-    });
+    preview.style.left = '0';
+    preview.style.top = '0';
+    preview.style.transform = 'translate(-50%, -100%)';
+    this.configureExternalDragPreview(preview, title);
 
     document.body.appendChild(overlay);
-
-    this.externalGoalGlobalDragOverHandler = (event: DragEvent) => {
-      if (!this.externalGoalDragActive) return;
-      this.externalGoalDragPointer = {
-        clientX: event.clientX,
-        clientY: event.clientY,
-      };
-      this.externalGoalLastDragOverAt = performance.now();
-      this.updateExternalGoalPanVelocity(event.clientX, event.clientY);
-      this.ensureExternalGoalPanLoop();
-
-      if (!this.externalGoalDropPreview) return;
-      if (this.isInsideExternalGoalOverlay(event.clientX, event.clientY)) {
-        this.updateExternalGoalDropPreview(event.clientX, event.clientY);
-      } else if (this.externalGoalDropPreview) {
-        this.externalGoalDropPreview.style.display = 'none';
-      }
-    };
-    window.addEventListener(
-      'dragover',
-      this.externalGoalGlobalDragOverHandler,
-      true
-    );
-
-    this.externalGoalGlobalDropHandler = () => {
-      this.stopExternalGoalDragMode();
-    };
-    window.addEventListener('drop', this.externalGoalGlobalDropHandler, true);
-
-    canvas.style.pointerEvents = 'none';
+    document.body.appendChild(preview);
     this.externalGoalDragOverlay = overlay;
     this.externalGoalDropPreview = preview;
     this.externalGoalDragActive = true;
-    this.externalGoalDragPointer = null;
-    this.externalGoalLastDragOverAt = 0;
     this.externalGoalPanVelocity = { x: 0, y: 0 };
+    this.updateExternalGoalDragPointer(clientX, clientY);
   }
 
   private stopExternalGoalDragMode(): void {
     this.externalGoalDragActive = false;
+    this.activeExistingPickerDrag = null;
     this.externalGoalPanVelocity = { x: 0, y: 0 };
     this.externalGoalDragPointer = null;
     this.externalGoalLastDragOverAt = 0;
@@ -449,48 +406,148 @@ export class UIManager {
       cancelAnimationFrame(this.externalGoalPanRafId);
       this.externalGoalPanRafId = null;
     }
-    if (this.externalGoalGlobalDragOverHandler) {
-      window.removeEventListener(
-        'dragover',
-        this.externalGoalGlobalDragOverHandler,
-        true
-      );
-      this.externalGoalGlobalDragOverHandler = null;
-    }
-    if (this.externalGoalGlobalDropHandler) {
-      window.removeEventListener(
-        'drop',
-        this.externalGoalGlobalDropHandler,
-        true
-      );
-      this.externalGoalGlobalDropHandler = null;
-    }
-    const canvas = this.canvasManager.getCanvas();
-    canvas.style.pointerEvents = '';
     if (this.externalGoalDragOverlay) {
       this.externalGoalDragOverlay.remove();
       this.externalGoalDragOverlay = null;
     }
-    this.externalGoalDropPreview = null;
+    if (this.externalGoalDropPreview) {
+      this.externalGoalDropPreview.remove();
+      this.externalGoalDropPreview = null;
+    }
+    this.canvasManager.clearTransientLoadingPlaceholder();
+  }
+
+  private updateExternalGoalDragPointer(
+    clientX: number,
+    clientY: number
+  ): void {
+    this.externalGoalDragPointer = { clientX, clientY };
+    this.externalGoalLastDragOverAt = performance.now();
+    this.updateExternalGoalPanVelocity(clientX, clientY);
+    this.ensureExternalGoalPanLoop();
+    this.updateExternalGoalDropPreview(clientX, clientY);
   }
 
   private updateExternalGoalDropPreview(
     clientX: number,
     clientY: number
   ): void {
-    if (!this.externalGoalDropPreview || !this.externalGoalDragOverlay) return;
-    const overlayRect = this.externalGoalDragOverlay.getBoundingClientRect();
-    const localX = clientX - overlayRect.left;
-    const localY = clientY - overlayRect.top;
+    if (!this.externalGoalDropPreview) return;
+    const insideCanvas = this.isInsideExternalGoalOverlay(clientX, clientY);
+    const metrics = this.getExternalDragPlaceholderMetrics();
+    this.updateExternalGoalCanvasPlaceholder(clientX, clientY, insideCanvas);
     this.externalGoalDropPreview.style.display = 'block';
-    this.externalGoalDropPreview.style.left = `${localX}px`;
-    this.externalGoalDropPreview.style.top = `${localY}px`;
+    this.externalGoalDropPreview.style.left = `${clientX}px`;
+    const scale = this.canvasManager.getPanZoomManager().scale;
+    const topOffset = insideCanvas && metrics
+      ? metrics.height * scale * 0.5 + 14
+      : 12;
+    this.externalGoalDropPreview.style.top = `${clientY - topOffset}px`;
+    this.externalGoalDropPreview.style.borderColor = 'rgba(148, 163, 184, 0.24)';
+    this.externalGoalDropPreview.style.background = 'rgba(255,255,255,0.92)';
+  }
+
+  private updateExternalGoalCanvasPlaceholder(
+    clientX: number,
+    clientY: number,
+    insideCanvas: boolean
+  ): void {
+    if (!insideCanvas) {
+      this.canvasManager.clearTransientLoadingPlaceholder();
+      return;
+    }
+    const metrics = this.getExternalDragPlaceholderMetrics();
+    if (!metrics) {
+      this.canvasManager.clearTransientLoadingPlaceholder();
+      return;
+    }
+    const panZoom = this.canvasManager.getPanZoomManager();
+    const canvas = this.canvasManager.getCanvas();
+    const rect = canvas.getBoundingClientRect();
+    const sceneX =
+      (clientX - rect.left + panZoom.scrollX) / panZoom.scale -
+      metrics.width / 2;
+    const sceneY =
+      (clientY - rect.top + panZoom.scrollY) / panZoom.scale -
+      metrics.height / 2;
+    const placeholder: CanvasLoadingPlaceholder = {
+      elementType: metrics.elementType,
+      elementUuid: '__drag-placeholder__',
+      x: sceneX,
+      y: sceneY,
+      width: metrics.width,
+      height: metrics.height,
+    };
+    this.canvasManager.setTransientLoadingPlaceholder(placeholder);
+  }
+
+  private getExternalDragPlaceholderMetrics():
+    | {
+        elementType: CanvasLoadingPlaceholder['elementType'];
+        width: number;
+        height: number;
+      }
+    | null {
+    const drag = this.activeExistingPickerDrag;
+    if (!drag) return null;
+    if (drag.kind === 'existing-goal') {
+      return {
+        elementType: 'goal',
+        width: GoalElement.width,
+        height: GoalElement.height,
+      };
+    }
+    if (drag.kind === 'existing-task') {
+      return {
+        elementType: 'task',
+        width: TaskElement.width,
+        height: TaskElement.height,
+      };
+    }
+    if (drag.kind === 'existing-story') {
+      return {
+        elementType: 'story',
+        width: StoryElement.width,
+        height: StoryElement.height,
+      };
+    }
+    return null;
+  }
+
+  private configureExternalDragPreview(
+    preview: HTMLDivElement,
+    title: string
+  ): void {
+    const titleText = document.createElement('span');
+    titleText.style.display = 'block';
+    titleText.style.minWidth = '0';
+    titleText.style.overflow = 'hidden';
+    titleText.style.textOverflow = 'ellipsis';
+    titleText.style.whiteSpace = 'nowrap';
+    titleText.style.fontSize = '12px';
+    titleText.style.fontWeight = '500';
+    titleText.style.lineHeight = '1.25';
+    titleText.style.letterSpacing = '-0.01em';
+    titleText.style.color = '#0f172a';
+    titleText.textContent = title.trim() || 'Untitled';
+
+    preview.replaceChildren(titleText);
   }
 
   private updateExternalGoalPanVelocity(
     clientX: number,
     clientY: number
   ): void {
+    const rect = this.canvasManager.getCanvas().getBoundingClientRect();
+    if (
+      clientX < rect.left ||
+      clientX > rect.right ||
+      clientY < rect.top ||
+      clientY > rect.bottom
+    ) {
+      this.externalGoalPanVelocity = { x: 0, y: 0 };
+      return;
+    }
     const threshold = 96;
     const maxSpeed = 26;
 
@@ -507,8 +564,8 @@ export class UIManager {
     };
 
     this.externalGoalPanVelocity = {
-      x: speedByAxis(clientX, 0, window.innerWidth),
-      y: speedByAxis(clientY, 0, window.innerHeight),
+      x: speedByAxis(clientX, rect.left, rect.right),
+      y: speedByAxis(clientY, rect.top, rect.bottom),
     };
   }
 
@@ -516,8 +573,7 @@ export class UIManager {
     clientX: number,
     clientY: number
   ): boolean {
-    if (!this.externalGoalDragOverlay) return false;
-    const rect = this.externalGoalDragOverlay.getBoundingClientRect();
+    const rect = this.canvasManager.getCanvas().getBoundingClientRect();
     return (
       clientX >= rect.left &&
       clientX <= rect.right &&

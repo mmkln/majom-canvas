@@ -4,14 +4,18 @@ export type ExistingPickerKind =
   | 'existing-task';
 
 export const EXISTING_PICKER_EVENT_NAMES = {
-  dragStateChanged: 'existingPickerDragStateChanged',
+  dragStarted: 'existingPickerDragStarted',
   dragMoved: 'existingPickerDragMoved',
+  dragEnded: 'existingPickerDragEnded',
   dropCompleted: 'existingPickerDropCompleted',
 } as const;
 
-export type ExistingPickerDragStateDetail = {
+export type ExistingPickerDragStartedDetail = {
   kind: ExistingPickerKind;
-  active: boolean;
+  item: unknown;
+  title: string;
+  clientX: number;
+  clientY: number;
 };
 
 export type ExistingPickerDragMovedDetail = {
@@ -20,20 +24,32 @@ export type ExistingPickerDragMovedDetail = {
   clientY: number;
 };
 
+export type ExistingPickerDragEndedDetail = {
+  kind: ExistingPickerKind;
+  item: unknown;
+  title: string;
+  clientX: number;
+  clientY: number;
+  cancelled?: boolean;
+};
+
 export type ExistingPickerDropCompletedDetail = {
   kind: ExistingPickerKind;
 };
 
-export const emitExistingPickerDragStateChanged = (
+export const emitExistingPickerDragStarted = (
   kind: ExistingPickerKind,
-  active: boolean
+  item: unknown,
+  title: string,
+  clientX: number,
+  clientY: number
 ): void => {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(
-    new CustomEvent<ExistingPickerDragStateDetail>(
-      EXISTING_PICKER_EVENT_NAMES.dragStateChanged,
+    new CustomEvent<ExistingPickerDragStartedDetail>(
+      EXISTING_PICKER_EVENT_NAMES.dragStarted,
       {
-        detail: { kind, active },
+        detail: { kind, item, title, clientX, clientY },
       }
     )
   );
@@ -50,6 +66,25 @@ export const emitExistingPickerDragMoved = (
       EXISTING_PICKER_EVENT_NAMES.dragMoved,
       {
         detail: { kind, clientX, clientY },
+      }
+    )
+  );
+};
+
+export const emitExistingPickerDragEnded = (
+  kind: ExistingPickerKind,
+  item: unknown,
+  title: string,
+  clientX: number,
+  clientY: number,
+  cancelled: boolean = false
+): void => {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(
+    new CustomEvent<ExistingPickerDragEndedDetail>(
+      EXISTING_PICKER_EVENT_NAMES.dragEnded,
+      {
+        detail: { kind, item, title, clientX, clientY, cancelled },
       }
     )
   );

@@ -168,6 +168,8 @@ export class CanvasManager {
   private readonly highlightedElementIds: Set<string> = new Set<string>();
   private goalProgressDirty = true;
   private loadingPlaceholders: CanvasLoadingPlaceholderRenderState[] = [];
+  private transientLoadingPlaceholder: CanvasLoadingPlaceholderRenderState | null =
+    null;
   private readonly loadingPlaceholdersChangesSubject: Subject<void> =
     new Subject<void>();
   public readonly loadingPlaceholdersChanges$ =
@@ -586,6 +588,8 @@ export class CanvasManager {
       this.ctx.restore();
     }
 
+    this.drawTransientLoadingPlaceholder();
+
     // highlight drop target when dragging connection
     if (this.interactionManager.isCreatingConnection) {
       const pad = 4 / this.panZoom.scale;
@@ -721,52 +725,63 @@ export class CanvasManager {
 
   private drawLoadingPlaceholders(): void {
     if (this.loadingPlaceholders.length === 0) return;
-    const scale = this.panZoom.scale || 1;
-    this.loadingPlaceholders.forEach((placeholder) => {
-      const x = placeholder.x;
-      const y = placeholder.y;
-      const width = Math.max(1, placeholder.width);
-      const height = Math.max(1, placeholder.height);
-      this.ctx.save();
-      this.ctx.fillStyle = '#e5e7eb';
-      this.ctx.setLineDash([]);
-      if (placeholder.elementType === 'task') {
-        this.ctx.beginPath();
-        this.ctx.roundRect(x, y, width, height, 24);
-        this.ctx.fill();
-      } else if (placeholder.elementType === 'story') {
-        this.ctx.beginPath();
-        this.ctx.roundRect(x, y, width, height, 8);
-        this.ctx.fill();
-      } else {
-        const centerX = x + width / 2;
-        const centerY = y + height / 2;
-        const radius = Math.min(width, height) / 2;
-        this.ctx.beginPath();
-        this.drawGoalPath(centerX, centerY, radius);
-        this.ctx.fill();
-      }
-      this.ctx.restore();
+    this.loadingPlaceholders.forEach((placeholder) =>
+      this.drawLoadingPlaceholder(placeholder)
+    );
+  }
 
-      if (!placeholder.isFocused) return;
-      this.ctx.save();
-      this.ctx.strokeStyle = FOCUS_COLOR;
-      this.ctx.lineWidth = 2 / scale;
-      this.ctx.setLineDash([]);
+  private drawTransientLoadingPlaceholder(): void {
+    if (!this.transientLoadingPlaceholder) return;
+    this.drawLoadingPlaceholder(this.transientLoadingPlaceholder);
+  }
+
+  private drawLoadingPlaceholder(
+    placeholder: CanvasLoadingPlaceholderRenderState
+  ): void {
+    const scale = this.panZoom.scale || 1;
+    const x = placeholder.x;
+    const y = placeholder.y;
+    const width = Math.max(1, placeholder.width);
+    const height = Math.max(1, placeholder.height);
+    this.ctx.save();
+    this.ctx.fillStyle = '#e5e7eb';
+    this.ctx.setLineDash([]);
+    if (placeholder.elementType === 'task') {
       this.ctx.beginPath();
-      if (placeholder.elementType === 'task') {
-        this.ctx.roundRect(x, y, width, height, 24);
-      } else if (placeholder.elementType === 'story') {
-        this.ctx.roundRect(x, y, width, height, 8);
-      } else {
-        const centerX = x + width / 2;
-        const centerY = y + height / 2;
-        const radius = Math.min(width, height) / 2;
-        this.drawGoalPath(centerX, centerY, radius);
-      }
-      this.ctx.stroke();
-      this.ctx.restore();
-    });
+      this.ctx.roundRect(x, y, width, height, 24);
+      this.ctx.fill();
+    } else if (placeholder.elementType === 'story') {
+      this.ctx.beginPath();
+      this.ctx.roundRect(x, y, width, height, 8);
+      this.ctx.fill();
+    } else {
+      const centerX = x + width / 2;
+      const centerY = y + height / 2;
+      const radius = Math.min(width, height) / 2;
+      this.ctx.beginPath();
+      this.drawGoalPath(centerX, centerY, radius);
+      this.ctx.fill();
+    }
+    this.ctx.restore();
+
+    if (!placeholder.isFocused) return;
+    this.ctx.save();
+    this.ctx.strokeStyle = FOCUS_COLOR;
+    this.ctx.lineWidth = 2 / scale;
+    this.ctx.setLineDash([]);
+    this.ctx.beginPath();
+    if (placeholder.elementType === 'task') {
+      this.ctx.roundRect(x, y, width, height, 24);
+    } else if (placeholder.elementType === 'story') {
+      this.ctx.roundRect(x, y, width, height, 8);
+    } else {
+      const centerX = x + width / 2;
+      const centerY = y + height / 2;
+      const radius = Math.min(width, height) / 2;
+      this.drawGoalPath(centerX, centerY, radius);
+    }
+    this.ctx.stroke();
+    this.ctx.restore();
   }
 
   private drawGoalPath(cx: number, cy: number, radius: number): void {
@@ -1468,6 +1483,24 @@ export class CanvasManager {
     if (this.loadingPlaceholders.length === 0) return;
     this.loadingPlaceholders = [];
     this.loadingPlaceholdersChangesSubject.next();
+    this.requestDraw();
+  }
+
+  public setTransientLoadingPlaceholder(
+    placeholder: CanvasLoadingPlaceholder | null
+  ): void {
+    this.transientLoadingPlaceholder = placeholder
+      ? {
+          ...placeholder,
+          isFocused: false,
+        }
+      : null;
+    this.requestDraw();
+  }
+
+  public clearTransientLoadingPlaceholder(): void {
+    if (!this.transientLoadingPlaceholder) return;
+    this.transientLoadingPlaceholder = null;
     this.requestDraw();
   }
 

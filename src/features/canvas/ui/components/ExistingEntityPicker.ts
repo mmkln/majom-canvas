@@ -1,8 +1,9 @@
 import type { Observable, Subscription } from 'rxjs';
 import {
   EXISTING_PICKER_EVENT_NAMES,
+  emitExistingPickerDragEnded,
   emitExistingPickerDragMoved,
-  emitExistingPickerDragStateChanged,
+  emitExistingPickerDragStarted,
   type ExistingPickerDropCompletedDetail,
   type ExistingPickerKind,
 } from '../events/existingPickerEvents.ts';
@@ -25,6 +26,7 @@ export type ExistingEntityPickerOpenOptions<TItem> = {
   sceneY: number;
   onPick: (item: TItem, sceneX: number, sceneY: number) => void;
   isOnCanvas: (item: TItem) => boolean;
+  canvasChanges?: Observable<unknown>;
 };
 
 type ExistingEntityPickerConfig<TItem> = {
@@ -56,6 +58,7 @@ export class ExistingEntityPicker<TItem> {
   private backdropCloseHandler: ((event: MouseEvent) => void) | null = null;
   private searchDebounce: number | null = null;
   private loadSubscription: Subscription | null = null;
+  private canvasChangesSubscription: Subscription | null = null;
   private requestToken = 0;
   private isLoading = false;
   private loadMoreError = false;
@@ -69,7 +72,19 @@ export class ExistingEntityPicker<TItem> {
   private viewMode: 'full' | 'mini' = 'full';
   private suppressPickUntilTs = 0;
   private mobilePresentation = false;
+  private activePointerDrag:
+    | {
+        item: TItem;
+        title: string;
+        pointerId: number;
+        started: boolean;
+        lastClientX: number;
+        lastClientY: number;
+        cleanup: () => void;
+      }
+    | null = null;
   private readonly pickSuppressionMs = 180;
+  private readonly dragStartThresholdPx = 6;
   private readonly overlayController = new OverlayController({
     intent: 'picker',
     source: 'ExistingEntityPicker',
@@ -209,6 +224,9 @@ export class ExistingEntityPicker<TItem> {
     this.list.addEventListener('scroll', this.listScrollHandler);
     this.pendingDropCompleted = false;
     this.setViewMode('full');
+    this.canvasChangesSubscription = options.canvasChanges?.subscribe(() => {
+      this.refreshRenderedItems();
+    }) ?? null;
 
     searchInput.addEventListener('input', () => {
       if (this.searchDebounce !== null) {
@@ -232,6 +250,7 @@ export class ExistingEntityPicker<TItem> {
         event as CustomEvent<ExistingPickerDropCompletedDetail>;
       if (customEvent.detail?.kind !== this.config.dragKind) return;
       this.pendingDropCompleted = true;
+      this.refreshRenderedItems();
       if (!this.pickerDragActive) {
         this.pendingDropCompleted = false;
         this.setViewMode('full');
@@ -250,6 +269,8 @@ export class ExistingEntityPicker<TItem> {
     }
     this.loadSubscription?.unsubscribe();
     this.loadSubscription = null;
+    this.canvasChangesSubscription?.unsubscribe();
+    this.canvasChangesSubscription = null;
     if (this.dropCompletedHandler) {
       window.removeEventListener(
         EXISTING_PICKER_EVENT_NAMES.dropCompleted,
@@ -262,9 +283,8 @@ export class ExistingEntityPicker<TItem> {
       this.backdropCloseHandler = null;
     }
     this.overlayController.close();
-    if (this.pickerDragActive) {
-      this.pickerDragActive = false;
-      this.emitDragState(false);
+    if (this.activePointerDrag) {
+      this.cancelActivePointerDrag();
     }
     this.pendingDropCompleted = false;
     this.setViewMode('full');
@@ -376,7 +396,6 @@ export class ExistingEntityPicker<TItem> {
       }
       row.setAttribute('role', 'button');
       row.tabIndex = 0;
-      row.draggable = true;
 
       const handlePick = (force: boolean = false): void => {
         if (!force && this.shouldSuppressPick()) return;
@@ -385,6 +404,7 @@ export class ExistingEntityPicker<TItem> {
           this.activeOptions.sceneX,
           this.activeOptions.sceneY
         );
+        this.refreshRenderedItems();
       };
 
       row.addEventListener('click', handlePick);
@@ -393,47 +413,8 @@ export class ExistingEntityPicker<TItem> {
         event.preventDefault();
         handlePick(true);
       });
-      row.addEventListener('dragstart', (event: DragEvent) => {
-        const dataTransfer = event.dataTransfer;
-        if (!dataTransfer) return;
-        this.pickerDragActive = true;
-        this.pendingDropCompleted = false;
-        this.suppressPickUntilTs = performance.now() + this.pickSuppressionMs;
-        requestAnimationFrame(() => {
-          if (this.pickerDragActive) {
-            this.setViewMode('mini');
-          }
-        });
-        this.emitDragState(true);
-        dataTransfer.effectAllowed = 'copy';
-        dataTransfer.setData(
-          'application/json',
-          JSON.stringify({
-            kind: this.config.dragKind,
-            item,
-          })
-        );
-        dataTransfer.setData(
-          'text/plain',
-          this.config.getTitle(item) || this.config.itemLabel
-        );
-      });
-      row.addEventListener('drag', (event: DragEvent) => {
-        if (!this.pickerDragActive) return;
-        if (event.clientX === 0 && event.clientY === 0) return;
-        this.emitDragMove(event.clientX, event.clientY);
-      });
-      row.addEventListener('dragend', () => {
-        if (!this.pickerDragActive) return;
-        this.pickerDragActive = false;
-        this.suppressPickUntilTs = performance.now() + this.pickSuppressionMs;
-        this.emitDragState(false);
-        if (this.pendingDropCompleted) {
-          this.pendingDropCompleted = false;
-          this.setViewMode('full');
-        } else {
-          this.setViewMode('mini');
-        }
+      row.addEventListener('pointerdown', (event: PointerEvent) => {
+        this.beginPointerDrag(item, event);
       });
 
       const topRow = document.createElement('div');
@@ -585,6 +566,155 @@ export class ExistingEntityPicker<TItem> {
     this.list.appendChild(row);
   }
 
+  private refreshRenderedItems(): void {
+    if (!this.container || !this.activeOptions) return;
+    this.renderItems();
+    this.renderFooter();
+  }
+
+  private beginPointerDrag(item: TItem, event: PointerEvent): void {
+    if (event.button !== 0 || event.pointerType === 'touch') return;
+    if (this.activePointerDrag) return;
+
+    const title = this.config.getTitle(item) || this.config.itemLabel;
+    const dragState = {
+      item,
+      title,
+      pointerId: event.pointerId,
+      started: false,
+      lastClientX: event.clientX,
+      lastClientY: event.clientY,
+      cleanup: () => undefined,
+    };
+
+    const cleanup = (): void => {
+      window.removeEventListener('pointermove', handlePointerMove, true);
+      window.removeEventListener('pointerup', handlePointerUp, true);
+      window.removeEventListener('pointercancel', handlePointerCancel, true);
+      document.body.style.userSelect = '';
+    };
+
+    const handlePointerMove = (moveEvent: PointerEvent): void => {
+      if (this.activePointerDrag !== dragState) return;
+      if (moveEvent.pointerId !== dragState.pointerId) return;
+      dragState.lastClientX = moveEvent.clientX;
+      dragState.lastClientY = moveEvent.clientY;
+
+      if (!dragState.started) {
+        const dx = moveEvent.clientX - event.clientX;
+        const dy = moveEvent.clientY - event.clientY;
+        if (Math.hypot(dx, dy) < this.dragStartThresholdPx) {
+          return;
+        }
+        dragState.started = true;
+        this.startPickerDrag(dragState.item, dragState.title, moveEvent.clientX, moveEvent.clientY);
+      }
+
+      moveEvent.preventDefault();
+      this.emitDragMove(moveEvent.clientX, moveEvent.clientY);
+    };
+
+    const finishPointerDrag = (
+      endEvent: PointerEvent,
+      cancelled: boolean
+    ): void => {
+      if (this.activePointerDrag !== dragState) return;
+      if (endEvent.pointerId !== dragState.pointerId) return;
+      dragState.lastClientX = endEvent.clientX;
+      dragState.lastClientY = endEvent.clientY;
+      this.activePointerDrag = null;
+      cleanup();
+      if (!dragState.started) return;
+      endEvent.preventDefault();
+      this.finishPickerDrag(
+        dragState.item,
+        dragState.title,
+        dragState.lastClientX,
+        dragState.lastClientY,
+        cancelled
+      );
+    };
+
+    const handlePointerUp = (upEvent: PointerEvent): void => {
+      finishPointerDrag(upEvent, false);
+    };
+
+    const handlePointerCancel = (cancelEvent: PointerEvent): void => {
+      finishPointerDrag(cancelEvent, true);
+    };
+
+    dragState.cleanup = cleanup;
+    this.activePointerDrag = dragState;
+    document.body.style.userSelect = 'none';
+    window.addEventListener('pointermove', handlePointerMove, true);
+    window.addEventListener('pointerup', handlePointerUp, true);
+    window.addEventListener('pointercancel', handlePointerCancel, true);
+  }
+
+  private startPickerDrag(
+    item: TItem,
+    title: string,
+    clientX: number,
+    clientY: number
+  ): void {
+    this.pickerDragActive = true;
+    this.pendingDropCompleted = false;
+    this.suppressPickUntilTs = performance.now() + this.pickSuppressionMs;
+    requestAnimationFrame(() => {
+      if (this.pickerDragActive) {
+        this.setViewMode('mini');
+      }
+    });
+    emitExistingPickerDragStarted(
+      this.config.dragKind,
+      item,
+      title,
+      clientX,
+      clientY
+    );
+  }
+
+  private finishPickerDrag(
+    item: TItem,
+    title: string,
+    clientX: number,
+    clientY: number,
+    cancelled: boolean
+  ): void {
+    if (!this.pickerDragActive) return;
+    this.pickerDragActive = false;
+    this.suppressPickUntilTs = performance.now() + this.pickSuppressionMs;
+    emitExistingPickerDragEnded(
+      this.config.dragKind,
+      item,
+      title,
+      clientX,
+      clientY,
+      cancelled
+    );
+    if (this.pendingDropCompleted) {
+      this.pendingDropCompleted = false;
+      this.setViewMode('full');
+    } else {
+      this.setViewMode('mini');
+    }
+  }
+
+  private cancelActivePointerDrag(): void {
+    const dragState = this.activePointerDrag;
+    if (!dragState) return;
+    this.activePointerDrag = null;
+    dragState.cleanup();
+    if (!dragState.started) return;
+    this.finishPickerDrag(
+      dragState.item,
+      dragState.title,
+      dragState.lastClientX,
+      dragState.lastClientY,
+      true
+    );
+  }
+
   private createChip(label: string, palette: string): HTMLSpanElement {
     const chip = document.createElement('span');
     chip.className =
@@ -682,10 +812,6 @@ export class ExistingEntityPicker<TItem> {
     }).format(date);
   }
 
-  private emitDragState(active: boolean): void {
-    emitExistingPickerDragStateChanged(this.config.dragKind, active);
-  }
-
   private emitDragMove(clientX: number, clientY: number): void {
     emitExistingPickerDragMoved(this.config.dragKind, clientX, clientY);
   }
@@ -743,4 +869,5 @@ export class ExistingEntityPicker<TItem> {
       this.backdrop.style.background = '';
     }
   }
+
 }
