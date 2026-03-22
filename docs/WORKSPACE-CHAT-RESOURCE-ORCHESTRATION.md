@@ -44,20 +44,26 @@ The model never asks for a raw "system prompt". It returns a structured resource
    - the allowed tool catalog.
 5. When the model returns `finalize`, the final answer model produces one structured assistant reply.
 
-### AI intent buttons
+Capability questions such as "what can you help with here?" stay inside the same manual chat path. The router should load capability-specific instructions, call the frontend-backed `get_chat_capabilities` tool, and then answer from that retrieved capability context. This is still workspace-scoped chat, not an open-domain conversation mode.
 
-Intent buttons stay cheaper:
+### Action commands
+
+Button-driven AI actions are not treated like generic chat questions.
 
 1. The runtime maps the intent to a deterministic tool plan.
-2. The runtime also preloads the matching instruction packet.
+2. The runtime preloads the matching instruction packet.
 3. Tools execute immediately.
-4. The final answer model receives:
-   - the original prompt,
+4. The raw tool results are compiled into a lean action-specific command context.
+5. A command-specific prompt builder sends:
+   - the exact action contract,
    - the loaded instruction packets,
-   - the compact tool results,
-   - short memory.
+   - the compiled command context.
+6. A command-specific validator checks the structured reply before it reaches the generic parser.
+7. If the reply is structurally wrong for that command, a command-specific repair prompt runs once.
 
-This keeps AI actions fast and predictable while still using the same instruction system.
+This keeps AI actions fast, predictable, and much stricter than free-form chat.
+
+`fill_details` is the first migrated command spec. It no longer receives raw tool dumps such as `viewport` or `recentActivity`, and it must return exact `suggest_update` or `suggest_updates` payloads.
 
 ## Main Files
 
@@ -65,12 +71,16 @@ This keeps AI actions fast and predictable while still using the same instructio
   Orchestration state machine for the default chat path.
 - `src/features/shell/services/WorkspaceChatInstructionRegistry.ts`
   Instruction packet store and minimal instruction index.
+- `src/features/shell/services/WorkspaceChatCapabilities.ts`
+  Frontend-derived capability context builder used by the capability tool.
 - `src/features/shell/services/WorkspaceChatInstructionTypes.ts`
   Public instruction and router decision contracts.
 - `src/features/shell/services/WorkspaceChatPlannerPromptBuilder.ts`
   Router and follow-up decision prompts.
 - `src/features/shell/services/WorkspaceChatAnswerPromptBuilder.ts`
   Final answer prompt that receives instruction packets and tool results.
+- `src/features/shell/services/WorkspaceChatCommandSpecs.ts`
+  Command-spec registry for strict button-driven AI actions, including lean context compilation, validation, and repair guidance.
 - `src/features/shell/services/WorkspaceChatToolRegistry.ts`
   Tool catalog for router/reasoning steps.
 - `src/features/shell/services/WorkspaceChatToolExecutor.ts`
@@ -89,6 +99,9 @@ This keeps AI actions fast and predictable while still using the same instructio
 ## Router Contract
 
 The router and decision steps return JSON only.
+
+Allowed `profile` values are exact enum strings:
+`"summarize"`, `"review-selection"`, `"next-steps"`, `"breakdown"`, `"dependency-review"`, `"readiness-check"`, `"general-question"`.
 
 Supported decision shapes:
 
@@ -155,6 +168,7 @@ Detailed instructions live in packets and are loaded only when needed. This make
    - one or more instruction packet ids
    - a deterministic tool plan
 4. For manual chat, make sure the new packet summary is descriptive enough for the router to select it.
+5. For manual capability/help prompts, prefer a frontend-backed tool over hardcoded prompt text so the answer stays aligned with the current UI and constraints.
 
 ## Design Rules
 
@@ -164,6 +178,9 @@ Detailed instructions live in packets and are loaded only when needed. This make
 - Keep tool execution bounded.
 - Keep final user-facing answers on the existing structured reply contract.
 - Keep mutations behind explicit chat actions, not direct tool execution.
+- For button-driven AI actions, prefer compiled command contexts over raw tool dumps.
+- Validate action-command replies against the command spec before generic reply parsing.
+- For capability questions, retrieve frontend capability context through tools instead of relying on static prompt claims.
 - Keep UI components dumb: `GlobalChatPanel` renders and delegates, while `RuntimeHost` owns construction and dependency wiring.
 
 ## Current Limitations
@@ -171,3 +188,4 @@ Detailed instructions live in packets and are loaded only when needed. This make
 - There is no recursive planner loop beyond the bounded decision cycle.
 - There are no mutation tools yet.
 - Instruction categories exist as optional metadata only; there is no category-level loader yet.
+- Only `fill_details` currently uses the dedicated action-command spec path. Other AI actions still use the generic final-answer path and should be migrated incrementally.

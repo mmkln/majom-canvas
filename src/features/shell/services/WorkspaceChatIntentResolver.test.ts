@@ -78,6 +78,8 @@ describe('resolveWorkspaceChatIntentSubmission', () => {
     expect(submission.source).toBe('intent');
     expect(submission.intent).toBe('missing');
     expect(submission.profile).toBe('readiness-check');
+    expect(submission.requestLabel).toBe('What is missing?');
+    expect(submission.requestMessageKind).toBe('command');
     expect(submission.snapshot?.selectionIds).toEqual(['goal-1']);
     expect(submission.snapshot?.focusId).toBe('goal-1');
     expect(submission.prompt).toContain(
@@ -104,6 +106,7 @@ describe('resolveWorkspaceChatIntentSubmission', () => {
     expect(submission.source).toBe('intent');
     expect(submission.intent).toBe('review');
     expect(submission.profile).toBe('review-selection');
+    expect(submission.requestLabel).toBe('Review plan');
     expect(submission.snapshot?.selectionIds).toEqual(['goal-1']);
     expect(submission.prompt).toContain('current canvas structure');
   });
@@ -127,6 +130,31 @@ describe('resolveWorkspaceChatIntentSubmission', () => {
     expect(submission.snapshot?.selectionIds).toEqual([]);
     expect(submission.snapshot?.focusId).toBeNull();
     expect(submission.snapshot?.summary.selectedCount).toBe(0);
+    expect(submission.requestLabel).toBe('Review plan');
     expect(submission.prompt).toContain('current canvas structure');
+  });
+
+  it('resolves clarify intents into targeted selection-scoped submissions', () => {
+    const story = makeSelectionItem('story-1', 'story', 'Outbound sequence');
+    const snapshot = makeSnapshot([story], {
+      selectionIds: [],
+      focusId: null,
+    });
+
+    const submission = resolveWorkspaceChatIntentSubmission(
+      {
+        intent: 'clarify',
+        scope: 'selection',
+        targetIds: ['story-1'],
+      },
+      snapshot
+    );
+
+    expect(submission.contextMode).toBe('selection');
+    expect(submission.intent).toBe('clarify');
+    expect(submission.profile).toBe('breakdown');
+    expect(submission.requestLabel).toBe('Clarify');
+    expect(submission.snapshot?.selectionIds).toEqual(['story-1']);
+    expect(submission.prompt).toContain('Clarify the selected story "Outbound sequence"');
   });
 });

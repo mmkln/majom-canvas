@@ -43,9 +43,9 @@ import {
 } from '../../shell/workspaceChatEvents.ts';
 import {
   getWorkspaceChatBreakdownHint,
-  getWorkspaceChatDependenciesHint,
-  getWorkspaceChatMissingHint,
-  getWorkspaceChatReviewHint,
+  getWorkspaceChatClarifyHint,
+  getWorkspaceChatFillDetailsHint,
+  getWorkspaceChatLinkBlockersHint,
 } from '../../shell/workspaceChatHints.ts';
 
 type ContextMenuDetail = {
@@ -310,7 +310,7 @@ export class ContextMenu {
     );
     if (planningElement) {
       actionItems.push({
-        label: 'AI',
+        label: 'AI assist',
         submenu: this.buildPlanningElementAiItems(planningElement),
       });
     }
@@ -514,55 +514,57 @@ export class ContextMenu {
     planningElement: TaskElement | StoryElement | GoalElement
   ): ContextMenuActionItem[] {
     const targetIds = [planningElement.id];
-    return [
-      {
-        label: 'Review',
-        hint: getWorkspaceChatReviewHint(),
-        action: () =>
-          emitWorkspaceChatIntentRequested('review', {
-            scope: 'selection',
-            targetIds,
-          }),
-      },
-      {
-        label:
-          planningElement instanceof GoalElement
-            ? 'Break into stories'
-            : planningElement instanceof StoryElement
-              ? 'Break into tasks'
-              : 'Refine task',
-        hint: getWorkspaceChatBreakdownHint(
-          planningElement instanceof GoalElement
-            ? 'goal'
-            : planningElement instanceof StoryElement
-              ? 'story'
-              : 'task'
-        ),
+    const kind =
+      planningElement instanceof GoalElement
+        ? 'goal'
+        : planningElement instanceof StoryElement
+          ? 'story'
+          : 'task';
+    const items: ContextMenuActionItem[] = [];
+
+    if (kind !== 'task') {
+      items.push({
+        label: kind === 'goal' ? 'Break into stories' : 'Break into tasks',
+        hint: getWorkspaceChatBreakdownHint(kind),
         action: () =>
           emitWorkspaceChatIntentRequested('breakdown', {
             scope: 'selection',
             targetIds,
           }),
+      });
+    }
+
+    items.push(
+      {
+        label: 'Clarify',
+        hint: getWorkspaceChatClarifyHint(kind),
+        action: () =>
+          emitWorkspaceChatIntentRequested('clarify', {
+            scope: 'selection',
+            targetIds,
+          }),
       },
       {
-        label: 'Suggest dependencies',
-        hint: getWorkspaceChatDependenciesHint(),
+        label: 'Fill missing details',
+        hint: getWorkspaceChatFillDetailsHint(),
+        action: () =>
+          emitWorkspaceChatIntentRequested('fill_details', {
+            scope: 'selection',
+            targetIds,
+          }),
+      },
+      {
+        label: 'Link blockers',
+        hint: getWorkspaceChatLinkBlockersHint(),
         action: () =>
           emitWorkspaceChatIntentRequested('dependencies', {
             scope: 'selection',
             targetIds,
           }),
-      },
-      {
-        label: 'What is missing?',
-        hint: getWorkspaceChatMissingHint(),
-        action: () =>
-          emitWorkspaceChatIntentRequested('missing', {
-            scope: 'selection',
-            targetIds,
-          }),
-      },
-    ];
+      }
+    );
+
+    return items;
   }
 
   private createStatusIcon(status: ElementStatus): HTMLSpanElement {

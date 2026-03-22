@@ -392,8 +392,9 @@ export class ExistingEntityPicker<TItem> {
   }
 
   private renderItems(): void {
-    if (!this.list || !this.activeOptions) return;
-    this.list.innerHTML = '';
+    const list = this.list;
+    if (!list || !this.activeOptions) return;
+    list.innerHTML = '';
     if (this.items.length === 0) {
       this.renderEmptyState();
       return;
@@ -431,7 +432,9 @@ export class ExistingEntityPicker<TItem> {
         this.refreshRenderedItems();
       };
 
-      row.addEventListener('click', handlePick);
+      row.addEventListener('click', () => {
+        handlePick();
+      });
       row.addEventListener('keydown', (event: KeyboardEvent) => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
         event.preventDefault();
@@ -500,7 +503,7 @@ export class ExistingEntityPicker<TItem> {
         row.append(meta);
       }
 
-      this.list.appendChild(row);
+      list.appendChild(row);
     });
   }
 
@@ -626,7 +629,7 @@ export class ExistingEntityPicker<TItem> {
       started: false,
       lastClientX: event.clientX,
       lastClientY: event.clientY,
-      cleanup: () => undefined,
+      cleanup: (): void => {},
     };
 
     const cleanup = (): void => {

@@ -11,7 +11,6 @@ import {
   type WorkspaceChatContextMode,
 } from './WorkspaceChatContextMode.ts';
 import { WorkspaceChatMemoryStore } from './WorkspaceChatMemoryStore.ts';
-import { resolveWorkspaceChatProfile } from './WorkspaceChatProfileResolver.ts';
 import { WorkspaceChatPersistence } from './WorkspaceChatPersistence.ts';
 import type {
   WorkspaceChatReplyRequest,
@@ -28,6 +27,7 @@ import type {
 } from './WorkspaceChatTypes.ts';
 import type { WorkspaceChatPreparedSubmission } from './WorkspaceChatPreparedSubmission.ts';
 import type { WorkspaceChatToolHost } from './WorkspaceChatToolTypes.ts';
+import { resolveWorkspaceChatIntentProfile } from './WorkspaceChatIntentPlanFactory.ts';
 
 type WorkspaceChatSessionState = {
   conversationKey: string;
@@ -49,6 +49,13 @@ export type WorkspaceChatPanelState = {
   contextMode: WorkspaceChatContextMode;
   composerPlaceholder: string;
 };
+
+type WorkspaceChatActionStatePatch = Partial<
+  Pick<
+    WorkspaceChatAction,
+    'status' | 'errorMessage' | 'createdElementId' | 'affectedElementIds'
+  >
+>;
 
 type WorkspaceChatSessionControllerOptions = {
   persistence?: WorkspaceChatPersistence;
@@ -177,6 +184,8 @@ export class WorkspaceChatSessionController {
       source: submission.source ?? 'manual',
       intent: submission.intent,
       liveHost: submission.liveHost ?? this.resolveLiveHost?.() ?? null,
+      requestLabel: submission.requestLabel,
+      requestMessageKind: submission.requestMessageKind,
     });
   }
 
@@ -187,6 +196,8 @@ export class WorkspaceChatSessionController {
       source?: 'manual' | 'intent';
       intent?: WorkspaceChatPreparedSubmission['intent'];
       liveHost?: WorkspaceChatToolHost | null;
+      requestLabel?: string;
+      requestMessageKind?: WorkspaceChatPreparedSubmission['requestMessageKind'];
     } = {}
   ): Promise<void> {
     const trimmed = prompt.trim();
@@ -198,8 +209,17 @@ export class WorkspaceChatSessionController {
       session.abortController?.abort();
     }
 
-    const userMessage = this.service.createMessage('user', trimmed);
-    session.messages = [...session.messages, userMessage];
+    const requestMessage =
+      options.requestMessageKind === 'command'
+        ? this.createCommandMessage(
+            options.requestLabel ?? trimmed,
+            trimmed,
+            options.intent
+          )
+        : options.requestMessageKind === 'system'
+          ? this.service.createSystemMessage(options.requestLabel ?? trimmed)
+          : this.service.createMessage('user', trimmed);
+    session.messages = [...session.messages, requestMessage];
     this.persistence.saveConversation(conversationKey, session.messages);
 
     const requestId = this.createRequestId();
@@ -214,8 +234,7 @@ export class WorkspaceChatSessionController {
     const memorySnapshot = contextSnapshot
       ? this.memoryStore.get(conversationKey)
       : { ...EMPTY_WORKSPACE_CHAT_MEMORY_STATE };
-    const profile =
-      options.profile ?? resolveWorkspaceChatProfile(trimmed, contextSnapshot);
+    const profile = options.profile;
 
     try {
       const reply = await this.service.reply({
@@ -274,7 +293,7 @@ export class WorkspaceChatSessionController {
       !promptMessage ||
       !isLatestMessage ||
       targetMessage.role !== 'assistant' ||
-      promptMessage.role !== 'user'
+      (promptMessage.role !== 'user' && promptMessage.kind !== 'command')
     ) {
       return;
     }
@@ -291,14 +310,19 @@ export class WorkspaceChatSessionController {
     this.memoryStore.clear(conversationKey);
     this.emitChange();
 
-    const prompt = promptMessage.content.trim();
+    const prompt =
+      promptMessage.requestPrompt?.trim() || promptMessage.content.trim();
     const contextSnapshot = this.getScopedContext(session);
-    const profile = resolveWorkspaceChatProfile(prompt, contextSnapshot);
+    const requestIntent = promptMessage.requestIntent;
+    const profile = requestIntent
+      ? resolveWorkspaceChatIntentProfile(requestIntent, undefined)
+      : undefined;
 
     try {
       const reply = await this.service.reply({
         prompt,
-        source: 'manual',
+        source: requestIntent ? 'intent' : 'manual',
+        intent: requestIntent,
         profile,
         contextMode: session.contextMode,
         memory: { ...EMPTY_WORKSPACE_CHAT_MEMORY_STATE },
@@ -356,7 +380,7 @@ export class WorkspaceChatSessionController {
     };
 
     try {
-      const result = executor
+      const result: WorkspaceChatActionExecutionResult = executor
         ? await executor(request)
         : {
             status: 'failed',
@@ -549,7 +573,7 @@ export class WorkspaceChatSessionController {
     conversationKey: string,
     messageId: string,
     actionId: string,
-    patch: Partial<WorkspaceChatAction>
+    patch: WorkspaceChatActionStatePatch
   ): void {
     const session = this.sessions.get(conversationKey);
     if (!session) return;
@@ -561,7 +585,7 @@ export class WorkspaceChatSessionController {
       const nextActions = message.actions.map((action) => {
         if (action.id !== actionId) return action;
         changed = true;
-        return { ...action, ...patch };
+        return this.applyActionStatePatch(action, patch);
       });
       return changed ? { ...message, actions: nextActions } : message;
     });
@@ -579,6 +603,32 @@ export class WorkspaceChatSessionController {
     session.messages = [...session.messages, message];
     this.persistence.saveConversation(conversationKey, session.messages);
     this.emitChange();
+  }
+
+  private applyActionStatePatch<T extends WorkspaceChatAction>(
+    action: T,
+    patch: WorkspaceChatActionStatePatch
+  ): T {
+    return {
+      ...action,
+      ...patch,
+    };
+  }
+
+  private createCommandMessage(
+    content: string,
+    requestPrompt: string,
+    requestIntent?: WorkspaceChatPreparedSubmission['intent']
+  ): WorkspaceChatMessage {
+    return {
+      id: `chat-${Math.random().toString(36).slice(2, 10)}`,
+      role: 'system',
+      kind: 'command',
+      content,
+      createdAt: Date.now(),
+      requestPrompt,
+      requestIntent,
+    };
   }
 
   private describeActionTarget(action: WorkspaceChatAction): string {

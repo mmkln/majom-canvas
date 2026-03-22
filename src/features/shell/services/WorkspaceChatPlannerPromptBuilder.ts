@@ -3,6 +3,7 @@ import type {
   WorkspaceChatMemoryState,
   WorkspaceChatProfile,
 } from './WorkspaceChatContextTypes.ts';
+import { describeWorkspaceChatProfiles } from './WorkspaceChatContextTypes.ts';
 import type {
   WorkspaceChatInstructionIndexEntry,
   WorkspaceChatInstructionPacket,
@@ -24,6 +25,7 @@ export function buildWorkspaceChatRouterMessages(params: {
   instructions: WorkspaceChatInstructionIndexEntry[];
   tools: WorkspaceChatPlannerToolSummary[];
 }): WorkspaceChatApiMessage[] {
+  const allowedProfiles = describeWorkspaceChatProfiles();
   return [
     {
       role: 'system',
@@ -33,14 +35,16 @@ export function buildWorkspaceChatRouterMessages(params: {
         'Treat instructions, tools, and canvas data as separate resources.',
         'Do not answer the user directly.',
         'First decide whether to load detailed instruction packets, execute tools, ask a follow-up question, or finalize.',
+        'Capability questions about what this workspace chat can do are valid requests and should be routed through instructions or tools, not rejected as off-topic.',
         'Request detailed instruction packets before tool execution when domain-specific guidance or response rules are needed.',
         'Never request more than 6 total tool calls.',
         'Use only listed tools.',
+        `Use one of these exact profile values: ${allowedProfiles}.`,
         'Use one of these exact JSON shapes:',
-        '{"kind":"load_instructions","profile":"<workspace chat profile>","contextMode":"<none|canvas|viewport|selection>","instructionIds":["<instruction id>"]}',
-        '{"kind":"execute_tools","profile":"<workspace chat profile>","contextMode":"<none|canvas|viewport|selection>","calls":[{"tool":"<tool name>","input":{}}]}',
-        '{"kind":"ask_followup","profile":"<workspace chat profile>","contextMode":"<none|canvas|viewport|selection>","question":"<question>"}',
-        '{"kind":"finalize","profile":"<workspace chat profile>","contextMode":"<none|canvas|viewport|selection>"}',
+        '{"kind":"load_instructions","profile":"<exact profile value>","contextMode":"<none|canvas|viewport|selection>","instructionIds":["<instruction id>"]}',
+        '{"kind":"execute_tools","profile":"<exact profile value>","contextMode":"<none|canvas|viewport|selection>","calls":[{"tool":"<tool name>","input":{}}]}',
+        '{"kind":"ask_followup","profile":"<exact profile value>","contextMode":"<none|canvas|viewport|selection>","question":"<question>"}',
+        '{"kind":"finalize","profile":"<exact profile value>","contextMode":"<none|canvas|viewport|selection>"}',
       ].join('\n'),
     },
     {
@@ -73,6 +77,7 @@ export function buildWorkspaceChatDecisionMessages(params: {
   tools: WorkspaceChatPlannerToolSummary[];
   toolResults: WorkspaceChatToolResult[];
 }): WorkspaceChatApiMessage[] {
+  const allowedProfiles = describeWorkspaceChatProfiles();
   const messages: WorkspaceChatApiMessage[] = [
     {
       role: 'system',
@@ -81,15 +86,17 @@ export function buildWorkspaceChatDecisionMessages(params: {
         'Return valid JSON only.',
         'Do not answer the user directly.',
         'Use loaded instruction packets as the detailed operating policy for the current case.',
+        'Capability questions about what this workspace chat can do should use capability context tools instead of being treated as invalid small talk.',
         'If you still need more policy, request more instruction packets by id.',
         'If you need more workspace evidence, request tool calls using only the listed tools.',
         'If the user request is blocked by ambiguity, ask a follow-up question.',
         'If you already have enough instructions and evidence, finalize.',
+        `Use one of these exact profile values: ${allowedProfiles}.`,
         'Use one of these exact JSON shapes:',
-        '{"kind":"load_instructions","profile":"<workspace chat profile>","contextMode":"<none|canvas|viewport|selection>","instructionIds":["<instruction id>"]}',
-        '{"kind":"execute_tools","profile":"<workspace chat profile>","contextMode":"<none|canvas|viewport|selection>","calls":[{"tool":"<tool name>","input":{}}]}',
-        '{"kind":"ask_followup","profile":"<workspace chat profile>","contextMode":"<none|canvas|viewport|selection>","question":"<question>"}',
-        '{"kind":"finalize","profile":"<workspace chat profile>","contextMode":"<none|canvas|viewport|selection>"}',
+        '{"kind":"load_instructions","profile":"<exact profile value>","contextMode":"<none|canvas|viewport|selection>","instructionIds":["<instruction id>"]}',
+        '{"kind":"execute_tools","profile":"<exact profile value>","contextMode":"<none|canvas|viewport|selection>","calls":[{"tool":"<tool name>","input":{}}]}',
+        '{"kind":"ask_followup","profile":"<exact profile value>","contextMode":"<none|canvas|viewport|selection>","question":"<question>"}',
+        '{"kind":"finalize","profile":"<exact profile value>","contextMode":"<none|canvas|viewport|selection>"}',
       ].join('\n'),
     },
   ];

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkspaceChatCanvasSnapshot } from '../workspaceChatEvents.ts';
 import {
-  hasWorkspaceChatCreateIntent,
   parseWorkspaceChatStructuredReply,
 } from './WorkspaceChatStructuredReplyParser.ts';
 
@@ -75,7 +74,6 @@ describe('WorkspaceChatStructuredReplyParser', () => {
         ],
       }),
       {
-        prompt: 'Create a task for payment form',
         allowActions: true,
         validationSnapshot: createSnapshot(),
       }
@@ -93,7 +91,6 @@ describe('WorkspaceChatStructuredReplyParser', () => {
 
   it('falls back to plain markdown when the payload is not valid JSON', () => {
     const result = parseWorkspaceChatStructuredReply('Plain markdown reply', {
-      prompt: 'Summarize the canvas',
       allowActions: true,
       validationSnapshot: createSnapshot(),
     });
@@ -102,26 +99,67 @@ describe('WorkspaceChatStructuredReplyParser', () => {
     expect(result.actions).toEqual([]);
   });
 
-  it('infers a create-goal action from an explicit prompt when the model returns plain text', () => {
+  it('does not infer create actions from plain-text replies anymore', () => {
     const result = parseWorkspaceChatStructuredReply(
       'Створив нову ціль для інтеграції канвасу в Noesis з високим пріоритетом.',
       {
-        prompt:
-          'додай нову ціль про те що треба інтегрувати канвас в Noesis, і додай опис що на канвасі буде зручно лінкати звязки між елементами і вони будуть гарно візуально відображатися. пріоритет додай високий і статус в процесі',
         allowActions: true,
         validationSnapshot: createSnapshot(),
       }
     );
 
     expect(result.replyMarkdown).toContain('Створив нову ціль');
-    expect(result.actions).toHaveLength(1);
-    expect(result.actions[0]?.kind).toBe('create_goal');
-    expect(result.actions[0]?.title).toBe('Інтегрувати канвас в Noesis');
-    expect(result.actions[0]?.priority).toBe('high');
-    expect(result.actions[0]?.elementStatus).toBe('in-progress');
-    expect(result.actions[0]?.description).toContain(
-      'на канвасі буде зручно лінкати звязки'
+    expect(result.actions).toEqual([]);
+  });
+
+  it('keeps plain-text intent replies free of inferred actions', () => {
+    const result = parseWorkspaceChatStructuredReply(
+      'The selected goal needs a clearer description, but I need more context to make a safe change.',
+      {
+        allowActions: true,
+        validationSnapshot: createSnapshot(),
+        intent: 'fill_details',
+      }
     );
+
+    expect(result.replyMarkdown).toContain('needs a clearer description');
+    expect(result.actions).toEqual([]);
+  });
+
+  it('drops action kinds that are incompatible with the active intent', () => {
+    const result = parseWorkspaceChatStructuredReply(
+      JSON.stringify({
+        replyMarkdown: 'I prepared one update.',
+        actions: [
+          {
+            kind: 'create_goal',
+            title: 'This should not survive fill-details parsing',
+          },
+          {
+            kind: 'suggest_updates',
+            updates: [
+              {
+                elementId: 'goal-1',
+                patch: {
+                  description:
+                    'Move into an apartment that feels like a strong lifestyle upgrade.',
+                },
+                reason:
+                  'This mirrors the goal title without adding unsupported constraints.',
+              },
+            ],
+          },
+        ],
+      }),
+      {
+        allowActions: true,
+        validationSnapshot: createSnapshot(),
+        intent: 'fill_details',
+      }
+    );
+
+    expect(result.actions).toHaveLength(1);
+    expect(result.actions[0]?.kind).toBe('suggest_update');
   });
 
   it('drops invalid actions but keeps the assistant text', () => {
@@ -142,7 +180,6 @@ describe('WorkspaceChatStructuredReplyParser', () => {
         ],
       }),
       {
-        prompt: 'Create a task',
         allowActions: true,
         validationSnapshot: createSnapshot(),
       }
@@ -219,7 +256,6 @@ describe('WorkspaceChatStructuredReplyParser', () => {
         ],
       }),
       {
-        prompt: 'Review the selected story and improve it.',
         allowActions: true,
         validationSnapshot: createSnapshot(),
       }

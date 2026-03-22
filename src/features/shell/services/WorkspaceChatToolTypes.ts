@@ -1,5 +1,6 @@
 import type { WorkspaceChatCanvasSnapshot } from '../workspaceChatEvents.ts';
 import type { WorkspaceChatContextMode } from './WorkspaceChatContextMode.ts';
+import type { WorkspaceChatCapabilityContext } from './WorkspaceChatCapabilities.ts';
 import {
   isWorkspaceChatProfile,
   type WorkspaceChatMemoryState,
@@ -10,6 +11,7 @@ export type WorkspaceChatToolKind = 'read' | 'analysis';
 
 export interface WorkspaceChatToolHost {
   getWorkspaceChatSnapshot(): WorkspaceChatCanvasSnapshot | null;
+  getWorkspaceChatCapabilities?(): WorkspaceChatCapabilityContext | null;
 }
 
 export type WorkspaceChatToolRuntimeContext = {

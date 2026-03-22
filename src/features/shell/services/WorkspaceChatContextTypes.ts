@@ -52,11 +52,52 @@ export const EMPTY_WORKSPACE_CHAT_MEMORY_STATE: WorkspaceChatMemoryState = {
   updatedAt: null,
 };
 
+export function describeWorkspaceChatProfiles(): string {
+  return WORKSPACE_CHAT_PROFILES.map((profile) => `"${profile}"`).join(' | ');
+}
+
+export function normalizeWorkspaceChatProfile(
+  value: unknown
+): WorkspaceChatProfile | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  if (WORKSPACE_CHAT_PROFILES.includes(value as WorkspaceChatProfile)) {
+    return value as WorkspaceChatProfile;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  switch (normalized) {
+    case 'workspace':
+    case 'general':
+    case 'general-help':
+    case 'general_question':
+    case 'help':
+    case 'capability-help':
+    case 'capabilities':
+      return 'general-question';
+    case 'review':
+    case 'review_selection':
+      return 'review-selection';
+    case 'next':
+    case 'next_steps':
+      return 'next-steps';
+    case 'dependency':
+    case 'dependencies':
+    case 'dependency_review':
+      return 'dependency-review';
+    case 'readiness':
+    case 'missing':
+    case 'readiness_check':
+      return 'readiness-check';
+    default:
+      return null;
+  }
+}
+
 export function isWorkspaceChatProfile(
   value: unknown
 ): value is WorkspaceChatProfile {
-  return (
-    typeof value === 'string' &&
-    WORKSPACE_CHAT_PROFILES.includes(value as WorkspaceChatProfile)
-  );
+  return normalizeWorkspaceChatProfile(value) !== null;
 }

@@ -38,11 +38,13 @@ import {
   type WorkspaceChatStructuredReplyEnvelope,
   type WorkspaceChatStructuredUpdateBatchEntry,
 } from './WorkspaceChatStructuredTransport.ts';
+import { resolveWorkspaceChatActionKindsForIntent } from './WorkspaceChatActionPolicy.ts';
+import type { WorkspaceChatIntentKind } from '../workspaceChatEvents.ts';
 
 type ParseWorkspaceChatStructuredReplyOptions = {
-  prompt: string;
   allowActions: boolean;
   validationSnapshot?: WorkspaceChatCanvasSnapshot | null;
+  intent?: WorkspaceChatIntentKind;
 };
 
 type SanitizeActionOptions = {
@@ -50,20 +52,6 @@ type SanitizeActionOptions = {
   preserveExecutionState?: boolean;
   group?: WorkspaceChatActionGroup;
 };
-
-const CREATE_INTENT_PATTERNS = [
-  /\bcreate\b/i,
-  /\badd\b/i,
-  /\bmake\b/i,
-  /\bdraft\b/i,
-  /\binsert\b/i,
-  /\bbuild\b/i,
-  /\bspawn\b/i,
-  /створи(?:ти)?/i,
-  /додай(?:те)?/i,
-  /додати/i,
-  /зроби(?:ти)?/i,
-];
 
 export function parseWorkspaceChatStructuredReply(
   rawContent: string,
@@ -81,7 +69,7 @@ export function parseWorkspaceChatStructuredReply(
   if (!parsed) {
     return {
       replyMarkdown: normalizedContent,
-      actions: inferWorkspaceChatActionsFromPrompt(options),
+      actions: [],
     };
   }
 
@@ -89,14 +77,15 @@ export function parseWorkspaceChatStructuredReply(
     typeof parsed.replyMarkdown === 'string'
       ? parsed.replyMarkdown.trim()
       : '';
-  const actions = normalizeStructuredActions(parsed.actions, options);
+  const actions = filterActionsForIntent(
+    normalizeStructuredActions(parsed.actions, options),
+    options.intent
+  );
   const reviewFindings = sanitizeWorkspaceChatReviewFindings(
     parsed.reviewFindings
   );
   const fallbackActions =
-    actions.length === 0 && !reviewFindings
-      ? inferWorkspaceChatActionsFromPrompt(options)
-      : [];
+    actions.length === 0 && !reviewFindings ? [] : [];
 
   return {
     replyMarkdown: parsedReplyMarkdown,
@@ -124,12 +113,6 @@ export function sanitizeStoredWorkspaceChatReviewFindings(
   value: unknown
 ): WorkspaceChatReviewFindings | null {
   return sanitizeWorkspaceChatReviewFindings(value);
-}
-
-export function hasWorkspaceChatCreateIntent(prompt: string): boolean {
-  const normalizedPrompt = prompt.trim();
-  if (normalizedPrompt.length === 0) return false;
-  return CREATE_INTENT_PATTERNS.some((pattern) => pattern.test(normalizedPrompt));
 }
 
 function normalizeStructuredActions(
@@ -755,123 +738,16 @@ function extractJsonObject(content: string): string | null {
   return content.slice(start, end + 1).trim();
 }
 
-function inferWorkspaceChatActionsFromPrompt(
-  options: ParseWorkspaceChatStructuredReplyOptions
+function filterActionsForIntent(
+  actions: WorkspaceChatAction[],
+  intent: WorkspaceChatIntentKind | undefined
 ): WorkspaceChatAction[] {
-  if (!options.allowActions || !hasWorkspaceChatCreateIntent(options.prompt)) {
-    return [];
+  const allowedKinds = resolveWorkspaceChatActionKindsForIntent(intent);
+  if (!allowedKinds) {
+    return actions;
   }
-
-  const kind = inferActionKind(options.prompt);
-  if (!kind) return [];
-
-  const title = inferActionTitle(options.prompt, kind);
-  if (!title) return [];
-
-  const description = inferActionDescription(options.prompt);
-  const priority = inferActionPriority(options.prompt);
-  const elementStatus = inferActionElementStatus(options.prompt);
-
-  return [
-    {
-      id: createActionId(kind),
-      kind,
-      label: getWorkspaceChatActionLabel(kind),
-      title,
-      description: description ?? undefined,
-      priority: priority ?? undefined,
-      elementStatus: elementStatus ?? undefined,
-      status: 'idle',
-    },
-  ];
-}
-
-function inferActionKind(prompt: string): WorkspaceChatCreateActionKind | null {
-  const normalized = prompt.toLowerCase();
-  if (/\b(goal|ціл(?:ь|і|лю|ллю)|goals)\b/i.test(prompt)) {
-    return 'create_goal';
-  }
-  if (/\b(story|істор(?:ія|ію|ії))\b/i.test(prompt)) {
-    return 'create_story';
-  }
-  if (/\b(task|задач(?:а|у|і|у))\b/i.test(prompt)) {
-    return 'create_task';
-  }
-  if (normalized.includes('ціль')) return 'create_goal';
-  if (normalized.includes('істор')) return 'create_story';
-  if (normalized.includes('задач')) return 'create_task';
-  return null;
-}
-
-function inferActionTitle(
-  prompt: string,
-  kind: WorkspaceChatCreateActionKind
-): string | null {
-  const nounPattern =
-    kind === 'create_goal'
-      ? /(goal|ціл(?:ь|і|лю|ллю))/i
-      : kind === 'create_story'
-        ? /(story|істор(?:ія|ію|ії))/i
-        : /(task|задач(?:а|у|і))/i;
-  const nounMatch = prompt.match(nounPattern);
-  if (!nounMatch || typeof nounMatch.index !== 'number') return null;
-
-  let tail = prompt.slice(nounMatch.index + nounMatch[0].length).trim();
-  tail = tail.replace(
-    /^(?:про\s+те\s+що|про|about|that|щоб|to|:|-)\s*/i,
-    ''
-  );
-  tail = tail.replace(/^(?:треба|потрібно|need(?:s)?\s+to)\s+/i, '');
-  tail =
-    tail.split(
-      /\s*(?:,|\.)\s*(?:і\s+додай\s+опис|додай\s+опис|with\s+description|description|пріоритет|priority|статус|status)(?:\s|$)/i
-    )[0] ?? tail;
-  const normalized = tail.replace(/[.,;:\s]+$/g, '').trim();
-  if (normalized.length === 0) return null;
-  return normalized[0].toUpperCase() + normalized.slice(1);
-}
-
-function inferActionDescription(prompt: string): string | null {
-  const match = prompt.match(
-    /(?:додай|add)\s+опис(?:\s+що|\s*[:\-])?\s*(.+?)(?=(?:,|\.)\s*(?:пріоритет|priority|статус|status)|$)/i
-  );
-  if (match?.[1]) {
-    return sanitizeText(match[1], 600);
-  }
-  const englishMatch = prompt.match(
-    /(?:with\s+description|description(?:\s*[:\-])?)\s*(.+?)(?=(?:,|\.)\s*(?:priority|status)|$)/i
-  );
-  if (englishMatch?.[1]) {
-    return sanitizeText(englishMatch[1], 600);
-  }
-  return null;
-}
-
-function inferActionPriority(prompt: string): UiPriority | null {
-  if (/найвищ|highest/i.test(prompt)) return 'highest';
-  if (/найниж|lowest/i.test(prompt)) return 'lowest';
-  if (/висок|high/i.test(prompt)) return 'high';
-  if (/середн|medium/i.test(prompt)) return 'medium';
-  if (/низьк|low/i.test(prompt)) return 'low';
-  return null;
-}
-
-function inferActionElementStatus(
-  prompt: string
-): WorkspaceChatCreateElementStatus | null {
-  if (/(in[\s-]?progress|в\s*процесі|у\s*процесі|active)/i.test(prompt)) {
-    return 'in-progress';
-  }
-  if (/(pending|очікує|очікуванні)/i.test(prompt)) {
-    return 'pending';
-  }
-  if (/(done|completed|зроблено|завершено)/i.test(prompt)) {
-    return 'done';
-  }
-  if (/(defined|draft|чернет)/i.test(prompt)) {
-    return 'defined';
-  }
-  return null;
+  const allowedSet = new Set(allowedKinds);
+  return actions.filter((action) => allowedSet.has(action.kind));
 }
 
 function formatRelationTypeLabel(

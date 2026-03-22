@@ -3,6 +3,9 @@ import {
   WORKSPACE_CHAT_STRUCTURED_ENVELOPE_SHAPE,
 } from './WorkspaceChatStructuredTransport.ts';
 import type { WorkspaceChatApiMessage } from './WorkspaceChatApiTypes.ts';
+import type { WorkspaceChatIntentKind } from '../workspaceChatEvents.ts';
+import { describeWorkspaceChatStructuredReplyKinds } from './WorkspaceChatActionPolicy.ts';
+import { describeWorkspaceChatProfiles } from './WorkspaceChatContextTypes.ts';
 
 type WorkspaceChatTextClient = {
   completeText: (
@@ -84,7 +87,13 @@ export async function completeWorkspaceChatTextWithRepair<T>(params: {
 export function buildWorkspaceChatRouterRepairMessages(params: {
   invalidResponse: string;
   validationError: string;
+  originalMessages?: WorkspaceChatApiMessage[];
 }): WorkspaceChatApiMessage[] {
+  const allowedProfiles = describeWorkspaceChatProfiles();
+  const originalContext =
+    params.originalMessages && params.originalMessages.length > 0
+      ? `Original router request:\n${JSON.stringify(params.originalMessages, null, 2)}`
+      : null;
   return [
     {
       role: 'system',
@@ -93,11 +102,13 @@ export function buildWorkspaceChatRouterRepairMessages(params: {
         'Return JSON only.',
         'Do not add markdown fences, explanations, or commentary.',
         'Preserve the original routing intent whenever possible.',
+        'Use the original router request context to recover the intended decision when the invalid response was conversational or off-format.',
+        `Use one of these exact profile values: ${allowedProfiles}.`,
         'Allowed decision shapes:',
-        '{"kind":"load_instructions","profile":"<workspace chat profile>","contextMode":"<none|canvas|viewport|selection>","instructionIds":["<instruction id>"]}',
-        '{"kind":"execute_tools","profile":"<workspace chat profile>","contextMode":"<none|canvas|viewport|selection>","calls":[{"tool":"<tool name>","input":{}}]}',
-        '{"kind":"ask_followup","profile":"<workspace chat profile>","contextMode":"<none|canvas|viewport|selection>","question":"<question>"}',
-        '{"kind":"finalize","profile":"<workspace chat profile>","contextMode":"<none|canvas|viewport|selection>"}',
+        '{"kind":"load_instructions","profile":"<exact profile value>","contextMode":"<none|canvas|viewport|selection>","instructionIds":["<instruction id>"]}',
+        '{"kind":"execute_tools","profile":"<exact profile value>","contextMode":"<none|canvas|viewport|selection>","calls":[{"tool":"<tool name>","input":{}}]}',
+        '{"kind":"ask_followup","profile":"<exact profile value>","contextMode":"<none|canvas|viewport|selection>","question":"<question>"}',
+        '{"kind":"finalize","profile":"<exact profile value>","contextMode":"<none|canvas|viewport|selection>"}',
       ].join('\n'),
     },
     {
@@ -105,6 +116,7 @@ export function buildWorkspaceChatRouterRepairMessages(params: {
       content: [
         `Validation error: ${params.validationError}`,
         'Repair this output into one valid router decision JSON object.',
+        originalContext,
         `Invalid response:\n${params.invalidResponse}`,
       ].join('\n\n'),
     },
@@ -115,6 +127,7 @@ export function buildWorkspaceChatStructuredReplyRepairMessages(params: {
   invalidResponse: string;
   validationError: string;
   allowActions: boolean;
+  intent?: WorkspaceChatIntentKind;
 }): WorkspaceChatApiMessage[] {
   const systemLines = [
     'You repair invalid workspace chat responses into the required structured JSON envelope.',
@@ -127,9 +140,16 @@ export function buildWorkspaceChatStructuredReplyRepairMessages(params: {
   if (!params.allowActions) {
     systemLines.push('If unsure, set "actions": [].');
   } else {
+    const intentScopedKinds = describeWorkspaceChatStructuredReplyKinds(
+      params.intent
+    );
     systemLines.push(
       'Keep actions confirm-first. If evidence is weak, set "actions": [].',
-      ...WORKSPACE_CHAT_STRUCTURED_ACTION_KIND_NOTES
+      ...(intentScopedKinds
+        ? [
+            `For this request, only use these structured reply fields or action kinds: ${intentScopedKinds}.`,
+          ]
+        : WORKSPACE_CHAT_STRUCTURED_ACTION_KIND_NOTES)
     );
   }
 

@@ -142,7 +142,7 @@ describe('WorkspaceChatStructuredResultModel', () => {
     expect(buildWorkspaceChatActionTagModels(createAction).map((tag) => tag.text))
       .toEqual(['highest', 'In progress']);
     expect(buildWorkspaceChatActionTagModels(updateAction).map((tag) => tag.text))
-      .toEqual(['priority: lowest', 'status: Done']);
+      .toEqual(['Priority change', 'Status change']);
   });
 
   it('derives button labels and review accents consistently', () => {

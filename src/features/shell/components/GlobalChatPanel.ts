@@ -4,6 +4,7 @@ import { GLOBAL_APP_HEADER_HEIGHT_PX } from '../../../bootstrap/GlobalAppHeader.
 import { WorkspaceChatMarkdownRenderer } from '../rendering/WorkspaceChatMarkdownRenderer.ts';
 import {
   buildWorkspaceChatActionTagModels,
+  formatWorkspaceChatElementStatus,
   getWorkspaceChatActionAccentColor,
   getWorkspaceChatActionButtonLabel,
   getWorkspaceChatActionReason,
@@ -834,7 +835,9 @@ export class GlobalChatPanel {
     replying: boolean,
     canRegenerate: boolean
   ): HTMLDivElement {
-    const isSystemMessage = message.kind === 'system' || message.role === 'system';
+    const isCommandMessage = message.kind === 'command';
+    const isSystemMessage =
+      !isCommandMessage && (message.kind === 'system' || message.role === 'system');
     const isUserMessage = message.role === 'user';
     const isAssistantMessage = message.role === 'assistant';
     const wrap = document.createElement('div');
@@ -854,19 +857,21 @@ export class GlobalChatPanel {
     meta.style.color = '#94a3b8';
 
     const roleLabel = document.createElement('span');
-    roleLabel.textContent =
-      isUserMessage
-        ? 'You'
-        : isSystemMessage
-          ? 'System'
-          : 'Assistant';
+    roleLabel.textContent = isUserMessage
+      ? 'You'
+      : isCommandMessage
+        ? 'Action'
+      : isSystemMessage
+        ? 'System'
+        : 'Assistant';
     roleLabel.style.fontWeight = '700';
-    roleLabel.style.color =
-      isUserMessage
-        ? '#475569'
-        : isSystemMessage
-          ? '#7c3aed'
-          : '#64748b';
+    roleLabel.style.color = isUserMessage
+      ? '#475569'
+      : isCommandMessage
+        ? '#1d4ed8'
+      : isSystemMessage
+        ? '#7c3aed'
+        : '#64748b';
 
     const timeLabel = document.createElement('span');
     timeLabel.textContent = this.formatMessageTime(message.createdAt);
@@ -875,35 +880,38 @@ export class GlobalChatPanel {
 
     meta.append(roleLabel, timeLabel);
 
-    const hasContent =
-      message.content.trim().length > 0 || isUserMessage;
+    const hasContent = message.content.trim().length > 0 || isUserMessage;
     wrap.append(meta);
     if (hasContent) {
       const bubble = document.createElement('div');
       bubble.style.maxWidth = isUserMessage ? '82%' : '94%';
       bubble.style.padding = '12px 14px';
-      bubble.style.borderRadius =
-        isUserMessage ? '20px 20px 8px 20px' : '20px 20px 20px 10px';
+      bubble.style.borderRadius = isUserMessage
+        ? '20px 20px 8px 20px'
+        : '20px 20px 20px 10px';
       bubble.style.fontSize = '12.5px';
       bubble.style.lineHeight = '1.6';
-      bubble.style.color =
-        isUserMessage
-          ? '#0f172a'
-          : isSystemMessage
-            ? '#5b21b6'
-            : '#1f2937';
-      bubble.style.background =
-        isUserMessage
-          ? 'rgba(237, 242, 247, 0.98)'
-          : isSystemMessage
-            ? 'rgba(245, 238, 255, 0.98)'
-            : 'rgba(255, 255, 255, 0.99)';
-      bubble.style.border =
-        isUserMessage
-          ? '1px solid rgba(148, 163, 184, 0.28)'
-          : isSystemMessage
-            ? '1px solid rgba(196, 181, 253, 0.72)'
-            : '1px solid rgba(148, 163, 184, 0.18)';
+      bubble.style.color = isUserMessage
+        ? '#0f172a'
+        : isCommandMessage
+          ? '#1e3a8a'
+        : isSystemMessage
+          ? '#5b21b6'
+          : '#1f2937';
+      bubble.style.background = isUserMessage
+        ? 'rgba(237, 242, 247, 0.98)'
+        : isCommandMessage
+          ? 'rgba(239, 246, 255, 0.98)'
+        : isSystemMessage
+          ? 'rgba(245, 238, 255, 0.98)'
+          : 'rgba(255, 255, 255, 0.99)';
+      bubble.style.border = isUserMessage
+        ? '1px solid rgba(148, 163, 184, 0.28)'
+        : isCommandMessage
+          ? '1px solid rgba(147, 197, 253, 0.78)'
+        : isSystemMessage
+          ? '1px solid rgba(196, 181, 253, 0.72)'
+          : '1px solid rgba(148, 163, 184, 0.18)';
       bubble.appendChild(this.createMessageContent(message));
       wrap.appendChild(bubble);
     }
@@ -1104,7 +1112,7 @@ export class GlobalChatPanel {
       !lastMessage ||
       !previousMessage ||
       lastMessage.role !== 'assistant' ||
-      previousMessage.role !== 'user'
+      (previousMessage.role !== 'user' && previousMessage.kind !== 'command')
     ) {
       return null;
     }
@@ -1244,6 +1252,11 @@ export class GlobalChatPanel {
         textWrap.appendChild(tags);
       }
 
+      const updatePreview = this.createUpdatePatchPreview(action);
+      if (updatePreview) {
+        textWrap.appendChild(updatePreview);
+      }
+
       const reason = getWorkspaceChatActionReason(action);
       if (reason) {
         const reasonText = document.createElement('p');
@@ -1354,6 +1367,11 @@ export class GlobalChatPanel {
       card.appendChild(extraTags);
     }
 
+    const updatePreview = this.createUpdatePatchPreview(action);
+    if (updatePreview) {
+      card.appendChild(updatePreview);
+    }
+
     if ('description' in action && action.description) {
       const description = document.createElement('p');
       description.textContent = action.description;
@@ -1445,6 +1463,89 @@ export class GlobalChatPanel {
       );
     });
     return button;
+  }
+
+  private createUpdatePatchPreview(
+    action: WorkspaceChatAction
+  ): HTMLDivElement | null {
+    if (action.kind !== 'suggest_update') {
+      return null;
+    }
+
+    const entries = Object.entries(action.patch)
+      .map(([key, value]) => {
+        if (value === undefined) {
+          return null;
+        }
+
+        switch (key) {
+          case 'title':
+            return { label: 'Title', value: String(value) };
+          case 'description':
+            return { label: 'Description', value: String(value) };
+          case 'priority':
+            return { label: 'Priority', value: String(value) };
+          case 'elementStatus':
+            return {
+              label: 'Status',
+              value: formatWorkspaceChatElementStatus(
+                value as 'defined' | 'pending' | 'in-progress' | 'done'
+              ),
+            };
+          default:
+            return null;
+        }
+      })
+      .filter(
+        (
+          entry
+        ): entry is {
+          label: string;
+          value: string;
+        } => entry !== null
+      );
+
+    if (entries.length === 0) {
+      return null;
+    }
+
+    const container = document.createElement('div');
+    container.style.display = 'flex';
+    container.style.flexDirection = 'column';
+    container.style.gap = '8px';
+    container.style.padding = '10px 12px';
+    container.style.border = '1px solid rgba(203, 213, 225, 0.76)';
+    container.style.borderRadius = '14px';
+    container.style.background = 'rgba(248, 250, 252, 0.92)';
+
+    entries.forEach((entry) => {
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.flexDirection = 'column';
+      row.style.gap = '4px';
+
+      const label = document.createElement('span');
+      label.textContent = entry.label;
+      label.style.fontSize = '10px';
+      label.style.fontWeight = '700';
+      label.style.letterSpacing = '0.04em';
+      label.style.textTransform = 'uppercase';
+      label.style.color = '#64748b';
+
+      const value = document.createElement('p');
+      value.textContent = entry.value;
+      value.style.margin = '0';
+      value.style.fontSize = '11.5px';
+      value.style.lineHeight = '1.55';
+      value.style.color = '#0f172a';
+      value.style.whiteSpace = 'pre-wrap';
+      value.style.wordBreak = 'break-word';
+
+      row.append(label, value);
+      container.appendChild(row);
+    });
+
+    return container;
   }
 
   private createActionTagRow(

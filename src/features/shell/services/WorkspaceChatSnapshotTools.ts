@@ -1,4 +1,5 @@
 import type { WorkspaceChatCanvasSnapshot } from '../workspaceChatEvents.ts';
+import { buildWorkspaceChatCapabilityContext } from './WorkspaceChatCapabilities.ts';
 import {
   getFocusBundle,
   getRecentActivity,
@@ -56,6 +57,25 @@ export const WORKSPACE_CHAT_SNAPSHOT_TOOLS: WorkspaceChatToolDefinition[] = [
       return {
         ids,
         relations: getRelations(snapshot, ids),
+      };
+    },
+  },
+  {
+    name: 'get_chat_capabilities',
+    kind: 'read',
+    description:
+      'Returns the current workspace chat capabilities, available quick actions, AI actions, context modes, and operating constraints from the frontend runtime.',
+    inputSchema: '{}',
+    execute: (_input, context) => {
+      const snapshot = resolveRuntimeSnapshot(context.runtime);
+      const capabilities =
+        context.runtime.liveHost?.getWorkspaceChatCapabilities?.() ??
+        buildWorkspaceChatCapabilityContext({
+          currentView: 'canvas',
+          snapshot,
+        });
+      return {
+        capabilities,
       };
     },
   },

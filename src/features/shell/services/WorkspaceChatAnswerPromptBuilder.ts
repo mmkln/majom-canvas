@@ -3,15 +3,18 @@ import {
   WORKSPACE_CHAT_STRUCTURED_ENVELOPE_SHAPE,
 } from './WorkspaceChatStructuredTransport.ts';
 import type { WorkspaceChatApiMessage } from './WorkspaceChatApiTypes.ts';
+import type { WorkspaceChatIntentKind } from '../workspaceChatEvents.ts';
 import type {
   WorkspaceChatMemoryState,
   WorkspaceChatProfile,
 } from './WorkspaceChatContextTypes.ts';
 import type { WorkspaceChatInstructionPacket } from './WorkspaceChatInstructionTypes.ts';
 import type { WorkspaceChatToolResult } from './WorkspaceChatToolTypes.ts';
+import { describeWorkspaceChatStructuredReplyKinds } from './WorkspaceChatActionPolicy.ts';
 
 export function buildWorkspaceChatAnswerMessages(params: {
   prompt: string;
+  intent?: WorkspaceChatIntentKind;
   profile: WorkspaceChatProfile;
   memory: WorkspaceChatMemoryState;
   instructionPackets: WorkspaceChatInstructionPacket[];
@@ -21,7 +24,10 @@ export function buildWorkspaceChatAnswerMessages(params: {
   const messages: WorkspaceChatApiMessage[] = [
     {
       role: 'system',
-      content: buildAnswerSystemPrompt(params.allowActions),
+      content: buildAnswerSystemPromptForIntent(
+        params.allowActions,
+        params.intent
+      ),
     },
   ];
 
@@ -50,7 +56,10 @@ export function buildWorkspaceChatAnswerMessages(params: {
   return messages;
 }
 
-function buildAnswerSystemPrompt(allowActions: boolean): string {
+function buildAnswerSystemPromptForIntent(
+  allowActions: boolean,
+  intent: WorkspaceChatIntentKind | undefined
+): string {
   const lines = [
     'You are a concise product planning assistant embedded inside a canvas workspace.',
     'Answer only from the provided tool results and memory.',
@@ -64,10 +73,13 @@ function buildAnswerSystemPrompt(allowActions: boolean): string {
     return lines.join('\n');
   }
 
+  const intentScopedKinds = describeWorkspaceChatStructuredReplyKinds(intent);
   lines.push(
     'This is a confirm-first planning copilot. Never claim that changes were already applied.',
-    'Use these action kinds only when the tool results provide enough evidence:',
-    ...WORKSPACE_CHAT_STRUCTURED_ACTION_KIND_NOTES,
+    intentScopedKinds
+      ? `For this request, only use these structured reply fields or action kinds: ${intentScopedKinds}.`
+      : 'Use these action kinds only when the tool results provide enough evidence:',
+    ...(intentScopedKinds ? [] : WORKSPACE_CHAT_STRUCTURED_ACTION_KIND_NOTES),
     'If data is insufficient, ask a follow-up question and return "actions": [].'
   );
   return lines.join('\n');

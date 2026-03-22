@@ -2,6 +2,7 @@ import type {
   WorkspaceChatCanvasSnapshot,
   WorkspaceChatIntentKind,
   WorkspaceChatIntentRequestDetail,
+  WorkspaceChatSelectionItem,
 } from '../workspaceChatEvents.ts';
 import { getWorkspaceChatSelectedItems } from './WorkspaceChatContent.ts';
 import type { WorkspaceChatProfile } from './WorkspaceChatContextTypes.ts';
@@ -29,6 +30,8 @@ export function resolveWorkspaceChatIntentSubmission(
     source: 'intent',
     intent: detail.intent,
     profile: getWorkspaceChatIntentProfile(detail.intent),
+    requestLabel: getWorkspaceChatIntentRequestLabel(detail.intent, selection),
+    requestMessageKind: 'command',
   };
 }
 
@@ -44,6 +47,34 @@ function getWorkspaceChatIntentProfile(
       return 'dependency-review';
     case 'missing':
       return 'readiness-check';
+    case 'clarify':
+      return 'breakdown';
+    case 'fill_details':
+      return 'readiness-check';
+  }
+}
+
+function getWorkspaceChatIntentRequestLabel(
+  intent: WorkspaceChatIntentKind,
+  selection: WorkspaceChatSelectionItem[]
+): string {
+  const item = selection[0];
+  switch (intent) {
+    case 'breakdown':
+      if (item?.kind === 'goal') return 'Break into stories';
+      if (item?.kind === 'story') return 'Break into tasks';
+      return 'Break down';
+    case 'dependencies':
+      return selection.length > 1 ? 'Connect selected' : 'Link blockers';
+    case 'missing':
+      return 'What is missing?';
+    case 'clarify':
+      return 'Clarify';
+    case 'fill_details':
+      return 'Fill missing details';
+    case 'review':
+    default:
+      return selection.length > 0 ? 'Review selection' : 'Review plan';
   }
 }
 

@@ -12,6 +12,8 @@ describe('WorkspaceChatInstructionRegistry', () => {
 
     expect(index.length).toBeGreaterThan(0);
     expect(index.some((entry) => entry.id === 'planning.readiness-check')).toBe(true);
+    expect(index.some((entry) => entry.id === 'planning.fill-details')).toBe(true);
+    expect(index.some((entry) => entry.id === 'planning.next-steps')).toBe(true);
     expect(index.every((entry) => typeof entry.summary === 'string')).toBe(true);
   });
 

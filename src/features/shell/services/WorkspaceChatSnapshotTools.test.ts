@@ -84,4 +84,43 @@ describe('WorkspaceChatSnapshotTools', () => {
       )
     ).toEqual(['activity-1', 'activity-2']);
   });
+
+  it('returns frontend-backed chat capabilities when requested', async () => {
+    const tool = getTool('get_chat_capabilities');
+    const snapshot = createWorkspaceChatTestSnapshot();
+    const result = await tool.execute(
+      {},
+      {
+        runtime: {
+          snapshot,
+          liveHost: {
+            getWorkspaceChatSnapshot: () => snapshot,
+            getWorkspaceChatCapabilities: () => ({
+              assistantScope: 'Workspace planning copilot.',
+              currentView: 'canvas',
+              canvasTitle: 'Main current flow',
+              currentSelection: {
+                count: 1,
+                summary: 'Current selection: Story "Checkout flow".',
+              },
+              contextModes: [],
+              supportedWorkflows: ['Review plan'],
+              currentQuickActions: ['Review selection'],
+              currentAiActions: ['Clarify'],
+              constraints: ['Confirm-first changes only.'],
+            }),
+          },
+          memory: createWorkspaceChatTestMemory(),
+          prompt: 'What can you do here?',
+          contextMode: 'selection',
+        },
+        previousResults: [],
+      }
+    );
+
+    expect(
+      (result as { capabilities: { currentQuickActions: string[] } }).capabilities
+        .currentQuickActions
+    ).toEqual(['Review selection']);
+  });
 });

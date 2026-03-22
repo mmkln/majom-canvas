@@ -32,6 +32,7 @@ import {
   resolveWorkspaceChatIntentInstructionIds,
   resolveWorkspaceChatIntentProfile,
 } from './WorkspaceChatIntentPlanFactory.ts';
+import { getWorkspaceChatCommandSpec } from './WorkspaceChatCommandSpecs.ts';
 import type { WorkspaceChatApiMessage } from './WorkspaceChatApiTypes.ts';
 import {
   buildWorkspaceChatRouterRepairMessages,
@@ -43,7 +44,10 @@ import type {
   WorkspaceChatInstructionPacket,
   WorkspaceChatRouterDecision,
 } from './WorkspaceChatInstructionTypes.ts';
-import { isWorkspaceChatRouterDecision } from './WorkspaceChatInstructionTypes.ts';
+import {
+  isWorkspaceChatRouterDecision,
+  normalizeWorkspaceChatRouterDecision,
+} from './WorkspaceChatInstructionTypes.ts';
 import type {
   WorkspaceChatExecutionPlan,
   WorkspaceChatToolHost,
@@ -100,7 +104,7 @@ type WorkspaceChatOrchestrationState = {
 
 const MAX_TOOL_STEPS = 6;
 const MAX_DECISION_STEPS = 6;
-const MAX_ROUTER_REPAIR_ATTEMPTS = 1;
+const MAX_ROUTER_REPAIR_ATTEMPTS = 2;
 const MAX_FINAL_REPLY_REPAIR_ATTEMPTS = 1;
 const RESPONSE_PACKET_ID = 'response.structured-reply';
 
@@ -125,6 +129,10 @@ export class WorkspaceChatOrchestrator {
     request: WorkspaceChatOrchestratorRequest
   ): Promise<WorkspaceChatOrchestratorReply> {
     const state = this.createInitialState(request);
+    const commandSpec =
+      request.source === 'intent' && request.intent
+        ? getWorkspaceChatCommandSpec(request.intent)
+        : null;
 
     if (request.source === 'intent' && request.intent) {
       await this.executeIntentSeed(request, state);
@@ -140,12 +148,17 @@ export class WorkspaceChatOrchestrator {
       }
     }
 
+    if (commandSpec) {
+      return this.completeCommandReply(request, state, commandSpec);
+    }
+
     this.loadInstructionPackets([RESPONSE_PACKET_ID], state);
 
     const finalReplyResult = await completeWorkspaceChatTextWithRepair({
       client: this.options.apiClient,
       messages: buildWorkspaceChatAnswerMessages({
         prompt: request.prompt,
+        intent: request.intent,
         profile: state.plan.profile,
         memory: request.memory,
         instructionPackets: state.instructionPackets,
@@ -163,15 +176,16 @@ export class WorkspaceChatOrchestrator {
           invalidResponse,
           validationError,
           allowActions: request.allowActions,
+          intent: request.intent,
         }),
       signal: request.signal,
       maxRepairAttempts: MAX_FINAL_REPLY_REPAIR_ATTEMPTS,
     });
     const rawContent = finalReplyResult.rawContent;
     const structured = parseWorkspaceChatStructuredReply(rawContent, {
-      prompt: request.prompt,
       allowActions: request.allowActions,
       validationSnapshot: request.validationSnapshot ?? request.snapshot,
+      intent: request.intent,
     });
 
     return {
@@ -282,6 +296,63 @@ export class WorkspaceChatOrchestrator {
     throw new Error('Workspace chat orchestrator exceeded max decision steps.');
   }
 
+  private async completeCommandReply(
+    request: WorkspaceChatOrchestratorRequest,
+    state: WorkspaceChatOrchestrationState,
+    commandSpec: NonNullable<ReturnType<typeof getWorkspaceChatCommandSpec>>
+  ): Promise<WorkspaceChatOrchestratorReply> {
+    const compiledContext = commandSpec.buildCompiledContext({
+      prompt: request.prompt,
+      memory: request.memory,
+      toolResults: state.toolResults,
+      snapshot: request.validationSnapshot ?? request.snapshot,
+    });
+
+    const finalReplyResult = await completeWorkspaceChatTextWithRepair({
+      client: this.options.apiClient,
+      messages: commandSpec.buildMessages({
+        prompt: request.prompt,
+        instructionPackets: state.instructionPackets,
+        compiledContext,
+      }),
+      validate: (content) => {
+        const envelope = tryParseWorkspaceChatStructuredReplyEnvelope(content);
+        if (!envelope) {
+          throw new Error('Final answer is not a valid structured reply envelope.');
+        }
+        const validationError = commandSpec.validateEnvelope({
+          envelope,
+          compiledContext,
+        });
+        if (validationError) {
+          throw new Error(validationError);
+        }
+        return content;
+      },
+      buildRepairMessages: ({ invalidResponse, validationError }) =>
+        commandSpec.buildRepairMessages({
+          invalidResponse,
+          validationError,
+          instructionPackets: state.instructionPackets,
+          compiledContext,
+        }),
+      signal: request.signal,
+      maxRepairAttempts: MAX_FINAL_REPLY_REPAIR_ATTEMPTS,
+    });
+    const rawContent = finalReplyResult.rawContent;
+    const structured = parseWorkspaceChatStructuredReply(rawContent, {
+      allowActions: request.allowActions,
+      validationSnapshot: request.validationSnapshot ?? request.snapshot,
+      intent: request.intent,
+    });
+
+    return {
+      ...structured,
+      plan: state.plan,
+      toolResults: state.toolResults,
+    };
+  }
+
   private async requestInitialRouterDecision(
     request: WorkspaceChatOrchestratorRequest,
     state: WorkspaceChatOrchestrationState
@@ -304,6 +375,7 @@ export class WorkspaceChatOrchestrator {
     request: WorkspaceChatOrchestratorRequest,
     state: WorkspaceChatOrchestrationState
   ): Promise<WorkspaceChatRouterDecision> {
+    const allowedToolNames = this.resolveAllowedToolNames(state.instructionPackets);
     return this.requestRouterDecision(
       buildWorkspaceChatDecisionMessages({
         prompt: request.prompt,
@@ -314,9 +386,9 @@ export class WorkspaceChatOrchestrator {
         availableInstructions: this.instructionRegistry
           .listIndex()
           .filter((instruction) => !state.loadedInstructionIds.has(instruction.id)),
-        tools: this.registry.listForPlanner(
-          this.resolveAllowedToolNames(state.instructionPackets) ?? undefined
-        ),
+        tools: allowedToolNames
+          ? this.registry.listForPlanner(allowedToolNames)
+          : this.registry.listForPlanner(),
         toolResults: state.toolResults,
       }),
       request.signal,
@@ -434,6 +506,7 @@ export class WorkspaceChatOrchestrator {
         buildWorkspaceChatRouterRepairMessages({
           invalidResponse,
           validationError,
+          originalMessages: messages,
         }),
       signal,
       maxRepairAttempts: MAX_ROUTER_REPAIR_ATTEMPTS,
@@ -461,39 +534,45 @@ function sanitizeRouterDecision(
     remainingToolBudget: number;
   }
 ): WorkspaceChatRouterDecision {
-  if (!isWorkspaceChatRouterDecision(value)) {
+  const normalized = normalizeWorkspaceChatRouterDecision(value);
+  if (!normalized) {
     throw new Error('Router returned an invalid decision.');
   }
 
-  if (value.kind === 'load_instructions') {
-    if (value.instructionIds.some((id) => !options.instructionRegistry.has(id))) {
+  if (normalized.kind === 'load_instructions') {
+    if (normalized.instructionIds.some((id) => !options.instructionRegistry.has(id))) {
       throw new Error('Router referenced an unknown instruction packet.');
     }
     return {
       kind: 'load_instructions',
-      profile: value.profile,
-      contextMode: value.contextMode,
-      instructionIds: value.instructionIds.slice(),
+      profile: normalized.profile,
+      contextMode: normalized.contextMode,
+      instructionIds: normalized.instructionIds.slice(),
     };
   }
 
-  if (value.kind === 'execute_tools') {
-    return sanitizeToolPlan(value, options.registry, options.remainingToolBudget, true);
+  if (normalized.kind === 'execute_tools') {
+    return sanitizeToolPlan(
+      normalized,
+      options.registry,
+      options.remainingToolBudget,
+      true
+    );
   }
 
-  if (value.kind === 'ask_followup') {
+  if (normalized.kind === 'ask_followup') {
     return {
       kind: 'ask_followup',
-      profile: value.profile,
-      contextMode: value.contextMode,
-      question: value.question.trim(),
+      profile: normalized.profile,
+      contextMode: normalized.contextMode,
+      question: normalized.question.trim(),
     };
   }
 
   return {
     kind: 'finalize',
-    profile: value.profile,
-    contextMode: value.contextMode,
+    profile: normalized.profile,
+    contextMode: normalized.contextMode,
   };
 }
 

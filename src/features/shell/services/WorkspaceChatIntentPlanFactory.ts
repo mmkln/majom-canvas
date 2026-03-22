@@ -36,14 +36,34 @@ export function buildWorkspaceChatIntentPlan(
           { tool: 'find_missing_descriptions', input: idsInput },
         ],
       };
+    case 'fill_details':
+      return {
+        profile,
+        contextMode: request.contextMode,
+        calls: [
+          { tool: 'get_focus_bundle', input: { target: 'selection' } },
+          { tool: 'get_selection_cluster', input: idsInput },
+          { tool: 'find_missing_descriptions', input: idsInput },
+        ],
+      };
     case 'dependencies':
       return {
         profile,
         contextMode: request.contextMode,
         calls: [
           { tool: 'get_focus_bundle', input: { target: 'selection' } },
+          { tool: 'get_selection_cluster', input: idsInput },
           { tool: 'get_related_relations', input: idsInput },
           { tool: 'find_dependency_gaps', input: idsInput },
+        ],
+      };
+    case 'clarify':
+      return {
+        profile,
+        contextMode: request.contextMode,
+        calls: [
+          { tool: 'get_focus_bundle', input: { target: 'selection' } },
+          { tool: 'get_selection_cluster', input: idsInput },
         ],
       };
     case 'breakdown':
@@ -64,8 +84,12 @@ export function resolveWorkspaceChatIntentInstructionIds(
       return ['planning.review-selection'];
     case 'missing':
       return ['planning.readiness-check'];
+    case 'fill_details':
+      return ['planning.fill-details'];
     case 'dependencies':
       return ['planning.dependency-review'];
+    case 'clarify':
+      return ['planning.clarify-selection'];
     case 'breakdown':
       return ['planning.breakdown'];
     default:
@@ -87,6 +111,10 @@ export function resolveWorkspaceChatIntentProfile(
       return 'dependency-review';
     case 'missing':
       return 'readiness-check';
+    case 'fill_details':
+      return 'readiness-check';
+    case 'clarify':
+      return 'breakdown';
     case 'breakdown':
       return 'breakdown';
     default:

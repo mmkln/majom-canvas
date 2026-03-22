@@ -11,6 +11,49 @@ type WorkspaceChatInstructionDefinition = WorkspaceChatInstructionPacket & {
 
 const DEFAULT_INSTRUCTIONS: WorkspaceChatInstructionDefinition[] = [
   {
+    id: 'planning.clarify-selection',
+    category: 'planning',
+    title: 'Clarify Selection',
+    summary: 'Tighten the wording of the selected item without changing its intent.',
+    whenToUse: 'The user asks to clarify, refine, tighten, or rewrite the selected work more clearly.',
+    relatedToolNames: ['get_focus_bundle', 'get_selection_cluster'],
+    allowedToolNames: ['get_focus_bundle', 'get_selection_cluster'],
+    responsePolicy:
+      'Prefer specific title or description updates. Keep the original intent and scope stable.',
+    body: [
+      'Clarify the targeted item using retrieved context from its parent, children, and neighbors.',
+      'Prefer concrete wording improvements over abstract advice.',
+      'Return suggest_updates only when the improved title or description is specific enough to review before apply.',
+    ].join('\n'),
+  },
+  {
+    id: 'planning.fill-details',
+    category: 'planning',
+    title: 'Fill Missing Details',
+    summary: 'Fill obvious title and description gaps without inventing unsupported scope.',
+    whenToUse: 'The user asks to fill in missing details, missing descriptions, or incomplete planning notes.',
+    relatedToolNames: [
+      'get_focus_bundle',
+      'get_selection_cluster',
+      'find_missing_descriptions',
+    ],
+    allowedToolNames: [
+      'get_focus_bundle',
+      'get_selection_cluster',
+      'find_missing_descriptions',
+    ],
+    responsePolicy:
+      'Prefer the smallest meaningful clarification. Reject title-only paraphrases; proposed descriptions should add context-backed detail that the user can review before apply.',
+    body: [
+      'Focus on empty or underspecified titles and descriptions.',
+      'Use nearby parent, child, and sibling context to infer the smallest safe clarification.',
+      'Do not suggest a description that only restates the current title in different words.',
+      'Only suggest a description when nearby context supports at least one concrete detail beyond the title itself.',
+      'Do not invent timelines, metrics, locations, or acceptance criteria unless tool results support them.',
+      'If even a minimal but meaningful clarification cannot be inferred confidently, ask a follow-up question instead of inventing scope.',
+    ].join('\n'),
+  },
+  {
     id: 'planning.review-selection',
     category: 'planning',
     title: 'Selection Review',
@@ -83,12 +126,14 @@ const DEFAULT_INSTRUCTIONS: WorkspaceChatInstructionDefinition[] = [
     whenToUse: 'The user asks about dependencies, blockers, sequencing, or ordering.',
     relatedToolNames: [
       'get_focus_bundle',
+      'get_selection_cluster',
       'get_related_relations',
       'find_dependency_gaps',
       'get_recent_activity',
     ],
     allowedToolNames: [
       'get_focus_bundle',
+      'get_selection_cluster',
       'get_related_relations',
       'find_dependency_gaps',
       'get_recent_activity',
@@ -97,6 +142,7 @@ const DEFAULT_INSTRUCTIONS: WorkspaceChatInstructionDefinition[] = [
       'Do not invent relations. Only describe dependency gaps that are supported by retrieved structure and relations.',
     body: [
       'Focus on explicit and missing sequencing signals.',
+      'Inspect the targeted cluster before proposing relations so suggestions stay anchored in the selected items.',
       'Use relation data before making dependency claims.',
       'If the scope has multiple child items but no non-hierarchical links, call that out as a weak dependency model.',
     ].join('\n'),
@@ -118,12 +164,94 @@ const DEFAULT_INSTRUCTIONS: WorkspaceChatInstructionDefinition[] = [
     ].join('\n'),
   },
   {
+    id: 'planning.next-steps',
+    category: 'planning',
+    title: 'Next Steps',
+    summary: 'Recommend the next few planning moves that would best improve execution readiness.',
+    whenToUse: 'The user asks what to do next, what sequence to follow, or what the next planning move should be.',
+    relatedToolNames: [
+      'get_focus_bundle',
+      'get_selection_cluster',
+      'get_related_relations',
+      'get_recent_activity',
+      'find_structure_gaps',
+      'find_dependency_gaps',
+    ],
+    allowedToolNames: [
+      'get_focus_bundle',
+      'get_selection_cluster',
+      'get_related_relations',
+      'get_recent_activity',
+      'find_structure_gaps',
+      'find_dependency_gaps',
+    ],
+    responsePolicy:
+      'Recommend the smallest high-leverage next moves first, with clear sequencing and rationale.',
+    body: [
+      'Use current structure, relations, and recent activity to recommend what should happen next.',
+      'Prefer a short ordered sequence over a long brainstorm.',
+      'Separate blockers from follow-up polish so the next steps are easy to execute.',
+    ].join('\n'),
+  },
+  {
+    id: 'planning.recent-changes',
+    category: 'planning',
+    title: 'Recent Changes Review',
+    summary: 'Review recent canvas activity and explain what changed, what matters, and what may need follow-up.',
+    whenToUse: 'The user asks about recent changes, recent activity, or what changed lately on the canvas.',
+    relatedToolNames: ['get_recent_activity', 'get_focus_bundle', 'get_selection_cluster'],
+    allowedToolNames: ['get_recent_activity', 'get_focus_bundle', 'get_selection_cluster'],
+    responsePolicy:
+      'Anchor the answer in the recent activity log before inferring impact or follow-up.',
+    body: [
+      'Summarize recent activity first, then assess why it matters.',
+      'Call out risky or incomplete changes when the recent activity suggests follow-up work is needed.',
+      'If the activity log is sparse, say that clearly instead of overstating what changed.',
+    ].join('\n'),
+  },
+  {
+    id: 'planning.duplicate-review',
+    category: 'planning',
+    title: 'Duplicate Review',
+    summary: 'Find duplicate titles and likely overlap so the plan can be simplified.',
+    whenToUse: 'The user asks about duplicates, overlap, redundancy, or potentially repeated work.',
+    relatedToolNames: ['get_focus_bundle', 'get_selection_cluster', 'find_duplicate_titles'],
+    allowedToolNames: ['get_focus_bundle', 'get_selection_cluster', 'find_duplicate_titles'],
+    responsePolicy:
+      'Separate exact duplicate evidence from softer overlap hypotheses.',
+    body: [
+      'Use duplicate-title findings as hard evidence and treat softer overlap as a weaker signal.',
+      'Explain why items look duplicate or overlapping before suggesting cleanup.',
+      'Prefer consolidation and clearer scoping suggestions over generic comments.',
+    ].join('\n'),
+  },
+  {
+    id: 'planning.capability-help',
+    category: 'planning',
+    title: 'Workspace Chat Capability Help',
+    summary:
+      'Explain what this workspace chat can help with right now using frontend capability context.',
+    whenToUse:
+      'The user greets the assistant and asks what it can do, how it can help, or how to use it in this workspace.',
+    relatedToolNames: ['get_chat_capabilities'],
+    allowedToolNames: ['get_chat_capabilities'],
+    responsePolicy:
+      'Answer as a concise friendly capability overview grounded in the capability tool result.',
+    body: [
+      'Treat greetings plus capability questions as valid workspace requests, not as off-topic chat.',
+      'Call get_chat_capabilities before answering.',
+      'Explain the current grounded workflows, current quick actions, available AI actions, and confirm-first constraints.',
+      'Do not promise general open-domain chat support when the capability context says the assistant is workspace-scoped.',
+    ].join('\n'),
+  },
+  {
     id: 'planning.general-question',
     category: 'planning',
     title: 'General Canvas Assistance',
     summary: 'General fallback planning guidance for free-form questions about the canvas.',
     whenToUse: 'The prompt is not clearly a review, readiness check, dependency analysis, or breakdown request.',
     relatedToolNames: [
+      'get_chat_capabilities',
       'get_focus_bundle',
       'get_selection_cluster',
       'get_related_relations',
@@ -134,6 +262,7 @@ const DEFAULT_INSTRUCTIONS: WorkspaceChatInstructionDefinition[] = [
       'find_duplicate_titles',
     ],
     allowedToolNames: [
+      'get_chat_capabilities',
       'get_focus_bundle',
       'get_selection_cluster',
       'get_related_relations',
@@ -147,6 +276,7 @@ const DEFAULT_INSTRUCTIONS: WorkspaceChatInstructionDefinition[] = [
       'Stay concise, retrieve only the evidence needed for the user question, and ask follow-ups when the scope is ambiguous.',
     body: [
       'Use the smallest sufficient set of tools.',
+      'If the user is asking what this chat can do or how to use it, prefer get_chat_capabilities before canvas evidence tools.',
       'Prefer evidence from selection or focus before expanding to a wider cluster.',
       'Ask for clarification when the prompt does not identify a usable target.',
     ].join('\n'),

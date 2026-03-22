@@ -25,9 +25,10 @@ import {
 } from '../../shell/workspaceChatEvents.ts';
 import {
   getWorkspaceChatBreakdownHint,
-  getWorkspaceChatDependenciesHint,
-  getWorkspaceChatMissingHint,
-  getWorkspaceChatReviewHint,
+  getWorkspaceChatClarifyHint,
+  getWorkspaceChatConnectSelectedHint,
+  getWorkspaceChatFillDetailsHint,
+  getWorkspaceChatLinkBlockersHint,
 } from '../../shell/workspaceChatHints.ts';
 
 type ActionContext = {
@@ -297,6 +298,23 @@ export class SelectionActionMenu {
         isVisible: isMulti,
       },
       {
+        kind: 'divider',
+        id: 'divider-related',
+        isVisible: (context) => isSingle(context) && isStoryOrGoal(context),
+      },
+      {
+        kind: 'action',
+        id: 'ai-menu',
+        title: 'AI actions',
+        variant: 'ai',
+        isVisible: (context) => isSingle(context) || isMulti(context),
+      },
+      {
+        kind: 'divider',
+        id: 'divider-ai',
+        isVisible: (context) => isSingle(context) || isMulti(context),
+      },
+      {
         kind: 'action',
         id: 'copy-bulk',
         title: 'Copy',
@@ -323,23 +341,6 @@ export class SelectionActionMenu {
         onClick: () => {
           this.handleDeletePermanently();
         },
-      },
-      {
-        kind: 'divider',
-        id: 'divider-related',
-        isVisible: (context) => isSingle(context) && isStoryOrGoal(context),
-      },
-      {
-        kind: 'action',
-        id: 'ai-menu',
-        title: 'AI actions',
-        variant: 'ai',
-        isVisible: (context) => isSingle(context) || isMulti(context),
-      },
-      {
-        kind: 'divider',
-        id: 'divider-ai',
-        isVisible: isSingle,
       },
       {
         kind: 'action',
@@ -512,32 +513,49 @@ export class SelectionActionMenu {
           : primary instanceof StoryElement
             ? 'story'
             : 'task';
-      items.push({
-        label: 'Review',
-        icon: 'chat-bubble-left',
-        hint: getWorkspaceChatReviewHint(),
-        onClick: () => this.handleAiReview(),
-      });
-      items.push({
-        label: this.getAiBreakdownLabel(),
-        icon: 'bars-2',
-        hint: getWorkspaceChatBreakdownHint(primaryKind),
-        onClick: () => this.handleAiBreakdown(),
-      });
+      if (primaryKind !== 'task') {
+        items.push({
+          label: this.getAiBreakdownLabel(),
+          icon: 'bars-2',
+          hint: getWorkspaceChatBreakdownHint(primaryKind),
+          onClick: () => this.handleAiBreakdown(),
+        });
+      }
+      items.push(
+        {
+          label: 'Clarify',
+          icon: 'pencil',
+          hint: getWorkspaceChatClarifyHint(primaryKind),
+          onClick: () => this.handleAiClarify(),
+        },
+        {
+          label: 'Fill missing details',
+          icon: 'magnifying-glass',
+          hint: getWorkspaceChatFillDetailsHint(),
+          onClick: () => this.handleAiFillDetails(),
+        },
+        {
+          label: 'Link blockers',
+          icon: 'arrow-path',
+          hint: getWorkspaceChatLinkBlockersHint(),
+          onClick: () => this.handleAiDependencies(),
+        }
+      );
+      return items;
     }
 
     items.push(
       {
-        label: 'Suggest dependencies',
+        label: 'Connect selected',
         icon: 'arrow-path',
-        hint: getWorkspaceChatDependenciesHint(),
+        hint: getWorkspaceChatConnectSelectedHint(),
         onClick: () => this.handleAiDependencies(),
       },
       {
-        label: 'What is missing?',
+        label: 'Fill missing details',
         icon: 'magnifying-glass',
-        hint: getWorkspaceChatMissingHint(),
-        onClick: () => this.handleAiMissing(),
+        hint: getWorkspaceChatFillDetailsHint(),
+        onClick: () => this.handleAiFillDetails(),
       }
     );
     return items;
@@ -551,7 +569,7 @@ export class SelectionActionMenu {
     if (primary instanceof StoryElement) {
       return 'Break into tasks';
     }
-    return 'Refine task';
+    return 'Break down';
   }
 
   private applyStatus(status: ElementStatus): void {
@@ -593,13 +611,6 @@ export class SelectionActionMenu {
     });
   }
 
-  private handleAiReview(): void {
-    emitWorkspaceChatIntentRequested('review', {
-      scope: 'selection',
-      targetIds: this.getSelectedTargetIds(),
-    });
-  }
-
   private handleAiBreakdown(): void {
     const targetId = this.selectedElements[0]?.id;
     if (!targetId) return;
@@ -616,8 +627,17 @@ export class SelectionActionMenu {
     });
   }
 
-  private handleAiMissing(): void {
-    emitWorkspaceChatIntentRequested('missing', {
+  private handleAiClarify(): void {
+    const targetId = this.selectedElements[0]?.id;
+    if (!targetId) return;
+    emitWorkspaceChatIntentRequested('clarify', {
+      scope: 'selection',
+      targetIds: [targetId],
+    });
+  }
+
+  private handleAiFillDetails(): void {
+    emitWorkspaceChatIntentRequested('fill_details', {
       scope: 'selection',
       targetIds: this.getSelectedTargetIds(),
     });

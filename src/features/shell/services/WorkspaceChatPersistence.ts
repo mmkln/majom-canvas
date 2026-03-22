@@ -1,4 +1,5 @@
 import type { WorkspaceChatMessage } from './WorkspaceChatTypes.ts';
+import type { WorkspaceChatIntentKind } from '../workspaceChatEvents.ts';
 import {
   WORKSPACE_CHAT_CONTEXT_MODE_STORAGE_KEY_PREFIX,
   WORKSPACE_CHAT_HISTORY_LIMIT,
@@ -110,13 +111,36 @@ export class WorkspaceChatPersistence {
       id: message.id,
       role: message.role,
       kind:
-        message.kind === 'system' || message.role === 'system'
+        message.kind === 'command'
+          ? 'command'
+          : message.kind === 'system' || message.role === 'system'
           ? 'system'
           : 'default',
       content: message.content,
       createdAt: message.createdAt,
+      requestPrompt:
+        typeof message.requestPrompt === 'string' &&
+        message.requestPrompt.trim().length > 0
+          ? message.requestPrompt.trim()
+          : undefined,
+      requestIntent: isWorkspaceChatIntentKind(message.requestIntent)
+        ? message.requestIntent
+        : undefined,
       actions: actions && actions.length > 0 ? actions : undefined,
       reviewFindings: reviewFindings ?? undefined,
     };
   }
+}
+
+function isWorkspaceChatIntentKind(
+  value: unknown
+): value is WorkspaceChatIntentKind {
+  return (
+    value === 'review' ||
+    value === 'breakdown' ||
+    value === 'dependencies' ||
+    value === 'missing' ||
+    value === 'clarify' ||
+    value === 'fill_details'
+  );
 }

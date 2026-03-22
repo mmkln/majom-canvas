@@ -35,6 +35,7 @@ import type {
 import { resolveWorkspaceChatIntentSubmission } from '../features/shell/services/WorkspaceChatIntentResolver.ts';
 import { createWorkspaceChatRuntime } from '../features/shell/services/WorkspaceChatRuntime.ts';
 import { WorkspaceChatSessionController } from '../features/shell/services/WorkspaceChatSessionController.ts';
+import { buildWorkspaceChatCapabilityContext } from '../features/shell/services/WorkspaceChatCapabilities.ts';
 
 const KANBAN_MODULE_IMPORT_PATH = '../features/kanban/KanbanModule.ts';
 const CHAT_ISLAND_GAP_PX = 8;
@@ -116,8 +117,7 @@ export class RuntimeHost {
       showRoutines: ROUTINES_ENABLED,
     });
     const chatRuntime = createWorkspaceChatRuntime({
-      resolveLiveHost: () =>
-        this.shell?.getActiveModule()?.getWorkspaceChatToolHost?.() ?? null,
+      resolveLiveHost: () => this.createWorkspaceChatToolHost(),
     });
     this.chatController = chatRuntime.controller;
     this.chatPanel = new GlobalChatPanel({
@@ -259,6 +259,24 @@ export class RuntimeHost {
   public showCanvas(): void {
     this.hostVisible = true;
     this.applyVisibility();
+  }
+
+  private createWorkspaceChatToolHost() {
+    const activeModule = this.shell?.getActiveModule() ?? null;
+    const moduleHost = activeModule?.getWorkspaceChatToolHost?.() ?? null;
+
+    return {
+      getWorkspaceChatSnapshot: () =>
+        moduleHost?.getWorkspaceChatSnapshot?.() ??
+        activeModule?.getWorkspaceChatSnapshot() ??
+        null,
+      getWorkspaceChatCapabilities: () =>
+        moduleHost?.getWorkspaceChatCapabilities?.() ??
+        buildWorkspaceChatCapabilityContext({
+          currentView: this.activeView,
+          snapshot: activeModule?.getWorkspaceChatSnapshot() ?? null,
+        }),
+    };
   }
 
   public async start(): Promise<void> {

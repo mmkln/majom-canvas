@@ -26,7 +26,9 @@ export type WorkspaceChatIntentKind =
   | 'review'
   | 'breakdown'
   | 'dependencies'
-  | 'missing';
+  | 'missing'
+  | 'clarify'
+  | 'fill_details';
 export type WorkspaceChatIntentScope = 'selection' | 'canvas';
 
 export type WorkspaceChatElementKind = 'goal' | 'story' | 'task';
@@ -168,7 +170,9 @@ export function isWorkspaceChatIntentRequestDetail(
     (value.intent === 'review' ||
       value.intent === 'breakdown' ||
       value.intent === 'dependencies' ||
-      value.intent === 'missing') &&
+      value.intent === 'missing' ||
+      value.intent === 'clarify' ||
+      value.intent === 'fill_details') &&
     (value.scope === undefined ||
       value.scope === 'selection' ||
       value.scope === 'canvas') &&

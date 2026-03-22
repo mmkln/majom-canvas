@@ -1,6 +1,7 @@
 import type { WorkspaceChatContextMode } from './WorkspaceChatContextMode.ts';
 import {
   isWorkspaceChatProfile,
+  normalizeWorkspaceChatProfile,
   type WorkspaceChatProfile,
 } from './WorkspaceChatContextTypes.ts';
 import {
@@ -116,6 +117,26 @@ export function isWorkspaceChatRouterDecision(
     default:
       return false;
   }
+}
+
+export function normalizeWorkspaceChatRouterDecision(
+  value: unknown
+): WorkspaceChatRouterDecision | null {
+  if (!isPlainObject(value)) return null;
+
+  const normalizedProfile = normalizeWorkspaceChatProfile(value.profile);
+  if (!normalizedProfile) {
+    return null;
+  }
+
+  const candidate: Record<string, unknown> = {
+    ...value,
+    profile: normalizedProfile,
+  };
+
+  return isWorkspaceChatRouterDecision(candidate)
+    ? (candidate as WorkspaceChatRouterDecision)
+    : null;
 }
 
 function isOptionalString(value: unknown): value is string | undefined {

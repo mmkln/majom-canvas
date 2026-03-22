@@ -114,7 +114,15 @@ function createMessage(
   content: string,
   createdAt = Date.now(),
   actions?: WorkspaceChatAction[],
-  kind: 'default' | 'system' = 'default'
+  kind: 'default' | 'system' | 'command' = 'default',
+  requestPrompt?: string,
+  requestIntent?:
+    | 'review'
+    | 'breakdown'
+    | 'dependencies'
+    | 'missing'
+    | 'clarify'
+    | 'fill_details'
 ): WorkspaceChatMessage {
   return {
     id: `chat-${Math.random().toString(36).slice(2, 10)}`,
@@ -122,6 +130,8 @@ function createMessage(
     kind,
     content,
     createdAt,
+    requestPrompt,
+    requestIntent,
     actions,
   };
 }
@@ -275,6 +285,44 @@ describe('WorkspaceChatSessionController', () => {
     expect(reply.mock.calls[0]?.[0].snapshot).toBeNull();
   });
 
+  it('renders prepared intent submissions as command messages instead of raw user prompts', async () => {
+    const reply = vi.fn(async () => createMessage('assistant', 'Linked suggestions'));
+    const service = {
+      createMessage,
+      createSystemMessage,
+      createWelcomeMessage: (context: WorkspaceChatCanvasSnapshot | null) =>
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
+      getQuickActions: vi.fn(() => []),
+      reply,
+    };
+    const controller = new WorkspaceChatSessionController({ service });
+    const context = makeContext('canvas-a', 'Canvas A');
+    controller.setContext(context);
+
+    await controller.submitPreparedSubmission({
+      prompt: 'Analyze the selected cluster and suggest relations.',
+      snapshot: context,
+      contextMode: 'selection',
+      source: 'intent',
+      intent: 'dependencies',
+      profile: 'dependency-review',
+      requestLabel: 'Connect selected',
+      requestMessageKind: 'command',
+    });
+
+    const messages = controller.getState().messages;
+    expect(messages[1]?.kind).toBe('command');
+    expect(messages[1]?.role).toBe('system');
+    expect(messages[1]?.content).toBe('Connect selected');
+    expect(messages[1]?.requestPrompt).toBe(
+      'Analyze the selected cluster and suggest relations.'
+    );
+    expect(messages[1]?.requestIntent).toBe('dependencies');
+    expect(reply.mock.calls[0]?.[0].prompt).toBe(
+      'Analyze the selected cluster and suggest relations.'
+    );
+  });
+
   it('restores the seed message after turning canvas context back on', () => {
     const service = {
       createMessage,
@@ -335,6 +383,26 @@ describe('WorkspaceChatSessionController', () => {
     expect(reply.mock.calls[0]?.[0].snapshot?.summary.selectedCount).toBe(1);
     expect(reply.mock.calls[0]?.[0].profile).toBe('readiness-check');
     expect(reply.mock.calls[0]?.[0].source).toBe('manual');
+  });
+
+  it('does not pre-resolve a profile for manual prompts', async () => {
+    const reply = vi.fn(async () => createMessage('assistant', 'Reply'));
+    const service = {
+      createMessage,
+      createSystemMessage,
+      createWelcomeMessage: (context: WorkspaceChatCanvasSnapshot | null) =>
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
+      getQuickActions: vi.fn(() => []),
+      reply,
+    };
+    const controller = new WorkspaceChatSessionController({ service });
+    controller.setContext(makeContext('canvas-a', 'Canvas A'));
+
+    await controller.submitPrompt('Review the selected work');
+
+    expect(reply).toHaveBeenCalledTimes(1);
+    expect(reply.mock.calls[0]?.[0].source).toBe('manual');
+    expect(reply.mock.calls[0]?.[0].profile).toBeUndefined();
   });
 
   it('submits the provided snapshot as-is without repairing selection state', async () => {
@@ -532,5 +600,48 @@ describe('WorkspaceChatSessionController', () => {
       'Explain checkout risks',
       'Second answer',
     ]);
+  });
+
+  it('regenerates command replies through the original intent flow', async () => {
+    const reply = vi
+      .fn()
+      .mockResolvedValueOnce(createMessage('assistant', 'First command answer'))
+      .mockResolvedValueOnce(createMessage('assistant', 'Second command answer'));
+    const service = {
+      createMessage,
+      createSystemMessage,
+      createWelcomeMessage: (context: WorkspaceChatCanvasSnapshot | null) =>
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
+      getQuickActions: vi.fn(() => []),
+      reply,
+    };
+    const controller = new WorkspaceChatSessionController({ service });
+    const context = makeContext('canvas-a', 'Canvas A');
+    controller.setContext(context);
+
+    await controller.submitPreparedSubmission({
+      prompt: 'Analyze the selected cluster and suggest relations.',
+      snapshot: context,
+      contextMode: 'selection',
+      source: 'intent',
+      intent: 'dependencies',
+      profile: 'dependency-review',
+      requestLabel: 'Connect selected',
+      requestMessageKind: 'command',
+    });
+
+    const originalReply = controller.getState().messages.at(-1);
+    expect(originalReply?.content).toBe('First command answer');
+
+    await controller.regenerateMessage(originalReply!.id);
+
+    expect(reply).toHaveBeenCalledTimes(2);
+    expect(reply.mock.calls[1]?.[0].source).toBe('intent');
+    expect(reply.mock.calls[1]?.[0].intent).toBe('dependencies');
+    expect(reply.mock.calls[1]?.[0].profile).toBe('dependency-review');
+    expect(controller.getState().messages.at(-2)?.content).toBe('Connect selected');
+    expect(controller.getState().messages.at(-1)?.content).toBe(
+      'Second command answer'
+    );
   });
 });

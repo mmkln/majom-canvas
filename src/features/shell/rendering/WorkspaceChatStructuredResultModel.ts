@@ -93,12 +93,10 @@ export function buildWorkspaceChatActionTagModels(
   if (action.kind === 'suggest_update') {
     Object.entries(action.patch).forEach(([key, value]) => {
       tags.push({
-        text:
-          key === 'elementStatus'
-            ? `status: ${formatWorkspaceChatElementStatus(
-                value as NonNullable<typeof action.patch.elementStatus>
-              )}`
-            : `${key}: ${String(value)}`,
+        text: formatWorkspaceChatUpdatePatchTagLabel(
+          key,
+          value as string | UiPriority | WorkspaceChatCreateElementStatus
+        ),
         tone: getWorkspaceChatNeutralBadgeTone(),
       });
     });
@@ -316,4 +314,22 @@ function getWorkspaceChatNeutralBadgeTone(): WorkspaceChatBadgeTone {
     color: '#475569',
     border: 'rgba(203, 213, 225, 0.76)',
   };
+}
+
+function formatWorkspaceChatUpdatePatchTagLabel(
+  key: string,
+  value: string | UiPriority | WorkspaceChatCreateElementStatus
+): string {
+  switch (key) {
+    case 'title':
+      return 'Title change';
+    case 'description':
+      return 'Description change';
+    case 'priority':
+      return 'Priority change';
+    case 'elementStatus':
+      return 'Status change';
+    default:
+      return `${key}: ${String(value)}`;
+  }
 }
