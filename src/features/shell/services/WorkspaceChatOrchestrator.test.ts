@@ -140,6 +140,191 @@ describe('WorkspaceChatOrchestrator', () => {
     expect(reply.reviewFindings).toBeUndefined();
   });
 
+  it('repairs a repeated fill-details follow-up into an update when the user already supplied concrete details', async () => {
+    const snapshot = {
+      canvasId: 'canvas-physique',
+      canvasTitle: 'Body goals',
+      summary: {
+        goalCount: 1,
+        storyCount: 0,
+        taskCount: 0,
+        selectedCount: 1,
+      },
+      selectionIds: ['goal-physique'],
+      focusId: 'goal-physique',
+      highlightedIds: [],
+      elements: [
+        {
+          id: 'goal-physique',
+          kind: 'goal' as const,
+          title: 'Єбєйша фіз форма',
+          description: '',
+          status: 'todo' as const,
+          priority: 'high' as const,
+          childCount: 0,
+          parentId: null,
+          childIds: [],
+          selected: true,
+          focused: true,
+          highlighted: false,
+        },
+      ],
+      connections: [],
+      viewport: null,
+      recentActivity: [],
+    };
+    const completeText = vi
+      .fn()
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          replyMarkdown:
+            'What parent project or related goals support adding 85kg minimum, big shoulders, chest, abs, forearms, glutes, and legs?',
+          actions: [],
+        })
+      )
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          replyMarkdown:
+            'Я підготував опис цілі на основі конкретних параметрів, які ти щойно дав.',
+          actions: [
+            {
+              kind: 'suggest_update',
+              elementId: 'goal-physique',
+              patch: {
+                description:
+                  'Мінімум 85 кг, великі плечі й грудні мязи, 6-пак прес, сильні передпліччя та накачані ноги.',
+              },
+              reason:
+                'Це напряму використовує конкретні критерії форми, які користувач щойно задав.',
+            },
+          ],
+        })
+      );
+    const orchestrator = new WorkspaceChatOrchestrator({
+      apiClient: {
+        completeText,
+      },
+    });
+
+    const reply = await orchestrator.reply({
+      prompt:
+        'кілограм 85 це мінімум, далі великі плечі, великі грудні мязи, 6 пак прес, здорові передпліччя і ноги накачані.',
+      source: 'intent',
+      intent: 'fill_details',
+      snapshot,
+      contextMode: 'selection',
+      memory: createWorkspaceChatTestMemory({
+        currentIntent: null,
+        conversationSummary: null,
+        agreedFacts: [],
+        lastRecommendations: [],
+      }),
+      allowActions: true,
+    });
+
+    expect(completeText).toHaveBeenCalledTimes(2);
+    expect(completeText.mock.calls[1]?.[0]?.[2]?.content).toContain(
+      'Fill_details should use the explicit user details instead of asking another follow-up question.'
+    );
+    expect(reply.actions).toHaveLength(1);
+    expect(reply.actions[0]?.kind).toBe('suggest_update');
+    expect(reply.actions[0]).toMatchObject({
+      elementId: 'goal-physique',
+      patch: {
+        description:
+          'Мінімум 85 кг, великі плечі й грудні мязи, 6-пак прес, сильні передпліччя та накачані ноги.',
+      },
+    });
+  });
+
+  it('uses a command-spec flow for dependencies and repairs prose-only analysis into relation actions', async () => {
+    const baseSnapshot = createWorkspaceChatTestSnapshot();
+    const snapshot = {
+      ...baseSnapshot,
+      selectionIds: ['story-1', 'story-2'],
+      focusId: 'story-1',
+      summary: {
+        ...baseSnapshot.summary,
+        selectedCount: 2,
+      },
+      elements: baseSnapshot.elements.map((element) => ({
+        ...element,
+        selected: element.id === 'story-1' || element.id === 'story-2',
+        focused: element.id === 'story-1',
+      })),
+      connections: baseSnapshot.connections.filter(
+        (connection) => connection.relationType === 'parent_child'
+      ),
+    };
+    const completeText = vi
+      .fn()
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          replyMarkdown: [
+            'Cluster overview:',
+            'Checkout flow likely leads_to Post-purchase.',
+            'Which relation should I suggest first?',
+          ].join('\n'),
+          actions: [],
+        })
+      )
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          replyMarkdown:
+            'I suggested one sequence link so the selected stories read in execution order.',
+          actions: [
+            {
+              kind: 'suggest_relations',
+              relations: [
+                {
+                  fromId: 'story-1',
+                  toId: 'story-2',
+                  relationType: 'leads_to',
+                  reason:
+                    'Checkout flow naturally precedes post-purchase work in the selected cluster.',
+                },
+              ],
+            },
+          ],
+        })
+      );
+    const orchestrator = new WorkspaceChatOrchestrator({
+      apiClient: {
+        completeText,
+      },
+    });
+
+    const reply = await orchestrator.reply({
+      prompt: 'Analyze the selected cluster and suggest relations.',
+      source: 'intent',
+      intent: 'dependencies',
+      snapshot,
+      contextMode: 'selection',
+      memory: createWorkspaceChatTestMemory({
+        currentIntent: null,
+        conversationSummary: null,
+        agreedFacts: [],
+        lastRecommendations: [],
+      }),
+      allowActions: true,
+    });
+
+    expect(completeText).toHaveBeenCalledTimes(2);
+    expect(completeText.mock.calls[0]?.[0]?.[0]?.content).toContain(
+      'workspace action command "dependencies"'
+    );
+    expect(completeText.mock.calls[1]?.[0]?.[0]?.content).toContain(
+      'Repair the previous answer into one valid command reply JSON object.'
+    );
+    expect(reply.actions).toHaveLength(1);
+    expect(reply.actions[0]?.kind).toBe('suggest_relation');
+    expect(reply.actions[0]).toMatchObject({
+      fromId: 'story-1',
+      toId: 'story-2',
+      relationType: 'leads_to',
+    });
+  });
+
   it('uses planner and final answer model calls for manual requests', async () => {
     const completeText = vi
       .fn()

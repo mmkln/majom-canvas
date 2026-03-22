@@ -14,6 +14,10 @@ const STRUCTURED_ACTION_KIND_LABELS: Record<
   create_batch_stories: 'create_batch_stories',
   suggest_relation: 'suggest_relation',
   suggest_relations: 'suggest_relations',
+  remove_relation: 'remove_relation',
+  remove_relations: 'remove_relations',
+  update_relation: 'update_relation',
+  update_relations: 'update_relations',
   suggest_update: 'suggest_update',
   suggest_updates: 'suggest_updates',
 };
@@ -23,13 +27,13 @@ export function resolveWorkspaceChatActionKindsForIntent(
 ): WorkspaceChatActionKind[] | null {
   switch (intent) {
     case 'dependencies':
-      return ['suggest_relation'];
+      return ['suggest_relation', 'remove_relation', 'update_relation'];
     case 'clarify':
     case 'fill_details':
       return ['suggest_update'];
     case 'missing':
     case 'review':
-      return ['suggest_relation', 'suggest_update'];
+      return ['suggest_relation', 'remove_relation', 'update_relation', 'suggest_update'];
     case 'breakdown':
       return ['create_task', 'create_story', 'suggest_update'];
     default:
@@ -42,14 +46,21 @@ export function resolveWorkspaceChatStructuredReplyKindsForIntent(
 ): Array<WorkspaceChatStructuredActionEntryKind | 'reviewFindings'> | null {
   switch (intent) {
     case 'dependencies':
-      return ['suggest_relation', 'suggest_relations'];
+      return [
+        'suggest_relation',
+        'suggest_relations',
+        'remove_relation',
+        'remove_relations',
+        'update_relation',
+        'update_relations',
+      ];
     case 'clarify':
     case 'fill_details':
       return ['suggest_update', 'suggest_updates'];
     case 'missing':
-      return ['reviewFindings', 'suggest_relation', 'suggest_relations', 'suggest_update', 'suggest_updates'];
+      return ['reviewFindings', 'suggest_relation', 'suggest_relations', 'remove_relation', 'remove_relations', 'update_relation', 'update_relations', 'suggest_update', 'suggest_updates'];
     case 'review':
-      return ['reviewFindings', 'suggest_relation', 'suggest_relations', 'suggest_update', 'suggest_updates'];
+      return ['reviewFindings', 'suggest_relation', 'suggest_relations', 'remove_relation', 'remove_relations', 'update_relation', 'update_relations', 'suggest_update', 'suggest_updates'];
     case 'breakdown':
       return [
         'create_task',

@@ -59,7 +59,7 @@ export function buildWorkspaceChatCapabilityContext(params: {
       'Explain what is missing, what is blocked, and what the next planning moves should be.',
       'Clarify or fill missing details on selected goals, stories, and tasks.',
       'Break a goal into stories or a story into tasks when the hierarchy supports it.',
-      'Suggest dependency links, review recent changes, and point out duplicate titles or overlap.',
+      'Suggest, remove, or retype dependency links, review recent changes, and point out duplicate titles or overlap.',
     ],
     currentQuickActions: getWorkspaceChatQuickActions(params.snapshot).map(
       (action) => action.label

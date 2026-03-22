@@ -17,6 +17,8 @@ export type WorkspaceChatStructuredActionEntryKind =
   | 'create_batch_tasks'
   | 'create_batch_stories'
   | 'suggest_relations'
+  | 'remove_relations'
+  | 'update_relations'
   | 'suggest_updates';
 
 export type WorkspaceChatStructuredCreateActionEntry = {
@@ -64,12 +66,61 @@ export type WorkspaceChatStructuredRelationActionEntry = {
   reason?: string;
 };
 
+export type WorkspaceChatStructuredRemoveRelationActionEntry = {
+  kind: 'remove_relation';
+  title?: string;
+  fromId: string;
+  toId: string;
+  relationType: WorkspaceChatRelationSuggestionType;
+  fromLabel?: string;
+  toLabel?: string;
+  reason?: string;
+};
+
 export type WorkspaceChatStructuredRelationBatchEntry = {
   kind: 'suggest_relations';
   title?: string;
   summary?: string;
   description?: string;
   relations: WorkspaceChatStructuredRelationSuggestion[];
+};
+
+export type WorkspaceChatStructuredRemoveRelationBatchEntry = {
+  kind: 'remove_relations';
+  title?: string;
+  summary?: string;
+  description?: string;
+  relations: WorkspaceChatStructuredRelationSuggestion[];
+};
+
+export type WorkspaceChatStructuredRelationTypeChange = {
+  fromId: string;
+  toId: string;
+  currentRelationType: WorkspaceChatRelationSuggestionType;
+  nextRelationType: WorkspaceChatRelationSuggestionType;
+  fromLabel?: string;
+  toLabel?: string;
+  reason?: string;
+};
+
+export type WorkspaceChatStructuredUpdateRelationActionEntry = {
+  kind: 'update_relation';
+  title?: string;
+  fromId: string;
+  toId: string;
+  currentRelationType: WorkspaceChatRelationSuggestionType;
+  nextRelationType: WorkspaceChatRelationSuggestionType;
+  fromLabel?: string;
+  toLabel?: string;
+  reason?: string;
+};
+
+export type WorkspaceChatStructuredUpdateRelationBatchEntry = {
+  kind: 'update_relations';
+  title?: string;
+  summary?: string;
+  description?: string;
+  relations: WorkspaceChatStructuredRelationTypeChange[];
 };
 
 export type WorkspaceChatStructuredUpdateSuggestion = {
@@ -101,6 +152,10 @@ export type WorkspaceChatStructuredActionEntry =
   | WorkspaceChatStructuredCreateBatchEntry
   | WorkspaceChatStructuredRelationActionEntry
   | WorkspaceChatStructuredRelationBatchEntry
+  | WorkspaceChatStructuredRemoveRelationActionEntry
+  | WorkspaceChatStructuredRemoveRelationBatchEntry
+  | WorkspaceChatStructuredUpdateRelationActionEntry
+  | WorkspaceChatStructuredUpdateRelationBatchEntry
   | WorkspaceChatStructuredUpdateActionEntry
   | WorkspaceChatStructuredUpdateBatchEntry;
 
@@ -119,6 +174,8 @@ export const WORKSPACE_CHAT_STRUCTURED_ACTION_KIND_NOTES = [
   '- create_batch_tasks: for decomposing a story or cluster into multiple tasks.',
   '- create_batch_stories: for decomposing a goal into multiple stories.',
   '- suggest_relations: for non-hierarchical dependency or sequencing suggestions.',
+  '- remove_relations: for removing incorrect non-hierarchical links that already exist on the canvas.',
+  '- update_relations: for changing the type of an existing non-hierarchical link that should stay but with a different meaning.',
   '- suggest_updates: for title, description, priority, or status refinements to existing items.',
 ];
 
@@ -130,10 +187,14 @@ export function isWorkspaceChatStructuredActionEntryKind(
     value === 'create_story' ||
     value === 'create_goal' ||
     value === 'suggest_relation' ||
+    value === 'remove_relation' ||
+    value === 'update_relation' ||
     value === 'suggest_update' ||
     value === 'create_batch_tasks' ||
     value === 'create_batch_stories' ||
     value === 'suggest_relations' ||
+    value === 'remove_relations' ||
+    value === 'update_relations' ||
     value === 'suggest_updates'
   );
 }
@@ -243,6 +304,45 @@ export function getWorkspaceChatStructuredReplyExamples() {
     ],
   };
 
+  const dependencyRemovalExample: WorkspaceChatStructuredReplyEnvelope = {
+    replyMarkdown: 'I prepared one relation cleanup you can confirm.',
+    actions: [
+      {
+        kind: 'remove_relations',
+        title: 'Relations to remove',
+        relations: [
+          {
+            fromId: 'task-payment-form',
+            toId: 'task-order-review',
+            relationType: 'blocks',
+            reason:
+              'This blocker link no longer matches the current sequence and adds noise to the dependency model.',
+          },
+        ],
+      },
+    ],
+  };
+
+  const dependencyUpdateExample: WorkspaceChatStructuredReplyEnvelope = {
+    replyMarkdown: 'I prepared one relation type change you can confirm.',
+    actions: [
+      {
+        kind: 'update_relations',
+        title: 'Relation type changes',
+        relations: [
+          {
+            fromId: 'task-payment-form',
+            toId: 'task-order-review',
+            currentRelationType: 'relates_to',
+            nextRelationType: 'blocks',
+            reason:
+              'This link is not just related work anymore; payment validation now clearly blocks order review.',
+          },
+        ],
+      },
+    ],
+  };
+
   const updateSuggestionExample: WorkspaceChatStructuredReplyEnvelope = {
     replyMarkdown: 'I prepared two refinements to make the story more actionable.',
     actions: [
@@ -268,6 +368,8 @@ export function getWorkspaceChatStructuredReplyExamples() {
     singleActionsExample,
     batchCreateExample,
     dependencySuggestionExample,
+    dependencyRemovalExample,
+    dependencyUpdateExample,
     updateSuggestionExample,
   };
 }

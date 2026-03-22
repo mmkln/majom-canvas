@@ -4,7 +4,6 @@ import type {
   WorkspaceChatAction,
   WorkspaceChatActionExecutionRequest,
   WorkspaceChatActionExecutionResult,
-  WorkspaceChatReviewFindings,
 } from '../workspaceChatActions.ts';
 import {
   scopeWorkspaceChatContext,
@@ -13,7 +12,6 @@ import {
 import { WorkspaceChatMemoryStore } from './WorkspaceChatMemoryStore.ts';
 import { WorkspaceChatPersistence } from './WorkspaceChatPersistence.ts';
 import type {
-  WorkspaceChatReplyRequest,
   WorkspaceChatServiceLike,
 } from './WorkspaceChatService.ts';
 import { WorkspaceChatService } from './WorkspaceChatService.ts';
@@ -42,12 +40,21 @@ export type WorkspaceChatPanelState = {
   currentView: WorkspaceView;
   context: WorkspaceChatCanvasSnapshot | null;
   messages: WorkspaceChatMessage[];
+  pendingConfirmation: WorkspaceChatPendingConfirmation | null;
   quickActions: WorkspaceChatQuickAction[];
   replying: boolean;
   canClear: boolean;
   contextEnabled: boolean;
   contextMode: WorkspaceChatContextMode;
   composerPlaceholder: string;
+};
+
+export type WorkspaceChatPendingConfirmation = {
+  messageId: string;
+  actionIds: string[];
+  actionLabel: string;
+  actionTitle: string;
+  actionCount: number;
 };
 
 type WorkspaceChatActionStatePatch = Partial<
@@ -120,6 +127,7 @@ export class WorkspaceChatSessionController {
       currentView: this.currentView,
       context: scopedContext,
       messages: session.messages,
+      pendingConfirmation: this.resolvePendingConfirmation(session),
       quickActions: scopedContext ? this.service.getQuickActions(scopedContext) : [],
       replying: session.replying,
       canClear:
@@ -209,16 +217,36 @@ export class WorkspaceChatSessionController {
       session.abortController?.abort();
     }
 
+    const autoIntent =
+      !options.intent && (options.source === undefined || options.source === 'manual')
+        ? this.resolveAutoIntent(trimmed)
+        : undefined;
+    const continuedIntent =
+      !options.intent && (options.source === undefined || options.source === 'manual')
+        ? this.resolvePendingFollowupIntent(session)
+        : undefined;
+    const resolvedIntent = options.intent ?? continuedIntent ?? autoIntent;
+    const resolvedSource = options.source ?? (resolvedIntent ? 'intent' : 'manual');
+    const resolvedProfile =
+      options.profile ??
+      (resolvedIntent
+        ? resolveWorkspaceChatIntentProfile(resolvedIntent, undefined)
+        : undefined);
+
     const requestMessage =
       options.requestMessageKind === 'command'
         ? this.createCommandMessage(
             options.requestLabel ?? trimmed,
             trimmed,
-            options.intent
+            resolvedIntent
           )
         : options.requestMessageKind === 'system'
           ? this.service.createSystemMessage(options.requestLabel ?? trimmed)
-          : this.service.createMessage('user', trimmed);
+          : {
+              ...this.service.createMessage('user', trimmed),
+              requestPrompt: resolvedIntent ? trimmed : undefined,
+              requestIntent: resolvedIntent,
+            };
     session.messages = [...session.messages, requestMessage];
     this.persistence.saveConversation(conversationKey, session.messages);
 
@@ -234,14 +262,13 @@ export class WorkspaceChatSessionController {
     const memorySnapshot = contextSnapshot
       ? this.memoryStore.get(conversationKey)
       : { ...EMPTY_WORKSPACE_CHAT_MEMORY_STATE };
-    const profile = options.profile;
 
     try {
       const reply = await this.service.reply({
         prompt: trimmed,
-        source: options.source ?? 'manual',
-        intent: options.intent,
-        profile,
+        source: resolvedSource,
+        intent: resolvedIntent,
+        profile: resolvedProfile,
         contextMode: session.contextMode,
         memory: memorySnapshot,
         snapshot: contextSnapshot,
@@ -256,7 +283,13 @@ export class WorkspaceChatSessionController {
         reply: reply.content,
         snapshot: contextSnapshot,
       });
-      this.commitReply(conversationKey, requestId, reply);
+      this.commitReply(conversationKey, requestId, {
+        ...reply,
+        requestIntent:
+          resolvedSource === 'intent' && resolvedIntent
+            ? resolvedIntent
+            : reply.requestIntent,
+      });
     } catch (error) {
       if (this.isAbortError(error)) {
         this.finishPendingRequest(conversationKey, requestId);
@@ -362,65 +395,95 @@ export class WorkspaceChatSessionController {
       request: WorkspaceChatActionExecutionRequest
     ) => Promise<WorkspaceChatActionExecutionResult>
   ): Promise<void> {
+    await this.executeMessageActions(messageId, [actionId], executor);
+  }
+
+  public async executeMessageActions(
+    messageId: string,
+    actionIds: string[],
+    executor?: (
+      request: WorkspaceChatActionExecutionRequest
+    ) => Promise<WorkspaceChatActionExecutionResult>
+  ): Promise<void> {
     const conversationKey = this.activeConversationKey;
     const session = this.ensureSession(conversationKey);
-    const action = this.getActionFromSession(session, messageId, actionId);
-    if (!action || action.status === 'applying' || action.status === 'applied') {
+    const pendingActions = actionIds
+      .map((actionId) => this.getActionFromSession(session, messageId, actionId))
+      .filter(
+        (action): action is WorkspaceChatAction =>
+          action !== null &&
+          action.status !== 'applying' &&
+          action.status !== 'applied'
+      );
+    if (pendingActions.length === 0) {
       return;
     }
 
-    this.updateActionState(conversationKey, messageId, actionId, {
-      status: 'applying',
-      errorMessage: undefined,
+    pendingActions.forEach((action) => {
+      this.updateActionState(conversationKey, messageId, action.id, {
+        status: 'applying',
+        errorMessage: undefined,
+      });
     });
 
-    const request: WorkspaceChatActionExecutionRequest = {
-      action,
-      allowSelectionTargeting: session.contextMode !== 'none',
-    };
+    const appliedActions: WorkspaceChatAction[] = [];
 
-    try {
-      const result: WorkspaceChatActionExecutionResult = executor
-        ? await executor(request)
-        : {
-            status: 'failed',
-            errorMessage: 'Canvas is unavailable.',
-          };
+    for (const action of pendingActions) {
+      const request: WorkspaceChatActionExecutionRequest = {
+        action,
+        allowSelectionTargeting: session.contextMode !== 'none',
+      };
 
-      if (result.status === 'applied') {
-        this.updateActionState(conversationKey, messageId, actionId, {
-          status: 'applied',
-          errorMessage: undefined,
-          createdElementId: result.createdElementId,
-        });
-        const updatedAction = this.getActionFromConversation(
-          conversationKey,
-          messageId,
-          actionId
-        );
-        if (updatedAction) {
-          this.appendConversationMessage(
+      try {
+        const result: WorkspaceChatActionExecutionResult = executor
+          ? await executor(request)
+          : {
+              status: 'failed',
+              errorMessage: 'Canvas is unavailable.',
+            };
+
+        if (result.status === 'applied') {
+          this.updateActionState(conversationKey, messageId, action.id, {
+            status: 'applied',
+            errorMessage: undefined,
+            createdElementId: result.createdElementId,
+            affectedElementIds: result.affectedElementIds,
+          });
+          const updatedAction = this.getActionFromConversation(
             conversationKey,
-            this.service.createSystemMessage(
-              `Created ${this.describeActionTarget(updatedAction)}.`
-            )
+            messageId,
+            action.id
           );
+          if (updatedAction) {
+            appliedActions.push(updatedAction);
+          }
+          continue;
         }
-        return;
-      }
 
-      this.updateActionState(conversationKey, messageId, actionId, {
-        status: 'failed',
-        errorMessage: result.errorMessage ?? 'Failed to create item.',
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to create item.';
-      this.updateActionState(conversationKey, messageId, actionId, {
-        status: 'failed',
-        errorMessage: message,
-      });
+        this.updateActionState(conversationKey, messageId, action.id, {
+          status: 'failed',
+          errorMessage: result.errorMessage ?? 'Failed to apply action.',
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Failed to apply action.';
+        this.updateActionState(conversationKey, messageId, action.id, {
+          status: 'failed',
+          errorMessage: message,
+        });
+      }
     }
+
+    if (appliedActions.length === 0) {
+      return;
+    }
+
+    this.appendConversationMessage(
+      conversationKey,
+      this.service.createSystemMessage(
+        this.describeAppliedActions(appliedActions)
+      )
+    );
   }
 
   public clearConversation(): void {
@@ -615,6 +678,63 @@ export class WorkspaceChatSessionController {
     };
   }
 
+  private resolvePendingFollowupIntent(
+    session: WorkspaceChatSessionState
+  ): WorkspaceChatPreparedSubmission['intent'] | undefined {
+    const lastMessage = session.messages[session.messages.length - 1];
+    if (
+      !lastMessage ||
+      lastMessage.role !== 'assistant' ||
+      !lastMessage.requestIntent
+    ) {
+      return undefined;
+    }
+    if (
+      Array.isArray(lastMessage.actions) &&
+      lastMessage.actions.length > 0
+    ) {
+      return undefined;
+    }
+    if (lastMessage.reviewFindings) {
+      return undefined;
+    }
+    return this.looksLikeFollowupQuestion(lastMessage.content)
+      ? lastMessage.requestIntent
+      : undefined;
+  }
+
+  private looksLikeFollowupQuestion(content: string): boolean {
+    return content.includes('?');
+  }
+
+  private resolvePendingConfirmation(
+    session: WorkspaceChatSessionState
+  ): WorkspaceChatPendingConfirmation | null {
+    const lastMessage = session.messages[session.messages.length - 1];
+    if (
+      !lastMessage ||
+      lastMessage.role !== 'assistant' ||
+      !Array.isArray(lastMessage.actions)
+    ) {
+      return null;
+    }
+
+    const idleActions = lastMessage.actions.filter(
+      (action) => action.status === 'idle'
+    );
+    if (idleActions.length === 0) {
+      return null;
+    }
+
+    return {
+      messageId: lastMessage.id,
+      actionIds: idleActions.map((action) => action.id),
+      actionLabel: this.describePendingConfirmationLabel(idleActions),
+      actionTitle: this.describePendingConfirmationTitle(idleActions),
+      actionCount: idleActions.length,
+    };
+  }
+
   private createCommandMessage(
     content: string,
     requestPrompt: string,
@@ -631,6 +751,32 @@ export class WorkspaceChatSessionController {
     };
   }
 
+  private resolveAutoIntent(
+    prompt: string
+  ): WorkspaceChatPreparedSubmission['intent'] | undefined {
+    const normalized = prompt.trim().toLocaleLowerCase();
+    if (normalized.length === 0) {
+      return undefined;
+    }
+
+    // Keep this narrow: only explicit relation/dependency action requests
+    // should bypass the generic manual router and enter the typed
+    // dependencies command flow.
+    const hasRelationSignal =
+      /(?:relation|relations|dependency|dependencies|blocker|blockers|link|links|connection|connections|sequence|sequences|залежн|зв['’`]?яз|блокер)/u.test(
+        normalized
+      );
+    if (!hasRelationSignal) {
+      return undefined;
+    }
+
+    const hasRelationActionSignal =
+      /(?:delete|remove|clear|unlink|disconnect|cleanup|clean up|change|update|retype|replace|connect|link|add|create|suggest|видал|прибер|очист|розірв|від['’`]?єд|змін|онов|додай|створ|зв['’`]?яж)/u.test(
+        normalized
+      );
+    return hasRelationActionSignal ? 'dependencies' : undefined;
+  }
+
   private describeActionTarget(action: WorkspaceChatAction): string {
     switch (action.kind) {
       case 'create_task':
@@ -644,9 +790,181 @@ export class WorkspaceChatSessionController {
         const to = action.toLabel || action.toId;
         return `${action.relationType} relation between "${from}" and "${to}"`;
       }
+      case 'remove_relation': {
+        const from = action.fromLabel || action.fromId;
+        const to = action.toLabel || action.toId;
+        return `${action.relationType} relation between "${from}" and "${to}"`;
+      }
+      case 'update_relation': {
+        const from = action.fromLabel || action.fromId;
+        const to = action.toLabel || action.toId;
+        return `${action.currentRelationType} relation between "${from}" and "${to}" to ${action.nextRelationType}`;
+      }
       case 'suggest_update':
         return `update for ${action.elementKind} "${action.targetTitle || action.elementId}"`;
     }
+  }
+
+  private describePendingConfirmationLabel(
+    actions: WorkspaceChatAction[]
+  ): string {
+    if (actions.length === 1) {
+      return actions[0]?.label ?? 'Confirm';
+    }
+
+    const kinds = new Set(actions.map((action) => action.kind));
+    if (kinds.size !== 1) {
+      return 'Confirm all';
+    }
+
+    switch (actions[0]?.kind) {
+      case 'create_task':
+      case 'create_story':
+      case 'create_goal':
+        return 'Create all';
+      case 'suggest_relation':
+      case 'remove_relation':
+      case 'update_relation':
+      case 'suggest_update':
+      default:
+        return 'Apply all';
+    }
+  }
+
+  private describePendingConfirmationTitle(
+    actions: WorkspaceChatAction[]
+  ): string {
+    if (actions.length === 1) {
+      return actions[0]?.title ?? 'Pending action';
+    }
+
+    const firstAction = actions[0];
+    const sharedGroupTitle = firstAction?.groupTitle?.trim();
+    if (
+      sharedGroupTitle &&
+      actions.every(
+        (action) =>
+          action.groupId === firstAction?.groupId &&
+          action.groupTitle?.trim() === sharedGroupTitle
+      )
+    ) {
+      return `${sharedGroupTitle} (${actions.length})`;
+    }
+
+    const kinds = new Set(actions.map((action) => action.kind));
+    if (kinds.size === 1) {
+      switch (actions[0]?.kind) {
+        case 'create_task':
+          return `Tasks to create (${actions.length})`;
+        case 'create_story':
+          return `Stories to create (${actions.length})`;
+        case 'create_goal':
+          return `Goals to create (${actions.length})`;
+        case 'suggest_relation':
+          return `Suggested relations (${actions.length})`;
+        case 'remove_relation':
+          return `Relations to remove (${actions.length})`;
+        case 'update_relation':
+          return `Relation updates (${actions.length})`;
+        case 'suggest_update':
+          return `Suggested updates (${actions.length})`;
+        default:
+          break;
+      }
+    }
+
+    return `Pending actions (${actions.length})`;
+  }
+
+  private describeAppliedActions(actions: WorkspaceChatAction[]): string {
+    if (actions.length === 1) {
+      const action = actions[0];
+      if (!action) {
+        return 'Applied 0 actions.';
+      }
+      const verb =
+        action.kind === 'suggest_relation' ||
+        action.kind === 'suggest_update'
+          ? 'Applied'
+          : action.kind === 'update_relation'
+            ? 'Updated'
+          : action.kind === 'remove_relation'
+            ? 'Removed'
+          : 'Created';
+      return `${verb} ${this.describeActionTarget(action)}.`;
+    }
+
+    const summaries = [
+      this.describeAppliedActionKind(actions, 'create_task', 'Created', 'task'),
+      this.describeAppliedActionKind(actions, 'create_story', 'Created', 'story'),
+      this.describeAppliedActionKind(actions, 'create_goal', 'Created', 'goal'),
+      this.describeAppliedActionKind(
+        actions,
+        'suggest_relation',
+        'Applied',
+        'relation'
+      ),
+      this.describeAppliedActionKind(
+        actions,
+        'remove_relation',
+        'Removed',
+        'relation'
+      ),
+      this.describeAppliedActionKind(
+        actions,
+        'update_relation',
+        'Updated',
+        'relation'
+      ),
+      this.describeAppliedActionKind(
+        actions,
+        'suggest_update',
+        'Applied',
+        'update'
+      ),
+    ].filter((entry): entry is string => entry !== null);
+
+    if (summaries.length === 0) {
+      return `Applied ${actions.length} actions.`;
+    }
+    if (summaries.length === 1) {
+      return `${summaries[0]}.`;
+    }
+    if (summaries.length === 2) {
+      return `${summaries[0]} and ${this.lowercaseFirstCharacter(summaries[1])}.`;
+    }
+    const leading = summaries
+      .slice(0, -1)
+      .map((summary, index) =>
+        index === 0 ? summary : this.lowercaseFirstCharacter(summary)
+      )
+      .join(', ');
+    const trailingSummary = summaries[summaries.length - 1];
+    if (!trailingSummary) {
+      return `${leading}.`;
+    }
+    const trailing = this.lowercaseFirstCharacter(trailingSummary);
+    return `${leading}, and ${trailing}.`;
+  }
+
+  private describeAppliedActionKind(
+    actions: WorkspaceChatAction[],
+    kind: WorkspaceChatAction['kind'],
+    verb: 'Applied' | 'Created' | 'Removed' | 'Updated',
+    noun: string
+  ): string | null {
+    const count = actions.filter((action) => action.kind === kind).length;
+    if (count === 0) {
+      return null;
+    }
+    return `${verb} ${count} ${noun}${count === 1 ? '' : 's'}`;
+  }
+
+  private lowercaseFirstCharacter(value: string): string {
+    if (value.length === 0) {
+      return value;
+    }
+    return `${value.charAt(0).toLowerCase()}${value.slice(1)}`;
   }
 
   private createRequestId(): string {

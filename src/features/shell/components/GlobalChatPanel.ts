@@ -1798,6 +1798,8 @@ export class GlobalChatPanel {
       case 'create_goal':
         return 'Create all';
       case 'suggest_relation':
+      case 'remove_relation':
+      case 'update_relation':
       case 'suggest_update':
       default:
         return 'Apply all';

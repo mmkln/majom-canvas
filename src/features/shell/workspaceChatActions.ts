@@ -12,6 +12,8 @@ export type WorkspaceChatCreateActionKind =
 export type WorkspaceChatActionKind =
   | WorkspaceChatCreateActionKind
   | 'suggest_relation'
+  | 'remove_relation'
+  | 'update_relation'
   | 'suggest_update';
 
 export type WorkspaceChatCreateElementStatus =
@@ -61,8 +63,7 @@ export type WorkspaceChatRelationSuggestionType = Exclude<
   'parent_child'
 >;
 
-export type WorkspaceChatRelationAction = WorkspaceChatActionBase & {
-  kind: 'suggest_relation';
+type WorkspaceChatRelationActionBase = WorkspaceChatActionBase & {
   relationType: WorkspaceChatRelationSuggestionType;
   fromId: string;
   toId: string;
@@ -70,6 +71,27 @@ export type WorkspaceChatRelationAction = WorkspaceChatActionBase & {
   toLabel?: string;
   reason?: string;
 };
+
+export type WorkspaceChatRelationAction = WorkspaceChatRelationActionBase & {
+  kind: 'suggest_relation';
+};
+
+export type WorkspaceChatRemoveRelationAction =
+  WorkspaceChatRelationActionBase & {
+    kind: 'remove_relation';
+  };
+
+export type WorkspaceChatUpdateRelationAction =
+  WorkspaceChatActionBase & {
+    kind: 'update_relation';
+    fromId: string;
+    toId: string;
+    fromLabel?: string;
+    toLabel?: string;
+    currentRelationType: WorkspaceChatRelationSuggestionType;
+    nextRelationType: WorkspaceChatRelationSuggestionType;
+    reason?: string;
+  };
 
 export type WorkspaceChatUpdatePatch = {
   title?: string;
@@ -90,6 +112,8 @@ export type WorkspaceChatUpdateAction = WorkspaceChatActionBase & {
 export type WorkspaceChatAction =
   | WorkspaceChatCreateAction
   | WorkspaceChatRelationAction
+  | WorkspaceChatRemoveRelationAction
+  | WorkspaceChatUpdateRelationAction
   | WorkspaceChatUpdateAction;
 
 export type WorkspaceChatReviewFindingSeverity = 'low' | 'medium' | 'high';
@@ -141,6 +165,10 @@ export function getWorkspaceChatActionLabel(
       return 'Create goal';
     case 'suggest_relation':
       return 'Add relation';
+    case 'remove_relation':
+      return 'Remove relation';
+    case 'update_relation':
+      return 'Update relation';
     case 'suggest_update':
       return 'Apply update';
   }
@@ -167,6 +195,8 @@ export function isWorkspaceChatActionKind(
     value === 'create_story' ||
     value === 'create_goal' ||
     value === 'suggest_relation' ||
+    value === 'remove_relation' ||
+    value === 'update_relation' ||
     value === 'suggest_update'
   );
 }

@@ -323,6 +323,64 @@ describe('WorkspaceChatSessionController', () => {
     );
   });
 
+  it('auto-upgrades explicit relation cleanup prompts into dependencies intent flow', async () => {
+    const reply = vi.fn(async () =>
+      createMessage('assistant', 'I prepared relation removals for review.', Date.now(), [
+        {
+          id: 'remove-relation-1',
+          kind: 'remove_relation',
+          label: 'Remove relation',
+          title: 'Remove outdated relation',
+          relationType: 'relates_to',
+          fromId: 'story-1',
+          toId: 'story-2',
+          fromLabel: 'Story 1',
+          toLabel: 'Story 2',
+          status: 'idle',
+        },
+      ])
+    );
+    const service = {
+      createMessage,
+      createSystemMessage,
+      createWelcomeMessage: (context: WorkspaceChatCanvasSnapshot | null) =>
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
+      getQuickActions: vi.fn(() => []),
+      reply,
+    };
+    const controller = new WorkspaceChatSessionController({ service });
+    controller.setContext(
+      makeContextWithElements(
+        'canvas-a',
+        'Canvas A',
+        [
+          makeSelectionItem('story-1', 'story', 'Story 1'),
+          makeSelectionItem('story-2', 'story', 'Story 2'),
+        ],
+        {
+          selectionIds: ['story-1', 'story-2'],
+          focusId: 'story-1',
+        }
+      )
+    );
+
+    await controller.submitPrompt('delete all relations for the elements');
+
+    expect(reply).toHaveBeenCalledTimes(1);
+    expect(reply.mock.calls[0]?.[0].source).toBe('intent');
+    expect(reply.mock.calls[0]?.[0].intent).toBe('dependencies');
+    expect(controller.getState().messages[1]).toMatchObject({
+      role: 'user',
+      content: 'delete all relations for the elements',
+      requestIntent: 'dependencies',
+    });
+    expect(controller.getState().pendingConfirmation).toMatchObject({
+      actionIds: ['remove-relation-1'],
+      actionLabel: 'Remove relation',
+      actionCount: 1,
+    });
+  });
+
   it('restores the seed message after turning canvas context back on', () => {
     const service = {
       createMessage,
@@ -500,6 +558,13 @@ describe('WorkspaceChatSessionController', () => {
       .getState()
       .messages.find((message) => message.actions?.length);
     expect(assistantMessage?.actions?.[0]?.status).toBe('idle');
+    expect(controller.getState().pendingConfirmation).toMatchObject({
+      messageId: assistantMessage?.id,
+      actionIds: ['action-task'],
+      actionLabel: 'Create task',
+      actionTitle: 'Build payment form',
+      actionCount: 1,
+    });
 
     await controller.executeMessageAction(
       assistantMessage!.id,
@@ -514,8 +579,213 @@ describe('WorkspaceChatSessionController', () => {
     const updatedAssistant = messages.find((message) => message.id === assistantMessage!.id);
     expect(updatedAssistant?.actions?.[0]?.status).toBe('applied');
     expect(updatedAssistant?.actions?.[0]?.createdElementId).toBe('create_task-1');
+    expect(controller.getState().pendingConfirmation).toBeNull();
     expect(messages[messages.length - 1]?.content).toBe(
       'Created task "Build payment form".'
+    );
+  });
+
+  it('exposes batch pending confirmation when the latest assistant reply has multiple idle actions', async () => {
+    const service = {
+      createMessage,
+      createSystemMessage,
+      createWelcomeMessage: (context: WorkspaceChatCanvasSnapshot | null) =>
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
+      getQuickActions: vi.fn(() => []),
+      reply: vi.fn(async () =>
+        createMessage('assistant', 'I prepared two updates for review.', Date.now(), [
+          {
+            id: 'action-update-1',
+            kind: 'suggest_update',
+            label: 'Apply update',
+            groupId: 'group-updates',
+            groupTitle: 'Suggested updates',
+            title: 'Update goal "A"',
+            elementId: 'goal-a',
+            elementKind: 'goal',
+            patch: { description: 'First update' },
+            status: 'idle',
+          },
+          {
+            id: 'action-update-2',
+            kind: 'suggest_update',
+            label: 'Apply update',
+            groupId: 'group-updates',
+            groupTitle: 'Suggested updates',
+            title: 'Update goal "B"',
+            elementId: 'goal-b',
+            elementKind: 'goal',
+            patch: { description: 'Second update' },
+            status: 'idle',
+          },
+        ])
+      ),
+    };
+    const controller = new WorkspaceChatSessionController({ service });
+    controller.setContext(makeContext('canvas-a', 'Canvas A'));
+
+    await controller.submitPrompt('Prepare two updates');
+
+    expect(controller.getState().pendingConfirmation).toMatchObject({
+      actionIds: ['action-update-1', 'action-update-2'],
+      actionLabel: 'Apply all',
+      actionTitle: 'Suggested updates (2)',
+      actionCount: 2,
+    });
+  });
+
+  it('applies multiple chat actions at once and appends a single summary message', async () => {
+    const service = {
+      createMessage,
+      createSystemMessage,
+      createWelcomeMessage: (context: WorkspaceChatCanvasSnapshot | null) =>
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
+      getQuickActions: vi.fn(() => []),
+      reply: vi.fn(async () =>
+        createMessage('assistant', 'I prepared relation suggestions.', Date.now(), [
+          {
+            id: 'relation-1',
+            kind: 'suggest_relation',
+            label: 'Add relation',
+            groupId: 'group-relations',
+            groupTitle: 'Suggested relations',
+            title: 'Add sequence relation',
+            relationType: 'leads_to',
+            fromId: 'course-1',
+            toId: 'goal-1',
+            fromLabel: 'Course 1',
+            toLabel: 'Goal 1',
+            status: 'idle',
+          },
+          {
+            id: 'relation-2',
+            kind: 'suggest_relation',
+            label: 'Add relation',
+            groupId: 'group-relations',
+            groupTitle: 'Suggested relations',
+            title: 'Add sequence relation',
+            relationType: 'leads_to',
+            fromId: 'course-2',
+            toId: 'goal-1',
+            fromLabel: 'Course 2',
+            toLabel: 'Goal 1',
+            status: 'idle',
+          },
+        ])
+      ),
+    };
+    const controller = new WorkspaceChatSessionController({ service });
+    controller.setContext(makeContext('canvas-a', 'Canvas A'));
+
+    await controller.submitPrompt('Connect these courses to the goal');
+
+    const assistantMessage = controller
+      .getState()
+      .messages.find((message) => message.actions?.length);
+    expect(controller.getState().pendingConfirmation).toMatchObject({
+      messageId: assistantMessage?.id,
+      actionIds: ['relation-1', 'relation-2'],
+      actionLabel: 'Apply all',
+      actionTitle: 'Suggested relations (2)',
+      actionCount: 2,
+    });
+
+    await controller.executeMessageActions(
+      assistantMessage!.id,
+      ['relation-1', 'relation-2'],
+      vi.fn(async ({ action }) => ({
+        status: 'applied',
+        affectedElementIds:
+          action.kind === 'suggest_relation'
+            ? [action.fromId, action.toId]
+            : undefined,
+      }))
+    );
+
+    const updatedAssistant = controller
+      .getState()
+      .messages.find((message) => message.id === assistantMessage!.id);
+    expect(updatedAssistant?.actions?.map((action) => action.status)).toEqual([
+      'applied',
+      'applied',
+    ]);
+    expect(controller.getState().pendingConfirmation).toBeNull();
+    expect(controller.getState().messages.at(-1)?.content).toBe(
+      'Applied 2 relations.'
+    );
+  });
+
+  it('summarizes applied relation type updates as updated relations', async () => {
+    const service = {
+      createMessage,
+      createSystemMessage,
+      createWelcomeMessage: (context: WorkspaceChatCanvasSnapshot | null) =>
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
+      getQuickActions: vi.fn(() => []),
+      reply: vi.fn(async () =>
+        createMessage('assistant', 'I prepared relation type changes.', Date.now(), [
+          {
+            id: 'relation-update-1',
+            kind: 'update_relation',
+            label: 'Update relation',
+            groupId: 'group-relation-updates',
+            groupTitle: 'Relation type changes',
+            title: 'Change relation type',
+            currentRelationType: 'relates_to',
+            nextRelationType: 'leads_to',
+            fromId: 'course-1',
+            toId: 'goal-1',
+            fromLabel: 'Course 1',
+            toLabel: 'Goal 1',
+            status: 'idle',
+          },
+          {
+            id: 'relation-update-2',
+            kind: 'update_relation',
+            label: 'Update relation',
+            groupId: 'group-relation-updates',
+            groupTitle: 'Relation type changes',
+            title: 'Change relation type',
+            currentRelationType: 'relates_to',
+            nextRelationType: 'leads_to',
+            fromId: 'course-2',
+            toId: 'goal-1',
+            fromLabel: 'Course 2',
+            toLabel: 'Goal 1',
+            status: 'idle',
+          },
+        ])
+      ),
+    };
+    const controller = new WorkspaceChatSessionController({ service });
+    controller.setContext(makeContext('canvas-a', 'Canvas A'));
+
+    await controller.submitPrompt('Retype these relations');
+
+    const assistantMessage = controller
+      .getState()
+      .messages.find((message) => message.actions?.length);
+    expect(controller.getState().pendingConfirmation).toMatchObject({
+      actionIds: ['relation-update-1', 'relation-update-2'],
+      actionLabel: 'Apply all',
+      actionTitle: 'Relation type changes (2)',
+      actionCount: 2,
+    });
+
+    await controller.executeMessageActions(
+      assistantMessage!.id,
+      ['relation-update-1', 'relation-update-2'],
+      vi.fn(async ({ action }) => ({
+        status: 'applied',
+        affectedElementIds:
+          action.kind === 'update_relation'
+            ? [action.fromId, action.toId]
+            : undefined,
+      }))
+    );
+
+    expect(controller.getState().messages.at(-1)?.content).toBe(
+      'Updated 2 relations.'
     );
   });
 
@@ -642,6 +912,65 @@ describe('WorkspaceChatSessionController', () => {
     expect(controller.getState().messages.at(-2)?.content).toBe('Connect selected');
     expect(controller.getState().messages.at(-1)?.content).toBe(
       'Second command answer'
+    );
+  });
+
+  it('continues an intent flow when the latest assistant reply is a follow-up question', async () => {
+    const reply = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createMessage(
+          'assistant',
+          'What specific metrics define success for this goal?'
+        )
+      )
+      .mockResolvedValueOnce(createMessage('assistant', 'Structured follow-up answer'));
+    const service = {
+      createMessage,
+      createSystemMessage,
+      createWelcomeMessage: (context: WorkspaceChatCanvasSnapshot | null) =>
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
+      getQuickActions: vi.fn(() => []),
+      reply,
+    };
+    const controller = new WorkspaceChatSessionController({ service });
+    const context = makeContextWithElements(
+      'canvas-a',
+      'Canvas A',
+      [makeSelectionItem('goal-1', 'goal', 'Peak physical form')],
+      {
+        selectionIds: ['goal-1'],
+        focusId: 'goal-1',
+      }
+    );
+    controller.setContext(context);
+
+    await controller.submitPreparedSubmission({
+      prompt: 'Fill in the missing details for the selected goal "Peak physical form".',
+      snapshot: context,
+      contextMode: 'selection',
+      source: 'intent',
+      intent: 'fill_details',
+      profile: 'readiness-check',
+      requestLabel: 'Fill missing details',
+      requestMessageKind: 'command',
+    });
+
+    expect(controller.getState().messages.at(-1)?.requestIntent).toBe('fill_details');
+
+    await controller.submitPrompt(
+      '85kg minimum, broad shoulders, big chest, 6-pack abs, strong forearms, glutes and legs trained.'
+    );
+
+    expect(reply).toHaveBeenCalledTimes(2);
+    expect(reply.mock.calls[1]?.[0].source).toBe('intent');
+    expect(reply.mock.calls[1]?.[0].intent).toBe('fill_details');
+    expect(reply.mock.calls[1]?.[0].profile).toBe('readiness-check');
+    expect(reply.mock.calls[1]?.[0].prompt).toBe(
+      '85kg minimum, broad shoulders, big chest, 6-pack abs, strong forearms, glutes and legs trained.'
+    );
+    expect(controller.getState().messages.at(-2)?.requestIntent).toBe(
+      'fill_details'
     );
   });
 });

@@ -5,7 +5,12 @@ import { ElementStatus } from '../../elements/ElementStatus.ts';
 import { AddElementCommand } from '../commands/AddElementCommand.ts';
 import { ConnectCommand } from '../commands/ConnectCommand.ts';
 import { PatchPlanningElementCommand } from '../commands/PatchPlanningElementCommand.ts';
-import { ConnectionRelationType } from '../interfaces/connection.ts';
+import { RemoveConnectionCommand } from '../commands/RemoveConnectionCommand.ts';
+import { UpdateConnectionCommand } from '../commands/UpdateConnectionCommand.ts';
+import {
+  ConnectionRelationType,
+  type IConnection,
+} from '../interfaces/connection.ts';
 import { CanvasManager } from '../managers/CanvasManager.ts';
 import { Scene } from '../scene/Scene.ts';
 import { historyService } from './HistoryService.ts';
@@ -17,8 +22,11 @@ import {
 import type {
   WorkspaceChatActionExecutionRequest,
   WorkspaceChatActionExecutionResult,
+  WorkspaceChatRemoveRelationAction,
   WorkspaceChatRelationAction,
+  WorkspaceChatRelationSuggestionType,
   WorkspaceChatUpdateAction,
+  WorkspaceChatUpdateRelationAction,
 } from '../../../shell/workspaceChatActions.ts';
 
 type CanvasManagerLike = Pick<
@@ -54,6 +62,10 @@ export class ChatCanvasActionExecutor {
           return this.applyCreateGoal(request);
         case 'suggest_relation':
           return this.applySuggestRelation(request.action);
+        case 'remove_relation':
+          return this.applyRemoveRelation(request.action);
+        case 'update_relation':
+          return this.applyUpdateRelation(request.action);
         case 'suggest_update':
           return this.applySuggestUpdate(request.action);
       }
@@ -117,13 +129,12 @@ export class ChatCanvasActionExecutor {
     }
 
     const relationType = this.toConnectionRelationType(action.relationType);
-    const alreadyExists = this.options.scene.getConnections().some(
-      (connection) =>
-        connection.fromId === from.id &&
-        connection.toId === to.id &&
-        connection.relationType === relationType
+    const existingConnection = this.findMatchingConnection(
+      from.id,
+      to.id,
+      relationType
     );
-    if (alreadyExists) {
+    if (existingConnection) {
       return {
         status: 'failed',
         errorMessage: 'This relation already exists on the canvas.',
@@ -132,6 +143,100 @@ export class ChatCanvasActionExecutor {
 
     historyService.execute(
       new ConnectCommand(this.options.scene, from.id, to.id, relationType)
+    );
+    this.options.scene.setSelected([from, to]);
+    this.options.canvasManager.draw();
+    return {
+      status: 'applied',
+      affectedElementIds: [from.id, to.id],
+    };
+  }
+
+  private applyRemoveRelation(
+    action: WorkspaceChatRemoveRelationAction
+  ): WorkspaceChatActionExecutionResult {
+    const from = this.findPlanningElementById(action.fromId);
+    const to = this.findPlanningElementById(action.toId);
+    if (!from || !to) {
+      return {
+        status: 'failed',
+        errorMessage: 'One of the relation targets is unavailable.',
+      };
+    }
+
+    const relationType = this.toConnectionRelationType(action.relationType);
+    const connection = this.findMatchingConnection(from.id, to.id, relationType);
+    if (!connection) {
+      return {
+        status: 'failed',
+        errorMessage: 'This relation is no longer available on the canvas.',
+      };
+    }
+
+    historyService.execute(
+      new RemoveConnectionCommand(this.options.scene, connection)
+    );
+    this.options.scene.setSelected([from, to]);
+    this.options.canvasManager.draw();
+    return {
+      status: 'applied',
+      affectedElementIds: [from.id, to.id],
+    };
+  }
+
+  private applyUpdateRelation(
+    action: WorkspaceChatUpdateRelationAction
+  ): WorkspaceChatActionExecutionResult {
+    const from = this.findPlanningElementById(action.fromId);
+    const to = this.findPlanningElementById(action.toId);
+    if (!from || !to) {
+      return {
+        status: 'failed',
+        errorMessage: 'One of the relation targets is unavailable.',
+      };
+    }
+
+    const currentRelationType = this.toConnectionRelationType(
+      action.currentRelationType
+    );
+    const nextRelationType = this.toConnectionRelationType(action.nextRelationType);
+    if (currentRelationType === nextRelationType) {
+      return {
+        status: 'failed',
+        errorMessage: 'The relation type is already set to the requested value.',
+      };
+    }
+
+    const currentConnection = this.findMatchingConnection(
+      from.id,
+      to.id,
+      currentRelationType
+    );
+    if (!currentConnection) {
+      return {
+        status: 'failed',
+        errorMessage: 'This relation is no longer available on the canvas.',
+      };
+    }
+
+    const nextConnection = this.findMatchingConnection(
+      from.id,
+      to.id,
+      nextRelationType
+    );
+    if (nextConnection && nextConnection.id !== currentConnection.id) {
+      return {
+        status: 'failed',
+        errorMessage: 'A relation with the requested type already exists.',
+      };
+    }
+
+    historyService.execute(
+      new UpdateConnectionCommand(this.options.scene, currentConnection, {
+        fromId: from.id,
+        toId: to.id,
+        relationType: nextRelationType,
+      })
     );
     this.options.scene.setSelected([from, to]);
     this.options.canvasManager.draw();
@@ -340,7 +445,7 @@ export class ChatCanvasActionExecutor {
   }
 
   private toConnectionRelationType(
-    value: WorkspaceChatRelationAction['relationType']
+    value: WorkspaceChatRelationSuggestionType
   ): ConnectionRelationType {
     switch (value) {
       case 'blocks':
@@ -351,6 +456,50 @@ export class ChatCanvasActionExecutor {
       default:
         return ConnectionRelationType.RelatesTo;
     }
+  }
+
+  private findMatchingConnection(
+    fromId: string,
+    toId: string,
+    relationType: ConnectionRelationType
+  ): IConnection | null {
+    return this.findMatchingConnectionResult(fromId, toId, relationType)?.connection ?? null;
+  }
+
+  private findMatchingConnectionResult(
+    fromId: string,
+    toId: string,
+    relationType: ConnectionRelationType
+  ): { connection: IConnection; reversed: boolean } | null {
+    const directConnection = this.options.scene.getConnections().find(
+      (connection) =>
+        connection.fromId === fromId &&
+        connection.toId === toId &&
+        connection.relationType === relationType
+    );
+    if (directConnection) {
+      return {
+        connection: directConnection,
+        reversed: false,
+      };
+    }
+    if (relationType !== ConnectionRelationType.RelatesTo) {
+      return null;
+    }
+    const reverseConnection =
+      this.options.scene.getConnections().find(
+        (connection) =>
+          connection.fromId === toId &&
+          connection.toId === fromId &&
+          connection.relationType === relationType
+      ) ?? null;
+    if (!reverseConnection) {
+      return null;
+    }
+    return {
+      connection: reverseConnection,
+      reversed: true,
+    };
   }
 
   private toElementStatus(value: string | undefined): ElementStatus {

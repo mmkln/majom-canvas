@@ -156,8 +156,37 @@ describe('WorkspaceChatStructuredResultModel', () => {
       fromId: 'task-a',
       toId: 'task-b',
     };
+    const removalAction: WorkspaceChatAction = {
+      id: 'rel-2',
+      kind: 'remove_relation',
+      label: 'Remove relation',
+      title: 'Remove outdated relation',
+      status: 'idle',
+      relationType: 'relates_to',
+      fromId: 'story-a',
+      toId: 'goal-a',
+    };
+    const relationUpdateAction: WorkspaceChatAction = {
+      id: 'rel-3',
+      kind: 'update_relation',
+      label: 'Update relation',
+      title: 'Change relation type',
+      status: 'idle',
+      currentRelationType: 'relates_to',
+      nextRelationType: 'blocks',
+      fromId: 'story-a',
+      toId: 'goal-a',
+    };
 
     expect(getWorkspaceChatActionButtonLabel(relationAction)).toBe('Applied');
+    expect(getWorkspaceChatActionButtonLabel(removalAction)).toBe('Apply');
+    expect(getWorkspaceChatActionButtonLabel(relationUpdateAction)).toBe('Apply');
+    expect(getWorkspaceChatActionSecondaryText(removalAction, context, true)).toBe(
+      '"story-a" → "goal-a"'
+    );
+    expect(
+      buildWorkspaceChatActionTagModels(relationUpdateAction).map((tag) => tag.text)
+    ).toEqual(['relates to -> blocks']);
     expect(
       getWorkspaceChatReviewAccentColor({
         title: 'Review',

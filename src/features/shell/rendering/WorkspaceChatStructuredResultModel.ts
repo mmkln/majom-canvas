@@ -47,7 +47,10 @@ export function getWorkspaceChatActionButtonLabel(
   action: WorkspaceChatAction
 ): string {
   const isApplyAction =
-    action.kind === 'suggest_relation' || action.kind === 'suggest_update';
+    action.kind === 'suggest_relation' ||
+    action.kind === 'remove_relation' ||
+    action.kind === 'update_relation' ||
+    action.kind === 'suggest_update';
   if (action.status === 'applied') {
     return isApplyAction ? 'Applied' : 'Created';
   }
@@ -79,13 +82,33 @@ export function buildWorkspaceChatActionTagModels(
     });
   }
 
-  if (action.kind === 'suggest_relation') {
+  if (
+    action.kind === 'suggest_relation' ||
+    action.kind === 'remove_relation'
+  ) {
     tags.push({
       text: action.relationType.replace('_', ' '),
       tone: {
-        background: 'rgba(238, 242, 255, 0.96)',
-        color: '#4338ca',
-        border: 'rgba(199, 210, 254, 0.92)',
+        background:
+          action.kind === 'remove_relation'
+            ? 'rgba(254, 242, 242, 0.94)'
+            : 'rgba(238, 242, 255, 0.96)',
+        color: action.kind === 'remove_relation' ? '#b91c1c' : '#4338ca',
+        border:
+          action.kind === 'remove_relation'
+            ? 'rgba(254, 202, 202, 0.92)'
+            : 'rgba(199, 210, 254, 0.92)',
+      },
+    });
+  }
+
+  if (action.kind === 'update_relation') {
+    tags.push({
+      text: `${action.currentRelationType.replace('_', ' ')} -> ${action.nextRelationType.replace('_', ' ')}`,
+      tone: {
+        background: 'rgba(255, 247, 237, 0.96)',
+        color: '#c2410c',
+        border: 'rgba(254, 215, 170, 0.92)',
       },
     });
   }
@@ -93,10 +116,7 @@ export function buildWorkspaceChatActionTagModels(
   if (action.kind === 'suggest_update') {
     Object.entries(action.patch).forEach(([key, value]) => {
       tags.push({
-        text: formatWorkspaceChatUpdatePatchTagLabel(
-          key,
-          value as string | UiPriority | WorkspaceChatCreateElementStatus
-        ),
+        text: formatWorkspaceChatUpdatePatchTagLabel(key, String(value)),
         tone: getWorkspaceChatNeutralBadgeTone(),
       });
     });
@@ -117,6 +137,10 @@ export function getWorkspaceChatActionAccentColor(
   switch (action.kind) {
     case 'suggest_relation':
       return '#4338ca';
+    case 'remove_relation':
+      return '#b91c1c';
+    case 'update_relation':
+      return '#c2410c';
     case 'suggest_update':
       return '#0f766e';
     case 'create_goal':
@@ -132,7 +156,11 @@ export function getWorkspaceChatActionSecondaryText(
   context: WorkspaceChatCanvasSnapshot | null,
   contextEnabled: boolean
 ): string {
-  if (action.kind === 'suggest_relation') {
+  if (
+    action.kind === 'suggest_relation' ||
+    action.kind === 'remove_relation' ||
+    action.kind === 'update_relation'
+  ) {
     const from = action.fromLabel || action.fromId;
     const to = action.toLabel || action.toId;
     return `"${from}" → "${to}"`;
@@ -148,17 +176,19 @@ export function getWorkspaceChatActionTargetPreview(
   context: WorkspaceChatCanvasSnapshot | null,
   contextEnabled: boolean
 ): string {
-  if (action.target?.kind === 'story') {
-    const target = context?.elements.find(
-      (item) => item.id === action.target?.id
+  const target = 'target' in action ? action.target : undefined;
+
+  if (target?.kind === 'story') {
+    const targetElement = context?.elements.find(
+      (item) => item.id === target.id
     );
-    return target?.title ? `In story "${target.title}"` : 'In story';
+    return targetElement?.title ? `In story "${targetElement.title}"` : 'In story';
   }
-  if (action.target?.kind === 'goal') {
-    const target = context?.elements.find(
-      (item) => item.id === action.target?.id
+  if (target?.kind === 'goal') {
+    const targetElement = context?.elements.find(
+      (item) => item.id === target.id
     );
-    return target?.title ? `In goal "${target.title}"` : 'In goal';
+    return targetElement?.title ? `In goal "${targetElement.title}"` : 'In goal';
   }
   if (contextEnabled && context) {
     const selection = getWorkspaceChatSelectedItems(context);
@@ -183,7 +213,11 @@ export function getWorkspaceChatActionTargetPreview(
 export function getWorkspaceChatActionReason(
   action: WorkspaceChatAction
 ): string | null {
-  if (action.kind === 'suggest_relation') {
+  if (
+    action.kind === 'suggest_relation' ||
+    action.kind === 'remove_relation' ||
+    action.kind === 'update_relation'
+  ) {
     return action.reason ?? null;
   }
   if (action.kind === 'suggest_update') {
@@ -318,7 +352,7 @@ function getWorkspaceChatNeutralBadgeTone(): WorkspaceChatBadgeTone {
 
 function formatWorkspaceChatUpdatePatchTagLabel(
   key: string,
-  value: string | UiPriority | WorkspaceChatCreateElementStatus
+  value: string
 ): string {
   switch (key) {
     case 'title':

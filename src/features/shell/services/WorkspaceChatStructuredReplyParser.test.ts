@@ -273,4 +273,69 @@ describe('WorkspaceChatStructuredReplyParser', () => {
     expect(result.actions[2]?.kind).toBe('suggest_relation');
     expect(result.actions[3]?.kind).toBe('suggest_update');
   });
+
+  it('normalizes remove_relations batches into remove_relation actions', () => {
+    const result = parseWorkspaceChatStructuredReply(
+      JSON.stringify({
+        replyMarkdown: 'I prepared one dependency cleanup.',
+        actions: [
+          {
+            kind: 'remove_relations',
+            title: 'Relations to remove',
+            relations: [
+              {
+                fromId: 'goal-1',
+                toId: 'story-1',
+                relationType: 'relates_to',
+                reason:
+                  'This non-hierarchical link is redundant with the current structure.',
+              },
+            ],
+          },
+        ],
+      }),
+      {
+        allowActions: true,
+        validationSnapshot: createSnapshot(),
+      }
+    );
+
+    expect(result.actions).toHaveLength(1);
+    expect(result.actions[0]?.kind).toBe('remove_relation');
+    expect(result.actions[0]?.label).toBe('Remove relation');
+    expect(result.actions[0]?.groupTitle).toBe('Relations to remove');
+  });
+
+  it('normalizes update_relations batches into update_relation actions', () => {
+    const result = parseWorkspaceChatStructuredReply(
+      JSON.stringify({
+        replyMarkdown: 'I prepared one relation type change.',
+        actions: [
+          {
+            kind: 'update_relations',
+            title: 'Relation type changes',
+            relations: [
+              {
+                fromId: 'goal-1',
+                toId: 'story-1',
+                currentRelationType: 'relates_to',
+                nextRelationType: 'blocks',
+                reason:
+                  'The checkout work now blocks the launch follow-up rather than merely relating to it.',
+              },
+            ],
+          },
+        ],
+      }),
+      {
+        allowActions: true,
+        validationSnapshot: createSnapshot(),
+      }
+    );
+
+    expect(result.actions).toHaveLength(1);
+    expect(result.actions[0]?.kind).toBe('update_relation');
+    expect(result.actions[0]?.label).toBe('Update relation');
+    expect(result.actions[0]?.groupTitle).toBe('Relation type changes');
+  });
 });

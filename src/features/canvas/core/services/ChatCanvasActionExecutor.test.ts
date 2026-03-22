@@ -226,6 +226,117 @@ describe('ChatCanvasActionExecutor', () => {
     expect(historyService.canUndo()).toBe(true);
   });
 
+  it('removes an existing non-hierarchical relation through the command stack', async () => {
+    const scene = new Scene();
+    const firstTask = new TaskElement({
+      id: 'task-1',
+      x: 80,
+      y: 80,
+      title: 'Validate payment form',
+    });
+    const secondTask = new TaskElement({
+      id: 'task-2',
+      x: 320,
+      y: 80,
+      title: 'Render order review',
+    });
+    scene.addElement(firstTask);
+    scene.addElement(secondTask);
+    await createExecutor(scene).execute(
+      makeRequest({
+        id: 'relation-existing',
+        kind: 'suggest_relation',
+        label: 'Add relation',
+        title: 'Add blocking relation',
+        relationType: 'blocks',
+        fromId: 'task-1',
+        toId: 'task-2',
+        fromLabel: 'Validate payment form',
+        toLabel: 'Render order review',
+        status: 'idle',
+      })
+    );
+
+    const executor = createExecutor(scene);
+    const result = await executor.execute(
+      makeRequest({
+        id: 'relation-remove-1',
+        kind: 'remove_relation',
+        label: 'Remove relation',
+        title: 'Remove blocking relation',
+        relationType: 'blocks',
+        fromId: 'task-1',
+        toId: 'task-2',
+        fromLabel: 'Validate payment form',
+        toLabel: 'Render order review',
+        status: 'idle',
+      })
+    );
+
+    expect(result.status).toBe('applied');
+    expect(scene.getConnections()).toHaveLength(0);
+    expect(historyService.canUndo()).toBe(true);
+  });
+
+  it('updates an existing relation type and normalizes direction for relates_to links', async () => {
+    const scene = new Scene();
+    const firstTask = new TaskElement({
+      id: 'task-1',
+      x: 80,
+      y: 80,
+      title: 'Validate payment form',
+    });
+    const secondTask = new TaskElement({
+      id: 'task-2',
+      x: 320,
+      y: 80,
+      title: 'Render order review',
+    });
+    scene.addElement(firstTask);
+    scene.addElement(secondTask);
+    await createExecutor(scene).execute(
+      makeRequest({
+        id: 'relation-existing',
+        kind: 'suggest_relation',
+        label: 'Add relation',
+        title: 'Add related relation',
+        relationType: 'relates_to',
+        fromId: 'task-2',
+        toId: 'task-1',
+        fromLabel: 'Render order review',
+        toLabel: 'Validate payment form',
+        status: 'idle',
+      })
+    );
+
+    const executor = createExecutor(scene);
+    const result = await executor.execute(
+      makeRequest({
+        id: 'relation-update-1',
+        kind: 'update_relation',
+        label: 'Update relation',
+        title: 'Change related relation to blocker',
+        currentRelationType: 'relates_to',
+        nextRelationType: 'blocks',
+        fromId: 'task-1',
+        toId: 'task-2',
+        fromLabel: 'Validate payment form',
+        toLabel: 'Render order review',
+        reason: 'Validation should block review, not merely relate to it.',
+        status: 'idle',
+      })
+    );
+
+    expect(result.status).toBe('applied');
+    expect(scene.getConnections()).toHaveLength(1);
+    expect(scene.getConnections()[0]?.relationType).toBe(
+      ConnectionRelationType.Blocks
+    );
+    expect(scene.getConnections()[0]?.fromId).toBe('task-1');
+    expect(scene.getConnections()[0]?.toId).toBe('task-2');
+    expect(historyService.canUndo()).toBe(true);
+  });
+
   it('applies a suggested update and preserves undo support', async () => {
     const scene = new Scene();
     const story = new StoryElement({

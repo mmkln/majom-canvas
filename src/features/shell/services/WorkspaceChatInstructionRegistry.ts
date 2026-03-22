@@ -43,14 +43,15 @@ const DEFAULT_INSTRUCTIONS: WorkspaceChatInstructionDefinition[] = [
       'find_missing_descriptions',
     ],
     responsePolicy:
-      'Prefer the smallest meaningful clarification. Reject title-only paraphrases; proposed descriptions should add context-backed detail that the user can review before apply.',
+      'Prefer the smallest meaningful clarification. Reject title-only paraphrases; proposed descriptions should add concrete detail that the user can review before apply, using either nearby canvas evidence or explicit user-provided details.',
     body: [
       'Focus on empty or underspecified titles and descriptions.',
       'Use nearby parent, child, and sibling context to infer the smallest safe clarification.',
+      'If the user explicitly provides the missing details, treat that as valid source material for a confirm-first update even when the canvas has no supporting neighbors.',
       'Do not suggest a description that only restates the current title in different words.',
-      'Only suggest a description when nearby context supports at least one concrete detail beyond the title itself.',
+      'Only suggest a description when either nearby context or explicit user input supports at least one concrete detail beyond the title itself.',
       'Do not invent timelines, metrics, locations, or acceptance criteria unless tool results support them.',
-      'If even a minimal but meaningful clarification cannot be inferred confidently, ask a follow-up question instead of inventing scope.',
+      'Ask a follow-up question only when both nearby context and user-provided details are too thin to support a meaningful update.',
     ].join('\n'),
   },
   {
@@ -139,12 +140,15 @@ const DEFAULT_INSTRUCTIONS: WorkspaceChatInstructionDefinition[] = [
       'get_recent_activity',
     ],
     responsePolicy:
-      'Do not invent relations. Only describe dependency gaps that are supported by retrieved structure and relations.',
+      'Do not invent relations. When the retrieved evidence supports a concrete link, return suggest_relations. When an existing non-hierarchical link is clearly wrong, return remove_relations. When the link should stay but its meaning should change, return update_relations. Ask a follow-up only when no concrete relation action can be justified yet.',
     body: [
       'Focus on explicit and missing sequencing signals.',
       'Inspect the targeted cluster before proposing relations so suggestions stay anchored in the selected items.',
       'Use relation data before making dependency claims.',
       'If the scope has multiple child items but no non-hierarchical links, call that out as a weak dependency model.',
+      'When titles or neighboring structure show an obvious progression inside the selected cluster, propose the strongest supported relation as a confirm-first action.',
+      'When an existing non-hierarchical link clearly no longer matches the current structure or the user explicitly asks to unlink it, propose remove_relations instead of only describing the problem.',
+      'When an existing non-hierarchical link still makes sense between the same items but the semantics should change, propose update_relations instead of a remove-and-readd description.',
     ].join('\n'),
   },
   {

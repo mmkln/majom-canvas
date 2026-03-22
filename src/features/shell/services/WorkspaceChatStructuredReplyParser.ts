@@ -17,13 +17,14 @@ import {
   isWorkspaceChatReviewFindingSeverity,
   type WorkspaceChatAction,
   type WorkspaceChatActionGroup,
-  type WorkspaceChatActionKind,
   type WorkspaceChatActionStatus,
   type WorkspaceChatCreateAction,
   type WorkspaceChatCreateActionKind,
   type WorkspaceChatCreateElementStatus,
+  type WorkspaceChatRemoveRelationAction,
   type WorkspaceChatRelationAction,
   type WorkspaceChatRelationSuggestionType,
+  type WorkspaceChatUpdateRelationAction,
   type WorkspaceChatReviewFinding,
   type WorkspaceChatReviewFindings,
   type WorkspaceChatStructuredReply,
@@ -34,8 +35,10 @@ import {
   isWorkspaceChatStructuredActionEntryKind,
   isWorkspaceChatStructuredReplyEnvelopeLike,
   type WorkspaceChatStructuredCreateBatchEntry,
+  type WorkspaceChatStructuredRemoveRelationBatchEntry,
   type WorkspaceChatStructuredRelationBatchEntry,
   type WorkspaceChatStructuredReplyEnvelope,
+  type WorkspaceChatStructuredUpdateRelationBatchEntry,
   type WorkspaceChatStructuredUpdateBatchEntry,
 } from './WorkspaceChatStructuredTransport.ts';
 import { resolveWorkspaceChatActionKindsForIntent } from './WorkspaceChatActionPolicy.ts';
@@ -123,11 +126,15 @@ function normalizeStructuredActions(
     return [];
   }
 
-  return value.flatMap((item) =>
-    normalizeStructuredActionEntry(item, {
-      validationSnapshot: options.validationSnapshot,
-    })
-  );
+  const actions: WorkspaceChatAction[] = [];
+  value.forEach((item) => {
+    actions.push(
+      ...normalizeStructuredActionEntry(item, {
+        validationSnapshot: options.validationSnapshot,
+      })
+    );
+  });
+  return actions;
 }
 
 function normalizeStructuredActionEntry(
@@ -148,6 +155,12 @@ function normalizeStructuredActionEntry(
   }
   if (entry.kind === 'suggest_relations') {
     return normalizeRelationBatchActions(value, options);
+  }
+  if (entry.kind === 'remove_relations') {
+    return normalizeRemoveRelationBatchActions(value, options);
+  }
+  if (entry.kind === 'update_relations') {
+    return normalizeUpdateRelationBatchActions(value, options);
   }
   if (entry.kind === 'suggest_updates') {
     return normalizeUpdateBatchActions(value, options);
@@ -223,6 +236,38 @@ function normalizeRelationBatchActions(
     .filter((item): item is WorkspaceChatAction => item !== null);
 }
 
+function normalizeRemoveRelationBatchActions(
+  value: unknown,
+  options: SanitizeActionOptions
+): WorkspaceChatAction[] {
+  if (!value || typeof value !== 'object') return [];
+  const batch = value as Partial<WorkspaceChatStructuredRemoveRelationBatchEntry> & {
+    items?: unknown;
+  };
+  const items = Array.isArray(batch.relations)
+    ? batch.relations
+    : Array.isArray(batch.items)
+      ? batch.items
+      : [];
+  if (items.length === 0) return [];
+
+  const group = buildActionGroup(batch, 'Relations to remove');
+  return items
+    .map((item) =>
+      sanitizeWorkspaceChatAction(
+        {
+          ...(item as Record<string, unknown>),
+          kind: 'remove_relation',
+        },
+        {
+          ...options,
+          group,
+        }
+      )
+    )
+    .filter((item): item is WorkspaceChatAction => item !== null);
+}
+
 function normalizeUpdateBatchActions(
   value: unknown,
   options: SanitizeActionOptions
@@ -255,6 +300,38 @@ function normalizeUpdateBatchActions(
     .filter((item): item is WorkspaceChatAction => item !== null);
 }
 
+function normalizeUpdateRelationBatchActions(
+  value: unknown,
+  options: SanitizeActionOptions
+): WorkspaceChatAction[] {
+  if (!value || typeof value !== 'object') return [];
+  const batch = value as Partial<WorkspaceChatStructuredUpdateRelationBatchEntry> & {
+    items?: unknown;
+  };
+  const items = Array.isArray(batch.relations)
+    ? batch.relations
+    : Array.isArray(batch.items)
+      ? batch.items
+      : [];
+  if (items.length === 0) return [];
+
+  const group = buildActionGroup(batch, 'Relation type changes');
+  return items
+    .map((item) =>
+      sanitizeWorkspaceChatAction(
+        {
+          ...(item as Record<string, unknown>),
+          kind: 'update_relation',
+        },
+        {
+          ...options,
+          group,
+        }
+      )
+    )
+    .filter((item): item is WorkspaceChatAction => item !== null);
+}
+
 function sanitizeWorkspaceChatAction(
   value: unknown,
   options: SanitizeActionOptions
@@ -274,6 +351,18 @@ function sanitizeWorkspaceChatAction(
     case 'suggest_relation':
       return sanitizeRelationAction(
         value as Partial<WorkspaceChatRelationAction>,
+        options,
+        'suggest_relation'
+      );
+    case 'remove_relation':
+      return sanitizeRelationAction(
+        value as Partial<WorkspaceChatRemoveRelationAction>,
+        options,
+        'remove_relation'
+      );
+    case 'update_relation':
+      return sanitizeUpdateRelationAction(
+        value as Partial<WorkspaceChatUpdateRelationAction>,
         options
       );
     case 'suggest_update':
@@ -326,9 +415,10 @@ function sanitizeCreateAction(
 }
 
 function sanitizeRelationAction(
-  action: Partial<WorkspaceChatRelationAction>,
-  options: SanitizeActionOptions
-): WorkspaceChatRelationAction | null {
+  action: Partial<WorkspaceChatRelationAction | WorkspaceChatRemoveRelationAction>,
+  options: SanitizeActionOptions,
+  kind: 'suggest_relation' | 'remove_relation'
+): WorkspaceChatRelationAction | WorkspaceChatRemoveRelationAction | null {
   const relationType = normalizeRelationType(action.relationType);
   if (!relationType) return null;
 
@@ -351,21 +441,74 @@ function sanitizeRelationAction(
     sanitizeText(action.toLabel, 160) ?? toElement?.title ?? undefined;
   const title =
     sanitizeText(action.title) ??
-    `Add ${formatRelationTypeLabel(relationType)} relation`;
+    `${kind === 'remove_relation' ? 'Remove' : 'Add'} ${formatRelationTypeLabel(relationType)} relation`;
 
   return {
     ...buildCommonActionFields(
       action,
       options,
-      getWorkspaceChatActionLabel('suggest_relation'),
+      getWorkspaceChatActionLabel(kind),
       title
     ),
-    kind: 'suggest_relation',
+    kind,
     relationType,
     fromId,
     toId,
     fromLabel,
     toLabel,
+    reason: sanitizeText(action.reason, 400) ?? undefined,
+  };
+}
+
+function sanitizeUpdateRelationAction(
+  action: Partial<WorkspaceChatUpdateRelationAction>,
+  options: SanitizeActionOptions
+): WorkspaceChatUpdateRelationAction | null {
+  const currentRelationType = normalizeRelationType(action.currentRelationType);
+  const nextRelationType = normalizeRelationType(action.nextRelationType);
+  if (
+    !currentRelationType ||
+    !nextRelationType ||
+    currentRelationType === nextRelationType
+  ) {
+    return null;
+  }
+
+  const fromId = sanitizeId(action.fromId);
+  const toId = sanitizeId(action.toId);
+  if (!fromId || !toId || fromId === toId) return null;
+
+  const fromElement = getElementById(options.validationSnapshot, fromId);
+  const toElement = getElementById(options.validationSnapshot, toId);
+  if (
+    options.validationSnapshot &&
+    (!fromElement || !toElement || fromElement.id === toElement.id)
+  ) {
+    return null;
+  }
+
+  const fromLabel =
+    sanitizeText(action.fromLabel, 160) ?? fromElement?.title ?? undefined;
+  const toLabel =
+    sanitizeText(action.toLabel, 160) ?? toElement?.title ?? undefined;
+  const title =
+    sanitizeText(action.title) ??
+    `Change ${formatRelationTypeLabel(currentRelationType)} relation to ${formatRelationTypeLabel(nextRelationType)}`;
+
+  return {
+    ...buildCommonActionFields(
+      action,
+      options,
+      getWorkspaceChatActionLabel('update_relation'),
+      title
+    ),
+    kind: 'update_relation',
+    fromId,
+    toId,
+    fromLabel,
+    toLabel,
+    currentRelationType,
+    nextRelationType,
     reason: sanitizeText(action.reason, 400) ?? undefined,
   };
 }
