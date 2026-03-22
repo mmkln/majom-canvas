@@ -252,7 +252,7 @@ export class SelectionActionMenu {
       }
       const btn = this.createIconButton(
         node.title,
-        node.icon ?? 'copy',
+        node.icon ?? 'square-2-stack',
         node.onClick ?? (() => {}),
         {
           isDanger: node.isDanger,
@@ -300,7 +300,7 @@ export class SelectionActionMenu {
         kind: 'action',
         id: 'copy-bulk',
         title: 'Copy',
-        icon: 'copy',
+        icon: 'square-2-stack',
         isVisible: isMulti,
         onClick: () => this.handleCopy(),
       },

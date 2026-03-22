@@ -1,6 +1,5 @@
 export type IconName =
   | 'edit'
-  | 'copy'
   | 'add-related'
   | 'align'
   | 'map'
@@ -73,12 +72,6 @@ export function createIcon(
         'M20.7 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'
       )
     );
-    return svg;
-  }
-
-  if (name === 'copy') {
-    svg.appendChild(makeRect(9, 9, 11, 11, 2));
-    svg.appendChild(makeRect(4, 4, 11, 11, 2));
     return svg;
   }
 
