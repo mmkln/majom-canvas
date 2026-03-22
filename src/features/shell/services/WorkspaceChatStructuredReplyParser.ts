@@ -77,7 +77,7 @@ export function parseWorkspaceChatStructuredReply(
     };
   }
 
-  const parsed = tryParseStructuredReply(normalizedContent);
+  const parsed = tryParseWorkspaceChatStructuredReplyEnvelope(normalizedContent);
   if (!parsed) {
     return {
       replyMarkdown: normalizedContent,
@@ -725,7 +725,7 @@ function createActionId(seed: string): string {
   return `chat-action-${normalizedSeed}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function tryParseStructuredReply(
+export function tryParseWorkspaceChatStructuredReplyEnvelope(
   content: string
 ): WorkspaceChatStructuredReplyEnvelope | null {
   const candidates = [content, extractJsonCodeBlock(content), extractJsonObject(content)];

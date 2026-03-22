@@ -18,7 +18,7 @@ import {
   type WorkspaceChatContextMode,
 } from '../services/WorkspaceChatContextMode.ts';
 import { WorkspaceChatSessionController } from '../services/WorkspaceChatSessionController.ts';
-import type { WorkspaceChatMessage } from '../services/WorkspaceChatService.ts';
+import type { WorkspaceChatMessage } from '../services/WorkspaceChatTypes.ts';
 import type { WorkspaceView } from '../WorkspaceView.ts';
 import type {
   WorkspaceChatAction,
@@ -38,6 +38,7 @@ import { getWorkspaceChatSelectedItems } from '../services/WorkspaceChatContent.
 import type { WorkspaceChatPreparedSubmission } from '../services/WorkspaceChatPreparedSubmission.ts';
 
 type GlobalChatPanelOptions = {
+  controller: WorkspaceChatSessionController;
   widthPx?: number;
   executeAction?: (
     request: WorkspaceChatActionExecutionRequest
@@ -48,7 +49,7 @@ const CHAT_ISLAND_MARGIN_PX = 8;
 const CHAT_ISLAND_RADIUS_PX = 22;
 
 export class GlobalChatPanel {
-  private readonly container: HTMLDivElement;
+  private readonly container: HTMLElement;
   private readonly panel: HTMLDivElement;
   private readonly widthPx: number;
   private readonly header: HTMLDivElement;
@@ -91,10 +92,10 @@ export class GlobalChatPanel {
     this.chatController.setContext(customEvent.detail);
   };
 
-  constructor(options: GlobalChatPanelOptions = {}) {
+  constructor(options: GlobalChatPanelOptions) {
     this.widthPx = options.widthPx ?? 380;
     this.executeAction = options.executeAction;
-    this.chatController = new WorkspaceChatSessionController();
+    this.chatController = options.controller;
     this.markdownRenderer = new WorkspaceChatMarkdownRenderer();
     this.container = document.createElement('aside');
     this.container.id = 'workspace-chat-panel';
@@ -401,7 +402,6 @@ export class GlobalChatPanel {
     );
     this.unsubscribeController?.();
     this.unsubscribeController = null;
-    this.chatController.dispose();
     if (this.copyFeedbackTimer !== null) {
       window.clearTimeout(this.copyFeedbackTimer);
       this.copyFeedbackTimer = null;
@@ -834,11 +834,13 @@ export class GlobalChatPanel {
     replying: boolean,
     canRegenerate: boolean
   ): HTMLDivElement {
-    const isSystemMessage = message.kind === 'system';
+    const isSystemMessage = message.kind === 'system' || message.role === 'system';
+    const isUserMessage = message.role === 'user';
+    const isAssistantMessage = message.role === 'assistant';
     const wrap = document.createElement('div');
     wrap.style.display = 'flex';
     wrap.style.flexDirection = 'column';
-    wrap.style.alignItems = message.role === 'user' ? 'flex-end' : 'flex-start';
+    wrap.style.alignItems = isUserMessage ? 'flex-end' : 'flex-start';
     wrap.style.gap = '6px';
 
     const meta = document.createElement('div');
@@ -853,14 +855,14 @@ export class GlobalChatPanel {
 
     const roleLabel = document.createElement('span');
     roleLabel.textContent =
-      message.role === 'user'
+      isUserMessage
         ? 'You'
         : isSystemMessage
           ? 'System'
           : 'Assistant';
     roleLabel.style.fontWeight = '700';
     roleLabel.style.color =
-      message.role === 'user'
+      isUserMessage
         ? '#475569'
         : isSystemMessage
           ? '#7c3aed'
@@ -874,30 +876,30 @@ export class GlobalChatPanel {
     meta.append(roleLabel, timeLabel);
 
     const hasContent =
-      message.content.trim().length > 0 || message.role === 'user';
+      message.content.trim().length > 0 || isUserMessage;
     wrap.append(meta);
     if (hasContent) {
       const bubble = document.createElement('div');
-      bubble.style.maxWidth = message.role === 'user' ? '82%' : '94%';
+      bubble.style.maxWidth = isUserMessage ? '82%' : '94%';
       bubble.style.padding = '12px 14px';
       bubble.style.borderRadius =
-        message.role === 'user' ? '20px 20px 8px 20px' : '20px 20px 20px 10px';
+        isUserMessage ? '20px 20px 8px 20px' : '20px 20px 20px 10px';
       bubble.style.fontSize = '12.5px';
       bubble.style.lineHeight = '1.6';
       bubble.style.color =
-        message.role === 'user'
+        isUserMessage
           ? '#0f172a'
           : isSystemMessage
             ? '#5b21b6'
             : '#1f2937';
       bubble.style.background =
-        message.role === 'user'
+        isUserMessage
           ? 'rgba(237, 242, 247, 0.98)'
           : isSystemMessage
             ? 'rgba(245, 238, 255, 0.98)'
             : 'rgba(255, 255, 255, 0.99)';
       bubble.style.border =
-        message.role === 'user'
+        isUserMessage
           ? '1px solid rgba(148, 163, 184, 0.28)'
           : isSystemMessage
             ? '1px solid rgba(196, 181, 253, 0.72)'
@@ -906,11 +908,11 @@ export class GlobalChatPanel {
       wrap.appendChild(bubble);
     }
 
-    if (message.role === 'assistant' && message.reviewFindings) {
+    if (isAssistantMessage && message.reviewFindings) {
       wrap.appendChild(this.createReviewFindingsCard(message.reviewFindings));
     }
 
-    if (message.role === 'assistant' && Array.isArray(message.actions)) {
+    if (isAssistantMessage && Array.isArray(message.actions)) {
       const actionsList = this.createActionCards(
         message,
         message.actions,
@@ -923,7 +925,7 @@ export class GlobalChatPanel {
     }
 
     if (
-      message.role === 'assistant' &&
+      isAssistantMessage &&
       !isSystemMessage &&
       (message.content.trim().length > 0 || canRegenerate)
     ) {

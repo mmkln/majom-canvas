@@ -3,7 +3,7 @@ import type {
   WorkspaceChatReviewFindings,
 } from '../workspaceChatActions.ts';
 
-export type WorkspaceChatMessageRole = 'assistant' | 'user';
+export type WorkspaceChatMessageRole = 'assistant' | 'user' | 'system';
 export type WorkspaceChatMessageKind = 'default' | 'system';
 
 export type WorkspaceChatMessage = {
@@ -25,7 +25,7 @@ export type WorkspaceChatQuickAction = {
 export function isWorkspaceChatHistoryMessage(
   message: WorkspaceChatMessage
 ): boolean {
-  if (message.kind === 'system') return false;
+  if (message.kind === 'system' || message.role === 'system') return false;
   const normalized = message.content.trim();
   if (normalized.length === 0) return false;
   return (

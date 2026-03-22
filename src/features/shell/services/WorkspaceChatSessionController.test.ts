@@ -110,7 +110,7 @@ function makeContextWithElements(
 }
 
 function createMessage(
-  role: 'assistant' | 'user',
+  role: 'assistant' | 'user' | 'system',
   content: string,
   createdAt = Date.now(),
   actions?: WorkspaceChatAction[],
@@ -130,7 +130,7 @@ function createSystemMessage(
   content: string,
   createdAt = Date.now()
 ): WorkspaceChatMessage {
-  return createMessage('assistant', content, createdAt, undefined, 'system');
+  return createMessage('system', content, createdAt, undefined, 'system');
 }
 
 describe('WorkspaceChatSessionController', () => {
@@ -158,7 +158,7 @@ describe('WorkspaceChatSessionController', () => {
       createMessage,
       createSystemMessage,
       createWelcomeMessage: (context: WorkspaceChatCanvasSnapshot | null) =>
-        createMessage('assistant', `Welcome ${context?.canvasTitle ?? 'none'}`),
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
       getQuickActions: vi.fn(() => []),
       reply: vi.fn(() => deferred.promise),
     };
@@ -193,7 +193,7 @@ describe('WorkspaceChatSessionController', () => {
       createMessage,
       createSystemMessage,
       createWelcomeMessage: (context: WorkspaceChatCanvasSnapshot | null) =>
-        createMessage('assistant', `Welcome ${context?.canvasTitle ?? 'none'}`),
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
       getQuickActions: vi.fn(() => []),
       reply: vi.fn(async () => createMessage('assistant', 'Reply')),
     };
@@ -223,7 +223,7 @@ describe('WorkspaceChatSessionController', () => {
       createMessage,
       createSystemMessage,
       createWelcomeMessage: (context: WorkspaceChatCanvasSnapshot | null) =>
-        createMessage('assistant', `Welcome ${context?.canvasTitle ?? 'none'}`),
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
       getQuickActions: vi.fn(() => []),
       reply: vi.fn(async () => createMessage('assistant', 'Reply')),
     };
@@ -242,7 +242,7 @@ describe('WorkspaceChatSessionController', () => {
       createMessage,
       createSystemMessage,
       createWelcomeMessage: (context: WorkspaceChatCanvasSnapshot | null) =>
-        createMessage('assistant', `Welcome ${context?.canvasTitle ?? 'none'}`),
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
       getQuickActions: vi.fn(() => [
         {
           id: 'summarize',
@@ -272,7 +272,7 @@ describe('WorkspaceChatSessionController', () => {
     await controller.submitPrompt('Hello');
 
     expect(reply).toHaveBeenCalledTimes(1);
-    expect(reply.mock.calls[0]?.[1].rawSnapshot).toBeNull();
+    expect(reply.mock.calls[0]?.[0].snapshot).toBeNull();
   });
 
   it('restores the seed message after turning canvas context back on', () => {
@@ -280,7 +280,7 @@ describe('WorkspaceChatSessionController', () => {
       createMessage,
       createSystemMessage,
       createWelcomeMessage: (context: WorkspaceChatCanvasSnapshot | null) =>
-        createMessage('assistant', `Welcome ${context?.canvasTitle ?? 'none'}`),
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
       getQuickActions: vi.fn(() => []),
       reply: vi.fn(async () => createMessage('assistant', 'Reply')),
     };
@@ -302,7 +302,7 @@ describe('WorkspaceChatSessionController', () => {
       createMessage,
       createSystemMessage,
       createWelcomeMessage: (context: WorkspaceChatCanvasSnapshot | null) =>
-        createMessage('assistant', `Welcome ${context?.canvasTitle ?? 'none'}`),
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
       getQuickActions: vi.fn(() => []),
       reply,
     };
@@ -331,9 +331,10 @@ describe('WorkspaceChatSessionController', () => {
 
     expect(controller.getState().contextMode).toBe('selection');
     expect(reply).toHaveBeenCalledTimes(1);
-    expect(reply.mock.calls[0]?.[1].rawSnapshot?.selectionIds).toEqual(['goal-1']);
-    expect(reply.mock.calls[0]?.[1].rawSnapshot?.summary.selectedCount).toBe(1);
-    expect(reply.mock.calls[0]?.[1].profile).toBe('readiness-check');
+    expect(reply.mock.calls[0]?.[0].snapshot?.selectionIds).toEqual(['goal-1']);
+    expect(reply.mock.calls[0]?.[0].snapshot?.summary.selectedCount).toBe(1);
+    expect(reply.mock.calls[0]?.[0].profile).toBe('readiness-check');
+    expect(reply.mock.calls[0]?.[0].source).toBe('manual');
   });
 
   it('submits the provided snapshot as-is without repairing selection state', async () => {
@@ -342,7 +343,7 @@ describe('WorkspaceChatSessionController', () => {
       createMessage,
       createSystemMessage,
       createWelcomeMessage: (context: WorkspaceChatCanvasSnapshot | null) =>
-        createMessage('assistant', `Welcome ${context?.canvasTitle ?? 'none'}`),
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
       getQuickActions: vi.fn(() => []),
       reply,
     };
@@ -368,8 +369,7 @@ describe('WorkspaceChatSessionController', () => {
     );
 
     expect(reply).toHaveBeenCalledTimes(1);
-    expect(reply.mock.calls[0]?.[1].rawSnapshot).toBeNull();
-    expect(reply.mock.calls[0]?.[1].focus).toBeNull();
+    expect(reply.mock.calls[0]?.[0].snapshot).toBeNull();
   });
 
   it('persists context mode per conversation scope', () => {
@@ -377,7 +377,7 @@ describe('WorkspaceChatSessionController', () => {
       createMessage,
       createSystemMessage,
       createWelcomeMessage: (context: WorkspaceChatCanvasSnapshot | null) =>
-        createMessage('assistant', `Welcome ${context?.canvasTitle ?? 'none'}`),
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
       getQuickActions: vi.fn(() => []),
       reply: vi.fn(async () => createMessage('assistant', 'Reply')),
     };
@@ -408,7 +408,7 @@ describe('WorkspaceChatSessionController', () => {
       createMessage,
       createSystemMessage,
       createWelcomeMessage: (context: WorkspaceChatCanvasSnapshot | null) =>
-        createMessage('assistant', `Welcome ${context?.canvasTitle ?? 'none'}`),
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
       getQuickActions: vi.fn(() => []),
       reply: vi.fn(async () =>
         createMessage('assistant', 'I prepared a task for you.', Date.now(), [
@@ -456,7 +456,7 @@ describe('WorkspaceChatSessionController', () => {
       createMessage,
       createSystemMessage,
       createWelcomeMessage: (context: WorkspaceChatCanvasSnapshot | null) =>
-        createMessage('assistant', `Welcome ${context?.canvasTitle ?? 'none'}`),
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
       getQuickActions: vi.fn(() => []),
       reply: vi.fn(async () =>
         createMessage('assistant', 'I prepared a story for you.', Date.now(), [
@@ -509,7 +509,7 @@ describe('WorkspaceChatSessionController', () => {
       createMessage,
       createSystemMessage,
       createWelcomeMessage: (context: WorkspaceChatCanvasSnapshot | null) =>
-        createMessage('assistant', `Welcome ${context?.canvasTitle ?? 'none'}`),
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
       getQuickActions: vi.fn(() => []),
       reply,
     };
@@ -524,9 +524,9 @@ describe('WorkspaceChatSessionController', () => {
     await controller.regenerateMessage(originalReply!.id);
 
     expect(reply).toHaveBeenCalledTimes(2);
-    expect(reply.mock.calls[1]?.[0]).toBe('Explain checkout risks');
-    expect(reply.mock.calls[1]?.[2].map((message: WorkspaceChatMessage) => message.content))
-      .toEqual(['Welcome Canvas A', 'Explain checkout risks']);
+    expect(reply.mock.calls[1]?.[0].prompt).toBe('Explain checkout risks');
+    expect(reply.mock.calls[1]?.[0].source).toBe('manual');
+    expect(reply.mock.calls[1]?.[0].snapshot?.canvasTitle).toBe('Canvas A');
     expect(controller.getState().messages.map((message) => message.content)).toEqual([
       'Welcome Canvas A',
       'Explain checkout risks',

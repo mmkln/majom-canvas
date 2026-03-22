@@ -1,7 +1,6 @@
 import type {
   WorkspaceChatCanvasElement,
   WorkspaceChatCanvasSnapshot,
-  WorkspaceChatRecentActivityItem,
 } from '../workspaceChatEvents.ts';
 import type { WorkspaceChatContextMode } from './WorkspaceChatContextMode.ts';
 
@@ -14,8 +13,19 @@ export type WorkspaceChatProfile =
   | 'readiness-check'
   | 'general-question';
 
+export const WORKSPACE_CHAT_PROFILES: WorkspaceChatProfile[] = [
+  'summarize',
+  'review-selection',
+  'next-steps',
+  'breakdown',
+  'dependency-review',
+  'readiness-check',
+  'general-question',
+];
+
 export type WorkspaceChatMemoryState = {
   currentIntent: string | null;
+  conversationSummary: string | null;
   agreedFacts: string[];
   workingSet: string[];
   lastRecommendations: string[];
@@ -33,24 +43,20 @@ export type WorkspaceChatFocusItem = {
   }>;
 };
 
-export type WorkspaceChatAssembledContext = {
-  profile: WorkspaceChatProfile;
-  contextMode: WorkspaceChatContextMode;
-  rawSnapshot: WorkspaceChatCanvasSnapshot | null;
-  contextSummary: string;
-  workspaceSummary: string;
-  selection: WorkspaceChatCanvasElement[];
-  focus: WorkspaceChatFocusItem | null;
-  viewportItems: WorkspaceChatCanvasElement[];
-  recentActivity: WorkspaceChatRecentActivityItem[];
-  memory: WorkspaceChatMemoryState;
-  queryMatches: WorkspaceChatCanvasElement[];
-};
-
 export const EMPTY_WORKSPACE_CHAT_MEMORY_STATE: WorkspaceChatMemoryState = {
   currentIntent: null,
+  conversationSummary: null,
   agreedFacts: [],
   workingSet: [],
   lastRecommendations: [],
   updatedAt: null,
 };
+
+export function isWorkspaceChatProfile(
+  value: unknown
+): value is WorkspaceChatProfile {
+  return (
+    typeof value === 'string' &&
+    WORKSPACE_CHAT_PROFILES.includes(value as WorkspaceChatProfile)
+  );
+}

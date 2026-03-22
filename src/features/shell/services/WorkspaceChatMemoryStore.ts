@@ -1,4 +1,12 @@
-import type { WorkspaceChatAssembledContext, WorkspaceChatMemoryState } from './WorkspaceChatContextTypes.ts';
+import type { WorkspaceChatCanvasSnapshot } from '../workspaceChatEvents.ts';
+import {
+  summarizeWorkspaceChatCanvas,
+} from './WorkspaceChatContent.ts';
+import {
+  getFocusBundle,
+  getSelectedElements,
+} from './WorkspaceChatSnapshotLens.ts';
+import type { WorkspaceChatMemoryState } from './WorkspaceChatContextTypes.ts';
 import { EMPTY_WORKSPACE_CHAT_MEMORY_STATE } from './WorkspaceChatContextTypes.ts';
 
 export class WorkspaceChatMemoryStore {
@@ -20,12 +28,13 @@ export class WorkspaceChatMemoryStore {
     conversationKey: string;
     prompt: string;
     reply: string;
-    assembledContext: WorkspaceChatAssembledContext;
+    snapshot: WorkspaceChatCanvasSnapshot | null;
   }): WorkspaceChatMemoryState {
     const nextState: WorkspaceChatMemoryState = {
       currentIntent: params.prompt.trim().slice(0, 160) || null,
-      agreedFacts: this.buildAgreedFacts(params.assembledContext),
-      workingSet: this.buildWorkingSet(params.assembledContext),
+      conversationSummary: this.buildConversationSummary(params),
+      agreedFacts: this.buildAgreedFacts(params.snapshot),
+      workingSet: this.buildWorkingSet(params.snapshot),
       lastRecommendations: this.extractRecommendations(params.reply),
       updatedAt: Date.now(),
     };
@@ -33,33 +42,60 @@ export class WorkspaceChatMemoryStore {
     return nextState;
   }
 
+  private buildConversationSummary(params: {
+    prompt: string;
+    snapshot: WorkspaceChatCanvasSnapshot | null;
+  }): string | null {
+    const focusTitle = getFocusBundle(params.snapshot)?.item.title?.trim() ?? '';
+    const prompt = params.prompt.trim();
+    if (focusTitle.length > 0 && prompt.length > 0) {
+      return `${prompt.slice(0, 120)} | focus: ${focusTitle}`.slice(0, 180);
+    }
+    if (prompt.length > 0) {
+      return prompt.slice(0, 180);
+    }
+    return null;
+  }
+
   private buildAgreedFacts(
-    assembledContext: WorkspaceChatAssembledContext
+    snapshot: WorkspaceChatCanvasSnapshot | null
   ): string[] {
-    const facts = [assembledContext.workspaceSummary];
-    if (assembledContext.focus) {
+    if (!snapshot) {
+      return [];
+    }
+
+    const focus = getFocusBundle(snapshot);
+    const selection = getSelectedElements(snapshot);
+    const facts = [summarizeWorkspaceChatCanvas(snapshot)];
+    if (focus) {
       facts.push(
-        `Focus: ${assembledContext.focus.item.kind} "${assembledContext.focus.item.title || 'Untitled'}".`
+        `Focus: ${focus.item.kind} "${focus.item.title || 'Untitled'}".`
       );
     }
-    if (assembledContext.selection.length > 1) {
+    if (selection.length > 1) {
       facts.push(
-        `Selection includes ${assembledContext.selection.length} items.`
+        `Selection includes ${selection.length} items.`
       );
     }
     return facts.filter(Boolean).slice(0, 4);
   }
 
   private buildWorkingSet(
-    assembledContext: WorkspaceChatAssembledContext
+    snapshot: WorkspaceChatCanvasSnapshot | null
   ): string[] {
+    if (!snapshot) {
+      return [];
+    }
+
+    const selection = getSelectedElements(snapshot);
+    const focus = getFocusBundle(snapshot);
     const ids = new Set<string>();
-    assembledContext.selection.forEach((item) => ids.add(item.id));
-    assembledContext.focus?.children.forEach((item) => ids.add(item.id));
-    if (assembledContext.focus) {
-      ids.add(assembledContext.focus.item.id);
-      if (assembledContext.focus.parent) {
-        ids.add(assembledContext.focus.parent.id);
+    selection.forEach((item) => ids.add(item.id));
+    focus?.children.forEach((item) => ids.add(item.id));
+    if (focus) {
+      ids.add(focus.item.id);
+      if (focus.parent) {
+        ids.add(focus.parent.id);
       }
     }
     return Array.from(ids).slice(0, 8);

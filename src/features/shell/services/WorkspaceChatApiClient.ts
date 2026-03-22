@@ -1,22 +1,11 @@
 import { environment } from '../../../config/environment.ts';
-import type { WorkspaceChatAssembledContext } from './WorkspaceChatContextTypes.ts';
+import type { WorkspaceChatApiMessage } from './WorkspaceChatApiTypes.ts';
 import {
   WORKSPACE_CHAT_GROK_BASE_URL,
-  WORKSPACE_CHAT_GROK_MAX_HISTORY_MESSAGES,
   WORKSPACE_CHAT_GROK_MAX_TOKENS,
   WORKSPACE_CHAT_GROK_MODEL,
   WORKSPACE_CHAT_GROK_TEMPERATURE,
 } from './WorkspaceChatConfig.ts';
-import { buildWorkspaceChatApiMessages } from './WorkspaceChatPromptBuilder.ts';
-import type { WorkspaceChatMessage } from './WorkspaceChatTypes.ts';
-
-type WorkspaceChatApiRequest = {
-  prompt: string;
-  context: WorkspaceChatAssembledContext;
-  history: WorkspaceChatMessage[];
-  allowActions: boolean;
-  signal?: AbortSignal;
-};
 
 type GrokChatRequest = {
   model: string;
@@ -45,23 +34,25 @@ export class WorkspaceChatApiClient {
     return environment.grokApiKey.trim().length > 0;
   }
 
-  public async reply(request: WorkspaceChatApiRequest): Promise<string> {
+  public async completeText(
+    messages: WorkspaceChatApiMessage[],
+    options: {
+      signal?: AbortSignal;
+      model?: string;
+      temperature?: number;
+      maxTokens?: number;
+    } = {}
+  ): Promise<string> {
     const apiKey = environment.grokApiKey.trim();
     if (apiKey.length === 0) {
       throw new Error('Chat is not configured.');
     }
 
     const payload: GrokChatRequest = {
-      model: WORKSPACE_CHAT_GROK_MODEL,
-      messages: buildWorkspaceChatApiMessages(
-        request.prompt,
-        request.context,
-        request.history,
-        request.allowActions,
-        WORKSPACE_CHAT_GROK_MAX_HISTORY_MESSAGES
-      ),
-      temperature: WORKSPACE_CHAT_GROK_TEMPERATURE,
-      max_tokens: WORKSPACE_CHAT_GROK_MAX_TOKENS,
+      model: options.model ?? WORKSPACE_CHAT_GROK_MODEL,
+      messages,
+      temperature: options.temperature ?? WORKSPACE_CHAT_GROK_TEMPERATURE,
+      max_tokens: options.maxTokens ?? WORKSPACE_CHAT_GROK_MAX_TOKENS,
       stream: false,
     };
 
@@ -72,7 +63,7 @@ export class WorkspaceChatApiClient {
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(payload),
-      signal: request.signal,
+      signal: options.signal,
     });
 
     if (!response.ok) {
@@ -92,4 +83,5 @@ export class WorkspaceChatApiClient {
     }
     return content;
   }
+
 }

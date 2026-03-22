@@ -6,7 +6,6 @@ import type {
   WorkspaceChatActionExecutionResult,
   WorkspaceChatReviewFindings,
 } from '../workspaceChatActions.ts';
-import { WorkspaceChatContextAssembler } from './WorkspaceChatContextAssembler.ts';
 import {
   scopeWorkspaceChatContext,
   type WorkspaceChatContextMode,
@@ -14,10 +13,12 @@ import {
 import { WorkspaceChatMemoryStore } from './WorkspaceChatMemoryStore.ts';
 import { resolveWorkspaceChatProfile } from './WorkspaceChatProfileResolver.ts';
 import { WorkspaceChatPersistence } from './WorkspaceChatPersistence.ts';
+import type {
+  WorkspaceChatReplyRequest,
+  WorkspaceChatServiceLike,
+} from './WorkspaceChatService.ts';
 import { WorkspaceChatService } from './WorkspaceChatService.ts';
 import type {
-  WorkspaceChatAssembledContext,
-  WorkspaceChatMemoryState,
   WorkspaceChatProfile,
 } from './WorkspaceChatContextTypes.ts';
 import { EMPTY_WORKSPACE_CHAT_MEMORY_STATE } from './WorkspaceChatContextTypes.ts';
@@ -26,36 +27,7 @@ import type {
   WorkspaceChatQuickAction,
 } from './WorkspaceChatTypes.ts';
 import type { WorkspaceChatPreparedSubmission } from './WorkspaceChatPreparedSubmission.ts';
-
-type WorkspaceChatServiceLike = {
-  createMessage: (
-    role: 'assistant' | 'user',
-    content: string,
-    createdAt?: number,
-    actions?: WorkspaceChatAction[],
-    reviewFindings?: WorkspaceChatReviewFindings
-  ) => WorkspaceChatMessage;
-  createSystemMessage: (
-    content: string,
-    createdAt?: number
-  ) => WorkspaceChatMessage;
-  createWelcomeMessage: (
-    context: WorkspaceChatCanvasSnapshot | null
-  ) => WorkspaceChatMessage;
-  getQuickActions: (
-    context: WorkspaceChatCanvasSnapshot | null
-  ) => WorkspaceChatQuickAction[];
-  reply: (
-    prompt: string,
-    context: WorkspaceChatAssembledContext,
-    history: WorkspaceChatMessage[],
-    options?: {
-      signal?: AbortSignal;
-      allowActions?: boolean;
-      validationSnapshot?: WorkspaceChatCanvasSnapshot | null;
-    }
-  ) => Promise<WorkspaceChatMessage>;
-};
+import type { WorkspaceChatToolHost } from './WorkspaceChatToolTypes.ts';
 
 type WorkspaceChatSessionState = {
   conversationKey: string;
@@ -81,22 +53,24 @@ export type WorkspaceChatPanelState = {
 type WorkspaceChatSessionControllerOptions = {
   persistence?: WorkspaceChatPersistence;
   service?: WorkspaceChatServiceLike;
+  resolveLiveHost?: () => WorkspaceChatToolHost | null;
 };
 
 export class WorkspaceChatSessionController {
   private readonly persistence: WorkspaceChatPersistence;
   private readonly service: WorkspaceChatServiceLike;
-  private readonly contextAssembler = new WorkspaceChatContextAssembler();
   private readonly memoryStore = new WorkspaceChatMemoryStore();
   private readonly sessions = new Map<string, WorkspaceChatSessionState>();
   private readonly listeners = new Set<() => void>();
+  private readonly resolveLiveHost?: (() => WorkspaceChatToolHost | null) | undefined;
   private currentView: WorkspaceView = 'canvas';
   private context: WorkspaceChatCanvasSnapshot | null = null;
   private activeConversationKey = 'canvas:draft';
 
   constructor(options: WorkspaceChatSessionControllerOptions = {}) {
     this.persistence = options.persistence ?? new WorkspaceChatPersistence();
-    this.service = options.service ?? WorkspaceChatService;
+    this.service = options.service ?? new WorkspaceChatService();
+    this.resolveLiveHost = options.resolveLiveHost;
     this.switchConversationScope();
   }
 
@@ -198,12 +172,22 @@ export class WorkspaceChatSessionController {
     }
     this.refreshSeedMessageIfNeeded();
     this.emitChange();
-    await this.submitRequest(submission.prompt, submission.profile);
+    await this.submitRequest(submission.prompt, {
+      profile: submission.profile,
+      source: submission.source ?? 'manual',
+      intent: submission.intent,
+      liveHost: submission.liveHost ?? this.resolveLiveHost?.() ?? null,
+    });
   }
 
   private async submitRequest(
     prompt: string,
-    profileOverride?: WorkspaceChatProfile
+    options: {
+      profile?: WorkspaceChatProfile;
+      source?: 'manual' | 'intent';
+      intent?: WorkspaceChatPreparedSubmission['intent'];
+      liveHost?: WorkspaceChatToolHost | null;
+    } = {}
   ): Promise<void> {
     const trimmed = prompt.trim();
     if (trimmed.length === 0) return;
@@ -226,37 +210,32 @@ export class WorkspaceChatSessionController {
     session.abortController = abortController;
     this.emitChange();
 
-    const historySnapshot = session.messages.slice();
     const contextSnapshot = this.getScopedContext(session);
     const memorySnapshot = contextSnapshot
       ? this.memoryStore.get(conversationKey)
       : { ...EMPTY_WORKSPACE_CHAT_MEMORY_STATE };
     const profile =
-      profileOverride ?? resolveWorkspaceChatProfile(trimmed, contextSnapshot);
-    const assembledContext = this.contextAssembler.assemble({
-      prompt: trimmed,
-      snapshot: contextSnapshot,
-      memory: memorySnapshot,
-      contextMode: session.contextMode,
-      profile,
-    });
+      options.profile ?? resolveWorkspaceChatProfile(trimmed, contextSnapshot);
 
     try {
-      const reply = await this.service.reply(
-        trimmed,
-        assembledContext,
-        historySnapshot,
-        {
-          signal: abortController?.signal,
-          allowActions: this.currentView === 'canvas',
-          validationSnapshot: contextSnapshot,
-        }
-      );
+      const reply = await this.service.reply({
+        prompt: trimmed,
+        source: options.source ?? 'manual',
+        intent: options.intent,
+        profile,
+        contextMode: session.contextMode,
+        memory: memorySnapshot,
+        snapshot: contextSnapshot,
+        validationSnapshot: contextSnapshot,
+        allowActions: this.currentView === 'canvas',
+        liveHost: options.liveHost ?? this.resolveLiveHost?.() ?? null,
+        signal: abortController?.signal,
+      });
       this.memoryStore.updateAfterReply({
         conversationKey,
         prompt: trimmed,
         reply: reply.content,
-        assembledContext,
+        snapshot: contextSnapshot,
       });
       this.commitReply(conversationKey, requestId, reply);
     } catch (error) {
@@ -313,32 +292,27 @@ export class WorkspaceChatSessionController {
     this.emitChange();
 
     const prompt = promptMessage.content.trim();
-    const historySnapshot = session.messages.slice();
     const contextSnapshot = this.getScopedContext(session);
-    const assembledContext = this.contextAssembler.assemble({
-      prompt,
-      snapshot: contextSnapshot,
-      memory: { ...EMPTY_WORKSPACE_CHAT_MEMORY_STATE },
-      contextMode: session.contextMode,
-      profile: resolveWorkspaceChatProfile(prompt, contextSnapshot),
-    });
+    const profile = resolveWorkspaceChatProfile(prompt, contextSnapshot);
 
     try {
-      const reply = await this.service.reply(
+      const reply = await this.service.reply({
         prompt,
-        assembledContext,
-        historySnapshot,
-        {
-          signal: abortController?.signal,
-          allowActions: this.currentView === 'canvas',
-          validationSnapshot: contextSnapshot,
-        }
-      );
+        source: 'manual',
+        profile,
+        contextMode: session.contextMode,
+        memory: { ...EMPTY_WORKSPACE_CHAT_MEMORY_STATE },
+        snapshot: contextSnapshot,
+        validationSnapshot: contextSnapshot,
+        allowActions: this.currentView === 'canvas',
+        liveHost: this.resolveLiveHost?.() ?? null,
+        signal: abortController?.signal,
+      });
       this.memoryStore.updateAfterReply({
         conversationKey,
         prompt,
         reply: reply.content,
-        assembledContext,
+        snapshot: contextSnapshot,
       });
       this.commitReply(conversationKey, requestId, reply);
     } catch (error) {
@@ -502,7 +476,7 @@ export class WorkspaceChatSessionController {
     const canReplaceSeed =
       session.messages.length === 0 ||
       (session.messages.length === 1 &&
-        session.messages[0]?.role === 'assistant');
+        session.messages[0]?.role === 'system');
     if (hasUserMessages || !canReplaceSeed) return;
     session.messages = this.createSeedMessages(session);
     this.persistence.saveConversation(session.conversationKey, session.messages);

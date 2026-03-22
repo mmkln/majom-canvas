@@ -4,6 +4,7 @@ import type {
   WorkspaceChatActionExecutionResult,
 } from '../shell/workspaceChatActions.ts';
 import type { WorkspaceChatCanvasSnapshot } from '../shell/workspaceChatEvents.ts';
+import type { WorkspaceChatToolHost } from '../shell/services/WorkspaceChatToolTypes.ts';
 import { CanvasApp } from './CanvasApp.ts';
 import { LocalStorageDataProvider } from './core/data/LocalStorageDataProvider.ts';
 
@@ -60,5 +61,9 @@ export class CanvasModule implements WorkspaceModule {
 
   public getWorkspaceChatSnapshot(): WorkspaceChatCanvasSnapshot | null {
     return this.app?.getWorkspaceChatSnapshot() ?? null;
+  }
+
+  public getWorkspaceChatToolHost(): WorkspaceChatToolHost | null {
+    return this.app;
   }
 }

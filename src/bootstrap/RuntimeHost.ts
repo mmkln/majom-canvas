@@ -33,6 +33,8 @@ import type {
   WorkspaceChatActionExecutionResult,
 } from '../features/shell/workspaceChatActions.ts';
 import { resolveWorkspaceChatIntentSubmission } from '../features/shell/services/WorkspaceChatIntentResolver.ts';
+import { createWorkspaceChatRuntime } from '../features/shell/services/WorkspaceChatRuntime.ts';
+import { WorkspaceChatSessionController } from '../features/shell/services/WorkspaceChatSessionController.ts';
 
 const KANBAN_MODULE_IMPORT_PATH = '../features/kanban/KanbanModule.ts';
 const CHAT_ISLAND_GAP_PX = 8;
@@ -54,6 +56,7 @@ export class RuntimeHost {
   private currentWallpaperUrl = '';
   private readonly viewSwitcher: WorkspaceViewSwitcher;
   private readonly chatPanel: GlobalChatPanel;
+  private readonly chatController: WorkspaceChatSessionController;
   private activeView: WorkspaceView = 'canvas';
   private chatOpen = false;
   private hostVisible = false;
@@ -112,7 +115,13 @@ export class RuntimeHost {
       showKanban: KANBAN_DEV_ENABLED,
       showRoutines: ROUTINES_ENABLED,
     });
+    const chatRuntime = createWorkspaceChatRuntime({
+      resolveLiveHost: () =>
+        this.shell?.getActiveModule()?.getWorkspaceChatToolHost?.() ?? null,
+    });
+    this.chatController = chatRuntime.controller;
     this.chatPanel = new GlobalChatPanel({
+      controller: this.chatController,
       executeAction: (request) => this.executeChatAction(request),
     });
     this.chatPanel.mount(document.body);
@@ -244,6 +253,7 @@ export class RuntimeHost {
     this.workspaceRoot.remove();
     this.workspaceBackdrop.remove();
     this.chatPanel.unmount();
+    this.chatController.dispose();
   }
 
   public showCanvas(): void {

@@ -75,6 +75,8 @@ describe('resolveWorkspaceChatIntentSubmission', () => {
     );
 
     expect(submission.contextMode).toBe('selection');
+    expect(submission.source).toBe('intent');
+    expect(submission.intent).toBe('missing');
     expect(submission.profile).toBe('readiness-check');
     expect(submission.snapshot?.selectionIds).toEqual(['goal-1']);
     expect(submission.snapshot?.focusId).toBe('goal-1');
@@ -99,6 +101,8 @@ describe('resolveWorkspaceChatIntentSubmission', () => {
     );
 
     expect(submission.contextMode).toBe('canvas');
+    expect(submission.source).toBe('intent');
+    expect(submission.intent).toBe('review');
     expect(submission.profile).toBe('review-selection');
     expect(submission.snapshot?.selectionIds).toEqual(['goal-1']);
     expect(submission.prompt).toContain('current canvas structure');

@@ -89,7 +89,13 @@ export class WorkspaceChatPersistence {
     if (!value || typeof value !== 'object') return null;
     const message = value as Partial<WorkspaceChatMessage>;
     if (typeof message.id !== 'string') return null;
-    if (message.role !== 'assistant' && message.role !== 'user') return null;
+    if (
+      message.role !== 'assistant' &&
+      message.role !== 'user' &&
+      message.role !== 'system'
+    ) {
+      return null;
+    }
     if (typeof message.content !== 'string') return null;
     if (typeof message.createdAt !== 'number') return null;
     const actions = Array.isArray(message.actions)
@@ -103,7 +109,10 @@ export class WorkspaceChatPersistence {
     return {
       id: message.id,
       role: message.role,
-      kind: message.kind === 'system' ? 'system' : 'default',
+      kind:
+        message.kind === 'system' || message.role === 'system'
+          ? 'system'
+          : 'default',
       content: message.content,
       createdAt: message.createdAt,
       actions: actions && actions.length > 0 ? actions : undefined,

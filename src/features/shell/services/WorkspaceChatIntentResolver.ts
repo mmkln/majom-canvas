@@ -26,6 +26,8 @@ export function resolveWorkspaceChatIntentSubmission(
     prompt: buildWorkspaceChatIntentPrompt(detail.intent, selection),
     snapshot: resolvedSnapshot,
     contextMode: scope === 'selection' ? 'selection' : 'canvas',
+    source: 'intent',
+    intent: detail.intent,
     profile: getWorkspaceChatIntentProfile(detail.intent),
   };
 }
