@@ -22,3 +22,5 @@ export const ROUTINES_ENABLED =
   parseOptionalBoolean(import.meta.env.VITE_ENABLE_ROUTINES) ?? true;
 export const API_URL =
   parseOptionalString(import.meta.env.VITE_API_URL) ?? DEFAULT_API_URL;
+export const GROK_API_KEY =
+  parseOptionalString(import.meta.env.VITE_GROK_API_KEY) ?? '';

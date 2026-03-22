@@ -1,4 +1,4 @@
-import { API_URL } from './env/index.ts';
+import { API_URL, GROK_API_KEY } from './env/index.ts';
 
 /**
  * Legacy environment object shape used across the app.
@@ -6,4 +6,5 @@ import { API_URL } from './env/index.ts';
  */
 export const environment = {
   apiUrl: API_URL,
+  grokApiKey: GROK_API_KEY,
 } as const;

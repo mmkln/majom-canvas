@@ -31,6 +31,7 @@ import {
 } from './core/interfaces/connection.ts';
 import { notify } from './core/services/NotificationService.ts';
 import { CanvasClientStorage } from './core/services/CanvasClientStorage.ts';
+import { ChatCanvasActionExecutor } from './core/services/ChatCanvasActionExecutor.ts';
 import {
   CANVAS_LINK_LIFECYCLE_EVENT,
   isCanvasLinkLifecycleDetail,
@@ -47,9 +48,21 @@ import {
 import { confirmReplaceStoryGoalModal } from './ui/components/ConfirmReplaceStoryGoalModal.ts';
 import { confirmDeleteCanvasModal } from './ui/components/ConfirmDeleteCanvasModal.ts';
 import { authFlowService } from './ui/auth/authFlowService.ts';
+import {
+  emitWorkspaceChatContextChanged,
+  type WorkspaceChatCanvasElement,
+  type WorkspaceChatCanvasSnapshot,
+  type WorkspaceChatConnectionEdge,
+  type WorkspaceChatRecentActivityItem,
+  type WorkspaceChatSelectionItem,
+} from '../shell/workspaceChatEvents.ts';
 import { firstValueFrom, Observable, of, Subscription, throwError } from 'rxjs';
 import { catchError, finalize, map, switchMap } from 'rxjs/operators';
 import type { UiPriority } from '../../majom-wrapper/utils/priorityMapping.ts';
+import type {
+  WorkspaceChatActionExecutionRequest,
+  WorkspaceChatActionExecutionResult,
+} from '../shell/workspaceChatActions.ts';
 
 type CanvasListUiItem = {
   id: string;
@@ -76,6 +89,7 @@ export class CanvasApp {
   private readonly authService: AuthService;
   private readonly uiManager: UIManager;
   private readonly canvasDataService: CanvasDataService;
+  private readonly chatCanvasActionExecutor: ChatCanvasActionExecutor;
   private canvasTitle: string = 'New canvas';
   private autosaveTimer: number | null = null;
   private autosaveEnabled = CanvasClientStorage.getCanvasAutosaveEnabled(true);
@@ -91,6 +105,9 @@ export class CanvasApp {
   private elementUpdateStatusSubscription: Subscription | null = null;
   private destroyed = false;
   private readonly canvasListCache = new Map<string, CanvasListCacheItem>();
+  private workspaceChatPreviousSnapshot: WorkspaceChatCanvasSnapshot | null = null;
+  private workspaceChatRecentActivity: WorkspaceChatRecentActivityItem[] = [];
+  private workspaceChatViewportSyncTimer: number | null = null;
 
   private readonly refreshCanvasDataHandler = (): void =>
     this.loadCanvasFromApi();
@@ -154,6 +171,10 @@ export class CanvasApp {
       this.scene,
       this.authService
     );
+    this.chatCanvasActionExecutor = new ChatCanvasActionExecutor({
+      scene: this.scene,
+      canvasManager: this.canvasManager,
+    });
     this.uiManager.mountAll(document.body);
 
     this.elementUpdateStatusSubscription =
@@ -628,12 +649,15 @@ export class CanvasApp {
     this.viewChangesSubscription = panZoom.viewChanges.subscribe((state) => {
       const activeCanvasId = this.canvasDataService.getActiveCanvasId();
       void this.dataProvider.saveViewState(state, activeCanvasId);
+      this.scheduleWorkspaceChatContextEmit();
     });
     // Auto-save diagram on content change
     this.sceneChangesSubscription = this.scene.changes.subscribe(() => {
       if (this.isHydratingCanvas) return;
       void this.diagramRepository.saveDiagram(this.scene);
+      this.emitWorkspaceChatContext();
     });
+    this.emitWorkspaceChatContext();
     this.startAutosave();
   }
 
@@ -648,12 +672,58 @@ export class CanvasApp {
     this.activeCanvasRelationsSubscription = null;
     this.viewChangesSubscription?.unsubscribe();
     this.viewChangesSubscription = null;
+    if (this.workspaceChatViewportSyncTimer !== null) {
+      window.clearTimeout(this.workspaceChatViewportSyncTimer);
+      this.workspaceChatViewportSyncTimer = null;
+    }
     this.sceneChangesSubscription?.unsubscribe();
     this.sceneChangesSubscription = null;
     this.elementUpdateStatusSubscription?.unsubscribe();
     this.elementUpdateStatusSubscription = null;
+    this.clearWorkspaceChatContext();
     this.uiManager.unmountAll();
     this.canvasManager.destroy();
+  }
+
+  public executeChatAction(
+    request: WorkspaceChatActionExecutionRequest
+  ): Promise<WorkspaceChatActionExecutionResult> {
+    return this.chatCanvasActionExecutor.execute(request);
+  }
+
+  public getWorkspaceChatSnapshot(): WorkspaceChatCanvasSnapshot {
+    const planningElements = this.scene
+      .getElements()
+      .filter(isPlanningElement);
+    const detail: WorkspaceChatCanvasSnapshot = {
+      canvasId: this.canvasDataService.getActiveCanvasId(),
+      canvasTitle: this.canvasTitle,
+      summary: {
+        goalCount: planningElements.filter((element) => element instanceof GoalElement)
+          .length,
+        storyCount: planningElements.filter((element) => element instanceof StoryElement)
+          .length,
+        taskCount: planningElements.filter((element) => element instanceof TaskElement)
+          .length,
+        selectedCount: this.scene
+          .getSelectedElements()
+          .filter(isPlanningElement).length,
+      },
+      selectionIds: this.scene
+        .getSelectedElements()
+        .filter(isPlanningElement)
+        .map((element) => element.id),
+      focusId: this.getPlanningFocusId(),
+      highlightedIds: this.scene
+        .getHighlightedElementIds()
+        .filter((id) => planningElements.some((element) => element.id === id)),
+      elements: this.buildWorkspaceChatElements(planningElements),
+      connections: this.buildWorkspaceChatConnections(planningElements),
+      viewport: this.buildWorkspaceChatViewport(planningElements),
+      recentActivity: [],
+    };
+    detail.recentActivity = this.computeWorkspaceChatRecentActivity(detail);
+    return detail;
   }
 
   private loadCanvasFromApi(): void {
@@ -955,6 +1025,7 @@ export class CanvasApp {
     this.setElementsHydrating(true);
     this.canvasManager.setLoadPhase('loading');
     this.scene.clear();
+    this.emitWorkspaceChatContext();
     this.canvasManager.clearLoadingPlaceholders();
     const loadOptions = this.buildCanvasLoadOptions();
     this.activeCanvasElementsSubscription = this.canvasDataService
@@ -1045,6 +1116,7 @@ export class CanvasApp {
     elements: Array<TaskElement | StoryElement | GoalElement>
   ): void {
     this.scene.replaceElements(isPlanningElement, elements);
+    this.emitWorkspaceChatContext();
   }
 
   private buildCanvasLoadOptions(): CanvasElementsLoadOptions {
@@ -1232,6 +1304,345 @@ export class CanvasApp {
     window.dispatchEvent(
       new CustomEvent('canvasTitleChanged', { detail: { title } })
     );
+    this.emitWorkspaceChatContext();
+  }
+
+  private emitWorkspaceChatContext(): void {
+    emitWorkspaceChatContextChanged(this.getWorkspaceChatSnapshot());
+  }
+
+  private scheduleWorkspaceChatContextEmit(): void {
+    if (this.workspaceChatViewportSyncTimer !== null) {
+      window.clearTimeout(this.workspaceChatViewportSyncTimer);
+    }
+    this.workspaceChatViewportSyncTimer = window.setTimeout(() => {
+      this.workspaceChatViewportSyncTimer = null;
+      this.emitWorkspaceChatContext();
+    }, 120);
+  }
+
+  private clearWorkspaceChatContext(): void {
+    this.workspaceChatPreviousSnapshot = null;
+    this.workspaceChatRecentActivity = [];
+    emitWorkspaceChatContextChanged({
+      canvasId: null,
+      canvasTitle: '',
+      summary: {
+        goalCount: 0,
+        storyCount: 0,
+        taskCount: 0,
+        selectedCount: 0,
+      },
+      selectionIds: [],
+      focusId: null,
+      highlightedIds: [],
+      elements: [],
+      connections: [],
+      viewport: null,
+      recentActivity: [],
+    });
+  }
+
+  private mapWorkspaceChatSelectionItem(
+    element: GoalElement | StoryElement | TaskElement
+  ): WorkspaceChatSelectionItem {
+    if (element instanceof GoalElement) {
+      return {
+        id: element.id,
+        kind: 'goal',
+        title: element.title,
+        description: element.description ?? '',
+        status: element.status,
+        priority: element.priority,
+      };
+    }
+
+    if (element instanceof StoryElement) {
+      return {
+        id: element.id,
+        kind: 'story',
+        title: element.title,
+        description: element.description ?? '',
+        status: element.status,
+        priority: element.priority,
+        childCount: element.tasks.length,
+      };
+    }
+
+    return {
+      id: element.id,
+      kind: 'task',
+      title: element.title,
+      description: element.description ?? '',
+      status: element.status,
+      priority: element.priority,
+    };
+  }
+
+  private buildWorkspaceChatElements(
+    planningElements: Array<TaskElement | StoryElement | GoalElement>
+  ): WorkspaceChatCanvasElement[] {
+    const goals = planningElements.filter(
+      (element): element is GoalElement => element instanceof GoalElement
+    );
+    const stories = planningElements.filter(
+      (element): element is StoryElement => element instanceof StoryElement
+    );
+    const tasks = planningElements.filter(
+      (element): element is TaskElement => element instanceof TaskElement
+    );
+    const goalByBackendId = new Map<number, GoalElement>();
+    goals.forEach((goal) => {
+      if (typeof goal.backendId === 'number') {
+        goalByBackendId.set(goal.backendId, goal);
+      }
+    });
+    const refToPlanningId = this.buildWorkspaceChatElementRefMap(planningElements);
+
+    const storyParentById = new Map<string, string | null>();
+    stories.forEach((story) => {
+      const backendGoal = Number.isFinite(story.goalBackendId)
+        ? goalByBackendId.get(Number(story.goalBackendId))
+        : undefined;
+      storyParentById.set(story.id, backendGoal?.id ?? null);
+    });
+    this.scene
+      .getConnections()
+      .filter((connection) => connection.relationType === ConnectionRelationType.ParentChild)
+      .forEach((connection) => {
+        const fromId = refToPlanningId.get(connection.fromId);
+        const toId = refToPlanningId.get(connection.toId);
+        if (!fromId || !toId) return;
+        const fromEl = planningElements.find((element) => element.id === fromId);
+        const toEl = planningElements.find((element) => element.id === toId);
+        if (!(fromEl instanceof GoalElement) || !(toEl instanceof StoryElement)) return;
+        storyParentById.set(toEl.id, fromEl.id);
+      });
+
+    const taskParentById = new Map<string, string | null>();
+    stories.forEach((story) => {
+      story.tasks.forEach((task) => {
+        taskParentById.set(task.id, story.id);
+      });
+    });
+    tasks.forEach((task) => {
+      if (!taskParentById.has(task.id)) {
+        taskParentById.set(task.id, null);
+      }
+    });
+
+    const storyChildIds = new Map<string, string[]>();
+    stories.forEach((story) => {
+      storyChildIds.set(
+        story.id,
+        story.tasks.map((task) => task.id)
+      );
+    });
+
+    const goalChildIds = new Map<string, string[]>();
+    goals.forEach((goal) => goalChildIds.set(goal.id, []));
+    stories.forEach((story) => {
+      const parentId = storyParentById.get(story.id);
+      if (!parentId) return;
+      const current = goalChildIds.get(parentId) ?? [];
+      current.push(story.id);
+      goalChildIds.set(parentId, current);
+    });
+
+    return planningElements.map((element) => {
+      const base = this.mapWorkspaceChatSelectionItem(element);
+      const parentId =
+        element instanceof GoalElement
+          ? null
+          : element instanceof StoryElement
+            ? storyParentById.get(element.id) ?? null
+            : taskParentById.get(element.id) ?? null;
+      const childIds =
+        element instanceof GoalElement
+          ? goalChildIds.get(element.id) ?? []
+          : element instanceof StoryElement
+            ? storyChildIds.get(element.id) ?? []
+            : [];
+      return {
+        ...base,
+        parentId,
+        childIds,
+        selected: element.selected,
+        focused: this.scene.isFocused(element),
+        highlighted: this.scene.isHighlighted(element),
+      };
+    });
+  }
+
+  private buildWorkspaceChatConnections(
+    planningElements: Array<TaskElement | StoryElement | GoalElement>
+  ): WorkspaceChatConnectionEdge[] {
+    const refToPlanningId = this.buildWorkspaceChatElementRefMap(planningElements);
+    return this.scene
+      .getConnections()
+      .map((connection) => {
+        const fromId = refToPlanningId.get(connection.fromId);
+        const toId = refToPlanningId.get(connection.toId);
+        if (!fromId || !toId) return null;
+        return {
+          id: connection.id,
+          fromId,
+          toId,
+          relationType: connection.relationType,
+        };
+      })
+      .filter((connection): connection is WorkspaceChatConnectionEdge =>
+        Boolean(connection)
+      );
+  }
+
+  private buildWorkspaceChatElementRefMap(
+    planningElements: Array<TaskElement | StoryElement | GoalElement>
+  ): Map<string, string> {
+    const refToPlanningId = new Map<string, string>();
+    planningElements.forEach((element) => {
+      refToPlanningId.set(element.id, element.id);
+      if (element.uuid) {
+        refToPlanningId.set(element.uuid, element.id);
+      }
+    });
+    return refToPlanningId;
+  }
+
+  private buildWorkspaceChatViewport(
+    planningElements: Array<TaskElement | StoryElement | GoalElement>
+  ): WorkspaceChatCanvasSnapshot['viewport'] {
+    const panZoom = this.canvasManager.getPanZoomManager();
+    const canvas = this.canvasManager.getCanvas();
+    const scale = panZoom.scale || 1;
+    const minX = panZoom.scrollX / scale;
+    const minY = panZoom.scrollY / scale;
+    const maxX = (panZoom.scrollX + canvas.width) / scale;
+    const maxY = (panZoom.scrollY + canvas.height) / scale;
+    const visibleElementIds = planningElements
+      .filter((element) => {
+        const right = element.x + element.width;
+        const bottom = element.y + element.height;
+        return (
+          right >= minX &&
+          element.x <= maxX &&
+          bottom >= minY &&
+          element.y <= maxY
+        );
+      })
+      .map((element) => element.id);
+    return {
+      minX,
+      minY,
+      maxX,
+      maxY,
+      visibleElementIds,
+    };
+  }
+
+  private getPlanningFocusId(): string | null {
+    const focusedId = this.scene.getFocusedElementId();
+    if (!focusedId) return null;
+    const focused = this.scene
+      .getElements()
+      .find((element) => element.id === focusedId);
+    return focused && isPlanningElement(focused) ? focused.id : null;
+  }
+
+  private computeWorkspaceChatRecentActivity(
+    snapshot: WorkspaceChatCanvasSnapshot
+  ): WorkspaceChatRecentActivityItem[] {
+    const previous = this.workspaceChatPreviousSnapshot;
+    const nextItems = this.createWorkspaceChatActivityDiff(previous, snapshot);
+    this.workspaceChatRecentActivity = [...nextItems, ...this.workspaceChatRecentActivity]
+      .slice(0, 8);
+    this.workspaceChatPreviousSnapshot = snapshot;
+    return this.workspaceChatRecentActivity;
+  }
+
+  private createWorkspaceChatActivityDiff(
+    previous: WorkspaceChatCanvasSnapshot | null,
+    next: WorkspaceChatCanvasSnapshot
+  ): WorkspaceChatRecentActivityItem[] {
+    if (!previous) return [];
+    const timestamp = Date.now();
+    const activity: WorkspaceChatRecentActivityItem[] = [];
+    const previousById = new Map(previous.elements.map((item) => [item.id, item]));
+    const nextById = new Map(next.elements.map((item) => [item.id, item]));
+
+    next.elements.forEach((item) => {
+      if (!previousById.has(item.id)) {
+        activity.push({
+          id: `chat-activity-added-${item.id}-${timestamp}`,
+          type: 'added',
+          label: `Added ${item.kind} "${item.title || 'Untitled'}"`,
+          entityIds: [item.id],
+          timestamp,
+        });
+      }
+    });
+
+    previous.elements.forEach((item) => {
+      if (!nextById.has(item.id)) {
+        activity.push({
+          id: `chat-activity-removed-${item.id}-${timestamp}`,
+          type: 'removed',
+          label: `Removed ${item.kind} "${item.title || 'Untitled'}"`,
+          entityIds: [item.id],
+          timestamp,
+        });
+      }
+    });
+
+    if (previous.focusId !== next.focusId) {
+      const focused = next.focusId ? nextById.get(next.focusId) : null;
+      activity.push({
+        id: `chat-activity-focus-${next.focusId ?? 'none'}-${timestamp}`,
+        type: 'focus',
+        label: focused
+          ? `Focused ${focused.kind} "${focused.title || 'Untitled'}"`
+          : 'Cleared focus',
+        entityIds: focused ? [focused.id] : [],
+        timestamp,
+      });
+    }
+
+    const previousSelection = previous.selectionIds.join('|');
+    const nextSelection = next.selectionIds.join('|');
+    if (previousSelection !== nextSelection) {
+      activity.push({
+        id: `chat-activity-selection-${timestamp}`,
+        type: 'selection',
+        label:
+          next.selectionIds.length > 0
+            ? `Selection changed to ${next.selectionIds.length} item${next.selectionIds.length === 1 ? '' : 's'}`
+            : 'Cleared selection',
+        entityIds: next.selectionIds,
+        timestamp,
+      });
+    }
+
+    next.elements.forEach((item) => {
+      const previousItem = previousById.get(item.id);
+      if (!previousItem) return;
+      if (
+        previousItem.title !== item.title ||
+        previousItem.status !== item.status ||
+        previousItem.priority !== item.priority ||
+        previousItem.parentId !== item.parentId ||
+        previousItem.childCount !== item.childCount
+      ) {
+        activity.push({
+          id: `chat-activity-updated-${item.id}-${timestamp}`,
+          type: 'updated',
+          label: `Updated ${item.kind} "${item.title || 'Untitled'}"`,
+          entityIds: [item.id],
+          timestamp,
+        });
+      }
+    });
+
+    return activity.slice(0, 4);
   }
 
   private mapCanvasListUiItem(canvas: {

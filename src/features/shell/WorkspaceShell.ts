@@ -30,4 +30,17 @@ export class WorkspaceShell {
   public getActiveView(): WorkspaceView | null {
     return this.activeView;
   }
+
+  public getActiveModule(): WorkspaceModule | null {
+    if (!this.activeView) return null;
+    return this.modules.get(this.activeView) ?? null;
+  }
+
+  public dispose(): void {
+    if (this.activeView) {
+      this.modules.get(this.activeView)?.unmount();
+    }
+    this.modules.clear();
+    this.activeView = null;
+  }
 }

@@ -37,6 +37,7 @@
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "gh-pages": "^5.0.0",
+    "jsdom": "^29.0.1",
     "prettier": "^3.5.1",
     "typescript": "^5.0.0",
     "typescript-eslint": "^8.53.1",
@@ -45,7 +46,9 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.3",
+    "dompurify": "^3.3.3",
     "jwt-decode": "^4.0.0",
+    "marked": "^17.0.5",
     "rxjs": "^7.8.2",
     "rxjs-http-client": "^8.0.0",
     "tailwind-merge": "^3.2.0",

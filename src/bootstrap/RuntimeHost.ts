@@ -1,4 +1,5 @@
 import { Subscription } from 'rxjs';
+import { GLOBAL_APP_HEADER_HEIGHT_PX } from './GlobalAppHeader.ts';
 import { KANBAN_DEV_ENABLED, ROUTINES_ENABLED } from '../config/env/index.ts';
 import { CanvasModule } from '../features/canvas/CanvasModule.ts';
 import { WallpaperService } from '../features/shell/services/WallpaperService.ts';
@@ -10,17 +11,33 @@ import {
   isWorkspaceViewChangeRequestDetail,
 } from '../features/shell/workspaceEvents.ts';
 import {
+  WORKSPACE_CHAT_INTENT_REQUEST_EVENT,
   WORKSPACE_CHAT_TOGGLE_REQUEST_EVENT,
+  WORKSPACE_CHAT_PROMPT_REQUEST_EVENT,
   emitWorkspaceChatVisibilityChanged,
+  isWorkspaceChatIntentRequestDetail,
+  isWorkspaceChatPromptRequestDetail,
   isWorkspaceChatToggleRequestDetail,
 } from '../features/shell/workspaceChatEvents.ts';
+import {
+  loadPersistedWorkspaceChatOpen,
+  loadPersistedWorkspaceView,
+  persistWorkspaceChatOpen,
+  persistWorkspaceView,
+} from '../features/shell/workspaceUiState.ts';
 import type { WorkspaceView } from '../features/shell/WorkspaceView.ts';
 import { WorkspaceViewSwitcher } from '../features/shell/WorkspaceViewSwitcher.ts';
 import { GlobalChatPanel } from '../features/shell/components/GlobalChatPanel.ts';
+import type {
+  WorkspaceChatActionExecutionRequest,
+  WorkspaceChatActionExecutionResult,
+} from '../features/shell/workspaceChatActions.ts';
+import { resolveWorkspaceChatIntentSubmission } from '../features/shell/services/WorkspaceChatIntentResolver.ts';
 
-const ACTIVE_VIEW_STORAGE_KEY = 'workspace-active-view';
-const CHAT_OPEN_STORAGE_KEY = 'workspace-chat-open';
 const KANBAN_MODULE_IMPORT_PATH = '../features/kanban/KanbanModule.ts';
+const CHAT_ISLAND_GAP_PX = 8;
+const CHAT_ISLAND_MARGIN_PX = 8;
+const CHAT_ISLAND_RADIUS_PX = 22;
 
 type KanbanModuleNamespace = {
   KanbanModule: new () => WorkspaceModule;
@@ -30,6 +47,7 @@ export class RuntimeHost {
   private shell: WorkspaceShell | null = null;
   private canvasModule: CanvasModule | null = null;
   private kanbanModule: WorkspaceModule | null = null;
+  private readonly workspaceBackdrop: HTMLDivElement;
   private readonly workspaceRoot: HTMLDivElement;
   private readonly wallpaperService: WallpaperService;
   private readonly wallpaperSubscription: Subscription;
@@ -40,23 +58,42 @@ export class RuntimeHost {
   private chatOpen = false;
   private hostVisible = false;
   private starting = false;
+  private layoutSyncTimer: number | null = null;
+  private workspaceResizeObserver: ResizeObserver | null = null;
   private readonly viewChangeHandler: (event: Event) => void;
   private readonly chatToggleHandler: (event: Event) => void;
+  private readonly chatPromptHandler: (event: Event) => void;
+  private readonly chatIntentHandler: (event: Event) => void;
+  private readonly windowResizeHandler: () => void;
 
   constructor(wallpaperService: WallpaperService) {
     this.wallpaperService = wallpaperService;
+    this.workspaceBackdrop = document.createElement('div');
+    this.workspaceBackdrop.id = 'workspace-backdrop';
+    this.workspaceBackdrop.style.position = 'fixed';
+    this.workspaceBackdrop.style.inset = '0';
+    this.workspaceBackdrop.style.zIndex = '34';
+    this.workspaceBackdrop.style.display = 'none';
+    this.workspaceBackdrop.style.pointerEvents = 'none';
+    this.workspaceBackdrop.style.background = '#e9eef4';
+    document.body.appendChild(this.workspaceBackdrop);
+
     this.workspaceRoot = document.createElement('div');
     this.workspaceRoot.id = 'workspace-modules-root';
     this.workspaceRoot.style.position = 'fixed';
-    this.workspaceRoot.style.inset = '0';
+    this.workspaceRoot.style.left = '0';
+    this.workspaceRoot.style.top = `${GLOBAL_APP_HEADER_HEIGHT_PX}px`;
+    this.workspaceRoot.style.right = '0';
+    this.workspaceRoot.style.bottom = '0';
     this.workspaceRoot.style.width = '100vw';
-    this.workspaceRoot.style.height = '100vh';
+    this.workspaceRoot.style.height = `calc(100vh - ${GLOBAL_APP_HEADER_HEIGHT_PX}px)`;
     this.workspaceRoot.style.zIndex = '35';
     this.workspaceRoot.style.display = 'none';
     this.workspaceRoot.style.backgroundSize = 'cover';
     this.workspaceRoot.style.backgroundPosition = 'center';
     this.workspaceRoot.style.backgroundRepeat = 'no-repeat';
-    this.workspaceRoot.style.transition = 'width 180ms ease, right 180ms ease';
+    this.workspaceRoot.style.transition =
+      'left 180ms ease, top 180ms ease, right 180ms ease, bottom 180ms ease, border-radius 180ms ease, box-shadow 180ms ease';
     document.body.appendChild(this.workspaceRoot);
 
     this.wallpaperSubscription = this.wallpaperService.wallpaper$.subscribe(
@@ -68,14 +105,18 @@ export class RuntimeHost {
     this.currentWallpaperUrl = this.wallpaperService.wallpaperUrl.trim();
     this.syncWorkspaceWallpaper();
 
-    this.activeView = this.loadActiveView();
+    this.activeView = loadPersistedWorkspaceView({
+      allowKanban: KANBAN_DEV_ENABLED,
+    });
     this.viewSwitcher = new WorkspaceViewSwitcher(this.activeView, {
       showKanban: KANBAN_DEV_ENABLED,
       showRoutines: ROUTINES_ENABLED,
     });
-    this.chatPanel = new GlobalChatPanel();
+    this.chatPanel = new GlobalChatPanel({
+      executeAction: (request) => this.executeChatAction(request),
+    });
     this.chatPanel.mount(document.body);
-    this.chatOpen = this.loadChatOpen();
+    this.chatOpen = loadPersistedWorkspaceChatOpen();
     this.chatPanel.setVisible(false);
     this.viewSwitcher.mount(document.body);
     this.viewSwitcher.setVisible(false);
@@ -94,6 +135,29 @@ export class RuntimeHost {
       }
       this.setChatOpen(!this.chatOpen);
     };
+    this.chatPromptHandler = (event: Event) => {
+      const customEvent = event as CustomEvent<unknown>;
+      if (!isWorkspaceChatPromptRequestDetail(customEvent.detail)) return;
+      if (customEvent.detail.open !== false) {
+        this.setChatOpen(true);
+      }
+      void this.chatPanel.submitExternalPrompt(customEvent.detail.prompt);
+    };
+    this.chatIntentHandler = (event: Event) => {
+      const customEvent = event as CustomEvent<unknown>;
+      if (!isWorkspaceChatIntentRequestDetail(customEvent.detail)) return;
+      if (customEvent.detail.open !== false) {
+        this.setChatOpen(true);
+      }
+      const snapshot =
+        this.shell?.getActiveModule()?.getWorkspaceChatSnapshot() ?? null;
+      void this.chatPanel.submitPreparedSubmission(
+        resolveWorkspaceChatIntentSubmission(customEvent.detail, snapshot)
+      );
+    };
+    this.windowResizeHandler = () => {
+      this.syncCanvasUiRootToWorkspace();
+    };
     window.addEventListener(
       WORKSPACE_VIEW_CHANGE_REQUEST_EVENT,
       this.viewChangeHandler
@@ -102,10 +166,32 @@ export class RuntimeHost {
       WORKSPACE_CHAT_TOGGLE_REQUEST_EVENT,
       this.chatToggleHandler
     );
+    window.addEventListener(
+      WORKSPACE_CHAT_PROMPT_REQUEST_EVENT,
+      this.chatPromptHandler
+    );
+    window.addEventListener(
+      WORKSPACE_CHAT_INTENT_REQUEST_EVENT,
+      this.chatIntentHandler
+    );
+    window.addEventListener('resize', this.windowResizeHandler);
+    if (typeof ResizeObserver !== 'undefined') {
+      this.workspaceResizeObserver = new ResizeObserver(() => {
+        this.syncCanvasUiRootToWorkspace();
+      });
+      this.workspaceResizeObserver.observe(this.workspaceRoot);
+    }
   }
 
   private syncWorkspaceWallpaper(): void {
+    const isCanvasVisible = this.hostVisible && this.activeView === 'canvas';
     const isKanbanVisible = this.hostVisible && this.activeView === 'kanban';
+    if (isCanvasVisible) {
+      this.workspaceRoot.style.backgroundImage = '';
+      this.workspaceRoot.style.backgroundColor = '#ffffff';
+      return;
+    }
+
     if (!isKanbanVisible) {
       this.workspaceRoot.style.backgroundImage = '';
       this.workspaceRoot.style.backgroundColor = '';
@@ -127,6 +213,12 @@ export class RuntimeHost {
 
   public dispose(): void {
     this.wallpaperSubscription.unsubscribe();
+    if (this.layoutSyncTimer !== null) {
+      window.clearTimeout(this.layoutSyncTimer);
+      this.layoutSyncTimer = null;
+    }
+    this.workspaceResizeObserver?.disconnect();
+    this.workspaceResizeObserver = null;
     window.removeEventListener(
       WORKSPACE_VIEW_CHANGE_REQUEST_EVENT,
       this.viewChangeHandler
@@ -135,6 +227,22 @@ export class RuntimeHost {
       WORKSPACE_CHAT_TOGGLE_REQUEST_EVENT,
       this.chatToggleHandler
     );
+    window.removeEventListener(
+      WORKSPACE_CHAT_PROMPT_REQUEST_EVENT,
+      this.chatPromptHandler
+    );
+    window.removeEventListener(
+      WORKSPACE_CHAT_INTENT_REQUEST_EVENT,
+      this.chatIntentHandler
+    );
+    window.removeEventListener('resize', this.windowResizeHandler);
+    this.viewSwitcher.unmount();
+    this.shell?.dispose();
+    this.shell = null;
+    this.canvasModule = null;
+    this.kanbanModule = null;
+    this.workspaceRoot.remove();
+    this.workspaceBackdrop.remove();
     this.chatPanel.unmount();
   }
 
@@ -165,6 +273,7 @@ export class RuntimeHost {
       await this.shell.show(this.activeView);
       this.viewSwitcher.setActiveView(this.activeView);
       emitWorkspaceViewChanged(this.activeView);
+      emitWorkspaceChatVisibilityChanged(this.chatOpen);
       this.applyVisibility();
     } finally {
       this.starting = false;
@@ -174,7 +283,7 @@ export class RuntimeHost {
   public async setActiveView(view: WorkspaceView): Promise<void> {
     if (view === 'kanban' && !KANBAN_DEV_ENABLED) return;
     this.activeView = view;
-    this.persistActiveView(view);
+    persistWorkspaceView(view);
     if (!this.shell) return;
     await this.shell.show(view);
     this.viewSwitcher.setActiveView(view);
@@ -187,10 +296,19 @@ export class RuntimeHost {
     const canvas = document.getElementById('myCanvas');
     const chatWidth = this.chatOpen ? this.chatPanel.getWidthPx() : 0;
     if (!this.hostVisible) {
+      this.workspaceBackdrop.style.display = 'none';
       this.workspaceRoot.style.display = 'none';
       this.workspaceRoot.style.pointerEvents = 'none';
-      this.workspaceRoot.style.width = '100vw';
+      this.workspaceRoot.style.left = '0';
+      this.workspaceRoot.style.top = `${GLOBAL_APP_HEADER_HEIGHT_PX}px`;
       this.workspaceRoot.style.right = '0';
+      this.workspaceRoot.style.bottom = '0';
+      this.workspaceRoot.style.width = 'auto';
+      this.workspaceRoot.style.height = 'auto';
+      this.workspaceRoot.style.borderRadius = '0';
+      this.workspaceRoot.style.overflow = 'visible';
+      this.workspaceRoot.style.boxShadow = 'none';
+      this.workspaceRoot.style.border = 'none';
       if (canvas instanceof HTMLCanvasElement) {
         canvas.style.display = 'none';
         canvas.style.pointerEvents = 'none';
@@ -198,7 +316,11 @@ export class RuntimeHost {
       if (canvasUiRoot instanceof HTMLElement) {
         canvasUiRoot.style.display = 'none';
         canvasUiRoot.style.pointerEvents = 'none';
+        canvasUiRoot.style.left = '0';
+        canvasUiRoot.style.top = `${GLOBAL_APP_HEADER_HEIGHT_PX}px`;
         canvasUiRoot.style.width = '100vw';
+        canvasUiRoot.style.height = `calc(100vh - ${GLOBAL_APP_HEADER_HEIGHT_PX}px)`;
+        canvasUiRoot.style.borderRadius = '0';
       }
       this.viewSwitcher.setVisible(false);
       this.chatPanel.setVisible(false);
@@ -207,10 +329,10 @@ export class RuntimeHost {
     }
 
     const showCanvas = this.activeView === 'canvas';
+    this.workspaceBackdrop.style.display = this.chatOpen ? 'block' : 'none';
     this.workspaceRoot.style.display = 'block';
     this.workspaceRoot.style.pointerEvents = 'auto';
-    this.workspaceRoot.style.width = `calc(100vw - ${chatWidth}px)`;
-    this.workspaceRoot.style.right = `${chatWidth}px`;
+    this.applyWorkspaceLayout(canvasUiRoot, this.chatOpen, chatWidth);
     if (canvas instanceof HTMLCanvasElement) {
       canvas.style.display = showCanvas ? 'block' : 'none';
       canvas.style.pointerEvents = showCanvas ? 'auto' : 'none';
@@ -218,52 +340,129 @@ export class RuntimeHost {
     if (canvasUiRoot instanceof HTMLElement) {
       canvasUiRoot.style.display = showCanvas ? 'block' : 'none';
       canvasUiRoot.style.pointerEvents = 'none';
-      canvasUiRoot.style.width = `calc(100vw - ${chatWidth}px)`;
     }
+    this.syncCanvasUiRootToWorkspace(canvasUiRoot);
+    this.chatPanel.setIslandMode(this.chatOpen);
     this.viewSwitcher.setVisible(true);
     this.chatPanel.setVisible(this.chatOpen);
     this.syncWorkspaceWallpaper();
+    this.scheduleLayoutSync();
   }
 
-  private loadActiveView(): WorkspaceView {
-    try {
-      const value = localStorage.getItem(ACTIVE_VIEW_STORAGE_KEY);
-      if (value === 'kanban' && KANBAN_DEV_ENABLED) return 'kanban';
-      return 'canvas';
-    } catch {
-      return 'canvas';
+  private async executeChatAction(
+    request: WorkspaceChatActionExecutionRequest
+  ): Promise<WorkspaceChatActionExecutionResult> {
+    if (this.activeView !== 'canvas') {
+      return {
+        status: 'failed',
+        errorMessage: 'Switch to canvas to create elements.',
+      };
+    }
+    if (!this.canvasModule) {
+      return {
+        status: 'failed',
+        errorMessage: 'Canvas is unavailable.',
+      };
+    }
+    return this.canvasModule.executeChatAction(request);
+  }
+
+  private applyWorkspaceLayout(
+    canvasUiRoot: HTMLElement | null,
+    chatOpen: boolean,
+    chatWidth: number
+  ): void {
+    if (!chatOpen) {
+      this.workspaceRoot.style.left = '0';
+      this.workspaceRoot.style.top = `${GLOBAL_APP_HEADER_HEIGHT_PX}px`;
+      this.workspaceRoot.style.right = '0';
+      this.workspaceRoot.style.bottom = '0';
+      this.workspaceRoot.style.width = 'auto';
+      this.workspaceRoot.style.height = 'auto';
+      this.workspaceRoot.style.borderRadius = '0';
+      this.workspaceRoot.style.overflow = 'visible';
+      this.workspaceRoot.style.boxShadow = 'none';
+      this.workspaceRoot.style.border = 'none';
+      if (canvasUiRoot) {
+        canvasUiRoot.style.left = '0';
+        canvasUiRoot.style.top = `${GLOBAL_APP_HEADER_HEIGHT_PX}px`;
+        canvasUiRoot.style.width = '100vw';
+        canvasUiRoot.style.height = `calc(100vh - ${GLOBAL_APP_HEADER_HEIGHT_PX}px)`;
+        canvasUiRoot.style.borderRadius = '0';
+      }
+      return;
+    }
+
+    const workspaceRightInset =
+      CHAT_ISLAND_MARGIN_PX + chatWidth + CHAT_ISLAND_GAP_PX;
+    const workspaceWidth = Math.max(
+      320,
+      window.innerWidth - workspaceRightInset - CHAT_ISLAND_MARGIN_PX
+    );
+    const workspaceHeight = Math.max(
+      240,
+      window.innerHeight -
+        CHAT_ISLAND_MARGIN_PX * 2 -
+        GLOBAL_APP_HEADER_HEIGHT_PX
+    );
+
+    this.workspaceRoot.style.left = `${CHAT_ISLAND_MARGIN_PX}px`;
+    this.workspaceRoot.style.top = `${CHAT_ISLAND_MARGIN_PX + GLOBAL_APP_HEADER_HEIGHT_PX}px`;
+    this.workspaceRoot.style.right = `${workspaceRightInset}px`;
+    this.workspaceRoot.style.bottom = `${CHAT_ISLAND_MARGIN_PX}px`;
+    this.workspaceRoot.style.width = 'auto';
+    this.workspaceRoot.style.height = 'auto';
+    this.workspaceRoot.style.borderRadius = `${CHAT_ISLAND_RADIUS_PX}px`;
+    this.workspaceRoot.style.overflow = 'hidden';
+    this.workspaceRoot.style.border = '1px solid rgba(255, 255, 255, 0.6)';
+    this.workspaceRoot.style.boxShadow = 'none';
+
+    if (canvasUiRoot) {
+      canvasUiRoot.style.left = `${CHAT_ISLAND_MARGIN_PX}px`;
+      canvasUiRoot.style.top = `${CHAT_ISLAND_MARGIN_PX + GLOBAL_APP_HEADER_HEIGHT_PX}px`;
+      canvasUiRoot.style.width = `${workspaceWidth}px`;
+      canvasUiRoot.style.height = `${workspaceHeight}px`;
+      canvasUiRoot.style.borderRadius = `${CHAT_ISLAND_RADIUS_PX}px`;
     }
   }
 
-  private persistActiveView(view: WorkspaceView): void {
-    try {
-      localStorage.setItem(ACTIVE_VIEW_STORAGE_KEY, view);
-    } catch {
-      // no-op
+  private syncCanvasUiRootToWorkspace(
+    canvasUiRoot: HTMLElement | null = document.getElementById('canvas-ui-root')
+  ): void {
+    if (!this.hostVisible || !(canvasUiRoot instanceof HTMLElement)) {
+      return;
     }
+
+    const rect = this.workspaceRoot.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return;
+    }
+
+    canvasUiRoot.style.left = `${Math.round(rect.left)}px`;
+    canvasUiRoot.style.top = `${Math.round(rect.top)}px`;
+    canvasUiRoot.style.width = `${Math.max(1, Math.round(rect.width))}px`;
+    canvasUiRoot.style.height = `${Math.max(1, Math.round(rect.height))}px`;
+    canvasUiRoot.style.borderRadius = this.workspaceRoot.style.borderRadius;
+  }
+
+  private scheduleLayoutSync(): void {
+    window.requestAnimationFrame(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+    if (this.layoutSyncTimer !== null) {
+      window.clearTimeout(this.layoutSyncTimer);
+    }
+    this.layoutSyncTimer = window.setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+      this.layoutSyncTimer = null;
+    }, 220);
   }
 
   private setChatOpen(open: boolean): void {
     this.chatOpen = open;
-    this.persistChatOpen(open);
+    persistWorkspaceChatOpen(open);
     this.viewSwitcher.setChatOpen(open);
     emitWorkspaceChatVisibilityChanged(open);
     this.applyVisibility();
-  }
-
-  private loadChatOpen(): boolean {
-    try {
-      return localStorage.getItem(CHAT_OPEN_STORAGE_KEY) === '1';
-    } catch {
-      return false;
-    }
-  }
-
-  private persistChatOpen(open: boolean): void {
-    try {
-      localStorage.setItem(CHAT_OPEN_STORAGE_KEY, open ? '1' : '0');
-    } catch {
-      // no-op
-    }
   }
 }

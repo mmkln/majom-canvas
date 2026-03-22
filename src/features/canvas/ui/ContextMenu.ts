@@ -38,6 +38,15 @@ import {
   STATUS_ICON_TONE_CLASS,
   STATUS_ORDER,
 } from './statusPresentation.ts';
+import {
+  emitWorkspaceChatIntentRequested,
+} from '../../shell/workspaceChatEvents.ts';
+import {
+  getWorkspaceChatBreakdownHint,
+  getWorkspaceChatDependenciesHint,
+  getWorkspaceChatMissingHint,
+  getWorkspaceChatReviewHint,
+} from '../../shell/workspaceChatHints.ts';
 
 type ContextMenuDetail = {
   element: ICanvasElement | null;
@@ -49,6 +58,7 @@ type MenuActionResult = 'keep-open' | void;
 
 type ContextMenuActionItem = {
   label: string;
+  hint?: string;
   action: () => MenuActionResult;
   tone?: 'danger' | 'warning';
   className?: string;
@@ -275,6 +285,9 @@ export class ContextMenu {
 
     const sections: ContextMenuSection[] = [];
     const actionItems: ContextMenuItem[] = [];
+    const planningElement = isPlanningElement
+      ? (element as TaskElement | StoryElement | GoalElement)
+      : null;
     if (isPlanningElement) {
       actionItems.push({
         label: 'Edit',
@@ -295,6 +308,12 @@ export class ContextMenu {
           historyService.execute(new DeleteCommand(this.scene, [element])),
       }
     );
+    if (planningElement) {
+      actionItems.push({
+        label: 'AI',
+        submenu: this.buildPlanningElementAiItems(planningElement),
+      });
+    }
 
     const getTitleByElement = (el: ICanvasElement): string | undefined => {
       if (el instanceof TaskElement) return 'Task';
@@ -325,11 +344,7 @@ export class ContextMenu {
       });
     }
 
-    if (isPlanningElement) {
-      const planningElement = element as
-        | TaskElement
-        | StoryElement
-        | GoalElement;
+    if (planningElement) {
       const isFocused = this.scene.isFocused(planningElement);
       const isHighlighted = this.scene.isHighlighted(planningElement);
       sections.push({
@@ -363,11 +378,7 @@ export class ContextMenu {
       });
     }
 
-    if (isPlanningElement) {
-      const planningElement = element as
-        | TaskElement
-        | StoryElement
-        | GoalElement;
+    if (planningElement) {
       sections.push({
         title: 'Set status',
         items: STATUS_ORDER.map((status) => {
@@ -499,6 +510,61 @@ export class ContextMenu {
     return wrap;
   }
 
+  private buildPlanningElementAiItems(
+    planningElement: TaskElement | StoryElement | GoalElement
+  ): ContextMenuActionItem[] {
+    const targetIds = [planningElement.id];
+    return [
+      {
+        label: 'Review',
+        hint: getWorkspaceChatReviewHint(),
+        action: () =>
+          emitWorkspaceChatIntentRequested('review', {
+            scope: 'selection',
+            targetIds,
+          }),
+      },
+      {
+        label:
+          planningElement instanceof GoalElement
+            ? 'Break into stories'
+            : planningElement instanceof StoryElement
+              ? 'Break into tasks'
+              : 'Refine task',
+        hint: getWorkspaceChatBreakdownHint(
+          planningElement instanceof GoalElement
+            ? 'goal'
+            : planningElement instanceof StoryElement
+              ? 'story'
+              : 'task'
+        ),
+        action: () =>
+          emitWorkspaceChatIntentRequested('breakdown', {
+            scope: 'selection',
+            targetIds,
+          }),
+      },
+      {
+        label: 'Suggest dependencies',
+        hint: getWorkspaceChatDependenciesHint(),
+        action: () =>
+          emitWorkspaceChatIntentRequested('dependencies', {
+            scope: 'selection',
+            targetIds,
+          }),
+      },
+      {
+        label: 'What is missing?',
+        hint: getWorkspaceChatMissingHint(),
+        action: () =>
+          emitWorkspaceChatIntentRequested('missing', {
+            scope: 'selection',
+            targetIds,
+          }),
+      },
+    ];
+  }
+
   private createStatusIcon(status: ElementStatus): HTMLSpanElement {
     const wrap = document.createElement('span');
     wrap.className = 'inline-flex items-center justify-center';
@@ -530,6 +596,7 @@ export class ContextMenu {
     const customClassName = item.className ?? '';
     const btn = createDropdownItem({
       label: item.label ?? '',
+      hint: item.hint,
       variant: item.variant,
       tone: item.tone === 'danger' ? 'danger' : 'default',
       className: `${warningClassName} ${customClassName}`.trim(),
@@ -550,6 +617,7 @@ export class ContextMenu {
         : '';
     return createSplitDropdownItem({
       label: item.label ?? '',
+      hint: item.hint,
       variant: item.variant,
       tone: item.tone === 'danger' ? 'danger' : 'default',
       className: `${warningClassName} ${item.className ?? ''}`.trim(),

@@ -1,3 +1,5 @@
+import { GLOBAL_APP_HEADER_HEIGHT_PX } from '../../../../bootstrap/GlobalAppHeader.ts';
+
 type LoadingScreenState = 'loading' | 'error';
 
 const LOADING_LINE_STYLE_ID = 'majom-loading-line-style';
@@ -40,6 +42,7 @@ export class LoadingScreen {
     this.root = document.createElement('div');
     this.root.className =
       'fixed inset-0 z-[205] hidden items-center justify-center bg-[linear-gradient(to_bottom,#ffffff,#f8fafc)] px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]';
+    this.root.style.top = `${GLOBAL_APP_HEADER_HEIGHT_PX}px`;
 
     const content = document.createElement('section');
     content.className = 'flex w-full max-w-xs flex-col items-center';

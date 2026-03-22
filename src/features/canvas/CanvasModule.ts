@@ -1,4 +1,9 @@
 import type { WorkspaceModule } from '../shell/WorkspaceModule.ts';
+import type {
+  WorkspaceChatActionExecutionRequest,
+  WorkspaceChatActionExecutionResult,
+} from '../shell/workspaceChatActions.ts';
+import type { WorkspaceChatCanvasSnapshot } from '../shell/workspaceChatEvents.ts';
 import { CanvasApp } from './CanvasApp.ts';
 import { LocalStorageDataProvider } from './core/data/LocalStorageDataProvider.ts';
 
@@ -39,5 +44,21 @@ export class CanvasModule implements WorkspaceModule {
     this.app = null;
     this.canvas?.remove();
     this.canvas = null;
+  }
+
+  public async executeChatAction(
+    request: WorkspaceChatActionExecutionRequest
+  ): Promise<WorkspaceChatActionExecutionResult> {
+    if (!this.app) {
+      return {
+        status: 'failed',
+        errorMessage: 'Canvas is unavailable.',
+      };
+    }
+    return this.app.executeChatAction(request);
+  }
+
+  public getWorkspaceChatSnapshot(): WorkspaceChatCanvasSnapshot | null {
+    return this.app?.getWorkspaceChatSnapshot() ?? null;
   }
 }

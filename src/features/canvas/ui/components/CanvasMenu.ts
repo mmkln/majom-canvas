@@ -2,11 +2,11 @@ import type { Subscription } from 'rxjs';
 import { AuthService } from '../../../../majom-wrapper/data-access/auth-service.ts';
 import type { User } from '../../../../majom-wrapper/interfaces/auth-interfaces.ts';
 import { UserApiService } from '../../../../majom-wrapper/data-access/user-api-service.ts';
-import { notify } from '../../core/services/NotificationService.ts';
 import { CanvasClientStorage } from '../../core/services/CanvasClientStorage.ts';
 import { emitCanvasAutosaveToggled } from '../../core/canvasAutosaveLifecycle.ts';
 import { AuthController, type AuthState } from '../auth/AuthController.ts';
 import { authFlowService } from '../auth/authFlowService.ts';
+import { performManualLogout } from '../auth/manualLogout.ts';
 import {
   AnchoredMenu,
   createDivider,
@@ -15,9 +15,8 @@ import {
   createSurface,
   createToggleSwitch,
 } from '../primitives/index.ts';
-import {
-  openTopbarDropdown,
-} from './topbarDropdownLayout.ts';
+import { createAccountMenuProfileSection } from './accountMenuProfileSection.ts';
+import { openTopbarDropdown } from './topbarDropdownLayout.ts';
 
 type CanvasMenuOptions = {
   containerClassName?: string;
@@ -36,7 +35,9 @@ export class CanvasMenu {
   private readonly logoutButton: HTMLButtonElement;
   private readonly authController: AuthController;
   private readonly animationsToggleHandler: ((enabled: boolean) => void) | null;
-  private readonly smartGuidesToggleHandler: ((enabled: boolean) => void) | null;
+  private readonly smartGuidesToggleHandler:
+    | ((enabled: boolean) => void)
+    | null;
   private animationsEnabled: boolean;
   private smartGuidesEnabled: boolean;
   private autosaveEnabled: boolean;
@@ -66,8 +67,7 @@ export class CanvasMenu {
 
     this.dropdownMenu = createSurface({
       elevated: true,
-      className:
-        'absolute left-0 top-0 z-30 hidden w-72 overflow-hidden',
+      className: 'absolute left-0 top-0 z-30 hidden w-72 overflow-hidden',
     });
 
     this.animationsEnabled = options.initialAnimationsEnabled ?? true;
@@ -96,7 +96,7 @@ export class CanvasMenu {
     this.dropdownController = new AnchoredMenu({
       container: this.container,
       panel: this.dropdownMenu,
-      
+
       onOpenChange: (open) => {
         this.menuButton.classList.toggle('bg-indigo-50', open);
         this.menuButton.classList.toggle('text-indigo-700', open);
@@ -161,29 +161,9 @@ export class CanvasMenu {
     isUserLoading: boolean
   ): void {
     this.dropdownMenu.innerHTML = '';
-
-    if (isUserLoading) {
-      const loadingRow = document.createElement('div');
-      loadingRow.className = 'px-4 py-3 text-sm text-slate-500';
-      loadingRow.textContent = 'Loading account...';
-      this.dropdownMenu.appendChild(loadingRow);
-      this.dropdownMenu.appendChild(createDivider());
-    } else if (user) {
-      const userInfo = document.createElement('div');
-      userInfo.className = 'px-4 py-3';
-
-      const userName = document.createElement('div');
-      userName.className =
-        'truncate text-sm font-semibold leading-5 tracking-tight text-slate-900';
-      userName.textContent = user.username;
-
-      const userEmail = document.createElement('div');
-      userEmail.className = 'truncate text-sm leading-5 text-slate-500';
-      userEmail.textContent = user.email;
-
-      userInfo.append(userName, userEmail);
-      this.dropdownMenu.append(userInfo, createDivider());
-    }
+    this.dropdownMenu.append(
+      ...createAccountMenuProfileSection(user, isUserLoading)
+    );
 
     const actions = document.createElement('div');
     const animationsToggle = createToggleSwitch({
@@ -263,13 +243,11 @@ export class CanvasMenu {
   }
 
   private handleLogout(): void {
-    this.authController.logout();
-    notify('Logged out', 'info');
-    this.setDropdownOpen(false);
-    if (!this.logoutRequested) {
-      this.logoutRequested = true;
-      authFlowService.requestLogout('manual');
-    }
+    this.logoutRequested = true;
+    performManualLogout({
+      logout: () => this.authController.logout(),
+      onAfterLogout: () => this.setDropdownOpen(false),
+    });
   }
 
   private handleAnimationsToggle(checked: boolean): void {

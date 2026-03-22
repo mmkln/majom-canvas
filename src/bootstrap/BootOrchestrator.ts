@@ -13,6 +13,7 @@ import { LoadingScreen } from '../features/canvas/ui/components/LoadingScreen.ts
 import { WallpaperService } from '../features/shell/services/WallpaperService.ts';
 import type { BootEvent, BootState } from './BootState.ts';
 import { nextBootState } from './BootStateMachine.ts';
+import { GlobalAppHeader } from './GlobalAppHeader.ts';
 import { RuntimeHost } from './RuntimeHost.ts';
 
 export class BootOrchestrator {
@@ -23,6 +24,7 @@ export class BootOrchestrator {
     new WallpaperApiService(this.http)
   );
   private readonly runtimeHost: RuntimeHost;
+  private readonly globalHeader: GlobalAppHeader;
   private readonly loginPage: LoginPage;
   private readonly loadingScreen: LoadingScreen;
   private readonly minLoadingScreenMs: number;
@@ -33,6 +35,7 @@ export class BootOrchestrator {
   private logoutInProgress = false;
 
   constructor() {
+    this.globalHeader = new GlobalAppHeader();
     this.runtimeHost = new RuntimeHost(this.wallpaperService);
     this.loadingScreen = new LoadingScreen();
     this.minLoadingScreenMs = this.resolveMinLoadingScreenDuration();
@@ -43,6 +46,7 @@ export class BootOrchestrator {
   }
 
   public start(): void {
+    this.globalHeader.mount(document.body);
     this.bindAuthFlow();
     this.runtimeHost.hideCanvas();
     this.dispatch('app_start');
@@ -183,6 +187,7 @@ export class BootOrchestrator {
     this.dispatch('logout');
     this.authService.logout();
     this.runtimeHost.dispose();
+    this.globalHeader.unmount();
     this.render();
     window.location.reload();
   }

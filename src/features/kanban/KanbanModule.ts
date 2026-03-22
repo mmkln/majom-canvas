@@ -1,4 +1,5 @@
 import type { WorkspaceModule } from '../shell/WorkspaceModule.ts';
+import type { WorkspaceChatCanvasSnapshot } from '../shell/workspaceChatEvents.ts';
 import { KanbanApp } from './KanbanApp.ts';
 
 export class KanbanModule implements WorkspaceModule {
@@ -15,5 +16,9 @@ export class KanbanModule implements WorkspaceModule {
   public unmount(): void {
     this.app?.unmount();
     this.app = null;
+  }
+
+  public getWorkspaceChatSnapshot(): WorkspaceChatCanvasSnapshot | null {
+    return null;
   }
 }

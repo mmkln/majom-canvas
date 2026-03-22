@@ -59,13 +59,11 @@ export class UIManager {
   private externalGoalDragOverlay: HTMLDivElement | null = null;
   private externalGoalDropPreview: HTMLDivElement | null = null;
   private externalGoalDragActive = false;
-  private activeExistingPickerDrag:
-    | {
-        kind: ExistingPickerKind;
-        item: unknown;
-        title: string;
-      }
-    | null = null;
+  private activeExistingPickerDrag: {
+    kind: ExistingPickerKind;
+    item: unknown;
+    title: string;
+  } | null = null;
   private externalGoalDragPointer: { clientX: number; clientY: number } | null =
     null;
   private externalGoalLastDragOverAt = 0;
@@ -321,6 +319,7 @@ export class UIManager {
     root.style.height = '100vh';
     root.style.zIndex = '40';
     root.style.pointerEvents = 'none';
+    root.style.overflow = 'hidden';
     return root;
   }
 
@@ -376,8 +375,7 @@ export class UIManager {
     preview.style.padding = '8px 12px';
     preview.style.border = '1px solid rgba(148, 163, 184, 0.24)';
     preview.style.borderRadius = '999px';
-    preview.style.background =
-      'rgba(255,255,255,0.92)';
+    preview.style.background = 'rgba(255,255,255,0.92)';
     preview.style.backdropFilter = 'blur(10px)';
     preview.style.boxShadow = '0 10px 24px rgba(15, 23, 42, 0.10)';
     preview.style.color = '#0f172a';
@@ -439,11 +437,11 @@ export class UIManager {
     this.externalGoalDropPreview.style.display = 'block';
     this.externalGoalDropPreview.style.left = `${clientX}px`;
     const scale = this.canvasManager.getPanZoomManager().scale;
-    const topOffset = insideCanvas && metrics
-      ? metrics.height * scale * 0.5 + 14
-      : 12;
+    const topOffset =
+      insideCanvas && metrics ? metrics.height * scale * 0.5 + 14 : 12;
     this.externalGoalDropPreview.style.top = `${clientY - topOffset}px`;
-    this.externalGoalDropPreview.style.borderColor = 'rgba(148, 163, 184, 0.24)';
+    this.externalGoalDropPreview.style.borderColor =
+      'rgba(148, 163, 184, 0.24)';
     this.externalGoalDropPreview.style.background = 'rgba(255,255,255,0.92)';
   }
 
@@ -481,13 +479,11 @@ export class UIManager {
     this.canvasManager.setTransientLoadingPlaceholder(placeholder);
   }
 
-  private getExternalDragPlaceholderMetrics():
-    | {
-        elementType: CanvasLoadingPlaceholder['elementType'];
-        width: number;
-        height: number;
-      }
-    | null {
+  private getExternalDragPlaceholderMetrics(): {
+    elementType: CanvasLoadingPlaceholder['elementType'];
+    width: number;
+    height: number;
+  } | null {
     const drag = this.activeExistingPickerDrag;
     if (!drag) return null;
     if (drag.kind === 'existing-goal') {

@@ -19,6 +19,16 @@ import { getViewBounds, isRectVisible } from '../core/utils/viewBounds.ts';
 import { addTaskToStory } from './storyTaskActions.ts';
 import { createIconButton, createSurface } from './primitives/index.ts';
 import { StatusSelector } from './components/StatusSelector.ts';
+import { AiActionsDropdown } from './components/AiActionsDropdown.ts';
+import {
+  emitWorkspaceChatIntentRequested,
+} from '../../shell/workspaceChatEvents.ts';
+import {
+  getWorkspaceChatBreakdownHint,
+  getWorkspaceChatDependenciesHint,
+  getWorkspaceChatMissingHint,
+  getWorkspaceChatReviewHint,
+} from '../../shell/workspaceChatHints.ts';
 
 type ActionContext = {
   elements: PlanningElement[];
@@ -41,7 +51,7 @@ type ActionNode =
       title: string;
       icon?: IconName;
       iconOptions?: IconOptions;
-      variant?: 'icon' | 'status';
+      variant?: 'icon' | 'status' | 'ai';
       isDanger?: boolean;
       isVisible?: (context: ActionContext) => boolean;
       onClick?: () => void;
@@ -56,6 +66,7 @@ export class SelectionActionMenu {
   private readonly container: HTMLDivElement;
   private actionNodes: ActionNode[] = [];
   private actionElements: Map<string, HTMLElement> = new Map();
+  private aiActionsDropdown: AiActionsDropdown | null = null;
   private statusSelector: StatusSelector | null = null;
   private subscriptions: Subscription[] = [];
   private suspendUpdates = false;
@@ -127,6 +138,8 @@ export class SelectionActionMenu {
     this.subscriptions = [];
     this.statusSelector?.destroy();
     this.statusSelector = null;
+    this.aiActionsDropdown?.destroy();
+    this.aiActionsDropdown = null;
     window.removeEventListener('resize', this.resizeHandler);
     window.removeEventListener(
       'canvasInteractionStart',
@@ -178,10 +191,12 @@ export class SelectionActionMenu {
       isMulti: planningSelected.length > 1,
     };
     this.updateActionVisibility(context);
+    this.updateAiDropdown();
     this.updateDeleteConfirmation(planningSelected);
     this.updateStatusSelector(planningSelected);
     this.show();
     this.positionUnderBounds(bounds);
+    this.aiActionsDropdown?.reposition();
   }
 
   private show(): void {
@@ -193,6 +208,7 @@ export class SelectionActionMenu {
 
   private hide(): void {
     this.activeElement = null;
+    this.aiActionsDropdown?.close();
     this.selectedElements = [];
     this.deleteConfirmState = null;
     this.clearDeleteConfirmTimer();
@@ -206,6 +222,8 @@ export class SelectionActionMenu {
   private renderActions(): void {
     this.container.innerHTML = '';
     this.actionElements.clear();
+    this.aiActionsDropdown?.destroy();
+    this.aiActionsDropdown = null;
     this.statusSelector?.destroy();
     this.statusSelector = null;
     this.actionNodes.forEach((node) => {
@@ -225,6 +243,13 @@ export class SelectionActionMenu {
         this.container.appendChild(selector.element);
         return;
       }
+      if (node.variant === 'ai') {
+        const dropdown = new AiActionsDropdown({ triggerLabel: 'AI' });
+        this.aiActionsDropdown = dropdown;
+        this.actionElements.set(node.id, dropdown.element);
+        this.container.appendChild(dropdown.element);
+        return;
+      }
       const btn = this.createIconButton(
         node.title,
         node.icon ?? 'copy',
@@ -237,6 +262,7 @@ export class SelectionActionMenu {
       this.actionElements.set(node.id, btn);
       this.container.appendChild(btn);
     });
+    this.updateAiDropdown();
   }
 
   private updateActionVisibility(context: ActionContext): void {
@@ -302,6 +328,18 @@ export class SelectionActionMenu {
         kind: 'divider',
         id: 'divider-related',
         isVisible: (context) => isSingle(context) && isStoryOrGoal(context),
+      },
+      {
+        kind: 'action',
+        id: 'ai-menu',
+        title: 'AI actions',
+        variant: 'ai',
+        isVisible: (context) => isSingle(context) || isMulti(context),
+      },
+      {
+        kind: 'divider',
+        id: 'divider-ai',
+        isVisible: isSingle,
       },
       {
         kind: 'action',
@@ -412,7 +450,10 @@ export class SelectionActionMenu {
     title: string,
     icon: IconName,
     handler: () => void,
-    options: { isDanger?: boolean; iconOptions?: IconOptions } = {}
+    options: {
+      isDanger?: boolean;
+      iconOptions?: IconOptions;
+    } = {}
   ): HTMLButtonElement {
     const { isDanger = false, iconOptions } = options;
     const btn = createIconButton({
@@ -428,9 +469,89 @@ export class SelectionActionMenu {
     this.setButtonVariant(btn, isDanger ? 'danger' : 'default');
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
+      this.aiActionsDropdown?.close();
       handler();
     });
     return btn;
+  }
+
+  private updateAiDropdown(): void {
+    if (!this.aiActionsDropdown) return;
+    this.aiActionsDropdown.setItems(
+      this.getAiMenuItems().map((item) => ({
+        id: item.label.toLowerCase().replace(/\s+/g, '-'),
+        label: item.label,
+        icon: item.icon,
+        hint: item.hint,
+        onSelect: item.onClick,
+      }))
+    );
+  }
+
+  private getAiMenuItems(): Array<{
+    label: string;
+    icon: IconName;
+    hint: string;
+    onClick: () => void;
+  }> {
+    if (this.selectedElements.length === 0) {
+      return [];
+    }
+
+    const items: Array<{
+      label: string;
+      icon: IconName;
+      hint: string;
+      onClick: () => void;
+    }> = [];
+    if (this.selectedElements.length === 1) {
+      const primary = this.selectedElements[0];
+      const primaryKind =
+        primary instanceof GoalElement
+          ? 'goal'
+          : primary instanceof StoryElement
+            ? 'story'
+            : 'task';
+      items.push({
+        label: 'Review',
+        icon: 'chat-bubble-left',
+        hint: getWorkspaceChatReviewHint(),
+        onClick: () => this.handleAiReview(),
+      });
+      items.push({
+        label: this.getAiBreakdownLabel(),
+        icon: 'bars-2',
+        hint: getWorkspaceChatBreakdownHint(primaryKind),
+        onClick: () => this.handleAiBreakdown(),
+      });
+    }
+
+    items.push(
+      {
+        label: 'Suggest dependencies',
+        icon: 'arrow-path',
+        hint: getWorkspaceChatDependenciesHint(),
+        onClick: () => this.handleAiDependencies(),
+      },
+      {
+        label: 'What is missing?',
+        icon: 'magnifying-glass',
+        hint: getWorkspaceChatMissingHint(),
+        onClick: () => this.handleAiMissing(),
+      }
+    );
+    return items;
+  }
+
+  private getAiBreakdownLabel(): string {
+    const primary = this.selectedElements[0];
+    if (primary instanceof GoalElement) {
+      return 'Break into stories';
+    }
+    if (primary instanceof StoryElement) {
+      return 'Break into tasks';
+    }
+    return 'Refine task';
   }
 
   private applyStatus(status: ElementStatus): void {
@@ -469,6 +590,36 @@ export class SelectionActionMenu {
       scene: this.scene,
       canvasManager: this.canvasManager,
       layoutService: this.layoutService,
+    });
+  }
+
+  private handleAiReview(): void {
+    emitWorkspaceChatIntentRequested('review', {
+      scope: 'selection',
+      targetIds: this.getSelectedTargetIds(),
+    });
+  }
+
+  private handleAiBreakdown(): void {
+    const targetId = this.selectedElements[0]?.id;
+    if (!targetId) return;
+    emitWorkspaceChatIntentRequested('breakdown', {
+      scope: 'selection',
+      targetIds: [targetId],
+    });
+  }
+
+  private handleAiDependencies(): void {
+    emitWorkspaceChatIntentRequested('dependencies', {
+      scope: 'selection',
+      targetIds: this.getSelectedTargetIds(),
+    });
+  }
+
+  private handleAiMissing(): void {
+    emitWorkspaceChatIntentRequested('missing', {
+      scope: 'selection',
+      targetIds: this.getSelectedTargetIds(),
     });
   }
 
@@ -596,5 +747,9 @@ export class SelectionActionMenu {
       .split(/\s+/)
       .filter(Boolean)
       .forEach((token) => element.classList.toggle(token, enabled));
+  }
+
+  private getSelectedTargetIds(): string[] {
+    return this.selectedElements.map((element) => element.id);
   }
 }

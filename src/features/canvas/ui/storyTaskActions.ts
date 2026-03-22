@@ -7,12 +7,18 @@ import { historyService } from '../core/services/HistoryService.ts';
 import { AddElementCommand } from '../core/commands/AddElementCommand.ts';
 import { ResizeCommand } from '../core/commands/ResizeCommand.ts';
 import { emitTaskStoryLinkSet } from '../core/canvasLinkLifecycle.ts';
+import type { UiPriority } from '../../../majom-wrapper/utils/priorityMapping.ts';
+import { ElementStatus } from '../elements/ElementStatus.ts';
 
 type AddTaskToStoryArgs = {
   story: StoryElement;
   scene: Scene;
   canvasManager: CanvasManager;
   layoutService: StoryLayoutService;
+  title?: string;
+  description?: string;
+  priority?: UiPriority;
+  status?: ElementStatus;
 };
 
 export const addTaskToStory = ({
@@ -20,6 +26,10 @@ export const addTaskToStory = ({
   scene,
   canvasManager,
   layoutService,
+  title,
+  description,
+  priority,
+  status,
 }: AddTaskToStoryArgs): TaskElement => {
   const tasks = scene
     .getElements()
@@ -28,6 +38,10 @@ export const addTaskToStory = ({
   const task = new TaskElement({
     x: plan.position.x,
     y: plan.position.y,
+    title,
+    description,
+    priority,
+    status,
   });
   if (plan.nextHeight > story.height) {
     const initial = new Map<

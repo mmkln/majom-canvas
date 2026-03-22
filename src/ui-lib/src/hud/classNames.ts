@@ -63,6 +63,8 @@ export const HUD_MENU_ITEM_DANGER_CLASS =
 
 export const HUD_MENU_ITEM_DISABLED_CLASS =
   'cursor-not-allowed text-slate-400 hover:bg-transparent hover:text-slate-400';
+export const HUD_MENU_ITEM_HINT_TRIGGER_CLASS =
+  'inline-flex shrink-0 cursor-help items-center justify-center text-slate-400 transition-colors hover:text-slate-500';
 
 export const HUD_PAGE_EYEBROW_CLASS =
   'mb-2 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400';
@@ -146,6 +148,7 @@ export const MENU_ITEM_SELECTED_CLASS = HUD_MENU_ITEM_SELECTED_CLASS;
 export const MENU_ITEM_ACCENT_CREATE_CLASS = HUD_MENU_ITEM_ACCENT_CREATE_CLASS;
 export const MENU_ITEM_DANGER_CLASS = HUD_MENU_ITEM_DANGER_CLASS;
 export const MENU_ITEM_DISABLED_CLASS = HUD_MENU_ITEM_DISABLED_CLASS;
+export const MENU_ITEM_HINT_TRIGGER_CLASS = HUD_MENU_ITEM_HINT_TRIGGER_CLASS;
 export const PAGE_EYEBROW_CLASS = HUD_PAGE_EYEBROW_CLASS;
 export const PAGE_TITLE_CLASS = HUD_PAGE_TITLE_CLASS;
 export const FIELD_CLASS = HUD_FIELD_CLASS;

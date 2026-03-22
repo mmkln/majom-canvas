@@ -19,6 +19,7 @@ export {
   emitWorkspaceChatToggleRequested,
   emitWorkspaceChatVisibilityChanged,
   isWorkspaceChatToggleRequestDetail,
+  isWorkspaceChatVisibilityChangedDetail,
   type WorkspaceChatToggleRequestDetail,
   type WorkspaceChatVisibilityChangedDetail,
 } from './workspaceChatEvents.ts';

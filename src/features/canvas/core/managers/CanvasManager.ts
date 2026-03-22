@@ -353,8 +353,16 @@ export class CanvasManager {
   }
 
   resizeCanvas(): void {
-    const width = Math.max(1, window.innerWidth - 2);
-    const height = Math.max(1, window.innerHeight - 2);
+    const parent = this.canvas.parentElement;
+    const parentRect = parent?.getBoundingClientRect();
+    const width = Math.max(
+      1,
+      Math.round(parentRect?.width ?? window.innerWidth)
+    );
+    const height = Math.max(
+      1,
+      Math.round(parentRect?.height ?? window.innerHeight)
+    );
     this.canvas.width = width;
     this.canvas.height = height;
     this.canvas.style.width = `${width}px`;
@@ -817,6 +825,9 @@ export class CanvasManager {
     this.canvas.style.left = '0';
     this.canvas.style.top = '0';
     this.canvas.style.zIndex = '1';
+    this.canvas.style.border = 'none';
+    this.canvas.style.outline = 'none';
+    this.canvas.style.display = 'block';
 
     backgroundCanvas.style.position = 'absolute';
     backgroundCanvas.style.left = '0';
