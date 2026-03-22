@@ -48,6 +48,7 @@ type GlobalChatPanelOptions = {
 
 const CHAT_ISLAND_MARGIN_PX = 8;
 const CHAT_ISLAND_RADIUS_PX = 22;
+const CHAT_AUTO_SCROLL_THRESHOLD_PX = 40;
 
 export class GlobalChatPanel {
   private readonly container: HTMLElement;
@@ -59,10 +60,16 @@ export class GlobalChatPanel {
   private readonly contextMeta: HTMLParagraphElement;
   private readonly quickActionsSection: HTMLDivElement;
   private readonly quickActionsRow: HTMLDivElement;
+  private readonly messagesFrame: HTMLDivElement;
   private readonly messagesViewport: HTMLDivElement;
+  private readonly scrollToBottomButton: HTMLButtonElement;
   private readonly messagesToolsRow: HTMLDivElement;
   private readonly messagesList: HTMLDivElement;
   private readonly composerInput: HTMLTextAreaElement;
+  private readonly pendingConfirmationBar: HTMLDivElement;
+  private readonly pendingConfirmationMeta: HTMLParagraphElement;
+  private readonly pendingConfirmationTitle: HTMLParagraphElement;
+  private readonly pendingConfirmationButton: HTMLButtonElement;
   private readonly contextModeControl: HTMLDivElement;
   private readonly contextModeSelect: HTMLSelectElement;
   private readonly clearButton: HTMLButtonElement;
@@ -79,6 +86,10 @@ export class GlobalChatPanel {
     messageId: string;
     status: 'copied' | 'failed';
   } | null = null;
+  private stickMessagesToBottom = true;
+  private currentPendingConfirmation: ReturnType<
+    WorkspaceChatSessionController['getState']
+  >['pendingConfirmation'] = null;
   private copyFeedbackTimer: number | null = null;
 
   private readonly workspaceViewChangedHandler = (event: Event): void => {
@@ -91,6 +102,11 @@ export class GlobalChatPanel {
     const customEvent = event as CustomEvent<unknown>;
     if (!isWorkspaceChatContextDetail(customEvent.detail)) return;
     this.chatController.setContext(customEvent.detail);
+  };
+
+  private readonly messagesViewportScrollHandler = (): void => {
+    this.stickMessagesToBottom = this.isMessagesViewportNearBottom();
+    this.updateScrollToBottomButtonVisibility();
   };
 
   constructor(options: GlobalChatPanelOptions) {
@@ -225,6 +241,12 @@ export class GlobalChatPanel {
     this.quickActionsRow.style.gap = '10px';
     this.quickActionsSection.appendChild(this.quickActionsRow);
 
+    this.messagesFrame = document.createElement('div');
+    this.messagesFrame.style.position = 'relative';
+    this.messagesFrame.style.display = 'flex';
+    this.messagesFrame.style.flex = '1';
+    this.messagesFrame.style.minHeight = '0';
+
     this.messagesViewport = document.createElement('div');
     this.messagesViewport.style.flex = '1';
     this.messagesViewport.style.minHeight = '0';
@@ -232,6 +254,10 @@ export class GlobalChatPanel {
     this.messagesViewport.style.padding = '18px 18px 24px';
     this.messagesViewport.style.background =
       'linear-gradient(180deg, rgba(248, 250, 252, 0.76), rgba(243, 244, 246, 0.42) 52%, rgba(248, 250, 252, 0.68))';
+    this.messagesViewport.addEventListener(
+      'scroll',
+      this.messagesViewportScrollHandler
+    );
 
     this.messagesToolsRow = document.createElement('div');
     this.messagesToolsRow.style.display = 'none';
@@ -245,6 +271,46 @@ export class GlobalChatPanel {
     this.messagesList.style.gap = '16px';
     this.messagesViewport.appendChild(this.messagesList);
 
+    this.scrollToBottomButton = document.createElement('button');
+    this.scrollToBottomButton.type = 'button';
+    this.scrollToBottomButton.setAttribute(
+      'aria-label',
+      'Scroll to latest message'
+    );
+    this.scrollToBottomButton.title = 'Scroll to latest message';
+    this.scrollToBottomButton.style.position = 'absolute';
+    this.scrollToBottomButton.style.left = '50%';
+    this.scrollToBottomButton.style.bottom = '16px';
+    this.scrollToBottomButton.style.display = 'none';
+    this.scrollToBottomButton.style.alignItems = 'center';
+    this.scrollToBottomButton.style.justifyContent = 'center';
+    this.scrollToBottomButton.style.width = '34px';
+    this.scrollToBottomButton.style.height = '34px';
+    this.scrollToBottomButton.style.border = '1px solid rgba(148, 163, 184, 0.22)';
+    this.scrollToBottomButton.style.borderRadius = '999px';
+    this.scrollToBottomButton.style.background =
+      'linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(248, 250, 252, 0.58))';
+    this.scrollToBottomButton.style.boxShadow =
+      '0 14px 30px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.82)';
+    this.scrollToBottomButton.style.color = '#334155';
+    this.scrollToBottomButton.style.padding = '0';
+    this.scrollToBottomButton.style.cursor = 'pointer';
+    this.scrollToBottomButton.style.zIndex = '1';
+    this.scrollToBottomButton.style.transform = 'translate(-50%, 6px)';
+    this.scrollToBottomButton.style.transition =
+      'opacity 140ms ease, transform 140ms ease';
+    this.scrollToBottomButton.addEventListener('click', () => {
+      this.pinMessagesToBottom();
+      this.scrollMessagesToBottom('smooth');
+    });
+    const scrollToBottomIcon = createIcon('arrow-down', {
+      size: 16,
+      strokeWidth: 1.8,
+    });
+    scrollToBottomIcon.setAttribute('aria-hidden', 'true');
+    this.scrollToBottomButton.appendChild(scrollToBottomIcon);
+    this.messagesFrame.append(this.messagesViewport, this.scrollToBottomButton);
+
     const composer = document.createElement('div');
     composer.style.padding = '14px 18px 18px';
     composer.style.display = 'flex';
@@ -253,6 +319,72 @@ export class GlobalChatPanel {
     composer.style.borderTop = '1px solid rgba(148, 163, 184, 0.12)';
     composer.style.background =
       'linear-gradient(180deg, rgba(255, 255, 255, 0.44), rgba(248, 250, 252, 0.86))';
+
+    this.pendingConfirmationBar = document.createElement('div');
+    this.pendingConfirmationBar.style.display = 'none';
+    this.pendingConfirmationBar.style.alignItems = 'center';
+    this.pendingConfirmationBar.style.justifyContent = 'space-between';
+    this.pendingConfirmationBar.style.gap = '12px';
+    this.pendingConfirmationBar.style.padding = '12px 14px';
+    this.pendingConfirmationBar.style.border = '1px solid rgba(15, 23, 42, 0.12)';
+    this.pendingConfirmationBar.style.borderRadius = '18px';
+    this.pendingConfirmationBar.style.background =
+      'linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94))';
+    this.pendingConfirmationBar.style.boxShadow =
+      '0 10px 24px rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.84)';
+
+    const pendingConfirmationText = document.createElement('div');
+    pendingConfirmationText.style.display = 'flex';
+    pendingConfirmationText.style.flexDirection = 'column';
+    pendingConfirmationText.style.gap = '3px';
+    pendingConfirmationText.style.minWidth = '0';
+    pendingConfirmationText.style.flex = '1';
+
+    this.pendingConfirmationMeta = document.createElement('p');
+    this.pendingConfirmationMeta.style.margin = '0';
+    this.pendingConfirmationMeta.style.fontSize = '10px';
+    this.pendingConfirmationMeta.style.fontWeight = '700';
+    this.pendingConfirmationMeta.style.letterSpacing = '0.08em';
+    this.pendingConfirmationMeta.style.textTransform = 'uppercase';
+    this.pendingConfirmationMeta.style.color = '#64748b';
+
+    this.pendingConfirmationTitle = document.createElement('p');
+    this.pendingConfirmationTitle.style.margin = '0';
+    this.pendingConfirmationTitle.style.fontSize = '12px';
+    this.pendingConfirmationTitle.style.fontWeight = '600';
+    this.pendingConfirmationTitle.style.lineHeight = '1.45';
+    this.pendingConfirmationTitle.style.color = '#0f172a';
+    this.pendingConfirmationTitle.style.whiteSpace = 'nowrap';
+    this.pendingConfirmationTitle.style.overflow = 'hidden';
+    this.pendingConfirmationTitle.style.textOverflow = 'ellipsis';
+
+    pendingConfirmationText.append(
+      this.pendingConfirmationMeta,
+      this.pendingConfirmationTitle
+    );
+
+    this.pendingConfirmationButton = document.createElement('button');
+    this.pendingConfirmationButton.type = 'button';
+    this.pendingConfirmationButton.style.border =
+      '1px solid rgba(15, 23, 42, 0.82)';
+    this.pendingConfirmationButton.style.borderRadius = '999px';
+    this.pendingConfirmationButton.style.background =
+      'linear-gradient(180deg, rgba(30, 41, 59, 1), rgba(15, 23, 42, 1))';
+    this.pendingConfirmationButton.style.color = '#ffffff';
+    this.pendingConfirmationButton.style.padding = '9px 14px';
+    this.pendingConfirmationButton.style.fontSize = '11px';
+    this.pendingConfirmationButton.style.fontWeight = '700';
+    this.pendingConfirmationButton.style.letterSpacing = '0.01em';
+    this.pendingConfirmationButton.style.whiteSpace = 'nowrap';
+    this.pendingConfirmationButton.style.cursor = 'pointer';
+    this.pendingConfirmationButton.addEventListener('click', () => {
+      void this.confirmPendingSuggestion();
+    });
+
+    this.pendingConfirmationBar.append(
+      pendingConfirmationText,
+      this.pendingConfirmationButton
+    );
 
     this.composerInput = document.createElement('textarea');
     this.composerInput.rows = 3;
@@ -335,6 +467,7 @@ export class GlobalChatPanel {
     this.clearButton.style.cursor = 'pointer';
     this.clearButton.style.lineHeight = '1.1';
     this.clearButton.addEventListener('click', () => {
+      this.pinMessagesToBottom();
       this.chatController.clearConversation();
       this.resetCopyFeedback();
     });
@@ -363,12 +496,16 @@ export class GlobalChatPanel {
 
     composerControls.append(this.contextModeControl, composerHint);
     composerFooter.append(composerControls, this.sendButton);
-    composer.append(this.composerInput, composerFooter);
+    composer.append(
+      this.pendingConfirmationBar,
+      this.composerInput,
+      composerFooter
+    );
 
     this.panel.append(
       this.header,
       this.quickActionsSection,
-      this.messagesViewport,
+      this.messagesFrame,
       composer
     );
     this.container.appendChild(this.panel);
@@ -400,6 +537,10 @@ export class GlobalChatPanel {
     window.removeEventListener(
       WORKSPACE_CHAT_CONTEXT_CHANGED_EVENT,
       this.chatContextChangedHandler
+    );
+    this.messagesViewport.removeEventListener(
+      'scroll',
+      this.messagesViewportScrollHandler
     );
     this.unsubscribeController?.();
     this.unsubscribeController = null;
@@ -449,12 +590,14 @@ export class GlobalChatPanel {
   }
 
   public async submitExternalPrompt(prompt: string): Promise<void> {
+    this.pinMessagesToBottom();
     await this.submitPrompt(prompt);
   }
 
   public async submitPreparedSubmission(
     submission: WorkspaceChatPreparedSubmission
   ): Promise<void> {
+    this.pinMessagesToBottom();
     await this.chatController.submitPreparedSubmission(submission);
   }
 
@@ -470,12 +613,37 @@ export class GlobalChatPanel {
       state.currentView,
       state.contextMode
     );
+    this.renderPendingConfirmation(state.pendingConfirmation, state.replying);
     this.renderComposer(
       state.currentView,
       state.replying,
       state.composerPlaceholder,
       state.contextMode
     );
+  }
+
+  private renderPendingConfirmation(
+    pendingConfirmation: ReturnType<
+      WorkspaceChatSessionController['getState']
+    >['pendingConfirmation'],
+    replying: boolean
+  ): void {
+    this.currentPendingConfirmation = pendingConfirmation;
+    if (!pendingConfirmation) {
+      this.pendingConfirmationBar.style.display = 'none';
+      return;
+    }
+
+    this.pendingConfirmationBar.style.display = 'flex';
+    this.pendingConfirmationMeta.textContent =
+      pendingConfirmation.actionCount > 1
+        ? `Pending confirmation · ${pendingConfirmation.actionCount} actions`
+        : 'Pending confirmation';
+    this.pendingConfirmationTitle.textContent = pendingConfirmation.actionTitle;
+    this.pendingConfirmationButton.textContent = pendingConfirmation.actionLabel;
+    this.pendingConfirmationButton.disabled = replying;
+    this.pendingConfirmationButton.style.opacity = replying ? '0.65' : '1';
+    this.pendingConfirmationButton.style.cursor = replying ? 'default' : 'pointer';
   }
 
   private renderContext(
@@ -536,6 +704,8 @@ export class GlobalChatPanel {
     currentView: WorkspaceView,
     contextMode: WorkspaceChatContextMode
   ): void {
+    const shouldAutoScroll =
+      this.stickMessagesToBottom || this.messagesList.childElementCount === 0;
     const canClear =
       messages.length > 1 ||
       messages.some((message) => message.role === 'user');
@@ -561,9 +731,14 @@ export class GlobalChatPanel {
     if (replying) {
       this.messagesList.appendChild(this.createTypingBubble());
     }
+    if (!shouldAutoScroll) {
+      this.updateScrollToBottomButtonVisibility();
+      return;
+    }
     window.requestAnimationFrame(() => {
-      this.messagesViewport.scrollTop = this.messagesViewport.scrollHeight;
+      this.scrollMessagesToBottom();
     });
+    this.updateScrollToBottomButtonVisibility();
   }
 
   private createEmptyStateCard(
@@ -823,6 +998,7 @@ export class GlobalChatPanel {
     button.style.letterSpacing = '0.01em';
     button.style.cursor = 'pointer';
     button.addEventListener('click', () => {
+      this.pinMessagesToBottom();
       void this.submitPrompt(action.prompt);
     });
     return button;
@@ -973,6 +1149,7 @@ export class GlobalChatPanel {
         regenerateIcon.setAttribute('aria-hidden', 'true');
         regenerateButton.append(regenerateIcon);
         regenerateButton.addEventListener('click', () => {
+          this.pinMessagesToBottom();
           void this.chatController.regenerateMessage(message.id);
         });
         actions.appendChild(regenerateButton);
@@ -1099,8 +1276,88 @@ export class GlobalChatPanel {
   private async submitPrompt(prompt: string): Promise<void> {
     const trimmed = prompt.trim();
     if (trimmed.length === 0) return;
+    if (
+      this.currentPendingConfirmation &&
+      this.isConfirmPrompt(trimmed)
+    ) {
+      this.composerInput.value = '';
+      this.pinMessagesToBottom();
+      await this.confirmPendingSuggestion();
+      return;
+    }
     this.composerInput.value = '';
+    this.pinMessagesToBottom();
     await this.chatController.submitPrompt(trimmed);
+  }
+
+  private async confirmPendingSuggestion(): Promise<void> {
+    const pendingConfirmation = this.currentPendingConfirmation;
+    if (!pendingConfirmation) {
+      return;
+    }
+
+    this.pinMessagesToBottom();
+    await this.chatController.executeMessageActions(
+      pendingConfirmation.messageId,
+      pendingConfirmation.actionIds,
+      this.executeAction
+    );
+  }
+
+  private pinMessagesToBottom(): void {
+    this.stickMessagesToBottom = true;
+    this.updateScrollToBottomButtonVisibility();
+  }
+
+  private scrollMessagesToBottom(behavior: ScrollBehavior = 'auto'): void {
+    const top = this.messagesViewport.scrollHeight;
+    if (
+      behavior === 'smooth' &&
+      typeof this.messagesViewport.scrollTo === 'function'
+    ) {
+      this.messagesViewport.scrollTo({ top, behavior });
+    } else {
+      this.messagesViewport.scrollTop = top;
+    }
+    this.stickMessagesToBottom = true;
+    this.updateScrollToBottomButtonVisibility();
+  }
+
+  private isMessagesViewportNearBottom(): boolean {
+    const distanceFromBottom =
+      this.messagesViewport.scrollHeight -
+      this.messagesViewport.scrollTop -
+      this.messagesViewport.clientHeight;
+    return distanceFromBottom <= CHAT_AUTO_SCROLL_THRESHOLD_PX;
+  }
+
+  private updateScrollToBottomButtonVisibility(): void {
+    const shouldShow =
+      !this.stickMessagesToBottom && this.messagesList.childElementCount > 0;
+    this.scrollToBottomButton.style.display = shouldShow ? 'inline-flex' : 'none';
+    this.scrollToBottomButton.style.opacity = shouldShow ? '1' : '0';
+    this.scrollToBottomButton.style.transform = shouldShow
+      ? 'translate(-50%, 0)'
+      : 'translate(-50%, 6px)';
+  }
+
+  private isConfirmPrompt(prompt: string): boolean {
+    const normalized = prompt
+      .trim()
+      .toLocaleLowerCase()
+      .replace(/[!.]/g, '');
+    return (
+      normalized === 'confirm' ||
+      normalized === 'confirmed' ||
+      normalized === 'yes' ||
+      normalized === 'ok' ||
+      normalized === 'okay' ||
+      normalized === 'apply' ||
+      normalized === 'підтверджую' ||
+      normalized === 'підтвердити' ||
+      normalized === 'так' ||
+      normalized === 'ок'
+    );
   }
 
   private getRegeneratableMessageId(
@@ -1162,7 +1419,10 @@ export class GlobalChatPanel {
     context: ReturnType<WorkspaceChatSessionController['getState']>['context'],
     contextEnabled: boolean
   ): HTMLDivElement {
-    const group = actions[0]!;
+    const group = actions[0];
+    if (!group) {
+      throw new Error('Grouped action card requires at least one action.');
+    }
     const card = document.createElement('div');
     card.style.border = '1px solid rgba(148, 163, 184, 0.18)';
     card.style.borderRadius = '20px';
@@ -1288,7 +1548,11 @@ export class GlobalChatPanel {
       rows.appendChild(row);
     });
 
+    const groupFooter = this.createActionGroupFooter(messageId, actions);
     card.append(accent, header, rows);
+    if (groupFooter) {
+      card.appendChild(groupFooter);
+    }
     return card;
   }
 
@@ -1456,6 +1720,7 @@ export class GlobalChatPanel {
     button.disabled =
       action.status === 'applied' || action.status === 'applying';
     button.addEventListener('click', () => {
+      this.pinMessagesToBottom();
       void this.chatController.executeMessageAction(
         messageId,
         action.id,
@@ -1463,6 +1728,80 @@ export class GlobalChatPanel {
       );
     });
     return button;
+  }
+
+  private createActionGroupFooter(
+    messageId: string,
+    actions: WorkspaceChatAction[]
+  ): HTMLDivElement | null {
+    const actionableActionIds = actions
+      .filter(
+        (action) => action.status !== 'applied' && action.status !== 'applying'
+      )
+      .map((action) => action.id);
+    if (actionableActionIds.length <= 1) {
+      return null;
+    }
+
+    const footer = document.createElement('div');
+    footer.style.display = 'flex';
+    footer.style.justifyContent = 'flex-start';
+    footer.style.paddingTop = '4px';
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = this.getActionGroupButtonLabel(actions);
+    button.style.border = '1px solid rgba(15, 23, 42, 0.82)';
+    button.style.borderRadius = '999px';
+    button.style.background =
+      'linear-gradient(180deg, rgba(30, 41, 59, 1), rgba(15, 23, 42, 1))';
+    button.style.color = '#ffffff';
+    button.style.padding = '9px 14px';
+    button.style.fontSize = '11px';
+    button.style.fontWeight = '700';
+    button.style.lineHeight = '1.1';
+    button.style.letterSpacing = '0.01em';
+    button.style.whiteSpace = 'nowrap';
+    button.style.cursor = 'pointer';
+    button.addEventListener('click', () => {
+      this.pinMessagesToBottom();
+      void this.chatController.executeMessageActions(
+        messageId,
+        actionableActionIds,
+        this.executeAction
+      );
+    });
+
+    footer.appendChild(button);
+    return footer;
+  }
+
+  private getActionGroupButtonLabel(actions: WorkspaceChatAction[]): string {
+    const actionableActions = actions.filter(
+      (action) => action.status !== 'applied' && action.status !== 'applying'
+    );
+    if (actionableActions.length === 0) {
+      return 'Confirm all';
+    }
+    if (actionableActions.every((action) => action.status === 'failed')) {
+      return 'Retry all';
+    }
+
+    const kinds = new Set(actionableActions.map((action) => action.kind));
+    if (kinds.size !== 1) {
+      return 'Confirm all';
+    }
+
+    switch (actionableActions[0]?.kind) {
+      case 'create_task':
+      case 'create_story':
+      case 'create_goal':
+        return 'Create all';
+      case 'suggest_relation':
+      case 'suggest_update':
+      default:
+        return 'Apply all';
+    }
   }
 
   private createUpdatePatchPreview(

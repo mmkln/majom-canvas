@@ -37,6 +37,7 @@ export type IconName =
   | 'exclamation-circle'
   | 'trash'
   | 'arrow-path'
+  | 'arrow-down'
   | 'arrow-ultum-left'
   | 'arrow-ultum-right'
   | 'status-pending'
@@ -379,6 +380,11 @@ export function createIcon(
         'M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99'
       )
     );
+    return svg;
+  }
+
+  if (name === 'arrow-down') {
+    svg.appendChild(makePath('M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3'));
     return svg;
   }
 
