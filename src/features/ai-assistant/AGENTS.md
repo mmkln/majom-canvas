@@ -40,3 +40,5 @@
 - Do not hide `medium` priority in chat action cards.
 - Priority indicators in chat action cards must use the same icon vocabulary and color mapping as the priority selector in `canvas/ui/components/EditElementModal.ts`. Prefer icon chips over text chips for action-card priority badges.
 - For `create_task` and `create_story` action cards, do not render target-container meta under the title. Generic target context like `Story`, `Goal`, `Selected story`, or `Selected goal` is noise in this UI.
+- In chat message bubbles, do not differentiate `system` and `command/action` messages with alternate bubble background tints. Keep their bubble surface aligned with regular assistant replies and distinguish them through in-message leading icons instead of meta-row icons.
+- Selection-scoped command messages must include the target element in the command label when the action name alone is too generic. In particular, `Clarify`, `Fill missing details`, and `Break into ...` should render labels like `Clarify · Story: …`, `Fill missing details · Goal: …`, or `Break into tasks · Story: …`.

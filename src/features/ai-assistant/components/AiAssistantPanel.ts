@@ -121,6 +121,7 @@ export class AiAssistantPanel {
     messageId: string;
     status: 'copied' | 'failed';
   } | null = null;
+  private readonly collapsedActionMessages = new Map<string, boolean>();
   private stickMessagesToBottom = true;
   private currentPendingConfirmation: ReturnType<
     AiAssistantSessionController['getState']
@@ -795,6 +796,7 @@ export class AiAssistantPanel {
     currentView: WorkspaceView,
     contextMode: AiAssistantContextMode
   ): void {
+    this.pruneCollapsedActionMessages(messages);
     const shouldAutoScroll =
       this.stickMessagesToBottom || this.messagesList.childElementCount === 0;
     const preservedScrollTop = shouldAutoScroll
@@ -1146,6 +1148,20 @@ export class AiAssistantPanel {
     meta.style.letterSpacing = '0.03em';
     meta.style.color = '#94a3b8';
 
+    const roleIconName: IconName | null = isCommandMessage
+      ? 'bolt'
+      : isSystemMessage
+        ? 'shield-exclamation'
+        : null;
+
+    const roleColor = isUserMessage
+      ? '#475569'
+      : isCommandMessage
+        ? '#1d4ed8'
+        : isSystemMessage
+          ? '#6366f1'
+          : '#64748b';
+
     const roleLabel = document.createElement('span');
     roleLabel.textContent = isUserMessage
       ? 'You'
@@ -1155,13 +1171,7 @@ export class AiAssistantPanel {
           ? 'System'
           : 'Assistant';
     roleLabel.style.fontWeight = '700';
-    roleLabel.style.color = isUserMessage
-      ? '#475569'
-      : isCommandMessage
-        ? '#1d4ed8'
-        : isSystemMessage
-          ? '#6366f1'
-          : '#64748b';
+    roleLabel.style.color = roleColor;
 
     const timeLabel = document.createElement('span');
     timeLabel.textContent = this.formatMessageTime(message.createdAt);
@@ -1190,11 +1200,7 @@ export class AiAssistantPanel {
             : '#1e293b';
       bubble.style.background = isUserMessage
         ? 'rgba(241, 245, 249, 0.96)'
-        : isCommandMessage
-          ? 'rgba(248, 250, 252, 0.92)'
-          : isSystemMessage
-            ? 'rgba(241, 245, 249, 0.92)'
-            : 'rgba(248, 250, 252, 0.82)';
+        : 'rgba(248, 250, 252, 0.82)';
       bubble.style.border = isUserMessage
         ? '1px solid rgba(203, 213, 225, 0.82)'
         : isCommandMessage
@@ -1202,7 +1208,34 @@ export class AiAssistantPanel {
           : isSystemMessage
             ? 'none'
             : 'none';
-      bubble.appendChild(this.createMessageContent(message));
+      const messageContent = this.createMessageContent(message);
+      if (roleIconName) {
+        const contentRow = document.createElement('div');
+        contentRow.style.display = 'flex';
+        contentRow.style.alignItems = 'flex-start';
+        contentRow.style.gap = '8px';
+        contentRow.style.width = '100%';
+
+        const roleIcon = createIcon(roleIconName, {
+          size: 14,
+          strokeWidth: 1.9,
+        });
+        roleIcon.setAttribute('aria-hidden', 'true');
+        roleIcon.setAttribute('focusable', 'false');
+        roleIcon.style.color = '#94a3b8';
+        roleIcon.style.flex = '0 0 auto';
+        roleIcon.style.marginTop = '1px';
+
+        const contentWrap = document.createElement('div');
+        contentWrap.style.minWidth = '0';
+        contentWrap.style.flex = '1';
+        contentWrap.appendChild(messageContent);
+
+        contentRow.append(roleIcon, contentWrap);
+        bubble.appendChild(contentRow);
+      } else {
+        bubble.appendChild(messageContent);
+      }
       wrap.appendChild(bubble);
     }
 
@@ -1211,14 +1244,27 @@ export class AiAssistantPanel {
     }
 
     if (isAssistantMessage && Array.isArray(message.actions)) {
-      const actionsList = this.createActionCards(
-        message,
-        message.actions,
-        context,
-        contextEnabled
-      );
-      if (actionsList) {
-        wrap.appendChild(actionsList);
+      const shouldCollapseActions = this.isLongCreationMessage(message);
+      const actionsCollapsed = shouldCollapseActions
+        ? this.getActionMessageCollapsedState(message)
+        : false;
+
+      if (shouldCollapseActions) {
+        wrap.appendChild(
+          this.createActionMessageToggle(message, actionsCollapsed)
+        );
+      }
+
+      if (!actionsCollapsed) {
+        const actionsList = this.createActionCards(
+          message,
+          message.actions,
+          context,
+          contextEnabled
+        );
+        if (actionsList) {
+          wrap.appendChild(actionsList);
+        }
       }
     }
 
@@ -1259,6 +1305,258 @@ export class AiAssistantPanel {
       wrap.appendChild(actions);
     }
 
+    return wrap;
+  }
+
+  private pruneCollapsedActionMessages(messages: AiAssistantMessage[]): void {
+    const liveMessageIds = new Set(messages.map((message) => message.id));
+    Array.from(this.collapsedActionMessages.keys()).forEach((messageId) => {
+      if (!liveMessageIds.has(messageId)) {
+        this.collapsedActionMessages.delete(messageId);
+      }
+    });
+  }
+
+  private isCreateActionKind(kind: AiAssistantAction['kind']): boolean {
+    return (
+      kind === 'create_task' ||
+      kind === 'create_story' ||
+      kind === 'create_goal' ||
+      kind === 'create_goals' ||
+      kind === 'create_goal_blueprint'
+    );
+  }
+
+  private isLongCreationMessage(message: AiAssistantMessage): boolean {
+    if (message.role !== 'assistant' || !Array.isArray(message.actions)) {
+      return false;
+    }
+
+    if (
+      message.actions.length === 0 ||
+      !message.actions.every((action) => this.isCreateActionKind(action.kind))
+    ) {
+      return false;
+    }
+
+    return (
+      message.actions.length > 1 ||
+      message.actions.some(
+        (action) =>
+          action.kind === 'create_goals' ||
+          action.kind === 'create_goal_blueprint'
+      )
+    );
+  }
+
+  private areMessageActionsResolved(actions: AiAssistantAction[]): boolean {
+    return (
+      actions.length > 0 &&
+      actions.every(
+        (action) => action.status === 'applied' || action.status === 'failed'
+      )
+    );
+  }
+
+  private getActionMessageCollapsedState(message: AiAssistantMessage): boolean {
+    const explicitState = this.collapsedActionMessages.get(message.id);
+    if (typeof explicitState === 'boolean') {
+      return explicitState;
+    }
+
+    return (
+      this.isLongCreationMessage(message) &&
+      this.areMessageActionsResolved(message.actions ?? [])
+    );
+  }
+
+  private setActionMessageCollapsed(
+    messageId: string,
+    collapsed: boolean
+  ): void {
+    this.collapsedActionMessages.set(messageId, collapsed);
+    this.render();
+  }
+
+  private getCreationMessageSummary(actions: AiAssistantAction[]): {
+    title: string;
+    detail: string | null;
+  } {
+    const firstAction = actions[0];
+    if (!firstAction) {
+      return {
+        title: 'Creation actions',
+        detail: null,
+      };
+    }
+
+    if (actions.length === 1) {
+      if (firstAction.kind === 'create_goals') {
+        return {
+          title: this.formatCountLabel(firstAction.items.length, 'goal'),
+          detail: firstAction.title || firstAction.groupSummary || null,
+        };
+      }
+
+      if (firstAction.kind === 'create_goal_blueprint') {
+        return {
+          title: `Plan with ${this.formatCountLabel(firstAction.goals.length, 'goal')}`,
+          detail: firstAction.title || firstAction.summary || null,
+        };
+      }
+
+      if (firstAction.kind === 'create_task') {
+        return {
+          title: firstAction.title,
+          detail: 'Task proposal',
+        };
+      }
+
+      if (firstAction.kind === 'create_story') {
+        return {
+          title: firstAction.title,
+          detail: 'Story proposal',
+        };
+      }
+
+      if (firstAction.kind === 'create_goal') {
+        return {
+          title: firstAction.title,
+          detail: 'Goal proposal',
+        };
+      }
+    }
+
+    const firstKind = firstAction.kind;
+    const allSameKind = actions.every((action) => action.kind === firstKind);
+    if (allSameKind && firstKind === 'create_task') {
+      return {
+        title: this.formatCountLabel(actions.length, 'task'),
+        detail: firstAction.title || null,
+      };
+    }
+    if (allSameKind && firstKind === 'create_story') {
+      return {
+        title: this.formatCountLabel(actions.length, 'story'),
+        detail: firstAction.title || null,
+      };
+    }
+    if (allSameKind && firstKind === 'create_goal') {
+      return {
+        title: this.formatCountLabel(actions.length, 'goal'),
+        detail: firstAction.title || null,
+      };
+    }
+
+    return {
+      title: this.formatCountLabel(actions.length, 'action'),
+      detail: firstAction.title || null,
+    };
+  }
+
+  private createActionMessageToggle(
+    message: AiAssistantMessage,
+    collapsed: boolean
+  ): HTMLDivElement {
+    const actions = message.actions ?? [];
+    const summary = this.getCreationMessageSummary(actions);
+    const isResolved = this.areMessageActionsResolved(actions);
+    const wrap = document.createElement('div');
+    wrap.style.display = 'flex';
+    wrap.style.alignItems = 'center';
+    wrap.style.justifyContent = 'flex-start';
+    wrap.style.width = '100%';
+    wrap.style.maxWidth = '94%';
+    setAiActionComponentName(wrap, 'message-actions-toggle-wrap');
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.title = collapsed ? 'Show actions' : 'Hide actions';
+    button.setAttribute(
+      'aria-label',
+      collapsed ? 'Show actions' : 'Hide actions'
+    );
+    button.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    button.style.display = 'flex';
+    button.style.alignItems = 'center';
+    button.style.justifyContent = 'flex-start';
+    button.style.gap = '12px';
+    button.style.width = '100%';
+    button.style.padding = '7px 4px';
+    button.style.borderRadius = '12px';
+    button.style.border = 'none';
+    button.style.background = 'transparent';
+    button.style.cursor = 'pointer';
+    button.style.textAlign = 'left';
+    button.style.boxShadow = 'none';
+    button.style.appearance = 'none';
+    button.style.outline = 'none';
+    button.style.transition = 'background 120ms ease';
+    button.addEventListener('mouseenter', () => {
+      button.style.background = 'rgba(248, 250, 252, 0.52)';
+    });
+    button.addEventListener('mouseleave', () => {
+      button.style.background = 'transparent';
+    });
+    button.addEventListener('click', () => {
+      this.setActionMessageCollapsed(message.id, !collapsed);
+    });
+    setAiActionComponentName(button, 'message-actions-toggle');
+    button.dataset.aiActionCollapsed = collapsed ? 'true' : 'false';
+
+    const left = document.createElement('div');
+    left.style.display = 'flex';
+    left.style.alignItems = 'flex-start';
+    left.style.gap = '8px';
+    left.style.minWidth = '0';
+    left.style.flex = '1';
+
+    const chevron = createIcon(collapsed ? 'chevron-right' : 'chevron-down', {
+      size: 13,
+      strokeWidth: 2.1,
+    });
+    chevron.setAttribute('aria-hidden', 'true');
+    chevron.style.color = '#94a3b8';
+    chevron.style.flex = '0 0 auto';
+    chevron.style.marginTop = '1px';
+
+    const textWrap = document.createElement('div');
+    textWrap.style.display = 'flex';
+    textWrap.style.flexDirection = 'column';
+    textWrap.style.gap = '2px';
+    textWrap.style.minWidth = '0';
+    textWrap.style.flex = '1';
+
+    const title = document.createElement('div');
+    title.textContent = summary.title;
+    title.style.fontSize = '11px';
+    title.style.fontWeight = '600';
+    title.style.lineHeight = '1.35';
+    title.style.color = '#334155';
+    title.style.whiteSpace = 'nowrap';
+    title.style.overflow = 'hidden';
+    title.style.textOverflow = 'ellipsis';
+
+    const detailText = [isResolved ? 'Resolved' : null, summary.detail]
+      .filter((value): value is string => Boolean(value))
+      .join(' · ');
+    textWrap.appendChild(title);
+    if (detailText) {
+      const detail = document.createElement('div');
+      detail.textContent = detailText;
+      detail.style.fontSize = '10px';
+      detail.style.fontWeight = '500';
+      detail.style.lineHeight = '1.35';
+      detail.style.color = '#94a3b8';
+      detail.style.whiteSpace = 'nowrap';
+      detail.style.overflow = 'hidden';
+      detail.style.textOverflow = 'ellipsis';
+      textWrap.appendChild(detail);
+    }
+    left.append(chevron, textWrap);
+
+    button.appendChild(left);
+    wrap.appendChild(button);
     return wrap;
   }
 

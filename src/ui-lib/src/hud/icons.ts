@@ -41,6 +41,8 @@ export type IconName =
   | 'arrow-ultum-left'
   | 'arrow-ultum-right'
   | 'light-bulb'
+  | 'shield-exclamation'
+  | 'bolt'
   | 'slash'
   | 'puzzle-piece'
   | 'status-pending'
@@ -403,6 +405,22 @@ export function createIcon(
       makePath(
         'M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18'
       )
+    );
+    return svg;
+  }
+
+  if (name === 'shield-exclamation') {
+    svg.appendChild(
+      makePath(
+        'M12 9v3.75m0-10.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.75c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.75h-.152c-3.196 0-6.1-1.25-8.25-3.286Zm0 13.036h.008v.008H12v-.008Z'
+      )
+    );
+    return svg;
+  }
+
+  if (name === 'bolt') {
+    svg.appendChild(
+      makePath('m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z')
     );
     return svg;
   }

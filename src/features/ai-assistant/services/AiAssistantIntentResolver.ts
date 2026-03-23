@@ -97,11 +97,22 @@ function getAiAssistantIntentRequestLabel(
   selection: AiAssistantSelectionItem[]
 ): string {
   const item = selection[0];
+  const selectionTargetLabel = getAiAssistantSelectionTargetLabel(selection);
   switch (intent) {
     case 'breakdown':
-      if (item?.kind === 'goal') return 'Break into stories';
-      if (item?.kind === 'story') return 'Break into tasks';
-      return 'Break down';
+      if (item?.kind === 'goal') {
+        return selectionTargetLabel
+          ? `Break into stories · ${selectionTargetLabel}`
+          : 'Break into stories';
+      }
+      if (item?.kind === 'story') {
+        return selectionTargetLabel
+          ? `Break into tasks · ${selectionTargetLabel}`
+          : 'Break into tasks';
+      }
+      return selectionTargetLabel
+        ? `Break down · ${selectionTargetLabel}`
+        : 'Break down';
     case 'strategic_plan':
       return 'Generate strategic plan';
     case 'dependencies':
@@ -109,12 +120,49 @@ function getAiAssistantIntentRequestLabel(
     case 'missing':
       return 'What is missing?';
     case 'clarify':
-      return 'Clarify';
+      return selectionTargetLabel
+        ? `Clarify · ${selectionTargetLabel}`
+        : 'Clarify';
     case 'fill_details':
-      return 'Fill missing details';
+      return selectionTargetLabel
+        ? `Fill missing details · ${selectionTargetLabel}`
+        : 'Fill missing details';
     case 'review':
     default:
       return selection.length > 0 ? 'Review selection' : 'Review plan';
+  }
+}
+
+function getAiAssistantSelectionTargetLabel(
+  selection: AiAssistantSelectionItem[]
+): string | null {
+  if (selection.length === 0) {
+    return null;
+  }
+
+  if (selection.length > 1) {
+    return `${selection.length} selected items`;
+  }
+
+  const item = selection[0];
+  if (!item) {
+    return null;
+  }
+
+  return `${formatAiAssistantSelectionKindLabel(item.kind)}: ${item.title}`;
+}
+
+function formatAiAssistantSelectionKindLabel(
+  kind: AiAssistantSelectionItem['kind']
+): string {
+  switch (kind) {
+    case 'goal':
+      return 'Goal';
+    case 'story':
+      return 'Story';
+    case 'task':
+    default:
+      return 'Task';
   }
 }
 
