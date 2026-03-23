@@ -1,11 +1,11 @@
 import type { WorkspaceView } from './WorkspaceView.ts';
-import type { WorkspaceChatCanvasSnapshot } from './workspaceChatEvents.ts';
-import type { WorkspaceChatToolHost } from './services/WorkspaceChatToolTypes.ts';
+import type { AiAssistantCanvasSnapshot } from '../ai-assistant/aiAssistantEvents.ts';
+import type { AiAssistantToolHost } from '../ai-assistant/services/AiAssistantToolTypes.ts';
 
 export interface WorkspaceModule {
   readonly id: WorkspaceView;
   mount(parent: HTMLElement): Promise<void> | void;
   unmount(): void;
-  getWorkspaceChatSnapshot(): WorkspaceChatCanvasSnapshot | null;
-  getWorkspaceChatToolHost?(): WorkspaceChatToolHost | null;
+  getAiAssistantSnapshot(): AiAssistantCanvasSnapshot | null;
+  getAiAssistantToolHost?(): AiAssistantToolHost | null;
 }

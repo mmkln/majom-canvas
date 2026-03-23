@@ -10,7 +10,7 @@ vi.mock('./core/managers/CommandManager.ts', () => ({
 
 type CanvasTitleHarness = {
   canvasTitle: string;
-  emitWorkspaceChatContext: () => void;
+  emitAiAssistantContext: () => void;
 };
 
 function runSetCanvasTitle(app: CanvasTitleHarness, title: string): void {
@@ -46,7 +46,7 @@ describe('CanvasApp.setCanvasTitle', () => {
   it('updates canvas title, emits event, and syncs document title', () => {
     const app: CanvasTitleHarness = {
       canvasTitle: 'New canvas',
-      emitWorkspaceChatContext: vi.fn(),
+      emitAiAssistantContext: vi.fn(),
     };
     const fakeWindow = globalThis.window as unknown as {
       dispatchEvent: ReturnType<typeof vi.fn>;
@@ -63,19 +63,19 @@ describe('CanvasApp.setCanvasTitle', () => {
     };
     expect(event.type).toBe('canvasTitleChanged');
     expect(event.detail?.title).toBe('Roadmap');
-    expect(app.emitWorkspaceChatContext).toHaveBeenCalledTimes(1);
+    expect(app.emitAiAssistantContext).toHaveBeenCalledTimes(1);
   });
 
   it('falls back to app title when canvas title is empty', () => {
     const app: CanvasTitleHarness = {
       canvasTitle: 'New canvas',
-      emitWorkspaceChatContext: vi.fn(),
+      emitAiAssistantContext: vi.fn(),
     };
 
     runSetCanvasTitle(app, '   ');
 
     expect(app.canvasTitle).toBe('   ');
     expect(document.title).toBe('Majom Canvas');
-    expect(app.emitWorkspaceChatContext).toHaveBeenCalledTimes(1);
+    expect(app.emitAiAssistantContext).toHaveBeenCalledTimes(1);
   });
 });

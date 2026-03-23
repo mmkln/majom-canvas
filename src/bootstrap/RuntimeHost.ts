@@ -11,31 +11,32 @@ import {
   isWorkspaceViewChangeRequestDetail,
 } from '../features/shell/workspaceEvents.ts';
 import {
-  WORKSPACE_CHAT_INTENT_REQUEST_EVENT,
-  WORKSPACE_CHAT_TOGGLE_REQUEST_EVENT,
-  WORKSPACE_CHAT_PROMPT_REQUEST_EVENT,
-  emitWorkspaceChatVisibilityChanged,
-  isWorkspaceChatIntentRequestDetail,
-  isWorkspaceChatPromptRequestDetail,
-  isWorkspaceChatToggleRequestDetail,
-} from '../features/shell/workspaceChatEvents.ts';
+  AI_ASSISTANT_INTENT_REQUEST_EVENT,
+  AI_ASSISTANT_TOGGLE_REQUEST_EVENT,
+  AI_ASSISTANT_PROMPT_REQUEST_EVENT,
+  emitAiAssistantVisibilityChanged,
+  isAiAssistantIntentRequestDetail,
+  isAiAssistantPromptRequestDetail,
+  isAiAssistantToggleRequestDetail,
+} from '../features/ai-assistant/aiAssistantEvents.ts';
 import {
-  loadPersistedWorkspaceChatOpen,
+  loadPersistedAiAssistantOpen,
   loadPersistedWorkspaceView,
-  persistWorkspaceChatOpen,
+  persistAiAssistantOpen,
   persistWorkspaceView,
 } from '../features/shell/workspaceUiState.ts';
 import type { WorkspaceView } from '../features/shell/WorkspaceView.ts';
 import { WorkspaceViewSwitcher } from '../features/shell/WorkspaceViewSwitcher.ts';
-import { GlobalChatPanel } from '../features/shell/components/GlobalChatPanel.ts';
+import { AiAssistantPanel } from '../features/ai-assistant/components/AiAssistantPanel.ts';
 import type {
-  WorkspaceChatActionExecutionRequest,
-  WorkspaceChatActionExecutionResult,
-} from '../features/shell/workspaceChatActions.ts';
-import { resolveWorkspaceChatIntentSubmission } from '../features/shell/services/WorkspaceChatIntentResolver.ts';
-import { createWorkspaceChatRuntime } from '../features/shell/services/WorkspaceChatRuntime.ts';
-import { WorkspaceChatSessionController } from '../features/shell/services/WorkspaceChatSessionController.ts';
-import { buildWorkspaceChatCapabilityContext } from '../features/shell/services/WorkspaceChatCapabilities.ts';
+  AiAssistantActionExecutionHandler,
+  AiAssistantActionExecutionRequest,
+  AiAssistantActionExecutionResult,
+} from '../features/ai-assistant/aiAssistantActions.ts';
+import { resolveAiAssistantIntentSubmission } from '../features/ai-assistant/services/AiAssistantIntentResolver.ts';
+import { createAiAssistantRuntime } from '../features/ai-assistant/services/AiAssistantRuntime.ts';
+import { AiAssistantSessionController } from '../features/ai-assistant/services/AiAssistantSessionController.ts';
+import { buildAiAssistantCapabilityContext } from '../features/ai-assistant/services/AiAssistantCapabilities.ts';
 
 const KANBAN_MODULE_IMPORT_PATH = '../features/kanban/KanbanModule.ts';
 const CHAT_ISLAND_GAP_PX = 8;
@@ -56,8 +57,8 @@ export class RuntimeHost {
   private readonly wallpaperSubscription: Subscription;
   private currentWallpaperUrl = '';
   private readonly viewSwitcher: WorkspaceViewSwitcher;
-  private readonly chatPanel: GlobalChatPanel;
-  private readonly chatController: WorkspaceChatSessionController;
+  private readonly chatPanel: AiAssistantPanel;
+  private readonly chatController: AiAssistantSessionController;
   private activeView: WorkspaceView = 'canvas';
   private chatOpen = false;
   private hostVisible = false;
@@ -116,16 +117,25 @@ export class RuntimeHost {
       showKanban: KANBAN_DEV_ENABLED,
       showRoutines: ROUTINES_ENABLED,
     });
-    const chatRuntime = createWorkspaceChatRuntime({
-      resolveLiveHost: () => this.createWorkspaceChatToolHost(),
+    const chatRuntime = createAiAssistantRuntime({
+      resolveLiveHost: () => this.createAiAssistantToolHost(),
     });
     this.chatController = chatRuntime.controller;
-    this.chatPanel = new GlobalChatPanel({
+    const executeChatAction: AiAssistantActionExecutionHandler = Object.assign(
+      (request: AiAssistantActionExecutionRequest) =>
+        this.executeChatAction(request),
+      {
+        executeBatch: (
+          requests: AiAssistantActionExecutionRequest[]
+        ) => this.executeChatActions(requests),
+      }
+    );
+    this.chatPanel = new AiAssistantPanel({
       controller: this.chatController,
-      executeAction: (request) => this.executeChatAction(request),
+      executeAction: executeChatAction,
     });
     this.chatPanel.mount(document.body);
-    this.chatOpen = loadPersistedWorkspaceChatOpen();
+    this.chatOpen = loadPersistedAiAssistantOpen();
     this.chatPanel.setVisible(false);
     this.viewSwitcher.mount(document.body);
     this.viewSwitcher.setVisible(false);
@@ -137,7 +147,7 @@ export class RuntimeHost {
     };
     this.chatToggleHandler = (event: Event) => {
       const customEvent = event as CustomEvent<unknown>;
-      if (!isWorkspaceChatToggleRequestDetail(customEvent.detail)) return;
+      if (!isAiAssistantToggleRequestDetail(customEvent.detail)) return;
       if (typeof customEvent.detail?.open === 'boolean') {
         this.setChatOpen(customEvent.detail.open);
         return;
@@ -146,7 +156,7 @@ export class RuntimeHost {
     };
     this.chatPromptHandler = (event: Event) => {
       const customEvent = event as CustomEvent<unknown>;
-      if (!isWorkspaceChatPromptRequestDetail(customEvent.detail)) return;
+      if (!isAiAssistantPromptRequestDetail(customEvent.detail)) return;
       if (customEvent.detail.open !== false) {
         this.setChatOpen(true);
       }
@@ -154,14 +164,14 @@ export class RuntimeHost {
     };
     this.chatIntentHandler = (event: Event) => {
       const customEvent = event as CustomEvent<unknown>;
-      if (!isWorkspaceChatIntentRequestDetail(customEvent.detail)) return;
+      if (!isAiAssistantIntentRequestDetail(customEvent.detail)) return;
       if (customEvent.detail.open !== false) {
         this.setChatOpen(true);
       }
       const snapshot =
-        this.shell?.getActiveModule()?.getWorkspaceChatSnapshot() ?? null;
+        this.shell?.getActiveModule()?.getAiAssistantSnapshot() ?? null;
       void this.chatPanel.submitPreparedSubmission(
-        resolveWorkspaceChatIntentSubmission(customEvent.detail, snapshot)
+        resolveAiAssistantIntentSubmission(customEvent.detail, snapshot)
       );
     };
     this.windowResizeHandler = () => {
@@ -172,15 +182,15 @@ export class RuntimeHost {
       this.viewChangeHandler
     );
     window.addEventListener(
-      WORKSPACE_CHAT_TOGGLE_REQUEST_EVENT,
+      AI_ASSISTANT_TOGGLE_REQUEST_EVENT,
       this.chatToggleHandler
     );
     window.addEventListener(
-      WORKSPACE_CHAT_PROMPT_REQUEST_EVENT,
+      AI_ASSISTANT_PROMPT_REQUEST_EVENT,
       this.chatPromptHandler
     );
     window.addEventListener(
-      WORKSPACE_CHAT_INTENT_REQUEST_EVENT,
+      AI_ASSISTANT_INTENT_REQUEST_EVENT,
       this.chatIntentHandler
     );
     window.addEventListener('resize', this.windowResizeHandler);
@@ -233,15 +243,15 @@ export class RuntimeHost {
       this.viewChangeHandler
     );
     window.removeEventListener(
-      WORKSPACE_CHAT_TOGGLE_REQUEST_EVENT,
+      AI_ASSISTANT_TOGGLE_REQUEST_EVENT,
       this.chatToggleHandler
     );
     window.removeEventListener(
-      WORKSPACE_CHAT_PROMPT_REQUEST_EVENT,
+      AI_ASSISTANT_PROMPT_REQUEST_EVENT,
       this.chatPromptHandler
     );
     window.removeEventListener(
-      WORKSPACE_CHAT_INTENT_REQUEST_EVENT,
+      AI_ASSISTANT_INTENT_REQUEST_EVENT,
       this.chatIntentHandler
     );
     window.removeEventListener('resize', this.windowResizeHandler);
@@ -261,20 +271,20 @@ export class RuntimeHost {
     this.applyVisibility();
   }
 
-  private createWorkspaceChatToolHost() {
+  private createAiAssistantToolHost() {
     const activeModule = this.shell?.getActiveModule() ?? null;
-    const moduleHost = activeModule?.getWorkspaceChatToolHost?.() ?? null;
+    const moduleHost = activeModule?.getAiAssistantToolHost?.() ?? null;
 
     return {
-      getWorkspaceChatSnapshot: () =>
-        moduleHost?.getWorkspaceChatSnapshot?.() ??
-        activeModule?.getWorkspaceChatSnapshot() ??
+      getAiAssistantSnapshot: () =>
+        moduleHost?.getAiAssistantSnapshot?.() ??
+        activeModule?.getAiAssistantSnapshot() ??
         null,
-      getWorkspaceChatCapabilities: () =>
-        moduleHost?.getWorkspaceChatCapabilities?.() ??
-        buildWorkspaceChatCapabilityContext({
+      getAiAssistantCapabilities: () =>
+        moduleHost?.getAiAssistantCapabilities?.() ??
+        buildAiAssistantCapabilityContext({
           currentView: this.activeView,
-          snapshot: activeModule?.getWorkspaceChatSnapshot() ?? null,
+          snapshot: activeModule?.getAiAssistantSnapshot() ?? null,
         }),
     };
   }
@@ -301,7 +311,7 @@ export class RuntimeHost {
       await this.shell.show(this.activeView);
       this.viewSwitcher.setActiveView(this.activeView);
       emitWorkspaceViewChanged(this.activeView);
-      emitWorkspaceChatVisibilityChanged(this.chatOpen);
+      emitAiAssistantVisibilityChanged(this.chatOpen);
       this.applyVisibility();
     } finally {
       this.starting = false;
@@ -378,8 +388,8 @@ export class RuntimeHost {
   }
 
   private async executeChatAction(
-    request: WorkspaceChatActionExecutionRequest
-  ): Promise<WorkspaceChatActionExecutionResult> {
+    request: AiAssistantActionExecutionRequest
+  ): Promise<AiAssistantActionExecutionResult> {
     if (this.activeView !== 'canvas') {
       return {
         status: 'failed',
@@ -393,6 +403,24 @@ export class RuntimeHost {
       };
     }
     return this.canvasModule.executeChatAction(request);
+  }
+
+  private async executeChatActions(
+    requests: AiAssistantActionExecutionRequest[]
+  ): Promise<AiAssistantActionExecutionResult[]> {
+    if (this.activeView !== 'canvas') {
+      return requests.map(() => ({
+        status: 'failed' as const,
+        errorMessage: 'Switch to canvas to create elements.',
+      }));
+    }
+    if (!this.canvasModule) {
+      return requests.map(() => ({
+        status: 'failed' as const,
+        errorMessage: 'Canvas is unavailable.',
+      }));
+    }
+    return this.canvasModule.executeChatActions(requests);
   }
 
   private applyWorkspaceLayout(
@@ -488,9 +516,9 @@ export class RuntimeHost {
 
   private setChatOpen(open: boolean): void {
     this.chatOpen = open;
-    persistWorkspaceChatOpen(open);
+    persistAiAssistantOpen(open);
     this.viewSwitcher.setChatOpen(open);
-    emitWorkspaceChatVisibilityChanged(open);
+    emitAiAssistantVisibilityChanged(open);
     this.applyVisibility();
   }
 }

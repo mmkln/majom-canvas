@@ -15,13 +15,13 @@ import {
 } from '../features/canvas/ui/primitives/index.ts';
 import { WorkspaceControlsBar } from '../features/shell/WorkspaceControlsBar.ts';
 import {
-  loadPersistedWorkspaceChatOpen,
+  loadPersistedAiAssistantOpen,
   loadPersistedWorkspaceView,
 } from '../features/shell/workspaceUiState.ts';
 import {
-  WORKSPACE_CHAT_VISIBILITY_CHANGED_EVENT,
-  isWorkspaceChatVisibilityChangedDetail,
-} from '../features/shell/workspaceChatEvents.ts';
+  AI_ASSISTANT_VISIBILITY_CHANGED_EVENT,
+  isAiAssistantVisibilityChangedDetail,
+} from '../features/ai-assistant/aiAssistantEvents.ts';
 import {
   WORKSPACE_VIEW_CHANGED_EVENT,
   isWorkspaceViewChangedDetail,
@@ -67,7 +67,7 @@ export class GlobalAppHeader {
     };
     this.chatVisibilityChangedHandler = (event: Event) => {
       const customEvent = event as CustomEvent<unknown>;
-      if (!isWorkspaceChatVisibilityChangedDetail(customEvent.detail)) return;
+      if (!isAiAssistantVisibilityChangedDetail(customEvent.detail)) return;
       this.controls?.setChatOpen(customEvent.detail.open);
     };
 
@@ -103,7 +103,7 @@ export class GlobalAppHeader {
       initialView: loadPersistedWorkspaceView({
         allowKanban: KANBAN_DEV_ENABLED,
       }),
-      initialChatOpen: loadPersistedWorkspaceChatOpen(),
+      initialChatOpen: loadPersistedAiAssistantOpen(),
       showKanban: KANBAN_DEV_ENABLED,
       showRoutines: ROUTINES_ENABLED,
       variant: 'header',
@@ -184,7 +184,7 @@ export class GlobalAppHeader {
       this.viewChangedHandler as EventListener
     );
     window.addEventListener(
-      WORKSPACE_CHAT_VISIBILITY_CHANGED_EVENT,
+      AI_ASSISTANT_VISIBILITY_CHANGED_EVENT,
       this.chatVisibilityChangedHandler as EventListener
     );
   }
@@ -198,7 +198,7 @@ export class GlobalAppHeader {
       this.viewChangedHandler as EventListener
     );
     window.removeEventListener(
-      WORKSPACE_CHAT_VISIBILITY_CHANGED_EVENT,
+      AI_ASSISTANT_VISIBILITY_CHANGED_EVENT,
       this.chatVisibilityChangedHandler as EventListener
     );
     this.controls?.destroy();

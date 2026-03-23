@@ -39,14 +39,14 @@ import {
   STATUS_ORDER,
 } from './statusPresentation.ts';
 import {
-  emitWorkspaceChatIntentRequested,
-} from '../../shell/workspaceChatEvents.ts';
+  emitAiAssistantIntentRequested,
+} from '../../ai-assistant/aiAssistantEvents.ts';
 import {
-  getWorkspaceChatBreakdownHint,
-  getWorkspaceChatClarifyHint,
-  getWorkspaceChatFillDetailsHint,
-  getWorkspaceChatLinkBlockersHint,
-} from '../../shell/workspaceChatHints.ts';
+  getAiAssistantBreakdownHint,
+  getAiAssistantClarifyHint,
+  getAiAssistantFillDetailsHint,
+  getAiAssistantLinkBlockersHint,
+} from '../../ai-assistant/aiAssistantHints.ts';
 
 type ContextMenuDetail = {
   element: ICanvasElement | null;
@@ -525,9 +525,9 @@ export class ContextMenu {
     if (kind !== 'task') {
       items.push({
         label: kind === 'goal' ? 'Break into stories' : 'Break into tasks',
-        hint: getWorkspaceChatBreakdownHint(kind),
+        hint: getAiAssistantBreakdownHint(kind),
         action: () =>
-          emitWorkspaceChatIntentRequested('breakdown', {
+          emitAiAssistantIntentRequested('breakdown', {
             scope: 'selection',
             targetIds,
           }),
@@ -537,27 +537,27 @@ export class ContextMenu {
     items.push(
       {
         label: 'Clarify',
-        hint: getWorkspaceChatClarifyHint(kind),
+        hint: getAiAssistantClarifyHint(kind),
         action: () =>
-          emitWorkspaceChatIntentRequested('clarify', {
+          emitAiAssistantIntentRequested('clarify', {
             scope: 'selection',
             targetIds,
           }),
       },
       {
         label: 'Fill missing details',
-        hint: getWorkspaceChatFillDetailsHint(),
+        hint: getAiAssistantFillDetailsHint(),
         action: () =>
-          emitWorkspaceChatIntentRequested('fill_details', {
+          emitAiAssistantIntentRequested('fill_details', {
             scope: 'selection',
             targetIds,
           }),
       },
       {
         label: 'Link blockers',
-        hint: getWorkspaceChatLinkBlockersHint(),
+        hint: getAiAssistantLinkBlockersHint(),
         action: () =>
-          emitWorkspaceChatIntentRequested('dependencies', {
+          emitAiAssistantIntentRequested('dependencies', {
             scope: 'selection',
             targetIds,
           }),

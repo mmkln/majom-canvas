@@ -1,0 +1,135 @@
+import type { WorkspaceView } from '../../shell/WorkspaceView.ts';
+import type {
+  AiAssistantCanvasSnapshot,
+  AiAssistantSelectionItem,
+} from '../aiAssistantEvents.ts';
+import {
+  describeAiAssistantSelectionInline,
+  getAiAssistantSelectedItems,
+} from './AiAssistantContent.ts';
+import {
+  AI_ASSISTANT_CONTEXT_MODE_OPTIONS,
+  type AiAssistantContextMode,
+} from './AiAssistantContextMode.ts';
+import { getAiAssistantQuickActions } from './AiAssistantQuickActions.ts';
+
+export type AiAssistantCapabilityContext = {
+  assistantScope: string;
+  currentView: WorkspaceView;
+  canvasTitle: string | null;
+  currentSelection: {
+    count: number;
+    summary: string;
+  };
+  contextModes: Array<{
+    mode: AiAssistantContextMode;
+    label: string;
+    description: string;
+  }>;
+  supportedWorkflows: string[];
+  currentQuickActions: string[];
+  currentAiActions: string[];
+  constraints: string[];
+};
+
+export function buildAiAssistantCapabilityContext(params: {
+  currentView: WorkspaceView;
+  snapshot: AiAssistantCanvasSnapshot | null;
+}): AiAssistantCapabilityContext {
+  const selection = params.snapshot
+    ? getAiAssistantSelectedItems(params.snapshot)
+    : [];
+
+  return {
+    assistantScope:
+      'Workspace-focused planning copilot for reviewing structure, clarifying work items, and suggesting confirm-first canvas changes.',
+    currentView: params.currentView,
+    canvasTitle: params.snapshot?.canvasTitle || null,
+    currentSelection: {
+      count: selection.length,
+      summary: describeSelectionSummary(selection),
+    },
+    contextModes: AI_ASSISTANT_CONTEXT_MODE_OPTIONS.map((option) => ({
+      mode: option.value,
+      label: option.label,
+      description: getContextModeDescription(option.value),
+    })),
+    supportedWorkflows: [
+      'Review the current plan or selected work for gaps, weak structure, and planning risks.',
+      'Generate or restructure a strategic plan using high-level goals and subgoals.',
+      'Explain what is missing, what is blocked, and what the next planning moves should be.',
+      'Clarify or fill missing details on selected goals, stories, and tasks.',
+      'Break a goal into stories or a story into tasks when the hierarchy supports it.',
+      'Suggest, remove, or retype dependency links, review recent changes, and point out duplicate titles or overlap.',
+    ],
+    currentQuickActions: getAiAssistantQuickActions(params.snapshot).map(
+      (action) => action.label
+    ),
+    currentAiActions: resolveCurrentAiActionLabels(selection, params.snapshot),
+    constraints: [
+      'This chat is workspace-scoped, not a general open-domain assistant.',
+      'It should stay grounded in canvas data, retrieved tool results, memory, and frontend capability context.',
+      'Any proposed canvas changes stay confirm-first and are not applied until the user explicitly confirms.',
+    ],
+  };
+}
+
+function describeSelectionSummary(selection: AiAssistantSelectionItem[]): string {
+  if (selection.length === 0) {
+    return 'No canvas items are currently selected.';
+  }
+  if (selection.length === 1) {
+    return `Current selection: ${describeAiAssistantSelectionInline(selection)}.`;
+  }
+  return `Current selection: ${selection.length} items (${describeAiAssistantSelectionInline(selection)}).`;
+}
+
+function resolveCurrentAiActionLabels(
+  selection: AiAssistantSelectionItem[],
+  snapshot: AiAssistantCanvasSnapshot | null
+): string[] {
+  if (selection.length === 0) {
+    if (
+      snapshot &&
+      snapshot.summary.goalCount === 0 &&
+      snapshot.summary.storyCount === 0 &&
+      snapshot.summary.taskCount === 0
+    ) {
+      return ['Generate strategic plan'];
+    }
+    return [];
+  }
+
+  if (selection.length > 1) {
+    return ['Connect selected', 'Fill missing details'];
+  }
+
+  const item = selection[0];
+  if (!item) {
+    return [];
+  }
+
+  const actions: string[] = [];
+  if (item.kind === 'goal') {
+    actions.push('Generate strategic plan');
+    actions.push('Break into stories');
+  } else if (item.kind === 'story') {
+    actions.push('Break into tasks');
+  }
+
+  actions.push('Clarify', 'Fill missing details', 'Link blockers');
+  return actions;
+}
+
+function getContextModeDescription(mode: AiAssistantContextMode): string {
+  switch (mode) {
+    case 'none':
+      return 'Use only the typed request and chat memory without grounding in canvas data.';
+    case 'canvas':
+      return 'Ground the answer in the full canvas snapshot.';
+    case 'viewport':
+      return 'Ground the answer in the items visible in the current viewport.';
+    case 'selection':
+      return 'Ground the answer in the selected items and their nearby structure.';
+  }
+}

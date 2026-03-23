@@ -31,7 +31,7 @@ import {
 } from './core/interfaces/connection.ts';
 import { notify } from './core/services/NotificationService.ts';
 import { CanvasClientStorage } from './core/services/CanvasClientStorage.ts';
-import { ChatCanvasActionExecutor } from './core/services/ChatCanvasActionExecutor.ts';
+import { AiAssistantCanvasActionExecutor } from './core/services/AiAssistantCanvasActionExecutor.ts';
 import {
   CANVAS_LINK_LIFECYCLE_EVENT,
   isCanvasLinkLifecycleDetail,
@@ -49,20 +49,20 @@ import { confirmReplaceStoryGoalModal } from './ui/components/ConfirmReplaceStor
 import { confirmDeleteCanvasModal } from './ui/components/ConfirmDeleteCanvasModal.ts';
 import { authFlowService } from './ui/auth/authFlowService.ts';
 import {
-  emitWorkspaceChatContextChanged,
-  type WorkspaceChatCanvasElement,
-  type WorkspaceChatCanvasSnapshot,
-  type WorkspaceChatConnectionEdge,
-  type WorkspaceChatRecentActivityItem,
-  type WorkspaceChatSelectionItem,
-} from '../shell/workspaceChatEvents.ts';
+  emitAiAssistantContextChanged,
+  type AiAssistantCanvasElement,
+  type AiAssistantCanvasSnapshot,
+  type AiAssistantConnectionEdge,
+  type AiAssistantRecentActivityItem,
+  type AiAssistantSelectionItem,
+} from '../ai-assistant/aiAssistantEvents.ts';
 import { firstValueFrom, Observable, of, Subscription, throwError } from 'rxjs';
 import { catchError, finalize, map, switchMap } from 'rxjs/operators';
 import type { UiPriority } from '../../majom-wrapper/utils/priorityMapping.ts';
 import type {
-  WorkspaceChatActionExecutionRequest,
-  WorkspaceChatActionExecutionResult,
-} from '../shell/workspaceChatActions.ts';
+  AiAssistantActionExecutionRequest,
+  AiAssistantActionExecutionResult,
+} from '../ai-assistant/aiAssistantActions.ts';
 
 type CanvasListUiItem = {
   id: string;
@@ -89,7 +89,7 @@ export class CanvasApp {
   private readonly authService: AuthService;
   private readonly uiManager: UIManager;
   private readonly canvasDataService: CanvasDataService;
-  private readonly chatCanvasActionExecutor: ChatCanvasActionExecutor;
+  private readonly chatCanvasActionExecutor: AiAssistantCanvasActionExecutor;
   private canvasTitle: string = 'New canvas';
   private autosaveTimer: number | null = null;
   private autosaveEnabled = CanvasClientStorage.getCanvasAutosaveEnabled(true);
@@ -105,9 +105,9 @@ export class CanvasApp {
   private elementUpdateStatusSubscription: Subscription | null = null;
   private destroyed = false;
   private readonly canvasListCache = new Map<string, CanvasListCacheItem>();
-  private workspaceChatPreviousSnapshot: WorkspaceChatCanvasSnapshot | null = null;
-  private workspaceChatRecentActivity: WorkspaceChatRecentActivityItem[] = [];
-  private workspaceChatViewportSyncTimer: number | null = null;
+  private aiAssistantPreviousSnapshot: AiAssistantCanvasSnapshot | null = null;
+  private aiAssistantRecentActivity: AiAssistantRecentActivityItem[] = [];
+  private aiAssistantViewportSyncTimer: number | null = null;
 
   private readonly refreshCanvasDataHandler = (): void =>
     this.loadCanvasFromApi();
@@ -171,7 +171,7 @@ export class CanvasApp {
       this.scene,
       this.authService
     );
-    this.chatCanvasActionExecutor = new ChatCanvasActionExecutor({
+    this.chatCanvasActionExecutor = new AiAssistantCanvasActionExecutor({
       scene: this.scene,
       canvasManager: this.canvasManager,
     });
@@ -649,15 +649,15 @@ export class CanvasApp {
     this.viewChangesSubscription = panZoom.viewChanges.subscribe((state) => {
       const activeCanvasId = this.canvasDataService.getActiveCanvasId();
       void this.dataProvider.saveViewState(state, activeCanvasId);
-      this.scheduleWorkspaceChatContextEmit();
+      this.scheduleAiAssistantContextEmit();
     });
     // Auto-save diagram on content change
     this.sceneChangesSubscription = this.scene.changes.subscribe(() => {
       if (this.isHydratingCanvas) return;
       void this.diagramRepository.saveDiagram(this.scene);
-      this.emitWorkspaceChatContext();
+      this.emitAiAssistantContext();
     });
-    this.emitWorkspaceChatContext();
+    this.emitAiAssistantContext();
     this.startAutosave();
   }
 
@@ -672,30 +672,36 @@ export class CanvasApp {
     this.activeCanvasRelationsSubscription = null;
     this.viewChangesSubscription?.unsubscribe();
     this.viewChangesSubscription = null;
-    if (this.workspaceChatViewportSyncTimer !== null) {
-      window.clearTimeout(this.workspaceChatViewportSyncTimer);
-      this.workspaceChatViewportSyncTimer = null;
+    if (this.aiAssistantViewportSyncTimer !== null) {
+      window.clearTimeout(this.aiAssistantViewportSyncTimer);
+      this.aiAssistantViewportSyncTimer = null;
     }
     this.sceneChangesSubscription?.unsubscribe();
     this.sceneChangesSubscription = null;
     this.elementUpdateStatusSubscription?.unsubscribe();
     this.elementUpdateStatusSubscription = null;
-    this.clearWorkspaceChatContext();
+    this.clearAiAssistantContext();
     this.uiManager.unmountAll();
     this.canvasManager.destroy();
   }
 
   public executeChatAction(
-    request: WorkspaceChatActionExecutionRequest
-  ): Promise<WorkspaceChatActionExecutionResult> {
+    request: AiAssistantActionExecutionRequest
+  ): Promise<AiAssistantActionExecutionResult> {
     return this.chatCanvasActionExecutor.execute(request);
   }
 
-  public getWorkspaceChatSnapshot(): WorkspaceChatCanvasSnapshot {
+  public executeChatActions(
+    requests: AiAssistantActionExecutionRequest[]
+  ): Promise<AiAssistantActionExecutionResult[]> {
+    return this.chatCanvasActionExecutor.executeBatch(requests);
+  }
+
+  public getAiAssistantSnapshot(): AiAssistantCanvasSnapshot {
     const planningElements = this.scene
       .getElements()
       .filter(isPlanningElement) as Array<TaskElement | StoryElement | GoalElement>;
-    const detail: WorkspaceChatCanvasSnapshot = {
+    const detail: AiAssistantCanvasSnapshot = {
       canvasId: this.canvasDataService.getActiveCanvasId(),
       canvasTitle: this.canvasTitle,
       summary: {
@@ -717,12 +723,12 @@ export class CanvasApp {
       highlightedIds: this.scene
         .getHighlightedElementIds()
         .filter((id) => planningElements.some((element) => element.id === id)),
-      elements: this.buildWorkspaceChatElements(planningElements),
-      connections: this.buildWorkspaceChatConnections(planningElements),
-      viewport: this.buildWorkspaceChatViewport(planningElements),
+      elements: this.buildAiAssistantElements(planningElements),
+      connections: this.buildAiAssistantConnections(planningElements),
+      viewport: this.buildAiAssistantViewport(planningElements),
       recentActivity: [],
     };
-    detail.recentActivity = this.computeWorkspaceChatRecentActivity(detail);
+    detail.recentActivity = this.computeAiAssistantRecentActivity(detail);
     return detail;
   }
 
@@ -1025,7 +1031,7 @@ export class CanvasApp {
     this.setElementsHydrating(true);
     this.canvasManager.setLoadPhase('loading');
     this.scene.clear();
-    this.emitWorkspaceChatContext();
+    this.emitAiAssistantContext();
     this.canvasManager.clearLoadingPlaceholders();
     const loadOptions = this.buildCanvasLoadOptions();
     this.activeCanvasElementsSubscription = this.canvasDataService
@@ -1116,7 +1122,7 @@ export class CanvasApp {
     elements: Array<TaskElement | StoryElement | GoalElement>
   ): void {
     this.scene.replaceElements(isPlanningElement, elements);
-    this.emitWorkspaceChatContext();
+    this.emitAiAssistantContext();
   }
 
   private buildCanvasLoadOptions(): CanvasElementsLoadOptions {
@@ -1304,27 +1310,27 @@ export class CanvasApp {
     window.dispatchEvent(
       new CustomEvent('canvasTitleChanged', { detail: { title } })
     );
-    this.emitWorkspaceChatContext();
+    this.emitAiAssistantContext();
   }
 
-  private emitWorkspaceChatContext(): void {
-    emitWorkspaceChatContextChanged(this.getWorkspaceChatSnapshot());
+  private emitAiAssistantContext(): void {
+    emitAiAssistantContextChanged(this.getAiAssistantSnapshot());
   }
 
-  private scheduleWorkspaceChatContextEmit(): void {
-    if (this.workspaceChatViewportSyncTimer !== null) {
-      window.clearTimeout(this.workspaceChatViewportSyncTimer);
+  private scheduleAiAssistantContextEmit(): void {
+    if (this.aiAssistantViewportSyncTimer !== null) {
+      window.clearTimeout(this.aiAssistantViewportSyncTimer);
     }
-    this.workspaceChatViewportSyncTimer = window.setTimeout(() => {
-      this.workspaceChatViewportSyncTimer = null;
-      this.emitWorkspaceChatContext();
+    this.aiAssistantViewportSyncTimer = window.setTimeout(() => {
+      this.aiAssistantViewportSyncTimer = null;
+      this.emitAiAssistantContext();
     }, 120);
   }
 
-  private clearWorkspaceChatContext(): void {
-    this.workspaceChatPreviousSnapshot = null;
-    this.workspaceChatRecentActivity = [];
-    emitWorkspaceChatContextChanged({
+  private clearAiAssistantContext(): void {
+    this.aiAssistantPreviousSnapshot = null;
+    this.aiAssistantRecentActivity = [];
+    emitAiAssistantContextChanged({
       canvasId: null,
       canvasTitle: '',
       summary: {
@@ -1343,9 +1349,9 @@ export class CanvasApp {
     });
   }
 
-  private mapWorkspaceChatSelectionItem(
+  private mapAiAssistantSelectionItem(
     element: GoalElement | StoryElement | TaskElement
-  ): WorkspaceChatSelectionItem {
+  ): AiAssistantSelectionItem {
     if (element instanceof GoalElement) {
       return {
         id: element.id,
@@ -1379,9 +1385,9 @@ export class CanvasApp {
     };
   }
 
-  private buildWorkspaceChatElements(
+  private buildAiAssistantElements(
     planningElements: Array<TaskElement | StoryElement | GoalElement>
-  ): WorkspaceChatCanvasElement[] {
+  ): AiAssistantCanvasElement[] {
     const goals = planningElements.filter(
       (element): element is GoalElement => element instanceof GoalElement
     );
@@ -1397,7 +1403,7 @@ export class CanvasApp {
         goalByBackendId.set(goal.backendId, goal);
       }
     });
-    const refToPlanningId = this.buildWorkspaceChatElementRefMap(planningElements);
+    const refToPlanningId = this.buildAiAssistantElementRefMap(planningElements);
     const goalParentById = new Map<string, string | null>();
     goals.forEach((goal) => {
       goalParentById.set(goal.id, null);
@@ -1467,7 +1473,7 @@ export class CanvasApp {
     });
 
     return planningElements.map((element) => {
-      const base = this.mapWorkspaceChatSelectionItem(element);
+      const base = this.mapAiAssistantSelectionItem(element);
       const parentId =
         element instanceof GoalElement
           ? goalParentById.get(element.id) ?? null
@@ -1492,13 +1498,13 @@ export class CanvasApp {
     });
   }
 
-  private buildWorkspaceChatConnections(
+  private buildAiAssistantConnections(
     planningElements: Array<TaskElement | StoryElement | GoalElement>
-  ): WorkspaceChatConnectionEdge[] {
-    const refToPlanningId = this.buildWorkspaceChatElementRefMap(planningElements);
+  ): AiAssistantConnectionEdge[] {
+    const refToPlanningId = this.buildAiAssistantElementRefMap(planningElements);
     return this.scene
       .getConnections()
-      .map((connection): WorkspaceChatConnectionEdge | null => {
+      .map((connection): AiAssistantConnectionEdge | null => {
         const fromId = refToPlanningId.get(connection.fromId);
         const toId = refToPlanningId.get(connection.toId);
         if (!fromId || !toId) return null;
@@ -1506,15 +1512,15 @@ export class CanvasApp {
           id: connection.id,
           fromId,
           toId,
-          relationType: connection.relationType as WorkspaceChatConnectionEdge['relationType'],
+          relationType: connection.relationType as AiAssistantConnectionEdge['relationType'],
         };
       })
       .filter(
-        (connection): connection is WorkspaceChatConnectionEdge => connection !== null
+        (connection): connection is AiAssistantConnectionEdge => connection !== null
       );
   }
 
-  private buildWorkspaceChatElementRefMap(
+  private buildAiAssistantElementRefMap(
     planningElements: Array<TaskElement | StoryElement | GoalElement>
   ): Map<string, string> {
     const refToPlanningId = new Map<string, string>();
@@ -1527,9 +1533,9 @@ export class CanvasApp {
     return refToPlanningId;
   }
 
-  private buildWorkspaceChatViewport(
+  private buildAiAssistantViewport(
     planningElements: Array<TaskElement | StoryElement | GoalElement>
-  ): WorkspaceChatCanvasSnapshot['viewport'] {
+  ): AiAssistantCanvasSnapshot['viewport'] {
     const panZoom = this.canvasManager.getPanZoomManager();
     const canvas = this.canvasManager.getCanvas();
     const scale = panZoom.scale || 1;
@@ -1567,24 +1573,24 @@ export class CanvasApp {
     return focused && isPlanningElement(focused) ? focused.id : null;
   }
 
-  private computeWorkspaceChatRecentActivity(
-    snapshot: WorkspaceChatCanvasSnapshot
-  ): WorkspaceChatRecentActivityItem[] {
-    const previous = this.workspaceChatPreviousSnapshot;
-    const nextItems = this.createWorkspaceChatActivityDiff(previous, snapshot);
-    this.workspaceChatRecentActivity = [...nextItems, ...this.workspaceChatRecentActivity]
+  private computeAiAssistantRecentActivity(
+    snapshot: AiAssistantCanvasSnapshot
+  ): AiAssistantRecentActivityItem[] {
+    const previous = this.aiAssistantPreviousSnapshot;
+    const nextItems = this.createAiAssistantActivityDiff(previous, snapshot);
+    this.aiAssistantRecentActivity = [...nextItems, ...this.aiAssistantRecentActivity]
       .slice(0, 8);
-    this.workspaceChatPreviousSnapshot = snapshot;
-    return this.workspaceChatRecentActivity;
+    this.aiAssistantPreviousSnapshot = snapshot;
+    return this.aiAssistantRecentActivity;
   }
 
-  private createWorkspaceChatActivityDiff(
-    previous: WorkspaceChatCanvasSnapshot | null,
-    next: WorkspaceChatCanvasSnapshot
-  ): WorkspaceChatRecentActivityItem[] {
+  private createAiAssistantActivityDiff(
+    previous: AiAssistantCanvasSnapshot | null,
+    next: AiAssistantCanvasSnapshot
+  ): AiAssistantRecentActivityItem[] {
     if (!previous) return [];
     const timestamp = Date.now();
-    const activity: WorkspaceChatRecentActivityItem[] = [];
+    const activity: AiAssistantRecentActivityItem[] = [];
     const previousById = new Map(previous.elements.map((item) => [item.id, item]));
     const nextById = new Map(next.elements.map((item) => [item.id, item]));
 

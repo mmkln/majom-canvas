@@ -1,10 +1,10 @@
 import type { WorkspaceModule } from '../shell/WorkspaceModule.ts';
 import type {
-  WorkspaceChatActionExecutionRequest,
-  WorkspaceChatActionExecutionResult,
-} from '../shell/workspaceChatActions.ts';
-import type { WorkspaceChatCanvasSnapshot } from '../shell/workspaceChatEvents.ts';
-import type { WorkspaceChatToolHost } from '../shell/services/WorkspaceChatToolTypes.ts';
+  AiAssistantActionExecutionRequest,
+  AiAssistantActionExecutionResult,
+} from '../ai-assistant/aiAssistantActions.ts';
+import type { AiAssistantCanvasSnapshot } from '../ai-assistant/aiAssistantEvents.ts';
+import type { AiAssistantToolHost } from '../ai-assistant/services/AiAssistantToolTypes.ts';
 import { CanvasApp } from './CanvasApp.ts';
 import { LocalStorageDataProvider } from './core/data/LocalStorageDataProvider.ts';
 
@@ -48,8 +48,8 @@ export class CanvasModule implements WorkspaceModule {
   }
 
   public async executeChatAction(
-    request: WorkspaceChatActionExecutionRequest
-  ): Promise<WorkspaceChatActionExecutionResult> {
+    request: AiAssistantActionExecutionRequest
+  ): Promise<AiAssistantActionExecutionResult> {
     if (!this.app) {
       return {
         status: 'failed',
@@ -59,11 +59,23 @@ export class CanvasModule implements WorkspaceModule {
     return this.app.executeChatAction(request);
   }
 
-  public getWorkspaceChatSnapshot(): WorkspaceChatCanvasSnapshot | null {
-    return this.app?.getWorkspaceChatSnapshot() ?? null;
+  public async executeChatActions(
+    requests: AiAssistantActionExecutionRequest[]
+  ): Promise<AiAssistantActionExecutionResult[]> {
+    if (!this.app) {
+      return requests.map(() => ({
+        status: 'failed' as const,
+        errorMessage: 'Canvas is unavailable.',
+      }));
+    }
+    return this.app.executeChatActions(requests);
   }
 
-  public getWorkspaceChatToolHost(): WorkspaceChatToolHost | null {
+  public getAiAssistantSnapshot(): AiAssistantCanvasSnapshot | null {
+    return this.app?.getAiAssistantSnapshot() ?? null;
+  }
+
+  public getAiAssistantToolHost(): AiAssistantToolHost | null {
     return this.app;
   }
 }

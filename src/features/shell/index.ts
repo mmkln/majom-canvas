@@ -14,12 +14,12 @@ export {
   type WorkspaceViewChangedDetail,
 } from './workspaceEvents.ts';
 export {
-  WORKSPACE_CHAT_TOGGLE_REQUEST_EVENT,
-  WORKSPACE_CHAT_VISIBILITY_CHANGED_EVENT,
-  emitWorkspaceChatToggleRequested,
-  emitWorkspaceChatVisibilityChanged,
-  isWorkspaceChatToggleRequestDetail,
-  isWorkspaceChatVisibilityChangedDetail,
-  type WorkspaceChatToggleRequestDetail,
-  type WorkspaceChatVisibilityChangedDetail,
-} from './workspaceChatEvents.ts';
+  AI_ASSISTANT_TOGGLE_REQUEST_EVENT,
+  AI_ASSISTANT_VISIBILITY_CHANGED_EVENT,
+  emitAiAssistantToggleRequested,
+  emitAiAssistantVisibilityChanged,
+  isAiAssistantToggleRequestDetail,
+  isAiAssistantVisibilityChangedDetail,
+  type AiAssistantToggleRequestDetail,
+  type AiAssistantVisibilityChangedDetail,
+} from '../ai-assistant/aiAssistantEvents.ts';

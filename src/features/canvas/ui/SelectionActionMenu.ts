@@ -21,15 +21,15 @@ import { createIconButton, createSurface } from './primitives/index.ts';
 import { StatusSelector } from './components/StatusSelector.ts';
 import { AiActionsDropdown } from './components/AiActionsDropdown.ts';
 import {
-  emitWorkspaceChatIntentRequested,
-} from '../../shell/workspaceChatEvents.ts';
+  emitAiAssistantIntentRequested,
+} from '../../ai-assistant/aiAssistantEvents.ts';
 import {
-  getWorkspaceChatBreakdownHint,
-  getWorkspaceChatClarifyHint,
-  getWorkspaceChatConnectSelectedHint,
-  getWorkspaceChatFillDetailsHint,
-  getWorkspaceChatLinkBlockersHint,
-} from '../../shell/workspaceChatHints.ts';
+  getAiAssistantBreakdownHint,
+  getAiAssistantClarifyHint,
+  getAiAssistantConnectSelectedHint,
+  getAiAssistantFillDetailsHint,
+  getAiAssistantLinkBlockersHint,
+} from '../../ai-assistant/aiAssistantHints.ts';
 
 type ActionContext = {
   elements: PlanningElement[];
@@ -517,7 +517,7 @@ export class SelectionActionMenu {
         items.push({
           label: this.getAiBreakdownLabel(),
           icon: 'bars-2',
-          hint: getWorkspaceChatBreakdownHint(primaryKind),
+          hint: getAiAssistantBreakdownHint(primaryKind),
           onClick: () => this.handleAiBreakdown(),
         });
       }
@@ -525,19 +525,19 @@ export class SelectionActionMenu {
         {
           label: 'Clarify',
           icon: 'pencil',
-          hint: getWorkspaceChatClarifyHint(primaryKind),
+          hint: getAiAssistantClarifyHint(primaryKind),
           onClick: () => this.handleAiClarify(),
         },
         {
           label: 'Fill missing details',
           icon: 'magnifying-glass',
-          hint: getWorkspaceChatFillDetailsHint(),
+          hint: getAiAssistantFillDetailsHint(),
           onClick: () => this.handleAiFillDetails(),
         },
         {
           label: 'Link blockers',
           icon: 'arrow-path',
-          hint: getWorkspaceChatLinkBlockersHint(),
+          hint: getAiAssistantLinkBlockersHint(),
           onClick: () => this.handleAiDependencies(),
         }
       );
@@ -548,13 +548,13 @@ export class SelectionActionMenu {
       {
         label: 'Connect selected',
         icon: 'arrow-path',
-        hint: getWorkspaceChatConnectSelectedHint(),
+        hint: getAiAssistantConnectSelectedHint(),
         onClick: () => this.handleAiDependencies(),
       },
       {
         label: 'Fill missing details',
         icon: 'magnifying-glass',
-        hint: getWorkspaceChatFillDetailsHint(),
+        hint: getAiAssistantFillDetailsHint(),
         onClick: () => this.handleAiFillDetails(),
       }
     );
@@ -614,14 +614,14 @@ export class SelectionActionMenu {
   private handleAiBreakdown(): void {
     const targetId = this.selectedElements[0]?.id;
     if (!targetId) return;
-    emitWorkspaceChatIntentRequested('breakdown', {
+    emitAiAssistantIntentRequested('breakdown', {
       scope: 'selection',
       targetIds: [targetId],
     });
   }
 
   private handleAiDependencies(): void {
-    emitWorkspaceChatIntentRequested('dependencies', {
+    emitAiAssistantIntentRequested('dependencies', {
       scope: 'selection',
       targetIds: this.getSelectedTargetIds(),
     });
@@ -630,14 +630,14 @@ export class SelectionActionMenu {
   private handleAiClarify(): void {
     const targetId = this.selectedElements[0]?.id;
     if (!targetId) return;
-    emitWorkspaceChatIntentRequested('clarify', {
+    emitAiAssistantIntentRequested('clarify', {
       scope: 'selection',
       targetIds: [targetId],
     });
   }
 
   private handleAiFillDetails(): void {
-    emitWorkspaceChatIntentRequested('fill_details', {
+    emitAiAssistantIntentRequested('fill_details', {
       scope: 'selection',
       targetIds: this.getSelectedTargetIds(),
     });

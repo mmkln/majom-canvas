@@ -1,5 +1,5 @@
 import type { WorkspaceModule } from '../shell/WorkspaceModule.ts';
-import type { WorkspaceChatCanvasSnapshot } from '../shell/workspaceChatEvents.ts';
+import type { AiAssistantCanvasSnapshot } from '../ai-assistant/aiAssistantEvents.ts';
 import { KanbanApp } from './KanbanApp.ts';
 
 export class KanbanModule implements WorkspaceModule {
@@ -18,7 +18,7 @@ export class KanbanModule implements WorkspaceModule {
     this.app = null;
   }
 
-  public getWorkspaceChatSnapshot(): WorkspaceChatCanvasSnapshot | null {
+  public getAiAssistantSnapshot(): AiAssistantCanvasSnapshot | null {
     return null;
   }
 }

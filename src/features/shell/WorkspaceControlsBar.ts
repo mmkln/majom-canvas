@@ -1,7 +1,7 @@
 import { createIcon, type IconName } from '../canvas/ui/icons.ts';
 import { HabitsQuickModal } from './components/HabitsQuickModal.ts';
 import type { WorkspaceView } from './WorkspaceView.ts';
-import { emitWorkspaceChatToggleRequested } from './workspaceChatEvents.ts';
+import { emitAiAssistantToggleRequested } from '../ai-assistant/aiAssistantEvents.ts';
 import { emitWorkspaceViewChangeRequested } from './workspaceEvents.ts';
 
 const CONTROL_TRANSITION = 'background-color 120ms ease, color 120ms ease';
@@ -154,13 +154,13 @@ export class WorkspaceControlsBar {
 
     this.chatButton = showChat
       ? this.createIconButton({
-          label: 'Toggle AI chat panel',
+          label: 'Toggle AI assistant panel',
           icon: 'chat-bubble-left',
-          title: 'AI Chat',
+          title: 'AI Assistant',
         })
       : null;
     this.chatButton?.addEventListener('click', () => {
-      emitWorkspaceChatToggleRequested();
+      emitAiAssistantToggleRequested();
     });
     if (this.chatButton) {
       if (shouldRenderViewGroup || showRoutines) {
