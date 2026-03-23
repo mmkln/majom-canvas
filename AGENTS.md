@@ -23,6 +23,11 @@ This project already has a local UI library under `src/ui-lib/src`.
 2. Reuse the existing component directly, or wrap/compose it if the screen needs a thin specialization.
 3. Add a new component only if no suitable primitive exists after that search.
 
+## Script Conventions
+
+- `npm run start:stable` must remain a built app served through `vite preview`, but using Vite `development` mode config and env loading.
+- Do not replace `start:stable` with the Vite dev server, and do not point it at a production-mode build unless the user explicitly asks.
+
 ## Testing Discipline
 
 - Do not add tests that exist only to increase coverage or to confirm static implementation details.

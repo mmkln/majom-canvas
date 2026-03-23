@@ -13,14 +13,18 @@ const parseOptionalString = (value?: string): string | null => {
   return trimmed.length > 0 ? trimmed : null;
 };
 
+export const IS_DEVELOPMENT_MODE = import.meta.env.MODE === 'development';
 export const CANVAS_PERF_LOG =
   parseOptionalBoolean(import.meta.env.VITE_CANVAS_PERF_LOG) ?? false;
 export const KANBAN_DEV_ENABLED =
-  import.meta.env.DEV &&
+  IS_DEVELOPMENT_MODE &&
   (parseOptionalBoolean(import.meta.env.VITE_ENABLE_KANBAN_DEV) ?? true);
 export const ROUTINES_ENABLED =
   parseOptionalBoolean(import.meta.env.VITE_ENABLE_ROUTINES) ?? true;
 export const API_URL =
   parseOptionalString(import.meta.env.VITE_API_URL) ?? DEFAULT_API_URL;
+// Allow the browser-exposed Grok key only for development-mode runs/builds.
 export const GROK_API_KEY =
-  parseOptionalString(import.meta.env.VITE_GROK_API_KEY) ?? '';
+  IS_DEVELOPMENT_MODE
+    ? (parseOptionalString(import.meta.env.VITE_GROK_API_KEY) ?? '')
+    : '';

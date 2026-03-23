@@ -7,6 +7,7 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "build:dev": "vite build --mode development",
     "build:repo": "vite build --base=/majom-canvas/",
     "build:domain": "vite build --base=/",
     "predeploy": "npm run build",
@@ -16,7 +17,7 @@
     "start": "npm run start:8080",
     "start:8080": "vite --port=8080",
     "start:4200": "vite --port=4200",
-    "start:stable": "npm run build && npm run preview:4200",
+    "start:stable": "npm run build:dev && npm run preview:4200",
     "lint": "eslint .",
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,css,scss,md}\"",
     "deploy:build": "npm run build && npm run deploy",

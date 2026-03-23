@@ -1,6 +1,10 @@
 import type { Subscription } from 'rxjs';
 import { environment } from '../config/environment.ts';
-import { KANBAN_DEV_ENABLED, ROUTINES_ENABLED } from '../config/env/index.ts';
+import {
+  IS_DEVELOPMENT_MODE,
+  KANBAN_DEV_ENABLED,
+  ROUTINES_ENABLED,
+} from '../config/env/index.ts';
 import { performManualLogout } from '../features/canvas/ui/auth/manualLogout.ts';
 import {
   AuthController,
@@ -31,7 +35,7 @@ import { HttpInterceptorClient } from '../majom-wrapper/data-access/http-interce
 import { UserApiService } from '../majom-wrapper/data-access/user-api-service.ts';
 import { createIcon } from '../ui-lib/src/hud/icons.ts';
 
-export const GLOBAL_APP_HEADER_HEIGHT_PX = import.meta.env.DEV ? 48 : 0;
+export const GLOBAL_APP_HEADER_HEIGHT_PX = IS_DEVELOPMENT_MODE ? 48 : 0;
 
 const GLOBAL_APP_HEADER_Z_INDEX = 260;
 
@@ -71,7 +75,7 @@ export class GlobalAppHeader {
       this.controls?.setChatOpen(customEvent.detail.open);
     };
 
-    if (!import.meta.env.DEV || GLOBAL_APP_HEADER_HEIGHT_PX <= 0) {
+    if (!IS_DEVELOPMENT_MODE || GLOBAL_APP_HEADER_HEIGHT_PX <= 0) {
       this.element = null;
       this.controls = null;
       this.menuContainer = null;
