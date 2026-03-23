@@ -11,6 +11,10 @@ import type {
 import type { AiAssistantInstructionPacket } from './AiAssistantInstructionTypes.ts';
 import type { AiAssistantToolResult } from './AiAssistantToolTypes.ts';
 import { describeAiAssistantStructuredReplyKinds } from './AiAssistantActionPolicy.ts';
+import {
+  compileAiAssistantEvidencePacket,
+  renderAiAssistantEvidencePacket,
+} from './AiAssistantEvidenceCompiler.ts';
 
 export function buildAiAssistantAnswerMessages(params: {
   prompt: string;
@@ -47,7 +51,12 @@ export function buildAiAssistantAnswerMessages(params: {
       `Profile: ${params.profile}`,
       `User request: ${params.prompt.trim()}`,
       buildAnswerMemorySection(params.memory),
-      `Tool results:\n${JSON.stringify(params.toolResults, null, 2)}`,
+      `Evidence packet:\n${renderAiAssistantEvidencePacket(
+        compileAiAssistantEvidencePacket({
+          snapshot: null,
+          toolResults: params.toolResults,
+        })
+      )}`,
     ]
       .filter(Boolean)
       .join('\n\n'),

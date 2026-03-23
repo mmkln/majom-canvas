@@ -16,6 +16,10 @@ import type {
   AiAssistantFocusItem,
   AiAssistantMemoryState,
 } from './AiAssistantContextTypes.ts';
+import {
+  buildAiAssistantScenarioDescriptor,
+  type AiAssistantScenarioDescriptor,
+} from './AiAssistantContextPlanner.ts';
 import type { AiAssistantIntentContext } from './AiAssistantIntentContext.ts';
 import type { AiAssistantInstructionPacket } from './AiAssistantInstructionTypes.ts';
 import {
@@ -107,6 +111,7 @@ type AiAssistantDependenciesCommandContext = {
   items: AiAssistantCommandElementSummary[];
   existingRelations: AiAssistantDependencyRelationSummary[];
   dependencyFindings: AiAssistantDependencyFinding[];
+  scenario: AiAssistantScenarioDescriptor;
   constraints: {
     allowedRelationTypes: ['blocks', 'leads_to', 'relates_to'];
     forbidReviewFindings: true;
@@ -133,6 +138,7 @@ type AiAssistantFillDetailsCommandContext = {
   allowedElementIds: string[];
   target?: AiAssistantFillDetailsTarget;
   targets?: AiAssistantFillDetailsTarget[];
+  scenario: AiAssistantScenarioDescriptor;
   constraints: {
     allowedPatchFields: ['title', 'description'];
     allowTitleParaphraseForDescription: false;
@@ -153,6 +159,7 @@ type AiAssistantStrategicPlanCommandContext = {
   summary: AiAssistantCanvasSnapshot['summary'];
   selectedGoal?: AiAssistantCommandElementSummary;
   strategicHints: string[];
+  scenario: AiAssistantScenarioDescriptor;
   constraints: {
     allowedActionKinds: ['create_goals', 'create_goal_blueprint'];
     forbidReviewFindings: true;
@@ -171,6 +178,7 @@ type AiAssistantBreakdownCommandContext = {
     | 'task_refine'
     | 'unspecified_goal_decomposition';
   target?: AiAssistantCommandElementSummary;
+  scenario: AiAssistantScenarioDescriptor;
   constraints: {
     forbidReviewFindings: true;
     requireConciseFollowupQuestionWhenAmbiguous: true;
@@ -306,6 +314,14 @@ function buildDependenciesCommandContext(
   const items = sourceElements
     .filter((element) => allowedIdSet.has(element.id))
     .map((element) => toCommandElementSummary(element));
+  const scenario = buildAiAssistantScenarioDescriptor({
+    intent: 'dependencies',
+    prompt: params.prompt,
+    memory: params.memory,
+    snapshot: params.snapshot,
+    toolResults: params.toolResults,
+    intentContext: params.intentContext,
+  });
 
   return {
     intent: 'dependencies',
@@ -323,6 +339,7 @@ function buildDependenciesCommandContext(
       allowedIdSet
     ),
     dependencyFindings: readDependencyFindings(params.toolResults),
+    scenario,
     constraints: {
       allowedRelationTypes: ['blocks', 'leads_to', 'relates_to'],
       forbidReviewFindings: true,
@@ -346,6 +363,14 @@ function buildFillDetailsCommandContext(
   const targets = candidateElements.map((element) =>
     buildFillDetailsTarget(element, focus, missingDescriptionIds)
   );
+  const scenario = buildAiAssistantScenarioDescriptor({
+    intent: 'fill_details',
+    prompt: params.prompt,
+    memory: params.memory,
+    snapshot: params.snapshot,
+    toolResults: params.toolResults,
+    intentContext: params.intentContext,
+  });
 
   if (targets.length <= 1) {
     return {
@@ -356,6 +381,7 @@ function buildFillDetailsCommandContext(
       preferredActionShape: 'suggest_update',
       allowedElementIds: targets.map((target) => target.id),
       target: targets[0],
+      scenario,
       constraints: {
         allowedPatchFields: ['title', 'description'],
         allowTitleParaphraseForDescription: false,
@@ -380,6 +406,7 @@ function buildFillDetailsCommandContext(
     preferredActionShape: 'suggest_updates',
     allowedElementIds: targets.map((target) => target.id),
     targets,
+    scenario,
     constraints: {
       allowedPatchFields: ['title', 'description'],
       allowTitleParaphraseForDescription: false,
@@ -410,17 +437,25 @@ function buildStrategicPlanCommandContext(
   const selectedGoal =
     focus?.item.kind === 'goal' ? toCommandElementSummary(focus.item) : undefined;
   const latestUserInput = params.prompt.trim();
-  const mode = resolveStrategicPlanMode(params.intentContext, selectedGoal);
+  const scenario = buildAiAssistantScenarioDescriptor({
+    intent: 'strategic_plan',
+    prompt: params.prompt,
+    memory: params.memory,
+    snapshot: params.snapshot,
+    toolResults: params.toolResults,
+    intentContext: params.intentContext,
+  });
   return {
     intent: 'strategic_plan',
     commandVersion: 2,
     latestUserInput,
     canvasTitle: params.snapshot?.canvasTitle ?? 'Untitled canvas',
-    targetScope: selectedGoal ? 'selected_goal' : 'canvas',
-    mode,
+    targetScope: scenario.targetScope === 'canvas' ? 'canvas' : 'selected_goal',
+    mode: scenario.mode,
     summary,
-    selectedGoal,
-    strategicHints: extractStrategicHints(selectedGoal),
+    selectedGoal: scenario.target?.kind === 'goal' ? scenario.target : selectedGoal,
+    strategicHints: scenario.strategicHints,
+    scenario,
     constraints: {
       allowedActionKinds: ['create_goals', 'create_goal_blueprint'],
       forbidReviewFindings: true,
@@ -436,12 +471,21 @@ function buildBreakdownCommandContext(
   const focus =
     readFocusBundle(params.toolResults) ?? deriveFocusFromSnapshot(params.snapshot);
   const target = focus?.item ? toCommandElementSummary(focus.item) : undefined;
+  const scenario = buildAiAssistantScenarioDescriptor({
+    intent: 'breakdown',
+    prompt: params.prompt,
+    memory: params.memory,
+    snapshot: params.snapshot,
+    toolResults: params.toolResults,
+    intentContext: params.intentContext,
+  });
   return {
     intent: 'breakdown',
     commandVersion: 1,
     latestUserInput: params.prompt.trim(),
-    mode: resolveBreakdownMode(params.intentContext, focus?.item ?? null),
-    target,
+    mode: scenario.mode,
+    target: scenario.target ?? target,
+    scenario,
     constraints: {
       forbidReviewFindings: true,
       requireConciseFollowupQuestionWhenAmbiguous: true,
@@ -1944,59 +1988,6 @@ function hasConcreteUserProvidedFillDetails(
   }
 
   return hasPhrase || fragmentCount >= 2;
-}
-
-function resolveStrategicPlanMode(
-  intentContext: AiAssistantIntentContext | undefined,
-  selectedGoal: AiAssistantCommandElementSummary | undefined
-): AiAssistantStrategicPlanCommandContext['mode'] {
-  const requestedMode = intentContext?.strategicPlanMode;
-  if (requestedMode) {
-    return requestedMode;
-  }
-  if (!selectedGoal) {
-    return 'canvas_bootstrap';
-  }
-  return 'goal_subgoals';
-}
-
-function extractStrategicHints(
-  selectedGoal: AiAssistantCommandElementSummary | undefined
-): string[] {
-  if (!selectedGoal) {
-    return [];
-  }
-
-  const source = selectedGoal.description.trim();
-  if (source.length === 0) {
-    return [];
-  }
-
-  return source
-    .split(/[,\n;:.]+/u)
-    .map((part) => part.trim())
-    .filter((part) => part.length >= 4)
-    .slice(0, 8);
-}
-
-function resolveBreakdownMode(
-  intentContext: AiAssistantIntentContext | undefined,
-  target: AiAssistantCanvasElement | null
-): AiAssistantBreakdownCommandContext['mode'] {
-  const requestedMode = intentContext?.breakdownMode;
-  if (requestedMode) {
-    return requestedMode;
-  }
-  if (!target) {
-    return 'unspecified_goal_decomposition';
-  }
-  if (target.kind === 'story') {
-    return 'story_tasks';
-  }
-  if (target.kind === 'task') {
-    return 'task_refine';
-  }
-  return 'unspecified_goal_decomposition';
 }
 
 function collectFillDetailsUserInputFragments(

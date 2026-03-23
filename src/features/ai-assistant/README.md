@@ -142,9 +142,31 @@ The current implementation is not fully typed-first for all manual prompts.
 
 This is intentional in the current implementation to avoid hidden local lexical routing logic.
 
-## Target Architecture After Planned Improvements
+## Target Architecture
 
-The target state is a typed-first architecture where manual prompts and explicit UI actions converge into the same scenario layer.
+The desired architecture is typed-first and scenario-centric.
+
+The core model is:
+
+- `intent` = what the user wants
+- `scenario` = how the system will handle it
+- `action plan` = which changes should be proposed
+- `action` = a concrete confirm-first change
+- `execution` = the real canvas mutation
+
+The target runtime flow is:
+
+`input -> intent resolution -> scenario resolution -> context and evidence -> action plan -> confirmation -> execution -> memory and telemetry`
+
+### Design Principles
+
+- Manual prompts and explicit UI actions should converge into the same scenario layer.
+- The system should choose the shortest sufficient scenario, not the most elaborate one.
+- Simple requests should use short typed scenarios.
+- Ambiguous or high-impact requests may use longer scenarios with clarify or evidence-gathering steps.
+- Generic conversational routing should remain available, but only as a fallback for low-confidence or discussion-first cases.
+
+### Target Layers
 
 1. Ingress
    - quick actions and buttons
@@ -162,71 +184,79 @@ The target state is a typed-first architecture where manual prompts and explicit
      - `confidence`
      - missing slots or constraints
 
-3. Scenario layer
-   - recognized requests enter typed scenarios first
-   - generic conversational routing becomes a fallback, not the default path
-   - manual and explicit inputs can reach the same typed scenario when they mean the same thing
+3. Scenario resolution
+   - builds a first-class `ResolvedScenario`
+   - chooses the minimal sufficient path
+   - defines:
+     - scenario kind
+     - mode
+     - scope
+     - target
+     - confirmation behavior
+     - allowed actions
 
-4. Context and evidence layer
+4. Context and evidence
    - minimal tools for the chosen scenario
    - structured memory
    - confirmed facts
    - user constraints
    - evidence compiler
-   - action payloads that can carry evidence metadata
+   - compact evidence packets instead of raw broad dumps
 
-5. Proposal layer
+5. Action planning and proposal
    - structured reply envelope
-   - confirm-first actions
-   - follow-up question when slots are missing
-   - free-form conversational answer when the request is not an action request
+   - plain answer when the request is conversational
+   - follow-up question when required slots are missing
+   - review findings when the scenario is analytical
+   - an action plan when the scenario is actionable
 
-6. Confirmation layer
-   - apply
+6. Confirmation
+   - single confirm
+   - batch confirm
    - apply all
    - cancel
    - text confirmation fallback
    - undo last apply
 
-7. Execution layer
+7. Execution
+   - action validation
    - transactional batch execution
-   - atomic apply
    - placement service
    - collision-aware layout
    - applied summary written back to the chat
 
-8. Memory and telemetry layer
+8. Memory and telemetry
    - confirmed facts
    - open slots
+   - active scenario
    - applied action history
    - route accuracy
    - repair rate
    - invalid envelope rate
    - tool hops and token cost
 
-## Target Interaction Scenario Tree
+## Final Target Architecture Tree
 
 ```text
-Chat
+AI Assistant
 
-|- 1. User input
+|- 1. Ingress
 |  |- quick action / button
 |  |- manual prompt
 |  |- follow-up reply
 |  `- confirm / cancel / undo
 |
-|- 2. Intent resolution
-|  |- explicit intent already known
-|  `- classifier / resolver returns:
+|- 2. Intent Resolution
+|  |- explicit intent
+|  `- classifier / resolver
 |     |- intent
 |     |- mode
 |     |- scope
 |     |- confidence
 |     `- missing slots
 |
-|- 3. Route into scenario
-|  |
-|  |- 3.1 Typed action scenario
+|- 3. Scenario Resolution
+|  |- typed scenario
 |  |  |
 |  |  |- strategic_plan
 |  |  |  |- canvas_bootstrap
@@ -252,56 +282,52 @@ Chat
 |  |     |- archive
 |  |     `- reparent
 |  |
-|  `- 3.2 Conversational scenario
+|  `- conversational fallback
 |     |- review
-|     |- next steps
-|     |- capability help
-|     |- recent changes
+|     |- next_steps
+|     |- capability_help
+|     |- recent_changes
 |     |- duplicates
-|     |- open question / brainstorming
+|     |- brainstorming
 |     `- low-confidence fallback
 |
-|- 4. Context assembly
-|  |- minimal tools
+|- 4. Context + Evidence
+|  |- context planner
+|  |- minimal tool calls
 |  |- structured memory
 |  |- confirmed facts
 |  |- user constraints
-|  `- evidence compilation
+|  `- evidence compiler
 |
-|- 5. Assistant reply
-|  |- plain conversational answer
+|- 5. Proposal
+|  |- plain answer
 |  |- follow-up question
-|  |- structured review
-|  `- structured actions
-|     |- create_goal
-|     |- create_goals
-|     |- create_goal_blueprint
-|     |- create_batch_stories
-|     |- create_batch_tasks
-|     |- suggest_updates
-|     |- suggest_relations
-|     |- remove_relations
-|     `- update_relations
+|  |- review findings
+|  `- action plan
+|     |- single action
+|     |- multiple actions
+|     |- batch action
+|     `- compound action
 |
-|- 6. Confirmation flow
-|  |- single action confirm
+|- 6. Confirmation
+|  |- single confirm
 |  |- batch confirm
 |  |- apply all
 |  |- cancel
 |  `- undo last apply
 |
 |- 7. Execution
-|  |- validate actions
-|  |- transactional batch apply
+|  |- action validation
+|  |- transactional batch execution
 |  |- placement service
 |  |- collision-aware layout
 |  `- applied summary
 |
-`- 8. Persistent state
-   |- memory updated
-   |- applied action history updated
-   |- open follow-up slots updated
-   `- telemetry recorded
+`- 8. Persistent System State
+   |- memory update
+   |- active scenario update
+   |- applied action history
+   `- telemetry recording
 ```
 
 ## Main Difference Between Current And Target State
@@ -309,10 +335,13 @@ Chat
 - Current state:
   - explicit actions can enter typed scenarios directly
   - manual prompts often go through the generic router
+  - `intent`, `intentContext`, and command specs carry most of the runtime structure
 
 - Target state:
   - manual and explicit inputs can both enter the same typed scenario
+  - `scenario` becomes the main runtime abstraction
   - generic routing is reserved for conversational or low-confidence cases
+  - action planning becomes explicit between scenario resolution and execution
   - execution is more atomic, explainable, and measurable
 
 ## Terminology: Intent vs Scenario
@@ -361,6 +390,31 @@ In short:
 - `intent` = what
 - `scenario` = how
 
+## Terminology: Action Plan vs Action
+
+- `action plan`
+  - the set of changes proposed by the assistant for the current scenario
+  - may contain:
+    - a single action
+    - multiple separate actions
+    - a batch action
+    - a compound action
+
+- `action`
+  - one concrete confirm-first runtime change
+  - examples:
+    - `create_goal`
+    - `create_goals`
+    - `create_goal_blueprint`
+    - `suggest_update`
+    - `suggest_relation`
+
+In short:
+
+- `scenario` decides the handling path
+- `action plan` describes the proposed change set
+- `action` is the concrete executable unit
+
 ## Target Scenario Abstraction
 
 The desired architecture should treat `scenario` as a first-class concept.
@@ -369,7 +423,7 @@ That does not require a large inheritance tree, but it should exist as an explic
 
 Conceptually, the flow should be:
 
-`input -> intent resolution -> scenario resolution -> context and evidence -> proposal -> confirmation -> execution`
+`input -> intent resolution -> scenario resolution -> context and evidence -> action plan and proposal -> confirmation -> execution`
 
 A target `scenario` object should contain at least:
 
@@ -382,6 +436,8 @@ A target `scenario` object should contain at least:
 - `allowedActions`
 - `contextPlan`
 - `confirmationMode`
+
+The target architecture should also make room for an explicit action-plan layer between scenario resolution and execution.
 
 The current implementation is already close through:
 

@@ -10,6 +10,10 @@ import type {
 } from './AiAssistantInstructionTypes.ts';
 import type { AiAssistantApiMessage } from './AiAssistantApiTypes.ts';
 import type { AiAssistantToolResult } from './AiAssistantToolTypes.ts';
+import {
+  compileAiAssistantEvidencePacket,
+  renderAiAssistantEvidencePacket,
+} from './AiAssistantEvidenceCompiler.ts';
 
 type AiAssistantPlannerToolSummary = {
   name: string;
@@ -125,7 +129,12 @@ export function buildAiAssistantDecisionMessages(params: {
             `- ${tool.name} [${tool.kind}]: ${tool.description}. Input: ${tool.inputSchema}`
         )
         .join('\n')}`,
-      `Current tool results:\n${JSON.stringify(params.toolResults, null, 2)}`,
+      `Evidence packet:\n${renderAiAssistantEvidencePacket(
+        compileAiAssistantEvidencePacket({
+          snapshot: null,
+          toolResults: params.toolResults,
+        })
+      )}`,
     ]
       .filter(Boolean)
       .join('\n\n'),

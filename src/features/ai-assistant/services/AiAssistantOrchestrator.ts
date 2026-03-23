@@ -1,4 +1,5 @@
 import type {
+  AiAssistantCanvasElement,
   AiAssistantCanvasSnapshot,
   AiAssistantIntentKind,
 } from '../aiAssistantEvents.ts';
@@ -23,6 +24,8 @@ import type {
   AiAssistantProfile,
 } from './AiAssistantContextTypes.ts';
 import { isAiAssistantProfile } from './AiAssistantContextTypes.ts';
+import type { AiAssistantScenarioDescriptor } from './AiAssistantScenarioTypes.ts';
+import { resolveAiAssistantScenario } from './AiAssistantScenarioResolver.ts';
 import {
   buildAiAssistantDecisionMessages,
   buildAiAssistantRouterMessages,
@@ -93,6 +96,7 @@ export type AiAssistantOrchestratorRequest = {
   source: 'manual' | 'intent';
   intent?: AiAssistantIntentKind;
   intentContext?: AiAssistantIntentContext;
+  scenario?: AiAssistantScenarioDescriptor;
   telemetryContext?: AiAssistantTelemetryContext;
   profile?: AiAssistantProfile;
   snapshot: AiAssistantCanvasSnapshot | null;
@@ -163,21 +167,29 @@ export class AiAssistantOrchestrator {
   public async reply(
     request: AiAssistantOrchestratorRequest
   ): Promise<AiAssistantOrchestratorReply> {
-    const effectiveIntent = request.intent;
+    const scenario =
+      request.scenario ??
+      resolveAiAssistantScenario({
+        source: request.source,
+        intent: request.intent,
+        intentContext: request.intentContext,
+        target: this.buildScenarioTargetInput(request.snapshot),
+        fallbackTarget: this.buildScenarioTargetInput(request.snapshot),
+      });
+    const effectiveIntent = scenario.intent ?? request.intent;
     const state = this.createInitialState(request);
 
     try {
       this.emitProgress(request, {
         phase: 'routing',
-        label:
-          effectiveIntent ? 'Preparing workflow' : 'Analyzing request',
+        label: effectiveIntent ? 'Preparing workflow' : 'Analyzing request',
         detail:
           effectiveIntent
             ? describeAiAssistantIntentProgressDetail(effectiveIntent)
             : 'Choosing context, instructions, and tools.',
       });
 
-      const commandSpec = effectiveIntent
+      const commandSpec = scenario.kind === 'typed' && effectiveIntent
         ? getAiAssistantCommandSpec(effectiveIntent)
         : null;
 
@@ -598,6 +610,55 @@ export class AiAssistantOrchestrator {
         repairAttempts: 0,
         invalidEnvelopeCount: 0,
       },
+    };
+  }
+
+  private buildScenarioTargetInput(
+    snapshot: AiAssistantCanvasSnapshot | null
+  ):
+    | {
+        canvasId?: string;
+        canvasTitle?: string;
+        selectionItems?: Array<{
+          id: string;
+          kind: AiAssistantCanvasElement['kind'];
+          title: string;
+          description: string;
+          status?: string;
+          priority?: string;
+        }>;
+        selectedItem?: {
+          id: string;
+          kind: AiAssistantCanvasElement['kind'];
+          title: string;
+          description: string;
+          status?: string;
+          priority?: string;
+        } | null;
+      }
+    | undefined {
+    if (!snapshot) {
+      return undefined;
+    }
+
+    const selectionIds = new Set(snapshot.selectionIds);
+    const selectionItems = snapshot.elements
+      .filter((element) => selectionIds.has(element.id))
+      .map((element) => ({
+        id: element.id,
+        kind: element.kind,
+        title: element.title,
+        description: element.description,
+        status: element.status,
+        priority: element.priority,
+      }));
+    const selectedItem = selectionItems.length === 1 ? selectionItems[0] ?? null : null;
+
+    return {
+      canvasId: snapshot.canvasId,
+      canvasTitle: snapshot.canvasTitle,
+      selectionItems,
+      selectedItem,
     };
   }
 

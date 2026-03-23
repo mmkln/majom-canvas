@@ -481,8 +481,8 @@ export function getAiAssistantCreateTargetRules(): string[] {
   return [
     `- ${getAiAssistantActionEntityLabel('create_task')}: target.kind may be "story" or "canvas"`,
     `- ${getAiAssistantActionEntityLabel('create_story')}: target.kind may be "goal" or "canvas"`,
-    `- ${getAiAssistantActionEntityLabel('create_goal')}: target.kind must be "canvas"`,
-    '- create_goals items inherit canvas targeting only',
-    '- create_goal_blueprint creates goals on canvas and resolves any hierarchy or leads_to links internally',
+    `- ${getAiAssistantActionEntityLabel('create_goal')}: target.kind may be "goal" or "canvas"`,
+    '- create_goals may target the canvas or a goal and its items inherit the same anchor unless overridden',
+    '- create_goal_blueprint may target the canvas or a goal and resolves any internal hierarchy or leads_to links atomically',
   ];
 }

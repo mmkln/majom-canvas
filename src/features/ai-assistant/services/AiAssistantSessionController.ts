@@ -20,6 +20,11 @@ import type {
   AiAssistantProfile,
 } from './AiAssistantContextTypes.ts';
 import type { AiAssistantIntentContext } from './AiAssistantIntentContext.ts';
+import type { AiAssistantScenarioDescriptor } from './AiAssistantScenarioTypes.ts';
+import {
+  resolveAiAssistantScenarioFromPrompt,
+  resolveAiAssistantScenarioFromSubmission,
+} from './AiAssistantScenarioResolver.ts';
 import type { AiAssistantTelemetryCollector } from './AiAssistantTelemetryTypes.ts';
 import { getSharedAiAssistantTelemetryCollector } from './AiAssistantTelemetryStore.ts';
 import type {
@@ -209,11 +214,21 @@ export class AiAssistantSessionController {
     }
     this.refreshSeedMessageIfNeeded();
     this.emitChange();
+    const scenario =
+      submission.scenario ??
+      resolveAiAssistantScenarioFromSubmission({
+        intent: submission.intent,
+        intentContext: submission.intentContext,
+        source: submission.source ?? 'manual',
+        snapshot: submission.snapshot,
+        contextMode: submission.contextMode,
+      });
     await this.submitRequest(submission.prompt, {
       profile: submission.profile,
       source: submission.source ?? 'manual',
       intent: submission.intent,
       intentContext: submission.intentContext,
+      scenario,
       liveHost: submission.liveHost ?? this.resolveLiveHost?.() ?? null,
       requestLabel: submission.requestLabel,
       requestMessageKind: submission.requestMessageKind,
@@ -227,6 +242,7 @@ export class AiAssistantSessionController {
       source?: 'manual' | 'intent';
       intent?: AiAssistantPreparedSubmission['intent'];
       intentContext?: AiAssistantIntentContext;
+      scenario?: AiAssistantScenarioDescriptor;
       liveHost?: AiAssistantToolHost | null;
       requestLabel?: string;
       requestMessageKind?: AiAssistantPreparedSubmission['requestMessageKind'];
@@ -240,15 +256,33 @@ export class AiAssistantSessionController {
     if (session.replying) {
       session.abortController?.abort();
     }
+    const contextSnapshot = this.getScopedContext(session);
 
     const continuedIntent =
       !options.intent && (options.source === undefined || options.source === 'manual')
         ? this.resolvePendingFollowupIntent(session)
         : undefined;
-    const resolvedIntent = options.intent ?? continuedIntent;
+    const continuedIntentContext = continuedIntent
+      ? this.resolvePendingFollowupIntentContext(session)
+      : undefined;
+    const resolvedScenario =
+      options.scenario ??
+      resolveAiAssistantScenarioFromPrompt({
+        prompt: trimmed,
+        source: options.source ?? 'manual',
+        intent: options.intent,
+        intentContext: options.intentContext,
+        snapshot: contextSnapshot,
+        contextMode: session.contextMode,
+        fallbackIntent: continuedIntent,
+        fallbackIntentContext: continuedIntentContext,
+      });
+    const resolvedIntent =
+      options.intent ?? resolvedScenario.intent ?? continuedIntent;
     const resolvedIntentContext =
       options.intentContext ??
-      (resolvedIntent && continuedIntent ? this.resolvePendingFollowupIntentContext(session) : undefined);
+      resolvedScenario.intentContext ??
+      continuedIntentContext;
     const resolvedSource = options.source ?? (resolvedIntent ? 'intent' : 'manual');
     const resolvedProfile =
       options.profile ??
@@ -284,7 +318,6 @@ export class AiAssistantSessionController {
     session.abortController = abortController;
     this.emitChange();
 
-    const contextSnapshot = this.getScopedContext(session);
     const memorySnapshot = this.memoryStore.recordUserInput({
       conversationKey,
       prompt: trimmed,

@@ -698,7 +698,7 @@ describe('AiAssistantCommandSpecs', () => {
       prompt: 'декомпозуй',
       memory: createAiAssistantTestMemory(),
       toolResults: [],
-      snapshot: createSelectedGoalSnapshot(),
+      snapshot: createEmptyCanvasSnapshot(),
     });
 
     const error = spec!.validateEnvelope({

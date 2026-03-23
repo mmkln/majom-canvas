@@ -8,6 +8,7 @@ import { getAiAssistantSelectedItems } from './AiAssistantContent.ts';
 import type { AiAssistantProfile } from './AiAssistantContextTypes.ts';
 import type { AiAssistantIntentContext } from './AiAssistantIntentContext.ts';
 import type { AiAssistantPreparedSubmission } from './AiAssistantPreparedSubmission.ts';
+import { resolveAiAssistantScenarioFromSubmission } from './AiAssistantScenarioResolver.ts';
 import { buildAiAssistantIntentPrompt } from '../aiAssistantPrompts.ts';
 
 export function resolveAiAssistantIntentSubmission(
@@ -31,6 +32,13 @@ export function resolveAiAssistantIntentSubmission(
     source: 'intent',
     intent: detail.intent,
     intentContext: getAiAssistantIntentContext(detail.intent, selection),
+    scenario: resolveAiAssistantScenarioFromSubmission({
+      intent: detail.intent,
+      intentContext: getAiAssistantIntentContext(detail.intent, selection),
+      source: 'intent',
+      snapshot: resolvedSnapshot,
+      contextMode: scope === 'selection' ? 'selection' : 'canvas',
+    }),
     profile: getAiAssistantIntentProfile(detail.intent),
     requestLabel: getAiAssistantIntentRequestLabel(detail.intent, selection),
     requestMessageKind: 'command',
