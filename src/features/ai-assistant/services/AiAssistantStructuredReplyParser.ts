@@ -44,7 +44,7 @@ import {
   buildAiAssistantActionPlanFromScenario,
 } from './AiAssistantActionPlan.ts';
 import type { AiAssistantActionPlan } from './AiAssistantActionPlanTypes.ts';
-import type { AiAssistantScenarioDescriptor } from './AiAssistantContextPlanner.ts';
+import type { AiAssistantScenarioDescriptor } from './AiAssistantScenarioTypes.ts';
 import {
   isAiAssistantStructuredActionEntryKind,
   isAiAssistantStructuredReplyEnvelopeLike,

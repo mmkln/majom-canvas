@@ -1,6 +1,6 @@
 import type { AiAssistantIntentKind } from '../aiAssistantEvents.ts';
 import type { AiAssistantActionPlan } from './AiAssistantActionPlanTypes.ts';
-import type { AiAssistantScenarioDescriptor } from './AiAssistantContextPlanner.ts';
+import type { AiAssistantScenarioDescriptor } from './AiAssistantScenarioTypes.ts';
 import type {
   AiAssistantStructuredActionEntryKind,
   AiAssistantStructuredActionPlanHint,
@@ -36,16 +36,10 @@ export function buildAiAssistantActionPlanFromScenario(
     resolveAiAssistantActionKindsForScenario(scenario) ?? [];
 
   return {
-    scenarioId: resolveScenarioIdFromScenario(scenario),
-    scenarioKind: scenario.kind,
+    scenarioId: scenario.id,
+    scenarioKind: scenario.variant,
     scenarioMode: scenario.mode,
-    intent:
-      scenario.kind === 'dependencies' ||
-      scenario.kind === 'fill_details' ||
-      scenario.kind === 'strategic_plan' ||
-      scenario.kind === 'breakdown'
-        ? scenario.kind
-        : null,
+    intent: scenario.intent,
     confirmationMode: scenario.confirmationMode,
     allowedRuntimeActionKinds,
     allowedStructuredReplyKinds,
@@ -56,15 +50,6 @@ export function buildAiAssistantActionPlanFromScenario(
     requiresFollowUp: scenario.confirmationMode === 'follow-up',
     batchable: scenario.confirmationMode === 'batch',
   };
-}
-
-function resolveScenarioIdFromScenario(
-  scenario: AiAssistantScenarioDescriptor
-): string {
-  if (scenario.kind === 'dependencies' || scenario.kind === 'fill_details') {
-    return `${scenario.kind}.default`;
-  }
-  return `${scenario.kind}.${scenario.mode}`;
 }
 
 export function buildAiAssistantActionPlanFromIntent(

@@ -1,9 +1,9 @@
-import type { AiAssistantActionKind } from '../aiAssistantActions.ts';
 import type { AiAssistantIntentKind } from '../aiAssistantEvents.ts';
 import type {
   AiAssistantScenarioDefinition,
   AiAssistantScenarioId,
 } from './AiAssistantScenarioTypes.ts';
+import type { AiAssistantStructuredActionEntryKind } from './AiAssistantStructuredTransport.ts';
 
 const TYPED_BATCH_CONFIRMATION = 'batch' as const;
 const FALLBACK_SINGLE_CONFIRMATION = 'single' as const;
@@ -46,7 +46,7 @@ export const AI_ASSISTANT_SCENARIO_REGISTRY: Record<
     intent: 'breakdown',
     mode: 'goal_stories',
     scope: 'item',
-    allowedActions: ['create_batch_stories', 'suggest_update'],
+    allowedActions: ['create_batch_stories'],
     confirmationMode: TYPED_BATCH_CONFIRMATION,
   },
   'breakdown.story_tasks': {
@@ -55,7 +55,7 @@ export const AI_ASSISTANT_SCENARIO_REGISTRY: Record<
     intent: 'breakdown',
     mode: 'story_tasks',
     scope: 'item',
-    allowedActions: ['create_batch_tasks', 'suggest_update'],
+    allowedActions: ['create_batch_tasks'],
     confirmationMode: TYPED_BATCH_CONFIRMATION,
   },
   'breakdown.task_refine': {
@@ -236,6 +236,6 @@ export function getAiAssistantScenarioDefinition(
 export function getAiAssistantScenarioActionKinds(
   intent: AiAssistantIntentKind | null | undefined,
   mode?: string
-): AiAssistantActionKind[] {
+): AiAssistantStructuredActionEntryKind[] {
   return getAiAssistantScenarioDefinition(intent, mode).allowedActions;
 }

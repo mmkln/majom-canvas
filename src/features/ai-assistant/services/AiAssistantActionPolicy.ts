@@ -1,6 +1,6 @@
 import type { AiAssistantActionKind } from '../aiAssistantActions.ts';
 import type { AiAssistantIntentKind } from '../aiAssistantEvents.ts';
-import type { AiAssistantScenarioDescriptor } from './AiAssistantContextPlanner.ts';
+import type { AiAssistantScenarioDescriptor } from './AiAssistantScenarioTypes.ts';
 import type { AiAssistantStructuredActionEntryKind } from './AiAssistantStructuredTransport.ts';
 
 const STRUCTURED_ACTION_KIND_LABELS: Record<
@@ -113,9 +113,7 @@ export function resolveAiAssistantStructuredReplyKindsForScenario(
     return [];
   }
 
-  return scenario.allowedActions as Array<
-    AiAssistantStructuredActionEntryKind | 'reviewFindings'
-  >;
+  return scenario.allowedActions;
 }
 
 export function resolveAiAssistantActionKindsForScenario(
@@ -126,13 +124,16 @@ export function resolveAiAssistantActionKindsForScenario(
   }
 
   return scenario.allowedActions
-    .map((kind) =>
-      (STRUCTURED_TO_RUNTIME_ACTION_KIND[kind as AiAssistantStructuredActionEntryKind] ??
-        kind) as AiAssistantActionKind
-    )
+    .map(mapStructuredKindToRuntimeKind)
     .filter((kind, index, kinds): kind is AiAssistantActionKind =>
       kinds.indexOf(kind) === index
     );
+}
+
+function mapStructuredKindToRuntimeKind(
+  kind: AiAssistantStructuredActionEntryKind
+): AiAssistantActionKind {
+  return (STRUCTURED_TO_RUNTIME_ACTION_KIND[kind] ?? kind) as AiAssistantActionKind;
 }
 
 export function describeAiAssistantStructuredReplyKindsForScenario(

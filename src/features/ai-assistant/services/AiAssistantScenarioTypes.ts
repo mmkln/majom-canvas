@@ -1,8 +1,4 @@
 import type {
-  AiAssistantActionKind,
-  type AiAssistantCreateActionKind,
-} from '../aiAssistantActions.ts';
-import type {
   AiAssistantCanvasElement,
   AiAssistantCanvasSnapshot,
   AiAssistantIntentKind,
@@ -15,6 +11,7 @@ import type {
   AiAssistantIntentContext,
   AiAssistantStrategicPlanMode,
 } from './AiAssistantIntentContext.ts';
+import type { AiAssistantStructuredActionEntryKind } from './AiAssistantStructuredTransport.ts';
 
 export type AiAssistantScenarioVariant = 'typed' | 'fallback';
 
@@ -95,7 +92,7 @@ export type AiAssistantScenarioDescriptor = {
   target: AiAssistantScenarioTarget;
   confidence: number;
   missingSlots: string[];
-  allowedActions: AiAssistantActionKind[];
+  allowedActions: AiAssistantStructuredActionEntryKind[];
   confirmationMode: AiAssistantScenarioConfirmationMode;
   targetScope?: AiAssistantScenarioTargetScope;
   focus?: AiAssistantFocusItem | null;
@@ -112,7 +109,7 @@ export type AiAssistantScenarioDefinition = {
   intent: AiAssistantIntentKind | null;
   mode: AiAssistantScenarioMode;
   scope: AiAssistantScenarioScope;
-  allowedActions: AiAssistantActionKind[];
+  allowedActions: AiAssistantStructuredActionEntryKind[];
   confirmationMode: AiAssistantScenarioConfirmationMode;
 };
 
@@ -233,6 +230,6 @@ export function isAiAssistantTypedScenario(
 
 export function getAiAssistantScenarioPrimaryActionKinds(
   scenario: AiAssistantScenarioDescriptor
-): AiAssistantCreateActionKind[] | AiAssistantActionKind[] {
+): AiAssistantStructuredActionEntryKind[] {
   return scenario.allowedActions;
 }

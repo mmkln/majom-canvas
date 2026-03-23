@@ -20,7 +20,6 @@ import type {
 } from './AiAssistantContextTypes.ts';
 import {
   buildAiAssistantScenarioDescriptor,
-  type AiAssistantScenarioDescriptor,
 } from './AiAssistantContextPlanner.ts';
 import {
   buildAiAssistantActionPlanFromScenario,
@@ -31,6 +30,7 @@ import {
   AI_ASSISTANT_STRUCTURED_ENVELOPE_SHAPE,
   type AiAssistantStructuredReplyEnvelope,
 } from './AiAssistantStructuredTransport.ts';
+import type { AiAssistantScenarioDescriptor } from './AiAssistantScenarioTypes.ts';
 import type { AiAssistantToolResult } from './AiAssistantToolTypes.ts';
 import { isPlainObject } from './AiAssistantToolTypes.ts';
 
@@ -311,10 +311,10 @@ export function getAiAssistantCommandSpec(
 export function getAiAssistantCommandSpecForScenario(
   scenario: AiAssistantScenarioDescriptor | null | undefined
 ): AiAssistantCommandSpec | null {
-  if (!scenario?.kind) {
+  if (!scenario?.intent) {
     return null;
   }
-  return getAiAssistantCommandSpec(scenario.kind);
+  return getAiAssistantCommandSpec(scenario.intent);
 }
 
 function buildDependenciesCommandContext(

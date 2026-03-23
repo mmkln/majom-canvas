@@ -4,11 +4,11 @@ import type { AiAssistantIntentKind } from '../aiAssistantEvents.ts';
 import type {
   AiAssistantScenarioConfirmationMode,
   AiAssistantScenarioDescriptor,
-} from './AiAssistantContextPlanner.ts';
+} from './AiAssistantScenarioTypes.ts';
 
 export type AiAssistantActionPlan = {
   scenarioId: string;
-  scenarioKind: AiAssistantScenarioDescriptor['kind'] | 'typed' | 'fallback';
+  scenarioKind: AiAssistantScenarioDescriptor['variant'];
   scenarioMode: AiAssistantScenarioDescriptor['mode'] | 'default' | 'conversation';
   intent: AiAssistantIntentKind | null;
   confirmationMode: AiAssistantScenarioConfirmationMode;
