@@ -68,12 +68,11 @@ export function createHudDropdownItem(
     button.setAttribute('aria-current', 'true');
   }
   if (options.disabled) {
-    button.classList.add(HUD_MENU_ITEM_DISABLED_CLASS);
+    button.classList.add(...HUD_MENU_ITEM_DISABLED_CLASS.split(' '));
     button.disabled = true;
     button.setAttribute('aria-disabled', 'true');
   }
-  const hint =
-    typeof options.hint === 'string' ? options.hint.trim() : '';
+  const hint = typeof options.hint === 'string' ? options.hint.trim() : '';
   if (hint.length > 0) {
     button.setAttribute('aria-description', hint);
   }

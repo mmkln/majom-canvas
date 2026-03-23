@@ -1,6 +1,8 @@
 import {
   createIconButton,
+  MenuButton,
   createTextButton,
+  setTextButtonState,
 } from '../../../ui-lib/src/hud/index.ts';
 import { createIcon, type IconName } from '../../../ui-lib/src/hud/icons.ts';
 import { ComponentFactory } from '../../../ui-lib/src/core/ComponentFactory.ts';
@@ -39,8 +41,12 @@ import {
 import {
   AI_ASSISTANT_CONTEXT_CHANGED_EVENT,
   isAiAssistantContextDetail,
+  type AiAssistantCanvasElement,
 } from '../aiAssistantEvents.ts';
-import { getAiAssistantSelectedItems } from '../services/AiAssistantContent.ts';
+import {
+  capitalizeAiAssistantValue,
+  getAiAssistantSelectedItems,
+} from '../services/AiAssistantContent.ts';
 import type { AiAssistantPreparedSubmission } from '../services/AiAssistantPreparedSubmission.ts';
 
 type AiAssistantPanelOptions = {
@@ -78,7 +84,7 @@ export class AiAssistantPanel {
   private readonly pendingConfirmationTitle: HTMLParagraphElement;
   private readonly pendingConfirmationButton: HTMLButtonElement;
   private readonly contextModeControl: HTMLDivElement;
-  private readonly contextModeSelect: HTMLSelectElement;
+  private readonly contextModeMenuButton: MenuButton;
   private readonly clearButton: HTMLButtonElement;
   private readonly sendButton: HTMLButtonElement;
   private readonly chatController: AiAssistantSessionController;
@@ -141,7 +147,7 @@ export class AiAssistantPanel {
     this.header.style.background = 'transparent';
     this.header.style.display = 'flex';
     this.header.style.flexDirection = 'column';
-    this.header.style.gap = '10px';
+    this.header.style.gap = '4px';
 
     const headerTopRow = document.createElement('div');
     headerTopRow.style.display = 'flex';
@@ -162,49 +168,35 @@ export class AiAssistantPanel {
     brandIcon.setAttribute('aria-hidden', 'true');
     brandIcon.style.color = '#94a3b8';
 
-    const brandText = document.createElement('div');
-    brandText.style.display = 'flex';
-    brandText.style.flexDirection = 'column';
-    brandText.style.minWidth = '0';
-
-    const brandTitle = document.createElement('p');
-    brandTitle.textContent = 'Workspace chat';
-    brandTitle.style.margin = '0';
-    brandTitle.style.fontSize = '11px';
-    brandTitle.style.fontWeight = '700';
-    brandTitle.style.letterSpacing = '0.08em';
-    brandTitle.style.textTransform = 'uppercase';
-    brandTitle.style.color = '#0f172a';
-
-    brandText.append(brandTitle);
-    brand.append(brandIcon, brandText);
-
     this.contextTitle = document.createElement('p');
     this.contextTitle.style.margin = '0';
-    this.contextTitle.style.fontSize = '12px';
+    this.contextTitle.style.fontSize = '13px';
     this.contextTitle.style.fontWeight = '600';
     this.contextTitle.style.lineHeight = '1.4';
     this.contextTitle.style.color = '#0f172a';
-    this.contextTitle.style.letterSpacing = '0.02em';
+    this.contextTitle.style.flex = '1';
+    this.contextTitle.style.minWidth = '0';
     this.contextTitle.style.whiteSpace = 'nowrap';
     this.contextTitle.style.overflow = 'hidden';
     this.contextTitle.style.textOverflow = 'ellipsis';
+    this.contextTitle.textContent = 'Chat';
+    brand.append(brandIcon, this.contextTitle);
 
     this.contextMeta = document.createElement('p');
     this.contextMeta.style.margin = '0';
     this.contextMeta.style.fontSize = '11px';
-    this.contextMeta.style.lineHeight = '1.5';
+    this.contextMeta.style.lineHeight = '1.45';
     this.contextMeta.style.color = '#475569';
+    this.contextMeta.style.paddingLeft = '24px';
     this.contextMeta.style.whiteSpace = 'nowrap';
     this.contextMeta.style.overflow = 'hidden';
     this.contextMeta.style.textOverflow = 'ellipsis';
 
-    this.contextCard = this.createSubtleSurface(14);
+    this.contextCard = document.createElement('div');
+    this.contextCard.style.minWidth = '0';
     this.contextCard.style.display = 'flex';
     this.contextCard.style.flexDirection = 'column';
-    this.contextCard.style.gap = '3px';
-    this.contextCard.style.padding = '9px 11px';
-    this.contextCard.append(this.contextTitle, this.contextMeta);
+    this.contextCard.append(this.contextMeta);
 
     this.quickActionsSection = document.createElement('div');
     this.quickActionsSection.style.padding = '12px 18px 14px';
@@ -359,25 +351,26 @@ export class AiAssistantPanel {
     composerHint.style.letterSpacing = '0.01em';
     composerHint.style.color = '#94a3b8';
 
-    this.contextModeControl = document.createElement('div');
+    this.contextModeMenuButton = new MenuButton({
+      label: 'Whole canvas',
+      title: 'Context: Whole canvas',
+      ariaLabel: 'Context: Whole canvas. Change context scope',
+      size: 'xs',
+      variant: 'plain',
+      buttonClassName: '!min-w-[122px] !justify-between',
+      placement: 'top-start',
+      fallbackPlacements: ['top-end', 'bottom-start', 'bottom-end'],
+      gap: 6,
+      margin: 8,
+      lockPlacementAfterOpen: true,
+    });
+    this.contextModeControl = this.contextModeMenuButton.element;
     this.contextModeControl.style.flexShrink = '0';
 
-    const contextModeSelect = ComponentFactory.createSelect({
-      variant: 'default',
-      items: AI_ASSISTANT_CONTEXT_MODE_OPTIONS,
-      selectedValue: 'canvas',
-      onChange: (value: string) => {
-        this.chatController.setContextMode(value as AiAssistantContextMode);
-      },
-      className:
-        '!w-auto !h-9 !rounded-full !border-slate-200 !bg-white !px-3 !text-xs !font-semibold !text-slate-600 focus:!border-indigo-500 focus:!ring-indigo-300',
-    });
-    contextModeSelect.render(this.contextModeControl);
-    this.contextModeSelect =
-      contextModeSelect.getElement() as HTMLSelectElement;
-
-    this.clearButton = this.createQuietPillButton({
+    this.clearButton = createTextButton({
       text: 'Clear chat',
+      tone: 'text',
+      size: 'xs',
       title: 'Clear chat',
       ariaLabel: 'Clear chat',
       onClick: () => {
@@ -424,6 +417,7 @@ export class AiAssistantPanel {
   public mount(parent: HTMLElement = document.body): void {
     if (this.container.parentElement) return;
     parent.appendChild(this.container);
+    this.contextModeMenuButton.mount();
     window.addEventListener(
       WORKSPACE_VIEW_CHANGED_EVENT,
       this.workspaceViewChangedHandler
@@ -435,6 +429,7 @@ export class AiAssistantPanel {
   }
 
   public unmount(): void {
+    this.contextModeMenuButton.unmount();
     window.removeEventListener(
       WORKSPACE_VIEW_CHANGED_EVENT,
       this.workspaceViewChangedHandler
@@ -457,6 +452,9 @@ export class AiAssistantPanel {
   }
 
   public setVisible(visible: boolean): void {
+    if (!visible) {
+      this.contextModeMenuButton.close();
+    }
     this.container.style.display = visible ? 'block' : 'none';
   }
 
@@ -548,6 +546,8 @@ export class AiAssistantPanel {
     context: ReturnType<AiAssistantSessionController['getState']>['context'],
     contextMode: AiAssistantContextMode
   ): void {
+    this.contextTitle.textContent = 'Chat';
+
     if (contextMode === 'none') {
       this.contextCard.style.display = 'none';
       return;
@@ -556,25 +556,190 @@ export class AiAssistantPanel {
     this.contextCard.style.display = 'flex';
 
     if (!context) {
-      this.contextTitle.textContent = 'Context unavailable';
-      this.contextMeta.textContent = 'Open a canvas to ground the chat.';
+      this.setContextMeta(
+        this.joinContextMetaParts(
+          contextMode === 'selection'
+            ? ['Selection', 'Select items to ground the chat']
+            : contextMode === 'viewport'
+              ? ['Visible area', 'Open a canvas to use the visible area']
+              : ['Canvas', 'Open a canvas to ground the chat']
+        )
+      );
       return;
     }
 
-    const summary = context.summary;
     const selection = getAiAssistantSelectedItems(context);
-    this.contextTitle.textContent = context.canvasTitle || 'Untitled canvas';
-    const selectionText = this.formatSelectionSummary(selection);
-    this.contextMeta.textContent = `${summary.goalCount} goals, ${summary.storyCount} stories, ${summary.taskCount} tasks. ${selectionText}.`;
+    this.setContextMeta(
+      this.formatContextMeta(contextMode, context, selection)
+    );
   }
 
-  private formatSelectionSummary(
-    selection: ReturnType<typeof getAiAssistantSelectedItems>
-  ): string {
-    if (selection.length === 0) {
-      return 'Nothing selected';
+  private setContextMeta(text: string | null): void {
+    if (!text) {
+      this.contextMeta.textContent = '';
+      this.contextMeta.style.display = 'none';
+      return;
     }
-    return `Selected: ${selection.length}`;
+
+    this.contextMeta.textContent = text;
+    this.contextMeta.style.display = 'block';
+  }
+  private formatContextMeta(
+    contextMode: AiAssistantContextMode,
+    context: NonNullable<
+      ReturnType<AiAssistantSessionController['getState']>['context']
+    >,
+    selection: AiAssistantCanvasElement[]
+  ): string | null {
+    const totalItems = this.getContextItemCount(context);
+    const canvasTitle = context.canvasTitle || 'Untitled canvas';
+
+    if (contextMode === 'selection') {
+      if (selection.length === 0) {
+        return this.joinContextMetaParts([
+          canvasTitle,
+          'Selection',
+          'Select items to ground the chat',
+        ]);
+      }
+      if (selection.length === 1) {
+        return this.joinContextMetaParts([
+          canvasTitle,
+          'Selection',
+          capitalizeAiAssistantValue(selection[0].kind),
+          selection[0].title || 'Untitled',
+          this.getSelectionChildCountLabel(selection[0]),
+        ]);
+      }
+      return this.joinContextMetaParts([
+        canvasTitle,
+        'Selection',
+        `${selection.length} selected`,
+        this.formatSelectionKindSummary(selection),
+      ]);
+    }
+
+    if (contextMode === 'viewport') {
+      return this.joinContextMetaParts([
+        canvasTitle,
+        'Visible area',
+        totalItems === 0 ? 'Empty' : this.formatCountLabel(totalItems, 'item'),
+        selection.length === 1
+          ? `${capitalizeAiAssistantValue(selection[0].kind)}: ${selection[0].title || 'Untitled'}`
+          : selection.length > 1
+            ? `${selection.length} selected`
+            : null,
+      ]);
+    }
+
+    if (totalItems === 0) {
+      return this.joinContextMetaParts([canvasTitle, 'Canvas', 'Empty']);
+    }
+
+    if (selection.length === 1) {
+      return this.joinContextMetaParts([
+        canvasTitle,
+        'Canvas',
+        `${capitalizeAiAssistantValue(selection[0].kind)} selected`,
+        selection[0].title || 'Untitled',
+      ]);
+    }
+
+    if (selection.length > 1) {
+      return this.joinContextMetaParts([
+        canvasTitle,
+        'Canvas',
+        `${selection.length} selected`,
+      ]);
+    }
+
+    return this.joinContextMetaParts([
+      canvasTitle,
+      'Canvas',
+      this.formatCanvasSummary(context),
+    ]);
+  }
+
+  private getSelectionChildCountLabel(
+    item: AiAssistantCanvasElement
+  ): string | null {
+    if (typeof item.childCount !== 'number' || item.childCount <= 0) {
+      return null;
+    }
+
+    if (item.kind === 'story') {
+      return this.formatCountLabel(item.childCount, 'task');
+    }
+
+    if (item.kind === 'goal') {
+      return this.formatCountLabel(item.childCount, 'child item');
+    }
+
+    return null;
+  }
+
+  private getContextItemCount(
+    context: NonNullable<
+      ReturnType<AiAssistantSessionController['getState']>['context']
+    >
+  ): number {
+    const summary = context.summary;
+    return summary.goalCount + summary.storyCount + summary.taskCount;
+  }
+
+  private formatCountLabel(count: number, label: string): string {
+    return `${count} ${label}${count === 1 ? '' : 's'}`;
+  }
+
+  private formatCanvasSummary(
+    context: NonNullable<
+      ReturnType<AiAssistantSessionController['getState']>['context']
+    >
+  ): string {
+    const parts = [
+      context.summary.goalCount > 0
+        ? this.formatCountLabel(context.summary.goalCount, 'goal')
+        : null,
+      context.summary.storyCount > 0
+        ? this.formatCountLabel(context.summary.storyCount, 'story')
+        : null,
+      context.summary.taskCount > 0
+        ? this.formatCountLabel(context.summary.taskCount, 'task')
+        : null,
+    ].filter((part): part is string => part !== null);
+
+    return parts.join(' · ');
+  }
+
+  private formatSelectionKindSummary(
+    selection: AiAssistantCanvasElement[]
+  ): string | null {
+    const counts = {
+      goal: 0,
+      story: 0,
+      task: 0,
+    };
+    selection.forEach((item) => {
+      counts[item.kind] += 1;
+    });
+
+    return [
+      counts.goal > 0 ? this.formatCountLabel(counts.goal, 'goal') : null,
+      counts.story > 0 ? this.formatCountLabel(counts.story, 'story') : null,
+      counts.task > 0 ? this.formatCountLabel(counts.task, 'task') : null,
+    ]
+      .filter((part): part is string => part !== null)
+      .join(' · ');
+  }
+
+  private joinContextMetaParts(
+    parts: Array<string | null | undefined>
+  ): string | null {
+    const filtered = parts.filter(
+      (part): part is string =>
+        typeof part === 'string' && part.trim().length > 0
+    );
+    return filtered.length > 0 ? filtered.join(' · ') : null;
   }
 
   private renderQuickActions(
@@ -854,12 +1019,9 @@ export class AiAssistantPanel {
     this.composerInput.style.background = replying
       ? 'rgba(248, 250, 252, 0.96)'
       : '';
-    this.contextModeSelect.value = contextMode;
-    this.contextModeSelect.disabled = replying;
+    this.updateContextModeButton(contextMode, replying);
     this.contextModeControl.style.opacity = replying ? '0.55' : '1';
-    this.clearButton.disabled = replying;
-    this.clearButton.style.opacity = replying ? '0.55' : '1';
-    this.clearButton.style.cursor = replying ? 'default' : 'pointer';
+    setTextButtonState(this.clearButton, { disabled: replying });
     this.sendButton.disabled = replying;
     this.sendButton.textContent = replying
       ? this.getReplyButtonLabel(replyProgress)
@@ -870,6 +1032,41 @@ export class AiAssistantPanel {
       return;
     }
     this.composerInput.style.background = 'rgba(248, 250, 252, 0.96)';
+  }
+
+  private updateContextModeButton(
+    contextMode: AiAssistantContextMode,
+    replying: boolean
+  ): void {
+    const label = this.getContextModeOptionLabel(contextMode);
+    this.contextModeMenuButton.setLabel(label);
+    this.contextModeMenuButton.setTitle(`Context: ${label}`);
+    this.contextModeMenuButton.setAriaLabel(
+      `Context: ${label}. Change context scope`
+    );
+    this.contextModeMenuButton.setDisabled(replying);
+    this.contextModeMenuButton.setItems(
+      AI_ASSISTANT_CONTEXT_MODE_OPTIONS.map((option) => ({
+        id: option.value,
+        label: option.label,
+        active: option.value === contextMode,
+        disabled: replying,
+        onSelect: () => {
+          if (replying) return;
+          this.chatController.setContextMode(option.value);
+        },
+      }))
+    );
+  }
+
+  private getContextModeOptionLabel(
+    contextMode: AiAssistantContextMode
+  ): string {
+    return (
+      AI_ASSISTANT_CONTEXT_MODE_OPTIONS.find(
+        (option) => option.value === contextMode
+      )?.label ?? 'Whole canvas'
+    );
   }
 
   private createQuickActionButton(action: {

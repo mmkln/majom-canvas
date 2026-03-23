@@ -1,7 +1,32 @@
+import type {
+  Goal,
+  PlatformTask,
+  Story,
+} from '../../../../majom-wrapper/interfaces/index.ts';
+
 export type ExistingPickerKind =
   | 'existing-goal'
   | 'existing-story'
   | 'existing-task';
+
+export type ExistingPickerItemByKind = {
+  'existing-goal': Goal;
+  'existing-story': Story;
+  'existing-task': PlatformTask;
+};
+
+export type ExistingPickerItemForKind<K extends ExistingPickerKind> =
+  ExistingPickerItemByKind[K];
+
+export type ExistingPickerDragPayloadForKind<K extends ExistingPickerKind> = {
+  kind: K;
+  item: ExistingPickerItemForKind<K>;
+  title: string;
+};
+
+export type ExistingPickerDragPayload = {
+  [K in ExistingPickerKind]: ExistingPickerDragPayloadForKind<K>;
+}[ExistingPickerKind];
 
 export const EXISTING_PICKER_EVENT_NAMES = {
   dragStarted: 'existingPickerDragStarted',
@@ -10,10 +35,7 @@ export const EXISTING_PICKER_EVENT_NAMES = {
   dropCompleted: 'existingPickerDropCompleted',
 } as const;
 
-export type ExistingPickerDragStartedDetail = {
-  kind: ExistingPickerKind;
-  item: unknown;
-  title: string;
+export type ExistingPickerDragStartedDetail = ExistingPickerDragPayload & {
   clientX: number;
   clientY: number;
 };
@@ -24,10 +46,7 @@ export type ExistingPickerDragMovedDetail = {
   clientY: number;
 };
 
-export type ExistingPickerDragEndedDetail = {
-  kind: ExistingPickerKind;
-  item: unknown;
-  title: string;
+export type ExistingPickerDragEndedDetail = ExistingPickerDragPayload & {
   clientX: number;
   clientY: number;
   cancelled?: boolean;
@@ -37,9 +56,9 @@ export type ExistingPickerDropCompletedDetail = {
   kind: ExistingPickerKind;
 };
 
-export const emitExistingPickerDragStarted = (
-  kind: ExistingPickerKind,
-  item: unknown,
+export const emitExistingPickerDragStarted = <K extends ExistingPickerKind>(
+  kind: K,
+  item: ExistingPickerItemForKind<K>,
   title: string,
   clientX: number,
   clientY: number
@@ -71,9 +90,9 @@ export const emitExistingPickerDragMoved = (
   );
 };
 
-export const emitExistingPickerDragEnded = (
-  kind: ExistingPickerKind,
-  item: unknown,
+export const emitExistingPickerDragEnded = <K extends ExistingPickerKind>(
+  kind: K,
+  item: ExistingPickerItemForKind<K>,
   title: string,
   clientX: number,
   clientY: number,

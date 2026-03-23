@@ -3,7 +3,7 @@ import { FloatingMenuController } from './FloatingMenuController.ts';
 type HudAnchoredSide = 'right' | 'left' | 'auto';
 type HudAnchoredResolvedSide = 'right' | 'left';
 type HudAnchoredVertical = 'bottom' | 'top' | 'center';
-type HudAnchoredPlacement =
+export type HudAnchoredPlacement =
   | 'auto'
   | 'right-start'
   | 'right'
@@ -17,7 +17,10 @@ type HudAnchoredPlacement =
   | 'top-start'
   | 'top'
   | 'top-end';
-type HudAnchoredResolvedPlacement = Exclude<HudAnchoredPlacement, 'auto'>;
+export type HudAnchoredResolvedPlacement = Exclude<
+  HudAnchoredPlacement,
+  'auto'
+>;
 type HudAnchoredAlign = 'start' | 'center' | 'end';
 type HudAnchoredPrimary = 'right' | 'left' | 'bottom' | 'top';
 type HudAnchoredMode = 'legacy' | 'modern';
@@ -135,9 +138,7 @@ export class HudAnchoredMenu {
       const placement = options.placement ?? 'right-start';
       const fallbackPlacements = this.normalizeFallbackPlacements(
         options.fallbackPlacements ??
-          this.getDefaultFallbackPlacements(
-            this.normalizePlacement(placement)
-          ),
+          this.getDefaultFallbackPlacements(this.normalizePlacement(placement)),
         this.normalizePlacement(placement)
       );
       this.mode = 'modern';
@@ -360,7 +361,8 @@ export class HudAnchoredMenu {
     }
 
     let resolved: HudAnchoredResolvedSide;
-    const fitsRight = anchorRect.right + gap + menuWidth <= window.innerWidth - margin;
+    const fitsRight =
+      anchorRect.right + gap + menuWidth <= window.innerWidth - margin;
     const fitsLeft = anchorRect.left - gap - menuWidth >= margin;
     if (this.legacyPlacement.side === 'auto') {
       if (fitsRight && !fitsLeft) {
@@ -415,7 +417,9 @@ export class HudAnchoredMenu {
     margin: number
   ): boolean {
     if (vertical === 'bottom') {
-      return anchorRect.bottom + gap + menuHeight <= window.innerHeight - margin;
+      return (
+        anchorRect.bottom + gap + menuHeight <= window.innerHeight - margin
+      );
     }
     if (vertical === 'top') {
       return anchorRect.top - gap - menuHeight >= margin;
@@ -599,9 +603,10 @@ export class HudAnchoredMenu {
     return placement;
   }
 
-  private parsePlacement(
-    placement: HudAnchoredResolvedPlacement
-  ): { side: HudAnchoredPrimary; align: HudAnchoredAlign } {
+  private parsePlacement(placement: HudAnchoredResolvedPlacement): {
+    side: HudAnchoredPrimary;
+    align: HudAnchoredAlign;
+  } {
     const [baseSide, suffix] = placement.split('-') as [
       HudAnchoredPrimary,
       HudAnchoredAlign | undefined,

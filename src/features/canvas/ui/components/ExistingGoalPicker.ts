@@ -7,7 +7,7 @@ import {
 } from './ExistingEntityPicker.ts';
 
 export class ExistingGoalPicker {
-  private readonly picker: ExistingEntityPicker<Goal>;
+  private readonly picker: ExistingEntityPicker<'existing-goal', Goal>;
 
   constructor(
     loadGoalsPage: (
@@ -17,7 +17,7 @@ export class ExistingGoalPicker {
     ) => Observable<ExistingPickerPage<Goal>>,
     pageSize: number = 30
   ) {
-    this.picker = new ExistingEntityPicker<Goal>(
+    this.picker = new ExistingEntityPicker<'existing-goal', Goal>(
       loadGoalsPage,
       {
         drawerTitle: 'Add existing goal',

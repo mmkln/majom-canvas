@@ -75,6 +75,11 @@ export {
 } from './HudToggleSwitch.ts';
 
 export { createHudSurface as createSurface } from './HudSurface.ts';
+export {
+  HudMenuButton as MenuButton,
+  type HudMenuButtonItem as MenuButtonItem,
+  type HudMenuButtonVariant as MenuButtonVariant,
+} from './HudMenuButton.ts';
 export { SingleSelectGroup } from './SingleSelectGroup.ts';
 
 export * from './classNames.ts';
@@ -145,3 +150,8 @@ export {
   type HudToggleSwitchOptions,
 } from './HudToggleSwitch.ts';
 export { createHudSurface } from './HudSurface.ts';
+export {
+  HudMenuButton,
+  type HudMenuButtonItem,
+  type HudMenuButtonVariant,
+} from './HudMenuButton.ts';

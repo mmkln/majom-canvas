@@ -34,13 +34,14 @@ import { UserApiService } from '../../../majom-wrapper/data-access/user-api-serv
 import { CanvasMenu } from './components/CanvasMenu.ts';
 import { CanvasPerfHud } from './CanvasPerfHud.ts';
 import { CANVAS_PERF_LOG } from '../../../config/env/index.ts';
+import { CanvasHudLayoutController } from './CanvasHudLayoutController.ts';
 import {
   EXISTING_PICKER_EVENT_NAMES,
   emitExistingPickerDropCompleted,
   type ExistingPickerDragEndedDetail,
+  type ExistingPickerDragPayload,
   type ExistingPickerDragMovedDetail,
   type ExistingPickerDragStartedDetail,
-  type ExistingPickerKind,
 } from './events/existingPickerEvents.ts';
 
 export class UIManager {
@@ -59,11 +60,7 @@ export class UIManager {
   private externalGoalDragOverlay: HTMLDivElement | null = null;
   private externalGoalDropPreview: HTMLDivElement | null = null;
   private externalGoalDragActive = false;
-  private activeExistingPickerDrag: {
-    kind: ExistingPickerKind;
-    item: unknown;
-    title: string;
-  } | null = null;
+  private activeExistingPickerDrag: ExistingPickerDragPayload | null = null;
   private externalGoalDragPointer: { clientX: number; clientY: number } | null =
     null;
   private externalGoalLastDragOverAt = 0;
@@ -71,6 +68,7 @@ export class UIManager {
   private externalGoalPanRafId: number | null = null;
   private uiRoot: HTMLDivElement | null = null;
   private editElementSubscription: Subscription | null = null;
+  private readonly hudLayoutController = new CanvasHudLayoutController();
 
   constructor(
     private readonly canvasManager: CanvasManager,
@@ -204,6 +202,7 @@ export class UIManager {
   public mountAll(parent: HTMLElement = document.body): void {
     if (this.uiRoot) return;
     this.uiRoot = this.createUiRoot();
+    this.hudLayoutController.mount(this.uiRoot);
     parent.appendChild(this.uiRoot);
 
     this.components.forEach((c) => c.mount(this.uiRoot!));
@@ -281,6 +280,7 @@ export class UIManager {
     this.components.forEach((c) => c.unmount());
     this.editElementSubscription?.unsubscribe();
     this.editElementSubscription = null;
+    this.hudLayoutController.unmount();
     if (this.existingPickerDragStartHandler) {
       window.removeEventListener(
         EXISTING_PICKER_EVENT_NAMES.dragStarted,
@@ -324,7 +324,7 @@ export class UIManager {
   }
 
   private handleCanvasDropPayload(
-    payload: any,
+    payload: ExistingPickerDragPayload,
     clientX: number,
     clientY: number
   ): void {
@@ -334,21 +334,19 @@ export class UIManager {
     const x = (clientX - rect.left + panZoom.scrollX) / panZoom.scale;
     const y = (clientY - rect.top + panZoom.scrollY) / panZoom.scale;
 
-    const existingItem = payload?.item ?? payload?.goal ?? payload?.story;
-    if (payload?.kind === 'existing-goal' && existingItem) {
-      this.addExistingGoalService.addOrFocus(existingItem, x, y);
+    if (payload.kind === 'existing-goal') {
+      this.addExistingGoalService.addOrFocus(payload.item, x, y);
       emitExistingPickerDropCompleted('existing-goal');
       return;
     }
-    if (payload?.kind === 'existing-task' && existingItem) {
-      this.addExistingTaskService.addOrFocus(existingItem, x, y);
+    if (payload.kind === 'existing-task') {
+      this.addExistingTaskService.addOrFocus(payload.item, x, y);
       emitExistingPickerDropCompleted('existing-task');
       return;
     }
-    if (payload?.kind === 'existing-story' && existingItem) {
-      this.addExistingStoryService.addOrFocus(existingItem, x, y);
+    if (payload.kind === 'existing-story') {
+      this.addExistingStoryService.addOrFocus(payload.item, x, y);
       emitExistingPickerDropCompleted('existing-story');
-      return;
     }
   }
 

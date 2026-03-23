@@ -5,6 +5,7 @@ import {
   emitExistingPickerDragMoved,
   emitExistingPickerDragStarted,
   type ExistingPickerDropCompletedDetail,
+  type ExistingPickerItemForKind,
   type ExistingPickerKind,
 } from '../events/existingPickerEvents.ts';
 import {
@@ -30,11 +31,11 @@ export type ExistingEntityPickerOpenOptions<TItem> = {
   canvasChanges?: Observable<unknown>;
 };
 
-type ExistingEntityPickerConfig<TItem> = {
+type ExistingEntityPickerConfig<TItem, TKind extends ExistingPickerKind> = {
   drawerTitle: string;
   searchPlaceholder: string;
   itemLabel: string;
-  dragKind: ExistingPickerKind;
+  dragKind: TKind;
   getTitle: (item: TItem) => string;
   getDescription?: (item: TItem) => string | null | undefined;
   getStatus?: (item: TItem) => unknown;
@@ -45,7 +46,10 @@ type ExistingEntityPickerConfig<TItem> = {
   findLabel?: string;
 };
 
-export class ExistingEntityPicker<TItem> {
+export class ExistingEntityPicker<
+  TKind extends ExistingPickerKind,
+  TItem extends ExistingPickerItemForKind<TKind>,
+> {
   private backdrop: HTMLDivElement | null = null;
   private container: HTMLDivElement | null = null;
   private header: HTMLDivElement | null = null;
@@ -96,7 +100,7 @@ export class ExistingEntityPicker<TItem> {
       page: number,
       pageSize: number
     ) => Observable<ExistingPickerPage<TItem>>,
-    private readonly config: ExistingEntityPickerConfig<TItem>,
+    private readonly config: ExistingEntityPickerConfig<TItem, TKind>,
     private readonly pageSize: number = 30
   ) {}
 

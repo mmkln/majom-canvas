@@ -7,7 +7,7 @@ import {
 } from './ExistingEntityPicker.ts';
 
 export class ExistingStoryPicker {
-  private readonly picker: ExistingEntityPicker<Story>;
+  private readonly picker: ExistingEntityPicker<'existing-story', Story>;
 
   constructor(
     loadStoriesPage: (
@@ -17,7 +17,7 @@ export class ExistingStoryPicker {
     ) => Observable<ExistingPickerPage<Story>>,
     pageSize: number = 30
   ) {
-    this.picker = new ExistingEntityPicker<Story>(
+    this.picker = new ExistingEntityPicker<'existing-story', Story>(
       loadStoriesPage,
       {
         drawerTitle: 'Add existing story',

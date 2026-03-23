@@ -7,7 +7,7 @@ import {
 } from './ExistingEntityPicker.ts';
 
 export class ExistingTaskPicker {
-  private readonly picker: ExistingEntityPicker<PlatformTask>;
+  private readonly picker: ExistingEntityPicker<'existing-task', PlatformTask>;
 
   constructor(
     loadTasksPage: (
@@ -17,7 +17,7 @@ export class ExistingTaskPicker {
     ) => Observable<ExistingPickerPage<PlatformTask>>,
     pageSize: number = 30
   ) {
-    this.picker = new ExistingEntityPicker<PlatformTask>(
+    this.picker = new ExistingEntityPicker<'existing-task', PlatformTask>(
       loadTasksPage,
       {
         drawerTitle: 'Add existing task',

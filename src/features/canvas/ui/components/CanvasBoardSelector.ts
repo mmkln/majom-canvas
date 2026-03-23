@@ -13,6 +13,7 @@ import { MenuItemGroup } from './MenuItemGroup.ts';
 import {
   openTopbarDropdown,
 } from './topbarDropdownLayout.ts';
+import { applyCanvasHudCornerPosition } from '../canvasHudLayout.ts';
 
 type CanvasGroup = { id: string; name: string };
 type CanvasItem = {
@@ -58,7 +59,8 @@ export class CanvasBoardSelector {
 
   constructor() {
     this.container = document.createElement('div');
-    this.container.className = 'absolute left-4 top-4 z-20';
+    this.container.className = 'absolute z-20';
+    applyCanvasHudCornerPosition(this.container, 'top-left');
 
     this.header = createSurface({
       className: 'inline-flex items-center gap-1 p-1.5',

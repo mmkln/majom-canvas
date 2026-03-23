@@ -19,7 +19,7 @@ export type HudTextButtonTone =
   | 'destructive'
   | 'text'
   | 'danger';
-export type HudTextButtonSize = 'sm' | 'md' | 'lg';
+export type HudTextButtonSize = 'xs' | 'sm' | 'md' | 'lg';
 export type HudTextButtonElement = HudButtonElement;
 
 type HudTextButtonOptions = {
@@ -54,6 +54,7 @@ const classByTone: Record<HudTextButtonTone, string> = {
 };
 
 const classBySize: Record<HudTextButtonSize, string> = {
+  xs: '!h-7 !px-2.5 !py-1.5 !text-xs',
   sm: 'h-8 px-3 text-sm',
   md: 'h-9 px-3.5 text-sm',
   lg: 'h-11 px-4 text-sm',

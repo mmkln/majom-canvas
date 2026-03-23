@@ -3,6 +3,7 @@ import { SaveButton } from './SaveButton.ts';
 import { UndoRedoControls } from '../UndoRedoControls.ts';
 import { CanvasMenu } from './CanvasMenu.ts';
 import { createSurface } from '../primitives/index.ts';
+import { applyCanvasHudCornerPosition } from '../canvasHudLayout.ts';
 
 /**
  * SaveControls: wraps save and auth actions in a shared HUD layout.
@@ -19,7 +20,8 @@ export class SaveControls {
 
   constructor(canvasMenu: CanvasMenu) {
     this.container = document.createElement('div');
-    this.container.className = 'absolute top-4 right-4 z-20';
+    this.container.className = 'absolute z-20';
+    applyCanvasHudCornerPosition(this.container, 'top-right');
     this.actionsContainer = createSurface({
       className: 'flex items-center gap-2 p-1.5',
     });
