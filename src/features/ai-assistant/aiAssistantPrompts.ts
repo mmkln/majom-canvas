@@ -45,12 +45,12 @@ export function buildAiAssistantClarifyPrompt(
   item: AiAssistantSelectionItem
 ): string {
   if (item.kind === 'goal') {
-    return `Clarify the selected goal "${item.title}" so it reads as a concrete planning outcome. Tighten the title and description without changing the intent. Return suggest_updates when concrete wording improvements are obvious.`;
+    return `Clarify the selected goal "${item.title}" so it reads as a concrete planning outcome. Tighten the title and description without changing the intent. Keep the current language unless translation is explicitly requested. If the description is weak or empty and nearby context supports a clearer outcome statement, prefer adding that detail instead of only rephrasing the title. Return suggest_updates when concrete wording improvements are obvious.`;
   }
   if (item.kind === 'story') {
-    return `Clarify the selected story "${item.title}" so the scope, outcome, and description are easier to understand and plan against. Return suggest_updates when concrete wording improvements are obvious.`;
+    return `Clarify the selected story "${item.title}" so the scope, outcome, and description are easier to understand and plan against. Keep the current language unless translation is explicitly requested. If nearby context supports a richer description, prefer adding that over a title-only wording cleanup. Return suggest_updates when concrete wording improvements are obvious.`;
   }
-  return `Clarify the selected task "${item.title}" so it is specific, concise, and executable. Tighten the title and description without changing the task intent. Return suggest_updates when concrete wording improvements are obvious.`;
+  return `Clarify the selected task "${item.title}" so it is specific, concise, and executable. Tighten the title and description without changing the task intent. Keep the current language unless translation is explicitly requested. If the description is weak or empty and nearby context supports a clearer execution detail, prefer adding that detail instead of only rephrasing the title. Return suggest_updates when concrete wording improvements are obvious.`;
 }
 
 export function buildAiAssistantDependencyPrompt(

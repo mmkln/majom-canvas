@@ -174,6 +174,9 @@ type AiAssistantClarifyCommandContext = {
     keepIntentStable: true;
     preferTitleOrDescriptionRefinement: true;
     requireContextBackedDescriptionDetail: true;
+    preserveExistingLanguageByDefault: true;
+    forbidTranslationOnlyTitleRewrite: true;
+    preferDescriptionExpansionWhenSupported: true;
     forbidReviewFindings: true;
   };
 };
@@ -522,6 +525,9 @@ function buildClarifyCommandContext(
         keepIntentStable: true,
         preferTitleOrDescriptionRefinement: true,
         requireContextBackedDescriptionDetail: true,
+        preserveExistingLanguageByDefault: true,
+        forbidTranslationOnlyTitleRewrite: true,
+        preferDescriptionExpansionWhenSupported: true,
         forbidReviewFindings: true,
       },
     };
@@ -542,6 +548,9 @@ function buildClarifyCommandContext(
       keepIntentStable: true,
       preferTitleOrDescriptionRefinement: true,
       requireContextBackedDescriptionDetail: true,
+      preserveExistingLanguageByDefault: true,
+      forbidTranslationOnlyTitleRewrite: true,
+      preferDescriptionExpansionWhenSupported: true,
       forbidReviewFindings: true,
     },
   };
@@ -921,8 +930,12 @@ function buildClarifyCommandSystemPrompt(): string {
     '{"kind":"suggest_updates","updates":[{"elementId":"<element id>","patch":{"title":"...","description":"..."},"reason":"<why this wording improvement is safe>"}]}',
     'The patch object may only contain title and/or description.',
     'Tighten wording without changing intent, scope, sequencing, ownership, or implementation detail.',
-    'Prefer a title update when the current title is awkward, unclear, mixed-language, or harder to plan against than it needs to be.',
+    'Preserve the current item language by default. Do not translate, switch languages, or normalize into English unless the user explicitly asked for that.',
+    'Pure translation, tone cleanup, or style cleanup alone is not enough to justify a clarify action.',
+    'Prefer a title update only when it makes the item materially clearer in the same working language.',
+    'If the current description is empty or weak and nearby canvas context supports at least one concrete clarification, prefer adding that description detail instead of spending the action on a title-only rewrite.',
     'A description update is valid only when it stays inside the current item intent and adds concrete clarity from nearby canvas context instead of inventing new scope.',
+    'Prefer a paired title+description refinement when the title can be tightened and the description can add grounded detail.',
     'If a concrete wording improvement is obvious, return it as an action instead of describing it only in prose.',
     'replyMarkdown must be user-facing, short, and concrete.',
     'If no specific wording improvement is justified from the prepared context, ask one concise follow-up question and return "actions": [].',
@@ -1476,7 +1489,7 @@ function validateClarifyCommandEnvelope(
     }
 
     if (action.kind === 'suggest_update') {
-      const error = validateFillDetailsUpdateEntry(
+      const error = validateClarifyUpdateEntry(
         action,
         allowedElementIds,
         targetsById,
@@ -1491,7 +1504,7 @@ function validateClarifyCommandEnvelope(
         return 'suggest_updates must contain a non-empty updates array.';
       }
       for (const update of action.updates) {
-        const error = validateFillDetailsUpdateEntry(
+        const error = validateClarifyUpdateEntry(
           update,
           allowedElementIds,
           targetsById,
@@ -1510,6 +1523,49 @@ function validateClarifyCommandEnvelope(
     !isConciseFollowupReply(envelope.replyMarkdown)
   ) {
     return 'Clarify command must return wording updates or one concise follow-up question.';
+  }
+
+  return null;
+}
+
+function validateClarifyUpdateEntry(
+  value: Record<string, unknown>,
+  allowedElementIds: ReadonlySet<string>,
+  targetsById: ReadonlyMap<string, AiAssistantFillDetailsTarget>,
+  latestUserInput: string
+): string | null {
+  const baseError = validateFillDetailsUpdateEntry(
+    value,
+    allowedElementIds,
+    targetsById,
+    latestUserInput
+  );
+  if (baseError) {
+    return baseError;
+  }
+
+  if (typeof value.elementId !== 'string' || !isPlainObject(value.patch)) {
+    return null;
+  }
+
+  const target = targetsById.get(value.elementId.trim());
+  if (!target) {
+    return null;
+  }
+
+  const title =
+    typeof value.patch.title === 'string' ? value.patch.title.trim() : '';
+  const description =
+    typeof value.patch.description === 'string'
+      ? value.patch.description.trim()
+      : '';
+
+  if (
+    title.length > 0 &&
+    description.length === 0 &&
+    shouldClarifyPreferDescriptionExpansion(target)
+  ) {
+    return 'Clarify should add a grounded description update when the current description is empty and nearby context supports a concrete refinement.';
   }
 
   return null;
@@ -2334,6 +2390,34 @@ function isSupportedFillDetailsDescription(
   }
 
   return isContextBackedFillDetailsDescription(description, target);
+}
+
+function shouldClarifyPreferDescriptionExpansion(
+  target: AiAssistantFillDetailsTarget
+): boolean {
+  if (
+    target.description.trim().length > 0 &&
+    !target.missingFields.includes('description')
+  ) {
+    return false;
+  }
+
+  const evidenceFragments = collectFillDetailsEvidenceFragments(target);
+  if (evidenceFragments.size === 0) {
+    return false;
+  }
+
+  const existingFragments = extractFillDetailsFragments(
+    [target.title, target.description].join(' ')
+  );
+
+  for (const fragment of evidenceFragments) {
+    if (!existingFragments.has(fragment)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function isContextBackedFillDetailsDescription(

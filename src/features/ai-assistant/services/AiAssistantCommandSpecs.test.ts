@@ -436,7 +436,7 @@ describe('AiAssistantCommandSpecs', () => {
     expect(error).toBeNull();
   });
 
-  it('accepts clarify title updates for a selected story', () => {
+  it('accepts clarify title and description updates for a selected story', () => {
     const spec = getAiAssistantCommandSpec('clarify');
     expect(spec).not.toBeNull();
 
@@ -450,16 +450,18 @@ describe('AiAssistantCommandSpecs', () => {
     const error = spec!.validateEnvelope({
       envelope: {
         replyMarkdown:
-          'I prepared a clearer story title so the scope reads more cleanly.',
+          'I prepared a clearer story title and description so the scope reads more concretely.',
         actions: [
           {
             kind: 'suggest_update',
             elementId: 'story-2',
             patch: {
-              title: 'Post-purchase follow-up',
+              title: 'Post-purchase follow-up workflow',
+              description:
+                'Coordinate the follow-up flow after purchase, including receipt communication and related post-purchase handoff work.',
             },
             reason:
-              'This tightens the wording without changing the story intent.',
+              'This tightens the wording and adds grounded context from the surrounding checkout and receipt flow without changing the story intent.',
           },
         ],
       },
@@ -467,6 +469,40 @@ describe('AiAssistantCommandSpecs', () => {
     });
 
     expect(error).toBeNull();
+  });
+
+  it('rejects clarify title-only updates when nearby context supports a missing description', () => {
+    const spec = getAiAssistantCommandSpec('clarify');
+    expect(spec).not.toBeNull();
+
+    const compiledContext = spec!.buildCompiledContext({
+      prompt: 'Clarify the selected story wording.',
+      memory: createAiAssistantTestMemory(),
+      toolResults: [],
+      snapshot: createFocusedFillDetailsSnapshot(),
+    });
+
+    const error = spec!.validateEnvelope({
+      envelope: {
+        replyMarkdown: 'I prepared a cleaner title.',
+        actions: [
+          {
+            kind: 'suggest_update',
+            elementId: 'story-2',
+            patch: {
+              title: 'Create basic test workflow for campaign',
+            },
+            reason:
+              'This improves readability without changing the story intent.',
+          },
+        ],
+      },
+      compiledContext,
+    });
+
+    expect(error).toBe(
+      'Clarify should add a grounded description update when the current description is empty and nearby context supports a concrete refinement.'
+    );
   });
 
   it('accepts fill-details description updates that use explicit user-provided details in thin context', () => {

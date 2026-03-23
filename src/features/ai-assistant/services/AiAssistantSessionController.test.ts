@@ -5,6 +5,7 @@ import type {
 } from '../aiAssistantEvents.ts';
 import type { AiAssistantAction } from '../aiAssistantActions.ts';
 import { AiAssistantSessionController } from './AiAssistantSessionController.ts';
+import type { AiAssistantScenarioDescriptor } from './AiAssistantScenarioTypes.ts';
 import type { AiAssistantMessage } from './AiAssistantTypes.ts';
 import { createAiAssistantTelemetryCollector } from './AiAssistantTelemetryStore.ts';
 
@@ -310,6 +311,83 @@ describe('AiAssistantSessionController', () => {
     expect(reply.mock.calls[0]?.[0].snapshot).toBeNull();
   });
 
+  it('continues a typed follow-up using active scenario memory rather than request intent', async () => {
+    const firstReply = createMessage(
+      'assistant',
+      'Which subgoal should I expand first?'
+    );
+    const secondReply = createMessage('assistant', 'Expanding it now.');
+    const service = {
+      createMessage,
+      createSystemMessage,
+      createWelcomeMessage: (context: AiAssistantCanvasSnapshot | null) =>
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
+      getQuickActions: vi.fn(() => []),
+      reply: vi
+        .fn()
+        .mockResolvedValueOnce(firstReply)
+        .mockResolvedValueOnce(secondReply),
+    };
+    const controller = new AiAssistantSessionController({ service });
+    const context = makeContextWithElements(
+      'canvas-a',
+      'Canvas A',
+      [makeSelectionItem('goal-1', 'goal', 'Marketing strategy')],
+      {
+        selectionIds: ['goal-1'],
+        focusId: 'goal-1',
+      }
+    );
+    const scenario = {
+      id: 'strategic_plan.goal_subgoals',
+      kind: 'typed' as const,
+      variant: 'typed' as const,
+      intent: 'strategic_plan' as const,
+      intentContext: {
+        strategicPlanMode: 'goal_subgoals' as const,
+      },
+      mode: 'goal_subgoals' as const,
+      scope: 'item' as const,
+      target: {
+        id: 'goal-1',
+        kind: 'goal' as const,
+        title: 'Marketing strategy',
+        description: '',
+        status: 'defined',
+        priority: 'low',
+      },
+      confidence: 0.95,
+      missingSlots: [],
+      allowedActions: ['create_goals'] as const,
+      confirmationMode: 'batch' as const,
+    };
+
+    controller.setContext(context);
+    await controller.submitPreparedSubmission({
+      prompt: 'Build a strategic plan for the selected goal.',
+      snapshot: context,
+      contextMode: 'selection',
+      source: 'manual',
+      scenario: scenario as AiAssistantScenarioDescriptor,
+    });
+    await controller.submitPrompt('Add the next subgoal.');
+
+    expect(service.reply).toHaveBeenCalledTimes(2);
+    expect(service.reply.mock.calls[0]?.[0]).toMatchObject({
+      scenario: {
+        id: 'strategic_plan.goal_subgoals',
+        mode: 'goal_subgoals',
+      },
+    });
+    expect(service.reply.mock.calls[1]?.[0]).toMatchObject({
+      scenario: {
+        id: 'strategic_plan.goal_subgoals',
+        mode: 'goal_subgoals',
+      },
+      source: 'manual',
+    });
+  });
+
   it('exposes reply progress while a response is in flight', async () => {
     const deferred = createDeferred<AiAssistantMessage>();
     const service = {
@@ -321,7 +399,7 @@ describe('AiAssistantSessionController', () => {
       reply: vi.fn((request: { onProgress?: (progress: object) => void }) => {
         request.onProgress?.({
           phase: 'tools',
-          label: 'Checking workspace context',
+          label: 'Checking context',
           detail: 'Inspecting the focus item and nearby structure.',
           currentStep: 1,
           totalSteps: 3,
@@ -337,7 +415,7 @@ describe('AiAssistantSessionController', () => {
     expect(controller.getState().replying).toBe(true);
     expect(controller.getState().replyProgress).toMatchObject({
       phase: 'tools',
-      label: 'Checking workspace context',
+      label: 'Checking context',
       detail: 'Inspecting the focus item and nearby structure.',
       currentStep: 1,
       totalSteps: 3,
@@ -1280,9 +1358,9 @@ describe('AiAssistantSessionController', () => {
     await controller.regenerateMessage(originalReply!.id);
 
     expect(reply).toHaveBeenCalledTimes(2);
-    expect(reply.mock.calls[1]?.[0].source).toBe('intent');
-    expect(reply.mock.calls[1]?.[0].intent).toBe('dependencies');
-    expect(reply.mock.calls[1]?.[0].profile).toBe('dependency-review');
+    expect(reply.mock.calls[1]?.[0].source).toBe('manual');
+    expect(reply.mock.calls[1]?.[0].intent).toBeUndefined();
+    expect(reply.mock.calls[1]?.[0].profile).toBeUndefined();
     expect(controller.getState().messages.at(-2)?.content).toBe('Connect selected');
     expect(controller.getState().messages.at(-1)?.content).toBe(
       'Second command answer'
@@ -1338,14 +1416,12 @@ describe('AiAssistantSessionController', () => {
     );
 
     expect(reply).toHaveBeenCalledTimes(2);
-    expect(reply.mock.calls[1]?.[0].source).toBe('intent');
-    expect(reply.mock.calls[1]?.[0].intent).toBe('fill_details');
-    expect(reply.mock.calls[1]?.[0].profile).toBe('readiness-check');
+    expect(reply.mock.calls[1]?.[0].source).toBe('manual');
+    expect(reply.mock.calls[1]?.[0].intent).toBeUndefined();
+    expect(reply.mock.calls[1]?.[0].profile).toBeUndefined();
     expect(reply.mock.calls[1]?.[0].prompt).toBe(
       '85kg minimum, broad shoulders, big chest, 6-pack abs, strong forearms, glutes and legs trained.'
     );
-    expect(controller.getState().messages.at(-2)?.requestIntent).toBe(
-      'fill_details'
-    );
+    expect(controller.getState().messages.at(-2)?.requestIntent).toBeUndefined();
   });
 });

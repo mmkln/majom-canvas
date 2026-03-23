@@ -226,7 +226,7 @@ describe('AiAssistantOrchestrator', () => {
         }),
         expect.objectContaining({
           phase: 'tools',
-          label: 'Checking workspace context',
+          label: 'Checking context',
           detail: 'Inspecting the focus item and nearby structure.',
           currentStep: 1,
           totalSteps: 4,
@@ -358,16 +358,18 @@ describe('AiAssistantOrchestrator', () => {
     };
     const completeText = vi.fn().mockResolvedValue(
       JSON.stringify({
-        replyMarkdown: 'I prepared a clearer story title.',
+        replyMarkdown: 'I prepared a clearer story title and description.',
         actions: [
           {
             kind: 'suggest_update',
             elementId: 'story-2',
             patch: {
-              title: 'Post-purchase follow-up',
+              title: 'Post-purchase follow-up workflow',
+              description:
+                'Coordinate the follow-up flow after purchase, including receipt communication and related post-purchase handoff work.',
             },
             reason:
-              'This tightens the wording without changing the story intent.',
+              'This tightens the wording and adds grounded context without changing the story intent.',
           },
         ],
       })
@@ -399,7 +401,9 @@ describe('AiAssistantOrchestrator', () => {
     );
     expect(reply.actions).toHaveLength(1);
     expect(reply.actions[0]?.kind).toBe('suggest_update');
-    expect(reply.replyMarkdown).toBe('I prepared a clearer story title.');
+    expect(reply.replyMarkdown).toBe(
+      'I prepared a clearer story title and description.'
+    );
   });
 
   it('repairs a repeated fill-details follow-up into an update when the user already supplied concrete details', async () => {

@@ -232,7 +232,7 @@ describe('AiAssistantPanel auto-scroll', () => {
     state.replying = true;
     state.replyProgress = {
       phase: 'tools',
-      label: 'Checking workspace context',
+      label: 'Checking context',
       detail: 'Inspecting the focus item and nearby structure.',
       currentStep: 1,
       totalSteps: 3,
@@ -242,7 +242,7 @@ describe('AiAssistantPanel auto-scroll', () => {
     const messagesList = (panel as any).messagesList as HTMLDivElement;
     const sendButton = (panel as any).sendButton as HTMLButtonElement;
 
-    expect(messagesList.textContent).toContain('Checking workspace context');
+    expect(messagesList.textContent).toContain('Checking context');
     expect(messagesList.textContent).toContain(
       'Inspecting the focus item and nearby structure.'
     );

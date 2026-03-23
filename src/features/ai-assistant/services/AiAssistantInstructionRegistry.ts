@@ -19,10 +19,13 @@ const DEFAULT_INSTRUCTIONS: AiAssistantInstructionDefinition[] = [
     relatedToolNames: ['get_focus_bundle', 'get_selection_cluster'],
     allowedToolNames: ['get_focus_bundle', 'get_selection_cluster'],
     responsePolicy:
-      'Prefer specific title or description updates. Keep the original intent and scope stable.',
+      'Prefer specific title or description updates that preserve the original intent, scope, and working language. Do not treat pure translation or style cleanup as enough value by itself.',
     body: [
       'Clarify the targeted item using retrieved context from its parent, children, and neighbors.',
       'Prefer concrete wording improvements over abstract advice.',
+      'Keep the current item language unless the user explicitly asks for translation or language normalization.',
+      'When the description is empty or thin and nearby context supports a concrete clarification, prefer adding that description detail over only polishing the title.',
+      'Do not spend the action on a title-only rewrite when the real gap is missing descriptive context.',
       'Return suggest_updates only when the improved title or description is specific enough to review before apply.',
     ].join('\n'),
   },

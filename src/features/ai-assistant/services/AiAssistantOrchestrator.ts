@@ -53,6 +53,7 @@ import type { AiAssistantTokenUsage } from './AiAssistantTelemetryTypes.ts';
 import type {
   AiAssistantTelemetryCollector,
   AiAssistantTelemetryContext,
+  AiAssistantTelemetryScenarioContext,
 } from './AiAssistantTelemetryTypes.ts';
 import {
   getSharedAiAssistantTelemetryCollector,
@@ -172,9 +173,10 @@ export class AiAssistantOrchestrator {
     request: AiAssistantOrchestratorRequest
   ): Promise<AiAssistantOrchestratorReply> {
     const scenario = await this.resolveScenarioForRequest(request);
-    const effectiveIntent = scenario.intent ?? request.intent;
-    const effectiveIntentContext = scenario.intentContext ?? request.intentContext;
-    const state = this.createInitialState(request, effectiveIntent);
+    const effectiveIntent = scenario.intent;
+    const effectiveIntentContext = scenario.intentContext;
+    const optionalIntent = effectiveIntent ?? undefined;
+    const state = this.createInitialState(request, scenario);
 
     try {
       this.emitProgress(request, {
@@ -186,14 +188,18 @@ export class AiAssistantOrchestrator {
             : 'Choosing context, instructions, and tools.',
       });
 
-      const commandSpec = scenario.variant === 'typed' && effectiveIntent
-        ? getAiAssistantCommandSpec(effectiveIntent)
+      const commandSpec = scenario.variant === 'typed' && optionalIntent
+        ? getAiAssistantCommandSpec(optionalIntent)
         : null;
 
       if (effectiveIntent) {
         await this.executeIntentSeed(request, state, scenario, effectiveIntent);
       } else {
-        const followupQuestion = await this.runManualDecisionLoop(request, state);
+        const followupQuestion = await this.runManualDecisionLoop(
+          request,
+          state,
+          scenario
+        );
         if (followupQuestion) {
           const reply = {
             replyMarkdown: followupQuestion,
@@ -201,10 +207,15 @@ export class AiAssistantOrchestrator {
             plan: state.plan,
             toolResults: state.toolResults,
           };
-          this.recordInteractionTelemetry(request, state, {
-            outcome: 'followup',
-            followupQuestionReturned: true,
-          }, scenario, effectiveIntent);
+          this.recordInteractionTelemetry(
+            request,
+            state,
+            {
+              outcome: 'followup',
+              followupQuestionReturned: true,
+            },
+            scenario
+          );
           return reply;
         }
       }
@@ -214,13 +225,19 @@ export class AiAssistantOrchestrator {
           request,
           state,
           commandSpec,
-          effectiveIntent,
-          effectiveIntentContext
+          optionalIntent,
+          effectiveIntentContext,
+          scenario
         );
-        this.recordInteractionTelemetry(request, state, {
-          outcome: 'reply',
-          followupQuestionReturned: false,
-        }, scenario, effectiveIntent);
+        this.recordInteractionTelemetry(
+          request,
+          state,
+          {
+            outcome: 'reply',
+            followupQuestionReturned: false,
+          },
+          scenario
+        );
         return reply;
       }
 
@@ -228,14 +245,14 @@ export class AiAssistantOrchestrator {
       this.emitProgress(request, {
         phase: 'drafting',
         label: 'Drafting structured reply',
-        detail: 'Preparing the final workspace answer.',
+        detail: 'Preparing the final answer.',
       });
 
       const finalReplyResult = await completeAiAssistantTextWithRepair({
         client: this.options.apiClient,
         messages: buildAiAssistantAnswerMessages({
           prompt: request.prompt,
-          intent: effectiveIntent,
+          intent: optionalIntent,
           profile: state.plan.profile,
           memory: request.memory,
           instructionPackets: state.instructionPackets,
@@ -253,12 +270,19 @@ export class AiAssistantOrchestrator {
             invalidResponse,
             validationError,
             allowActions: request.allowActions,
-            intent: effectiveIntent,
+            intent: optionalIntent,
           }),
         signal: request.signal,
         maxRepairAttempts: MAX_FINAL_REPLY_REPAIR_ATTEMPTS,
         onRepairAttempt: ({ attempt, validationError }) => {
-          this.recordRepairTelemetry(request, state, 'answer', attempt, validationError);
+          this.recordRepairTelemetry(
+            request,
+            state,
+            'answer',
+            attempt,
+            validationError,
+            scenario
+          );
           this.emitProgress(request, {
             phase: 'repairing',
             label: 'Repairing output',
@@ -277,7 +301,7 @@ export class AiAssistantOrchestrator {
       const structured = parseAiAssistantStructuredReply(rawContent, {
         allowActions: request.allowActions,
         validationSnapshot: request.validationSnapshot ?? request.snapshot,
-        intent: effectiveIntent,
+        intent: optionalIntent,
       });
       const reply = {
         ...structured,
@@ -288,13 +312,13 @@ export class AiAssistantOrchestrator {
       this.recordInteractionTelemetry(request, state, {
         outcome: 'reply',
         followupQuestionReturned: false,
-      }, scenario, effectiveIntent);
+      }, scenario);
       return reply;
     } catch (error) {
       this.recordInteractionTelemetry(request, state, {
         outcome: 'error',
         followupQuestionReturned: false,
-      }, scenario, effectiveIntent);
+      }, scenario);
       throw error;
     }
   }
@@ -304,7 +328,7 @@ export class AiAssistantOrchestrator {
   ): AiAssistantExecutionPlan {
     return buildAiAssistantIntentPlan({
       ...request,
-      intent: request.scenario?.intent ?? null,
+      intent: request.scenario?.intent ?? undefined,
     });
   }
 
@@ -320,14 +344,18 @@ export class AiAssistantOrchestrator {
       });
     }
 
-    const state = this.createInitialState(request);
-    let decision = await this.requestInitialRouterDecision(request, state);
+    const state = this.createInitialState(request, scenario);
+    let decision = await this.requestInitialRouterDecision(
+      request,
+      state,
+      scenario
+    );
 
     for (let step = 0; step < MAX_DECISION_STEPS; step += 1) {
       if (decision.kind === 'load_instructions') {
         this.emitInstructionProgress(request, decision.instructionIds);
         this.loadInstructionPackets(decision.instructionIds, state);
-        decision = await this.requestFollowupDecision(request, state);
+        decision = await this.requestFollowupDecision(request, state, scenario);
         continue;
       }
 
@@ -441,9 +469,10 @@ export class AiAssistantOrchestrator {
 
   private async runManualDecisionLoop(
     request: AiAssistantOrchestratorRequest,
-    state: AiAssistantOrchestrationState
+    state: AiAssistantOrchestrationState,
+    scenario: AiAssistantScenarioDescriptor
   ): Promise<string | null> {
-    let decision = await this.requestInitialRouterDecision(request, state);
+    let decision = await this.requestInitialRouterDecision(request, state, scenario);
 
     for (let step = 0; step < MAX_DECISION_STEPS; step += 1) {
       state.profile = decision.profile;
@@ -454,7 +483,7 @@ export class AiAssistantOrchestrator {
       if (decision.kind === 'load_instructions') {
         this.emitInstructionProgress(request, decision.instructionIds);
         this.loadInstructionPackets(decision.instructionIds, state);
-        decision = await this.requestFollowupDecision(request, state);
+        decision = await this.requestFollowupDecision(request, state, scenario);
         continue;
       }
 
@@ -471,7 +500,7 @@ export class AiAssistantOrchestrator {
           }))
         );
         state.toolResults.push(...(await this.executePlan(nextPlan, request, state)));
-        decision = await this.requestFollowupDecision(request, state);
+        decision = await this.requestFollowupDecision(request, state, scenario);
         continue;
       }
 
@@ -489,8 +518,9 @@ export class AiAssistantOrchestrator {
     request: AiAssistantOrchestratorRequest,
     state: AiAssistantOrchestrationState,
     commandSpec: NonNullable<ReturnType<typeof getAiAssistantCommandSpec>>,
-    effectiveIntent: AiAssistantIntentKind | null,
-    effectiveIntentContext: AiAssistantIntentContext | undefined
+    effectiveIntent: AiAssistantIntentKind | undefined,
+    effectiveIntentContext: AiAssistantIntentContext | undefined,
+    scenario: AiAssistantScenarioDescriptor
   ): Promise<AiAssistantOrchestratorReply> {
     const compiledContext = commandSpec.buildCompiledContext({
       prompt: request.prompt,
@@ -503,7 +533,7 @@ export class AiAssistantOrchestrator {
     this.emitProgress(request, {
       phase: 'drafting',
       label: 'Drafting proposal',
-      detail: 'Preparing the final workspace proposal.',
+      detail: 'Preparing the final proposal.',
     });
 
     const finalReplyResult = await completeAiAssistantTextWithRepair({
@@ -537,13 +567,14 @@ export class AiAssistantOrchestrator {
       signal: request.signal,
       maxRepairAttempts: MAX_FINAL_REPLY_REPAIR_ATTEMPTS,
       onRepairAttempt: ({ attempt, validationError }) => {
-        this.recordRepairTelemetry(
-          request,
-          state,
-          'command',
-          attempt,
-          validationError
-        );
+      this.recordRepairTelemetry(
+        request,
+        state,
+        'command',
+        attempt,
+        validationError,
+        scenario
+      );
         this.emitProgress(request, {
           phase: 'repairing',
           label: 'Repairing output',
@@ -559,11 +590,11 @@ export class AiAssistantOrchestrator {
       finalReplyResult.usage
     );
     const rawContent = finalReplyResult.rawContent;
-      const structured = parseAiAssistantStructuredReply(rawContent, {
-        allowActions: request.allowActions,
-        validationSnapshot: request.validationSnapshot ?? request.snapshot,
-        intent: effectiveIntent,
-      });
+    const structured = parseAiAssistantStructuredReply(rawContent, {
+      allowActions: request.allowActions,
+      validationSnapshot: request.validationSnapshot ?? request.snapshot,
+      intent: effectiveIntent,
+    });
 
     return {
       ...structured,
@@ -574,7 +605,8 @@ export class AiAssistantOrchestrator {
 
   private async requestInitialRouterDecision(
     request: AiAssistantOrchestratorRequest,
-    state: AiAssistantOrchestrationState
+    state: AiAssistantOrchestrationState,
+    scenario: AiAssistantScenarioDescriptor
   ): Promise<AiAssistantRouterDecision> {
     this.emitProgress(request, {
       phase: 'routing',
@@ -592,19 +624,21 @@ export class AiAssistantOrchestrator {
       request,
       request.signal,
       MAX_TOOL_STEPS - state.plan.calls.length,
-      state
+      state,
+      scenario
     );
   }
 
   private async requestFollowupDecision(
     request: AiAssistantOrchestratorRequest,
-    state: AiAssistantOrchestrationState
+    state: AiAssistantOrchestrationState,
+    scenario: AiAssistantScenarioDescriptor
   ): Promise<AiAssistantRouterDecision> {
     const allowedToolNames = this.resolveAllowedToolNames(state.instructionPackets);
     this.emitProgress(request, {
       phase: 'routing',
       label: 'Reviewing findings',
-      detail: 'Deciding whether more workspace checks are needed.',
+      detail: 'Deciding whether more context checks are needed.',
     });
     return this.requestRouterDecision(
       buildAiAssistantDecisionMessages({
@@ -624,7 +658,8 @@ export class AiAssistantOrchestrator {
       request,
       request.signal,
       MAX_TOOL_STEPS - state.plan.calls.length,
-      state
+      state,
+      scenario
     );
   }
 
@@ -644,7 +679,7 @@ export class AiAssistantOrchestrator {
       onToolStart: ({ definition, step, totalSteps }) => {
         this.emitProgress(request, {
           phase: 'tools',
-          label: 'Checking workspace context',
+          label: 'Checking context',
           detail: describeAiAssistantToolProgress(definition.name),
           currentStep: step,
           totalSteps,
@@ -671,13 +706,13 @@ export class AiAssistantOrchestrator {
 
   private createInitialState(
     request: AiAssistantOrchestratorRequest,
-    intent: AiAssistantIntentKind | null | undefined = undefined
+    scenario: AiAssistantScenarioDescriptor | null = null
   ): AiAssistantOrchestrationState {
     const profile =
       request.profile && isAiAssistantProfile(request.profile)
         ? request.profile
-        : intent
-          ? resolveAiAssistantIntentProfile(intent, undefined)
+        : scenario?.intent
+          ? resolveAiAssistantIntentProfile(scenario.intent, undefined)
           : undefined;
 
     return {
@@ -838,7 +873,8 @@ export class AiAssistantOrchestrator {
     request: AiAssistantOrchestratorRequest,
     signal: AbortSignal | undefined,
     remainingToolBudget: number,
-    state: AiAssistantOrchestrationState
+    state: AiAssistantOrchestrationState,
+    scenario: AiAssistantScenarioDescriptor
   ): Promise<AiAssistantRouterDecision> {
     const result = await completeAiAssistantTextWithRepair({
       client: this.options.apiClient,
@@ -868,7 +904,8 @@ export class AiAssistantOrchestrator {
           state,
           'router',
           attempt,
-          validationError
+          validationError,
+          scenario
         );
         this.emitProgress(request, {
           phase: 'repairing',
@@ -908,20 +945,30 @@ export class AiAssistantOrchestrator {
       followupQuestionReturned: boolean;
     },
     scenario: AiAssistantScenarioDescriptor,
-    effectiveIntent: AiAssistantIntentKind | null
   ): void {
+    const telemetryScenario = this.describeTelemetryScenario(
+      scenario,
+      state,
+      params
+    );
     this.telemetry.record({
       kind: 'interaction',
       timestamp: Date.now(),
       context: this.resolveTelemetryContext(request),
+      scenarioId: telemetryScenario.scenarioId,
+      scenarioMode: telemetryScenario.scenarioMode,
+      scenarioKind: telemetryScenario.scenarioKind,
+      routeLength: telemetryScenario.routeLength,
+      proposalStyle: telemetryScenario.proposalStyle,
+      fallbackReason: telemetryScenario.fallbackReason,
       routeType: request.source,
-      intent: effectiveIntent,
+      intent: scenario.intent,
       profile: state.plan.profile,
       contextMode: state.contextMode,
       commandSpecUsed: Boolean(
         scenario.variant === 'typed' &&
-          effectiveIntent &&
-          getAiAssistantCommandSpec(effectiveIntent)
+          scenario.intent &&
+          getAiAssistantCommandSpec(scenario.intent)
       ),
       routerHopCount: state.telemetry.routerHopCount,
       toolExecutionRounds: state.telemetry.toolExecutionRounds,
@@ -940,12 +987,27 @@ export class AiAssistantOrchestrator {
     state: AiAssistantOrchestrationState,
     stage: 'router' | 'command' | 'answer',
     attempt: number,
-    validationError: string
+    validationError: string,
+    scenario: AiAssistantScenarioDescriptor
   ): void {
+    const telemetryScenario = this.describeTelemetryScenario(
+      scenario,
+      state,
+      {
+        outcome: 'error',
+        followupQuestionReturned: false,
+      }
+    );
     this.telemetry.record({
       kind: 'repair',
       timestamp: Date.now(),
       context: this.resolveTelemetryContext(request),
+      scenarioId: telemetryScenario.scenarioId,
+      scenarioMode: telemetryScenario.scenarioMode,
+      scenarioKind: telemetryScenario.scenarioKind,
+      routeLength: telemetryScenario.routeLength,
+      proposalStyle: telemetryScenario.proposalStyle,
+      fallbackReason: telemetryScenario.fallbackReason,
       stage,
       attempt,
       validationError,
@@ -963,6 +1025,34 @@ export class AiAssistantOrchestrator {
         requestId: 'unknown',
       }
     );
+  }
+
+  private describeTelemetryScenario(
+    scenario: AiAssistantScenarioDescriptor,
+    state: AiAssistantOrchestrationState,
+    params: {
+      outcome: 'reply' | 'followup' | 'error' | 'aborted';
+      followupQuestionReturned: boolean;
+    }
+  ): AiAssistantTelemetryScenarioContext {
+    return {
+      scenarioId: scenario.id,
+      scenarioMode: scenario.mode,
+      scenarioKind: scenario.variant,
+      routeLength:
+        state.telemetry.routerHopCount > 0 ||
+        state.telemetry.toolExecutionRounds > 0 ||
+        state.instructionPackets.length > 0 ||
+        state.plan.calls.length > 0
+          ? 'long'
+          : 'short',
+      proposalStyle: params.followupQuestionReturned ? 'clarify-first' : 'direct',
+      fallbackReason: params.followupQuestionReturned
+        ? 'scenario_clarification'
+        : scenario.variant === 'fallback'
+          ? 'fallback_scenario'
+          : undefined,
+    };
   }
 }
 
@@ -1121,7 +1211,7 @@ function describeAiAssistantIntentProgressDetail(
     case 'fill_details':
       return 'Preparing a fill-details workflow.';
     default:
-      return 'Preparing the workspace workflow for this request.';
+      return 'Preparing the workflow for this request.';
   }
 }
 
@@ -1153,7 +1243,7 @@ function describeAiAssistantToolProgress(toolName: string): string {
 function humanizeAiAssistantToolName(toolName: string): string {
   const normalized = toolName.trim().replace(/_/g, ' ');
   if (normalized.length === 0) {
-    return 'Checking workspace context.';
+    return 'Checking context.';
   }
   return `${normalized[0]?.toUpperCase() ?? ''}${normalized.slice(1)}.`;
 }

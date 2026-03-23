@@ -1,6 +1,8 @@
 import type { WorkspaceView } from '../../shell/WorkspaceView.ts';
 import type { AiAssistantCanvasSnapshot } from '../aiAssistantEvents.ts';
-import type {
+import {
+  getAiAssistantActionGroupButtonLabel,
+  type AiAssistantAction,
   AiAssistantAction,
   AiAssistantActionExecutionHandler,
   AiAssistantActionExecutionRequest,
@@ -18,12 +20,14 @@ import type {
 import { AiAssistantService } from './AiAssistantService.ts';
 import type {
   AiAssistantProfile,
+  AiAssistantActiveScenario,
 } from './AiAssistantContextTypes.ts';
 import type { AiAssistantIntentContext } from './AiAssistantIntentContext.ts';
 import type { AiAssistantScenarioDescriptor } from './AiAssistantScenarioTypes.ts';
 import {
   resolveAiAssistantScenarioFromPrompt,
   resolveAiAssistantScenarioFromSubmission,
+  resolveAiAssistantScenario,
 } from './AiAssistantScenarioResolver.ts';
 import type { AiAssistantTelemetryCollector } from './AiAssistantTelemetryTypes.ts';
 import { getSharedAiAssistantTelemetryCollector } from './AiAssistantTelemetryStore.ts';
@@ -35,6 +39,7 @@ import type {
 import type { AiAssistantPreparedSubmission } from './AiAssistantPreparedSubmission.ts';
 import type { AiAssistantToolHost } from './AiAssistantToolTypes.ts';
 import { resolveAiAssistantIntentProfile } from './AiAssistantIntentPlanFactory.ts';
+import { buildAiAssistantConversationScenario } from './AiAssistantScenarioTypes.ts';
 
 type AiAssistantSessionState = {
   conversationKey: string;
@@ -258,15 +263,19 @@ export class AiAssistantSessionController {
     }
     const contextSnapshot = this.getScopedContext(session);
 
-    const continuedIntent =
-      !options.intent && (options.source === undefined || options.source === 'manual')
-        ? this.resolvePendingFollowupIntent(session)
+    const continuedScenario =
+      !options.scenario &&
+      !options.intent &&
+      (options.source === undefined || options.source === 'manual')
+        ? this.resolvePendingFollowupScenario(
+            conversationKey,
+            contextSnapshot,
+            session.contextMode
+          )
         : undefined;
-    const continuedIntentContext = continuedIntent
-      ? this.resolvePendingFollowupIntentContext(session)
-      : undefined;
     const resolvedScenario =
       options.scenario ??
+      continuedScenario ??
       resolveAiAssistantScenarioFromPrompt({
         prompt: trimmed,
         source: options.source ?? 'manual',
@@ -274,38 +283,37 @@ export class AiAssistantSessionController {
         intentContext: options.intentContext,
         snapshot: contextSnapshot,
         contextMode: session.contextMode,
-        fallbackIntent: continuedIntent,
-        fallbackIntentContext: continuedIntentContext,
       });
-    const resolvedIntent =
-      options.intent ?? resolvedScenario.intent ?? continuedIntent;
-    const resolvedIntentContext =
-      options.intentContext ??
-      resolvedScenario.intentContext ??
-      continuedIntentContext;
-    const resolvedSource = options.source ?? (resolvedIntent ? 'intent' : 'manual');
+    const resolvedIntent = resolvedScenario.intent;
+    const resolvedIntentContext = resolvedScenario.intentContext;
+    const resolvedSource =
+      options.source ?? (options.intent ? 'intent' : 'manual');
     const resolvedProfile =
       options.profile ??
-      (resolvedIntent
+      (resolvedSource === 'intent' && resolvedIntent
         ? resolveAiAssistantIntentProfile(resolvedIntent, undefined)
         : undefined);
+    const requestIntent =
+      resolvedSource === 'intent' ? resolvedIntent : undefined;
+    const requestIntentContext =
+      resolvedSource === 'intent' ? resolvedIntentContext : undefined;
 
     const requestMessage =
       options.requestMessageKind === 'command'
         ? this.createCommandMessage(
             options.requestLabel ?? trimmed,
             trimmed,
-            resolvedIntent,
-            resolvedIntentContext
+            requestIntent,
+            requestIntentContext
           )
         : options.requestMessageKind === 'system'
-          ? this.service.createSystemMessage(options.requestLabel ?? trimmed)
-          : {
-              ...this.service.createMessage('user', trimmed),
-              requestPrompt: resolvedIntent ? trimmed : undefined,
-              requestIntent: resolvedIntent,
-              requestIntentContext: resolvedIntentContext,
-            };
+        ? this.service.createSystemMessage(options.requestLabel ?? trimmed)
+        : {
+            ...this.service.createMessage('user', trimmed),
+            requestPrompt: requestIntent ? trimmed : undefined,
+            requestIntent,
+            requestIntentContext,
+          };
     session.messages = [...session.messages, requestMessage];
     this.persistence.saveConversation(conversationKey, session.messages);
 
@@ -313,25 +321,27 @@ export class AiAssistantSessionController {
     const abortController =
       typeof AbortController === 'undefined' ? null : new AbortController();
     session.replying = true;
-    session.replyProgress = this.createInitialReplyProgress(resolvedSource);
+    session.replyProgress = this.createInitialReplyProgress(resolvedScenario);
     session.pendingRequestId = requestId;
     session.abortController = abortController;
     this.emitChange();
 
+    const memoryScenario = this.toMemoryScenario(resolvedScenario);
     const memorySnapshot = this.memoryStore.recordUserInput({
       conversationKey,
       prompt: trimmed,
       snapshot: contextSnapshot,
-      intent: resolvedIntent ? resolvedIntent : null,
+      intent: resolvedIntent ?? null,
       intentContext: resolvedIntentContext,
+      scenario: memoryScenario,
     });
 
     try {
       const reply = await this.service.reply({
         prompt: trimmed,
         source: resolvedSource,
-        intent: resolvedIntent,
-        intentContext: resolvedIntentContext,
+        intent: requestIntent,
+        intentContext: requestIntentContext,
         scenario: options.scenario ?? resolvedScenario,
         profile: resolvedProfile,
         contextMode: session.contextMode,
@@ -349,25 +359,29 @@ export class AiAssistantSessionController {
           requestId,
         },
       });
-      const awaitingUserInput = this.shouldMarkAwaitingUserInput(reply);
+      const awaitingUserInput = this.shouldMarkAwaitingUserInput(
+        reply,
+        resolvedScenario
+      );
       this.memoryStore.updateAfterReply({
         conversationKey,
         prompt: trimmed,
         reply: reply.content,
         snapshot: contextSnapshot,
         awaitingUserInput,
+        scenario: memoryScenario,
       });
       this.commitReply(conversationKey, requestId, {
         ...reply,
         requestIntent:
-          resolvedSource === 'intent' && resolvedIntent
-            ? resolvedIntent
+          resolvedSource === 'intent' && requestIntent
+            ? requestIntent
             : reply.requestIntent,
         requestIntentContext:
-          resolvedSource === 'intent' && resolvedIntent
-            ? resolvedIntentContext
+          resolvedSource === 'intent' && requestIntentContext
+            ? requestIntentContext
             : reply.requestIntentContext,
-      });
+      }, resolvedScenario);
     } catch (error) {
       if (this.isAbortError(error)) {
         this.finishPendingRequest(conversationKey, requestId);
@@ -412,13 +426,12 @@ export class AiAssistantSessionController {
     const requestId = this.createRequestId();
     const abortController =
       typeof AbortController === 'undefined' ? null : new AbortController();
-    const requestIntent = promptMessage.requestIntent;
-    const requestIntentContext = promptMessage.requestIntentContext;
+    const activeScenario = this.memoryStore.get(conversationKey).activeScenario;
 
     session.messages = session.messages.slice(0, messageIndex);
     session.replying = true;
     session.replyProgress = this.createInitialReplyProgress(
-      requestIntent ? 'intent' : 'manual'
+      activeScenario ?? buildAiAssistantConversationScenario()
     );
     session.pendingRequestId = requestId;
     session.abortController = abortController;
@@ -429,24 +442,30 @@ export class AiAssistantSessionController {
     const prompt =
       promptMessage.requestPrompt?.trim() || promptMessage.content.trim();
     const contextSnapshot = this.getScopedContext(session);
-    const profile = requestIntent
-      ? resolveAiAssistantIntentProfile(requestIntent, undefined)
-      : undefined;
+    const scenario = activeScenario
+      ? this.hydrateScenarioDescriptorFromActiveScenario(
+          activeScenario,
+          contextSnapshot,
+          session.contextMode
+        )
+      : buildAiAssistantConversationScenario();
     const memorySnapshot = this.memoryStore.recordUserInput({
       conversationKey,
       prompt,
       snapshot: contextSnapshot,
-      intent: requestIntent ?? null,
-      intentContext: requestIntentContext,
+      intent: activeScenario?.intent ?? null,
+      intentContext: activeScenario?.intentContext,
+      scenario: activeScenario ?? null,
     });
 
     try {
       const reply = await this.service.reply({
         prompt,
-        source: requestIntent ? 'intent' : 'manual',
-        intent: requestIntent,
-        intentContext: requestIntentContext,
-        profile,
+        source: 'manual',
+        intent: undefined,
+        intentContext: undefined,
+        scenario,
+        profile: undefined,
         contextMode: session.contextMode,
         memory: memorySnapshot,
         snapshot: contextSnapshot,
@@ -469,6 +488,7 @@ export class AiAssistantSessionController {
         reply: reply.content,
         snapshot: contextSnapshot,
         awaitingUserInput,
+        scenario: activeScenario ?? null,
       });
       this.commitReply(conversationKey, requestId, reply);
     } catch (error) {
@@ -611,10 +631,12 @@ export class AiAssistantSessionController {
       return;
     }
 
+    const activeScenario = this.memoryStore.get(conversationKey).activeScenario;
     this.memoryStore.recordAppliedActions({
       conversationKey,
       actions: appliedActions,
       sourceMessageId: messageId,
+      scenario: activeScenario,
     });
     this.telemetry.record({
       kind: 'action_execution',
@@ -623,6 +645,13 @@ export class AiAssistantSessionController {
         conversationKey,
         requestId: messageId,
       },
+      scenarioId: activeScenario?.id,
+      scenarioMode: activeScenario?.mode,
+      scenarioKind: activeScenario?.kind,
+      routeLength: activeScenario?.routeLength,
+      proposalStyle: activeScenario?.proposalStyle,
+      fallbackReason:
+        activeScenario?.kind === 'fallback' ? 'fallback_scenario' : undefined,
       messageId,
       appliedActionCount: appliedActions.length,
       pendingActionCount: pendingActions.length,
@@ -903,30 +932,40 @@ export class AiAssistantSessionController {
   private commitReply(
     conversationKey: string,
     requestId: string,
-    reply: AiAssistantMessage
+    reply: AiAssistantMessage,
+    scenario?: AiAssistantScenarioDescriptor
   ): void {
     const session = this.sessions.get(conversationKey);
     if (!session || session.pendingRequestId !== requestId) return;
-    session.messages = [...session.messages, this.decorateAssistantReply(reply)];
+    session.messages = [
+      ...session.messages,
+      this.decorateAssistantReply(reply, scenario),
+    ];
     this.persistence.saveConversation(conversationKey, session.messages);
     this.finishPendingRequest(conversationKey, requestId);
   }
 
-  private decorateAssistantReply(reply: AiAssistantMessage): AiAssistantMessage {
+  private decorateAssistantReply(
+    reply: AiAssistantMessage,
+    scenario?: AiAssistantScenarioDescriptor
+  ): AiAssistantMessage {
     if (reply.role !== 'assistant') {
       return reply;
     }
 
-    const awaitingUserInput = this.shouldMarkAwaitingUserInput(reply);
+    const awaitingUserInput = this.shouldMarkAwaitingUserInput(reply, scenario);
 
     return awaitingUserInput ? { ...reply, awaitingUserInput: true } : reply;
   }
 
-  private shouldMarkAwaitingUserInput(reply: AiAssistantMessage): boolean {
+  private shouldMarkAwaitingUserInput(
+    reply: AiAssistantMessage,
+    scenario?: AiAssistantScenarioDescriptor
+  ): boolean {
     return (
       !reply.reviewFindings &&
       (!Array.isArray(reply.actions) || reply.actions.length === 0) &&
-      typeof reply.requestIntent === 'string'
+      scenario?.variant === 'typed'
     );
   }
 
@@ -954,20 +993,131 @@ export class AiAssistantSessionController {
   }
 
   private createInitialReplyProgress(
-    source: 'manual' | 'intent'
+    scenario: AiAssistantScenarioDescriptor
   ): AiAssistantReplyProgress {
-    if (source === 'intent') {
+    if (scenario.variant === 'typed') {
       return {
         phase: 'routing',
         label: 'Preparing workflow',
-        detail: 'Selecting the workspace steps for this request.',
+        detail: 'Selecting the steps for this request.',
       };
     }
 
     return {
       phase: 'routing',
       label: 'Analyzing request',
-      detail: 'Choosing the next workspace steps.',
+      detail: 'Choosing the next steps.',
+    };
+  }
+
+  private toMemoryScenario(
+    scenario: AiAssistantScenarioDescriptor
+  ): AiAssistantActiveScenario {
+    const allowedActionCount = Array.isArray(scenario.allowedActions)
+      ? scenario.allowedActions.length
+      : 0;
+    return {
+      id: scenario.id,
+      kind: scenario.variant,
+      intent: scenario.intent,
+      intentContext: scenario.intentContext,
+      mode: scenario.mode,
+      scope: scenario.scope,
+      confidence: scenario.confidence,
+      confirmationMode: scenario.confirmationMode,
+      routeLength:
+        scenario.variant === 'typed' && scenario.confirmationMode === 'batch'
+          ? 'long'
+          : scenario.variant === 'typed'
+            ? 'short'
+            : 'long',
+      proposalStyle:
+        scenario.confirmationMode === 'none' ? 'direct' : 'clarify-first',
+      targetSummary: scenario.target?.title?.trim() || scenario.target?.id,
+      missingSlots: [...scenario.missingSlots],
+      allowedActionCount,
+    };
+  }
+
+  private resolvePendingFollowupScenario(
+    conversationKey: string,
+    contextSnapshot: AiAssistantCanvasSnapshot | null,
+    contextMode: AiAssistantContextMode
+  ): AiAssistantScenarioDescriptor | null {
+    const memory = this.memoryStore.get(conversationKey);
+    if (!memory.awaitingInput || !memory.activeScenario) {
+      return null;
+    }
+    return this.hydrateScenarioDescriptorFromActiveScenario(
+      memory.activeScenario,
+      contextSnapshot,
+      contextMode
+    );
+  }
+
+  private hydrateScenarioDescriptorFromActiveScenario(
+    activeScenario: AiAssistantActiveScenario,
+    contextSnapshot: AiAssistantCanvasSnapshot | null,
+    contextMode: AiAssistantContextMode
+  ): AiAssistantScenarioDescriptor {
+    const target = this.buildScenarioTargetInput(contextSnapshot);
+    return resolveAiAssistantScenario({
+      source: 'manual',
+      intent: activeScenario.intent ?? undefined,
+      intentContext: activeScenario.intentContext,
+      contextMode,
+      target,
+      fallbackTarget: target,
+    });
+  }
+
+  private buildScenarioTargetInput(
+    snapshot: AiAssistantCanvasSnapshot | null
+  ):
+    | {
+        canvasId?: string;
+        canvasTitle?: string;
+        selectionItems?: Array<{
+          id: string;
+          kind: AiAssistantCanvasSnapshot['elements'][number]['kind'];
+          title: string;
+          description: string;
+          status?: string;
+          priority?: string;
+        }>;
+        selectedItem?: {
+          id: string;
+          kind: AiAssistantCanvasSnapshot['elements'][number]['kind'];
+          title: string;
+          description: string;
+          status?: string;
+          priority?: string;
+        } | null;
+      }
+    | undefined {
+    if (!snapshot) {
+      return undefined;
+    }
+
+    const selectionIds = new Set(snapshot.selectionIds);
+    const selectionItems = snapshot.elements
+      .filter((element) => selectionIds.has(element.id))
+      .map((element) => ({
+        id: element.id,
+        kind: element.kind,
+        title: element.title,
+        description: element.description,
+        status: element.status,
+        priority: element.priority,
+      }));
+    const selectedItem =
+      selectionItems.length === 1 ? selectionItems[0] ?? null : null;
+
+    return {
+      canvasId: snapshot.canvasId,
+      canvasTitle: snapshot.canvasTitle,
+      selectionItems,
+      selectedItem,
     };
   }
 
@@ -1044,50 +1194,6 @@ export class AiAssistantSessionController {
     };
   }
 
-  private resolvePendingFollowupIntent(
-    session: AiAssistantSessionState
-  ): AiAssistantPreparedSubmission['intent'] | undefined {
-    const lastMessage = session.messages[session.messages.length - 1];
-    if (
-      !lastMessage ||
-      lastMessage.role !== 'assistant' ||
-      !lastMessage.requestIntent
-    ) {
-      return undefined;
-    }
-    if (
-      Array.isArray(lastMessage.actions) &&
-      lastMessage.actions.length > 0
-    ) {
-      return undefined;
-    }
-    if (lastMessage.reviewFindings) {
-      return undefined;
-    }
-    return this.isAwaitingFollowupInput(lastMessage)
-      ? lastMessage.requestIntent
-      : undefined;
-  }
-
-  private resolvePendingFollowupIntentContext(
-    session: AiAssistantSessionState
-  ): AiAssistantIntentContext | undefined {
-    const lastMessage = session.messages[session.messages.length - 1];
-    if (
-      !lastMessage ||
-      lastMessage.role !== 'assistant' ||
-      !lastMessage.requestIntent ||
-      !this.isAwaitingFollowupInput(lastMessage)
-    ) {
-      return undefined;
-    }
-    return lastMessage.requestIntentContext;
-  }
-
-  private isAwaitingFollowupInput(message: AiAssistantMessage): boolean {
-    return message.awaitingUserInput === true;
-  }
-
   private resolvePendingConfirmation(
     session: AiAssistantSessionState
   ): AiAssistantPendingConfirmation | null {
@@ -1107,10 +1213,12 @@ export class AiAssistantSessionController {
       return null;
     }
 
-    return {
+      return {
       messageId: lastMessage.id,
       actionIds: idleActions.map((action) => action.id),
-      actionLabel: this.describePendingConfirmationLabel(idleActions),
+      actionLabel: getAiAssistantActionGroupButtonLabel(idleActions, {
+        singleActionMode: 'action-label',
+      }),
       actionTitle: this.describePendingConfirmationTitle(idleActions),
       actionCount: idleActions.length,
     };
@@ -1163,40 +1271,6 @@ export class AiAssistantSessionController {
       }
       case 'suggest_update':
         return `update for ${action.elementKind} "${action.targetTitle || action.elementId}"`;
-    }
-  }
-
-  private describePendingConfirmationLabel(
-    actions: AiAssistantAction[]
-  ): string {
-    if (actions.length === 1) {
-      const action = actions[0];
-      if (!action) {
-        return 'Confirm';
-      }
-      if (action.kind === 'create_goals') {
-        return 'Create all';
-      }
-      return action.label ?? 'Confirm';
-    }
-
-    const kinds = new Set(actions.map((action) => action.kind));
-    if (kinds.size !== 1) {
-      return 'Confirm all';
-    }
-
-      switch (actions[0]?.kind) {
-        case 'create_task':
-        case 'create_story':
-        case 'create_goal':
-        case 'create_goals':
-          return 'Create all';
-      case 'suggest_relation':
-      case 'remove_relation':
-      case 'update_relation':
-      case 'suggest_update':
-      default:
-        return 'Apply all';
     }
   }
 
