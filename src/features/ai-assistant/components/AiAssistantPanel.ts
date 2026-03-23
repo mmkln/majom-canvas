@@ -11,16 +11,37 @@ import { AiAssistantMarkdownRenderer } from '../rendering/AiAssistantMarkdownRen
 import {
   buildAiAssistantActionEntryModel,
   buildAiAssistantGroupedActionCardModel,
-  type AiAssistantActionTagModel,
   type AiAssistantActionCardModel,
+  type AiAssistantAtomicCreateCardModel,
+  type AiAssistantRelationCardModel,
+  type AiAssistantUpdateCardModel,
+  type AiAssistantCreateGoalsCardModel,
+  type AiAssistantBlueprintCardModel,
   type AiAssistantActionButtonModel,
   type AiAssistantActionEntryModel,
-  type AiAssistantActionDetailBlock,
   type AiAssistantGroupedActionCardModel,
   getAiAssistantFindingSeverityBadgeTone,
   getAiAssistantReadinessBadgeTone,
   groupAiAssistantActionsForRender,
 } from '../rendering/AiAssistantStructuredResultModel.ts';
+import {
+  createActionEyebrow,
+  createActionInlineLabel,
+  createActionInlineValue,
+  createActionSectionHeading,
+  createActionTag as createActionTagElement,
+  createActionTextParagraph as createActionTextParagraphElement,
+  setAiActionComponentName,
+} from './AiAssistantActionUiPrimitives.ts';
+import {
+  applyGroupedActionEntryStyles,
+  createActionAccentedSection,
+  createActionCardSurface,
+  createActionImportantMetaBlock,
+  createActionInlineSection,
+  createActionSurfaceSection,
+} from './AiAssistantActionUiBlocks.ts';
+import { AI_ASSISTANT_ACTION_TOKENS } from './AiAssistantActionUiTokens.ts';
 import {
   AI_ASSISTANT_CONTEXT_MODE_OPTIONS,
   type AiAssistantContextMode,
@@ -65,19 +86,6 @@ const CHAT_PANEL_SURFACE_BORDER = '1px solid rgba(226, 232, 240, 0.82)';
 const CHAT_PANEL_BACKGROUND = '#ffffff';
 const CHAT_PANEL_SUBTLE_BACKGROUND = 'rgba(248, 250, 252, 0.92)';
 const CHAT_PANEL_RADIUS_PX = 16;
-const CHAT_ACTION_CARD_RADIUS_PX = 20;
-const CHAT_ACTION_GROUP_CARD_INSET_PX = 14;
-const CHAT_ACTION_CARD_PADDING_PX = 14;
-const CHAT_ACTION_PREVIEW_RADIUS_PX = 14;
-const CHAT_ACTION_DIVIDER_BORDER = '1px solid rgba(226, 232, 240, 0.9)';
-
-type AiAssistantActionContentSection =
-  | 'meta'
-  | 'tags'
-  | 'details'
-  | 'description'
-  | 'reason'
-  | 'error';
 
 export class AiAssistantPanel {
   private readonly container: HTMLElement;
@@ -1460,9 +1468,10 @@ export class AiAssistantPanel {
     const list = document.createElement('div');
     list.style.display = 'flex';
     list.style.flexDirection = 'column';
-    list.style.gap = '12px';
+    list.style.gap = '9px';
     list.style.width = '100%';
     list.style.maxWidth = '94%';
+    setAiActionComponentName(list, 'action-cards');
 
     groupAiAssistantActionsForRender(actions).forEach((entry) => {
       if (entry.groupId) {
@@ -1498,37 +1507,36 @@ export class AiAssistantPanel {
       context,
       contextEnabled
     );
-    const card = this.createActionCardSurface({
+    const card = createActionCardSurface({
       kind: 'group',
-      gap: '12px',
-      paddingPx: CHAT_ACTION_GROUP_CARD_INSET_PX,
+      gap: '9px',
+      padding: AI_ASSISTANT_ACTION_TOKENS.surface.groupCardPadding,
     });
+    card.dataset.aiActionComponent = 'grouped-action-card';
 
     const header = document.createElement('div');
     header.style.display = 'flex';
     header.style.flexDirection = 'column';
-    header.style.gap = '6px';
+    header.style.gap = '4px';
+    setAiActionComponentName(header, 'grouped-action-card-header');
 
-    const label = this.createActionEyebrow(groupModel.header.eyebrow);
+    const label = createActionEyebrow(groupModel.header.eyebrow);
     header.appendChild(label);
 
     if (groupModel.header.summary) {
-      const summary = document.createElement('p');
-      summary.textContent = groupModel.header.summary;
-      summary.style.margin = '0';
-      summary.style.fontSize = '11.5px';
-      summary.style.lineHeight = '1.6';
-      summary.style.color = '#334155';
-      header.appendChild(summary);
+      header.appendChild(this.createActionSummaryParagraph(groupModel.header.summary));
     }
 
     const rows = document.createElement('div');
     rows.style.display = 'flex';
     rows.style.flexDirection = 'column';
-    rows.style.gap = '10px';
+    rows.style.gap = '7px';
+    setAiActionComponentName(rows, 'grouped-action-card-rows');
 
     groupModel.entries.forEach((entryModel) => {
-      const row = this.createActionEntry(messageId, entryModel);
+      const row = this.createActionEntry(messageId, entryModel, {
+        grouped: true,
+      });
       rows.appendChild(row);
     });
 
@@ -1551,11 +1559,13 @@ export class AiAssistantPanel {
       context,
       contextEnabled
     );
-    const card = this.createActionCardSurface({
+    const card = createActionCardSurface({
       kind: 'single',
       status: entryModel.status,
       gap: '0',
     });
+    card.dataset.aiActionComponent = 'action-card';
+    card.dataset.aiActionFamily = entryModel.card.family;
 
     card.appendChild(this.createActionEntry(messageId, entryModel));
     return card;
@@ -1563,31 +1573,44 @@ export class AiAssistantPanel {
 
   private createActionEntry(
     messageId: string,
-    entryModel: AiAssistantActionEntryModel
+    entryModel: AiAssistantActionEntryModel,
+    options: {
+      grouped?: boolean;
+    } = {}
   ): HTMLDivElement {
     const entry = document.createElement('div');
     entry.style.display = 'flex';
     entry.style.flexDirection = 'column';
     entry.style.alignItems = 'stretch';
     entry.style.gap = '8px';
+    setAiActionComponentName(entry, 'action-entry');
+    entry.dataset.aiActionFamily = entryModel.card.family;
+    entry.dataset.aiActionStatus = entryModel.status;
+    if (options.grouped) {
+      applyGroupedActionEntryStyles(entry, entryModel.status);
+    }
 
     const textWrap = document.createElement('div');
     textWrap.style.display = 'flex';
     textWrap.style.flexDirection = 'column';
-    textWrap.style.gap = '5px';
+    textWrap.style.gap = '4px';
     textWrap.style.minWidth = '0';
     textWrap.style.flex = '1';
+    setAiActionComponentName(textWrap, 'action-entry-body');
+    textWrap.dataset.aiActionFamily = entryModel.card.family;
+    if (entryModel.status === 'applied') {
+      textWrap.style.opacity = '0.88';
+    } else if (entryModel.status === 'applying') {
+      textWrap.style.opacity = '0.94';
+    }
 
-    this.appendActionHeader(textWrap, entryModel.card, {
-      showLeadingTag: true,
-    });
+    textWrap.appendChild(
+      this.createActionHeader(entryModel.card, {
+        showLeadingTag: true,
+      })
+    );
 
-    this.appendActionContentSections(textWrap, entryModel.card, {
-      sections: ['meta', 'tags', 'details', 'description', 'reason', 'error'],
-      skipEyebrowTag: true,
-      bodyFontSize: '11.5px',
-      bodyLineHeight: '1.6',
-    });
+    this.appendActionBodyByFamily(textWrap, entryModel.card);
 
     entry.append(
       textWrap,
@@ -1599,11 +1622,17 @@ export class AiAssistantPanel {
   private createActionButton(
     messageId: string,
     entryModel: AiAssistantActionEntryModel
-  ): HTMLButtonElement {
-    return this.createActionCtaButton(entryModel.button, () => {
-      if (entryModel.button.disabled) {
-        return;
-      }
+  ): HTMLElement {
+    if (entryModel.button.disabled) {
+      const pill = this.createActionStatusPill(
+        entryModel.button.label,
+        entryModel.status
+      );
+      pill.dataset.aiActionStatus = entryModel.status;
+      return pill;
+    }
+
+    const button = this.createActionCtaButton(entryModel.button, () => {
       this.pinMessagesToBottom();
       void this.chatController.executeMessageAction(
         messageId,
@@ -1611,6 +1640,9 @@ export class AiAssistantPanel {
         this.executeAction
       );
     });
+    setAiActionComponentName(button, 'cta-button');
+    button.dataset.aiActionTone = entryModel.button.tone;
+    return button;
   }
 
   private createActionCtaButton(
@@ -1637,6 +1669,279 @@ export class AiAssistantPanel {
     return button;
   }
 
+  private createActionHeader(
+    cardModel: Pick<AiAssistantActionCardModel, 'eyebrow' | 'title' | 'chips'>,
+    options: {
+      showLeadingTag: boolean;
+    }
+  ): HTMLDivElement {
+    const header = document.createElement('div');
+    header.style.display = 'flex';
+    header.style.flexDirection = 'column';
+    header.style.gap = AI_ASSISTANT_ACTION_TOKENS.layout.headerGap;
+    setAiActionComponentName(header, 'header');
+
+    const topRow = document.createElement('div');
+    topRow.style.display = 'flex';
+    topRow.style.alignItems = 'flex-start';
+    topRow.style.justifyContent = 'space-between';
+    topRow.style.gap = AI_ASSISTANT_ACTION_TOKENS.layout.headerTopRowGap;
+    topRow.appendChild(createActionEyebrow(cardModel.eyebrow));
+
+    if (options.showLeadingTag) {
+      const leadingTag = cardModel.chips[0];
+      if (leadingTag) {
+        topRow.appendChild(
+          createActionTagElement(leadingTag.text, leadingTag.tone, {
+            icon: leadingTag.icon,
+            iconColor: leadingTag.iconColor,
+            iconOnly: leadingTag.iconOnly,
+            title: leadingTag.title,
+          })
+        );
+      }
+    }
+
+    const title = document.createElement('p');
+    title.textContent = cardModel.title;
+    title.style.margin = '0';
+    title.style.fontSize = AI_ASSISTANT_ACTION_TOKENS.typography.title.fontSize;
+    title.style.fontWeight =
+      AI_ASSISTANT_ACTION_TOKENS.typography.title.fontWeight;
+    title.style.lineHeight =
+      AI_ASSISTANT_ACTION_TOKENS.typography.title.lineHeight;
+    title.style.letterSpacing =
+      AI_ASSISTANT_ACTION_TOKENS.typography.title.letterSpacing;
+    title.style.color = AI_ASSISTANT_ACTION_TOKENS.typography.title.color;
+
+    header.append(topRow, title);
+    return header;
+  }
+
+  private createActionFooter(button: HTMLElement): HTMLDivElement {
+    const footer = document.createElement('div');
+    footer.style.display = 'flex';
+    footer.style.justifyContent = 'flex-end';
+    footer.style.paddingTop = AI_ASSISTANT_ACTION_TOKENS.layout.footerPaddingTop;
+    footer.appendChild(button);
+    return setAiActionComponentName(footer, 'footer');
+  }
+
+  private createActionStatusPill(
+    text: string,
+    status: AiAssistantAction['status']
+  ): HTMLSpanElement {
+    const pill = document.createElement('span');
+    pill.textContent = text;
+    pill.style.display = 'inline-flex';
+    pill.style.alignItems = 'center';
+    pill.style.justifyContent = 'center';
+    pill.style.minHeight = AI_ASSISTANT_ACTION_TOKENS.layout.statusPillMinHeight;
+    pill.style.padding = AI_ASSISTANT_ACTION_TOKENS.layout.statusPillPadding;
+    pill.style.borderRadius = '999px';
+    pill.style.fontSize = AI_ASSISTANT_ACTION_TOKENS.typography.statusPill.fontSize;
+    pill.style.fontWeight =
+      AI_ASSISTANT_ACTION_TOKENS.typography.statusPill.fontWeight;
+    pill.style.letterSpacing =
+      AI_ASSISTANT_ACTION_TOKENS.typography.statusPill.letterSpacing;
+    pill.style.cursor = 'default';
+
+    switch (status) {
+      case 'applying':
+        pill.style.background = 'rgba(239, 246, 255, 0.82)';
+        pill.style.border = 'none';
+        pill.style.color = '#475569';
+        break;
+      case 'applied':
+      default:
+        pill.style.background = 'rgba(241, 245, 249, 0.82)';
+        pill.style.border = 'none';
+        pill.style.color = '#475569';
+        break;
+    }
+
+    return setAiActionComponentName(pill, 'status-pill');
+  }
+
+  private createActionTagRow(
+    tagModels: AiAssistantActionCardModel['chips'],
+    options: {
+      skipCount?: number;
+    } = {}
+  ): HTMLDivElement | null {
+    const visibleTags = tagModels.slice(options.skipCount ?? 0);
+    if (visibleTags.length === 0) {
+      return null;
+    }
+
+    const tags = document.createElement('div');
+    tags.style.display = 'flex';
+    tags.style.flexWrap = 'wrap';
+    tags.style.gap = AI_ASSISTANT_ACTION_TOKENS.layout.tagGap;
+
+    visibleTags.forEach((tag) => {
+      tags.appendChild(
+        createActionTagElement(tag.text, tag.tone, {
+          icon: tag.icon,
+          iconColor: tag.iconColor,
+          iconOnly: tag.iconOnly,
+          title: tag.title,
+        })
+      );
+    });
+
+    return setAiActionComponentName(tags, 'tag-row');
+  }
+
+  private createActionMetaParagraph(text: string): HTMLParagraphElement {
+    return setAiActionComponentName(
+      createActionTextParagraphElement(text, AI_ASSISTANT_ACTION_TOKENS.typography.meta),
+      'meta-paragraph'
+    );
+  }
+
+  private createActionSummaryParagraph(text: string): HTMLParagraphElement {
+    return setAiActionComponentName(
+      createActionTextParagraphElement(
+        text,
+        AI_ASSISTANT_ACTION_TOKENS.typography.summary
+      ),
+      'summary-paragraph'
+    );
+  }
+
+  private createActionProvenanceText(text: string): HTMLParagraphElement {
+    return setAiActionComponentName(
+      createActionTextParagraphElement(
+        text,
+        AI_ASSISTANT_ACTION_TOKENS.typography.provenance
+      ),
+      'provenance-text'
+    );
+  }
+
+  private createActionSecondaryTextSection(
+    title: string,
+    text: string
+  ): HTMLDivElement {
+    const section = document.createElement('div');
+    section.style.display = 'flex';
+    section.style.flexDirection = 'column';
+    section.style.gap = AI_ASSISTANT_ACTION_TOKENS.layout.secondaryTextSectionGap;
+    section.style.paddingLeft =
+      AI_ASSISTANT_ACTION_TOKENS.layout.secondaryTextPaddingLeft;
+    section.append(
+      createActionSectionHeading(title),
+      createActionTextParagraphElement(
+        text,
+        AI_ASSISTANT_ACTION_TOKENS.typography.secondaryText
+      )
+    );
+    return setAiActionComponentName(section, 'secondary-text-section');
+  }
+
+  private createActionTextList(items: string[]): HTMLDivElement {
+    const list = document.createElement('div');
+    list.style.display = 'flex';
+    list.style.flexDirection = 'column';
+    list.style.gap = AI_ASSISTANT_ACTION_TOKENS.layout.textListGap;
+
+    items.forEach((item) => {
+      list.appendChild(
+        createActionTextParagraphElement(
+          item,
+          AI_ASSISTANT_ACTION_TOKENS.typography.secondaryText
+        )
+      );
+    });
+
+    return setAiActionComponentName(list, 'text-list');
+  }
+
+  private createActionHierarchyList(
+    items: AiAssistantBlueprintCardModel['goals']
+  ): HTMLDivElement {
+    const list = document.createElement('div');
+    list.style.display = 'flex';
+    list.style.flexDirection = 'column';
+    list.style.gap = AI_ASSISTANT_ACTION_TOKENS.layout.hierarchyListGap;
+
+    items.forEach((item) => {
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.flexDirection = 'column';
+      row.style.gap = AI_ASSISTANT_ACTION_TOKENS.layout.hierarchyItemGap;
+      row.style.paddingLeft = `${item.depth * AI_ASSISTANT_ACTION_TOKENS.layout.hierarchyIndentPx}px`;
+
+      const title = document.createElement('p');
+      title.textContent = item.title;
+      title.style.margin = '0';
+      title.style.fontSize =
+        AI_ASSISTANT_ACTION_TOKENS.typography.hierarchyTitle.fontSize;
+      title.style.fontWeight = item.depth === 0 ? '650' : '600';
+      title.style.lineHeight =
+        AI_ASSISTANT_ACTION_TOKENS.typography.hierarchyTitle.lineHeight;
+      title.style.color =
+        AI_ASSISTANT_ACTION_TOKENS.typography.hierarchyTitle.color;
+      row.appendChild(title);
+
+      if (item.description) {
+        row.appendChild(
+          createActionTextParagraphElement(
+            item.description,
+            AI_ASSISTANT_ACTION_TOKENS.typography.secondaryText
+          )
+        );
+      }
+
+      list.appendChild(row);
+    });
+
+    return setAiActionComponentName(list, 'hierarchy-list');
+  }
+
+  private createActionEntityList(
+    items: AiAssistantCreateGoalsCardModel['items']
+  ): HTMLDivElement {
+    const list = document.createElement('div');
+    list.style.display = 'flex';
+    list.style.flexDirection = 'column';
+    list.style.gap = AI_ASSISTANT_ACTION_TOKENS.layout.entityListGap;
+
+    items.forEach((item) => {
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.flexDirection = 'column';
+      row.style.gap = AI_ASSISTANT_ACTION_TOKENS.layout.entityItemGap;
+
+      row.appendChild(
+        createActionTextParagraphElement(item.title, {
+          fontSize: AI_ASSISTANT_ACTION_TOKENS.typography.entityTitle.fontSize,
+          lineHeight:
+            AI_ASSISTANT_ACTION_TOKENS.typography.entityTitle.lineHeight,
+          color: AI_ASSISTANT_ACTION_TOKENS.typography.entityTitle.color,
+        })
+      );
+
+      if (item.meta && item.meta.length > 0) {
+        row.appendChild(this.createActionMetaParagraph(item.meta.join(' · ')));
+      }
+
+      if (item.description) {
+        row.appendChild(
+          createActionTextParagraphElement(
+            item.description,
+            AI_ASSISTANT_ACTION_TOKENS.typography.secondaryText
+          )
+        );
+      }
+
+      list.appendChild(row);
+    });
+
+    return setAiActionComponentName(list, 'entity-list');
+  }
+
   private createActionGroupFooter(
     messageId: string,
     groupModel: AiAssistantGroupedActionCardModel
@@ -1650,13 +1955,14 @@ export class AiAssistantPanel {
     footer.style.display = 'flex';
     footer.style.alignItems = 'center';
     footer.style.justifyContent = 'flex-end';
-    footer.style.marginTop = '2px';
-    footer.style.marginLeft = `-${CHAT_ACTION_GROUP_CARD_INSET_PX}px`;
-    footer.style.marginRight = `-${CHAT_ACTION_GROUP_CARD_INSET_PX}px`;
-    footer.style.paddingTop = '12px';
-    footer.style.paddingLeft = `${CHAT_ACTION_GROUP_CARD_INSET_PX}px`;
-    footer.style.paddingRight = `${CHAT_ACTION_GROUP_CARD_INSET_PX}px`;
-    footer.style.borderTop = CHAT_ACTION_DIVIDER_BORDER;
+    footer.style.marginTop = '1px';
+    footer.style.marginLeft = `-${AI_ASSISTANT_ACTION_TOKENS.surface.groupCardInsetPx}px`;
+    footer.style.marginRight = `-${AI_ASSISTANT_ACTION_TOKENS.surface.groupCardInsetPx}px`;
+    footer.style.paddingTop = '8px';
+    footer.style.paddingLeft = `${AI_ASSISTANT_ACTION_TOKENS.surface.groupCardInsetPx}px`;
+    footer.style.paddingRight = `${AI_ASSISTANT_ACTION_TOKENS.surface.groupCardInsetPx}px`;
+    footer.style.borderTop = AI_ASSISTANT_ACTION_TOKENS.surface.dividerBorder;
+    setAiActionComponentName(footer, 'group-footer');
 
     const button = this.createActionCtaButton(footerModel.button, () => {
       this.pinMessagesToBottom();
@@ -1666,450 +1972,274 @@ export class AiAssistantPanel {
         this.executeAction
       );
     });
+    setAiActionComponentName(button, 'group-footer-cta');
+    button.dataset.aiActionTone = footerModel.button.tone;
 
     footer.appendChild(button);
     return footer;
   }
 
-  private createActionTagRowFromModels(
-    tagModels: AiAssistantActionTagModel[],
-    options: {
-      skipCount?: number;
-    } = {}
-  ): HTMLDivElement | null {
-    const visibleTags = tagModels.slice(options.skipCount ?? 0);
-    if (visibleTags.length === 0) return null;
-
-    const tags = document.createElement('div');
-    tags.style.display = 'flex';
-    tags.style.flexWrap = 'wrap';
-    tags.style.gap = '6px';
-
-    visibleTags.forEach((tag) => {
-      tags.appendChild(this.createActionTag(tag.text, tag.tone));
-    });
-
-    return tags;
-  }
-
-  private createActionEyebrow(text: string): HTMLSpanElement {
-    return this.createActionLabelText(text, {
-      letterSpacing: '0.08em',
-    });
-  }
-
-  private createActionSectionLabel(text: string): HTMLSpanElement {
-    return this.createActionLabelText(text, {
-      letterSpacing: '0.04em',
-    });
-  }
-
-  private createActionLabelText(
-    text: string,
-    options: {
-      letterSpacing: string;
-    }
-  ): HTMLSpanElement {
-    const label = document.createElement('span');
-    label.textContent = text;
-    label.style.fontSize = '10px';
-    label.style.fontWeight = '700';
-    label.style.letterSpacing = options.letterSpacing;
-    label.style.textTransform = 'uppercase';
-    label.style.color = '#64748b';
-    return label;
-  }
-
-  private createActionMetaParagraph(text: string): HTMLParagraphElement {
-    return this.createActionTextParagraph(text, {
-      fontSize: '11px',
-      lineHeight: '1.5',
-      color: '#6b7280',
-    });
-  }
-
-  private createActionTextParagraph(
-    text: string,
-    options: {
-      fontSize: string;
-      lineHeight: string;
-      color: string;
-    }
-  ): HTMLParagraphElement {
-    const paragraph = document.createElement('p');
-    paragraph.textContent = text;
-    paragraph.style.margin = '0';
-    paragraph.style.fontSize = options.fontSize;
-    paragraph.style.lineHeight = options.lineHeight;
-    paragraph.style.color = options.color;
-    return paragraph;
-  }
-
-  private appendActionHeader(
+  private appendActionBodyByFamily(
     container: HTMLElement,
-    cardModel: AiAssistantActionCardModel,
-    options: {
-      showLeadingTag: boolean;
-    }
+    cardModel: AiAssistantActionCardModel
   ): void {
-    const topRow = document.createElement('div');
-    topRow.style.display = 'flex';
-    topRow.style.alignItems = 'flex-start';
-    topRow.style.justifyContent = 'space-between';
-    topRow.style.gap = '10px';
-
-    topRow.appendChild(this.createActionEyebrow(cardModel.eyebrow));
-
-    if (options.showLeadingTag) {
-      const leadingTag = cardModel.tags[0];
-      if (leadingTag) {
-        topRow.appendChild(this.createActionTag(leadingTag.text, leadingTag.tone));
-      }
-    }
-
-    container.appendChild(topRow);
-
-    const title = document.createElement('p');
-    title.textContent = cardModel.title;
-    title.style.margin = '0';
-    title.style.fontSize = '13.5px';
-    title.style.fontWeight = '600';
-    title.style.lineHeight = '1.45';
-    title.style.color = '#0f172a';
-    container.appendChild(title);
-  }
-
-  private createActionPreviewSurface(options: {
-    gap?: string;
-  } = {}): HTMLDivElement {
-    const container = this.createSubtleSurface(CHAT_ACTION_PREVIEW_RADIUS_PX);
-    container.dataset.actionPreview = 'true';
-    container.style.display = 'flex';
-    container.style.flexDirection = 'column';
-    container.style.gap = options.gap ?? '8px';
-    container.style.padding = '10px 12px';
-    return container;
-  }
-
-  private createActionCardSurface(options: {
-    kind: 'single' | 'group';
-    status?: AiAssistantAction['status'];
-    gap: string;
-    paddingPx?: number;
-  }): HTMLDivElement {
-    const surface = this.createFlatSurface(CHAT_ACTION_CARD_RADIUS_PX);
-    surface.dataset.actionCard = options.kind;
-    if (options.status) {
-      surface.dataset.actionStatus = options.status;
-    }
-    surface.style.padding = `${options.paddingPx ?? CHAT_ACTION_CARD_PADDING_PX}px`;
-    surface.style.display = 'flex';
-    surface.style.flexDirection = 'column';
-    surface.style.gap = options.gap;
-    return surface;
-  }
-
-  private createActionDetailBlock(
-    block: AiAssistantActionDetailBlock
-  ): HTMLDivElement {
-    switch (block.kind) {
-      case 'kv-list':
-        return this.createActionPreviewSection(
-          block.title,
-          this.createActionPreviewDetailList(block.entries)
-        );
-      case 'text-list':
-        return this.createActionPreviewSection(
-          block.title,
-          this.createActionPreviewTextList(block.items)
-        );
-      case 'hierarchy-list':
-        return this.createActionPreviewSection(
-          block.title,
-          this.createActionPreviewHierarchyList(block.items)
-        );
-      case 'entity-list':
-        return this.createActionPreviewSection(
-          block.title,
-          this.createActionPreviewEntityList(block.items)
-        );
-      default: {
-        const exhaustiveCheck: never = block;
-        throw new Error(`Unsupported action detail block: ${String(exhaustiveCheck)}`);
-      }
+    switch (cardModel.family) {
+      case 'update':
+        this.appendUpdateActionBody(container, cardModel);
+        return;
+      case 'create-goals':
+        this.appendCreateGoalsActionBody(container, cardModel);
+        return;
+      case 'blueprint':
+        this.appendBlueprintActionBody(container, cardModel);
+        return;
+      case 'relation':
+        this.appendRelationActionBody(container, cardModel);
+        return;
+      case 'atomic-create':
+      default:
+        this.appendAtomicCreateActionBody(container, cardModel);
     }
   }
 
-  private createActionPreviewSection(
-    title: string,
-    content: HTMLElement
-  ): HTMLDivElement {
-    const surface = this.createActionPreviewSurface();
-    const section = document.createElement('div');
-    section.style.display = 'flex';
-    section.style.flexDirection = 'column';
-    section.style.gap = '6px';
-    section.append(this.createActionSectionLabel(title), content);
-    surface.appendChild(section);
-    return surface;
-  }
-
-  private createActionPreviewDetailList(
-    entries: Array<{ label: string; value: string }>
-  ): HTMLDivElement {
-    const list = document.createElement('div');
-    list.style.display = 'flex';
-    list.style.flexDirection = 'column';
-    list.style.gap = '6px';
-
-    entries.forEach((entry) => {
-      const row = document.createElement('div');
-      row.style.display = 'flex';
-      row.style.alignItems = 'baseline';
-      row.style.flexWrap = 'wrap';
-      row.style.columnGap = '6px';
-      row.style.rowGap = '2px';
-      row.append(
-        this.createActionSectionLabel(`${entry.label}:`),
-        this.createActionInlineValue(entry.value)
-      );
-      list.appendChild(row);
-    });
-
-    return list;
-  }
-
-  private createActionPreviewTextList(items: string[]): HTMLDivElement {
-    const list = document.createElement('div');
-    list.style.display = 'flex';
-    list.style.flexDirection = 'column';
-    list.style.gap = '5px';
-
-    items.forEach((item) => {
-      list.appendChild(
-        this.createActionTextParagraph(item, {
-          fontSize: '11px',
-          lineHeight: '1.5',
-          color: '#334155',
-        })
-      );
-    });
-
-    return list;
-  }
-
-  private createActionPreviewHierarchyList(
-    items: Array<{
-      title: string;
-      description?: string;
-      depth: number;
-    }>
-  ): HTMLDivElement {
-    const list = document.createElement('div');
-    list.style.display = 'flex';
-    list.style.flexDirection = 'column';
-    list.style.gap = '5px';
-
-    items.forEach((item) => {
-      const row = document.createElement('div');
-      row.style.display = 'flex';
-      row.style.flexDirection = 'column';
-      row.style.gap = '2px';
-      row.style.paddingLeft = `${item.depth * 16}px`;
-
-      const title = document.createElement('p');
-      title.textContent = `${item.depth > 0 ? '-> ' : ''}${item.title}`;
-      title.style.margin = '0';
-      title.style.fontSize = '11.5px';
-      title.style.fontWeight = item.depth === 0 ? '700' : '600';
-      title.style.lineHeight = '1.45';
-      title.style.color = '#0f172a';
-      row.appendChild(title);
-
-      if (item.description) {
-        row.appendChild(
-          this.createActionTextParagraph(item.description, {
-            fontSize: '10.5px',
-            lineHeight: '1.5',
-            color: '#475569',
-          })
-        );
-      }
-
-      list.appendChild(row);
-    });
-
-    return list;
-  }
-
-  private createActionPreviewEntityList(
-    items: Array<{
-      title: string;
-      description?: string;
-      meta?: string[];
-    }>
-  ): HTMLDivElement {
-    const list = document.createElement('div');
-    list.style.display = 'flex';
-    list.style.flexDirection = 'column';
-    list.style.gap = '8px';
-
-    items.forEach((item) => {
-      const row = document.createElement('div');
-      row.style.display = 'flex';
-      row.style.flexDirection = 'column';
-      row.style.gap = '3px';
-
-      row.appendChild(
-        this.createActionTextParagraph(item.title, {
-          fontSize: '11.5px',
-          lineHeight: '1.45',
-          color: '#0f172a',
-        })
-      );
-
-      if (item.meta && item.meta.length > 0) {
-        row.appendChild(this.createActionMetaParagraph(item.meta.join(' · ')));
-      }
-
-      if (item.description) {
-        row.appendChild(
-          this.createActionTextParagraph(item.description, {
-            fontSize: '10.5px',
-            lineHeight: '1.5',
-            color: '#475569',
-          })
-        );
-      }
-
-      list.appendChild(row);
-    });
-
-    return list;
-  }
-
-  private createActionInlineValue(text: string): HTMLSpanElement {
-    const value = document.createElement('span');
-    value.textContent = text;
-    value.style.fontSize = '11.5px';
-    value.style.lineHeight = '1.55';
-    value.style.color = '#0f172a';
-    value.style.whiteSpace = 'pre-wrap';
-    value.style.wordBreak = 'break-word';
-    return value;
-  }
-
-  private appendActionContentSections(
+  private appendAtomicCreateActionBody(
     container: HTMLElement,
-    cardModel: AiAssistantActionCardModel,
-    options: {
-      sections: AiAssistantActionContentSection[];
-      skipEyebrowTag?: boolean;
-      bodyFontSize: string;
-      bodyLineHeight: string;
-    }
+    cardModel: AiAssistantAtomicCreateCardModel
   ): void {
-    const sectionNodes = this.createActionContentSectionNodes(cardModel, {
-      skipEyebrowTag: options.skipEyebrowTag ?? false,
-      bodyFontSize: options.bodyFontSize,
-      bodyLineHeight: options.bodyLineHeight,
-    });
-
-    options.sections.forEach((section) => {
-      sectionNodes[section].forEach((node) => {
-        container.appendChild(node);
-      });
-    });
+    this.appendStandardActionContent(container, cardModel);
   }
 
-  private createActionContentSectionNodes(
-    cardModel: AiAssistantActionCardModel,
-    options: {
-      skipEyebrowTag: boolean;
-      bodyFontSize: string;
-      bodyLineHeight: string;
-    }
-  ): Record<AiAssistantActionContentSection, HTMLElement[]> {
-    const sectionNodes: Record<AiAssistantActionContentSection, HTMLElement[]> = {
-      meta: [this.createActionMetaParagraph(cardModel.meta)],
-      tags: [],
-      details: cardModel.detailBlocks.map((block) =>
-        this.createActionDetailBlock(block)
-      ),
-      description: [],
-      reason: [],
-      error: [],
-    };
-
-    const tags = this.createActionTagRowFromModels(cardModel.tags, {
-      skipCount: options.skipEyebrowTag ? 1 : 0,
+  private appendRelationActionBody(
+    container: HTMLElement,
+    cardModel: AiAssistantRelationCardModel
+  ): void {
+    this.appendActionMeta(container, cardModel.meta, {
+      emphasized: true,
     });
-    if (tags) {
-      sectionNodes.tags.push(tags);
-    }
+    this.appendActionChips(container, cardModel.chips);
+    this.appendActionSummary(container, cardModel.summary);
+    this.appendActionTail(container, cardModel);
+  }
 
-    if (cardModel.description) {
-      sectionNodes.description.push(
-        this.createActionTextParagraph(cardModel.description, {
-          fontSize: options.bodyFontSize,
-          lineHeight: options.bodyLineHeight,
-          color: '#334155',
-        })
+  private appendUpdateActionBody(
+    container: HTMLElement,
+    cardModel: AiAssistantUpdateCardModel
+  ): void {
+    this.appendActionChips(container, cardModel.chips);
+    if (cardModel.summary) {
+      container.appendChild(
+        setAiActionComponentName(
+          createActionTextParagraphElement(
+            cardModel.summary,
+            AI_ASSISTANT_ACTION_TOKENS.typography.secondaryText
+          ),
+          'summary-paragraph'
+        )
       );
     }
-
-    if (cardModel.reason) {
-      sectionNodes.reason.push(
-        this.createActionTextParagraph(cardModel.reason, {
-          fontSize: options.bodyFontSize,
-          lineHeight: options.bodyLineHeight,
-          color: '#334155',
-        })
+    if (cardModel.changes.length > 0) {
+      container.appendChild(
+        createActionAccentedSection(
+          cardModel.changes.length === 1 ? 'Change' : 'Changes',
+          this.createUpdateChangesContent(cardModel.changes)
+        )
       );
     }
-
+    if (cardModel.rationale) {
+      container.appendChild(this.createUpdateWhySection(cardModel.rationale));
+    }
+    if (cardModel.provenance) {
+      container.appendChild(this.createActionProvenanceText(cardModel.provenance));
+    }
     if (cardModel.error) {
-      sectionNodes.error.push(
-        this.createActionTextParagraph(cardModel.error, {
+      container.appendChild(
+        createActionTextParagraphElement(cardModel.error, {
           fontSize: '11px',
           lineHeight: '1.45',
           color: '#b91c1c',
         })
       );
     }
-
-    return sectionNodes;
   }
 
-  private createActionFooter(button: HTMLButtonElement): HTMLDivElement {
-    const footer = document.createElement('div');
-    footer.style.display = 'flex';
-    footer.style.justifyContent = 'flex-start';
-    footer.style.paddingTop = '2px';
-    footer.appendChild(button);
-    return footer;
+  private createUpdateChangesContent(
+    changes: AiAssistantUpdateCardModel['changes']
+  ): HTMLDivElement {
+    const list = document.createElement('div');
+    list.style.display = 'flex';
+    list.style.flexDirection = 'column';
+    list.style.gap = '6px';
+    setAiActionComponentName(list, 'update-changes-content');
+
+    changes.forEach((entry) => {
+      const row = document.createElement('div');
+      setAiActionComponentName(row, 'update-change-row');
+      row.style.paddingTop = '1px';
+      row.style.paddingBottom = '1px';
+
+      const label = createActionInlineLabel(entry.label);
+      const value = createActionInlineValue(entry.value);
+
+      const isLongField =
+        entry.label === 'Title' ||
+        entry.label === 'Description' ||
+        entry.value.length > 72 ||
+        entry.value.includes('\n');
+
+      if (isLongField) {
+        row.style.display = 'flex';
+        row.style.flexDirection = 'column';
+        row.style.gap = '2px';
+        row.append(label, value);
+      } else {
+        row.style.display = 'grid';
+        row.style.gridTemplateColumns = `${AI_ASSISTANT_ACTION_TOKENS.layout.keyValueLabelWidthPx}px minmax(0,1fr)`;
+        row.style.columnGap = AI_ASSISTANT_ACTION_TOKENS.layout.keyValueColumnGap;
+        row.style.alignItems = 'start';
+        row.append(label, value);
+      }
+
+      list.appendChild(row);
+    });
+
+    return list;
   }
 
-  private createActionTag(
-    text: string,
-    options: {
-      background: string;
-      color: string;
-      border: string;
+  private createUpdateWhySection(text: string): HTMLDivElement {
+    const section = document.createElement('div');
+    section.style.display = 'flex';
+    section.style.flexDirection = 'column';
+    section.style.gap = '2px';
+    section.style.paddingTop = '1px';
+    setAiActionComponentName(section, 'update-why-section');
+
+    const heading = createActionSectionHeading('Why');
+    const body = createActionTextParagraphElement(
+      text,
+      AI_ASSISTANT_ACTION_TOKENS.typography.secondaryText
+    );
+
+    section.append(heading, body);
+    return section;
+  }
+
+  private appendCreateGoalsActionBody(
+    container: HTMLElement,
+    cardModel: AiAssistantCreateGoalsCardModel
+  ): void {
+    this.appendStandardActionContent(container, cardModel);
+    if (cardModel.items.length > 0) {
+      container.appendChild(
+        createActionSurfaceSection(
+          cardModel.items.length === 1 ? 'Goal' : 'Goals',
+          this.createActionEntityList(cardModel.items)
+        )
+      );
     }
-  ): HTMLSpanElement {
-    const tag = document.createElement('span');
-    tag.textContent = text;
-    tag.style.fontSize = '9.5px';
-    tag.style.fontWeight = '600';
-    tag.style.lineHeight = '1';
-    tag.style.borderRadius = '999px';
-    tag.style.padding = '4px 7px';
-    tag.style.whiteSpace = 'nowrap';
-    tag.style.border = `1px solid ${options.border}`;
-    tag.style.background = options.background;
-    tag.style.color = options.color;
-    return tag;
+    this.appendActionTail(container, cardModel);
+  }
+
+  private appendBlueprintActionBody(
+    container: HTMLElement,
+    cardModel: AiAssistantBlueprintCardModel
+  ): void {
+    this.appendStandardActionContent(container, cardModel);
+    if (cardModel.goals.length > 0) {
+      container.appendChild(
+        createActionSurfaceSection(
+          cardModel.goals.length === 1 ? 'Goal' : 'Goals',
+          this.createActionHierarchyList(cardModel.goals)
+        )
+      );
+    }
+    if (cardModel.sequence.length > 0) {
+      container.appendChild(
+        createActionInlineSection(
+          'Sequence',
+          this.createActionTextList(cardModel.sequence)
+        )
+      );
+    }
+    if (cardModel.assumptions.length > 0) {
+      container.appendChild(
+        createActionInlineSection(
+          cardModel.assumptions.length === 1 ? 'Assumption' : 'Assumptions',
+          this.createActionTextList(cardModel.assumptions)
+        )
+      );
+    }
+    this.appendActionTail(container, cardModel);
+  }
+
+  private appendStandardActionContent(
+    container: HTMLElement,
+    cardModel: AiAssistantActionCardModel
+  ): void {
+    this.appendActionMeta(container, cardModel.meta);
+    this.appendActionChips(container, cardModel.chips);
+    this.appendActionSummary(container, cardModel.summary);
+  }
+
+  private appendActionMeta(
+    container: HTMLElement,
+    meta: string | null,
+    options: {
+      emphasized?: boolean;
+    } = {}
+  ): void {
+    if (!meta) {
+      return;
+    }
+    container.appendChild(
+      options.emphasized
+        ? createActionImportantMetaBlock(meta)
+        : this.createActionMetaParagraph(meta)
+    );
+  }
+
+  private appendActionChips(
+    container: HTMLElement,
+    chips: AiAssistantActionCardModel['chips']
+  ): void {
+    const tagRow = this.createActionTagRow(chips, {
+      skipCount: 1,
+    });
+    if (tagRow) {
+      container.appendChild(tagRow);
+    }
+  }
+
+  private appendActionSummary(
+    container: HTMLElement,
+    summary: string | null
+  ): void {
+    if (!summary) {
+      return;
+    }
+    container.appendChild(this.createActionSummaryParagraph(summary));
+  }
+
+  private appendActionTail(
+    container: HTMLElement,
+    cardModel: Pick<AiAssistantActionCardModel, 'rationale' | 'provenance' | 'error'>
+  ): void {
+    if (cardModel.rationale) {
+      container.appendChild(
+        this.createActionSecondaryTextSection('Why', cardModel.rationale)
+      );
+    }
+    if (cardModel.provenance) {
+      container.appendChild(this.createActionProvenanceText(cardModel.provenance));
+    }
+    if (cardModel.error) {
+      container.appendChild(
+        createActionTextParagraphElement(cardModel.error, {
+          fontSize: '11px',
+          lineHeight: '1.45',
+          color: '#b91c1c',
+        })
+      );
+    }
   }
 
   private applyIslandContainerStyles(): void {
@@ -2284,7 +2414,7 @@ export class AiAssistantPanel {
           review.readinessScore
         );
         readiness.appendChild(
-          this.createActionTag(`Readiness ${review.readinessScore}`, {
+          createActionTagElement(`Readiness ${review.readinessScore}`, {
             background: readinessTone.background,
             color: readinessTone.color,
             border: readinessTone.border,
@@ -2325,7 +2455,7 @@ export class AiAssistantPanel {
       const severityTone = getAiAssistantFindingSeverityBadgeTone(
         finding.severity
       );
-      const severity = this.createActionTag(finding.severity, {
+      const severity = createActionTagElement(finding.severity, {
         background: severityTone.background,
         color: severityTone.color,
         border: severityTone.border,

@@ -28,3 +28,15 @@
 - Regex-based interpretation is brittle across languages, inflections, punctuation, mixed-language prompts, and paraphrases.
 - It hides product logic inside string tricks that are hard to reason about, hard to test, and easy to regress.
 - Semantic decisions in the assistant should stay explainable, language-tolerant, and grounded in explicit rules or evidence.
+
+## Chat Action Card UI
+
+- Keep compact chat action cards to at most 3 text levels within a single card:
+  - primary: title and reviewable payload values
+  - secondary: summary and rationale body
+  - tertiary: section headings, field labels, provenance, and other support text
+- Do not introduce extra local font-size or text-color overrides inside one action family unless they add a genuinely new semantic level.
+- In `suggest_update`, treat `Changes` as the single primary payload block and `Why` as a secondary note. They must not read as two equally strong blocks.
+- Do not hide `medium` priority in chat action cards.
+- Priority indicators in chat action cards must use the same icon vocabulary and color mapping as the priority selector in `canvas/ui/components/EditElementModal.ts`. Prefer icon chips over text chips for action-card priority badges.
+- For `create_task` and `create_story` action cards, do not render target-container meta under the title. Generic target context like `Story`, `Goal`, `Selected story`, or `Selected goal` is noise in this UI.

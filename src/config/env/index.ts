@@ -13,7 +13,7 @@ const parseOptionalString = (value?: string): string | null => {
   return trimmed.length > 0 ? trimmed : null;
 };
 
-export const IS_DEVELOPMENT_MODE = import.meta.env.MODE === 'development';
+export const IS_DEVELOPMENT_MODE = __DEV_BUILD__;
 export const CANVAS_PERF_LOG =
   parseOptionalBoolean(import.meta.env.VITE_CANVAS_PERF_LOG) ?? false;
 export const KANBAN_DEV_ENABLED =

@@ -38,7 +38,6 @@ import { createAiAssistantRuntime } from '../features/ai-assistant/services/AiAs
 import { AiAssistantSessionController } from '../features/ai-assistant/services/AiAssistantSessionController.ts';
 import { buildAiAssistantCapabilityContext } from '../features/ai-assistant/services/AiAssistantCapabilities.ts';
 
-const KANBAN_MODULE_IMPORT_PATH = '../features/kanban/KanbanModule.ts';
 const CHAT_ISLAND_GAP_PX = 6;
 const CHAT_ISLAND_MARGIN_PX = 6;
 const CHAT_ISLAND_RADIUS_PX = 22;
@@ -46,6 +45,9 @@ const CHAT_ISLAND_RADIUS_PX = 22;
 type KanbanModuleNamespace = {
   KanbanModule: new () => WorkspaceModule;
 };
+
+const loadKanbanModule = (): Promise<KanbanModuleNamespace> =>
+  import('../features/kanban/KanbanModule.ts');
 
 export class RuntimeHost {
   private shell: WorkspaceShell | null = null;
@@ -301,10 +303,7 @@ export class RuntimeHost {
         this.shell.register(this.canvasModule);
       }
       if (KANBAN_DEV_ENABLED && !this.kanbanModule) {
-        const modulePath = KANBAN_MODULE_IMPORT_PATH;
-        const { KanbanModule } = (await import(
-          /* @vite-ignore */ modulePath
-        )) as KanbanModuleNamespace;
+        const { KanbanModule } = await loadKanbanModule();
         this.kanbanModule = new KanbanModule();
         this.shell.register(this.kanbanModule);
       }

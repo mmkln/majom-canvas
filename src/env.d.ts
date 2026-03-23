@@ -1,3 +1,5 @@
+declare const __DEV_BUILD__: boolean;
+
 interface ImportMetaEnv {
   readonly DEV: boolean;
   readonly PROD: boolean;

@@ -8,6 +8,9 @@ export default defineConfig(({ mode }) => {
   const base = configuredBase && configuredBase.length > 0 ? configuredBase : './';
 
   return {
+    define: {
+      __DEV_BUILD__: JSON.stringify(mode === 'development'),
+    },
     // Default to relative assets so the same build works on
     // both custom domains and GitHub Pages project paths.
     base,
