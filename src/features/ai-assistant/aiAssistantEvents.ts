@@ -29,7 +29,12 @@ export type AiAssistantIntentKind =
   | 'dependencies'
   | 'missing'
   | 'clarify'
-  | 'fill_details';
+  | 'fill_details'
+  | 'next_steps'
+  | 'recent_changes'
+  | 'duplicates'
+  | 'capability_help'
+  | 'general_question';
 export type AiAssistantIntentScope = 'selection' | 'canvas';
 
 export type AiAssistantElementKind = 'goal' | 'story' | 'task';
@@ -171,11 +176,15 @@ export function isAiAssistantIntentRequestDetail(
     (value.intent === 'review' ||
       value.intent === 'breakdown' ||
       value.intent === 'strategic_plan' ||
-      value.intent === 'bootstrap_plan' ||
       value.intent === 'dependencies' ||
       value.intent === 'missing' ||
       value.intent === 'clarify' ||
-      value.intent === 'fill_details') &&
+      value.intent === 'fill_details' ||
+      value.intent === 'next_steps' ||
+      value.intent === 'recent_changes' ||
+      value.intent === 'duplicates' ||
+      value.intent === 'capability_help' ||
+      value.intent === 'general_question') &&
     (value.scope === undefined ||
       value.scope === 'selection' ||
       value.scope === 'canvas') &&

@@ -45,10 +45,10 @@ describe('AiAssistantContextPlanner', () => {
       'create_goals',
       'create_goal_blueprint',
     ]);
-    expect(scenario.strategicHints[0]).toContain(
+    expect(scenario.strategicHints?.[0]).toContain(
       'Deliver the next release with a stable checkout flow'
     );
-    expect(scenario.evidence.supportedBy).toContain('goal-1');
+    expect(scenario.evidence?.supportedBy).toContain('goal-1');
   });
 
   it('resolves fallback strategic plan modes for empty canvas prompts', () => {

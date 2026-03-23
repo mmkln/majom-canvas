@@ -127,9 +127,6 @@ export type AiAssistantScenarioResolutionInput = {
   contextMode?: AiAssistantContextMode;
   prompt?: string;
   target?: AiAssistantScenarioTargetInput;
-  fallbackIntent?: AiAssistantIntentKind;
-  fallbackIntentContext?: AiAssistantIntentContext;
-  fallbackTarget?: AiAssistantScenarioTargetInput;
 };
 
 export type AiAssistantScenarioClassification = {
@@ -226,10 +223,4 @@ export function isAiAssistantTypedScenario(
   scenario: AiAssistantScenarioDescriptor
 ): boolean {
   return scenario.variant === 'typed';
-}
-
-export function getAiAssistantScenarioPrimaryActionKinds(
-  scenario: AiAssistantScenarioDescriptor
-): AiAssistantStructuredActionEntryKind[] {
-  return scenario.allowedActions;
 }

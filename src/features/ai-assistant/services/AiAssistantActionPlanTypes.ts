@@ -36,7 +36,7 @@ export function isAiAssistantActionPlan(
     (plan.intent === null || typeof plan.intent === 'string') &&
     (plan.confirmationMode === 'batch' ||
       plan.confirmationMode === 'single' ||
-      plan.confirmationMode === 'follow-up') &&
+      plan.confirmationMode === 'none') &&
     Array.isArray(plan.allowedRuntimeActionKinds) &&
     Array.isArray(plan.allowedStructuredReplyKinds) &&
     (plan.primaryRuntimeActionKind === null ||

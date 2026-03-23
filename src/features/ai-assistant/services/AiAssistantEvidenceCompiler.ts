@@ -18,6 +18,7 @@ import {
   type AiAssistantContextScope,
 } from './AiAssistantContextShaping.ts';
 import type { AiAssistantToolResult } from './AiAssistantToolTypes.ts';
+import type { AiAssistantScenarioDescriptor } from './AiAssistantScenarioTypes.ts';
 import { isPlainObject } from './AiAssistantToolTypes.ts';
 
 export type AiAssistantEvidencePacket = {
@@ -25,6 +26,9 @@ export type AiAssistantEvidencePacket = {
   bullets: string[];
   supportedBy: string[];
   evidenceIds: string[];
+  scenarioId?: string;
+  scenarioMode?: string;
+  scenarioKind?: 'typed' | 'fallback';
   sourceContext?: string;
   contextScope?: AiAssistantContextScope;
   contextBudget?: AiAssistantContextBudget;
@@ -37,6 +41,7 @@ export type AiAssistantEvidenceCompilationInput = {
   focus?: AiAssistantFocusItem | null;
   selection?: AiAssistantCanvasElement[];
   intent?: AiAssistantIntentKind;
+  scenario?: AiAssistantScenarioDescriptor | null;
   contextMode?: 'none' | 'canvas' | 'viewport' | 'selection';
   contextBudget?: AiAssistantContextBudget;
   contextExpansionRequest?: AiAssistantContextExpansionRequest;
@@ -54,6 +59,7 @@ export function compileAiAssistantEvidencePacket(
     input.contextBudget ??
     resolveAiAssistantContextBudget({
       intent: input.intent,
+      scenario: input.scenario,
       contextMode: input.contextMode,
       snapshot,
       focus,
@@ -69,6 +75,7 @@ export function compileAiAssistantEvidencePacket(
       snapshot,
       focus,
       selection,
+      scenario: input.scenario,
     });
   const bullets: string[] = [];
 
@@ -115,6 +122,9 @@ export function compileAiAssistantEvidencePacket(
     bullets: limitedBullets.slice(1),
     supportedBy: evidenceIds.slice(0, Math.min(8, budget.maxEvidenceIds)),
     evidenceIds,
+    scenarioId: input.scenario?.id,
+    scenarioMode: input.scenario?.mode,
+    scenarioKind: input.scenario?.variant,
     sourceContext,
     contextScope: budget.scope,
     contextBudget: budget,
@@ -134,6 +144,14 @@ export function renderAiAssistantEvidencePacket(
   }
   if (packet.evidenceIds.length > 0) {
     lines.push(`- Evidence ids: ${packet.evidenceIds.join(', ')}`);
+  }
+  if (packet.scenarioId || packet.scenarioMode || packet.scenarioKind) {
+    const scenarioBits = [
+      packet.scenarioId ? `id=${packet.scenarioId}` : null,
+      packet.scenarioMode ? `mode=${packet.scenarioMode}` : null,
+      packet.scenarioKind ? `kind=${packet.scenarioKind}` : null,
+    ].filter(Boolean);
+    lines.push(`- Scenario: ${scenarioBits.join(', ')}`);
   }
   if (packet.contextBudget) {
     lines.push(`- ${describeAiAssistantContextBudget(packet.contextBudget)}`);
@@ -176,7 +194,7 @@ function summarizeToolResult(
         relationType?: unknown;
       }>;
     };
-    return formatFocusEvidence(focus, scope);
+    return formatFocusEvidence(focus as AiAssistantFocusItem, scope);
   }
 
   if (result.tool === 'get_selection_cluster' && isPlainObject(data.cluster)) {

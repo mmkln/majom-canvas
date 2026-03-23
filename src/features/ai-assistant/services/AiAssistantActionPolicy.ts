@@ -1,5 +1,4 @@
 import type { AiAssistantActionKind } from '../aiAssistantActions.ts';
-import type { AiAssistantIntentKind } from '../aiAssistantEvents.ts';
 import type { AiAssistantScenarioDescriptor } from './AiAssistantScenarioTypes.ts';
 import type { AiAssistantStructuredActionEntryKind } from './AiAssistantStructuredTransport.ts';
 
@@ -36,62 +35,19 @@ const STRUCTURED_TO_RUNTIME_ACTION_KIND: Partial<
   suggest_updates: 'suggest_update',
 };
 
-export function resolveAiAssistantActionKindsForIntent(
-  intent: AiAssistantIntentKind | undefined
-): AiAssistantActionKind[] | null {
-  switch (intent) {
-    case 'dependencies':
-      return ['suggest_relation', 'remove_relation', 'update_relation'];
-    case 'clarify':
-    case 'fill_details':
-      return ['suggest_update'];
-    case 'missing':
-    case 'review':
-      return ['suggest_relation', 'remove_relation', 'update_relation', 'suggest_update'];
-    case 'breakdown':
-      return ['create_task', 'create_story', 'suggest_update'];
-    case 'strategic_plan':
-      return ['create_goals', 'create_goal_blueprint'];
-    default:
-      return null;
-  }
-}
-
-export function resolveAiAssistantStructuredReplyKindsForIntent(
-  intent: AiAssistantIntentKind | undefined
-): Array<AiAssistantStructuredActionEntryKind | 'reviewFindings'> | null {
-  switch (intent) {
-    case 'dependencies':
-      return [
-        'suggest_relation',
-        'suggest_relations',
-        'remove_relation',
-        'remove_relations',
-        'update_relation',
-        'update_relations',
-      ];
-    case 'clarify':
-    case 'fill_details':
-      return ['suggest_update', 'suggest_updates'];
-    case 'missing':
-      return ['reviewFindings', 'suggest_relation', 'suggest_relations', 'remove_relation', 'remove_relations', 'update_relation', 'update_relations', 'suggest_update', 'suggest_updates'];
-    case 'review':
-      return ['reviewFindings', 'suggest_relation', 'suggest_relations', 'remove_relation', 'remove_relations', 'update_relation', 'update_relations', 'suggest_update', 'suggest_updates'];
-    case 'breakdown':
-      return [
-        'create_task',
-        'create_story',
-        'create_batch_tasks',
-        'create_batch_stories',
-        'suggest_update',
-        'suggest_updates',
-      ];
-    case 'strategic_plan':
-      return ['create_goals', 'create_goal_blueprint'];
-    default:
-      return null;
-  }
-}
+const STRUCTURED_ACTION_KIND_EXPANSIONS: Partial<
+  Record<
+    AiAssistantStructuredActionEntryKind,
+    Array<AiAssistantStructuredActionEntryKind | 'reviewFindings'>
+  >
+> = {
+  create_batch_tasks: ['create_task', 'create_batch_tasks'],
+  create_batch_stories: ['create_story', 'create_batch_stories'],
+  suggest_relation: ['suggest_relation', 'suggest_relations'],
+  remove_relation: ['remove_relation', 'remove_relations'],
+  update_relation: ['update_relation', 'update_relations'],
+  suggest_update: ['suggest_update', 'suggest_updates'],
+};
 
 export function resolveAiAssistantStructuredReplyKindsForScenario(
   scenario: AiAssistantScenarioDescriptor | null | undefined
@@ -99,21 +55,13 @@ export function resolveAiAssistantStructuredReplyKindsForScenario(
   if (!scenario) {
     return null;
   }
-
-  if (scenario.kind === 'breakdown') {
-    if (scenario.mode === 'goal_stories') {
-      return ['create_story', 'create_batch_stories'];
-    }
-    if (scenario.mode === 'story_tasks') {
-      return ['create_task', 'create_batch_tasks'];
-    }
-    if (scenario.mode === 'task_refine') {
-      return ['suggest_update', 'suggest_updates'];
-    }
-    return [];
-  }
-
-  return scenario.allowedActions;
+  const expandedKinds = scenario.allowedActions.reduce<
+    Array<AiAssistantStructuredActionEntryKind | 'reviewFindings'>
+  >((kinds, kind) => {
+    kinds.push(...(STRUCTURED_ACTION_KIND_EXPANSIONS[kind] ?? [kind]));
+    return kinds;
+  }, []);
+  return uniqueStructuredReplyKinds(expandedKinds);
 }
 
 export function resolveAiAssistantActionKindsForScenario(
@@ -150,14 +98,8 @@ export function describeAiAssistantStructuredReplyKindsForScenario(
     .join(', ');
 }
 
-export function describeAiAssistantStructuredReplyKinds(
-  intent: AiAssistantIntentKind | undefined
-): string | null {
-  const allowedKinds = resolveAiAssistantStructuredReplyKindsForIntent(intent);
-  if (!allowedKinds || allowedKinds.length === 0) {
-    return null;
-  }
-  return allowedKinds
-    .map((kind) => STRUCTURED_ACTION_KIND_LABELS[kind])
-    .join(', ');
+function uniqueStructuredReplyKinds(
+  kinds: Array<AiAssistantStructuredActionEntryKind | 'reviewFindings'>
+): Array<AiAssistantStructuredActionEntryKind | 'reviewFindings'> {
+  return kinds.filter((kind, index) => kinds.indexOf(kind) === index);
 }

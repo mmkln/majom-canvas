@@ -36,6 +36,7 @@ describe('AiAssistantEvidenceCompiler', () => {
     expect(packet.supportedBy).toContain('goal-1');
     expect(packet.evidenceIds).toContain('story-1');
     expect(packet.evidenceIds).toContain('goal-1');
+    expect(packet.scenarioId).toBeUndefined();
     expect(packet.bullets.join('\n')).toContain('Payment form');
     expect(packet.bullets.join('\n')).toContain('Receipt email');
     expect(packet.sourceContext).toContain('Main current flow');
@@ -70,5 +71,30 @@ describe('AiAssistantEvidenceCompiler', () => {
     expect(rendered).toContain('Context scope:');
     expect(rendered).not.toContain('"tool"');
     expect(rendered).toContain('Canonical context:');
+  });
+
+  it('includes scenario metadata when supplied', () => {
+    const snapshot = createAiAssistantTestSnapshot();
+    const packet = compileAiAssistantEvidencePacket({
+      snapshot,
+      scenario: {
+        id: 'strategic_plan.goal_subgoals',
+        kind: 'strategic_plan',
+        variant: 'typed',
+        intent: 'strategic_plan',
+        mode: 'goal_subgoals',
+        scope: 'item',
+        target: null,
+        confidence: 0.95,
+        missingSlots: [],
+        allowedActions: [],
+        confirmationMode: 'none',
+      },
+    });
+
+    expect(packet.scenarioId).toBe('strategic_plan.goal_subgoals');
+    expect(packet.scenarioMode).toBe('goal_subgoals');
+    expect(packet.scenarioKind).toBe('typed');
+    expect(renderAiAssistantEvidencePacket(packet)).toContain('Scenario:');
   });
 });

@@ -14,14 +14,16 @@ import type {
   AiAssistantStrategicPlanMode,
 } from './AiAssistantIntentContext.ts';
 import { compileAiAssistantEvidencePacket } from './AiAssistantEvidenceCompiler.ts';
-import { getAiAssistantScenarioDefinition } from './AiAssistantScenarioRegistry.ts';
 import {
-  buildAiAssistantScenarioTarget,
   type AiAssistantScenarioConfirmationMode,
   type AiAssistantScenarioDescriptor,
   type AiAssistantScenarioKind,
   type AiAssistantScenarioTargetScope,
 } from './AiAssistantScenarioTypes.ts';
+import {
+  buildAiAssistantScenarioTargetInputFromSnapshot,
+  resolveAiAssistantScenario,
+} from './AiAssistantScenarioResolver.ts';
 import type { AiAssistantToolResult } from './AiAssistantToolTypes.ts';
 import {
   getFocusBundle,
@@ -61,18 +63,27 @@ export function buildAiAssistantScenarioDescriptor(params: {
       getSelectionCluster(params.snapshot) ?? params.snapshot ?? null
     );
   const selectedIds = params.snapshot?.selectionIds.slice() ?? [];
-  const target = focus?.item ? toScenarioItemSummary(focus.item) : null;
-  const mode = resolveScenarioMode(params.intent, params.intentContext, target);
-  const definition = getAiAssistantScenarioDefinition(params.intent, mode);
+  const contextMode = resolveContextMode(params.snapshot, selectedIds);
+  const baseScenario = resolveAiAssistantScenario({
+    source: 'intent',
+    intent: params.intent,
+    intentContext: params.intentContext,
+    contextMode,
+    target: buildAiAssistantScenarioTargetInputFromSnapshot(params.snapshot),
+  });
+  const target = baseScenario.target;
   const targetScope = resolveScenarioTargetScope(
-    params.intent,
-    mode,
+    baseScenario.intent ?? params.intent,
+    baseScenario.mode,
     target,
     selectedIds
   );
   const evidence = compileAiAssistantEvidencePacket({
     snapshot: params.snapshot,
     toolResults: params.toolResults,
+    intent: params.intent,
+    scenario: baseScenario,
+    contextMode,
     focus,
     selection: params.snapshot
       ? params.snapshot.elements.filter((element) =>
@@ -82,30 +93,16 @@ export function buildAiAssistantScenarioDescriptor(params: {
   });
 
   return {
-    id: definition.id,
-    kind: definition.intent ?? 'conversation',
-    variant: definition.kind,
-    intent: definition.intent,
-    contextMode: resolveContextMode(params.snapshot, selectedIds),
+    ...baseScenario,
     targetScope,
-    scope: definition.scope,
-    mode,
     confidence: resolveScenarioConfidence(params.intentContext, target, selectedIds),
-    confirmationMode: definition.confirmationMode,
-    missingSlots: resolveScenarioMissingSlots(params.intent, mode, target),
-    allowedActions: definition.allowedActions,
-    target: buildAiAssistantScenarioTarget({
-      canvasId: params.snapshot?.canvasId,
-      canvasTitle: params.snapshot?.canvasTitle,
-      selectionItems: params.snapshot?.elements.filter((element) =>
-        selectedIds.includes(element.id)
-      ),
-      selectedItem: focus?.item ?? null,
-    }),
     focus,
     cluster,
     selectedIds,
-    strategicHints: params.intent === 'strategic_plan' ? extractAiAssistantStrategicHints(target) : [],
+    strategicHints:
+      params.intent === 'strategic_plan'
+        ? extractAiAssistantStrategicHints(target)
+        : [],
     evidence,
     intentContext: params.intentContext,
   };
@@ -165,74 +162,9 @@ export function extractAiAssistantStrategicHints(
     .slice(0, 8);
 }
 
-function resolveScenarioMode(
-  intent: AiAssistantIntentKind,
-  intentContext: AiAssistantIntentContext | undefined,
-  target: AiAssistantScenarioItemSummary | null
-):
-  | AiAssistantStrategicPlanMode
-  | AiAssistantBreakdownMode
-  | 'dependencies'
-  | 'fill_details'
-  | 'review_selection'
-  | 'missing_details'
-  | 'clarify_selection'
-  | 'next_steps'
-  | 'recent_changes'
-  | 'duplicate_review'
-  | 'general_question'
-  | 'capability_help' {
-  if (intent === 'strategic_plan') {
-    return resolveAiAssistantStrategicPlanMode(intentContext, target);
-  }
-  if (intent === 'breakdown') {
-    return resolveAiAssistantBreakdownMode(intentContext, target);
-  }
-  if (intent === 'dependencies') {
-    return 'dependencies';
-  }
-  if (intent === 'fill_details') {
-    return 'fill_details';
-  }
-  if (intent === 'review') {
-    return 'review_selection';
-  }
-  if (intent === 'missing') {
-    return 'missing_details';
-  }
-  if (intent === 'clarify') {
-    return 'clarify_selection';
-  }
-  if (intent === 'next_steps') {
-    return 'next_steps';
-  }
-  if (intent === 'recent_changes') {
-    return 'recent_changes';
-  }
-  if (intent === 'duplicates') {
-    return 'duplicate_review';
-  }
-  if (intent === 'capability_help') {
-    return 'capability_help';
-  }
-  return 'general_question';
-}
-
 function resolveScenarioTargetScope(
   intent: AiAssistantIntentKind,
-  mode:
-    | AiAssistantStrategicPlanMode
-    | AiAssistantBreakdownMode
-    | 'dependencies'
-    | 'fill_details'
-    | 'review_selection'
-    | 'missing_details'
-    | 'clarify_selection'
-    | 'next_steps'
-    | 'recent_changes'
-    | 'duplicate_review'
-    | 'general_question'
-    | 'capability_help',
+  mode: AiAssistantScenarioDescriptor['mode'],
   target: AiAssistantScenarioItemSummary | null,
   selectedIds: string[]
 ): AiAssistantScenarioTargetScope {
@@ -247,51 +179,22 @@ function resolveScenarioTargetScope(
       ? 'selection'
       : target?.kind === 'goal'
         ? 'selected_goal'
-        : target?.kind === 'story'
+      : target?.kind === 'story'
           ? 'selected_story'
           : target?.kind === 'task'
             ? 'selected_task'
             : 'selection';
   }
   if (intent === 'review' || intent === 'missing' || intent === 'clarify') {
-    return selectedIds.length > 0 ? 'selection' : 'conversation';
+    return selectedIds.length > 0 ? 'selection' : 'none';
   }
   if (intent === 'next_steps' || intent === 'recent_changes' || intent === 'duplicates') {
     return 'canvas';
   }
   if (intent === 'capability_help' || intent === 'general_question') {
-    return 'conversation';
+    return 'none';
   }
-  return target ? 'selection' : 'conversation';
-}
-
-function resolveScenarioMissingSlots(
-  intent: AiAssistantIntentKind,
-  mode:
-    | AiAssistantStrategicPlanMode
-    | AiAssistantBreakdownMode
-    | 'dependencies'
-    | 'fill_details'
-    | 'review_selection'
-    | 'missing_details'
-    | 'clarify_selection'
-    | 'next_steps'
-    | 'recent_changes'
-    | 'duplicate_review'
-    | 'general_question'
-    | 'capability_help',
-  target: AiAssistantScenarioItemSummary | null
-): string[] {
-  if (intent === 'strategic_plan') {
-    return mode === 'goal_replan' && !target ? ['selected_goal'] : [];
-  }
-  if (intent === 'breakdown') {
-    return mode === 'unspecified_goal_decomposition' ? ['decomposition_level'] : [];
-  }
-  if (intent === 'dependencies' || intent === 'fill_details') {
-    return target ? [] : ['selection'];
-  }
-  return [];
+  return target ? 'selection' : 'none';
 }
 
 function resolveScenarioConfidence(
@@ -368,19 +271,6 @@ function resolveBreakdownTargetScope(
   return 'selection';
 }
 
-function toScenarioItemSummary(
-  element: AiAssistantCanvasElement
-): AiAssistantScenarioItemSummary {
-  return {
-    id: element.id,
-    kind: element.kind,
-    title: element.title,
-    description: element.description,
-    status: typeof element.status === 'string' ? element.status : undefined,
-    priority: typeof element.priority === 'string' ? element.priority : undefined,
-  };
-}
-
 function compactAiAssistantCanvasSnapshot(
   snapshot: AiAssistantCanvasSnapshot | null
 ): AiAssistantCanvasSnapshot | null {
@@ -388,12 +278,10 @@ function compactAiAssistantCanvasSnapshot(
     return null;
   }
 
-  const compact = { ...snapshot };
-  delete compact.viewport;
-  delete compact.recentActivity;
-
   return {
-    ...compact,
+    ...snapshot,
+    viewport: null,
+    recentActivity: [],
   };
 }
 

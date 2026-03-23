@@ -1,4 +1,5 @@
 import type { AiAssistantCanvasElement } from '../aiAssistantEvents.ts';
+import type { AiAssistantIntentContext } from './AiAssistantIntentContext.ts';
 
 export type AiAssistantProfile =
   | 'summarize'
@@ -78,6 +79,9 @@ export type AiAssistantAppliedActionRecord = {
   sourceMessageId?: string;
   scenarioId?: string;
   scenarioMode?: string;
+  scenarioKind?: AiAssistantActiveScenario['kind'];
+  routeLength?: 'short' | 'long';
+  proposalStyle?: 'clarify-first' | 'direct';
   createdElementIds: string[];
   affectedElementIds: string[];
   recordedAt: number;
@@ -87,6 +91,7 @@ export type AiAssistantActiveScenario = {
   id: string;
   kind: 'typed' | 'fallback';
   intent: string | null;
+  intentContext?: AiAssistantIntentContext;
   mode: string;
   scope: string;
   confidence: number;
@@ -104,6 +109,9 @@ export type AiAssistantFollowUpSlotRecord = {
   recordedAt: number;
   scenarioId?: string;
   scenarioMode?: string;
+  scenarioKind?: AiAssistantActiveScenario['kind'];
+  routeLength?: 'short' | 'long';
+  proposalStyle?: 'clarify-first' | 'direct';
 };
 
 export const EMPTY_AI_ASSISTANT_MEMORY_STATE: AiAssistantMemoryState = {
@@ -157,10 +165,6 @@ export function normalizeAiAssistantProfile(
     case 'dependencies':
     case 'dependency_review':
       return 'dependency-review';
-    case 'bootstrap':
-    case 'bootstrap_plan':
-    case 'bootstrap-plan':
-    case 'plan-bootstrap':
     case 'strategic':
     case 'strategic_plan':
     case 'strategic-plan':

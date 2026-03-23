@@ -33,7 +33,7 @@ export function resolveAiAssistantScenarioFromSubmission(
     intent: submission.intent,
     intentContext: submission.intentContext,
     contextMode: submission.contextMode,
-    target: buildTargetInput(submission.snapshot),
+    target: buildAiAssistantScenarioTargetInputFromSnapshot(submission.snapshot),
   });
 }
 
@@ -46,7 +46,7 @@ export function resolveAiAssistantScenarioFromPrompt(
   return resolveAiAssistantScenario({
     ...input,
     contextMode: input.contextMode,
-    target: buildTargetInput(input.snapshot),
+    target: buildAiAssistantScenarioTargetInputFromSnapshot(input.snapshot),
   });
 }
 
@@ -164,19 +164,21 @@ function resolveAiAssistantScenarioMissingSlots(
   if (!intent) {
     return [];
   }
-  if (!target) {
-    if (intent === 'strategic_plan' && mode === 'goal_subgoals') {
-      return ['target'];
-    }
-    if (intent === 'breakdown') {
-      return ['target'];
-    }
-    return [];
+  if (intent === 'strategic_plan') {
+    return mode === 'goal_replan' && !target ? ['selected_goal'] : [];
+  }
+  if (intent === 'breakdown') {
+    return mode === 'unspecified_goal_decomposition'
+      ? ['decomposition_level']
+      : [];
+  }
+  if (intent === 'dependencies' || intent === 'fill_details') {
+    return target ? [] : ['selection'];
   }
   return [];
 }
 
-function buildTargetInput(
+export function buildAiAssistantScenarioTargetInputFromSnapshot(
   snapshot: AiAssistantCanvasSnapshot | null
 ): AiAssistantScenarioTargetInput | undefined {
   if (!snapshot) {
@@ -185,7 +187,7 @@ function buildTargetInput(
   const selectedItems = getAiAssistantSelectedItems(snapshot);
   const selectedItem = selectedItems.length === 1 ? selectedItems[0] : undefined;
   return {
-    canvasId: snapshot.canvasId,
+    canvasId: snapshot.canvasId ?? undefined,
     canvasTitle: snapshot.canvasTitle,
     selectionItems: selectedItems,
     selectedItem,

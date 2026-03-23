@@ -3,7 +3,6 @@ import type {
   AiAssistantScenarioDefinition,
   AiAssistantScenarioId,
 } from './AiAssistantScenarioTypes.ts';
-import type { AiAssistantStructuredActionEntryKind } from './AiAssistantStructuredTransport.ts';
 
 const TYPED_BATCH_CONFIRMATION = 'batch' as const;
 const TYPED_SINGLE_CONFIRMATION = 'single' as const;
@@ -232,11 +231,4 @@ export function getAiAssistantScenarioDefinition(
     default:
       return AI_ASSISTANT_SCENARIO_REGISTRY['general_question.default'];
   }
-}
-
-export function getAiAssistantScenarioActionKinds(
-  intent: AiAssistantIntentKind | null | undefined,
-  mode?: string
-): AiAssistantStructuredActionEntryKind[] {
-  return getAiAssistantScenarioDefinition(intent, mode).allowedActions;
 }

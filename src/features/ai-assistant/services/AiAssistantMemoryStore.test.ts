@@ -40,7 +40,11 @@ describe('AiAssistantMemoryStore', () => {
     expect(userState.userConstraints.map((entry) => entry.text)).toEqual(
       expect.arrayContaining([
         expect.stringContaining('Build a strategic plan for marketing automation.'),
-        expect.stringContaining('Scenario context: scenario=strategic_plan.goal_subgoals'),
+        expect.stringContaining(
+          'Scenario context: scenarioId=strategic_plan.goal_subgoals'
+        ),
+        expect.stringContaining('scenarioMode=goal_subgoals'),
+        expect.stringContaining('scenarioKind=typed'),
         expect.stringContaining('routeLength=long'),
         expect.stringContaining('proposalStyle=clarify-first'),
       ])
@@ -80,6 +84,9 @@ describe('AiAssistantMemoryStore', () => {
         text: 'Which subgoal should I expand first?',
         scenarioId: 'strategic_plan.goal_subgoals',
         scenarioMode: 'goal_subgoals',
+        scenarioKind: 'typed',
+        routeLength: 'long',
+        proposalStyle: 'clarify-first',
       }),
     ]);
 
@@ -105,6 +112,9 @@ describe('AiAssistantMemoryStore', () => {
       createdElementIds: ['goal-1'],
       scenarioId: 'strategic_plan.goal_subgoals',
       scenarioMode: 'goal_subgoals',
+      scenarioKind: 'typed',
+      routeLength: 'long',
+      proposalStyle: 'clarify-first',
     });
     expect(actionState.confirmedFacts.map((entry) => entry.source)).toContain(
       'action'

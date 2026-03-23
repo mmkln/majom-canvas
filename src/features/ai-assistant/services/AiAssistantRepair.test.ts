@@ -85,12 +85,14 @@ describe('AiAssistantRepair', () => {
         scenarioKind: 'typed',
         routeLength: 'long',
         proposalStyle: 'clarify-first',
+        fallbackReason: 'scenario_clarification',
       },
     });
     expect(routerMessages[0]?.content).toContain('Scenario context:');
     expect(routerMessages[0]?.content).toContain(
       'scenarioId=strategic_plan.goal_subgoals'
     );
+    expect(routerMessages[0]?.content).toContain('fallbackReason=scenario_clarification');
 
     const structuredMessages = buildAiAssistantStructuredReplyRepairMessages({
       invalidResponse: '{"replyMarkdown":"x","actions":[]}',
@@ -102,11 +104,13 @@ describe('AiAssistantRepair', () => {
         scenarioKind: 'typed',
         routeLength: 'long',
         proposalStyle: 'clarify-first',
+        fallbackReason: 'scenario_clarification',
       },
     });
     expect(structuredMessages[0]?.content).toContain('Scenario context:');
     expect(structuredMessages[0]?.content).toContain(
       'proposalStyle=clarify-first'
     );
+    expect(structuredMessages[0]?.content).toContain('fallbackReason=scenario_clarification');
   });
 });

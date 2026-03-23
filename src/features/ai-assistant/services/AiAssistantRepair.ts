@@ -3,13 +3,14 @@ import {
   AI_ASSISTANT_STRUCTURED_ENVELOPE_SHAPE,
 } from './AiAssistantStructuredTransport.ts';
 import type { AiAssistantApiMessage } from './AiAssistantApiTypes.ts';
-import type { AiAssistantIntentKind } from '../aiAssistantEvents.ts';
-import { describeAiAssistantStructuredReplyKinds } from './AiAssistantActionPolicy.ts';
+import { describeAiAssistantStructuredReplyKindsForScenario } from './AiAssistantActionPolicy.ts';
 import { describeAiAssistantProfiles } from './AiAssistantContextTypes.ts';
-import type {
-  AiAssistantTelemetryScenarioContext,
-  AiAssistantTokenUsage,
+import {
+  describeAiAssistantTelemetryScenarioContext,
+  type AiAssistantTelemetryScenarioContext,
+  type AiAssistantTokenUsage,
 } from './AiAssistantTelemetryTypes.ts';
+import type { AiAssistantScenarioDescriptor } from './AiAssistantScenarioTypes.ts';
 
 type AiAssistantTextClient = {
   completeText: (
@@ -191,7 +192,9 @@ export function buildAiAssistantRouterRepairMessages(params: {
     params.originalMessages && params.originalMessages.length > 0
       ? `Original router request:\n${JSON.stringify(params.originalMessages, null, 2)}`
       : null;
-  const scenarioContext = describeScenarioContext(params.scenario);
+  const scenarioContext = describeAiAssistantTelemetryScenarioContext(
+    params.scenario
+  );
   const systemLines = [
     'You repair invalid JSON emitted by a routing model.',
     'Return JSON only.',
@@ -231,7 +234,7 @@ export function buildAiAssistantStructuredReplyRepairMessages(params: {
   invalidResponse: string;
   validationError: string;
   allowActions: boolean;
-  intent?: AiAssistantIntentKind;
+  scenarioDescriptor?: AiAssistantScenarioDescriptor | null;
   scenario?: AiAssistantTelemetryScenarioContext;
 }): AiAssistantApiMessage[] {
   const systemLines = [
@@ -241,7 +244,9 @@ export function buildAiAssistantStructuredReplyRepairMessages(params: {
     'Preserve the original replyMarkdown meaning whenever possible.',
     `Required envelope shape: ${AI_ASSISTANT_STRUCTURED_ENVELOPE_SHAPE}`,
   ];
-  const scenarioContext = describeScenarioContext(params.scenario);
+  const scenarioContext = describeAiAssistantTelemetryScenarioContext(
+    params.scenario
+  );
   if (scenarioContext) {
     systemLines.push(scenarioContext);
   }
@@ -249,8 +254,8 @@ export function buildAiAssistantStructuredReplyRepairMessages(params: {
   if (!params.allowActions) {
     systemLines.push('If unsure, set "actions": [].');
   } else {
-    const intentScopedKinds = describeAiAssistantStructuredReplyKinds(
-      params.intent
+    const intentScopedKinds = describeAiAssistantStructuredReplyKindsForScenario(
+      params.scenarioDescriptor
     );
     systemLines.push(
       'Keep actions confirm-first. If evidence is weak, set "actions": [].',
@@ -276,24 +281,6 @@ export function buildAiAssistantStructuredReplyRepairMessages(params: {
       ].join('\n\n'),
     },
   ];
-}
-
-function describeScenarioContext(
-  scenario: AiAssistantTelemetryScenarioContext | undefined
-): string | null {
-  if (!scenario) {
-    return null;
-  }
-
-  const parts = [
-    scenario.scenarioId ? `scenarioId=${scenario.scenarioId}` : null,
-    scenario.scenarioMode ? `scenarioMode=${scenario.scenarioMode}` : null,
-    scenario.scenarioKind ? `scenarioKind=${scenario.scenarioKind}` : null,
-    scenario.routeLength ? `routeLength=${scenario.routeLength}` : null,
-    scenario.proposalStyle ? `proposalStyle=${scenario.proposalStyle}` : null,
-  ].filter(Boolean);
-
-  return parts.length > 0 ? `Scenario context: ${parts.join(', ')}` : null;
 }
 
 export function tryParseAiAssistantJsonCandidate<T = unknown>(

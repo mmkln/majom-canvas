@@ -22,15 +22,11 @@ describe('AiAssistantStructuredTransport', () => {
     );
   });
 
-  it('exposes an optional action plan hint in strategic structured reply examples', () => {
+  it('keeps strategic structured reply examples canonical without legacy action-plan hints', () => {
     const examples = getAiAssistantStructuredReplyExamples();
-    expect(examples.strategicBlueprintExample.actionPlan).toMatchObject({
-      scenarioId: 'strategic_plan.goal_subgoals',
-      confirmationMode: 'batch',
-      allowedStructuredReplyKinds: [
-        'create_goals',
-        'create_goal_blueprint',
-      ],
-    });
+    expect(examples.strategicBlueprintExample.actions[0]?.kind).toBe(
+      'create_goal_blueprint'
+    );
+    expect('actionPlan' in examples.strategicBlueprintExample).toBe(false);
   });
 });

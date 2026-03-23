@@ -17,6 +17,7 @@ describe('AiAssistantTelemetryStore', () => {
       scenarioKind: 'typed',
       routeLength: 'long',
       proposalStyle: 'clarify-first',
+      fallbackReason: 'scenario_clarification',
       routeType: 'intent',
       intent: 'strategic_plan',
       profile: 'strategic-plan',
@@ -45,6 +46,10 @@ describe('AiAssistantTelemetryStore', () => {
       },
       scenarioId: 'strategic_plan.goal_subgoals',
       scenarioMode: 'goal_subgoals',
+      scenarioKind: 'typed',
+      routeLength: 'long',
+      proposalStyle: 'clarify-first',
+      fallbackReason: 'scenario_clarification',
       stage: 'command',
       attempt: 1,
       validationError: 'Invalid command envelope.',
@@ -58,6 +63,10 @@ describe('AiAssistantTelemetryStore', () => {
       },
       scenarioId: 'strategic_plan.goal_subgoals',
       scenarioMode: 'goal_subgoals',
+      scenarioKind: 'typed',
+      routeLength: 'long',
+      proposalStyle: 'clarify-first',
+      fallbackReason: 'scenario_clarification',
       messageId: 'message-1',
       appliedActionCount: 1,
       pendingActionCount: 1,
@@ -72,12 +81,14 @@ describe('AiAssistantTelemetryStore', () => {
       expect(events[0].proposalStyle).toBe('clarify-first');
       expect(events[0].routeType).toBe('intent');
       expect(events[0].commandSpecUsed).toBe(true);
+      expect(events[0].fallbackReason).toBe('scenario_clarification');
       expect(events[0].tokenUsage?.totalTokens).toBe(120);
     }
 
     expect(events[1]?.kind).toBe('repair');
     if (events[1]?.kind === 'repair') {
       expect(events[1].scenarioId).toBe('strategic_plan.goal_subgoals');
+      expect(events[1].scenarioKind).toBe('typed');
       expect(events[1].stage).toBe('command');
       expect(events[1].validationError).toBe('Invalid command envelope.');
     }
@@ -85,6 +96,7 @@ describe('AiAssistantTelemetryStore', () => {
     expect(events[2]?.kind).toBe('action_execution');
     if (events[2]?.kind === 'action_execution') {
       expect(events[2].scenarioId).toBe('strategic_plan.goal_subgoals');
+      expect(events[2].scenarioKind).toBe('typed');
       expect(events[2].appliedActionCount).toBe(1);
       expect(events[2].actionKinds).toEqual(['create_goal']);
     }

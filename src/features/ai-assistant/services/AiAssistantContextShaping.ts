@@ -6,6 +6,7 @@ import type { AiAssistantIntentKind } from '../aiAssistantEvents.ts';
 import type { AiAssistantContextMode } from './AiAssistantContextMode.ts';
 import type { AiAssistantFocusItem } from './AiAssistantContextTypes.ts';
 import type { AiAssistantToolResult } from './AiAssistantToolTypes.ts';
+import type { AiAssistantScenarioDescriptor } from './AiAssistantScenarioTypes.ts';
 import { isPlainObject } from './AiAssistantToolTypes.ts';
 
 export type AiAssistantContextScope =
@@ -44,6 +45,9 @@ export type AiAssistantContextExpansionTarget =
 export type AiAssistantContextExpansionRequest = {
   scope: AiAssistantContextScope;
   target?: AiAssistantContextExpansionTarget;
+  scenarioId?: string;
+  scenarioMode?: string;
+  scenarioKind?: 'typed' | 'fallback';
   requestedToolNames: Array<
     'get_focus_bundle' | 'get_selection_cluster' | 'get_related_relations' | 'get_recent_activity'
   >;
@@ -68,6 +72,7 @@ export function resolveAiAssistantContextBudget(input: {
   focus?: AiAssistantFocusItem | null;
   selection?: AiAssistantCanvasElement[];
   toolResults?: AiAssistantToolResult[];
+  scenario?: AiAssistantScenarioDescriptor | null;
 }): AiAssistantContextBudget {
   const focus = input.focus ?? null;
   const selection = input.selection ?? [];
@@ -90,6 +95,7 @@ export function resolveAiAssistantContextBudget(input: {
     hasFocusBundle,
     hasSelectionCluster,
     hasRelatedRelations,
+    scenario: input.scenario,
   });
 
   return {
@@ -110,6 +116,7 @@ export function buildAiAssistantContextExpansionRequest(input: {
   snapshot?: AiAssistantCanvasSnapshot | null;
   focus?: AiAssistantFocusItem | null;
   selection?: AiAssistantCanvasElement[];
+  scenario?: AiAssistantScenarioDescriptor | null;
 }): AiAssistantContextExpansionRequest {
   const focus = input.focus ?? null;
   const selection = input.selection ?? [];
@@ -119,14 +126,18 @@ export function buildAiAssistantContextExpansionRequest(input: {
     focus,
     selection,
     scope: input.budget.scope,
+    _scenario: input.scenario ?? null,
   });
 
   return {
     scope: input.budget.scope,
     target,
+    scenarioId: input.scenario?.id,
+    scenarioMode: input.scenario?.mode,
+    scenarioKind: input.scenario?.variant,
     requestedToolNames: resolveRequestedToolNames(input.budget.scope),
     maxToolCalls: resolveMaxToolCalls(input.budget.scope),
-    rationale: resolveContextExpansionRationale(input.budget.scope, input.intent),
+    rationale: resolveContextExpansionRationale(input.budget.scope, input.intent, input.scenario),
   };
 }
 
@@ -155,7 +166,13 @@ function resolveContextScope(input: {
   hasFocusBundle: boolean;
   hasSelectionCluster: boolean;
   hasRelatedRelations: boolean;
+  scenario?: AiAssistantScenarioDescriptor | null;
 }): AiAssistantContextScope {
+  const scenarioScope = resolveScenarioScope(input.scenario);
+  if (scenarioScope) {
+    return scenarioScope;
+  }
+
   if (input.intent === 'strategic_plan') {
     if (input.selection.length > 1 || input.hasSelectionCluster) {
       return 'branch';
@@ -210,6 +227,7 @@ function resolveContextExpansionTarget(input: {
   focus: AiAssistantFocusItem | null;
   selection: AiAssistantCanvasElement[];
   scope: AiAssistantContextScope;
+  _scenario?: AiAssistantScenarioDescriptor | null;
 }): AiAssistantContextExpansionTarget | undefined {
   if (input.scope === 'canvas') {
     return input.snapshot?.canvasId
@@ -224,7 +242,7 @@ function resolveContextExpansionTarget(input: {
   if (input.selection.length > 1) {
     return {
       kind: 'selection',
-      id: input.snapshot?.canvasId,
+      id: input.snapshot?.canvasId ?? undefined,
       title: input.snapshot?.canvasTitle || undefined,
     };
   }
@@ -244,6 +262,31 @@ function resolveContextExpansionTarget(input: {
         title: input.snapshot.canvasTitle || undefined,
       }
     : undefined;
+}
+
+function resolveScenarioScope(
+  scenario: AiAssistantScenarioDescriptor | null | undefined
+): AiAssistantContextScope | null {
+  if (!scenario || scenario.variant !== 'typed') {
+    return null;
+  }
+
+  switch (scenario.mode) {
+    case 'canvas_bootstrap':
+      return 'canvas';
+    case 'goal_subgoals':
+    case 'goal_stories':
+      return 'branch';
+    case 'goal_replan':
+    case 'story_tasks':
+      return 'neighborhood';
+    case 'task_refine':
+      return 'local';
+    case 'unspecified_goal_decomposition':
+      return 'local';
+    default:
+      return null;
+  }
 }
 
 function resolveRequestedToolNames(
@@ -276,8 +319,24 @@ function resolveMaxToolCalls(scope: AiAssistantContextScope): 0 | 1 | 2 {
 
 function resolveContextExpansionRationale(
   scope: AiAssistantContextScope,
-  intent?: AiAssistantIntentKind
+  intent?: AiAssistantIntentKind,
+  scenario?: AiAssistantScenarioDescriptor | null
 ): string {
+  if (scenario && scenario.variant === 'typed') {
+    const scenarioLabel = `${scenario.id}${scenario.mode ? ` (${scenario.mode})` : ''}`;
+    switch (scope) {
+      case 'local':
+        return `Surface the immediate scenario context for ${scenarioLabel} with minimal surrounding context.`;
+      case 'neighborhood':
+        return `Surface the scenario neighborhood for ${scenarioLabel} with parent and child evidence.`;
+      case 'branch':
+        return `Surface the scenario branch for ${scenarioLabel} with grounded planning evidence.`;
+      case 'canvas':
+      default:
+        return `Use canvas-level scenario context for ${scenarioLabel} without expanding beyond the current workspace view.`;
+    }
+  }
+
   const intentLabel = intent ? ` for ${intent}` : '';
   switch (scope) {
     case 'local':

@@ -49,7 +49,26 @@ describe('AiAssistantContextShaping', () => {
     }
 
     const budget = resolveAiAssistantContextBudget({
-      intent: 'strategic_plan',
+      scenario: {
+        id: 'strategic_plan.goal_subgoals',
+        kind: 'strategic_plan',
+        variant: 'typed',
+        intent: 'strategic_plan',
+        mode: 'goal_subgoals',
+        scope: 'item',
+        target: {
+          id: goal.id,
+          kind: 'goal',
+          title: goal.title,
+          description: goal.description,
+          status: goal.status,
+          priority: goal.priority,
+        },
+        confidence: 0.96,
+        missingSlots: [],
+        allowedActions: ['create_goals'],
+        confirmationMode: 'batch',
+      },
       snapshot,
       focus: {
         item: story,
@@ -62,7 +81,26 @@ describe('AiAssistantContextShaping', () => {
     });
     const request = buildAiAssistantContextExpansionRequest({
       budget,
-      intent: 'strategic_plan',
+      scenario: {
+        id: 'strategic_plan.goal_subgoals',
+        kind: 'strategic_plan',
+        variant: 'typed',
+        intent: 'strategic_plan',
+        mode: 'goal_subgoals',
+        scope: 'item',
+        target: {
+          id: goal.id,
+          kind: 'goal',
+          title: goal.title,
+          description: goal.description,
+          status: goal.status,
+          priority: goal.priority,
+        },
+        confidence: 0.96,
+        missingSlots: [],
+        allowedActions: ['create_goals'],
+        confirmationMode: 'batch',
+      },
       snapshot,
       focus: {
         item: story,
@@ -77,6 +115,6 @@ describe('AiAssistantContextShaping', () => {
     expect(request.scope).toBe('branch');
     expect(request.maxToolCalls).toBeLessThanOrEqual(2);
     expect(request.requestedToolNames.length).toBeGreaterThan(0);
-    expect(JSON.stringify(request)).toContain('strategic_plan');
+    expect(JSON.stringify(request)).toContain('strategic_plan.goal_subgoals');
   });
 });

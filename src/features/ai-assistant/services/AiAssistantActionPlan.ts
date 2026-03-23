@@ -29,7 +29,7 @@ export function buildAiAssistantActionPlanFromScenario(
     requiresConfirmation:
       scenario.confirmationMode === 'batch' ||
       scenario.confirmationMode === 'single',
-    requiresFollowUp: scenario.confirmationMode === 'follow-up',
+    requiresFollowUp: false,
     batchable: scenario.confirmationMode === 'batch',
   };
 }

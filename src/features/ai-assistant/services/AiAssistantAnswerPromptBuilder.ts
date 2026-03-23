@@ -3,22 +3,22 @@ import {
   AI_ASSISTANT_STRUCTURED_ENVELOPE_SHAPE,
 } from './AiAssistantStructuredTransport.ts';
 import type { AiAssistantApiMessage } from './AiAssistantApiTypes.ts';
-import type { AiAssistantIntentKind } from '../aiAssistantEvents.ts';
 import type {
   AiAssistantMemoryState,
   AiAssistantProfile,
 } from './AiAssistantContextTypes.ts';
 import type { AiAssistantInstructionPacket } from './AiAssistantInstructionTypes.ts';
 import type { AiAssistantToolResult } from './AiAssistantToolTypes.ts';
-import { describeAiAssistantStructuredReplyKinds } from './AiAssistantActionPolicy.ts';
+import { describeAiAssistantStructuredReplyKindsForScenario } from './AiAssistantActionPolicy.ts';
 import {
   compileAiAssistantEvidencePacket,
   renderAiAssistantEvidencePacket,
 } from './AiAssistantEvidenceCompiler.ts';
+import type { AiAssistantScenarioDescriptor } from './AiAssistantScenarioTypes.ts';
 
 export function buildAiAssistantAnswerMessages(params: {
   prompt: string;
-  intent?: AiAssistantIntentKind;
+  scenario?: AiAssistantScenarioDescriptor | null;
   profile: AiAssistantProfile;
   memory: AiAssistantMemoryState;
   instructionPackets: AiAssistantInstructionPacket[];
@@ -30,7 +30,7 @@ export function buildAiAssistantAnswerMessages(params: {
       role: 'system',
       content: buildAnswerSystemPromptForIntent(
         params.allowActions,
-        params.intent
+        params.scenario
       ),
     },
   ];
@@ -55,7 +55,8 @@ export function buildAiAssistantAnswerMessages(params: {
         compileAiAssistantEvidencePacket({
           snapshot: null,
           toolResults: params.toolResults,
-          intent: params.intent,
+          intent: params.scenario?.intent ?? undefined,
+          scenario: params.scenario,
         })
       )}`,
     ]
@@ -68,7 +69,7 @@ export function buildAiAssistantAnswerMessages(params: {
 
 function buildAnswerSystemPromptForIntent(
   allowActions: boolean,
-  intent: AiAssistantIntentKind | undefined
+  scenario: AiAssistantScenarioDescriptor | null | undefined
 ): string {
   const lines = [
     'You are a concise product planning assistant embedded inside a canvas workspace.',
@@ -83,7 +84,8 @@ function buildAnswerSystemPromptForIntent(
     return lines.join('\n');
   }
 
-  const intentScopedKinds = describeAiAssistantStructuredReplyKinds(intent);
+  const intentScopedKinds =
+    describeAiAssistantStructuredReplyKindsForScenario(scenario);
   lines.push(
     'This is a confirm-first planning copilot. Never claim that changes were already applied.',
     intentScopedKinds

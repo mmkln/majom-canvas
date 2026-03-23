@@ -20,8 +20,6 @@ import type {
 } from './AiAssistantContextTypes.ts';
 import {
   buildAiAssistantScenarioDescriptor,
-  extractAiAssistantStrategicHints,
-  resolveAiAssistantStrategicPlanMode,
 } from './AiAssistantContextPlanner.ts';
 import {
   buildAiAssistantActionPlanFromScenario,
@@ -359,6 +357,15 @@ export function getAiAssistantCommandSpec(
   }
 }
 
+export function getAiAssistantCommandSpecForScenario(
+  scenario: AiAssistantScenarioDescriptor | null | undefined
+): AiAssistantCommandSpec | null {
+  if (!scenario || scenario.variant !== 'typed') {
+    return null;
+  }
+  return getAiAssistantCommandSpec(scenario.intent ?? undefined);
+}
+
 function buildDependenciesCommandContext(
   params: AiAssistantCommandBuildContextParams
 ): AiAssistantDependenciesCommandContext {
@@ -401,7 +408,7 @@ function buildDependenciesCommandContext(
       allowedIdSet
     ),
     dependencyFindings: readDependencyFindings(params.toolResults),
-    scenario,
+    scenario: toCommandScenarioDescriptor(scenario),
     actionPlan,
     constraints: {
       allowedRelationTypes: ['blocks', 'leads_to', 'relates_to'],
@@ -445,7 +452,7 @@ function buildFillDetailsCommandContext(
       preferredActionShape: 'suggest_update',
       allowedElementIds: targets.map((target) => target.id),
       target: targets[0],
-      scenario,
+      scenario: toCommandScenarioDescriptor(scenario),
       actionPlan,
       constraints: {
         allowedPatchFields: ['title', 'description'],
@@ -471,7 +478,7 @@ function buildFillDetailsCommandContext(
     preferredActionShape: 'suggest_updates',
     allowedElementIds: targets.map((target) => target.id),
     targets,
-    scenario,
+    scenario: toCommandScenarioDescriptor(scenario),
     actionPlan,
     constraints: {
       allowedPatchFields: ['title', 'description'],
@@ -518,7 +525,7 @@ function buildClarifyCommandContext(
       preferredActionShape: 'suggest_update',
       allowedElementIds: targets.map((target) => target.id),
       target: targets[0],
-      scenario,
+      scenario: toCommandScenarioDescriptor(scenario),
       actionPlan,
       constraints: {
         allowedPatchFields: ['title', 'description'],
@@ -541,7 +548,7 @@ function buildClarifyCommandContext(
     preferredActionShape: 'suggest_updates',
     allowedElementIds: targets.map((target) => target.id),
     targets,
-    scenario,
+    scenario: toCommandScenarioDescriptor(scenario),
     actionPlan,
     constraints: {
       allowedPatchFields: ['title', 'description'],
@@ -579,15 +586,8 @@ function buildStrategicPlanCommandContext(
     intentContext: params.intentContext,
   });
   const actionPlan = buildAiAssistantActionPlanFromScenario(scenario)!;
-  const strategicMode = resolveAiAssistantStrategicPlanMode(
-    scenario.intentContext,
-    scenario.target?.kind === 'goal'
-      ? scenario.target
-      : selectedGoal ?? null
-  );
-  const strategicHints =
-    scenario.strategicHints ??
-    (selectedGoal ? extractAiAssistantStrategicHints(selectedGoal) : []);
+  const strategicMode = ensureStrategicPlanScenarioMode(scenario);
+  const strategicHints = scenario.strategicHints ?? [];
   return {
     intent: 'strategic_plan',
     commandVersion: 2,
@@ -598,7 +598,7 @@ function buildStrategicPlanCommandContext(
     summary,
     selectedGoal: scenario.target?.kind === 'goal' ? scenario.target : selectedGoal,
     strategicHints,
-    scenario,
+    scenario: toCommandScenarioDescriptor(scenario),
     actionPlan,
     constraints: {
       allowedActionKinds: actionPlan.allowedRuntimeActionKinds,
@@ -629,15 +629,52 @@ function buildBreakdownCommandContext(
     intent: 'breakdown',
     commandVersion: 1,
     latestUserInput: params.prompt.trim(),
-    mode: scenario.mode,
+    mode: ensureBreakdownScenarioMode(scenario),
     target: scenario.target ?? target,
-    scenario,
+    scenario: toCommandScenarioDescriptor(scenario),
     actionPlan,
     constraints: {
       forbidReviewFindings: true,
       requireConciseFollowupQuestionWhenAmbiguous: true,
     },
   };
+}
+
+function ensureStrategicPlanScenarioMode(
+  scenario: AiAssistantScenarioDescriptor
+): AiAssistantStrategicPlanCommandContext['mode'] {
+  switch (scenario.mode) {
+    case 'canvas_bootstrap':
+    case 'goal_subgoals':
+    case 'goal_replan':
+      return scenario.mode;
+    default:
+      return 'canvas_bootstrap';
+  }
+}
+
+function ensureBreakdownScenarioMode(
+  scenario: AiAssistantScenarioDescriptor
+): AiAssistantBreakdownCommandContext['mode'] {
+  switch (scenario.mode) {
+    case 'goal_stories':
+    case 'story_tasks':
+    case 'task_refine':
+    case 'unspecified_goal_decomposition':
+      return scenario.mode;
+    default:
+      return 'unspecified_goal_decomposition';
+  }
+}
+
+function toCommandScenarioDescriptor(
+  scenario: AiAssistantScenarioDescriptor
+): AiAssistantScenarioDescriptor {
+  const commandScenario = { ...scenario };
+  delete commandScenario.focus;
+  delete commandScenario.cluster;
+  delete commandScenario.evidence;
+  return commandScenario;
 }
 
 function buildDependenciesCommandMessages(params: {

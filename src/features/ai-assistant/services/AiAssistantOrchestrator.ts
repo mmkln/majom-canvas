@@ -1,5 +1,4 @@
 import type {
-  AiAssistantCanvasElement,
   AiAssistantCanvasSnapshot,
   AiAssistantIntentKind,
 } from '../aiAssistantEvents.ts';
@@ -29,7 +28,10 @@ import {
   parseAiAssistantScenarioClassification,
 } from './AiAssistantScenarioClassifier.ts';
 import type { AiAssistantScenarioDescriptor } from './AiAssistantScenarioTypes.ts';
-import { resolveAiAssistantScenario } from './AiAssistantScenarioResolver.ts';
+import {
+  buildAiAssistantScenarioTargetInputFromSnapshot,
+  resolveAiAssistantScenario,
+} from './AiAssistantScenarioResolver.ts';
 import {
   buildAiAssistantDecisionMessages,
   buildAiAssistantRouterMessages,
@@ -40,7 +42,7 @@ import {
   resolveAiAssistantIntentInstructionIds,
   resolveAiAssistantIntentProfile,
 } from './AiAssistantIntentPlanFactory.ts';
-import { getAiAssistantCommandSpec } from './AiAssistantCommandSpecs.ts';
+import { getAiAssistantCommandSpecForScenario } from './AiAssistantCommandSpecs.ts';
 import type { AiAssistantApiMessage } from './AiAssistantApiTypes.ts';
 import type { AiAssistantReplyProgress } from './AiAssistantTypes.ts';
 import {
@@ -175,7 +177,6 @@ export class AiAssistantOrchestrator {
     const scenario = await this.resolveScenarioForRequest(request);
     const effectiveIntent = scenario.intent;
     const effectiveIntentContext = scenario.intentContext;
-    const optionalIntent = effectiveIntent ?? undefined;
     const state = this.createInitialState(request, scenario);
 
     try {
@@ -188,9 +189,7 @@ export class AiAssistantOrchestrator {
             : 'Choosing context, instructions, and tools.',
       });
 
-      const commandSpec = scenario.variant === 'typed' && optionalIntent
-        ? getAiAssistantCommandSpec(optionalIntent)
-        : null;
+      const commandSpec = getAiAssistantCommandSpecForScenario(scenario);
 
       if (effectiveIntent) {
         await this.executeIntentSeed(request, state, scenario, effectiveIntent);
@@ -225,7 +224,6 @@ export class AiAssistantOrchestrator {
           request,
           state,
           commandSpec,
-          optionalIntent,
           effectiveIntentContext,
           scenario
         );
@@ -252,7 +250,7 @@ export class AiAssistantOrchestrator {
         client: this.options.apiClient,
         messages: buildAiAssistantAnswerMessages({
           prompt: request.prompt,
-          intent: optionalIntent,
+          scenario,
           profile: state.plan.profile,
           memory: request.memory,
           instructionPackets: state.instructionPackets,
@@ -270,7 +268,8 @@ export class AiAssistantOrchestrator {
             invalidResponse,
             validationError,
             allowActions: request.allowActions,
-            intent: optionalIntent,
+            scenarioDescriptor: scenario,
+            scenario: this.buildScenarioTelemetryContext(scenario),
           }),
         signal: request.signal,
         maxRepairAttempts: MAX_FINAL_REPLY_REPAIR_ATTEMPTS,
@@ -301,7 +300,7 @@ export class AiAssistantOrchestrator {
       const structured = parseAiAssistantStructuredReply(rawContent, {
         allowActions: request.allowActions,
         validationSnapshot: request.validationSnapshot ?? request.snapshot,
-        intent: optionalIntent,
+        scenario,
       });
       const reply = {
         ...structured,
@@ -340,7 +339,6 @@ export class AiAssistantOrchestrator {
       return buildAiAssistantIntentPlan({
         ...request,
         intent: scenario.intent,
-        intentContext: scenario.intentContext ?? request.intentContext,
       });
     }
 
@@ -422,7 +420,7 @@ export class AiAssistantOrchestrator {
 
     return resolveAiAssistantScenario({
       source: 'manual',
-      target: this.buildScenarioTargetInput(request.snapshot),
+      target: buildAiAssistantScenarioTargetInputFromSnapshot(request.snapshot),
     });
   }
 
@@ -451,7 +449,7 @@ export class AiAssistantOrchestrator {
       source: 'manual',
       intent: classification.intent ?? undefined,
       intentContext: classification.intentContext,
-      target: this.buildScenarioTargetInput(request.snapshot),
+      target: buildAiAssistantScenarioTargetInputFromSnapshot(request.snapshot),
     });
   }
 
@@ -505,8 +503,7 @@ export class AiAssistantOrchestrator {
   private async completeCommandReply(
     request: AiAssistantOrchestratorRequest,
     state: AiAssistantOrchestrationState,
-    commandSpec: NonNullable<ReturnType<typeof getAiAssistantCommandSpec>>,
-    effectiveIntent: AiAssistantIntentKind | undefined,
+    commandSpec: NonNullable<ReturnType<typeof getAiAssistantCommandSpecForScenario>>,
     effectiveIntentContext: AiAssistantIntentContext | undefined,
     scenario: AiAssistantScenarioDescriptor
   ): Promise<AiAssistantOrchestratorReply> {
@@ -581,7 +578,7 @@ export class AiAssistantOrchestrator {
     const structured = parseAiAssistantStructuredReply(rawContent, {
       allowActions: request.allowActions,
       validationSnapshot: request.validationSnapshot ?? request.snapshot,
-      intent: effectiveIntent,
+      scenario,
     });
 
     return {
@@ -696,12 +693,12 @@ export class AiAssistantOrchestrator {
     request: AiAssistantOrchestratorRequest,
     scenario: AiAssistantScenarioDescriptor | null = null
   ): AiAssistantOrchestrationState {
-    const profile =
+    const profile = resolveAiAssistantIntentProfile(
+      scenario?.intent ?? undefined,
       request.profile && isAiAssistantProfile(request.profile)
         ? request.profile
-        : scenario?.intent
-          ? resolveAiAssistantIntentProfile(scenario.intent, undefined)
-          : undefined;
+        : undefined
+    );
 
     return {
       profile,
@@ -720,55 +717,6 @@ export class AiAssistantOrchestrator {
         repairAttempts: 0,
         invalidEnvelopeCount: 0,
       },
-    };
-  }
-
-  private buildScenarioTargetInput(
-    snapshot: AiAssistantCanvasSnapshot | null
-  ):
-    | {
-        canvasId?: string;
-        canvasTitle?: string;
-        selectionItems?: Array<{
-          id: string;
-          kind: AiAssistantCanvasElement['kind'];
-          title: string;
-          description: string;
-          status?: string;
-          priority?: string;
-        }>;
-        selectedItem?: {
-          id: string;
-          kind: AiAssistantCanvasElement['kind'];
-          title: string;
-          description: string;
-          status?: string;
-          priority?: string;
-        } | null;
-      }
-    | undefined {
-    if (!snapshot) {
-      return undefined;
-    }
-
-    const selectionIds = new Set(snapshot.selectionIds);
-    const selectionItems = snapshot.elements
-      .filter((element) => selectionIds.has(element.id))
-      .map((element) => ({
-        id: element.id,
-        kind: element.kind,
-        title: element.title,
-        description: element.description,
-        status: element.status,
-        priority: element.priority,
-      }));
-    const selectedItem = selectionItems.length === 1 ? selectionItems[0] ?? null : null;
-
-    return {
-      canvasId: snapshot.canvasId,
-      canvasTitle: snapshot.canvasTitle,
-      selectionItems,
-      selectedItem,
     };
   }
 
@@ -950,14 +898,10 @@ export class AiAssistantOrchestrator {
       proposalStyle: telemetryScenario.proposalStyle,
       fallbackReason: telemetryScenario.fallbackReason,
       routeType: request.source,
-      intent: scenario.intent,
+      intent: scenario.intent ?? undefined,
       profile: state.plan.profile,
       contextMode: state.contextMode,
-      commandSpecUsed: Boolean(
-        scenario.variant === 'typed' &&
-          scenario.intent &&
-          getAiAssistantCommandSpec(scenario.intent)
-      ),
+      commandSpecUsed: Boolean(getAiAssistantCommandSpecForScenario(scenario)),
       routerHopCount: state.telemetry.routerHopCount,
       toolExecutionRounds: state.telemetry.toolExecutionRounds,
       toolCallCount: state.toolResults.length,
@@ -1040,6 +984,20 @@ export class AiAssistantOrchestrator {
         : scenario.variant === 'fallback'
           ? 'fallback_scenario'
           : undefined,
+    };
+  }
+
+  private buildScenarioTelemetryContext(
+    scenario: AiAssistantScenarioDescriptor
+  ): AiAssistantTelemetryScenarioContext {
+    return {
+      scenarioId: scenario.id,
+      scenarioMode: scenario.mode,
+      scenarioKind: scenario.variant,
+      routeLength: 'short',
+      proposalStyle: 'direct',
+      fallbackReason:
+        scenario.variant === 'fallback' ? 'fallback_scenario' : undefined,
     };
   }
 }

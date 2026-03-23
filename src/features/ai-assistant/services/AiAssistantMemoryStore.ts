@@ -14,6 +14,11 @@ import type {
   AiAssistantMemoryState,
 } from './AiAssistantContextTypes.ts';
 import { EMPTY_AI_ASSISTANT_MEMORY_STATE } from './AiAssistantContextTypes.ts';
+import {
+  buildAiAssistantTelemetryScenarioContext,
+  describeAiAssistantTelemetryScenarioContext,
+  type AiAssistantTelemetryScenarioContext,
+} from './AiAssistantTelemetryTypes.ts';
 
 export class AiAssistantMemoryStore {
   private readonly memoryByConversation = new Map<string, AiAssistantMemoryState>();
@@ -40,13 +45,23 @@ export class AiAssistantMemoryStore {
   }): AiAssistantMemoryState {
     const current = this.get(params.conversationKey);
     const recordedAt = Date.now();
+    const activeScenario = params.scenario
+      ? this.cloneScenario(params.scenario)
+      : null;
+    const scenarioContext = buildAiAssistantTelemetryScenarioContext({
+      scenario: activeScenario,
+    });
     const nextState: AiAssistantMemoryState = {
       ...current,
-      currentIntent: this.describeCurrentIntent(params.prompt, params.intent),
+      currentIntent: this.describeCurrentIntent(
+        params.prompt,
+        params.intent,
+        activeScenario
+      ),
       conversationSummary: this.buildConversationSummary(params),
       agreedFacts: this.buildAgreedFacts(params.snapshot),
       workingSet: this.buildWorkingSet(params.snapshot),
-      activeScenario: params.scenario ? this.cloneScenario(params.scenario) : null,
+      activeScenario,
       confirmedFacts: this.mergeFactRecords(
         current.confirmedFacts,
         this.buildConfirmedFacts(params.snapshot, recordedAt)
@@ -57,7 +72,8 @@ export class AiAssistantMemoryStore {
           params.prompt,
           params.intent,
           params.intentContext,
-          params.scenario,
+          activeScenario,
+          scenarioContext,
           recordedAt
         )
       ),
@@ -86,6 +102,10 @@ export class AiAssistantMemoryStore {
           ? this.cloneScenario(params.scenario)
           : null
         : current.activeScenario;
+    const scenarioContext = buildAiAssistantTelemetryScenarioContext({
+      scenario: activeScenario,
+      awaitingUserInput: params.awaitingUserInput,
+    });
     const nextState: AiAssistantMemoryState = {
       ...current,
       conversationSummary: this.buildConversationSummary(params),
@@ -102,26 +122,18 @@ export class AiAssistantMemoryStore {
             prompt: params.prompt.trim().slice(0, 180),
             replyPreview: params.reply.trim().slice(0, 180),
             recordedAt,
-            scenarioId: activeScenario?.id,
-            scenarioMode: activeScenario?.mode,
-            scenarioKind: activeScenario?.kind,
-            routeLength: params.awaitingUserInput ? 'long' : undefined,
-            proposalStyle: params.awaitingUserInput
-              ? 'clarify-first'
-              : activeScenario
-                ? this.describeScenarioProposalStyle(activeScenario)
-                : undefined,
+            scenarioId: scenarioContext?.scenarioId,
+            scenarioMode: scenarioContext?.scenarioMode,
+            scenarioKind: scenarioContext?.scenarioKind,
+            routeLength: scenarioContext?.routeLength,
+            proposalStyle: scenarioContext?.proposalStyle,
           }
         : null,
       openFollowUpSlots: params.awaitingUserInput
         ? [params.reply.trim().slice(0, 180)].filter(Boolean)
         : [],
       openFollowUpSlotRecords: params.awaitingUserInput
-        ? this.buildFollowUpSlotRecords(
-            params.reply,
-            recordedAt,
-            activeScenario
-          )
+        ? this.buildFollowUpSlotRecords(params.reply, recordedAt, scenarioContext)
         : [],
       updatedAt: recordedAt,
     };
@@ -147,13 +159,19 @@ export class AiAssistantMemoryStore {
           ? this.cloneScenario(params.scenario)
           : null
         : current.activeScenario;
+    const scenarioContext = buildAiAssistantTelemetryScenarioContext({
+      scenario: activeScenario,
+    });
     const actionRecords = params.actions.map((action) => ({
       actionKind: action.kind,
       label: this.describeActionLabel(action),
       summary: this.describeAppliedActionSummary(action),
       sourceMessageId: params.sourceMessageId,
-      scenarioId: activeScenario?.id,
-      scenarioMode: activeScenario?.mode,
+      scenarioId: scenarioContext?.scenarioId,
+      scenarioMode: scenarioContext?.scenarioMode,
+      scenarioKind: scenarioContext?.scenarioKind,
+      routeLength: scenarioContext?.routeLength,
+      proposalStyle: scenarioContext?.proposalStyle,
       createdElementIds:
         typeof action.createdElementId === 'string' &&
         action.createdElementId.length > 0
@@ -198,10 +216,20 @@ export class AiAssistantMemoryStore {
     return null;
   }
 
-  private describeCurrentIntent(prompt: string, intent?: string | null): string | null {
+  private describeCurrentIntent(
+    prompt: string,
+    intent?: string | null,
+    scenario?: AiAssistantActiveScenario | null
+  ): string | null {
     const trimmedPrompt = prompt.trim();
-    if (trimmedPrompt.length === 0 && !intent) {
+    if (trimmedPrompt.length === 0 && !intent && !scenario) {
       return null;
+    }
+    if (scenario) {
+      if (trimmedPrompt.length > 0) {
+        return `${scenario.id}: ${trimmedPrompt}`.slice(0, 180);
+      }
+      return scenario.id;
     }
     if (intent && trimmedPrompt.length > 0) {
       return `${intent}: ${trimmedPrompt.slice(0, 120)}`.slice(0, 160);
@@ -304,6 +332,7 @@ export class AiAssistantMemoryStore {
     intent: string | null | undefined,
     intentContext: AiAssistantIntentContext | undefined,
     scenario: AiAssistantActiveScenario | null | undefined,
+    scenarioContext: AiAssistantTelemetryScenarioContext | null | undefined,
     recordedAt: number
   ) {
     const constraints: Array<{
@@ -314,9 +343,7 @@ export class AiAssistantMemoryStore {
     const trimmedPrompt = prompt.trim();
     if (trimmedPrompt.length > 0) {
       constraints.push({
-        text: intent
-          ? `${intent}: ${trimmedPrompt}`.slice(0, 220)
-          : trimmedPrompt.slice(0, 220),
+        text: this.describePromptConstraint(trimmedPrompt, intent, scenario),
         source: 'user',
         recordedAt,
       });
@@ -331,7 +358,9 @@ export class AiAssistantMemoryStore {
       });
     }
 
-    const scenarioText = this.describeScenarioConstraint(scenario);
+    const scenarioText = describeAiAssistantTelemetryScenarioContext(
+      scenarioContext
+    );
     if (scenarioText) {
       constraints.push({
         text: scenarioText,
@@ -379,7 +408,7 @@ export class AiAssistantMemoryStore {
   private buildFollowUpSlotRecords(
     reply: string,
     recordedAt: number,
-    scenario: AiAssistantActiveScenario | null
+    scenario: AiAssistantTelemetryScenarioContext | null | undefined
   ): AiAssistantFollowUpSlotRecord[] {
     const slotText = reply.trim().slice(0, 180);
     if (slotText.length === 0) {
@@ -391,52 +420,27 @@ export class AiAssistantMemoryStore {
         text: slotText,
         source: 'assistant',
         recordedAt,
-        scenarioId: scenario?.id,
-        scenarioMode: scenario?.mode,
+        scenarioId: scenario?.scenarioId,
+        scenarioMode: scenario?.scenarioMode,
+        scenarioKind: scenario?.scenarioKind,
+        routeLength: scenario?.routeLength,
+        proposalStyle: scenario?.proposalStyle,
       },
     ];
   }
 
-  private describeScenarioConstraint(
+  private describePromptConstraint(
+    prompt: string,
+    intent: string | null | undefined,
     scenario: AiAssistantActiveScenario | null | undefined
-  ): string | null {
-    if (!scenario) {
-      return null;
+  ): string {
+    if (scenario) {
+      return `${scenario.id}: ${prompt}`.slice(0, 220);
     }
-
-    const parts = [
-      `scenario=${scenario.id}`,
-      `mode=${scenario.mode}`,
-      `kind=${scenario.kind}`,
-      `scope=${scenario.scope}`,
-      `confidence=${scenario.confidence.toFixed(2)}`,
-      scenario.routeLength ? `routeLength=${scenario.routeLength}` : null,
-      scenario.proposalStyle ? `proposalStyle=${scenario.proposalStyle}` : null,
-      scenario.targetSummary ? `targetSummary=${scenario.targetSummary}` : null,
-      `allowedActionCount=${scenario.allowedActionCount}`,
-    ].filter((part): part is string => Boolean(part));
-
-    if (scenario.confirmationMode !== 'none') {
-      parts.push(`confirmationMode=${scenario.confirmationMode}`);
+    if (intent) {
+      return `${intent}: ${prompt}`.slice(0, 220);
     }
-
-    if (scenario.missingSlots.length > 0) {
-      parts.push(`missingSlots=${scenario.missingSlots.join('|')}`);
-    }
-
-    return `Scenario context: ${parts.join(', ')}`;
-  }
-
-  private describeScenarioRouteLength(
-    scenario: AiAssistantActiveScenario
-  ): 'short' | 'long' {
-    return scenario.routeLength ?? 'long';
-  }
-
-  private describeScenarioProposalStyle(
-    scenario: AiAssistantActiveScenario
-  ): 'clarify-first' | 'direct' {
-    return scenario.proposalStyle ?? 'direct';
+    return prompt.slice(0, 220);
   }
 
   private cloneScenario(
@@ -492,7 +496,7 @@ export class AiAssistantMemoryStore {
       case 'suggest_update':
         return `Update ${action.elementKind} "${action.targetTitle || action.elementId}"`;
       default:
-        return String(action.kind);
+        return 'action';
     }
   }
 
