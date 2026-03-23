@@ -59,6 +59,29 @@ function makeContext(
   };
 }
 
+function makeEmptyContext(
+  canvasId: string,
+  canvasTitle: string
+): WorkspaceChatCanvasSnapshot {
+  return {
+    canvasId,
+    canvasTitle,
+    summary: {
+      goalCount: 0,
+      storyCount: 0,
+      taskCount: 0,
+      selectedCount: 0,
+    },
+    selectionIds: [],
+    focusId: null,
+    highlightedIds: [],
+    elements: [],
+    connections: [],
+    viewport: null,
+    recentActivity: [],
+  };
+}
+
 function makeSelectionItem(
   id: string,
   kind: 'goal' | 'story' | 'task',
@@ -119,6 +142,7 @@ function createMessage(
   requestIntent?:
     | 'review'
     | 'breakdown'
+    | 'strategic_plan'
     | 'dependencies'
     | 'missing'
     | 'clarify'
@@ -285,6 +309,46 @@ describe('WorkspaceChatSessionController', () => {
     expect(reply.mock.calls[0]?.[0].snapshot).toBeNull();
   });
 
+  it('exposes reply progress while a response is in flight', async () => {
+    const deferred = createDeferred<WorkspaceChatMessage>();
+    const service = {
+      createMessage,
+      createSystemMessage,
+      createWelcomeMessage: (context: WorkspaceChatCanvasSnapshot | null) =>
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
+      getQuickActions: vi.fn(() => []),
+      reply: vi.fn((request: { onProgress?: (progress: object) => void }) => {
+        request.onProgress?.({
+          phase: 'tools',
+          label: 'Checking workspace context',
+          detail: 'Inspecting the focus item and nearby structure.',
+          currentStep: 1,
+          totalSteps: 3,
+        });
+        return deferred.promise;
+      }),
+    };
+    const controller = new WorkspaceChatSessionController({ service });
+    controller.setContext(makeContext('canvas-a', 'Canvas A'));
+
+    const submitPromise = controller.submitPrompt('Review checkout risks');
+
+    expect(controller.getState().replying).toBe(true);
+    expect(controller.getState().replyProgress).toMatchObject({
+      phase: 'tools',
+      label: 'Checking workspace context',
+      detail: 'Inspecting the focus item and nearby structure.',
+      currentStep: 1,
+      totalSteps: 3,
+    });
+
+    deferred.resolve(createMessage('assistant', 'Reply'));
+    await submitPromise;
+
+    expect(controller.getState().replying).toBe(false);
+    expect(controller.getState().replyProgress).toBeNull();
+  });
+
   it('renders prepared intent submissions as command messages instead of raw user prompts', async () => {
     const reply = vi.fn(async () => createMessage('assistant', 'Linked suggestions'));
     const service = {
@@ -379,6 +443,104 @@ describe('WorkspaceChatSessionController', () => {
       actionLabel: 'Remove relation',
       actionCount: 1,
     });
+  });
+
+  it('auto-upgrades empty-canvas strategic planning prompts into strategic_plan intent flow', async () => {
+    const reply = vi.fn(async () =>
+      createMessage('assistant', 'I prepared one strategic plan.', Date.now(), [
+        {
+          id: 'plan-blueprint-1',
+          kind: 'create_goal_blueprint',
+          label: 'Create plan',
+          title: 'Marketing automation learning plan',
+          status: 'idle',
+          pattern: 'goal_tree_with_sequence',
+          summary: 'Strategic starter structure for the topic.',
+          goals: [
+            { ref: 'root', title: 'Master marketing automation strategically' },
+            {
+              ref: 'fundamentals',
+              title: 'Learn core automation concepts',
+              parentRef: 'root',
+            },
+            {
+              ref: 'practice',
+              title: 'Build first automation workflows',
+              parentRef: 'root',
+            },
+          ],
+          relations: [
+            {
+              fromRef: 'fundamentals',
+              toRef: 'practice',
+              relationType: 'leads_to',
+            },
+          ],
+        },
+      ])
+    );
+    const service = {
+      createMessage,
+      createSystemMessage,
+      createWelcomeMessage: (context: WorkspaceChatCanvasSnapshot | null) =>
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
+      getQuickActions: vi.fn(() => []),
+      reply,
+    };
+    const controller = new WorkspaceChatSessionController({ service });
+    controller.setContext(makeEmptyContext('canvas-empty', 'Empty canvas'));
+
+    await controller.submitPrompt(
+      'згенеруй загальний стратегічний план для вивчення автоматизації маркетингу'
+    );
+
+    expect(reply).toHaveBeenCalledTimes(1);
+    expect(reply.mock.calls[0]?.[0].source).toBe('intent');
+    expect(reply.mock.calls[0]?.[0].intent).toBe('strategic_plan');
+    expect(reply.mock.calls[0]?.[0].profile).toBe('strategic-plan');
+    expect(controller.getState().messages[1]).toMatchObject({
+      role: 'user',
+      requestIntent: 'strategic_plan',
+    });
+    expect(controller.getState().pendingConfirmation).toMatchObject({
+      actionIds: ['plan-blueprint-1'],
+      actionLabel: 'Create plan',
+      actionTitle: 'Marketing automation learning plan',
+      actionCount: 1,
+    });
+  });
+
+  it('auto-upgrades selected-goal subgoal prompts into strategic_plan intent flow', async () => {
+    const reply = vi.fn(async () => createMessage('assistant', 'Reply'));
+    const service = {
+      createMessage,
+      createSystemMessage,
+      createWelcomeMessage: (context: WorkspaceChatCanvasSnapshot | null) =>
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
+      getQuickActions: vi.fn(() => []),
+      reply,
+    };
+    const controller = new WorkspaceChatSessionController({ service });
+    controller.setContext(
+      makeContextWithElements(
+        'canvas-goals',
+        'Goal canvas',
+        [makeSelectionItem('goal-1', 'goal', 'Стратегічний план вивчення автоматизації маркетингу')],
+        {
+          selectionIds: ['goal-1'],
+          focusId: 'goal-1',
+        }
+      )
+    );
+
+    await controller.submitPrompt(
+      'декомпозуй поточну ціль у паралельні або послідовні підцілі'
+    );
+
+    expect(reply).toHaveBeenCalledTimes(1);
+    expect(reply.mock.calls[0]?.[0].source).toBe('intent');
+    expect(reply.mock.calls[0]?.[0].intent).toBe('strategic_plan');
+    expect(reply.mock.calls[0]?.[0].profile).toBe('strategic-plan');
   });
 
   it('restores the seed message after turning canvas context back on', () => {

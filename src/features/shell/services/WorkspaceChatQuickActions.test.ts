@@ -28,6 +28,28 @@ describe('WorkspaceChatQuickActions', () => {
     ]);
   });
 
+  it('prepends Generate strategic plan on an empty canvas', () => {
+    const actions = getWorkspaceChatQuickActions({
+      canvasId: 'canvas-empty',
+      canvasTitle: 'Empty canvas',
+      summary: {
+        goalCount: 0,
+        storyCount: 0,
+        taskCount: 0,
+        selectedCount: 0,
+      },
+      selectionIds: [],
+      focusId: null,
+      highlightedIds: [],
+      elements: [],
+      connections: [],
+      viewport: null,
+      recentActivity: [],
+    });
+
+    expect(actions[0]?.label).toBe('Generate strategic plan');
+  });
+
   it('adds a breakdown shortcut and selection-scoped review actions for a selected story', () => {
     const actions = getWorkspaceChatQuickActions(createWorkspaceChatTestSnapshot());
 

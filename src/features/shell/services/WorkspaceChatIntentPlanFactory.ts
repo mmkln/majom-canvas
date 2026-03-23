@@ -25,6 +25,15 @@ export function buildWorkspaceChatIntentPlan(
           { tool: 'find_dependency_gaps', input: idsInput },
         ],
       };
+    case 'strategic_plan':
+      return {
+        profile,
+        contextMode: request.contextMode,
+        calls:
+          selectionIds.length === 1
+            ? [{ tool: 'get_focus_bundle', input: { target: 'selection' } }]
+            : [],
+      };
     case 'missing':
       return {
         profile,
@@ -86,6 +95,8 @@ export function resolveWorkspaceChatIntentInstructionIds(
       return ['planning.readiness-check'];
     case 'fill_details':
       return ['planning.fill-details'];
+    case 'strategic_plan':
+      return ['planning.strategic-plan'];
     case 'dependencies':
       return ['planning.dependency-review'];
     case 'clarify':
@@ -109,6 +120,8 @@ export function resolveWorkspaceChatIntentProfile(
       return 'review-selection';
     case 'dependencies':
       return 'dependency-review';
+    case 'strategic_plan':
+      return 'strategic-plan';
     case 'missing':
       return 'readiness-check';
     case 'fill_details':

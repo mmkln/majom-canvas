@@ -694,7 +694,7 @@ export class CanvasApp {
   public getWorkspaceChatSnapshot(): WorkspaceChatCanvasSnapshot {
     const planningElements = this.scene
       .getElements()
-      .filter(isPlanningElement);
+      .filter(isPlanningElement) as Array<TaskElement | StoryElement | GoalElement>;
     const detail: WorkspaceChatCanvasSnapshot = {
       canvasId: this.canvasDataService.getActiveCanvasId(),
       canvasTitle: this.canvasTitle,
@@ -1398,6 +1398,10 @@ export class CanvasApp {
       }
     });
     const refToPlanningId = this.buildWorkspaceChatElementRefMap(planningElements);
+    const goalParentById = new Map<string, string | null>();
+    goals.forEach((goal) => {
+      goalParentById.set(goal.id, null);
+    });
 
     const storyParentById = new Map<string, string | null>();
     stories.forEach((story) => {
@@ -1415,8 +1419,14 @@ export class CanvasApp {
         if (!fromId || !toId) return;
         const fromEl = planningElements.find((element) => element.id === fromId);
         const toEl = planningElements.find((element) => element.id === toId);
-        if (!(fromEl instanceof GoalElement) || !(toEl instanceof StoryElement)) return;
-        storyParentById.set(toEl.id, fromEl.id);
+        if (!(fromEl instanceof GoalElement)) return;
+        if (toEl instanceof GoalElement) {
+          goalParentById.set(toEl.id, fromEl.id);
+          return;
+        }
+        if (toEl instanceof StoryElement) {
+          storyParentById.set(toEl.id, fromEl.id);
+        }
       });
 
     const taskParentById = new Map<string, string | null>();
@@ -1441,6 +1451,13 @@ export class CanvasApp {
 
     const goalChildIds = new Map<string, string[]>();
     goals.forEach((goal) => goalChildIds.set(goal.id, []));
+    goals.forEach((goal) => {
+      const parentId = goalParentById.get(goal.id);
+      if (!parentId) return;
+      const current = goalChildIds.get(parentId) ?? [];
+      current.push(goal.id);
+      goalChildIds.set(parentId, current);
+    });
     stories.forEach((story) => {
       const parentId = storyParentById.get(story.id);
       if (!parentId) return;
@@ -1453,7 +1470,7 @@ export class CanvasApp {
       const base = this.mapWorkspaceChatSelectionItem(element);
       const parentId =
         element instanceof GoalElement
-          ? null
+          ? goalParentById.get(element.id) ?? null
           : element instanceof StoryElement
             ? storyParentById.get(element.id) ?? null
             : taskParentById.get(element.id) ?? null;
@@ -1465,6 +1482,7 @@ export class CanvasApp {
             : [];
       return {
         ...base,
+        childCount: childIds.length,
         parentId,
         childIds,
         selected: element.selected,
@@ -1480,7 +1498,7 @@ export class CanvasApp {
     const refToPlanningId = this.buildWorkspaceChatElementRefMap(planningElements);
     return this.scene
       .getConnections()
-      .map((connection) => {
+      .map((connection): WorkspaceChatConnectionEdge | null => {
         const fromId = refToPlanningId.get(connection.fromId);
         const toId = refToPlanningId.get(connection.toId);
         if (!fromId || !toId) return null;
@@ -1488,11 +1506,11 @@ export class CanvasApp {
           id: connection.id,
           fromId,
           toId,
-          relationType: connection.relationType,
+          relationType: connection.relationType as WorkspaceChatConnectionEdge['relationType'],
         };
       })
-      .filter((connection): connection is WorkspaceChatConnectionEdge =>
-        Boolean(connection)
+      .filter(
+        (connection): connection is WorkspaceChatConnectionEdge => connection !== null
       );
   }
 

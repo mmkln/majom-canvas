@@ -11,6 +11,7 @@ export type WorkspaceChatCreateActionKind =
 
 export type WorkspaceChatActionKind =
   | WorkspaceChatCreateActionKind
+  | 'create_goal_blueprint'
   | 'suggest_relation'
   | 'remove_relation'
   | 'update_relation'
@@ -56,6 +57,37 @@ export type WorkspaceChatCreateAction = WorkspaceChatActionBase & {
   priority?: UiPriority;
   elementStatus?: WorkspaceChatCreateElementStatus;
   target?: WorkspaceChatActionTarget;
+};
+
+export type WorkspaceChatGoalBlueprintPattern =
+  | 'goal_tree'
+  | 'goal_tree_with_sequence'
+  | 'goal_graph';
+
+export type WorkspaceChatGoalBlueprintGoal = {
+  ref: string;
+  title: string;
+  description?: string;
+  priority?: UiPriority;
+  elementStatus?: WorkspaceChatCreateElementStatus;
+  parentRef?: string;
+};
+
+export type WorkspaceChatGoalBlueprintRelation = {
+  fromRef: string;
+  toRef: string;
+  relationType: 'leads_to';
+  reason?: string;
+};
+
+export type WorkspaceChatGoalBlueprintAction = WorkspaceChatActionBase & {
+  kind: 'create_goal_blueprint';
+  target?: { kind: 'canvas' } | { kind: 'goal'; id: string };
+  pattern: WorkspaceChatGoalBlueprintPattern;
+  summary?: string;
+  assumptions?: string[];
+  goals: WorkspaceChatGoalBlueprintGoal[];
+  relations: WorkspaceChatGoalBlueprintRelation[];
 };
 
 export type WorkspaceChatRelationSuggestionType = Exclude<
@@ -111,6 +143,7 @@ export type WorkspaceChatUpdateAction = WorkspaceChatActionBase & {
 
 export type WorkspaceChatAction =
   | WorkspaceChatCreateAction
+  | WorkspaceChatGoalBlueprintAction
   | WorkspaceChatRelationAction
   | WorkspaceChatRemoveRelationAction
   | WorkspaceChatUpdateRelationAction
@@ -163,6 +196,8 @@ export function getWorkspaceChatActionLabel(
       return 'Create story';
     case 'create_goal':
       return 'Create goal';
+    case 'create_goal_blueprint':
+      return 'Create plan';
     case 'suggest_relation':
       return 'Add relation';
     case 'remove_relation':
@@ -194,6 +229,7 @@ export function isWorkspaceChatActionKind(
     value === 'create_task' ||
     value === 'create_story' ||
     value === 'create_goal' ||
+    value === 'create_goal_blueprint' ||
     value === 'suggest_relation' ||
     value === 'remove_relation' ||
     value === 'update_relation' ||

@@ -39,6 +39,63 @@ describe('WorkspaceChatOrchestrator', () => {
     expect(reply.replyMarkdown).toBe('Structured reply');
   });
 
+  it('emits staged progress updates while building an intent reply', async () => {
+    const progress: Array<{
+      phase: string;
+      label: string;
+      detail?: string;
+      currentStep?: number;
+      totalSteps?: number;
+    }> = [];
+    const orchestrator = new WorkspaceChatOrchestrator({
+      apiClient: {
+        completeText: vi.fn(async () =>
+          JSON.stringify({
+            replyMarkdown: 'Structured reply',
+            actions: [],
+          })
+        ),
+      },
+    });
+
+    await orchestrator.reply({
+      prompt: 'What is missing?',
+      source: 'intent',
+      intent: 'missing',
+      snapshot: createWorkspaceChatTestSnapshot(),
+      contextMode: 'selection',
+      memory: createWorkspaceChatTestMemory(),
+      allowActions: true,
+      onProgress: (entry) => {
+        progress.push(entry);
+      },
+    });
+
+    expect(progress[0]).toMatchObject({
+      phase: 'routing',
+      label: 'Preparing workflow',
+    });
+    expect(progress).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          phase: 'instructions',
+          label: 'Loading instructions',
+        }),
+        expect.objectContaining({
+          phase: 'tools',
+          label: 'Checking workspace context',
+          detail: 'Inspecting the focus item and nearby structure.',
+          currentStep: 1,
+          totalSteps: 4,
+        }),
+        expect.objectContaining({
+          phase: 'drafting',
+          label: 'Drafting structured reply',
+        }),
+      ])
+    );
+  });
+
   it('uses a command-spec flow for fill_details and repairs invalid command payloads', async () => {
     const baseSnapshot = createWorkspaceChatTestSnapshot();
     const snapshot = {

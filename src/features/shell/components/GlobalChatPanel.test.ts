@@ -31,6 +31,7 @@ function createState(messages: WorkspaceChatMessage[]): WorkspaceChatPanelState 
     pendingConfirmation: null,
     quickActions: [],
     replying: false,
+    replyProgress: null,
     canClear:
       messages.length > 1 || messages.some((message) => message.role === 'user'),
     contextEnabled: true,
@@ -223,6 +224,101 @@ describe('GlobalChatPanel auto-scroll', () => {
     );
 
     expect(metrics.getScrollTop()).toBe(1040);
+    panel.unmount();
+  });
+
+  it('renders detailed reply progress instead of a generic thinking label', () => {
+    const state = createState([createMessage('user-1', 'user', 'Check this plan')]);
+    state.replying = true;
+    state.replyProgress = {
+      phase: 'tools',
+      label: 'Checking workspace context',
+      detail: 'Inspecting the focus item and nearby structure.',
+      currentStep: 1,
+      totalSteps: 3,
+    };
+    const { controller } = createController(state);
+    const panel = new GlobalChatPanel({ controller });
+    const messagesList = (panel as any).messagesList as HTMLDivElement;
+    const sendButton = (panel as any).sendButton as HTMLButtonElement;
+
+    expect(messagesList.textContent).toContain('Checking workspace context');
+    expect(messagesList.textContent).toContain(
+      'Inspecting the focus item and nearby structure.'
+    );
+    expect(messagesList.textContent).toContain('1/3');
+    expect(sendButton.textContent).toBe('Working...');
+    panel.unmount();
+  });
+
+  it('renders a copy button for user messages and copies their text', async () => {
+    const writeText = vi.fn(async () => undefined);
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText,
+      },
+    });
+
+    const state = createState([createMessage('user-1', 'user', 'User draft')]);
+    const { controller } = createController(state);
+    const panel = new GlobalChatPanel({ controller });
+    const messagesList = (panel as any).messagesList as HTMLDivElement;
+
+    const copyButtons = Array.from(
+      messagesList.querySelectorAll(
+        'button[aria-label="Copy message to clipboard"]'
+      )
+    ) as HTMLButtonElement[];
+    const copyButton = copyButtons.at(-1) ?? null;
+
+    expect(copyButton).not.toBeNull();
+    copyButton?.click();
+
+    await Promise.resolve();
+
+    expect(writeText).toHaveBeenCalledWith('User draft');
+    panel.unmount();
+  });
+
+  it('preserves chat scroll position when copy feedback rerenders the message list', async () => {
+    const writeText = vi.fn(async () => undefined);
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText,
+      },
+    });
+
+    const { controller } = createController(
+      createState([createMessage('user-1', 'user', 'User draft')])
+    );
+    const panel = new GlobalChatPanel({ controller });
+    const viewport = (panel as any).messagesViewport as HTMLDivElement;
+    const messagesList = (panel as any).messagesList as HTMLDivElement;
+    const metrics = installViewportMetrics(viewport, {
+      scrollTop: 180,
+      scrollHeight: 960,
+      clientHeight: 240,
+    });
+
+    viewport.dispatchEvent(new Event('scroll'));
+
+    const originalReplaceChildren = messagesList.replaceChildren.bind(messagesList);
+    messagesList.replaceChildren = (...nodes: (Node | string)[]) => {
+      viewport.scrollTop = 0;
+      originalReplaceChildren(...nodes);
+    };
+
+    const copyButton = messagesList.querySelector(
+      'button[aria-label="Copy message to clipboard"]'
+    ) as HTMLButtonElement | null;
+
+    expect(copyButton).not.toBeNull();
+    copyButton?.click();
+
+    await Promise.resolve();
+
+    expect(writeText).toHaveBeenCalledWith('User draft');
+    expect(metrics.getScrollTop()).toBe(180);
     panel.unmount();
   });
 });

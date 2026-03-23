@@ -185,6 +185,43 @@ describe('ChatCanvasActionExecutor', () => {
     expect(goals[0]?.y).toBe(260);
   });
 
+  it('creates a child goal under an existing goal target', async () => {
+    const scene = new Scene();
+    const parentGoal = new GoalElement({
+      id: 'goal-parent',
+      x: 120,
+      y: 120,
+      title: 'Master marketing automation',
+    });
+    scene.addElement(parentGoal);
+    const executor = createExecutor(scene);
+
+    const result = await executor.execute(
+      makeRequest({
+        id: 'action-goal-child',
+        kind: 'create_goal',
+        label: 'Create goal',
+        title: 'Learn automation fundamentals',
+        target: {
+          kind: 'goal',
+          id: 'goal-parent',
+        },
+        status: 'idle',
+      })
+    );
+
+    expect(result.status).toBe('applied');
+    const goals = scene
+      .getElements()
+      .filter((element): element is GoalElement => element instanceof GoalElement);
+    expect(goals).toHaveLength(2);
+    expect(scene.getConnections()).toHaveLength(1);
+    expect(scene.getConnections()[0]).toMatchObject({
+      relationType: ConnectionRelationType.ParentChild,
+      fromId: 'goal-parent',
+    });
+  });
+
   it('applies a suggested non-hierarchical relation through the command stack', async () => {
     const scene = new Scene();
     const firstTask = new TaskElement({
@@ -373,5 +410,124 @@ describe('ChatCanvasActionExecutor', () => {
     expect(story.priority).toBe('highest');
     expect(story.status).toBe('in-progress');
     expect(historyService.canUndo()).toBe(true);
+  });
+
+  it('creates a strategic goal blueprint atomically and supports undo/redo', async () => {
+    const scene = new Scene();
+    const executor = createExecutor(scene);
+
+    const result = await executor.execute(
+      makeRequest({
+        id: 'plan-blueprint-1',
+        kind: 'create_goal_blueprint',
+        label: 'Create plan',
+        title: 'Marketing automation learning plan',
+        status: 'idle',
+        pattern: 'goal_tree_with_sequence',
+        summary: 'Strategic starter structure for the topic.',
+        goals: [
+          { ref: 'root', title: 'Master marketing automation strategically' },
+          {
+            ref: 'fundamentals',
+            title: 'Learn core automation concepts',
+            parentRef: 'root',
+          },
+          {
+            ref: 'practice',
+            title: 'Build first automation workflows',
+            parentRef: 'root',
+          },
+        ],
+        relations: [
+          {
+            fromRef: 'fundamentals',
+            toRef: 'practice',
+            relationType: 'leads_to',
+          },
+        ],
+      })
+    );
+
+    expect(result.status).toBe('applied');
+    expect(
+      scene
+        .getElements()
+        .filter((element): element is GoalElement => element instanceof GoalElement)
+    ).toHaveLength(3);
+    expect(scene.getConnections()).toHaveLength(3);
+    expect(
+      scene
+        .getConnections()
+        .filter(
+          (connection) =>
+            connection.relationType === ConnectionRelationType.ParentChild
+        )
+    ).toHaveLength(2);
+    expect(
+      scene
+        .getConnections()
+        .filter(
+          (connection) => connection.relationType === ConnectionRelationType.LeadsTo
+        )
+    ).toHaveLength(1);
+
+    historyService.undo();
+    expect(
+      scene
+        .getElements()
+        .filter((element): element is GoalElement => element instanceof GoalElement)
+    ).toHaveLength(0);
+    expect(scene.getConnections()).toHaveLength(0);
+
+    historyService.redo();
+    expect(
+      scene
+        .getElements()
+        .filter((element): element is GoalElement => element instanceof GoalElement)
+    ).toHaveLength(3);
+    expect(scene.getConnections()).toHaveLength(3);
+  });
+
+  it('attaches blueprint roots under a targeted existing goal', async () => {
+    const scene = new Scene();
+    const parentGoal = new GoalElement({
+      id: 'goal-parent',
+      x: 120,
+      y: 120,
+      title: 'Master marketing automation',
+    });
+    scene.addElement(parentGoal);
+    const executor = createExecutor(scene);
+
+    const result = await executor.execute(
+      makeRequest({
+        id: 'plan-blueprint-2',
+        kind: 'create_goal_blueprint',
+        label: 'Create plan',
+        title: 'Strategic subgoals',
+        status: 'idle',
+        target: {
+          kind: 'goal',
+          id: 'goal-parent',
+        },
+        pattern: 'goal_tree',
+        goals: [
+          { ref: 'fundamentals', title: 'Learn the fundamentals' },
+          { ref: 'practice', title: 'Build the first workflows' },
+        ],
+        relations: [],
+      })
+    );
+
+    expect(result.status).toBe('applied');
+    expect(
+      scene
+        .getConnections()
+        .filter(
+          (connection) =>
+            connection.relationType === ConnectionRelationType.ParentChild &&
+            connection.fromId === 'goal-parent'
+        )
+    ).toHaveLength(2);
   });
 });

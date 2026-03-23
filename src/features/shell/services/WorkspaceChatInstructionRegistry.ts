@@ -168,6 +168,29 @@ const DEFAULT_INSTRUCTIONS: WorkspaceChatInstructionDefinition[] = [
     ].join('\n'),
   },
   {
+    id: 'planning.strategic-plan',
+    category: 'planning',
+    title: 'Strategic Plan',
+    summary:
+      'Create or restructure a strategic goal-level plan using goals only.',
+    whenToUse:
+      'The user asks for a strategic plan, roadmap, phases, or goal-level subgoals, either on an empty canvas or around an existing goal.',
+    relatedToolNames: [],
+    allowedToolNames: [],
+    responsePolicy:
+      'Return confirm-first strategic goal proposals, not prose-only outlines. Prefer create_goal_blueprint when the plan needs hierarchy or leads_to, and create_goals when the best structure is a flat set of top-level goals.',
+    body: [
+      'Create or restructure a planning structure at the strategic goal level.',
+      'Do not decompose into stories or tasks unless the user explicitly asks for detailed execution work.',
+      'If one umbrella outcome clearly owns the plan, use a main goal with child goals.',
+      'If a specific goal is selected and the user asks for subgoals, attach the proposed goals under that selected goal.',
+      'If the plan is mainly a flat set of parallel strategic tracks, use create_goals.',
+      'Use leads_to only when the sequence is clearly justified.',
+      'Do not invent durations, tool names, certifications, or metrics unless the user explicitly asked for them or supplied them.',
+      'Do not collapse the plan into one create_goal with the rest hidden inside description text.',
+    ].join('\n'),
+  },
+  {
     id: 'planning.next-steps',
     category: 'planning',
     title: 'Next Steps',

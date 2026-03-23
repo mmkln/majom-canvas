@@ -28,9 +28,9 @@ export const WORKSPACE_CHAT_ANALYSIS_TOOLS: WorkspaceChatToolDefinition[] = [
       elements.forEach((element) => {
         if (element.kind === 'goal' && element.childIds.length === 0) {
           findings.push({
-            code: 'goal_without_stories',
+            code: 'goal_without_children',
             severity: 'high',
-            message: `Goal "${element.title || 'Untitled'}" has no child stories.`,
+            message: `Goal "${element.title || 'Untitled'}" has no child items.`,
             targetIds: [element.id],
           });
         }
@@ -211,5 +211,5 @@ function readOptionalStringArray(value: unknown): string[] | undefined {
 }
 
 function capitalizeKind(kind: WorkspaceChatCanvasElement['kind']): string {
-  return kind.length > 0 ? kind[0]!.toUpperCase() + kind.slice(1) : kind;
+  return kind.length > 0 ? kind[0].toUpperCase() + kind.slice(1) : kind;
 }

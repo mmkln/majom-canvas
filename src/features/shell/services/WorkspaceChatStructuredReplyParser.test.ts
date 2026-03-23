@@ -58,6 +58,26 @@ function createSnapshot(): WorkspaceChatCanvasSnapshot {
   };
 }
 
+function createEmptySnapshot(): WorkspaceChatCanvasSnapshot {
+  return {
+    canvasId: 'canvas-empty',
+    canvasTitle: 'Empty canvas',
+    summary: {
+      goalCount: 0,
+      storyCount: 0,
+      taskCount: 0,
+      selectedCount: 0,
+    },
+    selectionIds: [],
+    focusId: null,
+    highlightedIds: [],
+    elements: [],
+    connections: [],
+    viewport: null,
+    recentActivity: [],
+  };
+}
+
 describe('WorkspaceChatStructuredReplyParser', () => {
   it('parses a valid structured reply and keeps supported priorities', () => {
     const result = parseWorkspaceChatStructuredReply(
@@ -337,5 +357,148 @@ describe('WorkspaceChatStructuredReplyParser', () => {
     expect(result.actions[0]?.kind).toBe('update_relation');
     expect(result.actions[0]?.label).toBe('Update relation');
     expect(result.actions[0]?.groupTitle).toBe('Relation type changes');
+  });
+
+  it('normalizes create_goals batches into grouped create_goal actions', () => {
+    const result = parseWorkspaceChatStructuredReply(
+      JSON.stringify({
+        replyMarkdown: 'I prepared strategic goals for the empty canvas.',
+        actions: [
+          {
+            kind: 'create_goals',
+            title: 'Strategic goals',
+            summary: 'Top-level strategic goals for the topic.',
+            items: [
+              {
+                title: 'Learn automation fundamentals',
+                priority: 'high',
+              },
+              {
+                title: 'Build first automation workflow',
+                priority: 'medium',
+              },
+            ],
+          },
+        ],
+      }),
+      {
+        allowActions: true,
+        validationSnapshot: createEmptySnapshot(),
+        intent: 'strategic_plan',
+      }
+    );
+
+    expect(result.actions).toHaveLength(2);
+    expect(result.actions[0]?.kind).toBe('create_goal');
+    expect(result.actions[1]?.kind).toBe('create_goal');
+    expect(result.actions[0]?.groupTitle).toBe('Strategic goals');
+    expect(result.actions[0]?.groupId).toBe(result.actions[1]?.groupId);
+  });
+
+  it('keeps create_goal_blueprint as one strategic plan action', () => {
+    const result = parseWorkspaceChatStructuredReply(
+      JSON.stringify({
+        replyMarkdown: 'I prepared one strategic plan skeleton.',
+        actions: [
+          {
+            kind: 'create_goal_blueprint',
+            title: 'Marketing automation learning plan',
+            summary: 'One main goal with strategic subgoals.',
+            pattern: 'goal_tree_with_sequence',
+            goals: [
+              {
+                ref: 'root',
+                title: 'Master marketing automation strategically',
+              },
+              {
+                ref: 'fundamentals',
+                title: 'Learn core automation concepts',
+                parentRef: 'root',
+              },
+              {
+                ref: 'practice',
+                title: 'Build first automation workflows',
+                parentRef: 'root',
+              },
+            ],
+            relations: [
+              {
+                fromRef: 'fundamentals',
+                toRef: 'practice',
+                relationType: 'leads_to',
+                reason: 'Foundations should come before practice.',
+              },
+            ],
+          },
+        ],
+      }),
+      {
+        allowActions: true,
+        validationSnapshot: createEmptySnapshot(),
+        intent: 'strategic_plan',
+      }
+    );
+
+    expect(result.actions).toHaveLength(1);
+    expect(result.actions[0]?.kind).toBe('create_goal_blueprint');
+    if (result.actions[0]?.kind !== 'create_goal_blueprint') {
+      throw new Error('Expected create_goal_blueprint action.');
+    }
+    expect(result.actions[0].pattern).toBe('goal_tree_with_sequence');
+    expect(result.actions[0].goals).toHaveLength(3);
+    expect(result.actions[0].relations).toHaveLength(1);
+  });
+
+  it('recovers legacy create_batch_stories wrappers into grouped create_story actions', () => {
+    const snapshot = createEmptySnapshot();
+    snapshot.elements = [
+      {
+        id: 'goal-1',
+        kind: 'goal',
+        title: 'Marketing automation',
+        description: '',
+        status: 'defined',
+        priority: 'low',
+        childCount: 0,
+        parentId: null,
+        childIds: [],
+        selected: true,
+        focused: true,
+        highlighted: false,
+      },
+    ];
+
+    const result = parseWorkspaceChatStructuredReply(
+      JSON.stringify({
+        replyMarkdown: 'I prepared stories for the selected goal.',
+        actions: [
+          {
+            kind: 'create_batch_stories',
+            data: {
+              parentId: 'goal-1',
+              stories: [
+                { title: 'Learn the fundamentals' },
+                { title: 'Build first workflows' },
+              ],
+            },
+          },
+        ],
+      }),
+      {
+        allowActions: true,
+        validationSnapshot: snapshot,
+        intent: 'breakdown',
+      }
+    );
+
+    expect(result.actions).toHaveLength(2);
+    expect(result.actions[0]).toMatchObject({
+      kind: 'create_story',
+      target: { kind: 'goal', id: 'goal-1' },
+    });
+    expect(result.actions[1]).toMatchObject({
+      kind: 'create_story',
+      target: { kind: 'goal', id: 'goal-1' },
+    });
   });
 });

@@ -22,6 +22,7 @@ import { EMPTY_WORKSPACE_CHAT_MEMORY_STATE } from './WorkspaceChatContextTypes.t
 import type {
   WorkspaceChatMessage,
   WorkspaceChatQuickAction,
+  WorkspaceChatReplyProgress,
 } from './WorkspaceChatTypes.ts';
 import type { WorkspaceChatPreparedSubmission } from './WorkspaceChatPreparedSubmission.ts';
 import type { WorkspaceChatToolHost } from './WorkspaceChatToolTypes.ts';
@@ -31,6 +32,7 @@ type WorkspaceChatSessionState = {
   conversationKey: string;
   messages: WorkspaceChatMessage[];
   replying: boolean;
+  replyProgress: WorkspaceChatReplyProgress | null;
   pendingRequestId: string | null;
   abortController: AbortController | null;
   contextMode: WorkspaceChatContextMode;
@@ -43,6 +45,7 @@ export type WorkspaceChatPanelState = {
   pendingConfirmation: WorkspaceChatPendingConfirmation | null;
   quickActions: WorkspaceChatQuickAction[];
   replying: boolean;
+  replyProgress?: WorkspaceChatReplyProgress | null;
   canClear: boolean;
   contextEnabled: boolean;
   contextMode: WorkspaceChatContextMode;
@@ -101,6 +104,7 @@ export class WorkspaceChatSessionController {
       session.abortController = null;
       session.pendingRequestId = null;
       session.replying = false;
+      session.replyProgress = null;
     }
     this.listeners.clear();
   }
@@ -130,6 +134,7 @@ export class WorkspaceChatSessionController {
       pendingConfirmation: this.resolvePendingConfirmation(session),
       quickActions: scopedContext ? this.service.getQuickActions(scopedContext) : [],
       replying: session.replying,
+      replyProgress: session.replyProgress,
       canClear:
         session.messages.length > 1 ||
         session.messages.some((message) => message.role === 'user'),
@@ -219,7 +224,7 @@ export class WorkspaceChatSessionController {
 
     const autoIntent =
       !options.intent && (options.source === undefined || options.source === 'manual')
-        ? this.resolveAutoIntent(trimmed)
+        ? this.resolveAutoIntent(trimmed, this.getScopedContext(session))
         : undefined;
     const continuedIntent =
       !options.intent && (options.source === undefined || options.source === 'manual')
@@ -254,6 +259,7 @@ export class WorkspaceChatSessionController {
     const abortController =
       typeof AbortController === 'undefined' ? null : new AbortController();
     session.replying = true;
+    session.replyProgress = this.createInitialReplyProgress(resolvedSource);
     session.pendingRequestId = requestId;
     session.abortController = abortController;
     this.emitChange();
@@ -275,6 +281,9 @@ export class WorkspaceChatSessionController {
         validationSnapshot: contextSnapshot,
         allowActions: this.currentView === 'canvas',
         liveHost: options.liveHost ?? this.resolveLiveHost?.() ?? null,
+        onProgress: (progress) => {
+          this.updateReplyProgress(conversationKey, requestId, progress);
+        },
         signal: abortController?.signal,
       });
       this.memoryStore.updateAfterReply({
@@ -334,9 +343,13 @@ export class WorkspaceChatSessionController {
     const requestId = this.createRequestId();
     const abortController =
       typeof AbortController === 'undefined' ? null : new AbortController();
+    const requestIntent = promptMessage.requestIntent;
 
     session.messages = session.messages.slice(0, messageIndex);
     session.replying = true;
+    session.replyProgress = this.createInitialReplyProgress(
+      requestIntent ? 'intent' : 'manual'
+    );
     session.pendingRequestId = requestId;
     session.abortController = abortController;
     this.persistence.saveConversation(conversationKey, session.messages);
@@ -346,7 +359,6 @@ export class WorkspaceChatSessionController {
     const prompt =
       promptMessage.requestPrompt?.trim() || promptMessage.content.trim();
     const contextSnapshot = this.getScopedContext(session);
-    const requestIntent = promptMessage.requestIntent;
     const profile = requestIntent
       ? resolveWorkspaceChatIntentProfile(requestIntent, undefined)
       : undefined;
@@ -363,6 +375,9 @@ export class WorkspaceChatSessionController {
         validationSnapshot: contextSnapshot,
         allowActions: this.currentView === 'canvas',
         liveHost: this.resolveLiveHost?.() ?? null,
+        onProgress: (progress) => {
+          this.updateReplyProgress(conversationKey, requestId, progress);
+        },
         signal: abortController?.signal,
       });
       this.memoryStore.updateAfterReply({
@@ -492,6 +507,7 @@ export class WorkspaceChatSessionController {
     session.abortController = null;
     session.pendingRequestId = null;
     session.replying = false;
+    session.replyProgress = null;
     session.messages = [];
     this.persistence.clearConversation(this.activeConversationKey);
     this.memoryStore.clear(this.activeConversationKey);
@@ -539,6 +555,7 @@ export class WorkspaceChatSessionController {
       conversationKey,
       messages: this.persistence.readConversation(conversationKey),
       replying: false,
+      replyProgress: null,
       pendingRequestId: null,
       abortController: null,
       contextMode: this.persistence.readContextMode(conversationKey),
@@ -600,9 +617,41 @@ export class WorkspaceChatSessionController {
     const session = this.sessions.get(conversationKey);
     if (!session || session.pendingRequestId !== requestId) return;
     session.replying = false;
+    session.replyProgress = null;
     session.pendingRequestId = null;
     session.abortController = null;
     this.emitChange();
+  }
+
+  private updateReplyProgress(
+    conversationKey: string,
+    requestId: string,
+    progress: WorkspaceChatReplyProgress
+  ): void {
+    const session = this.sessions.get(conversationKey);
+    if (!session || session.pendingRequestId !== requestId) {
+      return;
+    }
+    session.replyProgress = progress;
+    this.emitChange();
+  }
+
+  private createInitialReplyProgress(
+    source: 'manual' | 'intent'
+  ): WorkspaceChatReplyProgress {
+    if (source === 'intent') {
+      return {
+        phase: 'routing',
+        label: 'Preparing workflow',
+        detail: 'Selecting the workspace steps for this request.',
+      };
+    }
+
+    return {
+      phase: 'routing',
+      label: 'Analyzing request',
+      detail: 'Choosing the next workspace steps.',
+    };
   }
 
   private isAbortError(error: unknown): boolean {
@@ -752,11 +801,20 @@ export class WorkspaceChatSessionController {
   }
 
   private resolveAutoIntent(
-    prompt: string
+    prompt: string,
+    scopedContext: WorkspaceChatCanvasSnapshot | null
   ): WorkspaceChatPreparedSubmission['intent'] | undefined {
     const normalized = prompt.trim().toLocaleLowerCase();
     if (normalized.length === 0) {
       return undefined;
+    }
+
+    if (this.isStrategicPlanPrompt(normalized, scopedContext)) {
+      return 'strategic_plan';
+    }
+
+    if (this.isBreakdownPrompt(normalized, scopedContext)) {
+      return 'breakdown';
     }
 
     // Keep this narrow: only explicit relation/dependency action requests
@@ -773,8 +831,101 @@ export class WorkspaceChatSessionController {
     const hasRelationActionSignal =
       /(?:delete|remove|clear|unlink|disconnect|cleanup|clean up|change|update|retype|replace|connect|link|add|create|suggest|видал|прибер|очист|розірв|від['’`]?єд|змін|онов|додай|створ|зв['’`]?яж)/u.test(
         normalized
-      );
+    );
     return hasRelationActionSignal ? 'dependencies' : undefined;
+  }
+
+  private isEmptyCanvasContext(
+    context: WorkspaceChatCanvasSnapshot | null
+  ): boolean {
+    if (!context) {
+      return false;
+    }
+    return (
+      context.summary.goalCount === 0 &&
+      context.summary.storyCount === 0 &&
+      context.summary.taskCount === 0
+    );
+  }
+
+  private isStrategicPlanPrompt(
+    normalizedPrompt: string,
+    context: WorkspaceChatCanvasSnapshot | null
+  ): boolean {
+    const selection = context?.elements.filter((element) => element.selected) ?? [];
+    const selectedGoal =
+      selection.length === 1 && selection[0]?.kind === 'goal' ? selection[0] : null;
+    const hasSubgoalSignal =
+      /(?:subgoal|subgoals|phase|phases|goal structure|strategic goal|підціл|під-ціл|фаз|структур.*ціл|стратег)/u.test(
+        normalizedPrompt
+      );
+    if (selectedGoal && hasSubgoalSignal) {
+      return true;
+    }
+
+    const hasPlanSignal =
+      /(?:strateg(?:y|ic)|roadmap|plan|learning plan|starter plan|study plan|blueprint|framework|каркас|стратег|роадмап|дорожн|план|структур|схем)/u.test(
+        normalizedPrompt
+      );
+    if (!hasPlanSignal) {
+      return false;
+    }
+
+    const hasGenerationSignal =
+      /(?:generate|create|build|draft|make|bootstrap|start|outline|згенер|створ|побуд|сформ|склад|накин|зроби|розпиш|сплан)/u.test(
+        normalizedPrompt
+      );
+    if (!hasGenerationSignal) {
+      return false;
+    }
+
+    if (selectedGoal && (hasSubgoalSignal || hasPlanSignal)) {
+      return true;
+    }
+
+    return (
+      this.isEmptyCanvasContext(context) &&
+      /(?:learn|learning|study|roadmap|strategy|plan|вивчен|освоєн|навчан|стратег|план|роадмап)/u.test(
+        normalizedPrompt
+      )
+    );
+  }
+
+  private isBreakdownPrompt(
+    normalizedPrompt: string,
+    context: WorkspaceChatCanvasSnapshot | null
+  ): boolean {
+    const selection = context?.elements.filter((element) => element.selected) ?? [];
+    if (selection.length !== 1) {
+      return false;
+    }
+
+    const item = selection[0];
+    const hasBreakdownSignal =
+      /(?:break down|breakdown|decompose|split|розбий|декомпоз|розкла|поділи)/u.test(
+        normalizedPrompt
+      );
+    if (!hasBreakdownSignal) {
+      return false;
+    }
+
+    const hasStrategicSignal =
+      /(?:subgoal|subgoals|phase|phases|goal structure|strategic goal|підціл|під-ціл|фаз|структур.*ціл|стратег)/u.test(
+        normalizedPrompt
+      );
+    if (item?.kind === 'goal' && hasStrategicSignal) {
+      return false;
+    }
+
+    if (item?.kind === 'story' || item?.kind === 'task') {
+      return true;
+    }
+
+    if (item?.kind === 'goal') {
+      return true;
+    }
+
+    return false;
   }
 
   private describeActionTarget(action: WorkspaceChatAction): string {
@@ -785,6 +936,8 @@ export class WorkspaceChatSessionController {
         return `story "${action.title}"`;
       case 'create_goal':
         return `goal "${action.title}"`;
+      case 'create_goal_blueprint':
+        return `strategic plan "${action.title}"`;
       case 'suggest_relation': {
         const from = action.fromLabel || action.fromId;
         const to = action.toLabel || action.toId;
@@ -882,7 +1035,7 @@ export class WorkspaceChatSessionController {
       if (!action) {
         return 'Applied 0 actions.';
       }
-      const verb =
+    const verb =
         action.kind === 'suggest_relation' ||
         action.kind === 'suggest_update'
           ? 'Applied'
@@ -890,6 +1043,8 @@ export class WorkspaceChatSessionController {
             ? 'Updated'
           : action.kind === 'remove_relation'
             ? 'Removed'
+          : action.kind === 'create_goal_blueprint'
+            ? 'Created'
           : 'Created';
       return `${verb} ${this.describeActionTarget(action)}.`;
     }
@@ -898,6 +1053,12 @@ export class WorkspaceChatSessionController {
       this.describeAppliedActionKind(actions, 'create_task', 'Created', 'task'),
       this.describeAppliedActionKind(actions, 'create_story', 'Created', 'story'),
       this.describeAppliedActionKind(actions, 'create_goal', 'Created', 'goal'),
+      this.describeAppliedActionKind(
+        actions,
+        'create_goal_blueprint',
+        'Created',
+        'plan'
+      ),
       this.describeAppliedActionKind(
         actions,
         'suggest_relation',

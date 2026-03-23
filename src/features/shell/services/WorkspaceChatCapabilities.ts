@@ -56,6 +56,7 @@ export function buildWorkspaceChatCapabilityContext(params: {
     })),
     supportedWorkflows: [
       'Review the current plan or selected work for gaps, weak structure, and planning risks.',
+      'Generate or restructure a strategic plan using high-level goals and subgoals.',
       'Explain what is missing, what is blocked, and what the next planning moves should be.',
       'Clarify or fill missing details on selected goals, stories, and tasks.',
       'Break a goal into stories or a story into tasks when the hierarchy supports it.',
@@ -64,7 +65,7 @@ export function buildWorkspaceChatCapabilityContext(params: {
     currentQuickActions: getWorkspaceChatQuickActions(params.snapshot).map(
       (action) => action.label
     ),
-    currentAiActions: resolveCurrentAiActionLabels(selection),
+    currentAiActions: resolveCurrentAiActionLabels(selection, params.snapshot),
     constraints: [
       'This chat is workspace-scoped, not a general open-domain assistant.',
       'It should stay grounded in canvas data, retrieved tool results, memory, and frontend capability context.',
@@ -84,9 +85,18 @@ function describeSelectionSummary(selection: WorkspaceChatSelectionItem[]): stri
 }
 
 function resolveCurrentAiActionLabels(
-  selection: WorkspaceChatSelectionItem[]
+  selection: WorkspaceChatSelectionItem[],
+  snapshot: WorkspaceChatCanvasSnapshot | null
 ): string[] {
   if (selection.length === 0) {
+    if (
+      snapshot &&
+      snapshot.summary.goalCount === 0 &&
+      snapshot.summary.storyCount === 0 &&
+      snapshot.summary.taskCount === 0
+    ) {
+      return ['Generate strategic plan'];
+    }
     return [];
   }
 
@@ -101,6 +111,7 @@ function resolveCurrentAiActionLabels(
 
   const actions: string[] = [];
   if (item.kind === 'goal') {
+    actions.push('Generate strategic plan');
     actions.push('Break into stories');
   } else if (item.kind === 'story') {
     actions.push('Break into tasks');

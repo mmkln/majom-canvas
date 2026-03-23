@@ -3,7 +3,6 @@ import { Scene } from '../scene/Scene.ts';
 import { PanZoomManager } from '../managers/PanZoomManager.ts';
 import type { IConnectable } from '../interfaces/connectable.ts';
 import type { ConnectionPoint } from '../interfaces/shape.ts';
-import type { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
 import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
 import { StoryElement } from '../../elements/StoryElement.ts';
@@ -39,9 +38,7 @@ export class ConnectionInteractionService {
 
   /** Hit test existing connections */
   public hitTest(x: number, y: number): IConnection | null {
-    const planningEls = this.scene
-      .getElements()
-      .filter(isPlanningElement) as IPlanningElement[];
+    const planningEls = this.scene.getElements().filter(isPlanningElement);
     const connectables: IConnectable[] = [
       ...this.scene.getShapes(),
       ...planningEls,
@@ -210,6 +207,7 @@ export class ConnectionInteractionService {
 
   private isParentChildPair(a: IConnectable, b: IConnectable): boolean {
     return (
+      (a instanceof GoalElement && b instanceof GoalElement) ||
       (a instanceof GoalElement && b instanceof StoryElement) ||
       (a instanceof StoryElement && b instanceof GoalElement)
     );
@@ -224,6 +222,9 @@ export class ConnectionInteractionService {
       return { from, to };
     }
     if (from instanceof GoalElement && to instanceof StoryElement) {
+      return { from, to };
+    }
+    if (from instanceof GoalElement && to instanceof GoalElement) {
       return { from, to };
     }
     if (from instanceof StoryElement && to instanceof GoalElement) {

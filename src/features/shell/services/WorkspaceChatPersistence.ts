@@ -123,24 +123,28 @@ export class WorkspaceChatPersistence {
         message.requestPrompt.trim().length > 0
           ? message.requestPrompt.trim()
           : undefined,
-      requestIntent: isWorkspaceChatIntentKind(message.requestIntent)
-        ? message.requestIntent
-        : undefined,
+      requestIntent: normalizeWorkspaceChatIntentKind(message.requestIntent) ?? undefined,
       actions: actions && actions.length > 0 ? actions : undefined,
       reviewFindings: reviewFindings ?? undefined,
     };
   }
 }
 
-function isWorkspaceChatIntentKind(
+function normalizeWorkspaceChatIntentKind(
   value: unknown
-): value is WorkspaceChatIntentKind {
-  return (
-    value === 'review' ||
-    value === 'breakdown' ||
-    value === 'dependencies' ||
-    value === 'missing' ||
-    value === 'clarify' ||
-    value === 'fill_details'
-  );
+): WorkspaceChatIntentKind | null {
+  switch (value) {
+    case 'review':
+    case 'breakdown':
+    case 'strategic_plan':
+    case 'dependencies':
+    case 'missing':
+    case 'clarify':
+    case 'fill_details':
+      return value;
+    case 'bootstrap_plan':
+      return 'strategic_plan';
+    default:
+      return null;
+  }
 }

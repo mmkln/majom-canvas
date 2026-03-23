@@ -25,6 +25,7 @@ export type WorkspaceChatPromptRequestDetail = {
 export type WorkspaceChatIntentKind =
   | 'review'
   | 'breakdown'
+  | 'strategic_plan'
   | 'dependencies'
   | 'missing'
   | 'clarify'
@@ -169,6 +170,8 @@ export function isWorkspaceChatIntentRequestDetail(
   return (
     (value.intent === 'review' ||
       value.intent === 'breakdown' ||
+      value.intent === 'strategic_plan' ||
+      value.intent === 'bootstrap_plan' ||
       value.intent === 'dependencies' ||
       value.intent === 'missing' ||
       value.intent === 'clarify' ||

@@ -60,4 +60,37 @@ describe('WorkspaceChatIntentPlanFactory', () => {
       { tool: 'find_dependency_gaps', input: { ids: ['story-1', 'story-2'] } },
     ]);
   });
+
+  it('builds a strategic plan with no tool calls and the strategic profile', () => {
+    const snapshot = createWorkspaceChatTestSnapshot({
+      summary: {
+        goalCount: 0,
+        storyCount: 0,
+        taskCount: 0,
+        selectedCount: 0,
+      },
+      selectionIds: [],
+      focusId: null,
+      elements: [],
+      connections: [],
+      recentActivity: [],
+      viewport: null,
+    });
+
+    const plan = buildWorkspaceChatIntentPlan({
+      intent: 'strategic_plan',
+      profile: undefined,
+      snapshot,
+      contextMode: 'canvas',
+    });
+
+    expect(plan.profile).toBe('strategic-plan');
+    expect(plan.calls).toEqual([]);
+    expect(resolveWorkspaceChatIntentInstructionIds('strategic_plan')).toEqual([
+      'planning.strategic-plan',
+    ]);
+    expect(resolveWorkspaceChatIntentProfile('strategic_plan', undefined)).toBe(
+      'strategic-plan'
+    );
+  });
 });

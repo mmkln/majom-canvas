@@ -2,6 +2,8 @@ import { WorkspaceChatToolRegistry } from './WorkspaceChatToolRegistry.ts';
 import {
   isPlainObject,
   type WorkspaceChatExecutionPlan,
+  type WorkspaceChatToolCall,
+  type WorkspaceChatToolDefinition,
   type WorkspaceChatToolResult,
   type WorkspaceChatToolRuntimeContext,
 } from './WorkspaceChatToolTypes.ts';
@@ -9,6 +11,15 @@ import {
 type WorkspaceChatToolExecutorOptions = {
   registry?: WorkspaceChatToolRegistry;
   maxSteps?: number;
+};
+
+type WorkspaceChatToolExecutorRunOptions = {
+  onToolStart?: (params: {
+    call: WorkspaceChatToolCall;
+    definition: WorkspaceChatToolDefinition;
+    step: number;
+    totalSteps: number;
+  }) => void;
 };
 
 export class WorkspaceChatToolExecutor {
@@ -22,13 +33,14 @@ export class WorkspaceChatToolExecutor {
 
   public async executePlan(
     plan: WorkspaceChatExecutionPlan,
-    runtime: WorkspaceChatToolRuntimeContext
+    runtime: WorkspaceChatToolRuntimeContext,
+    options: WorkspaceChatToolExecutorRunOptions = {}
   ): Promise<WorkspaceChatToolResult[]> {
     const results: WorkspaceChatToolResult[] = [];
     const cache = new Map<string, WorkspaceChatToolResult>();
     const calls = plan.calls.slice(0, this.maxSteps);
 
-    for (const call of calls) {
+    for (const [index, call] of calls.entries()) {
       if (!isPlainObject(call.input)) {
         results.push({
           tool: call.tool,
@@ -47,6 +59,13 @@ export class WorkspaceChatToolExecutor {
         });
         break;
       }
+
+      options.onToolStart?.({
+        call,
+        definition,
+        step: index + 1,
+        totalSteps: calls.length,
+      });
 
       const cacheKey = JSON.stringify({
         tool: call.tool,

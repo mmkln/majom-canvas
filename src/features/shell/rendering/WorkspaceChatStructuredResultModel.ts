@@ -46,6 +46,19 @@ export function groupWorkspaceChatActionsForRender(
 export function getWorkspaceChatActionButtonLabel(
   action: WorkspaceChatAction
 ): string {
+  if (action.kind === 'create_goal_blueprint') {
+    if (action.status === 'applied') {
+      return 'Created';
+    }
+    if (action.status === 'applying') {
+      return 'Creating...';
+    }
+    if (action.status === 'failed') {
+      return 'Retry';
+    }
+    return 'Create plan';
+  }
+
   const isApplyAction =
     action.kind === 'suggest_relation' ||
     action.kind === 'remove_relation' ||
@@ -91,13 +104,13 @@ export function buildWorkspaceChatActionTagModels(
       tone: {
         background:
           action.kind === 'remove_relation'
-            ? 'rgba(254, 242, 242, 0.94)'
-            : 'rgba(238, 242, 255, 0.96)',
-        color: action.kind === 'remove_relation' ? '#b91c1c' : '#4338ca',
+            ? 'rgba(254, 242, 242, 0.82)'
+            : 'rgba(238, 242, 255, 0.82)',
+        color: action.kind === 'remove_relation' ? '#be123c' : '#4f46e5',
         border:
           action.kind === 'remove_relation'
-            ? 'rgba(254, 202, 202, 0.92)'
-            : 'rgba(199, 210, 254, 0.92)',
+            ? 'rgba(254, 205, 211, 0.88)'
+            : 'rgba(199, 210, 254, 0.86)',
       },
     });
   }
@@ -106,9 +119,9 @@ export function buildWorkspaceChatActionTagModels(
     tags.push({
       text: `${action.currentRelationType.replace('_', ' ')} -> ${action.nextRelationType.replace('_', ' ')}`,
       tone: {
-        background: 'rgba(255, 247, 237, 0.96)',
+        background: 'rgba(255, 247, 237, 0.82)',
         color: '#c2410c',
-        border: 'rgba(254, 215, 170, 0.92)',
+        border: 'rgba(254, 215, 170, 0.86)',
       },
     });
   }
@@ -120,6 +133,27 @@ export function buildWorkspaceChatActionTagModels(
         tone: getWorkspaceChatNeutralBadgeTone(),
       });
     });
+  }
+
+  if (action.kind === 'create_goal_blueprint') {
+    tags.push({
+      text: action.pattern.replace(/_/g, ' '),
+      tone: {
+        background: 'rgba(238, 242, 255, 0.82)',
+        color: '#4f46e5',
+        border: 'rgba(199, 210, 254, 0.86)',
+      },
+    });
+    tags.push({
+      text: `${action.goals.length} goal${action.goals.length === 1 ? '' : 's'}`,
+      tone: getWorkspaceChatNeutralBadgeTone(),
+    });
+    if (action.relations.length > 0) {
+      tags.push({
+        text: `${action.relations.length} sequence link${action.relations.length === 1 ? '' : 's'}`,
+        tone: getWorkspaceChatNeutralBadgeTone(),
+      });
+    }
   }
 
   return tags;
@@ -143,6 +177,8 @@ export function getWorkspaceChatActionAccentColor(
       return '#c2410c';
     case 'suggest_update':
       return '#0f766e';
+    case 'create_goal_blueprint':
+      return '#1d4ed8';
     case 'create_goal':
     case 'create_story':
     case 'create_task':
@@ -167,6 +203,9 @@ export function getWorkspaceChatActionSecondaryText(
   }
   if (action.kind === 'suggest_update') {
     return `For ${action.elementKind} "${action.targetTitle || action.elementId}"`;
+  }
+  if (action.kind === 'create_goal_blueprint') {
+    return `${action.goals.length} strategic goal${action.goals.length === 1 ? '' : 's'}${action.relations.length > 0 ? ` · ${action.relations.length} leads-to link${action.relations.length === 1 ? '' : 's'}` : ''}`;
   }
   return getWorkspaceChatActionTargetPreview(action, context, contextEnabled);
 }
@@ -232,22 +271,22 @@ export function getWorkspaceChatFindingSeverityBadgeTone(
   switch (severity) {
     case 'high':
       return {
-        background: 'rgba(254, 242, 242, 0.9)',
-        color: '#b91c1c',
-        border: 'rgba(254, 202, 202, 0.72)',
+        background: 'rgba(254, 242, 242, 0.82)',
+        color: '#be123c',
+        border: 'rgba(254, 205, 211, 0.82)',
       };
     case 'medium':
       return {
-        background: 'rgba(255, 251, 235, 0.9)',
+        background: 'rgba(255, 251, 235, 0.82)',
         color: '#b45309',
-        border: 'rgba(253, 230, 138, 0.72)',
+        border: 'rgba(253, 230, 138, 0.82)',
       };
     case 'low':
     default:
       return {
-        background: 'rgba(239, 246, 255, 0.9)',
-        color: '#1d4ed8',
-        border: 'rgba(191, 219, 254, 0.72)',
+        background: 'rgba(248, 250, 252, 0.9)',
+        color: '#475569',
+        border: 'rgba(203, 213, 225, 0.82)',
       };
   }
 }
@@ -257,22 +296,22 @@ export function getWorkspaceChatReadinessBadgeTone(
 ): WorkspaceChatBadgeTone {
   if (score >= 80) {
     return {
-      background: 'rgba(236, 253, 245, 0.9)',
-      color: '#047857',
-      border: 'rgba(167, 243, 208, 0.72)',
+      background: 'rgba(238, 242, 255, 0.82)',
+      color: '#4f46e5',
+      border: 'rgba(199, 210, 254, 0.82)',
     };
   }
   if (score >= 60) {
     return {
-      background: 'rgba(255, 251, 235, 0.9)',
+      background: 'rgba(255, 251, 235, 0.82)',
       color: '#b45309',
-      border: 'rgba(253, 230, 138, 0.72)',
+      border: 'rgba(253, 230, 138, 0.82)',
     };
   }
   return {
-    background: 'rgba(254, 242, 242, 0.9)',
-    color: '#b91c1c',
-    border: 'rgba(254, 202, 202, 0.72)',
+    background: 'rgba(254, 242, 242, 0.82)',
+    color: '#be123c',
+    border: 'rgba(254, 205, 211, 0.82)',
   };
 }
 
@@ -322,22 +361,22 @@ function getWorkspaceChatPriorityBadgeTone(
     case 'lowest':
     case 'low':
       return {
-        background: 'rgba(239, 246, 255, 0.9)',
-        color: '#1d4ed8',
-        border: 'rgba(191, 219, 254, 0.72)',
+        background: 'rgba(248, 250, 252, 0.9)',
+        color: '#475569',
+        border: 'rgba(203, 213, 225, 0.82)',
       };
     case 'medium':
       return {
-        background: 'rgba(255, 251, 235, 0.9)',
+        background: 'rgba(255, 251, 235, 0.82)',
         color: '#b45309',
-        border: 'rgba(253, 230, 138, 0.72)',
+        border: 'rgba(253, 230, 138, 0.82)',
       };
     case 'high':
     case 'highest':
       return {
-        background: 'rgba(254, 242, 242, 0.9)',
-        color: '#b91c1c',
-        border: 'rgba(254, 202, 202, 0.72)',
+        background: 'rgba(254, 242, 242, 0.82)',
+        color: '#be123c',
+        border: 'rgba(254, 205, 211, 0.82)',
       };
   }
 }

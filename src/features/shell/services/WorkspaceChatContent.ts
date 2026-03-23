@@ -72,6 +72,9 @@ export function describeWorkspaceChatSelectionItem(
   if (typeof item.childCount === 'number' && item.kind === 'story') {
     parts.push(`${item.childCount} tasks inside`);
   }
+  if (typeof item.childCount === 'number' && item.kind === 'goal') {
+    parts.push(`${item.childCount} child items`);
+  }
   return parts.join(', ');
 }
 

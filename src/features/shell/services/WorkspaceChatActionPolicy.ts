@@ -10,6 +10,8 @@ const STRUCTURED_ACTION_KIND_LABELS: Record<
   create_task: 'create_task',
   create_story: 'create_story',
   create_goal: 'create_goal',
+  create_goal_blueprint: 'create_goal_blueprint',
+  create_goals: 'create_goals',
   create_batch_tasks: 'create_batch_tasks',
   create_batch_stories: 'create_batch_stories',
   suggest_relation: 'suggest_relation',
@@ -36,6 +38,8 @@ export function resolveWorkspaceChatActionKindsForIntent(
       return ['suggest_relation', 'remove_relation', 'update_relation', 'suggest_update'];
     case 'breakdown':
       return ['create_task', 'create_story', 'suggest_update'];
+    case 'strategic_plan':
+      return ['create_goal', 'create_goal_blueprint'];
     default:
       return null;
   }
@@ -70,6 +74,8 @@ export function resolveWorkspaceChatStructuredReplyKindsForIntent(
         'suggest_update',
         'suggest_updates',
       ];
+    case 'strategic_plan':
+      return ['create_goals', 'create_goal_blueprint'];
     default:
       return null;
   }

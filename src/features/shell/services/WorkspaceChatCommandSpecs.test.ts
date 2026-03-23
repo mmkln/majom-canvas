@@ -113,6 +113,62 @@ function createThinFillDetailsSnapshot() {
   };
 }
 
+function createEmptyCanvasSnapshot() {
+  return {
+    canvasId: 'canvas-empty',
+    canvasTitle: 'Empty strategy canvas',
+    summary: {
+      goalCount: 0,
+      storyCount: 0,
+      taskCount: 0,
+      selectedCount: 0,
+    },
+    selectionIds: [],
+    focusId: null,
+    highlightedIds: [],
+    elements: [],
+    connections: [],
+    viewport: null,
+    recentActivity: [],
+  };
+}
+
+function createSelectedGoalSnapshot() {
+  return {
+    canvasId: 'canvas-strategy',
+    canvasTitle: 'Strategy canvas',
+    summary: {
+      goalCount: 1,
+      storyCount: 0,
+      taskCount: 0,
+      selectedCount: 1,
+    },
+    selectionIds: ['goal-strategy'],
+    focusId: 'goal-strategy',
+    highlightedIds: [],
+    elements: [
+      {
+        id: 'goal-strategy',
+        kind: 'goal',
+        title: 'Стратегічний план вивчення автоматизації маркетингу',
+        description:
+          'Основи, інструменти, концепції, практика, аналітика, кейси.',
+        status: 'defined',
+        priority: 'low',
+        childCount: 0,
+        parentId: null,
+        childIds: [],
+        selected: true,
+        focused: true,
+        highlighted: false,
+      },
+    ],
+    connections: [],
+    viewport: null,
+    recentActivity: [],
+  };
+}
+
 describe('WorkspaceChatCommandSpecs', () => {
   it('rejects dependency analysis replies that do not return actions or one concise follow-up question', () => {
     const spec = getWorkspaceChatCommandSpec('dependencies');
@@ -454,5 +510,189 @@ describe('WorkspaceChatCommandSpecs', () => {
     expect(compiledContext.latestUserInput).toBe(
       '85kg minimum, broad shoulders, big chest, 6-pack abs, strong forearms, glutes and legs trained.'
     );
+  });
+
+  it('accepts strategic_plan create_goals proposals on an empty canvas', () => {
+    const spec = getWorkspaceChatCommandSpec('strategic_plan');
+    expect(spec).not.toBeNull();
+
+    const compiledContext = spec!.buildCompiledContext({
+      prompt: 'Generate a strategic learning plan for marketing automation.',
+      memory: createWorkspaceChatTestMemory(),
+      toolResults: [],
+      snapshot: createEmptyCanvasSnapshot(),
+    });
+
+    const error = spec!.validateEnvelope({
+      envelope: {
+        replyMarkdown: 'I prepared a flat strategic plan with the main learning tracks.',
+        actions: [
+          {
+            kind: 'create_goals',
+            title: 'Strategic goals',
+            summary: 'High-level tracks for learning marketing automation.',
+            items: [
+              {
+                title: 'Learn automation fundamentals',
+                priority: 'high',
+              },
+              {
+                title: 'Build first automated flow',
+                priority: 'high',
+              },
+              {
+                title: 'Measure and optimize results',
+                priority: 'medium',
+              },
+            ],
+          },
+        ],
+      },
+      compiledContext,
+    });
+
+    expect(error).toBeNull();
+  });
+
+  it('accepts strategic_plan blueprints with hierarchy and leads_to links', () => {
+    const spec = getWorkspaceChatCommandSpec('strategic_plan');
+    expect(spec).not.toBeNull();
+
+    const compiledContext = spec!.buildCompiledContext({
+      prompt: 'Generate a strategic learning plan for marketing automation.',
+      memory: createWorkspaceChatTestMemory(),
+      toolResults: [],
+      snapshot: createEmptyCanvasSnapshot(),
+    });
+
+    const error = spec!.validateEnvelope({
+      envelope: {
+        replyMarkdown: 'I prepared one strategic skeleton with major stages.',
+        actions: [
+          {
+            kind: 'create_goal_blueprint',
+            title: 'Marketing automation learning plan',
+            summary: 'One main outcome with strategic subgoals.',
+            pattern: 'goal_tree_with_sequence',
+            goals: [
+              {
+                ref: 'root',
+                title: 'Master marketing automation strategically',
+                priority: 'high',
+              },
+              {
+                ref: 'fundamentals',
+                title: 'Learn core automation concepts',
+                parentRef: 'root',
+              },
+              {
+                ref: 'practice',
+                title: 'Build real automation workflows',
+                parentRef: 'root',
+              },
+            ],
+            relations: [
+              {
+                fromRef: 'fundamentals',
+                toRef: 'practice',
+                relationType: 'leads_to',
+                reason: 'Foundations should come before real workflow building.',
+              },
+            ],
+          },
+        ],
+      },
+      compiledContext,
+    });
+
+    expect(error).toBeNull();
+  });
+
+  it('accepts strategic_plan child goals anchored to a selected goal on a non-empty canvas', () => {
+    const spec = getWorkspaceChatCommandSpec('strategic_plan');
+    expect(spec).not.toBeNull();
+
+    const compiledContext = spec!.buildCompiledContext({
+      prompt: 'декомпозуй поточну ціль у підцілі',
+      memory: createWorkspaceChatTestMemory(),
+      toolResults: [],
+      snapshot: createSelectedGoalSnapshot(),
+    });
+
+    const error = spec!.validateEnvelope({
+      envelope: {
+        replyMarkdown: 'I prepared strategic subgoals under the selected goal.',
+        actions: [
+          {
+            kind: 'create_goals',
+            title: 'Strategic goals',
+            target: {
+              kind: 'goal',
+              id: 'goal-strategy',
+            },
+            items: [
+              { title: 'Освоїти основи automation' },
+              { title: 'Зібрати перші workflow' },
+            ],
+          },
+        ],
+      },
+      compiledContext,
+    });
+
+    expect(error).toBeNull();
+  });
+
+  it('requires goal-level strategic proposals to target the selected goal explicitly', () => {
+    const spec = getWorkspaceChatCommandSpec('strategic_plan');
+    expect(spec).not.toBeNull();
+
+    const compiledContext = spec!.buildCompiledContext({
+      prompt: 'декомпозуй поточну ціль у підцілі',
+      memory: createWorkspaceChatTestMemory(),
+      toolResults: [],
+      snapshot: createSelectedGoalSnapshot(),
+    });
+
+    const error = spec!.validateEnvelope({
+      envelope: {
+        replyMarkdown: 'I prepared strategic subgoals.',
+        actions: [
+          {
+            kind: 'create_goals',
+            title: 'Strategic goals',
+            items: [{ title: 'Goal A' }, { title: 'Goal B' }],
+          },
+        ],
+      },
+      compiledContext,
+    });
+
+    expect(error).toBe(
+      'Strategic decomposition around a selected goal must target that goal explicitly.'
+    );
+  });
+
+  it('requires ambiguous goal breakdown prompts to return a follow-up question instead of actions', () => {
+    const spec = getWorkspaceChatCommandSpec('breakdown');
+    expect(spec).not.toBeNull();
+
+    const compiledContext = spec!.buildCompiledContext({
+      prompt: 'декомпозуй',
+      memory: createWorkspaceChatTestMemory(),
+      toolResults: [],
+      snapshot: createSelectedGoalSnapshot(),
+    });
+
+    const error = spec!.validateEnvelope({
+      envelope: {
+        replyMarkdown:
+          'Do you want strategic subgoals or execution-level stories for this goal?',
+        actions: [],
+      },
+      compiledContext,
+    });
+
+    expect(error).toBeNull();
   });
 });

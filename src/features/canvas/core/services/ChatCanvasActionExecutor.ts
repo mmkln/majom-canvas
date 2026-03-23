@@ -3,6 +3,8 @@ import { StoryElement } from '../../elements/StoryElement.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
 import { ElementStatus } from '../../elements/ElementStatus.ts';
 import { AddElementCommand } from '../commands/AddElementCommand.ts';
+import { Command } from '../commands/Command.ts';
+import { CompositeCommand } from '../commands/CompositeCommand.ts';
 import { ConnectCommand } from '../commands/ConnectCommand.ts';
 import { PatchPlanningElementCommand } from '../commands/PatchPlanningElementCommand.ts';
 import { RemoveConnectionCommand } from '../commands/RemoveConnectionCommand.ts';
@@ -22,6 +24,8 @@ import {
 import type {
   WorkspaceChatActionExecutionRequest,
   WorkspaceChatActionExecutionResult,
+  WorkspaceChatCreateAction,
+  WorkspaceChatGoalBlueprintAction,
   WorkspaceChatRemoveRelationAction,
   WorkspaceChatRelationAction,
   WorkspaceChatRelationSuggestionType,
@@ -40,6 +44,18 @@ type ChatCanvasActionExecutorOptions = {
   layoutService?: StoryLayoutService;
 };
 
+type WorkspaceChatCreateTaskAction = WorkspaceChatCreateAction & {
+  kind: 'create_task';
+};
+
+type WorkspaceChatCreateStoryAction = WorkspaceChatCreateAction & {
+  kind: 'create_story';
+};
+
+type WorkspaceChatCreateGoalAction = WorkspaceChatCreateAction & {
+  kind: 'create_goal';
+};
+
 export class ChatCanvasActionExecutor {
   private readonly layoutService: StoryLayoutService;
 
@@ -49,48 +65,63 @@ export class ChatCanvasActionExecutor {
     this.layoutService = options.layoutService ?? new StoryLayoutService();
   }
 
-  public async execute(
+  public execute(
     request: WorkspaceChatActionExecutionRequest
   ): Promise<WorkspaceChatActionExecutionResult> {
     try {
       switch (request.action.kind) {
         case 'create_task':
-          return this.applyCreateTask(request);
+          return Promise.resolve(
+            this.applyCreateTask(
+              request.action as WorkspaceChatCreateTaskAction,
+              request.allowSelectionTargeting
+            )
+          );
         case 'create_story':
-          return this.applyCreateStory(request);
+          return Promise.resolve(
+            this.applyCreateStory(
+              request.action as WorkspaceChatCreateStoryAction,
+              request.allowSelectionTargeting
+            )
+          );
         case 'create_goal':
-          return this.applyCreateGoal(request);
+          return Promise.resolve(
+            this.applyCreateGoal(request.action as WorkspaceChatCreateGoalAction)
+          );
+        case 'create_goal_blueprint':
+          return Promise.resolve(this.applyCreateGoalBlueprint(request.action));
         case 'suggest_relation':
-          return this.applySuggestRelation(request.action);
+          return Promise.resolve(this.applySuggestRelation(request.action));
         case 'remove_relation':
-          return this.applyRemoveRelation(request.action);
+          return Promise.resolve(this.applyRemoveRelation(request.action));
         case 'update_relation':
-          return this.applyUpdateRelation(request.action);
+          return Promise.resolve(this.applyUpdateRelation(request.action));
         case 'suggest_update':
-          return this.applySuggestUpdate(request.action);
+          return Promise.resolve(this.applySuggestUpdate(request.action));
       }
     } catch (error) {
-      return {
+      return Promise.resolve({
         status: 'failed',
         errorMessage:
           error instanceof Error ? error.message : 'Failed to create element.',
-      };
+      });
     }
   }
 
   private applyCreateTask(
-    request: WorkspaceChatActionExecutionRequest
+    action: WorkspaceChatCreateTaskAction,
+    allowSelectionTargeting: boolean
   ): WorkspaceChatActionExecutionResult {
     const explicitStory =
-      request.action.target?.kind === 'story'
-        ? this.findStoryById(request.action.target.id)
+      action.target?.kind === 'story'
+        ? this.findStoryById(action.target.id)
         : null;
-    const selectedStory = request.allowSelectionTargeting
+    const selectedStory = allowSelectionTargeting
       ? this.getSingleSelectedStory()
       : null;
     const story = explicitStory ?? selectedStory;
 
-    if (request.action.target?.kind === 'story' && !story) {
+    if (action.target?.kind === 'story' && !story) {
       return {
         status: 'failed',
         errorMessage: 'Target story is unavailable.',
@@ -103,12 +134,12 @@ export class ChatCanvasActionExecutor {
           scene: this.options.scene,
           canvasManager: this.options.canvasManager as CanvasManager,
           layoutService: this.layoutService,
-          title: request.action.title,
-          description: request.action.description ?? '',
-          priority: request.action.priority,
-          status: this.toElementStatus(request.action.elementStatus),
+          title: action.title,
+          description: action.description ?? '',
+          priority: action.priority,
+          status: this.toElementStatus(action.elementStatus),
         })
-      : this.createStandaloneTask(request);
+      : this.createStandaloneTask(action);
 
     return {
       status: 'applied',
@@ -291,18 +322,19 @@ export class ChatCanvasActionExecutor {
   }
 
   private applyCreateStory(
-    request: WorkspaceChatActionExecutionRequest
+    action: WorkspaceChatCreateStoryAction,
+    allowSelectionTargeting: boolean
   ): WorkspaceChatActionExecutionResult {
     const explicitGoal =
-      request.action.target?.kind === 'goal'
-        ? this.findGoalById(request.action.target.id)
+      action.target?.kind === 'goal'
+        ? this.findGoalById(action.target.id)
         : null;
-    const selectedGoal = request.allowSelectionTargeting
+    const selectedGoal = allowSelectionTargeting
       ? this.getSingleSelectedGoal()
       : null;
     const goal = explicitGoal ?? selectedGoal;
 
-    if (request.action.target?.kind === 'goal' && !goal) {
+    if (action.target?.kind === 'goal' && !goal) {
       return {
         status: 'failed',
         errorMessage: 'Target goal is unavailable.',
@@ -313,10 +345,10 @@ export class ChatCanvasActionExecutor {
     const story = new StoryElement({
       x: x - StoryElement.width / 2,
       y: y - StoryElement.height / 2,
-      title: request.action.title,
-      description: request.action.description ?? '',
-      priority: request.action.priority ?? 'low',
-      status: this.toElementStatus(request.action.elementStatus),
+      title: action.title,
+      description: action.description ?? '',
+      priority: action.priority ?? 'low',
+      status: this.toElementStatus(action.elementStatus),
       goalBackendId:
         goal && Number.isFinite(goal.backendId) ? Number(goal.backendId) : null,
     });
@@ -343,19 +375,41 @@ export class ChatCanvasActionExecutor {
   }
 
   private applyCreateGoal(
-    request: WorkspaceChatActionExecutionRequest
+    action: WorkspaceChatCreateGoalAction
   ): WorkspaceChatActionExecutionResult {
+    const parentGoal =
+      action.target?.kind === 'goal'
+        ? this.findGoalById(action.target.id)
+        : null;
+    if (action.target?.kind === 'goal' && !parentGoal) {
+      return {
+        status: 'failed',
+        errorMessage: 'Target goal is unavailable.',
+      };
+    }
+
     const { x, y } = this.getViewportCenter();
     const goal = new GoalElement({
       x: x - GoalElement.width / 2,
       y: y - GoalElement.height / 2,
-      title: request.action.title,
-      description: request.action.description ?? '',
-      priority: request.action.priority ?? 'low',
-      status: this.toElementStatus(request.action.elementStatus),
+      title: action.title,
+      description: action.description ?? '',
+      priority: action.priority ?? 'low',
+      status: this.toElementStatus(action.elementStatus),
     });
 
-    historyService.execute(new AddElementCommand(this.options.scene, goal));
+    const commands: Command[] = [new AddElementCommand(this.options.scene, goal)];
+    if (parentGoal) {
+      commands.push(
+        new ConnectCommand(
+          this.options.scene,
+          parentGoal.id,
+          goal.id,
+          ConnectionRelationType.ParentChild
+        )
+      );
+    }
+    historyService.execute(new CompositeCommand(commands));
     this.options.scene.setSelected([goal]);
     this.options.canvasManager.draw();
 
@@ -365,17 +419,123 @@ export class ChatCanvasActionExecutor {
     };
   }
 
+  private applyCreateGoalBlueprint(
+    action: WorkspaceChatGoalBlueprintAction
+  ): WorkspaceChatActionExecutionResult {
+    if (action.goals.length === 0) {
+      return {
+        status: 'failed',
+        errorMessage: 'The strategic plan has no goals to create.',
+      };
+    }
+
+    const positions = this.buildGoalBlueprintPositions(action);
+    const createdGoals = action.goals.map((goalDefinition) => {
+      const position = positions.get(goalDefinition.ref) ?? this.getViewportCenter();
+      return new GoalElement({
+        x: position.x - GoalElement.width / 2,
+        y: position.y - GoalElement.height / 2,
+        title: goalDefinition.title,
+        description: goalDefinition.description ?? '',
+        priority: goalDefinition.priority ?? 'low',
+        status: this.toElementStatus(goalDefinition.elementStatus),
+      });
+    });
+
+    const goalByRef = new Map(
+      action.goals.map((goalDefinition, index) => [
+        goalDefinition.ref,
+        createdGoals[index],
+      ])
+    );
+    const targetGoal =
+      action.target?.kind === 'goal'
+        ? this.findGoalById(action.target.id)
+        : null;
+    if (action.target?.kind === 'goal' && !targetGoal) {
+      return {
+        status: 'failed',
+        errorMessage: 'Target goal is unavailable.',
+      };
+    }
+
+    const commands: Command[] = [
+      new AddElementCommand(this.options.scene, createdGoals),
+    ];
+    if (targetGoal) {
+      action.goals.forEach((goalDefinition) => {
+        if (goalDefinition.parentRef) {
+          return;
+        }
+        const rootGoal = goalByRef.get(goalDefinition.ref);
+        if (!rootGoal) {
+          return;
+        }
+        commands.push(
+          new ConnectCommand(
+            this.options.scene,
+            targetGoal.id,
+            rootGoal.id,
+            ConnectionRelationType.ParentChild
+          )
+        );
+      });
+    }
+    action.goals.forEach((goalDefinition) => {
+      if (!goalDefinition.parentRef) {
+        return;
+      }
+      const parentGoal = goalByRef.get(goalDefinition.parentRef);
+      const childGoal = goalByRef.get(goalDefinition.ref);
+      if (!parentGoal || !childGoal) {
+        return;
+      }
+      commands.push(
+        new ConnectCommand(
+          this.options.scene,
+          parentGoal.id,
+          childGoal.id,
+          ConnectionRelationType.ParentChild
+        )
+      );
+    });
+    action.relations.forEach((relation) => {
+      const fromGoal = goalByRef.get(relation.fromRef);
+      const toGoal = goalByRef.get(relation.toRef);
+      if (!fromGoal || !toGoal) {
+        return;
+      }
+      commands.push(
+        new ConnectCommand(
+          this.options.scene,
+          fromGoal.id,
+          toGoal.id,
+          ConnectionRelationType.LeadsTo
+        )
+      );
+    });
+
+    historyService.execute(new CompositeCommand(commands));
+    this.options.scene.setSelected(createdGoals);
+    this.options.canvasManager.draw();
+
+    return {
+      status: 'applied',
+      affectedElementIds: createdGoals.map((goal) => goal.id),
+    };
+  }
+
   private createStandaloneTask(
-    request: WorkspaceChatActionExecutionRequest
+    action: WorkspaceChatCreateTaskAction
   ): TaskElement {
     const { x, y } = this.getViewportCenter();
     const task = new TaskElement({
       x: x - TaskElement.width / 2,
       y: y - TaskElement.height / 2,
-      title: request.action.title,
-      description: request.action.description ?? '',
-      priority: request.action.priority ?? 'low',
-      status: this.toElementStatus(request.action.elementStatus),
+      title: action.title,
+      description: action.description ?? '',
+      priority: action.priority ?? 'low',
+      status: this.toElementStatus(action.elementStatus),
     });
     historyService.execute(new AddElementCommand(this.options.scene, task));
     this.options.scene.setSelected([task]);
@@ -390,6 +550,123 @@ export class ChatCanvasActionExecutor {
       x: (canvas.width / 2 + panZoom.scrollX) / panZoom.scale,
       y: (canvas.height / 2 + panZoom.scrollY) / panZoom.scale,
     };
+  }
+
+  private buildGoalBlueprintPositions(
+    action: WorkspaceChatGoalBlueprintAction
+  ): Map<string, { x: number; y: number }> {
+    return action.pattern === 'goal_graph'
+      ? this.buildGoalGraphPositions(action)
+      : this.buildGoalTreePositions(action);
+  }
+
+  private buildGoalGraphPositions(
+    action: WorkspaceChatGoalBlueprintAction
+  ): Map<string, { x: number; y: number }> {
+    const center = this.getViewportCenter();
+    const positions = new Map<string, { x: number; y: number }>();
+    const columnCount = Math.max(2, Math.ceil(Math.sqrt(action.goals.length)));
+    const horizontalGap = GoalElement.width + 96;
+    const verticalGap = GoalElement.height + 120;
+    const rowCount = Math.ceil(action.goals.length / columnCount);
+
+    action.goals.forEach((goal, index) => {
+      const column = index % columnCount;
+      const row = Math.floor(index / columnCount);
+      const x =
+        center.x + (column - (columnCount - 1) / 2) * horizontalGap;
+      const y = center.y + (row - (rowCount - 1) / 2) * verticalGap;
+      positions.set(goal.ref, { x, y });
+    });
+
+    return positions;
+  }
+
+  private buildGoalTreePositions(
+    action: WorkspaceChatGoalBlueprintAction
+  ): Map<string, { x: number; y: number }> {
+    const center = this.getViewportCenter();
+    const childrenByParent = new Map<
+      string | null,
+      WorkspaceChatGoalBlueprintAction['goals']
+    >();
+    action.goals.forEach((goal) => {
+      const key = goal.parentRef ?? null;
+      const bucket = childrenByParent.get(key) ?? [];
+      bucket.push(goal);
+      childrenByParent.set(key, bucket);
+    });
+
+    const leafCounts = new Map<string, number>();
+    const depthByRef = new Map<string, number>();
+    const countLeaves = (ref: string): number => {
+      const cached = leafCounts.get(ref);
+      if (typeof cached === 'number') {
+        return cached;
+      }
+      const children = childrenByParent.get(ref) ?? [];
+      const count =
+        children.length === 0
+          ? 1
+          : children.reduce((total, child) => total + countLeaves(child.ref), 0);
+      leafCounts.set(ref, count);
+      return count;
+    };
+    const collectDepth = (ref: string, depth: number): number => {
+      depthByRef.set(ref, depth);
+      const children = childrenByParent.get(ref) ?? [];
+      if (children.length === 0) {
+        return depth;
+      }
+      return children.reduce((maxDepth, child) => {
+        return Math.max(maxDepth, collectDepth(child.ref, depth + 1));
+      }, depth);
+    };
+
+    const roots = childrenByParent.get(null) ?? action.goals.slice(0, 1);
+    const totalLeaves = Math.max(
+      1,
+      roots.reduce((total, root) => total + countLeaves(root.ref), 0)
+    );
+    const maxDepth = roots.reduce((depth, root) => {
+      return Math.max(depth, collectDepth(root.ref, 0));
+    }, 0);
+
+    const horizontalGap = GoalElement.width + 96;
+    const verticalGap = GoalElement.height + 120;
+    const positions = new Map<string, { x: number; y: number }>();
+
+    const assign = (goalRef: string, startLeafIndex: number): void => {
+      const leafCount = leafCounts.get(goalRef) ?? 1;
+      const depth = depthByRef.get(goalRef) ?? 0;
+      const x =
+        center.x +
+        (startLeafIndex + (leafCount - 1) / 2 - (totalLeaves - 1) / 2) *
+          horizontalGap;
+      const y = center.y + (depth - maxDepth / 2) * verticalGap;
+      positions.set(goalRef, { x, y });
+
+      let childStartLeafIndex = startLeafIndex;
+      const children = childrenByParent.get(goalRef) ?? [];
+      children.forEach((child) => {
+        assign(child.ref, childStartLeafIndex);
+        childStartLeafIndex += leafCounts.get(child.ref) ?? 1;
+      });
+    };
+
+    let currentLeafIndex = 0;
+    roots.forEach((root) => {
+      assign(root.ref, currentLeafIndex);
+      currentLeafIndex += leafCounts.get(root.ref) ?? 1;
+    });
+
+    action.goals.forEach((goal) => {
+      if (!positions.has(goal.ref)) {
+        positions.set(goal.ref, center);
+      }
+    });
+
+    return positions;
   }
 
   private getSingleSelectedStory(): StoryElement | null {

@@ -1,3 +1,4 @@
+import { isUiPriority } from '../../../majom-wrapper/utils/priorityMapping.ts';
 import type {
   WorkspaceChatCanvasElement,
   WorkspaceChatCanvasSnapshot,
@@ -6,6 +7,7 @@ import type {
   WorkspaceChatIntentKind,
 } from '../workspaceChatEvents.ts';
 import {
+  isWorkspaceChatCreateElementStatus,
   isWorkspaceChatRelationSuggestionType,
   type WorkspaceChatRelationSuggestionType,
 } from '../workspaceChatActions.ts';
@@ -139,6 +141,40 @@ type WorkspaceChatFillDetailsCommandContext = {
   };
 };
 
+type WorkspaceChatStrategicPlanCommandContext = {
+  intent: 'strategic_plan';
+  commandVersion: 2;
+  latestUserInput: string;
+  canvasTitle: string;
+  targetScope: 'canvas' | 'selected_goal';
+  mode: 'canvas_bootstrap' | 'goal_subgoals' | 'goal_replan';
+  summary: WorkspaceChatCanvasSnapshot['summary'];
+  selectedGoal?: WorkspaceChatCommandElementSummary;
+  strategicHints: string[];
+  constraints: {
+    allowedActionKinds: ['create_goals', 'create_goal_blueprint'];
+    forbidReviewFindings: true;
+    requireSingleStrategicProposal: true;
+    strategicLevelOnly: true;
+  };
+};
+
+type WorkspaceChatBreakdownCommandContext = {
+  intent: 'breakdown';
+  commandVersion: 1;
+  latestUserInput: string;
+  mode:
+    | 'goal_stories'
+    | 'story_tasks'
+    | 'task_refine'
+    | 'unspecified_goal_decomposition';
+  target?: WorkspaceChatCommandElementSummary;
+  constraints: {
+    forbidReviewFindings: true;
+    requireConciseFollowupQuestionWhenAmbiguous: true;
+  };
+};
+
 const DEPENDENCIES_COMMAND_SPEC: WorkspaceChatCommandSpec = {
   intent: 'dependencies',
   buildCompiledContext: (params) => buildDependenciesCommandContext(params),
@@ -187,14 +223,66 @@ const FILL_DETAILS_COMMAND_SPEC: WorkspaceChatCommandSpec = {
     }),
 };
 
+const STRATEGIC_PLAN_COMMAND_SPEC: WorkspaceChatCommandSpec = {
+  intent: 'strategic_plan',
+  buildCompiledContext: (params) => buildStrategicPlanCommandContext(params),
+  buildMessages: ({ instructionPackets, compiledContext }) =>
+    buildStrategicPlanCommandMessages({
+      instructionPackets,
+      compiledContext,
+    }),
+  validateEnvelope: ({ envelope, compiledContext }) =>
+    validateStrategicPlanCommandEnvelope(envelope, compiledContext),
+  buildRepairMessages: ({
+    invalidResponse,
+    validationError,
+    instructionPackets,
+    compiledContext,
+  }) =>
+    buildStrategicPlanCommandRepairMessages({
+      invalidResponse,
+      validationError,
+      instructionPackets,
+      compiledContext,
+    }),
+};
+
+const BREAKDOWN_COMMAND_SPEC: WorkspaceChatCommandSpec = {
+  intent: 'breakdown',
+  buildCompiledContext: (params) => buildBreakdownCommandContext(params),
+  buildMessages: ({ instructionPackets, compiledContext }) =>
+    buildBreakdownCommandMessages({
+      instructionPackets,
+      compiledContext,
+    }),
+  validateEnvelope: ({ envelope, compiledContext }) =>
+    validateBreakdownCommandEnvelope(envelope, compiledContext),
+  buildRepairMessages: ({
+    invalidResponse,
+    validationError,
+    instructionPackets,
+    compiledContext,
+  }) =>
+    buildBreakdownCommandRepairMessages({
+      invalidResponse,
+      validationError,
+      instructionPackets,
+      compiledContext,
+    }),
+};
+
 export function getWorkspaceChatCommandSpec(
   intent: WorkspaceChatIntentKind | undefined
 ): WorkspaceChatCommandSpec | null {
   switch (intent) {
     case 'dependencies':
       return DEPENDENCIES_COMMAND_SPEC;
+    case 'strategic_plan':
+      return STRATEGIC_PLAN_COMMAND_SPEC;
     case 'fill_details':
       return FILL_DETAILS_COMMAND_SPEC;
+    case 'breakdown':
+      return BREAKDOWN_COMMAND_SPEC;
     default:
       return null;
   }
@@ -302,6 +390,59 @@ function buildFillDetailsCommandContext(
         'locations',
         'acceptance criteria',
       ],
+    },
+  };
+}
+
+function buildStrategicPlanCommandContext(
+  params: WorkspaceChatCommandBuildContextParams
+): WorkspaceChatStrategicPlanCommandContext {
+  const summary = params.snapshot?.summary ?? {
+    goalCount: 0,
+    storyCount: 0,
+    taskCount: 0,
+    selectedCount: 0,
+  };
+  const focus =
+    readFocusBundle(params.toolResults) ?? deriveFocusFromSnapshot(params.snapshot);
+  const selectedGoal =
+    focus?.item.kind === 'goal' ? toCommandElementSummary(focus.item) : undefined;
+  const latestUserInput = params.prompt.trim();
+  const mode = resolveStrategicPlanMode(latestUserInput, selectedGoal);
+  return {
+    intent: 'strategic_plan',
+    commandVersion: 2,
+    latestUserInput,
+    canvasTitle: params.snapshot?.canvasTitle ?? 'Untitled canvas',
+    targetScope: selectedGoal ? 'selected_goal' : 'canvas',
+    mode,
+    summary,
+    selectedGoal,
+    strategicHints: extractStrategicHints(selectedGoal),
+    constraints: {
+      allowedActionKinds: ['create_goals', 'create_goal_blueprint'],
+      forbidReviewFindings: true,
+      requireSingleStrategicProposal: true,
+      strategicLevelOnly: true,
+    },
+  };
+}
+
+function buildBreakdownCommandContext(
+  params: WorkspaceChatCommandBuildContextParams
+): WorkspaceChatBreakdownCommandContext {
+  const focus =
+    readFocusBundle(params.toolResults) ?? deriveFocusFromSnapshot(params.snapshot);
+  const target = focus?.item ? toCommandElementSummary(focus.item) : undefined;
+  return {
+    intent: 'breakdown',
+    commandVersion: 1,
+    latestUserInput: params.prompt.trim(),
+    mode: resolveBreakdownMode(params.prompt.trim(), focus?.item ?? null),
+    target,
+    constraints: {
+      forbidReviewFindings: true,
+      requireConciseFollowupQuestionWhenAmbiguous: true,
     },
   };
 }
@@ -507,6 +648,163 @@ function buildFillDetailsCommandSystemPrompt(): string {
   ].join('\n');
 }
 
+function buildStrategicPlanCommandMessages(params: {
+  instructionPackets: WorkspaceChatInstructionPacket[];
+  compiledContext: Record<string, unknown>;
+}): WorkspaceChatApiMessage[] {
+  const messages: WorkspaceChatApiMessage[] = [
+    {
+      role: 'system',
+      content: buildStrategicPlanCommandSystemPrompt(),
+    },
+  ];
+
+  const instructionMessage = buildInstructionPacketSystemMessage(
+    params.instructionPackets
+  );
+  if (instructionMessage) {
+    messages.push({
+      role: 'system',
+      content: instructionMessage,
+    });
+  }
+
+  messages.push({
+    role: 'user',
+    content: [
+      'Action command: strategic_plan',
+      'Prepared command context:',
+      JSON.stringify(params.compiledContext, null, 2),
+    ].join('\n\n'),
+  });
+
+  return messages;
+}
+
+function buildStrategicPlanCommandRepairMessages(params: {
+  invalidResponse: string;
+  validationError: string;
+  instructionPackets: WorkspaceChatInstructionPacket[];
+  compiledContext: Record<string, unknown>;
+}): WorkspaceChatApiMessage[] {
+  const messages = buildStrategicPlanCommandMessages({
+    instructionPackets: params.instructionPackets,
+    compiledContext: params.compiledContext,
+  });
+
+  messages.push({
+    role: 'user',
+    content: [
+      `Validation error: ${params.validationError}`,
+      'Prepared command context:',
+      JSON.stringify(params.compiledContext, null, 2),
+      `Invalid response:\n${params.invalidResponse}`,
+    ].join('\n\n'),
+  });
+
+  return messages;
+}
+
+function buildStrategicPlanCommandSystemPrompt(): string {
+  return [
+    'You are executing the workspace action command "strategic_plan".',
+    'Return valid JSON only.',
+    `Use this exact envelope shape: ${WORKSPACE_CHAT_STRUCTURED_ENVELOPE_SHAPE}`,
+    'Do not include reviewFindings for this command.',
+    'Use only these action kinds: create_goals or create_goal_blueprint.',
+    'For create_goals use this exact shape:',
+    '{"kind":"create_goals","title":"<group title>","summary":"<short summary>","target":{"kind":"<canvas|goal>","id":"<goal id when target.kind is goal>"},"items":[{"title":"<goal title>","description":"<optional description>","priority":"<optional priority>","elementStatus":"<optional status>"}]}',
+    'For create_goal_blueprint use this exact shape:',
+    '{"kind":"create_goal_blueprint","title":"<plan title>","summary":"<short summary>","target":{"kind":"<canvas|goal>","id":"<goal id when target.kind is goal>"},"pattern":"<goal_tree|goal_tree_with_sequence|goal_graph>","goals":[{"ref":"<local ref>","title":"<goal title>","description":"<optional description>","priority":"<optional priority>","elementStatus":"<optional status>","parentRef":"<optional parent ref>"}],"relations":[{"fromRef":"<local ref>","toRef":"<local ref>","relationType":"leads_to","reason":"<why this sequence helps>"}],"assumptions":["<optional assumption>"]}',
+    'Return at most one strategic proposal action.',
+    'Prefer create_goal_blueprint whenever hierarchy or leads_to links are part of the proposal.',
+    'Prefer create_goals when the best structure is only several strategic goals with no reliable links.',
+    'If Prepared command context.mode is goal_subgoals or goal_replan, anchor the proposal to Prepared command context.selectedGoal by using target.kind = "goal" with that exact id.',
+    'Do not return create_goal, create_story, create_task, create_batch_stories, create_batch_tasks, suggest_relations, or suggest_updates.',
+    'Do not collapse the plan into one goal with the rest hidden inside description prose.',
+    'Default to strategic goals only. Do not propose stories or tasks unless the user explicitly asked for execution detail.',
+    'Do not invent timelines, named tools, certifications, or metrics unless the user explicitly asked for them or supplied them.',
+    'replyMarkdown must be user-facing, short, and concrete.',
+    'If the request is too ambiguous to draft a useful strategic plan, ask one concise follow-up question and return "actions": [].',
+  ].join('\n');
+}
+
+function buildBreakdownCommandMessages(params: {
+  instructionPackets: WorkspaceChatInstructionPacket[];
+  compiledContext: Record<string, unknown>;
+}): WorkspaceChatApiMessage[] {
+  const messages: WorkspaceChatApiMessage[] = [
+    {
+      role: 'system',
+      content: buildBreakdownCommandSystemPrompt(),
+    },
+  ];
+
+  const instructionMessage = buildInstructionPacketSystemMessage(
+    params.instructionPackets
+  );
+  if (instructionMessage) {
+    messages.push({
+      role: 'system',
+      content: instructionMessage,
+    });
+  }
+
+  messages.push({
+    role: 'user',
+    content: [
+      'Action command: breakdown',
+      'Prepared command context:',
+      JSON.stringify(params.compiledContext, null, 2),
+    ].join('\n\n'),
+  });
+
+  return messages;
+}
+
+function buildBreakdownCommandRepairMessages(params: {
+  invalidResponse: string;
+  validationError: string;
+  instructionPackets: WorkspaceChatInstructionPacket[];
+  compiledContext: Record<string, unknown>;
+}): WorkspaceChatApiMessage[] {
+  const messages = buildBreakdownCommandMessages({
+    instructionPackets: params.instructionPackets,
+    compiledContext: params.compiledContext,
+  });
+
+  messages.push({
+    role: 'user',
+    content: [
+      `Validation error: ${params.validationError}`,
+      'Prepared command context:',
+      JSON.stringify(params.compiledContext, null, 2),
+      `Invalid response:\n${params.invalidResponse}`,
+    ].join('\n\n'),
+  });
+
+  return messages;
+}
+
+function buildBreakdownCommandSystemPrompt(): string {
+  return [
+    'You are executing the workspace action command "breakdown".',
+    'Return valid JSON only.',
+    `Use this exact envelope shape: ${WORKSPACE_CHAT_STRUCTURED_ENVELOPE_SHAPE}`,
+    'Do not include reviewFindings for this command.',
+    'Use only the action kinds allowed by Prepared command context.mode.',
+    'For goal_stories use this exact shape:',
+    '{"kind":"create_batch_stories","title":"<group title>","summary":"<short summary>","target":{"kind":"goal","id":"<selected goal id>"},"items":[{"title":"<story title>","description":"<optional description>","priority":"<optional priority>","elementStatus":"<optional status>"}]}',
+    'For story_tasks use this exact shape:',
+    '{"kind":"create_batch_tasks","title":"<group title>","summary":"<short summary>","target":{"kind":"story","id":"<selected story id>"},"items":[{"title":"<task title>","description":"<optional description>","priority":"<optional priority>","elementStatus":"<optional status>"}]}',
+    'For task_refine use this exact shape:',
+    '{"kind":"suggest_update","elementId":"<task id>","patch":{"title":"<optional title>","description":"<optional description>"},"reason":"<why this refinement helps>"}',
+    'Never use wrappers like data.parentId, data.stories, or data.tasks.',
+    'replyMarkdown must be user-facing, short, and concrete.',
+    'If Prepared command context.mode is unspecified_goal_decomposition, ask one concise follow-up question and return "actions": [].',
+  ].join('\n');
+}
+
 function validateDependenciesCommandEnvelope(
   envelope: WorkspaceChatStructuredReplyEnvelope,
   compiledContext: Record<string, unknown>
@@ -630,6 +928,125 @@ function validateDependenciesCommandEnvelope(
   }
 
   return null;
+}
+
+function validateStrategicPlanCommandEnvelope(
+  envelope: WorkspaceChatStructuredReplyEnvelope,
+  compiledContext: Record<string, unknown>
+): string | null {
+  if (
+    typeof envelope.replyMarkdown !== 'string' ||
+    envelope.replyMarkdown.trim().length === 0
+  ) {
+    return 'replyMarkdown must be a non-empty string.';
+  }
+
+  if (envelope.reviewFindings !== undefined) {
+    return 'reviewFindings are not allowed for strategic_plan commands.';
+  }
+
+  const actions = Array.isArray(envelope.actions) ? envelope.actions : [];
+  if (actions.length > 1) {
+    return 'strategic_plan must return at most one strategic proposal action.';
+  }
+
+  const mode = readStrategicPlanMode(compiledContext);
+  const selectedGoalId = readStrategicPlanSelectedGoalId(compiledContext);
+  for (const action of actions) {
+    if (!isPlainObject(action) || typeof action.kind !== 'string') {
+      return 'Every action must be a JSON object with a supported kind.';
+    }
+
+    if (action.kind === 'create_goals') {
+      return validateStrategicCreateGoalsEntry(action, mode, selectedGoalId);
+    }
+
+    if (action.kind === 'create_goal_blueprint') {
+      return validateStrategicGoalBlueprintEntry(action, mode, selectedGoalId);
+    }
+
+    return `Unsupported action kind "${action.kind}" for strategic_plan command.`;
+  }
+
+  if (
+    actions.length === 0 &&
+    !isConciseDependenciesFollowupQuestion(envelope.replyMarkdown)
+  ) {
+    return 'strategic_plan must return one strategic proposal or one concise follow-up question.';
+  }
+
+  return null;
+}
+
+function validateBreakdownCommandEnvelope(
+  envelope: WorkspaceChatStructuredReplyEnvelope,
+  compiledContext: Record<string, unknown>
+): string | null {
+  if (
+    typeof envelope.replyMarkdown !== 'string' ||
+    envelope.replyMarkdown.trim().length === 0
+  ) {
+    return 'replyMarkdown must be a non-empty string.';
+  }
+
+  if (envelope.reviewFindings !== undefined) {
+    return 'reviewFindings are not allowed for breakdown commands.';
+  }
+
+  const actions = Array.isArray(envelope.actions) ? envelope.actions : [];
+  const mode = readBreakdownMode(compiledContext);
+  const target = readBreakdownTarget(compiledContext);
+
+  if (mode === 'unspecified_goal_decomposition') {
+    if (actions.length > 0) {
+      return 'Ambiguous goal decomposition should ask a follow-up question instead of returning actions.';
+    }
+    return isConciseDependenciesFollowupQuestion(envelope.replyMarkdown)
+      ? null
+      : 'Ambiguous goal decomposition must return one concise follow-up question.';
+  }
+
+  if (actions.length !== 1) {
+    return 'Breakdown command must return exactly one action when the target level is known.';
+  }
+
+  const action = actions[0];
+  if (!isPlainObject(action) || typeof action.kind !== 'string') {
+    return 'Every action must be a JSON object with a supported kind.';
+  }
+
+  if (mode === 'goal_stories') {
+    if (action.kind !== 'create_batch_stories') {
+      return 'goal_stories breakdown must return create_batch_stories.';
+    }
+    return validateBreakdownCreateBatchEntry(
+      action,
+      'goal',
+      target?.id ?? null,
+      'stories'
+    );
+  }
+
+  if (mode === 'story_tasks') {
+    if (action.kind !== 'create_batch_tasks') {
+      return 'story_tasks breakdown must return create_batch_tasks.';
+    }
+    return validateBreakdownCreateBatchEntry(
+      action,
+      'story',
+      target?.id ?? null,
+      'tasks'
+    );
+  }
+
+  if (mode === 'task_refine') {
+    if (action.kind !== 'suggest_update' && action.kind !== 'suggest_updates') {
+      return 'task_refine breakdown must return suggest_update or suggest_updates.';
+    }
+    return null;
+  }
+
+  return 'Unsupported breakdown mode.';
 }
 
 function validateFillDetailsCommandEnvelope(
@@ -811,6 +1228,307 @@ function validateDependenciesRelationUpdateEntry(
   seenRelationKeys.add(currentRelationKey);
   seenRelationKeys.add(nextRelationKey);
   return null;
+}
+
+function validateStrategicCreateGoalsEntry(
+  value: Record<string, unknown>,
+  mode: WorkspaceChatStrategicPlanCommandContext['mode'],
+  selectedGoalId: string | null
+): string | null {
+  if (!Array.isArray(value.items) || value.items.length < 2) {
+    return 'create_goals must contain at least two goal items.';
+  }
+
+  const batchTargetError = validateStrategicGoalTarget(
+    value.target,
+    mode,
+    selectedGoalId
+  );
+  if (batchTargetError) {
+    return batchTargetError;
+  }
+
+  for (const item of value.items) {
+    if (!isPlainObject(item)) {
+      return 'Each create_goals item must be a JSON object.';
+    }
+    if (typeof item.title !== 'string' || item.title.trim().length === 0) {
+      return 'Each create_goals item must include a non-empty title.';
+    }
+    if (
+      item.description !== undefined &&
+      (typeof item.description !== 'string' || item.description.trim().length === 0)
+    ) {
+      return 'Each create_goals description must be a non-empty string when provided.';
+    }
+    if (item.priority !== undefined && !isUiPriority(item.priority)) {
+      return 'create_goals priority must use a supported priority value.';
+    }
+    if (
+      item.elementStatus !== undefined &&
+      !isWorkspaceChatCreateElementStatus(item.elementStatus)
+    ) {
+      return 'create_goals elementStatus must use a supported status value.';
+    }
+    if (item.target !== undefined) {
+      const targetError = validateStrategicGoalTarget(
+        item.target,
+        mode,
+        selectedGoalId
+      );
+      if (targetError) {
+        return targetError;
+      }
+    }
+  }
+
+  return null;
+}
+
+function validateStrategicGoalBlueprintEntry(
+  value: Record<string, unknown>,
+  mode: WorkspaceChatStrategicPlanCommandContext['mode'],
+  selectedGoalId: string | null
+): string | null {
+  const targetError = validateStrategicGoalTarget(
+    value.target,
+    mode,
+    selectedGoalId
+  );
+  if (targetError) {
+    return targetError;
+  }
+
+  const pattern = value.pattern;
+  if (
+    pattern !== 'goal_tree' &&
+    pattern !== 'goal_tree_with_sequence' &&
+    pattern !== 'goal_graph'
+  ) {
+    return 'create_goal_blueprint pattern must be goal_tree, goal_tree_with_sequence, or goal_graph.';
+  }
+
+  if (!Array.isArray(value.goals) || value.goals.length < 2) {
+    return 'create_goal_blueprint must contain at least two goals.';
+  }
+
+  const refs = new Set<string>();
+  const parentByRef = new Map<string, string | null>();
+  for (const goal of value.goals) {
+    if (!isPlainObject(goal)) {
+      return 'Each create_goal_blueprint goal must be a JSON object.';
+    }
+    if (typeof goal.ref !== 'string' || goal.ref.trim().length === 0) {
+      return 'Each create_goal_blueprint goal must include ref.';
+    }
+    const ref = goal.ref.trim();
+    if (refs.has(ref)) {
+      return 'create_goal_blueprint goal refs must be unique.';
+    }
+    refs.add(ref);
+    parentByRef.set(
+      ref,
+      typeof goal.parentRef === 'string' && goal.parentRef.trim().length > 0
+        ? goal.parentRef.trim()
+        : null
+    );
+
+    if (typeof goal.title !== 'string' || goal.title.trim().length === 0) {
+      return 'Each create_goal_blueprint goal must include a non-empty title.';
+    }
+    if (
+      goal.description !== undefined &&
+      (typeof goal.description !== 'string' || goal.description.trim().length === 0)
+    ) {
+      return 'Each create_goal_blueprint goal description must be a non-empty string when provided.';
+    }
+    if (goal.priority !== undefined && !isUiPriority(goal.priority)) {
+      return 'create_goal_blueprint goal priority must use a supported priority value.';
+    }
+    if (
+      goal.elementStatus !== undefined &&
+      !isWorkspaceChatCreateElementStatus(goal.elementStatus)
+    ) {
+      return 'create_goal_blueprint goal elementStatus must use a supported status value.';
+    }
+  }
+
+  let rootCount = 0;
+  for (const [ref, parentRef] of parentByRef.entries()) {
+    if (!parentRef) {
+      rootCount += 1;
+      continue;
+    }
+    if (!refs.has(parentRef)) {
+      return 'create_goal_blueprint parentRef must point to another goal in the blueprint.';
+    }
+    if (parentRef === ref) {
+      return 'create_goal_blueprint goals cannot parent themselves.';
+    }
+  }
+
+  if (pattern === 'goal_graph') {
+    if (rootCount !== refs.size) {
+      return 'goal_graph blueprints may not contain parentRef values.';
+    }
+  } else if (rootCount !== 1) {
+    return 'goal_tree blueprints must contain exactly one root goal.';
+  }
+
+  if (hasGoalBlueprintCycle(parentByRef)) {
+    return 'create_goal_blueprint may not contain hierarchy cycles.';
+  }
+
+  if (value.relations === undefined) {
+    return null;
+  }
+
+  if (!Array.isArray(value.relations)) {
+    return 'create_goal_blueprint relations must be an array when provided.';
+  }
+
+  const relationKeys = new Set<string>();
+  for (const relation of value.relations) {
+    if (!isPlainObject(relation)) {
+      return 'Each create_goal_blueprint relation must be a JSON object.';
+    }
+    if (relation.relationType !== 'leads_to') {
+      return 'create_goal_blueprint relations may only use leads_to.';
+    }
+    if (
+      typeof relation.fromRef !== 'string' ||
+      relation.fromRef.trim().length === 0 ||
+      typeof relation.toRef !== 'string' ||
+      relation.toRef.trim().length === 0
+    ) {
+      return 'Each create_goal_blueprint relation must include fromRef and toRef.';
+    }
+    const fromRef = relation.fromRef.trim();
+    const toRef = relation.toRef.trim();
+    if (fromRef === toRef) {
+      return 'create_goal_blueprint relations must connect two different goals.';
+    }
+    if (!refs.has(fromRef) || !refs.has(toRef)) {
+      return 'create_goal_blueprint relations must point to declared goal refs.';
+    }
+    const relationKey = `${fromRef}->${toRef}:leads_to`;
+    if (relationKeys.has(relationKey)) {
+      return 'create_goal_blueprint contains a duplicate leads_to relation.';
+    }
+    relationKeys.add(relationKey);
+  }
+
+  return null;
+}
+
+function validateStrategicGoalTarget(
+  value: unknown,
+  mode: WorkspaceChatStrategicPlanCommandContext['mode'],
+  selectedGoalId: string | null
+): string | null {
+  if (value === undefined) {
+    if (mode === 'canvas_bootstrap') {
+      return null;
+    }
+    return 'Strategic decomposition around a selected goal must target that goal explicitly.';
+  }
+  if (!isPlainObject(value)) {
+    return 'Strategic plan target must be a JSON object.';
+  }
+  if (value.kind === 'canvas') {
+    return mode === 'canvas_bootstrap'
+      ? null
+      : 'Selected-goal strategic planning must target the selected goal, not the canvas.';
+  }
+  if (value.kind !== 'goal' || typeof value.id !== 'string' || value.id.trim().length === 0) {
+    return 'Strategic plan target must be canvas or goal.';
+  }
+  if (mode === 'canvas_bootstrap') {
+    return 'Canvas bootstrap strategic plans may only target the canvas.';
+  }
+  if (!selectedGoalId || value.id.trim() !== selectedGoalId) {
+    return 'Strategic plan target must match the selected goal from the prepared command context.';
+  }
+  return null;
+}
+
+function validateBreakdownCreateBatchEntry(
+  value: Record<string, unknown>,
+  targetKind: 'goal' | 'story',
+  expectedTargetId: string | null,
+  label: 'stories' | 'tasks'
+): string | null {
+  if (!Array.isArray(value.items) || value.items.length === 0) {
+    return `create_batch_${label} must contain a non-empty items array.`;
+  }
+  if (!isPlainObject(value.target)) {
+    return `create_batch_${label} must include a canonical target object.`;
+  }
+  if (value.target.kind !== targetKind) {
+    return `create_batch_${label} target must be a ${targetKind}.`;
+  }
+  if (
+    typeof value.target.id !== 'string' ||
+    value.target.id.trim().length === 0
+  ) {
+    return `create_batch_${label} target must include id.`;
+  }
+  if (expectedTargetId && value.target.id.trim() !== expectedTargetId) {
+    return `create_batch_${label} target must match the selected ${targetKind}.`;
+  }
+
+  for (const item of value.items) {
+    if (!isPlainObject(item)) {
+      return `Each create_batch_${label} item must be a JSON object.`;
+    }
+    if (typeof item.title !== 'string' || item.title.trim().length === 0) {
+      return `Each create_batch_${label} item must include a non-empty title.`;
+    }
+    if (
+      item.description !== undefined &&
+      (typeof item.description !== 'string' || item.description.trim().length === 0)
+    ) {
+      return `Each create_batch_${label} description must be a non-empty string when provided.`;
+    }
+    if (item.priority !== undefined && !isUiPriority(item.priority)) {
+      return `create_batch_${label} priority must use a supported priority value.`;
+    }
+    if (
+      item.elementStatus !== undefined &&
+      !isWorkspaceChatCreateElementStatus(item.elementStatus)
+    ) {
+      return `create_batch_${label} elementStatus must use a supported status value.`;
+    }
+  }
+
+  return null;
+}
+
+function hasGoalBlueprintCycle(
+  parentByRef: ReadonlyMap<string, string | null>
+): boolean {
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+
+  const walk = (ref: string): boolean => {
+    if (visited.has(ref)) return false;
+    if (visiting.has(ref)) return true;
+    visiting.add(ref);
+    const parentRef = parentByRef.get(ref);
+    if (parentRef && walk(parentRef)) {
+      return true;
+    }
+    visiting.delete(ref);
+    visited.add(ref);
+    return false;
+  };
+
+  for (const ref of parentByRef.keys()) {
+    if (walk(ref)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function validateFillDetailsUpdateEntry(
@@ -1026,6 +1744,51 @@ function readFillDetailsLatestUserInput(
     : '';
 }
 
+function readStrategicPlanMode(
+  value: Record<string, unknown>
+): WorkspaceChatStrategicPlanCommandContext['mode'] {
+  switch (value.mode) {
+    case 'goal_subgoals':
+    case 'goal_replan':
+      return value.mode;
+    default:
+      return 'canvas_bootstrap';
+  }
+}
+
+function readStrategicPlanSelectedGoalId(
+  value: Record<string, unknown>
+): string | null {
+  const selectedGoal = value.selectedGoal;
+  if (!isPlainObject(selectedGoal) || typeof selectedGoal.id !== 'string') {
+    return null;
+  }
+  return selectedGoal.id;
+}
+
+function readBreakdownMode(
+  value: Record<string, unknown>
+): WorkspaceChatBreakdownCommandContext['mode'] {
+  switch (value.mode) {
+    case 'goal_stories':
+    case 'story_tasks':
+    case 'task_refine':
+      return value.mode;
+    default:
+      return 'unspecified_goal_decomposition';
+  }
+}
+
+function readBreakdownTarget(
+  value: Record<string, unknown>
+): WorkspaceChatCommandElementSummary | null {
+  const target = value.target;
+  if (!isPlainObject(target) || typeof target.id !== 'string') {
+    return null;
+  }
+  return target as WorkspaceChatCommandElementSummary;
+}
+
 function readDependencyExistingRelationKeys(
   value: Record<string, unknown>
 ): Set<string> {
@@ -1180,6 +1943,61 @@ function hasConcreteUserProvidedFillDetails(
   return hasPhrase || fragmentCount >= 2;
 }
 
+function resolveStrategicPlanMode(
+  prompt: string,
+  selectedGoal: WorkspaceChatCommandElementSummary | undefined
+): WorkspaceChatStrategicPlanCommandContext['mode'] {
+  if (!selectedGoal) {
+    return 'canvas_bootstrap';
+  }
+
+  const normalized = prompt.toLocaleLowerCase();
+  const hasReplanSignal =
+    /(?:replan|reshape|restructure|rebuild|redo|переплан|перебуд|реструктур|перезбир|онови стратег)/u.test(
+      normalized
+    );
+  return hasReplanSignal ? 'goal_replan' : 'goal_subgoals';
+}
+
+function extractStrategicHints(
+  selectedGoal: WorkspaceChatCommandElementSummary | undefined
+): string[] {
+  if (!selectedGoal) {
+    return [];
+  }
+
+  const source = selectedGoal.description.trim();
+  if (source.length === 0) {
+    return [];
+  }
+
+  return source
+    .split(/[,\n;:.]+/u)
+    .map((part) => part.trim())
+    .filter((part) => part.length >= 4)
+    .slice(0, 8);
+}
+
+function resolveBreakdownMode(
+  prompt: string,
+  target: WorkspaceChatCanvasElement | null
+): WorkspaceChatBreakdownCommandContext['mode'] {
+  if (!target) {
+    return 'unspecified_goal_decomposition';
+  }
+  if (target.kind === 'story') {
+    return 'story_tasks';
+  }
+  if (target.kind === 'task') {
+    return 'task_refine';
+  }
+
+  const normalized = prompt.toLocaleLowerCase();
+  const hasStorySignal =
+    /(?:story|stories|істор|епік|epic)/u.test(normalized);
+  return hasStorySignal ? 'goal_stories' : 'unspecified_goal_decomposition';
+}
+
 function collectFillDetailsUserInputFragments(
   latestUserInput: string,
   target: WorkspaceChatFillDetailsTarget | null
@@ -1268,7 +2086,13 @@ function readDependenciesExistingRelations(
           allowedElementIds.has(relation.toId))
     )
     .filter((relation) => relation.relationType !== 'parent_child')
-    .filter((relation) => isWorkspaceChatRelationSuggestionType(relation.relationType))
+    .filter(
+      (
+        relation
+      ): relation is WorkspaceChatConnectionEdge & {
+        relationType: WorkspaceChatRelationSuggestionType;
+      } => isWorkspaceChatRelationSuggestionType(relation.relationType)
+    )
     .map((relation) => ({
       fromId: relation.fromId,
       toId: relation.toId,

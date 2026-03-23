@@ -581,7 +581,7 @@ export class EditElementModal {
         options.setValue(value);
       },
       className:
-        'min-h-[144px] w-full text-base leading-6 tracking-[0.005em] text-slate-800 md:text-[13px]',
+        'min-h-[144px] w-full rounded-lg border-slate-200 bg-slate-50 px-3 py-2 shadow-none text-base leading-6 tracking-[0.005em] text-slate-800 md:text-[13px]',
     });
     const mount = document.createElement('div');
     textarea.render(mount);

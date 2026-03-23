@@ -9,6 +9,7 @@ import {
   buildWorkspaceChatMissingPrompt,
   buildWorkspaceChatRecentChangesPrompt,
   buildWorkspaceChatReviewPrompt,
+  buildWorkspaceChatStrategicPlanPrompt,
 } from '../workspaceChatPrompts.ts';
 
 export function getWorkspaceChatQuickActions(
@@ -48,6 +49,18 @@ export function getWorkspaceChatQuickActions(
     },
   ];
 
+  if (
+    context.summary.goalCount === 0 &&
+    context.summary.storyCount === 0 &&
+    context.summary.taskCount === 0
+  ) {
+    actions.unshift({
+      id: 'strategic-plan',
+      label: 'Generate strategic plan',
+      prompt: buildWorkspaceChatStrategicPlanPrompt([]),
+    });
+  }
+
   if (selection.length !== 1) {
     return actions;
   }
@@ -58,6 +71,13 @@ export function getWorkspaceChatQuickActions(
       id: 'break-selection',
       label: item.kind === 'goal' ? 'Break into stories' : 'Break into tasks',
       prompt: buildWorkspaceChatBreakdownPrompt(item),
+    });
+  }
+  if (item.kind === 'goal') {
+    actions.unshift({
+      id: 'strategic-plan-selection',
+      label: 'Generate strategic plan',
+      prompt: buildWorkspaceChatStrategicPlanPrompt([item]),
     });
   }
   actions.splice(3, 0, {

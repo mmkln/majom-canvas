@@ -43,6 +43,10 @@ export async function completeWorkspaceChatTextWithRepair<T>(params: {
   }) => WorkspaceChatApiMessage[];
   signal?: AbortSignal;
   maxRepairAttempts?: number;
+  onRepairAttempt?: (params: {
+    attempt: number;
+    validationError: string;
+  }) => void;
 }): Promise<WorkspaceChatValidationResult<T>> {
   const maxRepairAttempts = Math.max(0, params.maxRepairAttempts ?? 1);
   let rawContent = await params.client.completeText(params.messages, {
@@ -70,6 +74,10 @@ export async function completeWorkspaceChatTextWithRepair<T>(params: {
         };
       }
 
+      params.onRepairAttempt?.({
+        attempt: repairAttempts + 1,
+        validationError: normalizedError.message,
+      });
       rawContent = await params.client.completeText(
         params.buildRepairMessages({
           invalidResponse: rawContent,

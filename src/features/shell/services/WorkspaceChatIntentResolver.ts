@@ -43,6 +43,8 @@ function getWorkspaceChatIntentProfile(
       return 'review-selection';
     case 'breakdown':
       return 'breakdown';
+    case 'strategic_plan':
+      return 'strategic-plan';
     case 'dependencies':
       return 'dependency-review';
     case 'missing':
@@ -64,6 +66,8 @@ function getWorkspaceChatIntentRequestLabel(
       if (item?.kind === 'goal') return 'Break into stories';
       if (item?.kind === 'story') return 'Break into tasks';
       return 'Break down';
+    case 'strategic_plan':
+      return 'Generate strategic plan';
     case 'dependencies':
       return selection.length > 1 ? 'Connect selected' : 'Link blockers';
     case 'missing':

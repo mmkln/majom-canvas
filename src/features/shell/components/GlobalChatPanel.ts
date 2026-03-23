@@ -1,17 +1,20 @@
-import { createIcon } from '../../../ui-lib/src/hud/icons.ts';
+import {
+  createIconButton,
+  createSurface,
+  createTextButton,
+} from '../../../ui-lib/src/hud/index.ts';
+import { createIcon, type IconName } from '../../../ui-lib/src/hud/icons.ts';
 import { ComponentFactory } from '../../../ui-lib/src/core/ComponentFactory.ts';
 import { GLOBAL_APP_HEADER_HEIGHT_PX } from '../../../bootstrap/GlobalAppHeader.ts';
 import { WorkspaceChatMarkdownRenderer } from '../rendering/WorkspaceChatMarkdownRenderer.ts';
 import {
   buildWorkspaceChatActionTagModels,
   formatWorkspaceChatElementStatus,
-  getWorkspaceChatActionAccentColor,
   getWorkspaceChatActionButtonLabel,
   getWorkspaceChatActionReason,
   getWorkspaceChatActionSecondaryText,
   getWorkspaceChatFindingSeverityBadgeTone,
   getWorkspaceChatReadinessBadgeTone,
-  getWorkspaceChatReviewAccentColor,
   groupWorkspaceChatActionsForRender,
 } from '../rendering/WorkspaceChatStructuredResultModel.ts';
 import {
@@ -19,12 +22,16 @@ import {
   type WorkspaceChatContextMode,
 } from '../services/WorkspaceChatContextMode.ts';
 import { WorkspaceChatSessionController } from '../services/WorkspaceChatSessionController.ts';
-import type { WorkspaceChatMessage } from '../services/WorkspaceChatTypes.ts';
+import type {
+  WorkspaceChatMessage,
+  WorkspaceChatReplyProgress,
+} from '../services/WorkspaceChatTypes.ts';
 import type { WorkspaceView } from '../WorkspaceView.ts';
 import type {
   WorkspaceChatAction,
   WorkspaceChatActionExecutionRequest,
   WorkspaceChatActionExecutionResult,
+  WorkspaceChatGoalBlueprintAction,
   WorkspaceChatReviewFindings,
 } from '../workspaceChatActions.ts';
 import {
@@ -114,7 +121,10 @@ export class GlobalChatPanel {
     this.executeAction = options.executeAction;
     this.chatController = options.controller;
     this.markdownRenderer = new WorkspaceChatMarkdownRenderer();
-    this.container = document.createElement('aside');
+    this.container = createSurface({
+      elevated: true,
+      className: 'overflow-hidden',
+    });
     this.container.id = 'workspace-chat-panel';
     this.container.style.position = 'fixed';
     this.container.style.top = `${CHAT_ISLAND_MARGIN_PX + GLOBAL_APP_HEADER_HEIGHT_PX}px`;
@@ -122,14 +132,7 @@ export class GlobalChatPanel {
     this.container.style.bottom = `${CHAT_ISLAND_MARGIN_PX}px`;
     this.container.style.width = `${this.widthPx}px`;
     this.container.style.zIndex = '38';
-    this.container.style.border = '1px solid rgba(255, 255, 255, 0.42)';
-    this.container.style.borderRadius = `${CHAT_ISLAND_RADIUS_PX}px`;
-    this.container.style.background =
-      'linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(248, 250, 252, 0.82))';
     this.container.style.display = 'none';
-    this.container.style.boxShadow =
-      '0 28px 64px rgba(15, 23, 42, 0.14), 0 2px 6px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.78)';
-    this.container.style.backdropFilter = 'blur(20px) saturate(140%)';
     this.container.style.overflow = 'hidden';
 
     this.panel = document.createElement('div');
@@ -141,12 +144,11 @@ export class GlobalChatPanel {
 
     this.header = document.createElement('div');
     this.header.style.padding = '12px 18px';
-    this.header.style.borderBottom = '1px solid rgba(148, 163, 184, 0.14)';
-    this.header.style.background =
-      'linear-gradient(180deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.08))';
+    this.header.style.borderBottom = '1px solid rgba(226, 232, 240, 0.88)';
+    this.header.style.background = 'transparent';
     this.header.style.display = 'flex';
     this.header.style.flexDirection = 'column';
-    this.header.style.gap = '8px';
+    this.header.style.gap = '10px';
 
     const headerTopRow = document.createElement('div');
     headerTopRow.style.display = 'flex';
@@ -164,15 +166,14 @@ export class GlobalChatPanel {
     brandIconWrap.style.display = 'inline-flex';
     brandIconWrap.style.alignItems = 'center';
     brandIconWrap.style.justifyContent = 'center';
-    brandIconWrap.style.width = '28px';
-    brandIconWrap.style.height = '28px';
+    brandIconWrap.style.width = '34px';
+    brandIconWrap.style.height = '34px';
     brandIconWrap.style.borderRadius = '999px';
-    brandIconWrap.style.border = '1px solid rgba(148, 163, 184, 0.18)';
-    brandIconWrap.style.background = 'rgba(248, 250, 252, 0.96)';
-    brandIconWrap.style.boxShadow =
-      '0 8px 18px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.84)';
+    brandIconWrap.style.border = 'none';
+    brandIconWrap.style.background = 'rgba(241, 245, 249, 0.96)';
+    brandIconWrap.style.color = '#64748b';
     const brandIcon = createIcon('chat-bubble-left', {
-      size: 13,
+      size: 16,
       strokeWidth: 1.9,
     });
     brandIcon.setAttribute('aria-hidden', 'true');
@@ -215,25 +216,18 @@ export class GlobalChatPanel {
     this.contextMeta.style.overflow = 'hidden';
     this.contextMeta.style.textOverflow = 'ellipsis';
 
-    this.contextCard = document.createElement('div');
+    this.contextCard = this.createSubtleSurface('!rounded-[14px]');
     this.contextCard.style.display = 'flex';
     this.contextCard.style.flexDirection = 'column';
     this.contextCard.style.gap = '3px';
     this.contextCard.style.padding = '9px 11px';
-    this.contextCard.style.border = '1px solid rgba(148, 163, 184, 0.14)';
-    this.contextCard.style.borderRadius = '14px';
-    this.contextCard.style.background =
-      'linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(248, 250, 252, 0.62))';
-    this.contextCard.style.boxShadow =
-      'inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 8px 18px rgba(15, 23, 42, 0.03)';
     this.contextCard.append(this.contextTitle, this.contextMeta);
 
     this.quickActionsSection = document.createElement('div');
     this.quickActionsSection.style.padding = '12px 18px 14px';
     this.quickActionsSection.style.borderBottom =
-      '1px solid rgba(148, 163, 184, 0.14)';
-    this.quickActionsSection.style.background =
-      'linear-gradient(180deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0.08))';
+      '1px solid rgba(226, 232, 240, 0.82)';
+    this.quickActionsSection.style.background = 'transparent';
 
     this.quickActionsRow = document.createElement('div');
     this.quickActionsRow.style.display = 'flex';
@@ -252,8 +246,7 @@ export class GlobalChatPanel {
     this.messagesViewport.style.minHeight = '0';
     this.messagesViewport.style.overflowY = 'auto';
     this.messagesViewport.style.padding = '18px 18px 24px';
-    this.messagesViewport.style.background =
-      'linear-gradient(180deg, rgba(248, 250, 252, 0.76), rgba(243, 244, 246, 0.42) 52%, rgba(248, 250, 252, 0.68))';
+    this.messagesViewport.style.background = 'transparent';
     this.messagesViewport.addEventListener(
       'scroll',
       this.messagesViewportScrollHandler
@@ -271,44 +264,27 @@ export class GlobalChatPanel {
     this.messagesList.style.gap = '16px';
     this.messagesViewport.appendChild(this.messagesList);
 
-    this.scrollToBottomButton = document.createElement('button');
-    this.scrollToBottomButton.type = 'button';
-    this.scrollToBottomButton.setAttribute(
-      'aria-label',
-      'Scroll to latest message'
-    );
-    this.scrollToBottomButton.title = 'Scroll to latest message';
+    this.scrollToBottomButton = this.createQuietIconButton({
+      icon: 'arrow-down',
+      title: 'Scroll to latest message',
+      ariaLabel: 'Scroll to latest message',
+      className:
+        '!h-[34px] !w-[34px] !border-slate-200 !bg-white/95 shadow-none',
+      onClick: () => {
+        this.pinMessagesToBottom();
+        this.scrollMessagesToBottom('smooth');
+      },
+    });
     this.scrollToBottomButton.style.position = 'absolute';
     this.scrollToBottomButton.style.left = '50%';
     this.scrollToBottomButton.style.bottom = '16px';
     this.scrollToBottomButton.style.display = 'none';
     this.scrollToBottomButton.style.alignItems = 'center';
     this.scrollToBottomButton.style.justifyContent = 'center';
-    this.scrollToBottomButton.style.width = '34px';
-    this.scrollToBottomButton.style.height = '34px';
-    this.scrollToBottomButton.style.border = '1px solid rgba(148, 163, 184, 0.22)';
-    this.scrollToBottomButton.style.borderRadius = '999px';
-    this.scrollToBottomButton.style.background =
-      'linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(248, 250, 252, 0.58))';
-    this.scrollToBottomButton.style.boxShadow =
-      '0 14px 30px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.82)';
-    this.scrollToBottomButton.style.color = '#334155';
-    this.scrollToBottomButton.style.padding = '0';
-    this.scrollToBottomButton.style.cursor = 'pointer';
     this.scrollToBottomButton.style.zIndex = '1';
     this.scrollToBottomButton.style.transform = 'translate(-50%, 6px)';
     this.scrollToBottomButton.style.transition =
       'opacity 140ms ease, transform 140ms ease';
-    this.scrollToBottomButton.addEventListener('click', () => {
-      this.pinMessagesToBottom();
-      this.scrollMessagesToBottom('smooth');
-    });
-    const scrollToBottomIcon = createIcon('arrow-down', {
-      size: 16,
-      strokeWidth: 1.8,
-    });
-    scrollToBottomIcon.setAttribute('aria-hidden', 'true');
-    this.scrollToBottomButton.appendChild(scrollToBottomIcon);
     this.messagesFrame.append(this.messagesViewport, this.scrollToBottomButton);
 
     const composer = document.createElement('div');
@@ -316,22 +292,15 @@ export class GlobalChatPanel {
     composer.style.display = 'flex';
     composer.style.flexDirection = 'column';
     composer.style.gap = '12px';
-    composer.style.borderTop = '1px solid rgba(148, 163, 184, 0.12)';
-    composer.style.background =
-      'linear-gradient(180deg, rgba(255, 255, 255, 0.44), rgba(248, 250, 252, 0.86))';
+    composer.style.borderTop = '1px solid rgba(226, 232, 240, 0.82)';
+    composer.style.background = 'transparent';
 
-    this.pendingConfirmationBar = document.createElement('div');
+    this.pendingConfirmationBar = this.createSubtleSurface('!rounded-[18px]');
     this.pendingConfirmationBar.style.display = 'none';
     this.pendingConfirmationBar.style.alignItems = 'center';
     this.pendingConfirmationBar.style.justifyContent = 'space-between';
     this.pendingConfirmationBar.style.gap = '12px';
     this.pendingConfirmationBar.style.padding = '12px 14px';
-    this.pendingConfirmationBar.style.border = '1px solid rgba(15, 23, 42, 0.12)';
-    this.pendingConfirmationBar.style.borderRadius = '18px';
-    this.pendingConfirmationBar.style.background =
-      'linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94))';
-    this.pendingConfirmationBar.style.boxShadow =
-      '0 10px 24px rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.84)';
 
     const pendingConfirmationText = document.createElement('div');
     pendingConfirmationText.style.display = 'flex';
@@ -363,22 +332,13 @@ export class GlobalChatPanel {
       this.pendingConfirmationTitle
     );
 
-    this.pendingConfirmationButton = document.createElement('button');
-    this.pendingConfirmationButton.type = 'button';
-    this.pendingConfirmationButton.style.border =
-      '1px solid rgba(15, 23, 42, 0.82)';
-    this.pendingConfirmationButton.style.borderRadius = '999px';
-    this.pendingConfirmationButton.style.background =
-      'linear-gradient(180deg, rgba(30, 41, 59, 1), rgba(15, 23, 42, 1))';
-    this.pendingConfirmationButton.style.color = '#ffffff';
-    this.pendingConfirmationButton.style.padding = '9px 14px';
-    this.pendingConfirmationButton.style.fontSize = '11px';
-    this.pendingConfirmationButton.style.fontWeight = '700';
-    this.pendingConfirmationButton.style.letterSpacing = '0.01em';
-    this.pendingConfirmationButton.style.whiteSpace = 'nowrap';
-    this.pendingConfirmationButton.style.cursor = 'pointer';
-    this.pendingConfirmationButton.addEventListener('click', () => {
-      void this.confirmPendingSuggestion();
+    this.pendingConfirmationButton = this.createPrimaryPillButton({
+      text: 'Confirm',
+      title: 'Confirm pending actions',
+      ariaLabel: 'Confirm pending actions',
+      onClick: () => {
+        void this.confirmPendingSuggestion();
+      },
     });
 
     this.pendingConfirmationBar.append(
@@ -386,23 +346,12 @@ export class GlobalChatPanel {
       this.pendingConfirmationButton
     );
 
-    this.composerInput = document.createElement('textarea');
-    this.composerInput.rows = 3;
-    this.composerInput.placeholder = 'Ask about the current canvas';
-    this.composerInput.style.width = '100%';
+    const composerInput = ComponentFactory.createTextarea({
+      rows: 3,
+      placeholder: 'Ask about the current canvas',
+    });
+    this.composerInput = composerInput.getElement() as HTMLTextAreaElement;
     this.composerInput.style.resize = 'none';
-    this.composerInput.style.border = '1px solid rgba(148, 163, 184, 0.18)';
-    this.composerInput.style.borderRadius = '18px';
-    this.composerInput.style.background =
-      'linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94))';
-    this.composerInput.style.boxShadow =
-      '0 10px 24px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.84)';
-    this.composerInput.style.padding = '13px 14px';
-    this.composerInput.style.fontFamily = 'inherit';
-    this.composerInput.style.fontSize = '13px';
-    this.composerInput.style.lineHeight = '1.5';
-    this.composerInput.style.color = '#0f172a';
-    this.composerInput.style.outline = 'none';
     this.composerInput.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter' || event.shiftKey) return;
       event.preventDefault();
@@ -438,60 +387,33 @@ export class GlobalChatPanel {
         this.chatController.setContextMode(value as WorkspaceChatContextMode);
       },
       className:
-        '!w-auto !h-9 !rounded-full !border-slate-200 !bg-white !px-3 !text-xs !font-semibold !text-slate-600 focus:!border-slate-300 focus:!ring-slate-200',
+        '!w-auto !h-9 !rounded-full !border-slate-200 !bg-white !px-3 !text-xs !font-semibold !text-slate-600 focus:!border-indigo-500 focus:!ring-indigo-300',
     });
     contextModeSelect.render(this.contextModeControl);
     this.contextModeSelect =
       contextModeSelect.getElement() as HTMLSelectElement;
-    this.contextModeSelect.style.border = '1px solid rgba(148, 163, 184, 0.16)';
-    this.contextModeSelect.style.borderRadius = '999px';
-    this.contextModeSelect.style.background =
-      'linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94))';
-    this.contextModeSelect.style.boxShadow =
-      '0 8px 18px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.82)';
 
-    this.clearButton = document.createElement('button');
-    this.clearButton.type = 'button';
-    this.clearButton.textContent = 'Clear chat';
-    this.clearButton.style.border = '1px solid rgba(148, 163, 184, 0.16)';
-    this.clearButton.style.borderRadius = '999px';
-    this.clearButton.style.background =
-      'linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 0.88))';
-    this.clearButton.style.boxShadow =
-      '0 8px 18px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.82)';
-    this.clearButton.style.color = '#64748b';
-    this.clearButton.style.padding = '7px 11px';
-    this.clearButton.style.fontSize = '11px';
-    this.clearButton.style.fontWeight = '700';
-    this.clearButton.style.letterSpacing = '0.01em';
-    this.clearButton.style.cursor = 'pointer';
-    this.clearButton.style.lineHeight = '1.1';
-    this.clearButton.addEventListener('click', () => {
-      this.pinMessagesToBottom();
-      this.chatController.clearConversation();
-      this.resetCopyFeedback();
+    this.clearButton = this.createQuietPillButton({
+      text: 'Clear chat',
+      title: 'Clear chat',
+      ariaLabel: 'Clear chat',
+      onClick: () => {
+        this.pinMessagesToBottom();
+        this.chatController.clearConversation();
+        this.resetCopyFeedback();
+      },
     });
     this.messagesToolsRow.appendChild(this.clearButton);
     headerTopRow.append(brand, this.messagesToolsRow);
     this.header.append(headerTopRow, this.contextCard);
 
-    this.sendButton = document.createElement('button');
-    this.sendButton.type = 'button';
-    this.sendButton.textContent = 'Send';
-    this.sendButton.style.border = '1px solid rgba(15, 23, 42, 0.82)';
-    this.sendButton.style.borderRadius = '999px';
-    this.sendButton.style.background =
-      'linear-gradient(180deg, rgba(30, 41, 59, 1), rgba(15, 23, 42, 1))';
-    this.sendButton.style.color = '#ffffff';
-    this.sendButton.style.boxShadow =
-      '0 16px 28px rgba(15, 23, 42, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.16)';
-    this.sendButton.style.padding = '10px 16px';
-    this.sendButton.style.fontSize = '12px';
-    this.sendButton.style.fontWeight = '700';
-    this.sendButton.style.letterSpacing = '0.01em';
-    this.sendButton.style.cursor = 'pointer';
-    this.sendButton.addEventListener('click', () => {
-      void this.submitCurrentPrompt();
+    this.sendButton = this.createPrimaryPillButton({
+      text: 'Send',
+      title: 'Send prompt',
+      ariaLabel: 'Send prompt',
+      onClick: () => {
+        void this.submitCurrentPrompt();
+      },
     });
 
     composerControls.append(this.contextModeControl, composerHint);
@@ -561,10 +483,9 @@ export class GlobalChatPanel {
       this.container.style.right = '0';
       this.container.style.bottom = '0';
       this.container.style.border = 'none';
-      this.container.style.borderLeft = '1px solid rgba(148, 163, 184, 0.12)';
+      this.container.style.borderLeft = '1px solid rgba(226, 232, 240, 0.92)';
       this.container.style.borderRadius = '0';
-      this.container.style.background =
-        'linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96))';
+      this.container.style.background = '#ffffff';
       this.container.style.boxShadow = 'none';
       this.container.style.backdropFilter = 'none';
       this.container.style.overflow = 'visible';
@@ -574,14 +495,12 @@ export class GlobalChatPanel {
     this.container.style.top = `${CHAT_ISLAND_MARGIN_PX + GLOBAL_APP_HEADER_HEIGHT_PX}px`;
     this.container.style.right = `${CHAT_ISLAND_MARGIN_PX}px`;
     this.container.style.bottom = `${CHAT_ISLAND_MARGIN_PX}px`;
-    this.container.style.border = '1px solid rgba(255, 255, 255, 0.42)';
-    this.container.style.borderLeft = '1px solid rgba(255, 255, 255, 0.42)';
-    this.container.style.borderRadius = `${CHAT_ISLAND_RADIUS_PX}px`;
-    this.container.style.background =
-      'linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(248, 250, 252, 0.82))';
-    this.container.style.boxShadow =
-      '0 28px 64px rgba(15, 23, 42, 0.14), 0 2px 6px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.78)';
-    this.container.style.backdropFilter = 'blur(20px) saturate(140%)';
+    this.container.style.border = '';
+    this.container.style.borderLeft = '';
+    this.container.style.borderRadius = '';
+    this.container.style.background = '';
+    this.container.style.boxShadow = '';
+    this.container.style.backdropFilter = '';
     this.container.style.overflow = 'hidden';
   }
 
@@ -608,6 +527,7 @@ export class GlobalChatPanel {
     this.renderMessages(
       state.messages,
       state.replying,
+      state.replyProgress ?? null,
       state.context,
       state.contextEnabled,
       state.currentView,
@@ -617,6 +537,7 @@ export class GlobalChatPanel {
     this.renderComposer(
       state.currentView,
       state.replying,
+      state.replyProgress ?? null,
       state.composerPlaceholder,
       state.contextMode
     );
@@ -699,6 +620,7 @@ export class GlobalChatPanel {
   private renderMessages(
     messages: WorkspaceChatMessage[],
     replying: boolean,
+    replyProgress: WorkspaceChatReplyProgress | null,
     context: ReturnType<WorkspaceChatSessionController['getState']>['context'],
     contextEnabled: boolean,
     currentView: WorkspaceView,
@@ -706,6 +628,9 @@ export class GlobalChatPanel {
   ): void {
     const shouldAutoScroll =
       this.stickMessagesToBottom || this.messagesList.childElementCount === 0;
+    const preservedScrollTop = shouldAutoScroll
+      ? null
+      : this.messagesViewport.scrollTop;
     const canClear =
       messages.length > 1 ||
       messages.some((message) => message.role === 'user');
@@ -729,9 +654,12 @@ export class GlobalChatPanel {
       );
     });
     if (replying) {
-      this.messagesList.appendChild(this.createTypingBubble());
+      this.messagesList.appendChild(this.createTypingBubble(replyProgress));
     }
     if (!shouldAutoScroll) {
+      if (preservedScrollTop !== null) {
+        this.messagesViewport.scrollTop = preservedScrollTop;
+      }
       this.updateScrollToBottomButtonVisibility();
       return;
     }
@@ -765,23 +693,18 @@ export class GlobalChatPanel {
     const roleLabel = document.createElement('span');
     roleLabel.textContent = 'System';
     roleLabel.style.fontWeight = '700';
-    roleLabel.style.color = '#7c3aed';
+    roleLabel.style.color = '#4f46e5';
 
     const stateLabel = document.createElement('span');
     stateLabel.textContent = 'Start here';
     stateLabel.style.fontWeight = '500';
-    stateLabel.style.color = '#a78bfa';
+    stateLabel.style.color = '#94a3b8';
 
     meta.append(roleLabel, stateLabel);
 
-    const bubble = document.createElement('div');
+    const bubble = this.createSubtleSurface('!rounded-[20px]');
     bubble.style.maxWidth = '94%';
     bubble.style.padding = '14px';
-    bubble.style.borderRadius = '20px 20px 20px 10px';
-    bubble.style.background = 'rgba(245, 238, 255, 0.98)';
-    bubble.style.border = '1px solid rgba(196, 181, 253, 0.72)';
-    bubble.style.boxShadow =
-      '0 18px 40px rgba(91, 33, 182, 0.08), 0 2px 8px rgba(91, 33, 182, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.84)';
     bubble.style.display = 'flex';
     bubble.style.flexDirection = 'column';
     bubble.style.gap = '10px';
@@ -791,13 +714,13 @@ export class GlobalChatPanel {
     title.style.fontSize = '13px';
     title.style.fontWeight = '600';
     title.style.lineHeight = '1.4';
-    title.style.color = '#5b21b6';
+    title.style.color = '#0f172a';
 
     const description = document.createElement('p');
     description.style.margin = '0';
     description.style.fontSize = '11.5px';
     description.style.lineHeight = '1.65';
-    description.style.color = '#6b21a8';
+    description.style.color = '#475569';
 
     const examplesLabel = document.createElement('p');
     examplesLabel.textContent = 'Try';
@@ -806,7 +729,7 @@ export class GlobalChatPanel {
     examplesLabel.style.fontWeight = '700';
     examplesLabel.style.letterSpacing = '0.08em';
     examplesLabel.style.textTransform = 'uppercase';
-    examplesLabel.style.color = '#a78bfa';
+    examplesLabel.style.color = '#94a3b8';
 
     const examples = document.createElement('div');
     examples.style.display = 'flex';
@@ -819,25 +742,16 @@ export class GlobalChatPanel {
       context
     );
     exampleLines.forEach((line) => {
-      const item = document.createElement('button');
-      item.type = 'button';
-      item.textContent = line;
-      item.style.margin = '0';
-      item.style.padding = '8px 10px';
-      item.style.borderRadius = '14px';
-      item.style.border = '1px solid rgba(216, 180, 254, 0.7)';
-      item.style.background = 'rgba(250, 232, 255, 0.92)';
-      item.style.boxShadow =
-        'inset 0 1px 0 rgba(255, 255, 255, 0.76), 0 4px 10px rgba(168, 85, 247, 0.05)';
-      item.style.fontSize = '11.5px';
-      item.style.lineHeight = '1.55';
-      item.style.color = '#6b21a8';
-      item.style.textAlign = 'left';
-      item.style.cursor = 'pointer';
-      item.title = 'Insert into message';
-      item.addEventListener('click', () => {
-        this.insertComposerDraft(line);
+      const item = this.createSuggestionButton({
+        text: line,
+        title: 'Insert into message',
+        onClick: () => {
+          this.insertComposerDraft(line);
+        },
       });
+      item.style.margin = '0';
+      item.style.maxWidth = '100%';
+      item.style.textAlign = 'left';
       examples.appendChild(item);
     });
 
@@ -947,6 +861,7 @@ export class GlobalChatPanel {
   private renderComposer(
     currentView: WorkspaceView,
     replying: boolean,
+    replyProgress: WorkspaceChatReplyProgress | null,
     placeholder: string,
     contextMode: WorkspaceChatContextMode
   ): void {
@@ -958,10 +873,10 @@ export class GlobalChatPanel {
     this.composerInput.style.cursor = replying ? 'default' : 'text';
     this.composerInput.style.borderColor = replying
       ? 'rgba(203, 213, 225, 0.24)'
-      : 'rgba(148, 163, 184, 0.18)';
+      : '';
     this.composerInput.style.background = replying
-      ? 'linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.94))'
-      : 'linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94))';
+      ? 'rgba(248, 250, 252, 0.96)'
+      : '';
     this.contextModeSelect.value = contextMode;
     this.contextModeSelect.disabled = replying;
     this.contextModeControl.style.opacity = replying ? '0.55' : '1';
@@ -969,39 +884,30 @@ export class GlobalChatPanel {
     this.clearButton.style.opacity = replying ? '0.55' : '1';
     this.clearButton.style.cursor = replying ? 'default' : 'pointer';
     this.sendButton.disabled = replying;
-    this.sendButton.textContent = replying ? 'Thinking...' : 'Send';
+    this.sendButton.textContent = replying
+      ? this.getReplyButtonLabel(replyProgress)
+      : 'Send';
     this.sendButton.style.opacity = replying ? '0.7' : '1';
     this.sendButton.style.cursor = replying ? 'default' : 'pointer';
     if (!noContext || currentView === 'canvas') {
       return;
     }
-    this.composerInput.style.background =
-      'linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.96))';
+    this.composerInput.style.background = 'rgba(248, 250, 252, 0.96)';
   }
 
   private createQuickActionButton(action: {
     label: string;
     prompt: string;
   }): HTMLButtonElement {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = action.label;
-    button.style.border = '1px solid rgba(148, 163, 184, 0.2)';
-    button.style.borderRadius = '999px';
-    button.style.background =
-      'linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.92))';
-    button.style.color = '#334155';
-    button.style.padding = '7px 12px';
-    button.style.fontSize = '11px';
-    button.style.fontWeight = '600';
-    button.style.lineHeight = '1.1';
-    button.style.letterSpacing = '0.01em';
-    button.style.cursor = 'pointer';
-    button.addEventListener('click', () => {
-      this.pinMessagesToBottom();
-      void this.submitPrompt(action.prompt);
+    return this.createQuietPillButton({
+      text: action.label,
+      title: action.label,
+      ariaLabel: action.label,
+      onClick: () => {
+        this.pinMessagesToBottom();
+        void this.submitPrompt(action.prompt);
+      },
     });
-    return button;
   }
 
   private createMessageBubble(
@@ -1016,6 +922,7 @@ export class GlobalChatPanel {
       !isCommandMessage && (message.kind === 'system' || message.role === 'system');
     const isUserMessage = message.role === 'user';
     const isAssistantMessage = message.role === 'assistant';
+    const canCopyMessage = message.content.trim().length > 0;
     const wrap = document.createElement('div');
     wrap.style.display = 'flex';
     wrap.style.flexDirection = 'column';
@@ -1046,7 +953,7 @@ export class GlobalChatPanel {
       : isCommandMessage
         ? '#1d4ed8'
       : isSystemMessage
-        ? '#7c3aed'
+        ? '#6366f1'
         : '#64748b';
 
     const timeLabel = document.createElement('span');
@@ -1070,23 +977,23 @@ export class GlobalChatPanel {
       bubble.style.color = isUserMessage
         ? '#0f172a'
         : isCommandMessage
-          ? '#1e3a8a'
+          ? '#334155'
         : isSystemMessage
-          ? '#5b21b6'
+          ? '#334155'
           : '#1f2937';
       bubble.style.background = isUserMessage
-        ? 'rgba(237, 242, 247, 0.98)'
+        ? 'rgba(248, 250, 252, 0.96)'
         : isCommandMessage
-          ? 'rgba(239, 246, 255, 0.98)'
+          ? 'rgba(248, 250, 252, 0.92)'
         : isSystemMessage
-          ? 'rgba(245, 238, 255, 0.98)'
+          ? 'rgba(248, 250, 252, 0.92)'
           : 'rgba(255, 255, 255, 0.99)';
       bubble.style.border = isUserMessage
-        ? '1px solid rgba(148, 163, 184, 0.28)'
+        ? '1px solid rgba(203, 213, 225, 0.88)'
         : isCommandMessage
-          ? '1px solid rgba(147, 197, 253, 0.78)'
+          ? '1px solid rgba(226, 232, 240, 0.9)'
         : isSystemMessage
-          ? '1px solid rgba(196, 181, 253, 0.72)'
+          ? '1px solid rgba(226, 232, 240, 0.9)'
           : '1px solid rgba(148, 163, 184, 0.18)';
       bubble.appendChild(this.createMessageContent(message));
       wrap.appendChild(bubble);
@@ -1109,9 +1016,10 @@ export class GlobalChatPanel {
     }
 
     if (
-      isAssistantMessage &&
       !isSystemMessage &&
-      (message.content.trim().length > 0 || canRegenerate)
+      !isCommandMessage &&
+      (isAssistantMessage || isUserMessage) &&
+      (canCopyMessage || canRegenerate)
     ) {
       const actions = document.createElement('div');
       actions.style.display = 'flex';
@@ -1121,93 +1029,25 @@ export class GlobalChatPanel {
       actions.style.padding = '0 4px';
 
       if (canRegenerate) {
-        const regenerateButton = document.createElement('button');
-        regenerateButton.type = 'button';
-        regenerateButton.setAttribute('aria-label', 'Regenerate response');
-        regenerateButton.title = replying
-          ? 'Regenerating response'
-          : 'Regenerate response';
-        regenerateButton.style.display = 'inline-flex';
-        regenerateButton.style.alignItems = 'center';
-        regenerateButton.style.justifyContent = 'center';
-        regenerateButton.style.width = '24px';
-        regenerateButton.style.height = '24px';
-        regenerateButton.style.border = '1px solid rgba(148, 163, 184, 0.16)';
-        regenerateButton.style.borderRadius = '999px';
-        regenerateButton.style.background =
-          'linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 0.88))';
-        regenerateButton.style.padding = '0';
-        regenerateButton.style.color = '#94a3b8';
-        regenerateButton.style.cursor = replying ? 'default' : 'pointer';
+        const regenerateButton = this.createQuietIconButton({
+          icon: 'arrow-path',
+          size: 'sm',
+          title: replying ? 'Regenerating response' : 'Regenerate response',
+          ariaLabel: 'Regenerate response',
+          surface: 'plain',
+          className: '!h-6 !w-6 !text-slate-400',
+          onClick: () => {
+            this.pinMessagesToBottom();
+            void this.chatController.regenerateMessage(message.id);
+          },
+        });
         regenerateButton.style.opacity = replying ? '0.55' : '1';
         regenerateButton.disabled = replying;
-
-        const regenerateIcon = createIcon('arrow-path', {
-          size: 12,
-          strokeWidth: 1.9,
-        });
-        regenerateIcon.setAttribute('aria-hidden', 'true');
-        regenerateButton.append(regenerateIcon);
-        regenerateButton.addEventListener('click', () => {
-          this.pinMessagesToBottom();
-          void this.chatController.regenerateMessage(message.id);
-        });
         actions.appendChild(regenerateButton);
       }
 
-      if (message.content.trim().length > 0) {
-        const copyButton = document.createElement('button');
-        copyButton.type = 'button';
-        copyButton.setAttribute('aria-label', 'Copy response to clipboard');
-        copyButton.title =
-          this.copyFeedback?.messageId === message.id
-            ? this.copyFeedback.status === 'copied'
-              ? 'Copied to clipboard'
-              : 'Copy to clipboard failed'
-            : 'Copy response to clipboard';
-        copyButton.style.display = 'inline-flex';
-        copyButton.style.alignItems = 'center';
-        copyButton.style.justifyContent = 'center';
-        copyButton.style.width = '24px';
-        copyButton.style.height = '24px';
-        copyButton.style.border = '1px solid rgba(148, 163, 184, 0.16)';
-        copyButton.style.borderRadius = '999px';
-        copyButton.style.background =
-          'linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 0.88))';
-        copyButton.style.padding = '0';
-        copyButton.style.transition =
-          'transform 140ms ease, color 140ms ease, border-color 140ms ease';
-        copyButton.style.color =
-          this.copyFeedback?.messageId === message.id &&
-          this.copyFeedback.status === 'failed'
-            ? '#b91c1c'
-            : '#94a3b8';
-        copyButton.style.cursor = 'pointer';
-        copyButton.style.transform =
-          this.copyFeedback?.messageId === message.id &&
-          this.copyFeedback.status === 'copied'
-            ? 'scale(1.08)'
-            : 'scale(1)';
-
-        const iconName =
-          this.copyFeedback?.messageId === message.id &&
-          this.copyFeedback.status === 'copied'
-            ? 'check'
-            : this.copyFeedback?.messageId === message.id &&
-                this.copyFeedback.status === 'failed'
-              ? 'x-mark'
-              : 'square-2-stack';
-        const actionIcon = createIcon(iconName, {
-          size: 12,
-          strokeWidth: 1.9,
-        });
-        actionIcon.setAttribute('aria-hidden', 'true');
-        copyButton.append(actionIcon);
-        copyButton.addEventListener('click', () => {
-          void this.copyMessage(message);
-        });
-
-        actions.appendChild(copyButton);
+      if (canCopyMessage) {
+        actions.appendChild(this.createCopyMessageButton(message));
       }
       wrap.appendChild(actions);
     }
@@ -1215,7 +1055,9 @@ export class GlobalChatPanel {
     return wrap;
   }
 
-  private createTypingBubble(): HTMLDivElement {
+  private createTypingBubble(
+    replyProgress: WorkspaceChatReplyProgress | null
+  ): HTMLDivElement {
     const wrap = document.createElement('div');
     wrap.style.display = 'flex';
     wrap.style.flexDirection = 'column';
@@ -1237,7 +1079,7 @@ export class GlobalChatPanel {
     roleLabel.style.fontWeight = '700';
     roleLabel.style.color = '#64748b';
     const stateLabel = document.createElement('span');
-    stateLabel.textContent = 'Thinking';
+    stateLabel.textContent = replyProgress?.label ?? 'Thinking';
     stateLabel.style.fontWeight = '500';
     stateLabel.style.color = '#94a3b8';
     meta.append(roleLabel, stateLabel);
@@ -1252,8 +1094,29 @@ export class GlobalChatPanel {
     bubble.style.background = 'rgba(255, 255, 255, 0.99)';
     bubble.style.border = '1px solid rgba(148, 163, 184, 0.18)';
     bubble.style.display = 'inline-flex';
-    bubble.style.alignItems = 'center';
-    bubble.style.gap = '6px';
+    bubble.style.flexDirection = 'column';
+    bubble.style.alignItems = 'flex-start';
+    bubble.style.gap = '8px';
+
+    const detail = document.createElement('p');
+    detail.textContent =
+      replyProgress?.detail ?? 'Working on your request.';
+    detail.style.margin = '0';
+    detail.style.fontSize = '11.5px';
+    detail.style.lineHeight = '1.6';
+    detail.style.color = '#475569';
+    detail.style.whiteSpace = 'pre-wrap';
+    detail.style.wordBreak = 'break-word';
+
+    const footer = document.createElement('div');
+    footer.style.display = 'inline-flex';
+    footer.style.alignItems = 'center';
+    footer.style.gap = '8px';
+
+    const dots = document.createElement('div');
+    dots.style.display = 'inline-flex';
+    dots.style.alignItems = 'center';
+    dots.style.gap = '6px';
 
     for (let index = 0; index < 3; index += 1) {
       const dot = document.createElement('span');
@@ -1262,9 +1125,26 @@ export class GlobalChatPanel {
       dot.style.borderRadius = '999px';
       dot.style.background = '#64748b';
       dot.style.opacity = ['0.35', '0.6', '0.9'][index] ?? '0.6';
-      bubble.appendChild(dot);
+      dots.appendChild(dot);
     }
 
+    footer.appendChild(dots);
+
+    if (
+      typeof replyProgress?.currentStep === 'number' &&
+      typeof replyProgress.totalSteps === 'number'
+    ) {
+      const step = document.createElement('span');
+      step.textContent = `${replyProgress.currentStep}/${replyProgress.totalSteps}`;
+      step.style.fontSize = '10px';
+      step.style.fontWeight = '700';
+      step.style.lineHeight = '1';
+      step.style.letterSpacing = '0.04em';
+      step.style.color = '#94a3b8';
+      footer.appendChild(step);
+    }
+
+    bubble.append(detail, footer);
     wrap.append(meta, bubble);
     return wrap;
   }
@@ -1423,21 +1303,11 @@ export class GlobalChatPanel {
     if (!group) {
       throw new Error('Grouped action card requires at least one action.');
     }
-    const card = document.createElement('div');
-    card.style.border = '1px solid rgba(148, 163, 184, 0.18)';
-    card.style.borderRadius = '20px';
-    card.style.background =
-      'linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(250, 250, 249, 0.96) 44%, rgba(248, 250, 252, 0.94))';
+    const card = this.createFlatSurface('!rounded-[20px]');
     card.style.padding = '14px';
     card.style.display = 'flex';
     card.style.flexDirection = 'column';
     card.style.gap = '12px';
-
-    const accent = document.createElement('div');
-    accent.style.width = '42px';
-    accent.style.height = '2px';
-    accent.style.borderRadius = '999px';
-    accent.style.background = getWorkspaceChatActionAccentColor(group);
 
     const header = document.createElement('div');
     header.style.display = 'flex';
@@ -1476,7 +1346,7 @@ export class GlobalChatPanel {
       row.style.gap = '8px';
       if (index > 0) {
         row.style.paddingTop = '10px';
-        row.style.borderTop = '1px solid rgba(226, 232, 240, 0.82)';
+        row.style.borderTop = '1px solid rgba(226, 232, 240, 0.9)';
       }
 
       const textWrap = document.createElement('div');
@@ -1510,6 +1380,11 @@ export class GlobalChatPanel {
       const tags = this.createActionTagRow(action);
       if (tags) {
         textWrap.appendChild(tags);
+      }
+
+      const blueprintPreview = this.createGoalBlueprintPreview(action);
+      if (blueprintPreview) {
+        textWrap.appendChild(blueprintPreview);
       }
 
       const updatePreview = this.createUpdatePatchPreview(action);
@@ -1549,7 +1424,7 @@ export class GlobalChatPanel {
     });
 
     const groupFooter = this.createActionGroupFooter(messageId, actions);
-    card.append(accent, header, rows);
+    card.append(header, rows);
     if (groupFooter) {
       card.appendChild(groupFooter);
     }
@@ -1562,23 +1437,14 @@ export class GlobalChatPanel {
     context: ReturnType<WorkspaceChatSessionController['getState']>['context'],
     contextEnabled: boolean
   ): HTMLDivElement {
-    const card = document.createElement('div');
-    card.style.border = '1px solid rgba(148, 163, 184, 0.18)';
-    card.style.borderRadius = '20px';
-    card.style.background =
+    const card =
       action.status === 'applied'
-        ? 'linear-gradient(180deg, rgba(249, 250, 251, 0.99), rgba(241, 245, 249, 0.96))'
-        : 'linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(250, 250, 249, 0.96) 44%, rgba(248, 250, 252, 0.94))';
+        ? this.createSubtleSurface('!rounded-[20px]')
+        : this.createFlatSurface('!rounded-[20px]');
     card.style.padding = '14px';
     card.style.display = 'flex';
     card.style.flexDirection = 'column';
     card.style.gap = '10px';
-
-    const accent = document.createElement('div');
-    accent.style.width = '42px';
-    accent.style.height = '2px';
-    accent.style.borderRadius = '999px';
-    accent.style.background = getWorkspaceChatActionAccentColor(action);
 
     const topRow = document.createElement('div');
     topRow.style.display = 'flex';
@@ -1623,12 +1489,17 @@ export class GlobalChatPanel {
     meta.style.lineHeight = '1.5';
     meta.style.color = '#6b7280';
 
-    card.append(accent, topRow, title);
+    card.append(topRow, title);
 
     const extraTags = this.createActionTagRow(action);
     if (extraTags && extraTags.childElementCount > 1) {
       extraTags.firstElementChild?.remove();
       card.appendChild(extraTags);
+    }
+
+    const blueprintPreview = this.createGoalBlueprintPreview(action);
+    if (blueprintPreview) {
+      card.appendChild(blueprintPreview);
     }
 
     const updatePreview = this.createUpdatePatchPreview(action);
@@ -1682,51 +1553,31 @@ export class GlobalChatPanel {
     messageId: string,
     action: WorkspaceChatAction
   ): HTMLButtonElement {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = getWorkspaceChatActionButtonLabel(action);
-    button.style.borderRadius = '999px';
-    button.style.padding = '9px 14px';
-    button.style.fontSize = '11px';
-    button.style.fontWeight = '700';
-    button.style.lineHeight = '1.1';
-    button.style.letterSpacing = '0.01em';
-    button.style.whiteSpace = 'nowrap';
-    button.style.transition =
-      'background 140ms ease, color 140ms ease, border-color 140ms ease';
-
-    if (action.status === 'applied') {
-      button.style.border = '1px solid rgba(148, 163, 184, 0.18)';
-      button.style.background =
-        'linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 252, 0.9))';
-      button.style.color = '#64748b';
-    } else if (action.status === 'failed') {
-      button.style.border = '1px solid rgba(251, 191, 36, 0.46)';
-      button.style.background =
-        'linear-gradient(180deg, rgba(255, 251, 235, 0.98), rgba(255, 247, 237, 0.94))';
-      button.style.color = '#9a3412';
-    } else {
-      button.style.border = '1px solid rgba(15, 23, 42, 0.82)';
-      button.style.background =
-        'linear-gradient(180deg, rgba(30, 41, 59, 1), rgba(15, 23, 42, 1))';
-      button.style.color = '#ffffff';
-    }
-
-    button.style.cursor =
+    const button =
       action.status === 'applied' || action.status === 'applying'
-        ? 'default'
-        : 'pointer';
+        ? this.createQuietPillButton({
+            text: getWorkspaceChatActionButtonLabel(action),
+            title: getWorkspaceChatActionButtonLabel(action),
+            ariaLabel: getWorkspaceChatActionButtonLabel(action),
+            onClick: () => undefined,
+          })
+        : this.createPrimaryPillButton({
+            text: getWorkspaceChatActionButtonLabel(action),
+            title: getWorkspaceChatActionButtonLabel(action),
+            ariaLabel: getWorkspaceChatActionButtonLabel(action),
+            onClick: () => {
+              this.pinMessagesToBottom();
+              void this.chatController.executeMessageAction(
+                messageId,
+                action.id,
+                this.executeAction
+              );
+            },
+          });
+
     button.style.opacity = action.status === 'applying' ? '0.7' : '1';
     button.disabled =
       action.status === 'applied' || action.status === 'applying';
-    button.addEventListener('click', () => {
-      this.pinMessagesToBottom();
-      void this.chatController.executeMessageAction(
-        messageId,
-        action.id,
-        this.executeAction
-      );
-    });
     return button;
   }
 
@@ -1748,28 +1599,18 @@ export class GlobalChatPanel {
     footer.style.justifyContent = 'flex-start';
     footer.style.paddingTop = '4px';
 
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = this.getActionGroupButtonLabel(actions);
-    button.style.border = '1px solid rgba(15, 23, 42, 0.82)';
-    button.style.borderRadius = '999px';
-    button.style.background =
-      'linear-gradient(180deg, rgba(30, 41, 59, 1), rgba(15, 23, 42, 1))';
-    button.style.color = '#ffffff';
-    button.style.padding = '9px 14px';
-    button.style.fontSize = '11px';
-    button.style.fontWeight = '700';
-    button.style.lineHeight = '1.1';
-    button.style.letterSpacing = '0.01em';
-    button.style.whiteSpace = 'nowrap';
-    button.style.cursor = 'pointer';
-    button.addEventListener('click', () => {
-      this.pinMessagesToBottom();
-      void this.chatController.executeMessageActions(
-        messageId,
-        actionableActionIds,
-        this.executeAction
-      );
+    const button = this.createPrimaryPillButton({
+      text: this.getActionGroupButtonLabel(actions),
+      title: this.getActionGroupButtonLabel(actions),
+      ariaLabel: this.getActionGroupButtonLabel(actions),
+      onClick: () => {
+        this.pinMessagesToBottom();
+        void this.chatController.executeMessageActions(
+          messageId,
+          actionableActionIds,
+          this.executeAction
+        );
+      },
     });
 
     footer.appendChild(button);
@@ -1850,14 +1691,11 @@ export class GlobalChatPanel {
       return null;
     }
 
-    const container = document.createElement('div');
+    const container = this.createSubtleSurface('!rounded-[14px]');
     container.style.display = 'flex';
     container.style.flexDirection = 'column';
     container.style.gap = '8px';
     container.style.padding = '10px 12px';
-    container.style.border = '1px solid rgba(203, 213, 225, 0.76)';
-    container.style.borderRadius = '14px';
-    container.style.background = 'rgba(248, 250, 252, 0.92)';
 
     entries.forEach((entry) => {
       const row = document.createElement('div');
@@ -1889,6 +1727,154 @@ export class GlobalChatPanel {
     return container;
   }
 
+  private createGoalBlueprintPreview(
+    action: WorkspaceChatAction
+  ): HTMLDivElement | null {
+    if (action.kind !== 'create_goal_blueprint') {
+      return null;
+    }
+
+    const container = this.createSubtleSurface('!rounded-[14px]');
+    container.style.display = 'flex';
+    container.style.flexDirection = 'column';
+    container.style.gap = '10px';
+    container.style.padding = '10px 12px';
+
+    if (action.summary) {
+      const summary = document.createElement('p');
+      summary.textContent = action.summary;
+      summary.style.margin = '0';
+      summary.style.fontSize = '11.5px';
+      summary.style.lineHeight = '1.55';
+      summary.style.color = '#0f172a';
+      container.appendChild(summary);
+    }
+
+    const hierarchy = this.createGoalBlueprintHierarchy(action);
+    if (hierarchy) {
+      container.appendChild(hierarchy);
+    }
+
+    if (action.relations.length > 0) {
+      const relationsLabel = document.createElement('span');
+      relationsLabel.textContent = 'Sequence links';
+      relationsLabel.style.fontSize = '10px';
+      relationsLabel.style.fontWeight = '700';
+      relationsLabel.style.letterSpacing = '0.04em';
+      relationsLabel.style.textTransform = 'uppercase';
+      relationsLabel.style.color = '#64748b';
+      container.appendChild(relationsLabel);
+
+      const relations = document.createElement('div');
+      relations.style.display = 'flex';
+      relations.style.flexDirection = 'column';
+      relations.style.gap = '5px';
+
+      const goalsByRef = new Map(action.goals.map((goal) => [goal.ref, goal]));
+      action.relations.forEach((relation) => {
+        const row = document.createElement('p');
+        const from = goalsByRef.get(relation.fromRef)?.title ?? relation.fromRef;
+        const to = goalsByRef.get(relation.toRef)?.title ?? relation.toRef;
+        row.textContent = `${from} -> ${to}`;
+        row.style.margin = '0';
+        row.style.fontSize = '11px';
+        row.style.lineHeight = '1.5';
+        row.style.color = '#334155';
+        relations.appendChild(row);
+      });
+
+      container.appendChild(relations);
+    }
+
+    if (Array.isArray(action.assumptions) && action.assumptions.length > 0) {
+      const assumptions = document.createElement('p');
+      assumptions.textContent = `Assumptions: ${action.assumptions.join('; ')}`;
+      assumptions.style.margin = '0';
+      assumptions.style.fontSize = '10.5px';
+      assumptions.style.lineHeight = '1.5';
+      assumptions.style.color = '#475569';
+      assumptions.style.whiteSpace = 'pre-wrap';
+      assumptions.style.wordBreak = 'break-word';
+      container.appendChild(assumptions);
+    }
+
+    return container;
+  }
+
+  private createGoalBlueprintHierarchy(
+    action: WorkspaceChatGoalBlueprintAction
+  ): HTMLDivElement | null {
+    if (action.goals.length === 0) {
+      return null;
+    }
+
+    const section = document.createElement('div');
+    section.style.display = 'flex';
+    section.style.flexDirection = 'column';
+    section.style.gap = '6px';
+
+    const label = document.createElement('span');
+    label.textContent = 'Strategic goals';
+    label.style.fontSize = '10px';
+    label.style.fontWeight = '700';
+    label.style.letterSpacing = '0.04em';
+    label.style.textTransform = 'uppercase';
+    label.style.color = '#64748b';
+    section.appendChild(label);
+
+    const rows = document.createElement('div');
+    rows.style.display = 'flex';
+    rows.style.flexDirection = 'column';
+    rows.style.gap = '5px';
+
+    const childrenByParent = new Map<string | null, WorkspaceChatGoalBlueprintAction['goals']>();
+    action.goals.forEach((goal) => {
+      const key = goal.parentRef ?? null;
+      const bucket = childrenByParent.get(key) ?? [];
+      bucket.push(goal);
+      childrenByParent.set(key, bucket);
+    });
+
+    const appendGoal = (
+      goal: WorkspaceChatGoalBlueprintAction['goals'][number],
+      depth: number
+    ) => {
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.flexDirection = 'column';
+      row.style.gap = '2px';
+      row.style.paddingLeft = `${depth * 16}px`;
+
+      const title = document.createElement('p');
+      title.textContent = `${depth > 0 ? '-> ' : ''}${goal.title}`;
+      title.style.margin = '0';
+      title.style.fontSize = '11.5px';
+      title.style.fontWeight = depth === 0 ? '700' : '600';
+      title.style.lineHeight = '1.45';
+      title.style.color = '#0f172a';
+      row.appendChild(title);
+
+      if (goal.description) {
+        const description = document.createElement('p');
+        description.textContent = goal.description;
+        description.style.margin = '0';
+        description.style.fontSize = '10.5px';
+        description.style.lineHeight = '1.5';
+        description.style.color = '#475569';
+        row.appendChild(description);
+      }
+
+      rows.appendChild(row);
+      const children = childrenByParent.get(goal.ref) ?? [];
+      children.forEach((child) => appendGoal(child, depth + 1));
+    };
+
+    const roots = childrenByParent.get(null) ?? action.goals;
+    roots.forEach((goal) => appendGoal(goal, 0));
+    section.appendChild(rows);
+    return section;
+  }
+
   private createActionTagRow(
     action: WorkspaceChatAction
   ): HTMLDivElement | null {
@@ -1917,11 +1903,11 @@ export class GlobalChatPanel {
   ): HTMLSpanElement {
     const tag = document.createElement('span');
     tag.textContent = text;
-    tag.style.fontSize = '10px';
-    tag.style.fontWeight = '700';
+    tag.style.fontSize = '9.5px';
+    tag.style.fontWeight = '600';
     tag.style.lineHeight = '1';
     tag.style.borderRadius = '999px';
-    tag.style.padding = '4px 8px';
+    tag.style.padding = '4px 7px';
     tag.style.whiteSpace = 'nowrap';
     tag.style.border = `1px solid ${options.border}`;
     tag.style.background = options.background;
@@ -1929,26 +1915,110 @@ export class GlobalChatPanel {
     return tag;
   }
 
+  private createFlatSurface(className = ''): HTMLDivElement {
+    return createSurface({
+      className: `!border-slate-200/90 !bg-white !shadow-none ${className}`.trim(),
+    });
+  }
+
+  private createSubtleSurface(className = ''): HTMLDivElement {
+    return createSurface({
+      className:
+        `!border-slate-200/90 !bg-slate-50/80 !shadow-none ${className}`.trim(),
+    });
+  }
+
+  private createQuietPillButton(options: {
+    text: string;
+    title: string;
+    ariaLabel: string;
+    onClick: (event: MouseEvent) => void;
+  }): HTMLButtonElement {
+    return createTextButton({
+      text: options.text,
+      tone: 'text',
+      size: 'sm',
+      title: options.title,
+      ariaLabel: options.ariaLabel,
+      onClick: options.onClick,
+      className:
+        '!h-8 !rounded-full !border !border-slate-200 !bg-white !px-3 !text-[11px] !font-semibold !text-slate-700 hover:!bg-slate-50 hover:!text-slate-800',
+    });
+  }
+
+  private createPrimaryPillButton(options: {
+    text: string;
+    title: string;
+    ariaLabel: string;
+    onClick: (event: MouseEvent) => void;
+  }): HTMLButtonElement {
+    return createTextButton({
+      text: options.text,
+      tone: 'primary',
+      size: 'sm',
+      title: options.title,
+      ariaLabel: options.ariaLabel,
+      onClick: options.onClick,
+      className:
+        '!h-8 !rounded-full !px-3.5 !text-[11px] !font-semibold tracking-[0.01em] shadow-none',
+    });
+  }
+
+  private createQuietIconButton(options: {
+    icon: IconName;
+    title: string;
+    ariaLabel: string;
+    onClick: (event: MouseEvent) => void;
+    size?: 'sm' | 'md' | 'lg';
+    tone?: 'soft' | 'secondary' | 'text' | 'danger';
+    surface?: 'outlined' | 'plain';
+    className?: string;
+  }): HTMLButtonElement {
+    const surfaceClass =
+      options.surface === 'plain'
+        ? '!border-transparent !bg-transparent hover:!bg-slate-100'
+        : '!border-slate-200 !bg-white';
+    return createIconButton({
+      icon: options.icon,
+      title: options.title,
+      ariaLabel: options.ariaLabel,
+      onClick: options.onClick,
+      size: options.size ?? 'sm',
+      tone: options.tone ?? 'text',
+      className:
+        `!rounded-full border ${surfaceClass} ${options.className ?? ''}`.trim(),
+    });
+  }
+
+  private createSuggestionButton(options: {
+    text: string;
+    title: string;
+    onClick: (event: MouseEvent) => void;
+  }): HTMLButtonElement {
+    const button = this.createQuietPillButton({
+      text: options.text,
+      title: options.title,
+      ariaLabel: options.title,
+      onClick: options.onClick,
+    });
+    button.classList.remove('truncate');
+    button.style.height = 'auto';
+    button.style.whiteSpace = 'normal';
+    button.style.lineHeight = '1.55';
+    button.style.padding = '8px 10px';
+    return button;
+  }
+
   private createReviewFindingsCard(
     review: WorkspaceChatReviewFindings
   ): HTMLDivElement {
-    const card = document.createElement('div');
+    const card = this.createFlatSurface('!rounded-[20px]');
     card.style.display = 'flex';
     card.style.flexDirection = 'column';
     card.style.gap = '12px';
     card.style.width = '100%';
     card.style.maxWidth = '94%';
-    card.style.border = '1px solid rgba(148, 163, 184, 0.18)';
-    card.style.borderRadius = '20px';
-    card.style.background =
-      'linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(250, 250, 249, 0.96) 44%, rgba(248, 250, 252, 0.94))';
     card.style.padding = '14px';
-
-    const accent = document.createElement('div');
-    accent.style.width = '42px';
-    accent.style.height = '2px';
-    accent.style.borderRadius = '999px';
-    accent.style.background = getWorkspaceChatReviewAccentColor(review);
 
     const header = document.createElement('div');
     header.style.display = 'flex';
@@ -1974,7 +2044,7 @@ export class GlobalChatPanel {
       header.appendChild(summary);
     }
 
-    card.append(accent, header);
+    card.append(header);
 
     if (typeof review.readinessScore === 'number' || review.readinessVerdict) {
       const readiness = document.createElement('div');
@@ -2014,14 +2084,11 @@ export class GlobalChatPanel {
     findings.style.gap = '10px';
 
     review.findings.forEach((finding) => {
-      const item = document.createElement('div');
+      const item = this.createSubtleSurface('!rounded-[16px]');
       item.style.display = 'flex';
       item.style.flexDirection = 'column';
       item.style.gap = '6px';
       item.style.padding = '11px 12px';
-      item.style.border = '1px solid rgba(148, 163, 184, 0.14)';
-      item.style.borderRadius = '16px';
-      item.style.background = 'rgba(255, 255, 255, 0.72)';
 
       const header = document.createElement('div');
       header.style.display = 'flex';
@@ -2123,6 +2190,42 @@ export class GlobalChatPanel {
     }
   }
 
+  private createCopyMessageButton(
+    message: WorkspaceChatMessage
+  ): HTMLButtonElement {
+    const feedbackForMessage =
+      this.copyFeedback?.messageId === message.id ? this.copyFeedback : null;
+    const copyButton = this.createQuietIconButton({
+      icon:
+        feedbackForMessage?.status === 'copied'
+          ? 'check'
+          : feedbackForMessage?.status === 'failed'
+            ? 'x-mark'
+            : 'square-2-stack',
+      size: 'sm',
+      tone: feedbackForMessage?.status === 'failed' ? 'danger' : 'text',
+      title: feedbackForMessage
+        ? feedbackForMessage.status === 'copied'
+          ? 'Copied to clipboard'
+          : 'Copy to clipboard failed'
+        : 'Copy message to clipboard',
+      ariaLabel: 'Copy message to clipboard',
+      surface: 'plain',
+      className:
+        feedbackForMessage?.status === 'copied'
+          ? '!h-6 !w-6 !bg-emerald-50 !text-emerald-600'
+          : '!h-6 !w-6 !text-slate-400',
+      onClick: () => {
+        void this.copyMessage(message);
+      },
+    });
+    copyButton.style.transition =
+      'transform 140ms ease, color 140ms ease, border-color 140ms ease';
+    copyButton.style.transform =
+      feedbackForMessage?.status === 'copied' ? 'scale(1.08)' : 'scale(1)';
+    return copyButton;
+  }
+
   private createMessageContent(message: WorkspaceChatMessage): HTMLElement {
     if (message.role === 'assistant') {
       return this.markdownRenderer.render(message.content);
@@ -2133,5 +2236,21 @@ export class GlobalChatPanel {
     content.style.wordBreak = 'break-word';
     content.textContent = message.content;
     return content;
+  }
+
+  private getReplyButtonLabel(
+    replyProgress: WorkspaceChatReplyProgress | null
+  ): string {
+    switch (replyProgress?.phase) {
+      case 'drafting':
+        return 'Drafting...';
+      case 'repairing':
+        return 'Repairing...';
+      case 'instructions':
+      case 'routing':
+      case 'tools':
+      default:
+        return 'Working...';
+    }
   }
 }

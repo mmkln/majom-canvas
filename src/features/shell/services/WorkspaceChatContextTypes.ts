@@ -1,14 +1,11 @@
-import type {
-  WorkspaceChatCanvasElement,
-  WorkspaceChatCanvasSnapshot,
-} from '../workspaceChatEvents.ts';
-import type { WorkspaceChatContextMode } from './WorkspaceChatContextMode.ts';
+import type { WorkspaceChatCanvasElement } from '../workspaceChatEvents.ts';
 
 export type WorkspaceChatProfile =
   | 'summarize'
   | 'review-selection'
   | 'next-steps'
   | 'breakdown'
+  | 'strategic-plan'
   | 'dependency-review'
   | 'readiness-check'
   | 'general-question';
@@ -18,6 +15,7 @@ export const WORKSPACE_CHAT_PROFILES: WorkspaceChatProfile[] = [
   'review-selection',
   'next-steps',
   'breakdown',
+  'strategic-plan',
   'dependency-review',
   'readiness-check',
   'general-question',
@@ -87,6 +85,15 @@ export function normalizeWorkspaceChatProfile(
     case 'dependencies':
     case 'dependency_review':
       return 'dependency-review';
+    case 'bootstrap':
+    case 'bootstrap_plan':
+    case 'bootstrap-plan':
+    case 'plan-bootstrap':
+    case 'strategic':
+    case 'strategic_plan':
+    case 'strategic-plan':
+    case 'plan-strategic':
+      return 'strategic-plan';
     case 'readiness':
     case 'missing':
     case 'readiness_check':

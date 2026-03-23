@@ -3,6 +3,9 @@ import type {
   WorkspaceChatActionTarget,
   WorkspaceChatCreateActionKind,
   WorkspaceChatCreateElementStatus,
+  WorkspaceChatGoalBlueprintGoal,
+  WorkspaceChatGoalBlueprintPattern,
+  WorkspaceChatGoalBlueprintRelation,
   WorkspaceChatRelationSuggestionType,
   WorkspaceChatReviewFindings,
   WorkspaceChatUpdatePatch,
@@ -14,6 +17,7 @@ import {
 
 export type WorkspaceChatStructuredActionEntryKind =
   | WorkspaceChatActionKind
+  | 'create_goals'
   | 'create_batch_tasks'
   | 'create_batch_stories'
   | 'suggest_relations'
@@ -38,12 +42,23 @@ export type WorkspaceChatStructuredCreateBatchItem = Omit<
 };
 
 export type WorkspaceChatStructuredCreateBatchEntry = {
-  kind: 'create_batch_tasks' | 'create_batch_stories';
+  kind: 'create_batch_tasks' | 'create_batch_stories' | 'create_goals';
   title?: string;
   summary?: string;
   description?: string;
   target?: WorkspaceChatActionTarget;
   items: WorkspaceChatStructuredCreateBatchItem[];
+};
+
+export type WorkspaceChatStructuredGoalBlueprintEntry = {
+  kind: 'create_goal_blueprint';
+  title?: string;
+  summary?: string;
+  assumptions?: string[];
+  target?: { kind: 'canvas' } | { kind: 'goal'; id: string };
+  pattern: WorkspaceChatGoalBlueprintPattern;
+  goals: WorkspaceChatGoalBlueprintGoal[];
+  relations?: WorkspaceChatGoalBlueprintRelation[];
 };
 
 export type WorkspaceChatStructuredRelationSuggestion = {
@@ -150,6 +165,7 @@ export type WorkspaceChatStructuredUpdateBatchEntry = {
 export type WorkspaceChatStructuredActionEntry =
   | WorkspaceChatStructuredCreateActionEntry
   | WorkspaceChatStructuredCreateBatchEntry
+  | WorkspaceChatStructuredGoalBlueprintEntry
   | WorkspaceChatStructuredRelationActionEntry
   | WorkspaceChatStructuredRelationBatchEntry
   | WorkspaceChatStructuredRemoveRelationActionEntry
@@ -171,6 +187,8 @@ export const WORKSPACE_CHAT_STRUCTURED_ENVELOPE_SHAPE =
 export const WORKSPACE_CHAT_STRUCTURED_ACTION_KIND_NOTES = [
   '- reviewFindings: for review, readiness, missing work, overlaps, weak decomposition, orphaned items, or planning gaps.',
   '- create_task / create_story / create_goal: for single clear create proposals.',
+  '- create_goals: for proposing several top-level strategic goals at once.',
+  '- create_goal_blueprint: for one confirm-first strategic plan skeleton with goals, hierarchy, and optional leads_to links.',
   '- create_batch_tasks: for decomposing a story or cluster into multiple tasks.',
   '- create_batch_stories: for decomposing a goal into multiple stories.',
   '- suggest_relations: for non-hierarchical dependency or sequencing suggestions.',
@@ -186,10 +204,12 @@ export function isWorkspaceChatStructuredActionEntryKind(
     value === 'create_task' ||
     value === 'create_story' ||
     value === 'create_goal' ||
+    value === 'create_goal_blueprint' ||
     value === 'suggest_relation' ||
     value === 'remove_relation' ||
     value === 'update_relation' ||
     value === 'suggest_update' ||
+    value === 'create_goals' ||
     value === 'create_batch_tasks' ||
     value === 'create_batch_stories' ||
     value === 'suggest_relations' ||
@@ -286,6 +306,71 @@ export function getWorkspaceChatStructuredReplyExamples() {
     ],
   };
 
+  const strategicGoalsExample: WorkspaceChatStructuredReplyEnvelope = {
+    replyMarkdown: 'I prepared a strategic goal set you can create together.',
+    actions: [
+      {
+        kind: 'create_goals',
+        title: 'Strategic goals',
+        summary: 'These top-level goals cover the main planning tracks.',
+        items: [
+          {
+            title: 'Learn the fundamentals of marketing automation',
+            priority: 'high',
+            elementStatus: 'defined',
+          },
+          {
+            title: 'Build first automated lifecycle flows',
+            priority: 'high',
+            elementStatus: 'defined',
+          },
+        ],
+      },
+    ],
+  };
+
+  const strategicBlueprintExample: WorkspaceChatStructuredReplyEnvelope = {
+    replyMarkdown: 'I prepared a strategic plan blueprint you can create in one step.',
+    actions: [
+      {
+        kind: 'create_goal_blueprint',
+        title: 'Strategic marketing automation plan',
+        summary: 'One umbrella goal, several subgoals, and a few sequence links.',
+        pattern: 'goal_tree_with_sequence',
+        goals: [
+          {
+            ref: 'root',
+            title: 'Master marketing automation strategically',
+            priority: 'highest',
+            elementStatus: 'defined',
+          },
+          {
+            ref: 'fundamentals',
+            parentRef: 'root',
+            title: 'Learn automation fundamentals',
+            priority: 'high',
+            elementStatus: 'defined',
+          },
+          {
+            ref: 'flows',
+            parentRef: 'root',
+            title: 'Build first lifecycle flows',
+            priority: 'high',
+            elementStatus: 'defined',
+          },
+        ],
+        relations: [
+          {
+            fromRef: 'fundamentals',
+            toRef: 'flows',
+            relationType: 'leads_to',
+            reason: 'Core principles should inform the first implementation flow.',
+          },
+        ],
+      },
+    ],
+  };
+
   const dependencySuggestionExample: WorkspaceChatStructuredReplyEnvelope = {
     replyMarkdown: 'I found two useful non-hierarchical links.',
     actions: [
@@ -367,6 +452,8 @@ export function getWorkspaceChatStructuredReplyExamples() {
   return {
     singleActionsExample,
     batchCreateExample,
+    strategicGoalsExample,
+    strategicBlueprintExample,
     dependencySuggestionExample,
     dependencyRemovalExample,
     dependencyUpdateExample,
@@ -379,5 +466,7 @@ export function getWorkspaceChatCreateTargetRules(): string[] {
     `- ${getWorkspaceChatActionEntityLabel('create_task')}: target.kind may be "story" or "canvas"`,
     `- ${getWorkspaceChatActionEntityLabel('create_story')}: target.kind may be "goal" or "canvas"`,
     `- ${getWorkspaceChatActionEntityLabel('create_goal')}: target.kind must be "canvas"`,
+    '- create_goals items inherit canvas targeting only',
+    '- create_goal_blueprint creates goals on canvas and resolves any hierarchy or leads_to links internally',
   ];
 }

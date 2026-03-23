@@ -195,4 +195,46 @@ describe('WorkspaceChatStructuredResultModel', () => {
       })
     ).toBe('#b91c1c');
   });
+
+  it('renders strategic blueprint actions with plan-specific labels and tags', () => {
+    const action: WorkspaceChatAction = {
+      id: 'blueprint-1',
+      kind: 'create_goal_blueprint',
+      label: 'Create plan',
+      title: 'Marketing automation learning plan',
+      status: 'idle',
+      pattern: 'goal_tree_with_sequence',
+      summary: 'Strategic starter structure for the topic.',
+      goals: [
+        { ref: 'root', title: 'Master marketing automation strategically' },
+        {
+          ref: 'fundamentals',
+          title: 'Learn the fundamentals',
+          parentRef: 'root',
+        },
+        {
+          ref: 'practice',
+          title: 'Build first workflows',
+          parentRef: 'root',
+        },
+      ],
+      relations: [
+        {
+          fromRef: 'fundamentals',
+          toRef: 'practice',
+          relationType: 'leads_to',
+        },
+      ],
+    };
+
+    expect(getWorkspaceChatActionButtonLabel(action)).toBe('Create plan');
+    expect(getWorkspaceChatActionSecondaryText(action, context, true)).toBe(
+      '3 strategic goals · 1 leads-to link'
+    );
+    expect(buildWorkspaceChatActionTagModels(action).map((tag) => tag.text)).toEqual([
+      'goal tree with sequence',
+      '3 goals',
+      '1 sequence link',
+    ]);
+  });
 });

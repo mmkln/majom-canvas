@@ -6,6 +6,20 @@ import type { WorkspaceChatIntentKind } from '../workspaceChatEvents.ts';
 
 export type WorkspaceChatMessageRole = 'assistant' | 'user' | 'system';
 export type WorkspaceChatMessageKind = 'default' | 'system' | 'command';
+export type WorkspaceChatReplyPhase =
+  | 'routing'
+  | 'instructions'
+  | 'tools'
+  | 'drafting'
+  | 'repairing';
+
+export type WorkspaceChatReplyProgress = {
+  phase: WorkspaceChatReplyPhase;
+  label: string;
+  detail?: string;
+  currentStep?: number;
+  totalSteps?: number;
+};
 
 export type WorkspaceChatMessage = {
   id: string;

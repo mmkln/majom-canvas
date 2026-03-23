@@ -13,6 +13,10 @@ import {
   isWorkspaceChatActionKind,
   isWorkspaceChatActionStatus,
   isWorkspaceChatCreateElementStatus,
+  type WorkspaceChatGoalBlueprintAction,
+  type WorkspaceChatGoalBlueprintGoal,
+  type WorkspaceChatGoalBlueprintPattern,
+  type WorkspaceChatGoalBlueprintRelation,
   isWorkspaceChatRelationSuggestionType,
   isWorkspaceChatReviewFindingSeverity,
   type WorkspaceChatAction,
@@ -153,6 +157,18 @@ function normalizeStructuredActionEntry(
   if (entry.kind === 'create_batch_stories') {
     return normalizeCreateBatchActions('create_story', value, options);
   }
+  if (entry.kind === 'create_goals') {
+    return normalizeCreateBatchActions(
+      'create_goal',
+      value,
+      options,
+      'Strategic goals'
+    );
+  }
+  if (entry.kind === 'create_goal_blueprint') {
+    const action = sanitizeWorkspaceChatAction(value, options);
+    return action ? [action] : [];
+  }
   if (entry.kind === 'suggest_relations') {
     return normalizeRelationBatchActions(value, options);
   }
@@ -173,28 +189,67 @@ function normalizeStructuredActionEntry(
 function normalizeCreateBatchActions(
   kind: WorkspaceChatCreateActionKind,
   value: unknown,
-  options: SanitizeActionOptions
+  options: SanitizeActionOptions,
+  fallbackTitle?: string
 ): WorkspaceChatAction[] {
   if (!value || typeof value !== 'object') return [];
-  const batch = value as Partial<WorkspaceChatStructuredCreateBatchEntry>;
-  const items = Array.isArray(batch.items) ? batch.items : [];
+  const batch = value as Partial<WorkspaceChatStructuredCreateBatchEntry> & {
+    data?: {
+      parentId?: unknown;
+      items?: unknown;
+      stories?: unknown;
+      tasks?: unknown;
+      goals?: unknown;
+    };
+  };
+  const legacyParentId =
+    batch.data && typeof batch.data.parentId === 'string'
+      ? batch.data.parentId
+      : undefined;
+  const legacyItems =
+    batch.data && Array.isArray(batch.data.items)
+      ? batch.data.items
+      : kind === 'create_story' && batch.data && Array.isArray(batch.data.stories)
+        ? batch.data.stories
+        : kind === 'create_task' && batch.data && Array.isArray(batch.data.tasks)
+          ? batch.data.tasks
+          : kind === 'create_goal' && batch.data && Array.isArray(batch.data.goals)
+            ? batch.data.goals
+            : [];
+  const items = Array.isArray(batch.items)
+    ? batch.items
+    : legacyItems;
   if (items.length === 0) return [];
 
   const group = buildActionGroup(
     batch,
-    kind === 'create_task' ? 'Task breakdown' : 'Story breakdown'
+    fallbackTitle ??
+      (kind === 'create_task'
+        ? 'Task breakdown'
+        : kind === 'create_story'
+          ? 'Story breakdown'
+          : 'Suggested goals')
   );
 
   return items
     .map((item) => {
       if (!item || typeof item !== 'object') return null;
+      const legacyTarget =
+        legacyParentId && kind !== 'create_goal'
+          ? {
+              kind: kind === 'create_story' ? 'goal' : 'story',
+              id: legacyParentId,
+            }
+          : legacyParentId && kind === 'create_goal'
+            ? { kind: 'goal', id: legacyParentId }
+            : undefined;
       const merged = {
         ...(item as Record<string, unknown>),
         kind,
         target:
           (item as { target?: unknown }).target !== undefined
             ? (item as { target?: unknown }).target
-            : batch.target,
+            : batch.target ?? legacyTarget,
       };
       return sanitizeWorkspaceChatAction(merged, {
         ...options,
@@ -348,6 +403,11 @@ function sanitizeWorkspaceChatAction(
         value as Partial<WorkspaceChatCreateAction> & { target?: unknown },
         options
       );
+    case 'create_goal_blueprint':
+      return sanitizeGoalBlueprintAction(
+        value as Partial<WorkspaceChatGoalBlueprintAction>,
+        options
+      );
     case 'suggest_relation':
       return sanitizeRelationAction(
         value as Partial<WorkspaceChatRelationAction>,
@@ -411,6 +471,48 @@ function sanitizeCreateAction(
     priority: priority ?? undefined,
     elementStatus: elementStatus ?? undefined,
     target: target ?? undefined,
+  };
+}
+
+function sanitizeGoalBlueprintAction(
+  action: Partial<WorkspaceChatGoalBlueprintAction>,
+  options: SanitizeActionOptions
+): WorkspaceChatGoalBlueprintAction | null {
+  const target = normalizeGoalBlueprintTarget(action.target, options.validationSnapshot);
+  if (action.target !== undefined && target === null) {
+    return null;
+  }
+
+  const pattern = normalizeGoalBlueprintPattern(action.pattern);
+  if (!pattern) return null;
+
+  const goals = normalizeGoalBlueprintGoals(action.goals);
+  if (!goals || goals.length === 0) return null;
+
+  const relations = normalizeGoalBlueprintRelations(action.relations, goals);
+  if (action.relations !== undefined && relations === null) return null;
+
+  const rootTitle =
+    resolveGoalBlueprintRoot(goals)?.title ??
+    goals[0]?.title ??
+    'Strategic plan';
+  const title =
+    sanitizeText(action.title) ?? `Create plan for "${rootTitle}"`;
+
+  return {
+    ...buildCommonActionFields(
+      action,
+      options,
+      getWorkspaceChatActionLabel('create_goal_blueprint'),
+      title
+    ),
+    kind: 'create_goal_blueprint',
+    target: target ?? undefined,
+    pattern,
+    summary: sanitizeText(action.summary, 600) ?? undefined,
+    assumptions: sanitizeTextList(action.assumptions, 8, 160),
+    goals,
+    relations: relations ?? [],
   };
 }
 
@@ -667,7 +769,31 @@ function normalizeTarget(
     if (!validateTargetElement(validationSnapshot, id, 'goal')) return null;
     return { kind: 'goal', id };
   }
+  if (kind === 'create_goal' && target.kind === 'goal') {
+    if (!validateTargetElement(validationSnapshot, id, 'goal')) return null;
+    return { kind: 'goal', id };
+  }
   return null;
+}
+
+function normalizeGoalBlueprintTarget(
+  value: unknown,
+  validationSnapshot?: WorkspaceChatCanvasSnapshot | null
+): WorkspaceChatGoalBlueprintAction['target'] | undefined | null {
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== 'object') return null;
+  const target = value as { kind?: unknown; id?: unknown };
+  if (target.kind === 'canvas') {
+    return { kind: 'canvas' };
+  }
+  const id = sanitizeId(target.id);
+  if (!id || target.kind !== 'goal') {
+    return null;
+  }
+  if (!validateTargetElement(validationSnapshot, id, 'goal')) {
+    return null;
+  }
+  return { kind: 'goal', id };
 }
 
 function validateTargetElement(
@@ -719,6 +845,104 @@ function normalizeElementKind(
   return value === 'goal' || value === 'story' || value === 'task'
     ? value
     : null;
+}
+
+function normalizeGoalBlueprintPattern(
+  value: unknown
+): WorkspaceChatGoalBlueprintPattern | null {
+  return value === 'goal_tree' ||
+    value === 'goal_tree_with_sequence' ||
+    value === 'goal_graph'
+    ? value
+    : null;
+}
+
+function normalizeGoalBlueprintGoals(
+  value: unknown
+): WorkspaceChatGoalBlueprintGoal[] | null {
+  if (!Array.isArray(value)) return null;
+  const goals = value
+    .map((item) => sanitizeGoalBlueprintGoal(item))
+    .filter((item): item is WorkspaceChatGoalBlueprintGoal => item !== null);
+  if (goals.length === 0) return null;
+
+  const refs = new Set<string>();
+  for (const goal of goals) {
+    if (refs.has(goal.ref)) {
+      return null;
+    }
+    refs.add(goal.ref);
+  }
+  return goals;
+}
+
+function sanitizeGoalBlueprintGoal(
+  value: unknown
+): WorkspaceChatGoalBlueprintGoal | null {
+  if (!value || typeof value !== 'object') return null;
+  const goal = value as Partial<WorkspaceChatGoalBlueprintGoal>;
+  const ref = sanitizeId(goal.ref);
+  const title = sanitizeText(goal.title);
+  if (!ref || !title) return null;
+
+  const priority = normalizePriority(goal.priority);
+  if (goal.priority !== undefined && priority === null) return null;
+  const elementStatus = normalizeElementStatus(goal.elementStatus);
+  if (goal.elementStatus !== undefined && elementStatus === null) return null;
+
+  return {
+    ref,
+    title,
+    description: sanitizeText(goal.description, 600) ?? undefined,
+    priority: priority ?? undefined,
+    elementStatus: elementStatus ?? undefined,
+    parentRef: sanitizeId(goal.parentRef) ?? undefined,
+  };
+}
+
+function normalizeGoalBlueprintRelations(
+  value: unknown,
+  goals: WorkspaceChatGoalBlueprintGoal[]
+): WorkspaceChatGoalBlueprintRelation[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) return null;
+  const goalRefs = new Set(goals.map((goal) => goal.ref));
+  const relations = value
+    .map((item) => sanitizeGoalBlueprintRelation(item, goalRefs))
+    .filter((item): item is WorkspaceChatGoalBlueprintRelation => item !== null);
+  return relations.length === value.length ? relations : null;
+}
+
+function sanitizeGoalBlueprintRelation(
+  value: unknown,
+  goalRefs: Set<string>
+): WorkspaceChatGoalBlueprintRelation | null {
+  if (!value || typeof value !== 'object') return null;
+  const relation = value as Partial<WorkspaceChatGoalBlueprintRelation>;
+  const fromRef = sanitizeId(relation.fromRef);
+  const toRef = sanitizeId(relation.toRef);
+  if (
+    !fromRef ||
+    !toRef ||
+    fromRef === toRef ||
+    !goalRefs.has(fromRef) ||
+    !goalRefs.has(toRef) ||
+    relation.relationType !== 'leads_to'
+  ) {
+    return null;
+  }
+  return {
+    fromRef,
+    toRef,
+    relationType: 'leads_to',
+    reason: sanitizeText(relation.reason, 400) ?? undefined,
+  };
+}
+
+function resolveGoalBlueprintRoot(
+  goals: WorkspaceChatGoalBlueprintGoal[]
+): WorkspaceChatGoalBlueprintGoal | null {
+  return goals.find((goal) => !goal.parentRef) ?? null;
 }
 
 function normalizeUpdatePatch(value: unknown): WorkspaceChatUpdatePatch | null {
@@ -843,6 +1067,19 @@ function sanitizeStringList(value: unknown): string[] | undefined {
   const items = value
     .map((item) => sanitizeId(item))
     .filter((item): item is string => item !== null);
+  return items.length > 0 ? items : undefined;
+}
+
+function sanitizeTextList(
+  value: unknown,
+  maxItems: number,
+  maxLength = 200
+): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const items = value
+    .map((item) => sanitizeText(item, maxLength))
+    .filter((item): item is string => item !== null)
+    .slice(0, maxItems);
   return items.length > 0 ? items : undefined;
 }
 

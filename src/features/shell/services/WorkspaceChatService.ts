@@ -6,6 +6,7 @@ import type {
   WorkspaceChatMessageKind,
   WorkspaceChatMessageRole,
   WorkspaceChatQuickAction,
+  WorkspaceChatReplyProgress,
 } from './WorkspaceChatTypes.ts';
 import { buildWorkspaceChatWelcomeContent } from './WorkspaceChatWelcomeMessage.ts';
 import type {
@@ -34,6 +35,7 @@ export type WorkspaceChatReplyRequest = {
   validationSnapshot?: WorkspaceChatCanvasSnapshot | null;
   allowActions?: boolean;
   liveHost?: WorkspaceChatToolHost | null;
+  onProgress?: (progress: WorkspaceChatReplyProgress) => void;
   signal?: AbortSignal;
 };
 
@@ -140,6 +142,7 @@ export class WorkspaceChatService implements WorkspaceChatServiceLike {
       allowActions: request.allowActions ?? false,
       validationSnapshot: request.validationSnapshot ?? request.snapshot,
       liveHost: request.liveHost ?? null,
+      onProgress: request.onProgress,
       signal: request.signal,
     });
     return this.createMessage(

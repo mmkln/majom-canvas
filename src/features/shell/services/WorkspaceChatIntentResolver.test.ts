@@ -157,4 +157,24 @@ describe('resolveWorkspaceChatIntentSubmission', () => {
     expect(submission.snapshot?.selectionIds).toEqual(['story-1']);
     expect(submission.prompt).toContain('Clarify the selected story "Outbound sequence"');
   });
+
+  it('resolves strategic_plan into a canvas-scoped strategic plan submission', () => {
+    const snapshot = makeSnapshot([]);
+
+    const submission = resolveWorkspaceChatIntentSubmission(
+      {
+        intent: 'strategic_plan',
+        scope: 'canvas',
+      },
+      snapshot
+    );
+
+    expect(submission.contextMode).toBe('canvas');
+    expect(submission.intent).toBe('strategic_plan');
+    expect(submission.profile).toBe('strategic-plan');
+    expect(submission.requestLabel).toBe('Generate strategic plan');
+    expect(submission.requestMessageKind).toBe('command');
+    expect(submission.prompt).toContain('create_goals');
+    expect(submission.prompt).toContain('create_goal_blueprint');
+  });
 });

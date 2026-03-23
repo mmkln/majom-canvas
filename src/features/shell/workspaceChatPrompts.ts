@@ -30,6 +30,17 @@ export function buildWorkspaceChatBreakdownPrompt(
   return `Refine the selected task "${item.title}" into clearer execution language and acceptance criteria. Return suggest_updates if concrete refinements are obvious.`;
 }
 
+export function buildWorkspaceChatStrategicPlanPrompt(
+  selection: WorkspaceChatSelectionItem[]
+): string {
+  if (selection.length === 1 && selection[0]?.kind === 'goal') {
+    const item = selection[0];
+    return `Create a strategic goal-level plan around the selected goal "${item.title}". Return create_goals for a flat set of child goals, or create_goal_blueprint for subgoals with hierarchy and optional leads_to links. Default to strategic goals only; do not decompose into stories or tasks unless the user explicitly asks for execution detail. Do not invent tools, timelines, certifications, or metrics unless the user explicitly supplied them or asked for them.`;
+  }
+
+  return 'Create a strategic goal-level plan for this canvas. Return create_goals for a flat strategic set of top-level goals, or create_goal_blueprint for a strategic skeleton with one main goal, subgoals, and optional leads_to links. Default to strategic goals only; do not decompose into stories or tasks unless the user explicitly asks for execution detail. Do not invent tools, timelines, certifications, or metrics unless the user explicitly supplied them or asked for them.';
+}
+
 export function buildWorkspaceChatClarifyPrompt(
   item: WorkspaceChatSelectionItem
 ): string {
@@ -135,6 +146,8 @@ export function buildWorkspaceChatIntentPrompt(
     }
     case 'dependencies':
       return buildWorkspaceChatDependencyPrompt(selection);
+    case 'strategic_plan':
+      return buildWorkspaceChatStrategicPlanPrompt(selection);
     case 'missing':
       return buildWorkspaceChatMissingPrompt(selection);
     case 'clarify': {
