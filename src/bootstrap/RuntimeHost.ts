@@ -38,8 +38,8 @@ import { createAiAssistantRuntime } from '../features/ai-assistant/services/AiAs
 import { AiAssistantSessionController } from '../features/ai-assistant/services/AiAssistantSessionController.ts';
 import { buildAiAssistantCapabilityContext } from '../features/ai-assistant/services/AiAssistantCapabilities.ts';
 
-const CHAT_ISLAND_GAP_PX = 6;
-const CHAT_ISLAND_MARGIN_PX = 6;
+const CHAT_ISLAND_GAP_PX = 4;
+const CHAT_ISLAND_MARGIN_PX = 4;
 const CHAT_ISLAND_RADIUS_PX = 22;
 
 type KanbanModuleNamespace = {

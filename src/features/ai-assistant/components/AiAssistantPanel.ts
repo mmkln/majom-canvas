@@ -78,7 +78,7 @@ type AiAssistantPanelOptions = {
   executeAction?: AiAssistantActionExecutionHandler;
 };
 
-const CHAT_ISLAND_MARGIN_PX = 6;
+const CHAT_ISLAND_MARGIN_PX = 4;
 const CHAT_AUTO_SCROLL_THRESHOLD_PX = 40;
 const CHAT_PANEL_BORDER = '1px solid rgba(203, 213, 225, 0.76)';
 const CHAT_PANEL_SECTION_BORDER = '1px solid rgba(226, 232, 240, 0.72)';
