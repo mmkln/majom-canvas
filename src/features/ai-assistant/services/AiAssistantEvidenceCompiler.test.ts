@@ -31,11 +31,15 @@ describe('AiAssistantEvidenceCompiler', () => {
     });
 
     expect(packet.summary.length).toBeGreaterThan(0);
+    expect(packet.contextScope).toBe('neighborhood');
     expect(packet.supportedBy).toContain('story-1');
     expect(packet.supportedBy).toContain('goal-1');
     expect(packet.evidenceIds).toContain('story-1');
     expect(packet.evidenceIds).toContain('goal-1');
+    expect(packet.bullets.join('\n')).toContain('Payment form');
+    expect(packet.bullets.join('\n')).toContain('Receipt email');
     expect(packet.sourceContext).toContain('Main current flow');
+    expect(packet.sourceContext).toContain('Checkout flow');
   });
 
   it('renders a human-readable evidence packet without raw tool dumps', () => {
@@ -63,6 +67,7 @@ describe('AiAssistantEvidenceCompiler', () => {
 
     expect(rendered).toContain('Evidence summary:');
     expect(rendered).toContain('Supported by:');
+    expect(rendered).toContain('Context scope:');
     expect(rendered).not.toContain('"tool"');
     expect(rendered).toContain('Canonical context:');
   });

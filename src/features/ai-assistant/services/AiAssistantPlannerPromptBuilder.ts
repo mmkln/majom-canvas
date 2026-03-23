@@ -133,6 +133,7 @@ export function buildAiAssistantDecisionMessages(params: {
         compileAiAssistantEvidencePacket({
           snapshot: null,
           toolResults: params.toolResults,
+          contextMode: params.contextMode,
         })
       )}`,
     ]

@@ -55,6 +55,7 @@ export function buildAiAssistantAnswerMessages(params: {
         compileAiAssistantEvidencePacket({
           snapshot: null,
           toolResults: params.toolResults,
+          intent: params.intent,
         })
       )}`,
     ]

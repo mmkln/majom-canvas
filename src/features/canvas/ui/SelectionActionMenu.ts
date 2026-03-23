@@ -20,9 +20,7 @@ import { addTaskToStory } from './storyTaskActions.ts';
 import { createIconButton, createSurface } from './primitives/index.ts';
 import { StatusSelector } from './components/StatusSelector.ts';
 import { AiActionsDropdown } from './components/AiActionsDropdown.ts';
-import {
-  emitAiAssistantIntentRequested,
-} from '../../ai-assistant/aiAssistantEvents.ts';
+import { emitAiAssistantIntentRequested } from '../../ai-assistant/aiAssistantEvents.ts';
 import {
   getAiAssistantBreakdownHint,
   getAiAssistantClarifyHint,
@@ -516,7 +514,7 @@ export class SelectionActionMenu {
       if (primaryKind !== 'task') {
         items.push({
           label: this.getAiBreakdownLabel(),
-          icon: 'bars-2',
+          icon: 'squares-plus',
           hint: getAiAssistantBreakdownHint(primaryKind),
           onClick: () => this.handleAiBreakdown(),
         });

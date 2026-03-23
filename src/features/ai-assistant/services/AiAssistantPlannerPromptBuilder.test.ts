@@ -73,6 +73,7 @@ describe('AiAssistantPlannerPromptBuilder', () => {
     const userMessage = messages[messages.length - 1]?.content ?? '';
 
     expect(userMessage).toContain('Evidence packet:');
+    expect(userMessage).toContain('Context scope:');
     expect(userMessage).not.toContain('Current tool results:');
     expect(userMessage).not.toContain('"tool": "get_focus_bundle"');
   });
