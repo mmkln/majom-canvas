@@ -106,7 +106,7 @@ export class SelectionActionMenu {
   ) {
     this.container = createSurface({
       className:
-        'fixed z-40 hidden translate-x-0 items-center gap-1 rounded-full bg-white p-1.5 pr-2.5 shadow-[0_8px_18px_rgba(15,23,42,0.12)]',
+        'fixed z-40 hidden translate-x-0 items-center gap-1 rounded-full p-1.5 pr-2.5',
     });
 
     this.actionNodes = this.buildActionNodes();
@@ -514,7 +514,7 @@ export class SelectionActionMenu {
       if (primaryKind !== 'task') {
         items.push({
           label: this.getAiBreakdownLabel(),
-          icon: 'squares-plus',
+          icon: 'slash',
           hint: getAiAssistantBreakdownHint(primaryKind),
           onClick: () => this.handleAiBreakdown(),
         });
@@ -522,13 +522,13 @@ export class SelectionActionMenu {
       items.push(
         {
           label: 'Clarify',
-          icon: 'pencil',
+          icon: 'light-bulb',
           hint: getAiAssistantClarifyHint(primaryKind),
           onClick: () => this.handleAiClarify(),
         },
         {
           label: 'Fill missing details',
-          icon: 'magnifying-glass',
+          icon: 'puzzle-piece',
           hint: getAiAssistantFillDetailsHint(),
           onClick: () => this.handleAiFillDetails(),
         },
@@ -551,7 +551,7 @@ export class SelectionActionMenu {
       },
       {
         label: 'Fill missing details',
-        icon: 'magnifying-glass',
+        icon: 'puzzle-piece',
         hint: getAiAssistantFillDetailsHint(),
         onClick: () => this.handleAiFillDetails(),
       }

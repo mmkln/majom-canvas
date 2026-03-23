@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { AiAssistantCanvasSnapshot } from '../aiAssistantEvents.ts';
 import type { AiAssistantAction } from '../aiAssistantActions.ts';
 import {
+  buildAiAssistantActionCardModel,
+  buildAiAssistantActionButtonModel,
+  buildAiAssistantActionEntryModel,
+  buildAiAssistantGroupedActionCardModel,
   buildAiAssistantActionTagModels,
   getAiAssistantActionButtonLabel,
   getAiAssistantActionSecondaryText,
@@ -143,7 +147,7 @@ describe('AiAssistantStructuredResultModel', () => {
     expect(buildAiAssistantActionTagModels(createAction).map((tag) => tag.text))
       .toEqual(['highest', 'In progress', 'Batch confirm']);
     expect(buildAiAssistantActionTagModels(updateAction).map((tag) => tag.text))
-      .toEqual(['Priority change', 'Status change']);
+      .toEqual(['2 changes']);
   });
 
   it('derives button labels and review accents consistently', () => {
@@ -195,6 +199,124 @@ describe('AiAssistantStructuredResultModel', () => {
         findings: [],
       })
     ).toBe('#b91c1c');
+  });
+
+  it('builds button models with shared CTA state semantics', () => {
+    const idleCreateAction: AiAssistantAction = {
+      id: 'task-1',
+      kind: 'create_task',
+      label: 'Create task',
+      title: 'Add validation',
+      status: 'idle',
+    };
+    const applyingUpdateAction: AiAssistantAction = {
+      id: 'update-1',
+      kind: 'suggest_update',
+      label: 'Apply update',
+      title: 'Refine checkout story',
+      status: 'applying',
+      elementId: 'story-a',
+      elementKind: 'story',
+      patch: {
+        title: 'Improve checkout flow',
+      },
+    };
+    const appliedPlanAction: AiAssistantAction = {
+      id: 'plan-1',
+      kind: 'create_goal_blueprint',
+      label: 'Create plan',
+      title: 'Marketing plan',
+      status: 'applied',
+      pattern: 'goal_tree_with_sequence',
+      goals: [],
+      relations: [],
+    };
+
+    expect(buildAiAssistantActionButtonModel(idleCreateAction)).toEqual({
+      label: 'Create',
+      tone: 'primary',
+      disabled: false,
+      dimmed: false,
+    });
+    expect(buildAiAssistantActionButtonModel(applyingUpdateAction)).toEqual({
+      label: 'Applying...',
+      tone: 'quiet',
+      disabled: true,
+      dimmed: true,
+    });
+    expect(buildAiAssistantActionButtonModel(appliedPlanAction)).toEqual({
+      label: 'Created',
+      tone: 'quiet',
+      disabled: true,
+      dimmed: false,
+    });
+  });
+
+  it('builds grouped card models with shared header, entry, and footer data', () => {
+    const actions: AiAssistantAction[] = [
+      {
+        id: 'task-1',
+        kind: 'create_task',
+        label: 'Create task',
+        title: 'Task A',
+        status: 'idle',
+        priority: 'high',
+        groupId: 'group-1',
+        groupTitle: 'Create tasks',
+        groupSummary: 'Tasks derived from the selected story.',
+      },
+      {
+        id: 'task-2',
+        kind: 'create_task',
+        label: 'Create task',
+        title: 'Task B',
+        status: 'applied',
+        groupId: 'group-1',
+        groupTitle: 'Create tasks',
+        groupSummary: 'Tasks derived from the selected story.',
+      },
+      {
+        id: 'task-3',
+        kind: 'create_task',
+        label: 'Create task',
+        title: 'Task C',
+        status: 'failed',
+        groupId: 'group-1',
+        groupTitle: 'Create tasks',
+        groupSummary: 'Tasks derived from the selected story.',
+      },
+    ];
+
+    const entryModel = buildAiAssistantActionEntryModel(actions[0], context, true);
+    const groupModel = buildAiAssistantGroupedActionCardModel(
+      actions,
+      context,
+      true
+    );
+
+    expect(entryModel.actionId).toBe('task-1');
+    expect(entryModel.status).toBe('idle');
+    expect(entryModel.card.title).toBe('Task A');
+    expect(entryModel.button.label).toBe('Create');
+
+    expect(groupModel.header).toEqual({
+      eyebrow: 'Create tasks',
+      summary: 'Tasks derived from the selected story.',
+    });
+    expect(groupModel.entries.map((entry) => entry.actionId)).toEqual([
+      'task-1',
+      'task-2',
+      'task-3',
+    ]);
+    expect(groupModel.footer).toEqual({
+      actionIds: ['task-1', 'task-3'],
+      button: {
+        label: 'Create all',
+        tone: 'primary',
+        disabled: false,
+        dimmed: false,
+      },
+    });
   });
 
   it('renders strategic blueprint actions with plan-specific labels and tags', () => {
@@ -265,6 +387,120 @@ describe('AiAssistantStructuredResultModel', () => {
       'supported by 1',
       '1 evidence',
       'source context',
+    ]);
+  });
+
+  it('builds generic action card detail blocks for update and strategic actions', () => {
+    const updateAction: AiAssistantAction = {
+      id: 'update-1',
+      kind: 'suggest_update',
+      label: 'Apply update',
+      title: 'Refine checkout flow',
+      status: 'idle',
+      elementId: 'story-a',
+      elementKind: 'story',
+      targetTitle: 'Checkout flow',
+      patch: {
+        title: 'Improve checkout flow',
+        elementStatus: 'in-progress',
+      },
+    };
+    const goalsAction: AiAssistantAction = {
+      id: 'goals-2',
+      kind: 'create_goals',
+      label: 'Create goals',
+      title: 'Strategic goals',
+      status: 'idle',
+      items: [
+        {
+          title: 'Learn the basics',
+          description: 'Build foundation',
+          priority: 'high',
+        },
+        {
+          title: 'Build workflows',
+          elementStatus: 'pending',
+        },
+      ],
+    };
+    const blueprintAction: AiAssistantAction = {
+      id: 'blueprint-2',
+      kind: 'create_goal_blueprint',
+      label: 'Create plan',
+      title: 'Marketing plan',
+      status: 'idle',
+      pattern: 'goal_tree_with_sequence',
+      summary: 'Starter structure.',
+      goals: [
+        { ref: 'root', title: 'Master automation' },
+        { ref: 'child', title: 'Build workflows', parentRef: 'root' },
+      ],
+      relations: [
+        {
+          fromRef: 'root',
+          toRef: 'child',
+          relationType: 'leads_to',
+        },
+      ],
+      assumptions: ['User already knows basic marketing concepts'],
+    };
+
+    const updateCard = buildAiAssistantActionCardModel(updateAction, context, true);
+    const goalsCard = buildAiAssistantActionCardModel(goalsAction, context, true);
+    const blueprintCard = buildAiAssistantActionCardModel(
+      blueprintAction,
+      context,
+      true
+    );
+
+    expect(updateCard.detailBlocks).toEqual([
+      {
+        kind: 'kv-list',
+        title: 'Changes',
+        entries: [
+          { label: 'Title', value: 'Improve checkout flow' },
+          { label: 'Status', value: 'In progress' },
+        ],
+      },
+    ]);
+    expect(goalsCard.detailBlocks).toEqual([
+      {
+        kind: 'entity-list',
+        title: 'Strategic goals',
+        items: [
+          {
+            title: 'Learn the basics',
+            description: 'Build foundation',
+            meta: ['high'],
+          },
+          {
+            title: 'Build workflows',
+            description: undefined,
+            meta: ['Pending'],
+          },
+        ],
+      },
+    ]);
+    expect(blueprintCard.description).toBe('Starter structure.');
+    expect(blueprintCard.detailBlocks).toEqual([
+      {
+        kind: 'hierarchy-list',
+        title: 'Strategic goals',
+        items: [
+          { title: 'Master automation', description: undefined, depth: 0 },
+          { title: 'Build workflows', description: undefined, depth: 1 },
+        ],
+      },
+      {
+        kind: 'text-list',
+        title: 'Sequence links',
+        items: ['Master automation -> Build workflows'],
+      },
+      {
+        kind: 'text-list',
+        title: 'Assumptions',
+        items: ['User already knows basic marketing concepts'],
+      },
     ]);
   });
 });

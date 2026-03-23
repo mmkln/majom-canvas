@@ -194,11 +194,11 @@ export class WorkspaceControlsBar {
 
     if (this.variant === 'floating') {
       this.element.style.padding = '4px';
-      this.element.style.border = '1px solid rgba(148, 163, 184, 0.35)';
-      this.element.style.borderRadius = '12px';
-      this.element.style.background = 'rgba(255, 255, 255, 0.92)';
-      this.element.style.backdropFilter = 'blur(8px)';
-      this.element.style.boxShadow = '0 10px 26px rgba(15, 23, 42, 0.14)';
+      this.element.style.border = '1px solid rgba(203, 213, 225, 0.88)';
+      this.element.style.borderRadius = '14px';
+      this.element.style.background = 'rgba(255, 255, 255, 0.98)';
+      this.element.style.backdropFilter = 'none';
+      this.element.style.boxShadow = '0 4px 14px rgba(15, 23, 42, 0.08)';
       this.element.style.pointerEvents = 'auto';
       return;
     }

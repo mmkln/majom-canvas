@@ -1,8 +1,8 @@
 export const HUD_SURFACE_CLASS =
-  'rounded-2xl border border-slate-200/80 bg-white shadow-[0_10px_26px_rgba(15,23,42,0.14)]';
+  'rounded-2xl border border-slate-200/85 bg-white shadow-[0_4px_14px_rgba(15,23,42,0.08)]';
 
 export const HUD_SURFACE_ELEVATED_CLASS =
-  'rounded-2xl border border-slate-200/80 bg-white shadow-[0_18px_42px_rgba(15,23,42,0.18)]';
+  'rounded-2xl border border-slate-200/90 bg-white shadow-[0_14px_32px_rgba(15,23,42,0.14)]';
 
 export const HUD_BUTTON_BASE_CLASS =
   'rounded-full border border-slate-200 bg-white text-slate-700 transition-colors hover:bg-indigo-50 hover:text-indigo-700 focus-visible:ring-indigo-300 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400';

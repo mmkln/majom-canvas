@@ -7,7 +7,9 @@ import type {
   AiAssistantCreateElementStatus,
   AiAssistantReviewFindings,
   AiAssistantReviewFindingSeverity,
+  AiAssistantActionStatus,
 } from '../aiAssistantActions.ts';
+import { getAiAssistantActionGroupButtonLabel } from '../aiAssistantActions.ts';
 
 export type AiAssistantBadgeTone = {
   background: string;
@@ -23,6 +25,80 @@ export type AiAssistantActionTagModel = {
 export type AiAssistantActionRenderGroup = {
   groupId: string | null;
   actions: AiAssistantAction[];
+};
+
+export type AiAssistantActionDetailBlock =
+  | {
+      kind: 'kv-list';
+      title: string;
+      entries: Array<{
+        label: string;
+        value: string;
+      }>;
+    }
+  | {
+      kind: 'text-list';
+      title: string;
+      items: string[];
+    }
+  | {
+      kind: 'hierarchy-list';
+      title: string;
+      items: Array<{
+        title: string;
+        description?: string;
+        depth: number;
+      }>;
+    }
+  | {
+      kind: 'entity-list';
+      title: string;
+      items: Array<{
+        title: string;
+        description?: string;
+        meta?: string[];
+      }>;
+    };
+
+export type AiAssistantActionCardModel = {
+  eyebrow: string;
+  title: string;
+  meta: string;
+  tags: AiAssistantActionTagModel[];
+  detailBlocks: AiAssistantActionDetailBlock[];
+  description: string | null;
+  reason: string | null;
+  error: string | null;
+};
+
+export type AiAssistantActionButtonModel = {
+  label: string;
+  tone: 'primary' | 'quiet';
+  disabled: boolean;
+  dimmed: boolean;
+};
+
+export type AiAssistantActionEntryModel = {
+  actionId: string;
+  status: AiAssistantActionStatus;
+  card: AiAssistantActionCardModel;
+  button: AiAssistantActionButtonModel;
+};
+
+export type AiAssistantActionGroupHeaderModel = {
+  eyebrow: string;
+  summary: string | null;
+};
+
+export type AiAssistantActionGroupFooterModel = {
+  actionIds: string[];
+  button: AiAssistantActionButtonModel;
+};
+
+export type AiAssistantGroupedActionCardModel = {
+  header: AiAssistantActionGroupHeaderModel;
+  entries: AiAssistantActionEntryModel[];
+  footer: AiAssistantActionGroupFooterModel | null;
 };
 
 export function groupAiAssistantActionsForRender(
@@ -89,6 +165,88 @@ export function getAiAssistantActionButtonLabel(
   return isApplyAction ? 'Apply' : 'Create';
 }
 
+export function buildAiAssistantActionButtonModel(
+  action: AiAssistantAction
+): AiAssistantActionButtonModel {
+  const disabled =
+    action.status === 'applied' || action.status === 'applying';
+  return {
+    label: getAiAssistantActionButtonLabel(action),
+    tone: disabled ? 'quiet' : 'primary',
+    disabled,
+    dimmed: action.status === 'applying',
+  };
+}
+
+export function buildAiAssistantActionCardModel(
+  action: AiAssistantAction,
+  context: AiAssistantCanvasSnapshot | null,
+  contextEnabled: boolean
+): AiAssistantActionCardModel {
+  return {
+    eyebrow: action.label,
+    title: action.title,
+    meta: getAiAssistantActionSecondaryText(action, context, contextEnabled),
+    tags: buildAiAssistantActionTagModels(action),
+    detailBlocks: buildAiAssistantActionDetailBlocks(action),
+    description: getAiAssistantActionDescription(action),
+    reason: getAiAssistantActionReason(action),
+    error: action.status === 'failed' ? action.errorMessage ?? null : null,
+  };
+}
+
+export function buildAiAssistantActionEntryModel(
+  action: AiAssistantAction,
+  context: AiAssistantCanvasSnapshot | null,
+  contextEnabled: boolean
+): AiAssistantActionEntryModel {
+  return {
+    actionId: action.id,
+    status: action.status,
+    card: buildAiAssistantActionCardModel(action, context, contextEnabled),
+    button: buildAiAssistantActionButtonModel(action),
+  };
+}
+
+export function buildAiAssistantGroupedActionCardModel(
+  actions: AiAssistantAction[],
+  context: AiAssistantCanvasSnapshot | null,
+  contextEnabled: boolean
+): AiAssistantGroupedActionCardModel {
+  const group = actions[0];
+  if (!group) {
+    throw new Error('Grouped action card requires at least one action.');
+  }
+
+  const actionableActionIds = actions
+    .filter(
+      (action) => action.status !== 'applied' && action.status !== 'applying'
+    )
+    .map((action) => action.id);
+
+  return {
+    header: {
+      eyebrow: group.groupTitle || group.label,
+      summary: group.groupSummary ?? null,
+    },
+    entries: actions.map((action) =>
+      buildAiAssistantActionEntryModel(action, context, contextEnabled)
+    ),
+    footer:
+      actionableActionIds.length > 1
+        ? {
+            actionIds: actionableActionIds,
+            button: {
+              label: getAiAssistantActionGroupButtonLabel(actions),
+              tone: 'primary',
+              disabled: false,
+              dimmed: false,
+            },
+          }
+        : null,
+  };
+}
+
 export function buildAiAssistantActionTagModels(
   action: AiAssistantAction
 ): AiAssistantActionTagModel[] {
@@ -140,12 +298,15 @@ export function buildAiAssistantActionTagModels(
   }
 
   if (action.kind === 'suggest_update') {
-    Object.entries(action.patch).forEach(([key, value]) => {
+    const patchFieldCount = Object.values(action.patch).filter(
+      (value) => value !== undefined
+    ).length;
+    if (patchFieldCount > 0) {
       tags.push({
-        text: formatAiAssistantUpdatePatchTagLabel(key, String(value)),
+        text: `${patchFieldCount} change${patchFieldCount === 1 ? '' : 's'}`,
         tone: getAiAssistantNeutralBadgeTone(),
       });
-    });
+    }
   }
 
   if (action.kind === 'create_goal_blueprint') {
@@ -323,6 +484,163 @@ export function getAiAssistantActionReason(
   return null;
 }
 
+function buildAiAssistantActionDetailBlocks(
+  action: AiAssistantAction
+): AiAssistantActionDetailBlock[] {
+  switch (action.kind) {
+    case 'suggest_update': {
+      const entries = Object.entries(action.patch)
+        .map(([key, value]) => {
+          if (value === undefined) {
+            return null;
+          }
+
+          switch (key) {
+            case 'title':
+              return { label: 'Title', value: String(value) };
+            case 'description':
+              return { label: 'Description', value: String(value) };
+            case 'priority':
+              return { label: 'Priority', value: String(value) };
+            case 'elementStatus':
+              return {
+                label: 'Status',
+                value: formatAiAssistantElementStatus(value),
+              };
+            default:
+              return null;
+          }
+        })
+        .filter(
+          (
+            entry
+          ): entry is {
+            label: string;
+            value: string;
+          } => entry !== null
+        );
+
+      return entries.length > 0
+        ? [
+            {
+              kind: 'kv-list',
+              title: 'Changes',
+              entries,
+            },
+          ]
+        : [];
+    }
+    case 'create_goal_blueprint': {
+      const blocks: AiAssistantActionDetailBlock[] = [];
+      const hierarchyItems = buildGoalBlueprintHierarchyItems(action);
+      if (hierarchyItems.length > 0) {
+        blocks.push({
+          kind: 'hierarchy-list',
+          title: 'Strategic goals',
+          items: hierarchyItems,
+        });
+      }
+      if (action.relations.length > 0) {
+        const goalsByRef = new Map(action.goals.map((goal) => [goal.ref, goal]));
+        blocks.push({
+          kind: 'text-list',
+          title: 'Sequence links',
+          items: action.relations.map((relation) => {
+            const from = goalsByRef.get(relation.fromRef)?.title ?? relation.fromRef;
+            const to = goalsByRef.get(relation.toRef)?.title ?? relation.toRef;
+            return `${from} -> ${to}`;
+          }),
+        });
+      }
+      if (Array.isArray(action.assumptions) && action.assumptions.length > 0) {
+        blocks.push({
+          kind: 'text-list',
+          title: 'Assumptions',
+          items: action.assumptions,
+        });
+      }
+      return blocks;
+    }
+    case 'create_goals': {
+      if (action.items.length === 0) {
+        return [];
+      }
+      return [
+        {
+          kind: 'entity-list',
+          title: 'Strategic goals',
+          items: action.items.map((item) => ({
+            title: item.title,
+            description: item.description,
+            meta: [
+              item.priority ?? null,
+              item.elementStatus
+                ? formatAiAssistantElementStatus(item.elementStatus)
+                : null,
+            ].filter((part): part is string => part !== null),
+          })),
+        },
+      ];
+    }
+    default:
+      return [];
+  }
+}
+
+function getAiAssistantActionDescription(action: AiAssistantAction): string | null {
+  if ('description' in action && action.description) {
+    return action.description;
+  }
+  if (action.kind === 'create_goal_blueprint') {
+    return action.summary ?? null;
+  }
+  return null;
+}
+
+function buildGoalBlueprintHierarchyItems(
+  action: Extract<AiAssistantAction, { kind: 'create_goal_blueprint' }>
+): Array<{
+  title: string;
+  description?: string;
+  depth: number;
+}> {
+  const items: Array<{
+    title: string;
+    description?: string;
+    depth: number;
+  }> = [];
+  const childrenByParent = new Map<string | null, typeof action.goals>();
+
+  action.goals.forEach((goal) => {
+    const key = goal.parentRef ?? null;
+    const bucket = childrenByParent.get(key) ?? [];
+    bucket.push(goal);
+    childrenByParent.set(key, bucket);
+  });
+
+  const appendGoal = (
+    goal: (typeof action.goals)[number],
+    depth: number
+  ): void => {
+    items.push({
+      title: goal.title,
+      description: goal.description,
+      depth,
+    });
+    const children = childrenByParent.get(goal.ref) ?? [];
+    children.forEach((child) => {
+      appendGoal(child, depth + 1);
+    });
+  };
+
+  const roots = childrenByParent.get(null) ?? action.goals;
+  roots.forEach((goal) => {
+    appendGoal(goal, 0);
+  });
+
+  return items;
+}
+
 export function getAiAssistantFindingSeverityBadgeTone(
   severity: AiAssistantReviewFindingSeverity
 ): AiAssistantBadgeTone {
@@ -445,24 +763,6 @@ function getAiAssistantNeutralBadgeTone(): AiAssistantBadgeTone {
     color: '#475569',
     border: 'rgba(203, 213, 225, 0.76)',
   };
-}
-
-function formatAiAssistantUpdatePatchTagLabel(
-  key: string,
-  value: string
-): string {
-  switch (key) {
-    case 'title':
-      return 'Title change';
-    case 'description':
-      return 'Description change';
-    case 'priority':
-      return 'Priority change';
-    case 'elementStatus':
-      return 'Status change';
-    default:
-      return `${key}: ${String(value)}`;
-  }
 }
 
 function formatAiAssistantConfirmationModeLabel(

@@ -22,3 +22,18 @@ This project already has a local UI library under `src/ui-lib/src`.
 1. Search `src/ui-lib/src` and existing feature re-exports for a matching primitive.
 2. Reuse the existing component directly, or wrap/compose it if the screen needs a thin specialization.
 3. Add a new component only if no suitable primitive exists after that search.
+
+## Testing Discipline
+
+- Do not add tests that exist only to increase coverage or to confirm static implementation details.
+- Avoid low-value UI tests that only verify markup shape, CSS classes, spacing, icon presence, visual composition, or other presentation details with no user-facing behavior behind them.
+- Do not add tests for the visual appearance of UI components unless the task explicitly asks for it or the visual state encodes important behavior that cannot be protected better at another level.
+- Prefer tests that protect meaningful regressions: user interactions, state transitions, data flow, command execution, accessibility-critical behavior, conditional rendering with product meaning, and bug fixes that could realistically recur.
+- When a change is purely presentational and does not alter behavior, do not create a new test just to prove the component still renders.
+- Before adding a test, ask whether it would catch a costly regression or document important behavior. If not, skip it.
+
+## Learning From Corrections
+
+- When the user corrects the assistant and that correction reveals a stable project rule, a recurring mistake, a contradiction, or an important edge case, update `AGENTS.md` in the same task unless the user explicitly says not to.
+- Only promote corrections into `AGENTS.md` when they are durable guidance for future work, not one-off preferences or temporary task details.
+- Keep new rules concrete and actionable so they improve future decisions instead of adding vague process noise.

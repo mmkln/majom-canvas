@@ -26,6 +26,7 @@ import { AddExistingTaskService } from '../core/services/AddExistingTaskService.
 import { AddExistingGoalService } from '../core/services/AddExistingGoalService.ts';
 import { AddExistingStoryService } from '../core/services/AddExistingStoryService.ts';
 import {
+  createSurface,
   createDivider,
   createDropdownItem,
   createSplitDropdownItem,
@@ -116,15 +117,19 @@ export class ContextMenu {
     private addExistingStoryService: AddExistingStoryService
   ) {
     this.bulkActions = new BulkActionsController(scene);
-    this.menu = document.createElement('div');
-    this.menu.className =
-      'fixed z-50 min-w-[200px] overflow-hidden rounded-xl border border-slate-200 bg-white p-0 text-sm text-slate-800 shadow-[0_18px_42px_rgba(15,23,42,0.18)]';
+    this.menu = createSurface({
+      elevated: true,
+      className:
+        'fixed z-50 min-w-[200px] overflow-hidden rounded-xl p-0 text-sm text-slate-800',
+    });
     this.menu.style.display = 'none';
     this.menu.setAttribute('role', 'menu');
 
-    this.submenu = document.createElement('div');
-    this.submenu.className =
-      'fixed z-[60] min-w-[180px] overflow-hidden rounded-xl border border-slate-200 bg-white p-0 text-sm text-slate-800 shadow-[0_18px_42px_rgba(15,23,42,0.18)]';
+    this.submenu = createSurface({
+      elevated: true,
+      className:
+        'fixed z-[60] min-w-[180px] overflow-hidden rounded-xl p-0 text-sm text-slate-800',
+    });
     this.submenu.style.display = 'none';
     this.submenu.setAttribute('role', 'menu');
     this.submenu.addEventListener('mouseenter', () => {

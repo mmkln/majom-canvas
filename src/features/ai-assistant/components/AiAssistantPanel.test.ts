@@ -57,10 +57,11 @@ function createController(initialState: AiAssistantPanelState): {
     getState: vi.fn(() => state),
     setContextMode: vi.fn(),
     clearConversation: vi.fn(),
-    submitPrompt: vi.fn(async () => undefined),
-    submitPreparedSubmission: vi.fn(async () => undefined),
-    regenerateMessage: vi.fn(async () => undefined),
-    executeMessageActions: vi.fn(async () => []),
+    submitPrompt: vi.fn(() => Promise.resolve(undefined)),
+    submitPreparedSubmission: vi.fn(() => Promise.resolve(undefined)),
+    regenerateMessage: vi.fn(() => Promise.resolve(undefined)),
+    executeMessageAction: vi.fn(() => Promise.resolve(undefined)),
+    executeMessageActions: vi.fn(() => Promise.resolve([])),
     setView: vi.fn(),
     setContext: vi.fn(),
   } as unknown as AiAssistantSessionController;
@@ -71,6 +72,20 @@ function createController(initialState: AiAssistantPanelState): {
       state = nextState;
       listener();
     },
+  };
+}
+
+function getPanelInternals(panel: AiAssistantPanel): {
+  messagesViewport: HTMLDivElement;
+  scrollToBottomButton: HTMLButtonElement;
+  messagesList: HTMLDivElement;
+  sendButton: HTMLButtonElement;
+} {
+  return panel as unknown as {
+    messagesViewport: HTMLDivElement;
+    scrollToBottomButton: HTMLButtonElement;
+    messagesList: HTMLDivElement;
+    sendButton: HTMLButtonElement;
   };
 }
 
@@ -147,7 +162,7 @@ describe('AiAssistantPanel auto-scroll', () => {
       createState(initialMessages)
     );
     const panel = new AiAssistantPanel({ controller });
-    const viewport = (panel as any).messagesViewport as HTMLDivElement;
+    const { messagesViewport: viewport } = getPanelInternals(panel);
     const metrics = installViewportMetrics(viewport, {
       scrollTop: 120,
       scrollHeight: 900,
@@ -167,25 +182,24 @@ describe('AiAssistantPanel auto-scroll', () => {
     panel.unmount();
   });
 
-  it('shows a scroll-to-bottom button with the down arrow while reading older history', () => {
+  it('scrolls to the latest messages when the scroll-to-bottom control is used', () => {
     const initialMessages = [
       createMessage('assistant-1', 'assistant', 'First reply'),
       createMessage('assistant-2', 'assistant', 'Second reply'),
     ];
     const { controller } = createController(createState(initialMessages));
     const panel = new AiAssistantPanel({ controller });
-    const viewport = (panel as any).messagesViewport as HTMLDivElement;
+    const {
+      messagesViewport: viewport,
+      scrollToBottomButton: button,
+    } = getPanelInternals(panel);
     const metrics = installViewportMetrics(viewport, {
       scrollTop: 120,
       scrollHeight: 900,
       clientHeight: 240,
     });
-    const button = (panel as any).scrollToBottomButton as HTMLButtonElement;
 
     viewport.dispatchEvent(new Event('scroll'));
-
-    expect(button.style.display).toBe('inline-flex');
-    expect(button.querySelector('svg')).not.toBeNull();
 
     button.click();
 
@@ -194,7 +208,6 @@ describe('AiAssistantPanel auto-scroll', () => {
       behavior: 'smooth',
     });
     expect(metrics.getScrollTop()).toBe(900);
-    expect(button.style.display).toBe('none');
     panel.unmount();
   });
 
@@ -207,7 +220,7 @@ describe('AiAssistantPanel auto-scroll', () => {
       createState(initialMessages)
     );
     const panel = new AiAssistantPanel({ controller });
-    const viewport = (panel as any).messagesViewport as HTMLDivElement;
+    const { messagesViewport: viewport } = getPanelInternals(panel);
     const metrics = installViewportMetrics(viewport, {
       scrollTop: 630,
       scrollHeight: 900,
@@ -239,8 +252,7 @@ describe('AiAssistantPanel auto-scroll', () => {
     };
     const { controller } = createController(state);
     const panel = new AiAssistantPanel({ controller });
-    const messagesList = (panel as any).messagesList as HTMLDivElement;
-    const sendButton = (panel as any).sendButton as HTMLButtonElement;
+    const { messagesList, sendButton } = getPanelInternals(panel);
 
     expect(messagesList.textContent).toContain('Checking context');
     expect(messagesList.textContent).toContain(
@@ -252,7 +264,7 @@ describe('AiAssistantPanel auto-scroll', () => {
   });
 
   it('renders a copy button for user messages and copies their text', async () => {
-    const writeText = vi.fn(async () => undefined);
+    const writeText = vi.fn(() => Promise.resolve(undefined));
     vi.stubGlobal('navigator', {
       clipboard: {
         writeText,
@@ -262,14 +274,15 @@ describe('AiAssistantPanel auto-scroll', () => {
     const state = createState([createMessage('user-1', 'user', 'User draft')]);
     const { controller } = createController(state);
     const panel = new AiAssistantPanel({ controller });
-    const messagesList = (panel as any).messagesList as HTMLDivElement;
+    const { messagesList } = getPanelInternals(panel);
 
     const copyButtons = Array.from(
-      messagesList.querySelectorAll(
+      messagesList.querySelectorAll<HTMLButtonElement>(
         'button[aria-label="Copy message to clipboard"]'
       )
-    ) as HTMLButtonElement[];
-    const copyButton = copyButtons.at(-1) ?? null;
+    );
+    const copyButton =
+      copyButtons.length > 0 ? copyButtons[copyButtons.length - 1] : null;
 
     expect(copyButton).not.toBeNull();
     copyButton?.click();
@@ -281,7 +294,7 @@ describe('AiAssistantPanel auto-scroll', () => {
   });
 
   it('preserves chat scroll position when copy feedback rerenders the message list', async () => {
-    const writeText = vi.fn(async () => undefined);
+    const writeText = vi.fn(() => Promise.resolve(undefined));
     vi.stubGlobal('navigator', {
       clipboard: {
         writeText,
@@ -292,8 +305,7 @@ describe('AiAssistantPanel auto-scroll', () => {
       createState([createMessage('user-1', 'user', 'User draft')])
     );
     const panel = new AiAssistantPanel({ controller });
-    const viewport = (panel as any).messagesViewport as HTMLDivElement;
-    const messagesList = (panel as any).messagesList as HTMLDivElement;
+    const { messagesViewport: viewport, messagesList } = getPanelInternals(panel);
     const metrics = installViewportMetrics(viewport, {
       scrollTop: 180,
       scrollHeight: 960,
@@ -308,9 +320,9 @@ describe('AiAssistantPanel auto-scroll', () => {
       originalReplaceChildren(...nodes);
     };
 
-    const copyButton = messagesList.querySelector(
+    const copyButton = messagesList.querySelector<HTMLButtonElement>(
       'button[aria-label="Copy message to clipboard"]'
-    ) as HTMLButtonElement | null;
+    );
 
     expect(copyButton).not.toBeNull();
     copyButton?.click();
@@ -321,4 +333,5 @@ describe('AiAssistantPanel auto-scroll', () => {
     expect(metrics.getScrollTop()).toBe(180);
     panel.unmount();
   });
+
 });

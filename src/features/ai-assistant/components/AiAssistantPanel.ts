@@ -9,11 +9,14 @@ import { ComponentFactory } from '../../../ui-lib/src/core/ComponentFactory.ts';
 import { GLOBAL_APP_HEADER_HEIGHT_PX } from '../../../bootstrap/GlobalAppHeader.ts';
 import { AiAssistantMarkdownRenderer } from '../rendering/AiAssistantMarkdownRenderer.ts';
 import {
-  buildAiAssistantActionTagModels,
-  formatAiAssistantElementStatus,
-  getAiAssistantActionButtonLabel,
-  getAiAssistantActionReason,
-  getAiAssistantActionSecondaryText,
+  buildAiAssistantActionEntryModel,
+  buildAiAssistantGroupedActionCardModel,
+  type AiAssistantActionTagModel,
+  type AiAssistantActionCardModel,
+  type AiAssistantActionButtonModel,
+  type AiAssistantActionEntryModel,
+  type AiAssistantActionDetailBlock,
+  type AiAssistantGroupedActionCardModel,
   getAiAssistantFindingSeverityBadgeTone,
   getAiAssistantReadinessBadgeTone,
   groupAiAssistantActionsForRender,
@@ -28,11 +31,10 @@ import type {
   AiAssistantReplyProgress,
 } from '../services/AiAssistantTypes.ts';
 import type { WorkspaceView } from '../../shell/WorkspaceView.ts';
-import type {
-  AiAssistantAction,
-  AiAssistantActionExecutionHandler,
-  AiAssistantGoalBlueprintAction,
-  AiAssistantReviewFindings,
+import {
+  type AiAssistantAction,
+  type AiAssistantActionExecutionHandler,
+  type AiAssistantReviewFindings,
 } from '../aiAssistantActions.ts';
 import {
   WORKSPACE_VIEW_CHANGED_EVENT,
@@ -55,13 +57,27 @@ type AiAssistantPanelOptions = {
   executeAction?: AiAssistantActionExecutionHandler;
 };
 
-const CHAT_ISLAND_MARGIN_PX = 8;
+const CHAT_ISLAND_MARGIN_PX = 6;
 const CHAT_AUTO_SCROLL_THRESHOLD_PX = 40;
-const CHAT_PANEL_BORDER = '1px solid rgba(226, 232, 240, 0.8)';
-const CHAT_PANEL_SURFACE_BORDER = '1px solid rgba(226, 232, 240, 0.9)';
+const CHAT_PANEL_BORDER = '1px solid rgba(203, 213, 225, 0.76)';
+const CHAT_PANEL_SECTION_BORDER = '1px solid rgba(226, 232, 240, 0.72)';
+const CHAT_PANEL_SURFACE_BORDER = '1px solid rgba(226, 232, 240, 0.82)';
 const CHAT_PANEL_BACKGROUND = '#ffffff';
-const CHAT_PANEL_SUBTLE_BACKGROUND = 'rgba(248, 250, 252, 0.8)';
+const CHAT_PANEL_SUBTLE_BACKGROUND = 'rgba(248, 250, 252, 0.92)';
 const CHAT_PANEL_RADIUS_PX = 16;
+const CHAT_ACTION_CARD_RADIUS_PX = 20;
+const CHAT_ACTION_GROUP_CARD_INSET_PX = 14;
+const CHAT_ACTION_CARD_PADDING_PX = 14;
+const CHAT_ACTION_PREVIEW_RADIUS_PX = 14;
+const CHAT_ACTION_DIVIDER_BORDER = '1px solid rgba(226, 232, 240, 0.9)';
+
+type AiAssistantActionContentSection =
+  | 'meta'
+  | 'tags'
+  | 'details'
+  | 'description'
+  | 'reason'
+  | 'error';
 
 export class AiAssistantPanel {
   private readonly container: HTMLElement;
@@ -143,7 +159,7 @@ export class AiAssistantPanel {
 
     this.header = document.createElement('div');
     this.header.style.padding = '12px 18px';
-    this.header.style.borderBottom = '1px solid rgba(226, 232, 240, 0.88)';
+    this.header.style.borderBottom = CHAT_PANEL_SECTION_BORDER;
     this.header.style.background = 'transparent';
     this.header.style.display = 'flex';
     this.header.style.flexDirection = 'column';
@@ -200,8 +216,7 @@ export class AiAssistantPanel {
 
     this.quickActionsSection = document.createElement('div');
     this.quickActionsSection.style.padding = '12px 18px 14px';
-    this.quickActionsSection.style.borderBottom =
-      '1px solid rgba(226, 232, 240, 0.82)';
+    this.quickActionsSection.style.borderBottom = 'none';
     this.quickActionsSection.style.background = 'transparent';
 
     this.quickActionsRow = document.createElement('div');
@@ -267,7 +282,7 @@ export class AiAssistantPanel {
     composer.style.display = 'flex';
     composer.style.flexDirection = 'column';
     composer.style.gap = '12px';
-    composer.style.borderTop = '1px solid rgba(226, 232, 240, 0.82)';
+    composer.style.borderTop = CHAT_PANEL_SECTION_BORDER;
     composer.style.background = 'transparent';
 
     this.pendingConfirmationBar = this.createSubtleSurface(18);
@@ -535,11 +550,9 @@ export class AiAssistantPanel {
     this.pendingConfirmationTitle.textContent = pendingConfirmation.actionTitle;
     this.pendingConfirmationButton.textContent =
       pendingConfirmation.actionLabel;
-    this.pendingConfirmationButton.disabled = replying;
-    this.pendingConfirmationButton.style.opacity = replying ? '0.65' : '1';
-    this.pendingConfirmationButton.style.cursor = replying
-      ? 'default'
-      : 'pointer';
+    setTextButtonState(this.pendingConfirmationButton, {
+      disabled: replying,
+    });
   }
 
   private renderContext(
@@ -751,8 +764,14 @@ export class AiAssistantPanel {
     const hasStartedConversation =
       messages.length > 1 ||
       messages.some((message) => message.role === 'user');
-    this.quickActionsSection.style.display =
-      !hasStartedConversation && actions.length > 0 ? 'block' : 'none';
+    const showQuickActions = !hasStartedConversation && actions.length > 0;
+    this.quickActionsSection.style.display = showQuickActions ? 'block' : 'none';
+    this.header.style.borderBottom = showQuickActions
+      ? 'none'
+      : CHAT_PANEL_SECTION_BORDER;
+    this.quickActionsSection.style.borderBottom = showQuickActions
+      ? CHAT_PANEL_SECTION_BORDER
+      : 'none';
     this.quickActionsRow.replaceChildren();
     actions.forEach((action) => {
       this.quickActionsRow.appendChild(this.createQuickActionButton(action));
@@ -1160,21 +1179,21 @@ export class AiAssistantPanel {
           ? '#334155'
           : isSystemMessage
             ? '#334155'
-            : '#1f2937';
+            : '#1e293b';
       bubble.style.background = isUserMessage
-        ? 'rgba(248, 250, 252, 0.96)'
+        ? 'rgba(241, 245, 249, 0.96)'
         : isCommandMessage
           ? 'rgba(248, 250, 252, 0.92)'
           : isSystemMessage
-            ? 'rgba(248, 250, 252, 0.92)'
-            : 'rgba(255, 255, 255, 0.99)';
+            ? 'rgba(241, 245, 249, 0.92)'
+            : 'rgba(248, 250, 252, 0.82)';
       bubble.style.border = isUserMessage
-        ? '1px solid rgba(203, 213, 225, 0.88)'
+        ? '1px solid rgba(203, 213, 225, 0.82)'
         : isCommandMessage
-          ? '1px solid rgba(226, 232, 240, 0.9)'
+          ? 'none'
           : isSystemMessage
-            ? '1px solid rgba(226, 232, 240, 0.9)'
-            : '1px solid rgba(148, 163, 184, 0.18)';
+            ? 'none'
+            : 'none';
       bubble.appendChild(this.createMessageContent(message));
       wrap.appendChild(bubble);
     }
@@ -1271,8 +1290,8 @@ export class AiAssistantPanel {
     bubble.style.fontSize = '12.5px';
     bubble.style.lineHeight = '1.6';
     bubble.style.color = '#64748b';
-    bubble.style.background = 'rgba(255, 255, 255, 0.99)';
-    bubble.style.border = '1px solid rgba(148, 163, 184, 0.18)';
+    bubble.style.background = 'rgba(248, 250, 252, 0.9)';
+    bubble.style.border = 'none';
     bubble.style.display = 'inline-flex';
     bubble.style.flexDirection = 'column';
     bubble.style.alignItems = 'flex-start';
@@ -1474,33 +1493,28 @@ export class AiAssistantPanel {
     context: ReturnType<AiAssistantSessionController['getState']>['context'],
     contextEnabled: boolean
   ): HTMLDivElement {
-    const group = actions[0];
-    if (!group) {
-      throw new Error('Grouped action card requires at least one action.');
-    }
-    const card = this.createFlatSurface(20);
-    card.style.padding = '14px';
-    card.style.display = 'flex';
-    card.style.flexDirection = 'column';
-    card.style.gap = '12px';
+    const groupModel = buildAiAssistantGroupedActionCardModel(
+      actions,
+      context,
+      contextEnabled
+    );
+    const card = this.createActionCardSurface({
+      kind: 'group',
+      gap: '12px',
+      paddingPx: CHAT_ACTION_GROUP_CARD_INSET_PX,
+    });
 
     const header = document.createElement('div');
     header.style.display = 'flex';
     header.style.flexDirection = 'column';
     header.style.gap = '6px';
 
-    const label = document.createElement('span');
-    label.textContent = group.groupTitle || group.label;
-    label.style.fontSize = '10px';
-    label.style.fontWeight = '700';
-    label.style.letterSpacing = '0.08em';
-    label.style.textTransform = 'uppercase';
-    label.style.color = '#64748b';
+    const label = this.createActionEyebrow(groupModel.header.eyebrow);
     header.appendChild(label);
 
-    if (group.groupSummary) {
+    if (groupModel.header.summary) {
       const summary = document.createElement('p');
-      summary.textContent = group.groupSummary;
+      summary.textContent = groupModel.header.summary;
       summary.style.margin = '0';
       summary.style.fontSize = '11.5px';
       summary.style.lineHeight = '1.6';
@@ -1513,92 +1527,12 @@ export class AiAssistantPanel {
     rows.style.flexDirection = 'column';
     rows.style.gap = '10px';
 
-    actions.forEach((action, index) => {
-      const row = document.createElement('div');
-      row.style.display = 'flex';
-      row.style.flexDirection = 'column';
-      row.style.alignItems = 'stretch';
-      row.style.gap = '8px';
-      if (index > 0) {
-        row.style.paddingTop = '10px';
-        row.style.borderTop = '1px solid rgba(226, 232, 240, 0.9)';
-      }
-
-      const textWrap = document.createElement('div');
-      textWrap.style.display = 'flex';
-      textWrap.style.flexDirection = 'column';
-      textWrap.style.gap = '5px';
-      textWrap.style.minWidth = '0';
-      textWrap.style.flex = '1';
-
-      const rowTitle = document.createElement('p');
-      rowTitle.textContent = action.title;
-      rowTitle.style.margin = '0';
-      rowTitle.style.fontSize = '13px';
-      rowTitle.style.fontWeight = '600';
-      rowTitle.style.lineHeight = '1.45';
-      rowTitle.style.color = '#0f172a';
-      textWrap.appendChild(rowTitle);
-
-      const rowMeta = document.createElement('p');
-      rowMeta.textContent = getAiAssistantActionSecondaryText(
-        action,
-        context,
-        contextEnabled
-      );
-      rowMeta.style.margin = '0';
-      rowMeta.style.fontSize = '11px';
-      rowMeta.style.lineHeight = '1.5';
-      rowMeta.style.color = '#6b7280';
-      textWrap.appendChild(rowMeta);
-
-      const tags = this.createActionTagRow(action);
-      if (tags) {
-        textWrap.appendChild(tags);
-      }
-
-      const blueprintPreview = this.createGoalBlueprintPreview(action);
-      if (blueprintPreview) {
-        textWrap.appendChild(blueprintPreview);
-      }
-
-      const updatePreview = this.createUpdatePatchPreview(action);
-      if (updatePreview) {
-        textWrap.appendChild(updatePreview);
-      }
-
-      const reason = getAiAssistantActionReason(action);
-      if (reason) {
-        const reasonText = document.createElement('p');
-        reasonText.textContent = reason;
-        reasonText.style.margin = '0';
-        reasonText.style.fontSize = '11px';
-        reasonText.style.lineHeight = '1.55';
-        reasonText.style.color = '#334155';
-        textWrap.appendChild(reasonText);
-      }
-
-      if (action.status === 'failed' && action.errorMessage) {
-        const error = document.createElement('p');
-        error.textContent = action.errorMessage;
-        error.style.margin = '0';
-        error.style.fontSize = '11px';
-        error.style.lineHeight = '1.45';
-        error.style.color = '#b91c1c';
-        textWrap.appendChild(error);
-      }
-
-      const footer = document.createElement('div');
-      footer.style.display = 'flex';
-      footer.style.justifyContent = 'flex-start';
-      footer.style.paddingTop = '2px';
-      footer.appendChild(this.createActionButton(messageId, action));
-
-      row.append(textWrap, footer);
+    groupModel.entries.forEach((entryModel) => {
+      const row = this.createActionEntry(messageId, entryModel);
       rows.appendChild(row);
     });
 
-    const groupFooter = this.createActionGroupFooter(messageId, actions);
+    const groupFooter = this.createActionGroupFooter(messageId, groupModel);
     card.append(header, rows);
     if (groupFooter) {
       card.appendChild(groupFooter);
@@ -1612,462 +1546,548 @@ export class AiAssistantPanel {
     context: ReturnType<AiAssistantSessionController['getState']>['context'],
     contextEnabled: boolean
   ): HTMLDivElement {
-    const card =
-      action.status === 'applied'
-        ? this.createSubtleSurface(20)
-        : this.createFlatSurface(20);
-    card.style.padding = '14px';
-    card.style.display = 'flex';
-    card.style.flexDirection = 'column';
-    card.style.gap = '10px';
-
-    const topRow = document.createElement('div');
-    topRow.style.display = 'flex';
-    topRow.style.alignItems = 'flex-start';
-    topRow.style.justifyContent = 'space-between';
-    topRow.style.gap = '10px';
-
-    const label = document.createElement('span');
-    label.textContent = action.label;
-    label.style.fontSize = '10px';
-    label.style.fontWeight = '700';
-    label.style.letterSpacing = '0.08em';
-    label.style.textTransform = 'uppercase';
-    label.style.color = '#64748b';
-
-    topRow.appendChild(label);
-
-    const tags = this.createActionTagRow(action);
-    if (tags) {
-      const firstTag = tags.firstElementChild;
-      if (firstTag) {
-        topRow.appendChild(firstTag);
-      }
-    }
-
-    const title = document.createElement('p');
-    title.textContent = action.title;
-    title.style.margin = '0';
-    title.style.fontSize = '13.5px';
-    title.style.fontWeight = '600';
-    title.style.lineHeight = '1.45';
-    title.style.color = '#0f172a';
-
-    const meta = document.createElement('p');
-    meta.textContent = getAiAssistantActionSecondaryText(
+    const entryModel = buildAiAssistantActionEntryModel(
       action,
       context,
       contextEnabled
     );
-    meta.style.margin = '0';
-    meta.style.fontSize = '11px';
-    meta.style.lineHeight = '1.5';
-    meta.style.color = '#6b7280';
+    const card = this.createActionCardSurface({
+      kind: 'single',
+      status: entryModel.status,
+      gap: '0',
+    });
 
-    card.append(topRow, title);
-
-    const extraTags = this.createActionTagRow(action);
-    if (extraTags && extraTags.childElementCount > 1) {
-      extraTags.firstElementChild?.remove();
-      card.appendChild(extraTags);
-    }
-
-    const blueprintPreview = this.createGoalBlueprintPreview(action);
-    if (blueprintPreview) {
-      card.appendChild(blueprintPreview);
-    }
-
-    const updatePreview = this.createUpdatePatchPreview(action);
-    if (updatePreview) {
-      card.appendChild(updatePreview);
-    }
-
-    if ('description' in action && action.description) {
-      const description = document.createElement('p');
-      description.textContent = action.description;
-      description.style.margin = '0';
-      description.style.fontSize = '11.5px';
-      description.style.lineHeight = '1.6';
-      description.style.color = '#334155';
-      card.appendChild(description);
-    }
-
-    const reason = getAiAssistantActionReason(action);
-    if (reason) {
-      const reasonText = document.createElement('p');
-      reasonText.textContent = reason;
-      reasonText.style.margin = '0';
-      reasonText.style.fontSize = '11.5px';
-      reasonText.style.lineHeight = '1.6';
-      reasonText.style.color = '#334155';
-      card.appendChild(reasonText);
-    }
-
-    card.appendChild(meta);
-
-    if (action.status === 'failed' && action.errorMessage) {
-      const error = document.createElement('p');
-      error.textContent = action.errorMessage;
-      error.style.margin = '0';
-      error.style.fontSize = '11px';
-      error.style.lineHeight = '1.45';
-      error.style.color = '#b91c1c';
-      card.appendChild(error);
-    }
-
-    const footer = document.createElement('div');
-    footer.style.display = 'flex';
-    footer.style.justifyContent = 'flex-start';
-    footer.style.paddingTop = '2px';
-    footer.appendChild(this.createActionButton(messageId, action));
-    card.appendChild(footer);
+    card.appendChild(this.createActionEntry(messageId, entryModel));
     return card;
+  }
+
+  private createActionEntry(
+    messageId: string,
+    entryModel: AiAssistantActionEntryModel
+  ): HTMLDivElement {
+    const entry = document.createElement('div');
+    entry.style.display = 'flex';
+    entry.style.flexDirection = 'column';
+    entry.style.alignItems = 'stretch';
+    entry.style.gap = '8px';
+
+    const textWrap = document.createElement('div');
+    textWrap.style.display = 'flex';
+    textWrap.style.flexDirection = 'column';
+    textWrap.style.gap = '5px';
+    textWrap.style.minWidth = '0';
+    textWrap.style.flex = '1';
+
+    this.appendActionHeader(textWrap, entryModel.card, {
+      showLeadingTag: true,
+    });
+
+    this.appendActionContentSections(textWrap, entryModel.card, {
+      sections: ['meta', 'tags', 'details', 'description', 'reason', 'error'],
+      skipEyebrowTag: true,
+      bodyFontSize: '11.5px',
+      bodyLineHeight: '1.6',
+    });
+
+    entry.append(
+      textWrap,
+      this.createActionFooter(this.createActionButton(messageId, entryModel))
+    );
+    return entry;
   }
 
   private createActionButton(
     messageId: string,
-    action: AiAssistantAction
+    entryModel: AiAssistantActionEntryModel
   ): HTMLButtonElement {
-    const button =
-      action.status === 'applied' || action.status === 'applying'
-        ? this.createQuietPillButton({
-            text: getAiAssistantActionButtonLabel(action),
-            title: getAiAssistantActionButtonLabel(action),
-            ariaLabel: getAiAssistantActionButtonLabel(action),
-            onClick: () => undefined,
-          })
-        : this.createPrimaryPillButton({
-            text: getAiAssistantActionButtonLabel(action),
-            title: getAiAssistantActionButtonLabel(action),
-            ariaLabel: getAiAssistantActionButtonLabel(action),
-            onClick: () => {
-              this.pinMessagesToBottom();
-              void this.chatController.executeMessageAction(
-                messageId,
-                action.id,
-                this.executeAction
-              );
-            },
-          });
+    return this.createActionCtaButton(entryModel.button, () => {
+      if (entryModel.button.disabled) {
+        return;
+      }
+      this.pinMessagesToBottom();
+      void this.chatController.executeMessageAction(
+        messageId,
+        entryModel.actionId,
+        this.executeAction
+      );
+    });
+  }
 
-    button.style.opacity = action.status === 'applying' ? '0.7' : '1';
-    button.disabled =
-      action.status === 'applied' || action.status === 'applying';
+  private createActionCtaButton(
+    buttonModel: AiAssistantActionButtonModel,
+    onClick: () => void
+  ): HTMLButtonElement {
+    const buttonFactory =
+      buttonModel.tone === 'quiet'
+        ? this.createQuietPillButton.bind(this)
+        : this.createPrimaryPillButton.bind(this);
+    const button = buttonFactory({
+      text: buttonModel.label,
+      title: buttonModel.label,
+      ariaLabel: buttonModel.label,
+      onClick: () => {
+        onClick();
+      },
+    });
+
+    setTextButtonState(button, {
+      disabled: buttonModel.disabled,
+    });
+    button.style.opacity = buttonModel.dimmed ? '0.7' : '1';
     return button;
   }
 
   private createActionGroupFooter(
     messageId: string,
-    actions: AiAssistantAction[]
+    groupModel: AiAssistantGroupedActionCardModel
   ): HTMLDivElement | null {
-    const actionableActionIds = actions
-      .filter(
-        (action) => action.status !== 'applied' && action.status !== 'applying'
-      )
-      .map((action) => action.id);
-    if (actionableActionIds.length <= 1) {
+    const footerModel = groupModel.footer;
+    if (!footerModel) {
       return null;
     }
 
     const footer = document.createElement('div');
     footer.style.display = 'flex';
-    footer.style.justifyContent = 'flex-start';
-    footer.style.paddingTop = '4px';
+    footer.style.alignItems = 'center';
+    footer.style.justifyContent = 'flex-end';
+    footer.style.marginTop = '2px';
+    footer.style.marginLeft = `-${CHAT_ACTION_GROUP_CARD_INSET_PX}px`;
+    footer.style.marginRight = `-${CHAT_ACTION_GROUP_CARD_INSET_PX}px`;
+    footer.style.paddingTop = '12px';
+    footer.style.paddingLeft = `${CHAT_ACTION_GROUP_CARD_INSET_PX}px`;
+    footer.style.paddingRight = `${CHAT_ACTION_GROUP_CARD_INSET_PX}px`;
+    footer.style.borderTop = CHAT_ACTION_DIVIDER_BORDER;
 
-    const button = this.createPrimaryPillButton({
-      text: this.getActionGroupButtonLabel(actions),
-      title: this.getActionGroupButtonLabel(actions),
-      ariaLabel: this.getActionGroupButtonLabel(actions),
-      onClick: () => {
-        this.pinMessagesToBottom();
-        void this.chatController.executeMessageActions(
-          messageId,
-          actionableActionIds,
-          this.executeAction
-        );
-      },
+    const button = this.createActionCtaButton(footerModel.button, () => {
+      this.pinMessagesToBottom();
+      void this.chatController.executeMessageActions(
+        messageId,
+        footerModel.actionIds,
+        this.executeAction
+      );
     });
 
     footer.appendChild(button);
     return footer;
   }
 
-  private getActionGroupButtonLabel(actions: AiAssistantAction[]): string {
-    const actionableActions = actions.filter(
-      (action) => action.status !== 'applied' && action.status !== 'applying'
-    );
-    if (actionableActions.length === 0) {
-      return 'Confirm all';
-    }
-    if (actionableActions.every((action) => action.status === 'failed')) {
-      return 'Retry all';
-    }
-
-    const kinds = new Set(actionableActions.map((action) => action.kind));
-    if (kinds.size !== 1) {
-      return 'Confirm all';
-    }
-
-    switch (actionableActions[0]?.kind) {
-      case 'create_task':
-      case 'create_story':
-      case 'create_goal':
-        return 'Create all';
-      case 'suggest_relation':
-      case 'remove_relation':
-      case 'update_relation':
-      case 'suggest_update':
-      default:
-        return 'Apply all';
-    }
-  }
-
-  private createUpdatePatchPreview(
-    action: AiAssistantAction
+  private createActionTagRowFromModels(
+    tagModels: AiAssistantActionTagModel[],
+    options: {
+      skipCount?: number;
+    } = {}
   ): HTMLDivElement | null {
-    if (action.kind !== 'suggest_update') {
-      return null;
-    }
-
-    const entries = Object.entries(action.patch)
-      .map(([key, value]) => {
-        if (value === undefined) {
-          return null;
-        }
-
-        switch (key) {
-          case 'title':
-            return { label: 'Title', value: String(value) };
-          case 'description':
-            return { label: 'Description', value: String(value) };
-          case 'priority':
-            return { label: 'Priority', value: String(value) };
-          case 'elementStatus':
-            return {
-              label: 'Status',
-              value: formatAiAssistantElementStatus(
-                value as 'defined' | 'pending' | 'in-progress' | 'done'
-              ),
-            };
-          default:
-            return null;
-        }
-      })
-      .filter(
-        (
-          entry
-        ): entry is {
-          label: string;
-          value: string;
-        } => entry !== null
-      );
-
-    if (entries.length === 0) {
-      return null;
-    }
-
-    const container = this.createSubtleSurface(14);
-    container.style.display = 'flex';
-    container.style.flexDirection = 'column';
-    container.style.gap = '8px';
-    container.style.padding = '10px 12px';
-
-    entries.forEach((entry) => {
-      const row = document.createElement('div');
-      row.style.display = 'flex';
-      row.style.flexDirection = 'column';
-      row.style.gap = '4px';
-
-      const label = document.createElement('span');
-      label.textContent = entry.label;
-      label.style.fontSize = '10px';
-      label.style.fontWeight = '700';
-      label.style.letterSpacing = '0.04em';
-      label.style.textTransform = 'uppercase';
-      label.style.color = '#64748b';
-
-      const value = document.createElement('p');
-      value.textContent = entry.value;
-      value.style.margin = '0';
-      value.style.fontSize = '11.5px';
-      value.style.lineHeight = '1.55';
-      value.style.color = '#0f172a';
-      value.style.whiteSpace = 'pre-wrap';
-      value.style.wordBreak = 'break-word';
-
-      row.append(label, value);
-      container.appendChild(row);
-    });
-
-    return container;
-  }
-
-  private createGoalBlueprintPreview(
-    action: AiAssistantAction
-  ): HTMLDivElement | null {
-    if (action.kind !== 'create_goal_blueprint') {
-      return null;
-    }
-
-    const container = this.createSubtleSurface(14);
-    container.style.display = 'flex';
-    container.style.flexDirection = 'column';
-    container.style.gap = '10px';
-    container.style.padding = '10px 12px';
-
-    if (action.summary) {
-      const summary = document.createElement('p');
-      summary.textContent = action.summary;
-      summary.style.margin = '0';
-      summary.style.fontSize = '11.5px';
-      summary.style.lineHeight = '1.55';
-      summary.style.color = '#0f172a';
-      container.appendChild(summary);
-    }
-
-    const hierarchy = this.createGoalBlueprintHierarchy(action);
-    if (hierarchy) {
-      container.appendChild(hierarchy);
-    }
-
-    if (action.relations.length > 0) {
-      const relationsLabel = document.createElement('span');
-      relationsLabel.textContent = 'Sequence links';
-      relationsLabel.style.fontSize = '10px';
-      relationsLabel.style.fontWeight = '700';
-      relationsLabel.style.letterSpacing = '0.04em';
-      relationsLabel.style.textTransform = 'uppercase';
-      relationsLabel.style.color = '#64748b';
-      container.appendChild(relationsLabel);
-
-      const relations = document.createElement('div');
-      relations.style.display = 'flex';
-      relations.style.flexDirection = 'column';
-      relations.style.gap = '5px';
-
-      const goalsByRef = new Map(action.goals.map((goal) => [goal.ref, goal]));
-      action.relations.forEach((relation) => {
-        const row = document.createElement('p');
-        const from =
-          goalsByRef.get(relation.fromRef)?.title ?? relation.fromRef;
-        const to = goalsByRef.get(relation.toRef)?.title ?? relation.toRef;
-        row.textContent = `${from} -> ${to}`;
-        row.style.margin = '0';
-        row.style.fontSize = '11px';
-        row.style.lineHeight = '1.5';
-        row.style.color = '#334155';
-        relations.appendChild(row);
-      });
-
-      container.appendChild(relations);
-    }
-
-    if (Array.isArray(action.assumptions) && action.assumptions.length > 0) {
-      const assumptions = document.createElement('p');
-      assumptions.textContent = `Assumptions: ${action.assumptions.join('; ')}`;
-      assumptions.style.margin = '0';
-      assumptions.style.fontSize = '10.5px';
-      assumptions.style.lineHeight = '1.5';
-      assumptions.style.color = '#475569';
-      assumptions.style.whiteSpace = 'pre-wrap';
-      assumptions.style.wordBreak = 'break-word';
-      container.appendChild(assumptions);
-    }
-
-    return container;
-  }
-
-  private createGoalBlueprintHierarchy(
-    action: AiAssistantGoalBlueprintAction
-  ): HTMLDivElement | null {
-    if (action.goals.length === 0) {
-      return null;
-    }
-
-    const section = document.createElement('div');
-    section.style.display = 'flex';
-    section.style.flexDirection = 'column';
-    section.style.gap = '6px';
-
-    const label = document.createElement('span');
-    label.textContent = 'Strategic goals';
-    label.style.fontSize = '10px';
-    label.style.fontWeight = '700';
-    label.style.letterSpacing = '0.04em';
-    label.style.textTransform = 'uppercase';
-    label.style.color = '#64748b';
-    section.appendChild(label);
-
-    const rows = document.createElement('div');
-    rows.style.display = 'flex';
-    rows.style.flexDirection = 'column';
-    rows.style.gap = '5px';
-
-    const childrenByParent = new Map<
-      string | null,
-      AiAssistantGoalBlueprintAction['goals']
-    >();
-    action.goals.forEach((goal) => {
-      const key = goal.parentRef ?? null;
-      const bucket = childrenByParent.get(key) ?? [];
-      bucket.push(goal);
-      childrenByParent.set(key, bucket);
-    });
-
-    const appendGoal = (
-      goal: AiAssistantGoalBlueprintAction['goals'][number],
-      depth: number
-    ) => {
-      const row = document.createElement('div');
-      row.style.display = 'flex';
-      row.style.flexDirection = 'column';
-      row.style.gap = '2px';
-      row.style.paddingLeft = `${depth * 16}px`;
-
-      const title = document.createElement('p');
-      title.textContent = `${depth > 0 ? '-> ' : ''}${goal.title}`;
-      title.style.margin = '0';
-      title.style.fontSize = '11.5px';
-      title.style.fontWeight = depth === 0 ? '700' : '600';
-      title.style.lineHeight = '1.45';
-      title.style.color = '#0f172a';
-      row.appendChild(title);
-
-      if (goal.description) {
-        const description = document.createElement('p');
-        description.textContent = goal.description;
-        description.style.margin = '0';
-        description.style.fontSize = '10.5px';
-        description.style.lineHeight = '1.5';
-        description.style.color = '#475569';
-        row.appendChild(description);
-      }
-
-      rows.appendChild(row);
-      const children = childrenByParent.get(goal.ref) ?? [];
-      children.forEach((child) => appendGoal(child, depth + 1));
-    };
-
-    const roots = childrenByParent.get(null) ?? action.goals;
-    roots.forEach((goal) => appendGoal(goal, 0));
-    section.appendChild(rows);
-    return section;
-  }
-
-  private createActionTagRow(action: AiAssistantAction): HTMLDivElement | null {
-    const tagModels = buildAiAssistantActionTagModels(action);
-    if (tagModels.length === 0) return null;
+    const visibleTags = tagModels.slice(options.skipCount ?? 0);
+    if (visibleTags.length === 0) return null;
 
     const tags = document.createElement('div');
     tags.style.display = 'flex';
     tags.style.flexWrap = 'wrap';
     tags.style.gap = '6px';
 
-    tagModels.forEach((tag) => {
+    visibleTags.forEach((tag) => {
       tags.appendChild(this.createActionTag(tag.text, tag.tone));
     });
 
     return tags;
+  }
+
+  private createActionEyebrow(text: string): HTMLSpanElement {
+    return this.createActionLabelText(text, {
+      letterSpacing: '0.08em',
+    });
+  }
+
+  private createActionSectionLabel(text: string): HTMLSpanElement {
+    return this.createActionLabelText(text, {
+      letterSpacing: '0.04em',
+    });
+  }
+
+  private createActionLabelText(
+    text: string,
+    options: {
+      letterSpacing: string;
+    }
+  ): HTMLSpanElement {
+    const label = document.createElement('span');
+    label.textContent = text;
+    label.style.fontSize = '10px';
+    label.style.fontWeight = '700';
+    label.style.letterSpacing = options.letterSpacing;
+    label.style.textTransform = 'uppercase';
+    label.style.color = '#64748b';
+    return label;
+  }
+
+  private createActionMetaParagraph(text: string): HTMLParagraphElement {
+    return this.createActionTextParagraph(text, {
+      fontSize: '11px',
+      lineHeight: '1.5',
+      color: '#6b7280',
+    });
+  }
+
+  private createActionTextParagraph(
+    text: string,
+    options: {
+      fontSize: string;
+      lineHeight: string;
+      color: string;
+    }
+  ): HTMLParagraphElement {
+    const paragraph = document.createElement('p');
+    paragraph.textContent = text;
+    paragraph.style.margin = '0';
+    paragraph.style.fontSize = options.fontSize;
+    paragraph.style.lineHeight = options.lineHeight;
+    paragraph.style.color = options.color;
+    return paragraph;
+  }
+
+  private appendActionHeader(
+    container: HTMLElement,
+    cardModel: AiAssistantActionCardModel,
+    options: {
+      showLeadingTag: boolean;
+    }
+  ): void {
+    const topRow = document.createElement('div');
+    topRow.style.display = 'flex';
+    topRow.style.alignItems = 'flex-start';
+    topRow.style.justifyContent = 'space-between';
+    topRow.style.gap = '10px';
+
+    topRow.appendChild(this.createActionEyebrow(cardModel.eyebrow));
+
+    if (options.showLeadingTag) {
+      const leadingTag = cardModel.tags[0];
+      if (leadingTag) {
+        topRow.appendChild(this.createActionTag(leadingTag.text, leadingTag.tone));
+      }
+    }
+
+    container.appendChild(topRow);
+
+    const title = document.createElement('p');
+    title.textContent = cardModel.title;
+    title.style.margin = '0';
+    title.style.fontSize = '13.5px';
+    title.style.fontWeight = '600';
+    title.style.lineHeight = '1.45';
+    title.style.color = '#0f172a';
+    container.appendChild(title);
+  }
+
+  private createActionPreviewSurface(options: {
+    gap?: string;
+  } = {}): HTMLDivElement {
+    const container = this.createSubtleSurface(CHAT_ACTION_PREVIEW_RADIUS_PX);
+    container.dataset.actionPreview = 'true';
+    container.style.display = 'flex';
+    container.style.flexDirection = 'column';
+    container.style.gap = options.gap ?? '8px';
+    container.style.padding = '10px 12px';
+    return container;
+  }
+
+  private createActionCardSurface(options: {
+    kind: 'single' | 'group';
+    status?: AiAssistantAction['status'];
+    gap: string;
+    paddingPx?: number;
+  }): HTMLDivElement {
+    const surface = this.createFlatSurface(CHAT_ACTION_CARD_RADIUS_PX);
+    surface.dataset.actionCard = options.kind;
+    if (options.status) {
+      surface.dataset.actionStatus = options.status;
+    }
+    surface.style.padding = `${options.paddingPx ?? CHAT_ACTION_CARD_PADDING_PX}px`;
+    surface.style.display = 'flex';
+    surface.style.flexDirection = 'column';
+    surface.style.gap = options.gap;
+    return surface;
+  }
+
+  private createActionDetailBlock(
+    block: AiAssistantActionDetailBlock
+  ): HTMLDivElement {
+    switch (block.kind) {
+      case 'kv-list':
+        return this.createActionPreviewSection(
+          block.title,
+          this.createActionPreviewDetailList(block.entries)
+        );
+      case 'text-list':
+        return this.createActionPreviewSection(
+          block.title,
+          this.createActionPreviewTextList(block.items)
+        );
+      case 'hierarchy-list':
+        return this.createActionPreviewSection(
+          block.title,
+          this.createActionPreviewHierarchyList(block.items)
+        );
+      case 'entity-list':
+        return this.createActionPreviewSection(
+          block.title,
+          this.createActionPreviewEntityList(block.items)
+        );
+      default: {
+        const exhaustiveCheck: never = block;
+        throw new Error(`Unsupported action detail block: ${String(exhaustiveCheck)}`);
+      }
+    }
+  }
+
+  private createActionPreviewSection(
+    title: string,
+    content: HTMLElement
+  ): HTMLDivElement {
+    const surface = this.createActionPreviewSurface();
+    const section = document.createElement('div');
+    section.style.display = 'flex';
+    section.style.flexDirection = 'column';
+    section.style.gap = '6px';
+    section.append(this.createActionSectionLabel(title), content);
+    surface.appendChild(section);
+    return surface;
+  }
+
+  private createActionPreviewDetailList(
+    entries: Array<{ label: string; value: string }>
+  ): HTMLDivElement {
+    const list = document.createElement('div');
+    list.style.display = 'flex';
+    list.style.flexDirection = 'column';
+    list.style.gap = '6px';
+
+    entries.forEach((entry) => {
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.alignItems = 'baseline';
+      row.style.flexWrap = 'wrap';
+      row.style.columnGap = '6px';
+      row.style.rowGap = '2px';
+      row.append(
+        this.createActionSectionLabel(`${entry.label}:`),
+        this.createActionInlineValue(entry.value)
+      );
+      list.appendChild(row);
+    });
+
+    return list;
+  }
+
+  private createActionPreviewTextList(items: string[]): HTMLDivElement {
+    const list = document.createElement('div');
+    list.style.display = 'flex';
+    list.style.flexDirection = 'column';
+    list.style.gap = '5px';
+
+    items.forEach((item) => {
+      list.appendChild(
+        this.createActionTextParagraph(item, {
+          fontSize: '11px',
+          lineHeight: '1.5',
+          color: '#334155',
+        })
+      );
+    });
+
+    return list;
+  }
+
+  private createActionPreviewHierarchyList(
+    items: Array<{
+      title: string;
+      description?: string;
+      depth: number;
+    }>
+  ): HTMLDivElement {
+    const list = document.createElement('div');
+    list.style.display = 'flex';
+    list.style.flexDirection = 'column';
+    list.style.gap = '5px';
+
+    items.forEach((item) => {
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.flexDirection = 'column';
+      row.style.gap = '2px';
+      row.style.paddingLeft = `${item.depth * 16}px`;
+
+      const title = document.createElement('p');
+      title.textContent = `${item.depth > 0 ? '-> ' : ''}${item.title}`;
+      title.style.margin = '0';
+      title.style.fontSize = '11.5px';
+      title.style.fontWeight = item.depth === 0 ? '700' : '600';
+      title.style.lineHeight = '1.45';
+      title.style.color = '#0f172a';
+      row.appendChild(title);
+
+      if (item.description) {
+        row.appendChild(
+          this.createActionTextParagraph(item.description, {
+            fontSize: '10.5px',
+            lineHeight: '1.5',
+            color: '#475569',
+          })
+        );
+      }
+
+      list.appendChild(row);
+    });
+
+    return list;
+  }
+
+  private createActionPreviewEntityList(
+    items: Array<{
+      title: string;
+      description?: string;
+      meta?: string[];
+    }>
+  ): HTMLDivElement {
+    const list = document.createElement('div');
+    list.style.display = 'flex';
+    list.style.flexDirection = 'column';
+    list.style.gap = '8px';
+
+    items.forEach((item) => {
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.flexDirection = 'column';
+      row.style.gap = '3px';
+
+      row.appendChild(
+        this.createActionTextParagraph(item.title, {
+          fontSize: '11.5px',
+          lineHeight: '1.45',
+          color: '#0f172a',
+        })
+      );
+
+      if (item.meta && item.meta.length > 0) {
+        row.appendChild(this.createActionMetaParagraph(item.meta.join(' · ')));
+      }
+
+      if (item.description) {
+        row.appendChild(
+          this.createActionTextParagraph(item.description, {
+            fontSize: '10.5px',
+            lineHeight: '1.5',
+            color: '#475569',
+          })
+        );
+      }
+
+      list.appendChild(row);
+    });
+
+    return list;
+  }
+
+  private createActionInlineValue(text: string): HTMLSpanElement {
+    const value = document.createElement('span');
+    value.textContent = text;
+    value.style.fontSize = '11.5px';
+    value.style.lineHeight = '1.55';
+    value.style.color = '#0f172a';
+    value.style.whiteSpace = 'pre-wrap';
+    value.style.wordBreak = 'break-word';
+    return value;
+  }
+
+  private appendActionContentSections(
+    container: HTMLElement,
+    cardModel: AiAssistantActionCardModel,
+    options: {
+      sections: AiAssistantActionContentSection[];
+      skipEyebrowTag?: boolean;
+      bodyFontSize: string;
+      bodyLineHeight: string;
+    }
+  ): void {
+    const sectionNodes = this.createActionContentSectionNodes(cardModel, {
+      skipEyebrowTag: options.skipEyebrowTag ?? false,
+      bodyFontSize: options.bodyFontSize,
+      bodyLineHeight: options.bodyLineHeight,
+    });
+
+    options.sections.forEach((section) => {
+      sectionNodes[section].forEach((node) => {
+        container.appendChild(node);
+      });
+    });
+  }
+
+  private createActionContentSectionNodes(
+    cardModel: AiAssistantActionCardModel,
+    options: {
+      skipEyebrowTag: boolean;
+      bodyFontSize: string;
+      bodyLineHeight: string;
+    }
+  ): Record<AiAssistantActionContentSection, HTMLElement[]> {
+    const sectionNodes: Record<AiAssistantActionContentSection, HTMLElement[]> = {
+      meta: [this.createActionMetaParagraph(cardModel.meta)],
+      tags: [],
+      details: cardModel.detailBlocks.map((block) =>
+        this.createActionDetailBlock(block)
+      ),
+      description: [],
+      reason: [],
+      error: [],
+    };
+
+    const tags = this.createActionTagRowFromModels(cardModel.tags, {
+      skipCount: options.skipEyebrowTag ? 1 : 0,
+    });
+    if (tags) {
+      sectionNodes.tags.push(tags);
+    }
+
+    if (cardModel.description) {
+      sectionNodes.description.push(
+        this.createActionTextParagraph(cardModel.description, {
+          fontSize: options.bodyFontSize,
+          lineHeight: options.bodyLineHeight,
+          color: '#334155',
+        })
+      );
+    }
+
+    if (cardModel.reason) {
+      sectionNodes.reason.push(
+        this.createActionTextParagraph(cardModel.reason, {
+          fontSize: options.bodyFontSize,
+          lineHeight: options.bodyLineHeight,
+          color: '#334155',
+        })
+      );
+    }
+
+    if (cardModel.error) {
+      sectionNodes.error.push(
+        this.createActionTextParagraph(cardModel.error, {
+          fontSize: '11px',
+          lineHeight: '1.45',
+          color: '#b91c1c',
+        })
+      );
+    }
+
+    return sectionNodes;
+  }
+
+  private createActionFooter(button: HTMLButtonElement): HTMLDivElement {
+    const footer = document.createElement('div');
+    footer.style.display = 'flex';
+    footer.style.justifyContent = 'flex-start';
+    footer.style.paddingTop = '2px';
+    footer.appendChild(button);
+    return footer;
   }
 
   private createActionTag(
@@ -2108,6 +2128,7 @@ export class AiAssistantPanel {
     return this.createPanelSurface({
       radiusPx,
       background: CHAT_PANEL_BACKGROUND,
+      border: CHAT_PANEL_SURFACE_BORDER,
     });
   }
 
@@ -2115,16 +2136,18 @@ export class AiAssistantPanel {
     return this.createPanelSurface({
       radiusPx,
       background: CHAT_PANEL_SUBTLE_BACKGROUND,
+      border: 'none',
     });
   }
 
   private createPanelSurface(options: {
     radiusPx: number;
     background: string;
+    border?: string;
   }): HTMLDivElement {
     const surface = document.createElement('div');
     surface.style.boxSizing = 'border-box';
-    surface.style.border = CHAT_PANEL_SURFACE_BORDER;
+    surface.style.border = options.border ?? CHAT_PANEL_SURFACE_BORDER;
     surface.style.borderRadius = `${options.radiusPx}px`;
     surface.style.background = options.background;
     surface.style.boxShadow = 'none';
@@ -2145,7 +2168,7 @@ export class AiAssistantPanel {
       ariaLabel: options.ariaLabel,
       onClick: options.onClick,
       className:
-        '!h-8 !rounded-full !border !border-slate-200 !bg-white !px-3 !text-[11px] !font-semibold !text-slate-700 hover:!bg-slate-50 hover:!text-slate-800',
+        '!h-8 !rounded-full !border !border-slate-200 !bg-slate-50 !px-3 !text-[11px] !font-semibold !text-slate-700 hover:!bg-white hover:!text-slate-800',
     });
   }
 
@@ -2180,7 +2203,7 @@ export class AiAssistantPanel {
     const surfaceClass =
       options.surface === 'plain'
         ? '!border-transparent !bg-transparent hover:!bg-slate-100'
-        : '!border-slate-200 !bg-white';
+        : '!border-slate-200 !bg-slate-50 hover:!bg-white';
     return createIconButton({
       icon: options.icon,
       title: options.title,

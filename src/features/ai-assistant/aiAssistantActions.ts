@@ -250,6 +250,84 @@ export function getAiAssistantActionLabel(
   }
 }
 
+type AiAssistantActionGroupButtonLabelOptions = {
+  singleActionMode?: 'action-label' | 'generic';
+};
+
+export function getAiAssistantActionGroupButtonLabel(
+  actions: AiAssistantAction[],
+  options: AiAssistantActionGroupButtonLabelOptions = {}
+): string {
+  const actionableActions = actions.filter(
+    (action) => action.status !== 'applied' && action.status !== 'applying'
+  );
+  const candidateActions =
+    actionableActions.length > 0 ? actionableActions : actions;
+
+  if (candidateActions.length === 0) {
+    return 'Confirm';
+  }
+
+  if (candidateActions.length === 1) {
+    const action = candidateActions[0];
+    if (!action) {
+      return 'Confirm';
+    }
+
+    if (options.singleActionMode === 'action-label') {
+      return action.kind === 'create_goals'
+        ? 'Create all'
+        : action.label || 'Confirm';
+    }
+
+    if (action.status === 'failed') {
+      return 'Retry';
+    }
+
+    switch (action.kind) {
+      case 'create_goal_blueprint':
+        return 'Create plan';
+      case 'create_goals':
+        return 'Create all';
+      case 'create_task':
+      case 'create_story':
+      case 'create_goal':
+        return 'Create';
+      case 'suggest_relation':
+      case 'remove_relation':
+      case 'update_relation':
+      case 'suggest_update':
+      default:
+        return 'Apply';
+    }
+  }
+
+  if (candidateActions.every((action) => action.status === 'failed')) {
+    return 'Retry all';
+  }
+
+  const kinds = new Set(candidateActions.map((action) => action.kind));
+  if (kinds.size !== 1) {
+    return 'Confirm all';
+  }
+
+  switch (candidateActions[0]?.kind) {
+    case 'create_task':
+    case 'create_story':
+    case 'create_goal':
+    case 'create_goals':
+      return 'Create all';
+    case 'suggest_relation':
+    case 'remove_relation':
+    case 'update_relation':
+    case 'suggest_update':
+      return 'Apply all';
+    case 'create_goal_blueprint':
+    default:
+      return 'Confirm all';
+  }
+}
+
 export function getAiAssistantActionEntityLabel(
   kind: AiAssistantCreateActionKind
 ): 'task' | 'story' | 'goal' {

@@ -39,8 +39,8 @@ import { AiAssistantSessionController } from '../features/ai-assistant/services/
 import { buildAiAssistantCapabilityContext } from '../features/ai-assistant/services/AiAssistantCapabilities.ts';
 
 const KANBAN_MODULE_IMPORT_PATH = '../features/kanban/KanbanModule.ts';
-const CHAT_ISLAND_GAP_PX = 8;
-const CHAT_ISLAND_MARGIN_PX = 8;
+const CHAT_ISLAND_GAP_PX = 6;
+const CHAT_ISLAND_MARGIN_PX = 6;
 const CHAT_ISLAND_RADIUS_PX = 22;
 
 type KanbanModuleNamespace = {
@@ -80,7 +80,7 @@ export class RuntimeHost {
     this.workspaceBackdrop.style.zIndex = '34';
     this.workspaceBackdrop.style.display = 'none';
     this.workspaceBackdrop.style.pointerEvents = 'none';
-    this.workspaceBackdrop.style.background = '#e9eef4';
+    this.workspaceBackdrop.style.background = '#DDE5EE';
     document.body.appendChild(this.workspaceBackdrop);
 
     this.workspaceRoot = document.createElement('div');
