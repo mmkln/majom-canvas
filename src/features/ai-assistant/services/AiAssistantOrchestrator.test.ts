@@ -554,6 +554,8 @@ describe('AiAssistantOrchestrator', () => {
     );
     expect(reply.plan.calls).toEqual([
       { tool: 'get_focus_bundle', input: { target: 'selection' } },
+      { tool: 'find_structure_gaps', input: { ids: ['story-1'] } },
+      { tool: 'find_dependency_gaps', input: { ids: ['story-1'] } },
     ]);
     expect(reply.actions).toEqual([]);
   });

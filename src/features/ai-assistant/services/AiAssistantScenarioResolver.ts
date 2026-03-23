@@ -32,6 +32,7 @@ export function resolveAiAssistantScenarioFromSubmission(
     source: submission.source ?? 'manual',
     intent: submission.intent,
     intentContext: submission.intentContext,
+    contextMode: submission.contextMode,
     target: buildTargetInput(submission.snapshot),
     fallbackTarget: buildTargetInput(submission.snapshot),
   });
@@ -45,6 +46,7 @@ export function resolveAiAssistantScenarioFromPrompt(
 ): AiAssistantScenarioDescriptor {
   return resolveAiAssistantScenario({
     ...input,
+    contextMode: input.contextMode,
     target: buildTargetInput(input.snapshot),
     fallbackTarget: buildTargetInput(input.snapshot),
   });
@@ -62,7 +64,10 @@ export function resolveAiAssistantScenario(
     input.target ?? (input.source === 'manual' ? input.fallbackTarget : undefined);
 
   if (!effectiveIntent) {
-    return buildAiAssistantConversationScenario();
+    return {
+      ...buildAiAssistantConversationScenario(),
+      contextMode: input.contextMode,
+    };
   }
 
   const mode = resolveAiAssistantScenarioMode(
@@ -75,7 +80,13 @@ export function resolveAiAssistantScenario(
   const confidence = input.source === 'intent' ? 1 : 0.85;
 
   return {
-    ...definition,
+    id: definition.id,
+    kind: definition.intent ?? 'conversation',
+    variant: definition.kind,
+    intent: definition.intent,
+    contextMode: input.contextMode,
+    scope: definition.scope,
+    mode: definition.mode,
     target,
     confidence,
     missingSlots: resolveAiAssistantScenarioMissingSlots(
@@ -83,6 +94,8 @@ export function resolveAiAssistantScenario(
       target,
       mode
     ),
+    allowedActions: definition.allowedActions,
+    confirmationMode: definition.confirmationMode,
     intentContext: effectiveIntentContext,
   };
 }
@@ -151,21 +164,20 @@ function resolveAiAssistantScenarioMode(
 
 function resolveAiAssistantScenarioMissingSlots(
   intent: AiAssistantIntentKind | null,
-  target:
-    | ReturnType<typeof buildAiAssistantScenarioTarget>
-    | { kind: 'conversation' },
+  target: ReturnType<typeof buildAiAssistantScenarioTarget>,
   mode: string
 ): string[] {
   if (!intent) {
     return [];
   }
-  if (target.kind === 'conversation') {
+  if (!target) {
     if (intent === 'strategic_plan' && mode === 'goal_subgoals') {
       return ['target'];
     }
     if (intent === 'breakdown') {
       return ['target'];
     }
+    return [];
   }
   return [];
 }

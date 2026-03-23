@@ -38,6 +38,7 @@ describe('AiAssistantContextPlanner', () => {
     });
 
     expect(scenario.kind).toBe('strategic_plan');
+    expect(scenario.variant).toBe('typed');
     expect(scenario.mode).toBe('goal_subgoals');
     expect(scenario.targetScope).toBe('selected_goal');
     expect(scenario.allowedActions).toEqual([
@@ -76,6 +77,7 @@ describe('AiAssistantContextPlanner', () => {
     });
 
     expect(scenario.mode).toBe('canvas_bootstrap');
+    expect(scenario.variant).toBe('typed');
     expect(scenario.targetScope).toBe('canvas');
     expect(scenario.confirmationMode).toBe('batch');
   });
@@ -94,6 +96,7 @@ describe('AiAssistantContextPlanner', () => {
     });
 
     expect(scenario.mode).toBe('story_tasks');
+    expect(scenario.variant).toBe('typed');
     expect(scenario.targetScope).toBe('selected_story');
     expect(resolveAiAssistantStrategicPlanMode(undefined, null)).toBe(
       'canvas_bootstrap'

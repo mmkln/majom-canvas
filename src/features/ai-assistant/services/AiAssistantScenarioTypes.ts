@@ -7,13 +7,20 @@ import type {
   AiAssistantCanvasSnapshot,
   AiAssistantIntentKind,
 } from '../aiAssistantEvents.ts';
+import type { AiAssistantContextMode } from './AiAssistantContextMode.ts';
+import type { AiAssistantEvidencePacket } from './AiAssistantEvidenceCompiler.ts';
+import type { AiAssistantFocusItem } from './AiAssistantContextTypes.ts';
 import type {
   AiAssistantBreakdownMode,
   AiAssistantIntentContext,
   AiAssistantStrategicPlanMode,
 } from './AiAssistantIntentContext.ts';
 
-export type AiAssistantScenarioKind = 'typed' | 'fallback';
+export type AiAssistantScenarioVariant = 'typed' | 'fallback';
+
+export type AiAssistantScenarioKind =
+  | AiAssistantIntentKind
+  | 'conversation';
 
 export type AiAssistantScenarioId =
   | 'strategic_plan.canvas_bootstrap'
@@ -55,26 +62,22 @@ export type AiAssistantScenarioScope =
   | 'item'
   | 'conversation';
 
-export type AiAssistantScenarioTarget =
-  | {
-      kind: 'canvas';
-      canvasId?: string;
-      canvasTitle?: string;
-    }
-  | {
-      kind: 'selection';
-      itemIds: string[];
-      itemKinds: AiAssistantCanvasElement['kind'][];
-    }
-  | {
-      kind: 'item';
-      itemId: string;
-      itemKind: AiAssistantCanvasElement['kind'];
-      itemTitle: string;
-    }
-  | {
-      kind: 'conversation';
-    };
+export type AiAssistantScenarioTargetScope =
+  | 'none'
+  | 'canvas'
+  | 'selection'
+  | 'selected_goal'
+  | 'selected_story'
+  | 'selected_task';
+
+export type AiAssistantScenarioTarget = {
+  id: string;
+  kind: AiAssistantCanvasElement['kind'];
+  title: string;
+  description: string;
+  status?: string;
+  priority?: string;
+} | null;
 
 export type AiAssistantScenarioConfirmationMode =
   | 'none'
@@ -84,7 +87,9 @@ export type AiAssistantScenarioConfirmationMode =
 export type AiAssistantScenarioDescriptor = {
   id: AiAssistantScenarioId;
   kind: AiAssistantScenarioKind;
+  variant: AiAssistantScenarioVariant;
   intent: AiAssistantIntentKind | null;
+  contextMode?: AiAssistantContextMode;
   mode: AiAssistantScenarioMode;
   scope: AiAssistantScenarioScope;
   target: AiAssistantScenarioTarget;
@@ -92,12 +97,18 @@ export type AiAssistantScenarioDescriptor = {
   missingSlots: string[];
   allowedActions: AiAssistantActionKind[];
   confirmationMode: AiAssistantScenarioConfirmationMode;
+  targetScope?: AiAssistantScenarioTargetScope;
+  focus?: AiAssistantFocusItem | null;
+  cluster?: AiAssistantCanvasSnapshot | null;
+  selectedIds?: string[];
+  strategicHints?: string[];
+  evidence?: AiAssistantEvidencePacket;
   intentContext?: AiAssistantIntentContext;
 };
 
 export type AiAssistantScenarioDefinition = {
   id: AiAssistantScenarioId;
-  kind: AiAssistantScenarioKind;
+  kind: AiAssistantScenarioVariant;
   intent: AiAssistantIntentKind | null;
   mode: AiAssistantScenarioMode;
   scope: AiAssistantScenarioScope;
@@ -116,6 +127,7 @@ export type AiAssistantScenarioResolutionInput = {
   source: 'manual' | 'intent';
   intent?: AiAssistantIntentKind;
   intentContext?: AiAssistantIntentContext;
+  contextMode?: AiAssistantContextMode;
   prompt?: string;
   target?: AiAssistantScenarioTargetInput;
   fallbackIntent?: AiAssistantIntentKind;
@@ -152,42 +164,47 @@ export function buildAiAssistantScenarioTarget(
 ): AiAssistantScenarioTarget {
   const selectionItems = input?.selectionItems ?? [];
   if (selectionItems.length > 1) {
+    const item = selectionItems[0];
+    if (!item) {
+      return null;
+    }
     return {
-      kind: 'selection',
-      itemIds: selectionItems.map((item) => item.id),
-      itemKinds: selectionItems.map((item) => item.kind),
+      id: item.id,
+      kind: item.kind,
+      title: item.title,
+      description: item.description,
+      status: typeof item.status === 'string' ? item.status : undefined,
+      priority: typeof item.priority === 'string' ? item.priority : undefined,
     };
   }
   if (selectionItems.length === 1) {
     const item = selectionItems[0];
     if (item) {
       return {
-        kind: 'item',
-        itemId: item.id,
-        itemKind: item.kind,
-        itemTitle: item.title,
+        id: item.id,
+        kind: item.kind,
+        title: item.title,
+        description: item.description,
+        status: typeof item.status === 'string' ? item.status : undefined,
+        priority: typeof item.priority === 'string' ? item.priority : undefined,
       };
     }
   }
   const selectedItem = input?.selectedItem;
   if (selectedItem) {
     return {
-      kind: 'item',
-      itemId: selectedItem.id,
-      itemKind: selectedItem.kind,
-      itemTitle: selectedItem.title,
+      id: selectedItem.id,
+      kind: selectedItem.kind,
+      title: selectedItem.title,
+      description: selectedItem.description,
+      status: typeof selectedItem.status === 'string' ? selectedItem.status : undefined,
+      priority:
+        typeof selectedItem.priority === 'string'
+          ? selectedItem.priority
+          : undefined,
     };
   }
-  if (input?.canvasId || input?.canvasTitle) {
-    return {
-      kind: 'canvas',
-      canvasId: input.canvasId,
-      canvasTitle: input.canvasTitle,
-    };
-  }
-  return {
-    kind: 'conversation',
-  };
+  return null;
 }
 
 export function buildAiAssistantConversationScenario(
@@ -195,11 +212,12 @@ export function buildAiAssistantConversationScenario(
 ): AiAssistantScenarioDescriptor {
   return {
     id: 'conversation.default',
-    kind: 'fallback',
+    kind: 'conversation',
+    variant: 'fallback',
     intent,
     mode: 'conversation',
     scope: 'conversation',
-    target: { kind: 'conversation' },
+    target: null,
     confidence: 0.2,
     missingSlots: [],
     allowedActions: [],
@@ -210,7 +228,7 @@ export function buildAiAssistantConversationScenario(
 export function isAiAssistantTypedScenario(
   scenario: AiAssistantScenarioDescriptor
 ): boolean {
-  return scenario.kind === 'typed';
+  return scenario.variant === 'typed';
 }
 
 export function getAiAssistantScenarioPrimaryActionKinds(

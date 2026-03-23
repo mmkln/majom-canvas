@@ -7,7 +7,8 @@ describe('AiAssistantService', () => {
   it('passes scenario metadata through to the orchestrator', async () => {
     const scenario: AiAssistantScenarioDescriptor = {
       id: 'strategic_plan.goal_subgoals',
-      kind: 'typed',
+      kind: 'strategic_plan',
+      variant: 'typed',
       intent: 'strategic_plan',
       mode: 'goal_subgoals',
       scope: 'item',

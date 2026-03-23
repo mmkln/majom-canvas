@@ -332,7 +332,7 @@ export class AiAssistantSessionController {
         source: resolvedSource,
         intent: resolvedIntent,
         intentContext: resolvedIntentContext,
-        scenario: options.scenario,
+        scenario: options.scenario ?? resolvedScenario,
         profile: resolvedProfile,
         contextMode: session.contextMode,
         memory: memorySnapshot,

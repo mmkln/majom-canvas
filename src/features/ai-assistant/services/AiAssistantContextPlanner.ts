@@ -13,36 +13,20 @@ import type {
   AiAssistantIntentContext,
   AiAssistantStrategicPlanMode,
 } from './AiAssistantIntentContext.ts';
+import { compileAiAssistantEvidencePacket } from './AiAssistantEvidenceCompiler.ts';
+import { getAiAssistantScenarioDefinition } from './AiAssistantScenarioRegistry.ts';
+import {
+  buildAiAssistantScenarioTarget,
+  type AiAssistantScenarioConfirmationMode,
+  type AiAssistantScenarioDescriptor,
+  type AiAssistantScenarioKind,
+  type AiAssistantScenarioTargetScope,
+} from './AiAssistantScenarioTypes.ts';
 import type { AiAssistantToolResult } from './AiAssistantToolTypes.ts';
 import {
   getFocusBundle,
   getSelectionCluster,
 } from './AiAssistantSnapshotLens.ts';
-import {
-  compileAiAssistantEvidencePacket,
-  type AiAssistantEvidencePacket,
-} from './AiAssistantEvidenceCompiler.ts';
-
-export type AiAssistantScenarioKind =
-  | 'dependencies'
-  | 'fill_details'
-  | 'strategic_plan'
-  | 'breakdown';
-
-export type AiAssistantScenarioTargetScope =
-  | 'none'
-  | 'canvas'
-  | 'selection'
-  | 'selected_goal'
-  | 'selected_story'
-  | 'selected_task';
-
-export type AiAssistantScenarioConfirmationMode =
-  | 'batch'
-  | 'single'
-  | 'follow-up';
-
-export type AiAssistantScenarioConfidence = 'high' | 'medium' | 'low';
 
 export type AiAssistantScenarioItemSummary = {
   id: string;
@@ -53,25 +37,13 @@ export type AiAssistantScenarioItemSummary = {
   priority?: string;
 };
 
-export type AiAssistantScenarioDescriptor = {
-  kind: AiAssistantScenarioKind;
-  contextMode: AiAssistantContextMode;
-  targetScope: AiAssistantScenarioTargetScope;
-  mode:
-    | AiAssistantStrategicPlanMode
-    | AiAssistantBreakdownMode
-    | 'dependencies'
-    | 'fill_details';
-  confidence: AiAssistantScenarioConfidence;
-  confirmationMode: AiAssistantScenarioConfirmationMode;
-  missingSlots: string[];
-  allowedActions: string[];
-  target: AiAssistantScenarioItemSummary | null;
-  focus: AiAssistantFocusItem | null;
-  cluster: AiAssistantCanvasSnapshot | null;
-  selectedIds: string[];
-  strategicHints: string[];
-  evidence: AiAssistantEvidencePacket;
+export type AiAssistantScenarioConfidence = number;
+
+export type {
+  AiAssistantScenarioConfirmationMode,
+  AiAssistantScenarioDescriptor,
+  AiAssistantScenarioKind,
+  AiAssistantScenarioTargetScope,
 };
 
 export function buildAiAssistantScenarioDescriptor(params: {
@@ -90,6 +62,14 @@ export function buildAiAssistantScenarioDescriptor(params: {
     );
   const selectedIds = params.snapshot?.selectionIds.slice() ?? [];
   const target = focus?.item ? toScenarioItemSummary(focus.item) : null;
+  const mode = resolveScenarioMode(params.intent, params.intentContext, target);
+  const definition = getAiAssistantScenarioDefinition(params.intent, mode);
+  const targetScope = resolveScenarioTargetScope(
+    params.intent,
+    mode,
+    target,
+    selectedIds
+  );
   const evidence = compileAiAssistantEvidencePacket({
     snapshot: params.snapshot,
     toolResults: params.toolResults,
@@ -101,96 +81,33 @@ export function buildAiAssistantScenarioDescriptor(params: {
       : [],
   });
 
-  if (params.intent === 'strategic_plan') {
-    const mode = resolveAiAssistantStrategicPlanMode(
-      params.intentContext,
-      target
-    );
-    return {
-      kind: 'strategic_plan',
-      contextMode: resolveContextMode(params.snapshot, selectedIds),
-      targetScope: resolveStrategicTargetScope(mode, target, selectedIds),
-      mode,
-      confidence: resolveScenarioConfidence(params.intentContext, target, selectedIds),
-      confirmationMode: 'batch',
-      missingSlots: mode === 'goal_replan' && !target ? ['selected_goal'] : [],
-      allowedActions: ['create_goals', 'create_goal_blueprint'],
-      target,
-      focus,
-      cluster,
-      selectedIds,
-      strategicHints: extractAiAssistantStrategicHints(target),
-      evidence,
-    };
-  }
-
-  if (params.intent === 'breakdown') {
-    const mode = resolveAiAssistantBreakdownMode(params.intentContext, target);
-    return {
-      kind: 'breakdown',
-      contextMode: resolveContextMode(params.snapshot, selectedIds),
-      targetScope: resolveBreakdownTargetScope(mode, target, selectedIds),
-      mode,
-      confidence: resolveScenarioConfidence(params.intentContext, target, selectedIds),
-      confirmationMode: mode === 'unspecified_goal_decomposition' ? 'follow-up' : 'batch',
-      missingSlots:
-        mode === 'unspecified_goal_decomposition' ? ['decomposition_level'] : [],
-      allowedActions:
-        mode === 'goal_stories'
-          ? ['create_batch_stories']
-          : mode === 'story_tasks'
-            ? ['create_batch_tasks']
-            : ['suggest_update'],
-      target,
-      focus,
-      cluster,
-      selectedIds,
-      strategicHints: [],
-      evidence,
-    };
-  }
-
-  if (params.intent === 'dependencies') {
-    return {
-      kind: 'dependencies',
-      contextMode: resolveContextMode(params.snapshot, selectedIds),
-      targetScope: selectedIds.length > 1 ? 'selection' : target?.kind === 'goal' ? 'selected_goal' : 'selection',
-      mode: 'dependencies',
-      confidence: resolveScenarioConfidence(params.intentContext, target, selectedIds),
-      confirmationMode: 'batch',
-      missingSlots: [],
-      allowedActions: [
-        'suggest_relation',
-        'suggest_relations',
-        'remove_relation',
-        'remove_relations',
-        'update_relation',
-        'update_relations',
-      ],
-      target,
-      focus,
-      cluster,
-      selectedIds,
-      strategicHints: [],
-      evidence,
-    };
-  }
-
   return {
-    kind: 'fill_details',
+    id: definition.id,
+    kind: definition.intent ?? 'conversation',
+    variant: definition.kind,
+    intent: definition.intent,
     contextMode: resolveContextMode(params.snapshot, selectedIds),
-    targetScope: target ? 'selected_goal' : 'selection',
-    mode: 'fill_details',
+    targetScope,
+    scope: definition.scope,
+    mode,
     confidence: resolveScenarioConfidence(params.intentContext, target, selectedIds),
-    confirmationMode: 'batch',
-    missingSlots: [],
-    allowedActions: ['suggest_update', 'suggest_updates'],
-    target,
+    confirmationMode: definition.confirmationMode,
+    missingSlots: resolveScenarioMissingSlots(params.intent, mode, target),
+    allowedActions: definition.allowedActions,
+    target: buildAiAssistantScenarioTarget({
+      canvasId: params.snapshot?.canvasId,
+      canvasTitle: params.snapshot?.canvasTitle,
+      selectionItems: params.snapshot?.elements.filter((element) =>
+        selectedIds.includes(element.id)
+      ),
+      selectedItem: focus?.item ?? null,
+    }),
     focus,
     cluster,
     selectedIds,
-    strategicHints: [],
+    strategicHints: params.intent === 'strategic_plan' ? extractAiAssistantStrategicHints(target) : [],
     evidence,
+    intentContext: params.intentContext,
   };
 }
 
@@ -246,6 +163,149 @@ export function extractAiAssistantStrategicHints(
   return splitTextIntoFragments(source)
     .filter((part) => part.length >= 4)
     .slice(0, 8);
+}
+
+function resolveScenarioMode(
+  intent: AiAssistantIntentKind,
+  intentContext: AiAssistantIntentContext | undefined,
+  target: AiAssistantScenarioItemSummary | null
+):
+  | AiAssistantStrategicPlanMode
+  | AiAssistantBreakdownMode
+  | 'dependencies'
+  | 'fill_details'
+  | 'review_selection'
+  | 'missing_details'
+  | 'clarify_selection'
+  | 'next_steps'
+  | 'recent_changes'
+  | 'duplicate_review'
+  | 'general_question'
+  | 'capability_help' {
+  if (intent === 'strategic_plan') {
+    return resolveAiAssistantStrategicPlanMode(intentContext, target);
+  }
+  if (intent === 'breakdown') {
+    return resolveAiAssistantBreakdownMode(intentContext, target);
+  }
+  if (intent === 'dependencies') {
+    return 'dependencies';
+  }
+  if (intent === 'fill_details') {
+    return 'fill_details';
+  }
+  if (intent === 'review') {
+    return 'review_selection';
+  }
+  if (intent === 'missing') {
+    return 'missing_details';
+  }
+  if (intent === 'clarify') {
+    return 'clarify_selection';
+  }
+  if (intent === 'next_steps') {
+    return 'next_steps';
+  }
+  if (intent === 'recent_changes') {
+    return 'recent_changes';
+  }
+  if (intent === 'duplicates') {
+    return 'duplicate_review';
+  }
+  if (intent === 'capability_help') {
+    return 'capability_help';
+  }
+  return 'general_question';
+}
+
+function resolveScenarioTargetScope(
+  intent: AiAssistantIntentKind,
+  mode:
+    | AiAssistantStrategicPlanMode
+    | AiAssistantBreakdownMode
+    | 'dependencies'
+    | 'fill_details'
+    | 'review_selection'
+    | 'missing_details'
+    | 'clarify_selection'
+    | 'next_steps'
+    | 'recent_changes'
+    | 'duplicate_review'
+    | 'general_question'
+    | 'capability_help',
+  target: AiAssistantScenarioItemSummary | null,
+  selectedIds: string[]
+): AiAssistantScenarioTargetScope {
+  if (intent === 'strategic_plan') {
+    return resolveStrategicTargetScope(mode as AiAssistantStrategicPlanMode, target, selectedIds);
+  }
+  if (intent === 'breakdown') {
+    return resolveBreakdownTargetScope(mode as AiAssistantBreakdownMode, target, selectedIds);
+  }
+  if (intent === 'dependencies' || intent === 'fill_details') {
+    return selectedIds.length > 1
+      ? 'selection'
+      : target?.kind === 'goal'
+        ? 'selected_goal'
+        : target?.kind === 'story'
+          ? 'selected_story'
+          : target?.kind === 'task'
+            ? 'selected_task'
+            : 'selection';
+  }
+  if (intent === 'review' || intent === 'missing' || intent === 'clarify') {
+    return selectedIds.length > 0 ? 'selection' : 'conversation';
+  }
+  if (intent === 'next_steps' || intent === 'recent_changes' || intent === 'duplicates') {
+    return 'canvas';
+  }
+  if (intent === 'capability_help' || intent === 'general_question') {
+    return 'conversation';
+  }
+  return target ? 'selection' : 'conversation';
+}
+
+function resolveScenarioMissingSlots(
+  intent: AiAssistantIntentKind,
+  mode:
+    | AiAssistantStrategicPlanMode
+    | AiAssistantBreakdownMode
+    | 'dependencies'
+    | 'fill_details'
+    | 'review_selection'
+    | 'missing_details'
+    | 'clarify_selection'
+    | 'next_steps'
+    | 'recent_changes'
+    | 'duplicate_review'
+    | 'general_question'
+    | 'capability_help',
+  target: AiAssistantScenarioItemSummary | null
+): string[] {
+  if (intent === 'strategic_plan') {
+    return mode === 'goal_replan' && !target ? ['selected_goal'] : [];
+  }
+  if (intent === 'breakdown') {
+    return mode === 'unspecified_goal_decomposition' ? ['decomposition_level'] : [];
+  }
+  if (intent === 'dependencies' || intent === 'fill_details') {
+    return target ? [] : ['selection'];
+  }
+  return [];
+}
+
+function resolveScenarioConfidence(
+  intentContext: AiAssistantIntentContext | undefined,
+  target: AiAssistantScenarioItemSummary | null,
+  selectedIds: string[]
+): number {
+  if (intentContext) {
+    return 0.9;
+  }
+  if (target || selectedIds.length > 0) {
+    return 0.75;
+  }
+  return 0.4;
 }
 
 function resolveContextMode(
@@ -306,20 +366,6 @@ function resolveBreakdownTargetScope(
     return 'selected_task';
   }
   return 'selection';
-}
-
-function resolveScenarioConfidence(
-  intentContext: AiAssistantIntentContext | undefined,
-  target: AiAssistantScenarioItemSummary | null,
-  selectedIds: string[]
-): AiAssistantScenarioConfidence {
-  if (intentContext) {
-    return 'high';
-  }
-  if (target || selectedIds.length > 0) {
-    return 'medium';
-  }
-  return 'low';
 }
 
 function toScenarioItemSummary(
@@ -397,7 +443,13 @@ function splitTextIntoFragments(text: string): string[] {
   };
 
   for (const char of text) {
-    if (char === ',' || char === ';' || char === ':' || char === '.' || char === '\n') {
+    if (
+      char === ',' ||
+      char === ';' ||
+      char === ':' ||
+      char === '.' ||
+      char === '\n'
+    ) {
       flush();
       continue;
     }

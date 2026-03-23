@@ -173,7 +173,8 @@ export class AiAssistantOrchestrator {
   ): Promise<AiAssistantOrchestratorReply> {
     const scenario = await this.resolveScenarioForRequest(request);
     const effectiveIntent = scenario.intent ?? request.intent;
-    const state = this.createInitialState(request);
+    const effectiveIntentContext = scenario.intentContext ?? request.intentContext;
+    const state = this.createInitialState(request, effectiveIntent);
 
     try {
       this.emitProgress(request, {
@@ -185,12 +186,12 @@ export class AiAssistantOrchestrator {
             : 'Choosing context, instructions, and tools.',
       });
 
-      const commandSpec = scenario.kind === 'typed' && effectiveIntent
+      const commandSpec = scenario.variant === 'typed' && effectiveIntent
         ? getAiAssistantCommandSpec(effectiveIntent)
         : null;
 
       if (effectiveIntent) {
-        await this.executeIntentSeed(request, state);
+        await this.executeIntentSeed(request, state, scenario, effectiveIntent);
       } else {
         const followupQuestion = await this.runManualDecisionLoop(request, state);
         if (followupQuestion) {
@@ -203,17 +204,23 @@ export class AiAssistantOrchestrator {
           this.recordInteractionTelemetry(request, state, {
             outcome: 'followup',
             followupQuestionReturned: true,
-          });
+          }, scenario, effectiveIntent);
           return reply;
         }
       }
 
       if (commandSpec) {
-        const reply = await this.completeCommandReply(request, state, commandSpec);
+        const reply = await this.completeCommandReply(
+          request,
+          state,
+          commandSpec,
+          effectiveIntent,
+          effectiveIntentContext
+        );
         this.recordInteractionTelemetry(request, state, {
           outcome: 'reply',
           followupQuestionReturned: false,
-        });
+        }, scenario, effectiveIntent);
         return reply;
       }
 
@@ -281,13 +288,13 @@ export class AiAssistantOrchestrator {
       this.recordInteractionTelemetry(request, state, {
         outcome: 'reply',
         followupQuestionReturned: false,
-      });
+      }, scenario, effectiveIntent);
       return reply;
     } catch (error) {
       this.recordInteractionTelemetry(request, state, {
         outcome: 'error',
         followupQuestionReturned: false,
-      });
+      }, scenario, effectiveIntent);
       throw error;
     }
   }
@@ -295,7 +302,10 @@ export class AiAssistantOrchestrator {
   public buildIntentPlan(
     request: AiAssistantOrchestratorRequest
   ): AiAssistantExecutionPlan {
-    return buildAiAssistantIntentPlan(request);
+    return buildAiAssistantIntentPlan({
+      ...request,
+      intent: request.scenario?.intent ?? null,
+    });
   }
 
   public async buildManualPlan(
@@ -337,9 +347,15 @@ export class AiAssistantOrchestrator {
 
   private async executeIntentSeed(
     request: AiAssistantOrchestratorRequest,
-    state: AiAssistantOrchestrationState
+    state: AiAssistantOrchestrationState,
+    scenario: AiAssistantScenarioDescriptor,
+    effectiveIntent: AiAssistantIntentKind
   ): Promise<void> {
-    const intentPlan = this.buildIntentPlan(request);
+    const intentPlan = this.buildIntentPlan({
+      ...request,
+      intent: effectiveIntent,
+      scenario,
+    });
     state.profile = intentPlan.profile;
     state.contextMode = intentPlan.contextMode;
     state.plan = {
@@ -353,10 +369,10 @@ export class AiAssistantOrchestrator {
 
     this.emitInstructionProgress(
       request,
-      resolveAiAssistantIntentInstructionIds(request.intent)
+      resolveAiAssistantIntentInstructionIds(effectiveIntent)
     );
     this.loadInstructionPackets(
-      resolveAiAssistantIntentInstructionIds(request.intent),
+      resolveAiAssistantIntentInstructionIds(effectiveIntent),
       state
     );
     state.toolResults.push(...(await this.executePlan(intentPlan, request, state)));
@@ -472,14 +488,16 @@ export class AiAssistantOrchestrator {
   private async completeCommandReply(
     request: AiAssistantOrchestratorRequest,
     state: AiAssistantOrchestrationState,
-    commandSpec: NonNullable<ReturnType<typeof getAiAssistantCommandSpec>>
+    commandSpec: NonNullable<ReturnType<typeof getAiAssistantCommandSpec>>,
+    effectiveIntent: AiAssistantIntentKind | null,
+    effectiveIntentContext: AiAssistantIntentContext | undefined
   ): Promise<AiAssistantOrchestratorReply> {
     const compiledContext = commandSpec.buildCompiledContext({
       prompt: request.prompt,
       memory: request.memory,
       toolResults: state.toolResults,
       snapshot: request.validationSnapshot ?? request.snapshot,
-      intentContext: request.intentContext,
+      intentContext: effectiveIntentContext,
     });
 
     this.emitProgress(request, {
@@ -541,11 +559,11 @@ export class AiAssistantOrchestrator {
       finalReplyResult.usage
     );
     const rawContent = finalReplyResult.rawContent;
-    const structured = parseAiAssistantStructuredReply(rawContent, {
-      allowActions: request.allowActions,
-      validationSnapshot: request.validationSnapshot ?? request.snapshot,
-      intent: request.intent,
-    });
+      const structured = parseAiAssistantStructuredReply(rawContent, {
+        allowActions: request.allowActions,
+        validationSnapshot: request.validationSnapshot ?? request.snapshot,
+        intent: effectiveIntent,
+      });
 
     return {
       ...structured,
@@ -652,12 +670,15 @@ export class AiAssistantOrchestrator {
   }
 
   private createInitialState(
-    request: AiAssistantOrchestratorRequest
+    request: AiAssistantOrchestratorRequest,
+    intent: AiAssistantIntentKind | null | undefined = undefined
   ): AiAssistantOrchestrationState {
     const profile =
       request.profile && isAiAssistantProfile(request.profile)
         ? request.profile
-        : resolveAiAssistantIntentProfile(request.intent, undefined);
+        : intent
+          ? resolveAiAssistantIntentProfile(intent, undefined)
+          : undefined;
 
     return {
       profile,
@@ -885,17 +906,23 @@ export class AiAssistantOrchestrator {
     params: {
       outcome: 'reply' | 'followup' | 'error' | 'aborted';
       followupQuestionReturned: boolean;
-    }
+    },
+    scenario: AiAssistantScenarioDescriptor,
+    effectiveIntent: AiAssistantIntentKind | null
   ): void {
     this.telemetry.record({
       kind: 'interaction',
       timestamp: Date.now(),
       context: this.resolveTelemetryContext(request),
       routeType: request.source,
-      intent: request.intent,
+      intent: effectiveIntent,
       profile: state.plan.profile,
       contextMode: state.contextMode,
-      commandSpecUsed: Boolean(request.intent && getAiAssistantCommandSpec(request.intent)),
+      commandSpecUsed: Boolean(
+        scenario.variant === 'typed' &&
+          effectiveIntent &&
+          getAiAssistantCommandSpec(effectiveIntent)
+      ),
       routerHopCount: state.telemetry.routerHopCount,
       toolExecutionRounds: state.telemetry.toolExecutionRounds,
       toolCallCount: state.toolResults.length,
