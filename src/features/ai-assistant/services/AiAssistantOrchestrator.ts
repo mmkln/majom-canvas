@@ -413,16 +413,6 @@ export class AiAssistantOrchestrator {
       return request.scenario;
     }
 
-    if (request.intent) {
-      return resolveAiAssistantScenario({
-        source: request.source,
-        intent: request.intent,
-        intentContext: request.intentContext,
-        target: this.buildScenarioTargetInput(request.snapshot),
-        fallbackTarget: this.buildScenarioTargetInput(request.snapshot),
-      });
-    }
-
     if (request.source === 'manual') {
       const classifiedScenario = await this.classifyManualScenario(request);
       if (classifiedScenario) {
@@ -433,7 +423,6 @@ export class AiAssistantOrchestrator {
     return resolveAiAssistantScenario({
       source: 'manual',
       target: this.buildScenarioTargetInput(request.snapshot),
-      fallbackTarget: this.buildScenarioTargetInput(request.snapshot),
     });
   }
 
@@ -463,7 +452,6 @@ export class AiAssistantOrchestrator {
       intent: classification.intent ?? undefined,
       intentContext: classification.intentContext,
       target: this.buildScenarioTargetInput(request.snapshot),
-      fallbackTarget: this.buildScenarioTargetInput(request.snapshot),
     });
   }
 

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AiAssistantOrchestrator } from './AiAssistantOrchestrator.ts';
+import { buildAiAssistantScenarioDescriptor } from './AiAssistantContextPlanner.ts';
 import {
   createAiAssistantTestMemory,
   createAiAssistantTestSnapshot,
@@ -8,6 +9,14 @@ import { createAiAssistantTelemetryCollector } from './AiAssistantTelemetryStore
 
 describe('AiAssistantOrchestrator', () => {
   it('uses deterministic intent plans without calling the planner model', async () => {
+    const snapshot = createAiAssistantTestSnapshot();
+    const scenario = buildAiAssistantScenarioDescriptor({
+      intent: 'missing',
+      prompt: 'What is missing?',
+      snapshot,
+      memory: createAiAssistantTestMemory(),
+      toolResults: [],
+    });
     const completeText = vi.fn(async (messages: Array<{ content: string }>) => {
       expect(messages[1]?.content).toContain('planning.readiness-check');
       return JSON.stringify({
@@ -24,8 +33,8 @@ describe('AiAssistantOrchestrator', () => {
     const reply = await orchestrator.reply({
       prompt: 'What is missing?',
       source: 'intent',
-      intent: 'missing',
-      snapshot: createAiAssistantTestSnapshot(),
+      scenario,
+      snapshot,
       contextMode: 'selection',
       memory: createAiAssistantTestMemory(),
       allowActions: true,
@@ -42,6 +51,22 @@ describe('AiAssistantOrchestrator', () => {
 
   it('records telemetry for command-spec replies, including token usage', async () => {
     const collector = createAiAssistantTelemetryCollector();
+    const snapshot = createAiAssistantTestSnapshot();
+    const scenario = buildAiAssistantScenarioDescriptor({
+      intent: 'breakdown',
+      prompt: 'декомпозуй поточну ціль',
+      snapshot,
+      memory: createAiAssistantTestMemory({
+        currentIntent: null,
+        conversationSummary: null,
+        agreedFacts: [],
+        lastRecommendations: [],
+      }),
+      toolResults: [],
+      intentContext: {
+        breakdownMode: 'unspecified_goal_decomposition',
+      },
+    });
     const completeTextWithMetadata = vi.fn(async () => ({
       content: JSON.stringify({
         replyMarkdown: 'Do you want stories or tasks?',
@@ -66,15 +91,12 @@ describe('AiAssistantOrchestrator', () => {
     const reply = await orchestrator.reply({
       prompt: 'декомпозуй поточну ціль',
       source: 'intent',
-      intent: 'breakdown',
-      intentContext: {
-        breakdownMode: 'unspecified_goal_decomposition',
-      },
+      scenario,
       telemetryContext: {
         conversationKey: 'canvas:test',
         requestId: 'request-1',
       },
-      snapshot: createAiAssistantTestSnapshot(),
+      snapshot,
       contextMode: 'selection',
       memory: createAiAssistantTestMemory({
         currentIntent: null,
@@ -112,6 +134,22 @@ describe('AiAssistantOrchestrator', () => {
 
   it('records repair telemetry when a command-spec reply is repaired', async () => {
     const collector = createAiAssistantTelemetryCollector();
+    const snapshot = createAiAssistantTestSnapshot();
+    const scenario = buildAiAssistantScenarioDescriptor({
+      intent: 'breakdown',
+      prompt: 'декомпозуй поточну ціль',
+      snapshot,
+      memory: createAiAssistantTestMemory({
+        currentIntent: null,
+        conversationSummary: null,
+        agreedFacts: [],
+        lastRecommendations: [],
+      }),
+      toolResults: [],
+      intentContext: {
+        breakdownMode: 'unspecified_goal_decomposition',
+      },
+    });
     const completeTextWithMetadata = vi
       .fn()
       .mockResolvedValueOnce({
@@ -142,15 +180,12 @@ describe('AiAssistantOrchestrator', () => {
     const reply = await orchestrator.reply({
       prompt: 'декомпозуй поточну ціль',
       source: 'intent',
-      intent: 'breakdown',
-      intentContext: {
-        breakdownMode: 'unspecified_goal_decomposition',
-      },
+      scenario,
       telemetryContext: {
         conversationKey: 'canvas:test',
         requestId: 'request-2',
       },
-      snapshot: createAiAssistantTestSnapshot(),
+      snapshot,
       contextMode: 'selection',
       memory: createAiAssistantTestMemory({
         currentIntent: null,
@@ -190,6 +225,14 @@ describe('AiAssistantOrchestrator', () => {
       currentStep?: number;
       totalSteps?: number;
     }> = [];
+    const snapshot = createAiAssistantTestSnapshot();
+    const scenario = buildAiAssistantScenarioDescriptor({
+      intent: 'missing',
+      prompt: 'What is missing?',
+      snapshot,
+      memory: createAiAssistantTestMemory(),
+      toolResults: [],
+    });
     const orchestrator = new AiAssistantOrchestrator({
       apiClient: {
         completeText: vi.fn(async () =>
@@ -204,8 +247,8 @@ describe('AiAssistantOrchestrator', () => {
     await orchestrator.reply({
       prompt: 'What is missing?',
       source: 'intent',
-      intent: 'missing',
-      snapshot: createAiAssistantTestSnapshot(),
+      scenario,
+      snapshot,
       contextMode: 'selection',
       memory: createAiAssistantTestMemory(),
       allowActions: true,
@@ -255,6 +298,19 @@ describe('AiAssistantOrchestrator', () => {
         focused: element.id === 'story-2',
       })),
     };
+    const scenario = buildAiAssistantScenarioDescriptor({
+      intent: 'fill_details',
+      prompt:
+        'Fill in the missing details for the selected story "Post-purchase".',
+      snapshot,
+      memory: createAiAssistantTestMemory({
+        currentIntent: null,
+        conversationSummary: null,
+        agreedFacts: [],
+        lastRecommendations: [],
+      }),
+      toolResults: [],
+    });
     const completeText = vi
       .fn()
       .mockResolvedValueOnce(
@@ -301,7 +357,7 @@ describe('AiAssistantOrchestrator', () => {
       prompt:
         'Fill in the missing details for the selected story "Post-purchase".',
       source: 'intent',
-      intent: 'fill_details',
+      scenario,
       snapshot,
       contextMode: 'selection',
       memory: createAiAssistantTestMemory({
@@ -356,6 +412,18 @@ describe('AiAssistantOrchestrator', () => {
         focused: element.id === 'story-2',
       })),
     };
+    const scenario = buildAiAssistantScenarioDescriptor({
+      intent: 'clarify',
+      prompt: 'Clarify the selected story.',
+      snapshot,
+      memory: createAiAssistantTestMemory({
+        currentIntent: null,
+        conversationSummary: null,
+        agreedFacts: [],
+        lastRecommendations: [],
+      }),
+      toolResults: [],
+    });
     const completeText = vi.fn().mockResolvedValue(
       JSON.stringify({
         replyMarkdown: 'I prepared a clearer story title and description.',
@@ -383,7 +451,7 @@ describe('AiAssistantOrchestrator', () => {
     const reply = await orchestrator.reply({
       prompt: 'Clarify the selected story.',
       source: 'intent',
-      intent: 'clarify',
+      scenario,
       snapshot,
       contextMode: 'selection',
       memory: createAiAssistantTestMemory({
@@ -439,6 +507,19 @@ describe('AiAssistantOrchestrator', () => {
       viewport: null,
       recentActivity: [],
     };
+    const scenario = buildAiAssistantScenarioDescriptor({
+      intent: 'fill_details',
+      prompt:
+        'кілограм 85 це мінімум, далі великі плечі, великі грудні мязи, 6 пак прес, здорові передпліччя і ноги накачані.',
+      snapshot,
+      memory: createAiAssistantTestMemory({
+        currentIntent: null,
+        conversationSummary: null,
+        agreedFacts: [],
+        lastRecommendations: [],
+      }),
+      toolResults: [],
+    });
     const completeText = vi
       .fn()
       .mockResolvedValueOnce(
@@ -476,7 +557,7 @@ describe('AiAssistantOrchestrator', () => {
       prompt:
         'кілограм 85 це мінімум, далі великі плечі, великі грудні мязи, 6 пак прес, здорові передпліччя і ноги накачані.',
       source: 'intent',
-      intent: 'fill_details',
+      scenario,
       snapshot,
       contextMode: 'selection',
       memory: createAiAssistantTestMemory({
@@ -522,6 +603,18 @@ describe('AiAssistantOrchestrator', () => {
         (connection) => connection.relationType === 'parent_child'
       ),
     };
+    const scenario = buildAiAssistantScenarioDescriptor({
+      intent: 'dependencies',
+      prompt: 'Analyze the selected cluster and suggest relations.',
+      snapshot,
+      memory: createAiAssistantTestMemory({
+        currentIntent: null,
+        conversationSummary: null,
+        agreedFacts: [],
+        lastRecommendations: [],
+      }),
+      toolResults: [],
+    });
     const completeText = vi
       .fn()
       .mockResolvedValueOnce(
@@ -563,7 +656,7 @@ describe('AiAssistantOrchestrator', () => {
     const reply = await orchestrator.reply({
       prompt: 'Analyze the selected cluster and suggest relations.',
       source: 'intent',
-      intent: 'dependencies',
+      scenario,
       snapshot,
       contextMode: 'selection',
       memory: createAiAssistantTestMemory({

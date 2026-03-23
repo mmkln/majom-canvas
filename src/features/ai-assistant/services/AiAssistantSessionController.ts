@@ -3,10 +3,9 @@ import type { AiAssistantCanvasSnapshot } from '../aiAssistantEvents.ts';
 import {
   getAiAssistantActionGroupButtonLabel,
   type AiAssistantAction,
-  AiAssistantAction,
-  AiAssistantActionExecutionHandler,
-  AiAssistantActionExecutionRequest,
-  AiAssistantActionExecutionResult,
+  type AiAssistantActionExecutionHandler,
+  type AiAssistantActionExecutionRequest,
+  type AiAssistantActionExecutionResult,
 } from '../aiAssistantActions.ts';
 import {
   scopeAiAssistantContext,
@@ -1067,7 +1066,6 @@ export class AiAssistantSessionController {
       intentContext: activeScenario.intentContext,
       contextMode,
       target,
-      fallbackTarget: target,
     });
   }
 

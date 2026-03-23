@@ -39,8 +39,6 @@ import {
   type AiAssistantUpdatePatch,
 } from '../aiAssistantActions.ts';
 import {
-  buildAiAssistantActionPlanFromIntent,
-  buildAiAssistantActionPlanFromHint,
   buildAiAssistantActionPlanFromScenario,
 } from './AiAssistantActionPlan.ts';
 import type { AiAssistantActionPlan } from './AiAssistantActionPlanTypes.ts';
@@ -48,7 +46,6 @@ import type { AiAssistantScenarioDescriptor } from './AiAssistantScenarioTypes.t
 import {
   isAiAssistantStructuredActionEntryKind,
   isAiAssistantStructuredReplyEnvelopeLike,
-  type AiAssistantStructuredActionPlanHint,
   type AiAssistantStructuredCreateBatchEntry,
   type AiAssistantStructuredRemoveRelationBatchEntry,
   type AiAssistantStructuredRelationBatchEntry,
@@ -56,13 +53,10 @@ import {
   type AiAssistantStructuredUpdateRelationBatchEntry,
   type AiAssistantStructuredUpdateBatchEntry,
 } from './AiAssistantStructuredTransport.ts';
-import { resolveAiAssistantActionKindsForIntent } from './AiAssistantActionPolicy.ts';
-import type { AiAssistantIntentKind } from '../aiAssistantEvents.ts';
 
 type ParseAiAssistantStructuredReplyOptions = {
   allowActions: boolean;
   validationSnapshot?: AiAssistantCanvasSnapshot | null;
-  intent?: AiAssistantIntentKind;
   scenario?: AiAssistantScenarioDescriptor | null;
   actionPlan?: AiAssistantActionPlan | null;
 };
@@ -98,10 +92,9 @@ export function parseAiAssistantStructuredReply(
     typeof parsed.replyMarkdown === 'string'
       ? parsed.replyMarkdown.trim()
       : '';
-  const actionPlan = resolveParsedActionPlan(parsed.actionPlan, options);
-  const actions = filterActionsForIntent(
+  const actionPlan = resolveParsedActionPlan(options);
+  const actions = filterActionsForPlan(
     normalizeStructuredActions(parsed.actions, options, actionPlan),
-    options.intent,
     actionPlan
   );
   const reviewFindings = sanitizeAiAssistantReviewFindings(
@@ -118,7 +111,6 @@ export function parseAiAssistantStructuredReply(
 }
 
 function resolveParsedActionPlan(
-  planHint: AiAssistantStructuredActionPlanHint | undefined,
   options: ParseAiAssistantStructuredReplyOptions
 ): AiAssistantActionPlan | null {
   if (options.actionPlan) {
@@ -127,31 +119,7 @@ function resolveParsedActionPlan(
   if (options.scenario) {
     return buildAiAssistantActionPlanFromScenario(options.scenario);
   }
-  if (
-    planHint?.scenarioId ||
-    planHint?.scenarioMode ||
-    planHint?.confirmationMode ||
-    planHint?.allowedStructuredReplyKinds
-  ) {
-    const derivedPlan =
-      buildAiAssistantActionPlanFromScenario(options.scenario) ??
-      buildAiAssistantActionPlanFromHint(planHint) ??
-      buildAiAssistantActionPlanFromIntent(options.intent);
-    if (derivedPlan) {
-      return {
-        ...derivedPlan,
-        scenarioId: planHint.scenarioId ?? derivedPlan.scenarioId,
-        scenarioMode: planHint.scenarioMode ?? derivedPlan.scenarioMode,
-        confirmationMode:
-          planHint.confirmationMode ?? derivedPlan.confirmationMode,
-        allowedStructuredReplyKinds:
-          planHint.allowedStructuredReplyKinds ??
-          derivedPlan.allowedStructuredReplyKinds,
-        allowedRuntimeActionKinds: derivedPlan.allowedRuntimeActionKinds,
-      };
-    }
-  }
-  return buildAiAssistantActionPlanFromIntent(options.intent);
+  return null;
 }
 
 function isSystemFallbackMessage(content: string): boolean {
@@ -207,10 +175,10 @@ function normalizeStructuredActionEntry(
   }
 
   if (entry.kind === 'create_batch_tasks') {
-    return normalizeCreateBatchActions('create_task', value, options);
+    return normalizeCreateBatchItems('create_task', value, options);
   }
   if (entry.kind === 'create_batch_stories') {
-    return normalizeCreateBatchActions('create_story', value, options);
+    return normalizeCreateBatchItems('create_story', value, options);
   }
   if (entry.kind === 'create_goals') {
     const action = sanitizeAiAssistantAction(value, options);
@@ -237,44 +205,20 @@ function normalizeStructuredActionEntry(
   return action ? [action] : [];
 }
 
-function normalizeCreateBatchActions(
+function normalizeCreateBatchItems(
   kind: AiAssistantCreateActionKind,
   value: unknown,
   options: SanitizeActionOptions,
   fallbackTitle?: string
 ): AiAssistantAction[] {
   if (!value || typeof value !== 'object') return [];
-  const batch = value as Partial<AiAssistantStructuredCreateBatchEntry> & {
-    data?: {
-      parentId?: unknown;
-      items?: unknown;
-      stories?: unknown;
-      tasks?: unknown;
-      goals?: unknown;
-    };
-  };
-  const legacyParentId =
-    batch.data && typeof batch.data.parentId === 'string'
-      ? batch.data.parentId
-      : undefined;
-  const legacyItems =
-    batch.data && Array.isArray(batch.data.items)
-      ? batch.data.items
-      : kind === 'create_story' && batch.data && Array.isArray(batch.data.stories)
-        ? batch.data.stories
-        : kind === 'create_task' && batch.data && Array.isArray(batch.data.tasks)
-          ? batch.data.tasks
-          : kind === 'create_goal' && batch.data && Array.isArray(batch.data.goals)
-            ? batch.data.goals
-            : [];
-  const items = Array.isArray(batch.items)
-    ? batch.items
-    : legacyItems;
+  const batch = value as Partial<AiAssistantStructuredCreateBatchEntry>;
+  const items = Array.isArray(batch.items) ? batch.items : [];
   if (items.length === 0) return [];
 
   const group = buildActionGroup(
     batch,
-    fallbackTitle ??
+      fallbackTitle ??
       (kind === 'create_task'
         ? 'Task breakdown'
         : kind === 'create_story'
@@ -285,22 +229,13 @@ function normalizeCreateBatchActions(
   return items
     .map((item) => {
       if (!item || typeof item !== 'object') return null;
-      const legacyTarget =
-        legacyParentId && kind !== 'create_goal'
-          ? {
-              kind: kind === 'create_story' ? 'goal' : 'story',
-              id: legacyParentId,
-            }
-          : legacyParentId && kind === 'create_goal'
-            ? { kind: 'goal', id: legacyParentId }
-            : undefined;
       const merged = {
         ...(item as Record<string, unknown>),
         kind,
         target:
           (item as { target?: unknown }).target !== undefined
             ? (item as { target?: unknown }).target
-            : batch.target ?? legacyTarget,
+            : batch.target,
         supportedBy:
           (item as { supportedBy?: unknown }).supportedBy !== undefined
             ? (item as { supportedBy?: unknown }).supportedBy
@@ -1290,14 +1225,11 @@ function extractJsonObject(content: string): string | null {
   return content.slice(start, end + 1).trim();
 }
 
-function filterActionsForIntent(
+function filterActionsForPlan(
   actions: AiAssistantAction[],
-  intent: AiAssistantIntentKind | undefined,
   actionPlan: AiAssistantActionPlan | null
 ): AiAssistantAction[] {
-  const allowedKinds =
-    actionPlan?.allowedRuntimeActionKinds ??
-    resolveAiAssistantActionKindsForIntent(intent);
+  const allowedKinds = actionPlan?.allowedRuntimeActionKinds;
   if (!allowedKinds) {
     return actions;
   }

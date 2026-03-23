@@ -170,12 +170,22 @@ describe('AiAssistantStructuredReplyParser', () => {
   });
 
   it('keeps plain-text intent replies free of inferred actions', () => {
+    const scenario = buildAiAssistantScenarioDescriptor({
+      intent: 'fill_details',
+      prompt:
+        'The selected goal needs a clearer description, but I need more context to make a safe change.',
+      snapshot: createSnapshot(),
+      memory: createAiAssistantTestMemory(),
+      toolResults: [],
+    });
+    const actionPlan = buildAiAssistantActionPlanFromScenario(scenario);
     const result = parseAiAssistantStructuredReply(
       'The selected goal needs a clearer description, but I need more context to make a safe change.',
       {
         allowActions: true,
         validationSnapshot: createSnapshot(),
-        intent: 'fill_details',
+        scenario,
+        actionPlan,
       }
     );
 
@@ -184,6 +194,14 @@ describe('AiAssistantStructuredReplyParser', () => {
   });
 
   it('drops action kinds that are incompatible with the active intent', () => {
+    const scenario = buildAiAssistantScenarioDescriptor({
+      intent: 'fill_details',
+      prompt: 'Fill in the selected goal',
+      snapshot: createSnapshot(),
+      memory: createAiAssistantTestMemory(),
+      toolResults: [],
+    });
+    const actionPlan = buildAiAssistantActionPlanFromScenario(scenario);
     const result = parseAiAssistantStructuredReply(
       JSON.stringify({
         replyMarkdown: 'I prepared one update.',
@@ -211,7 +229,8 @@ describe('AiAssistantStructuredReplyParser', () => {
       {
         allowActions: true,
         validationSnapshot: createSnapshot(),
-        intent: 'fill_details',
+        scenario,
+        actionPlan,
       }
     );
 
@@ -397,6 +416,14 @@ describe('AiAssistantStructuredReplyParser', () => {
   });
 
   it('keeps create_goals batches as a single grouped strategic action', () => {
+    const scenario = buildAiAssistantScenarioDescriptor({
+      intent: 'strategic_plan',
+      prompt: 'Generate a strategic learning plan for marketing automation.',
+      snapshot: createSnapshot(),
+      memory: createAiAssistantTestMemory(),
+      toolResults: [],
+    });
+    const actionPlan = buildAiAssistantActionPlanFromScenario(scenario);
     const result = parseAiAssistantStructuredReply(
       JSON.stringify({
         replyMarkdown: 'I prepared strategic goals for the empty canvas.',
@@ -425,7 +452,8 @@ describe('AiAssistantStructuredReplyParser', () => {
       {
         allowActions: true,
         validationSnapshot: createSnapshot(),
-        intent: 'strategic_plan',
+        scenario,
+        actionPlan,
       }
     );
 
@@ -443,6 +471,14 @@ describe('AiAssistantStructuredReplyParser', () => {
   });
 
   it('keeps create_goal_blueprint as one strategic plan action', () => {
+    const scenario = buildAiAssistantScenarioDescriptor({
+      intent: 'strategic_plan',
+      prompt: 'Generate a strategic learning plan for marketing automation.',
+      snapshot: createEmptySnapshot(),
+      memory: createAiAssistantTestMemory(),
+      toolResults: [],
+    });
+    const actionPlan = buildAiAssistantActionPlanFromScenario(scenario);
     const result = parseAiAssistantStructuredReply(
       JSON.stringify({
         replyMarkdown: 'I prepared one strategic plan skeleton.',
@@ -482,7 +518,8 @@ describe('AiAssistantStructuredReplyParser', () => {
       {
         allowActions: true,
         validationSnapshot: createEmptySnapshot(),
-        intent: 'strategic_plan',
+        scenario,
+        actionPlan,
       }
     );
 
@@ -496,7 +533,7 @@ describe('AiAssistantStructuredReplyParser', () => {
     expect(result.actions[0].relations).toHaveLength(1);
   });
 
-  it('recovers legacy create_batch_stories wrappers into grouped create_story actions', () => {
+  it('rejects legacy create_batch_stories wrappers without recovering batch data', () => {
     const snapshot = createEmptySnapshot();
     snapshot.elements = [
       {
@@ -515,6 +552,14 @@ describe('AiAssistantStructuredReplyParser', () => {
       },
     ];
 
+    const scenario = buildAiAssistantScenarioDescriptor({
+      intent: 'breakdown',
+      prompt: 'Break down the selected goal into stories.',
+      snapshot,
+      memory: createAiAssistantTestMemory(),
+      toolResults: [],
+    });
+    const actionPlan = buildAiAssistantActionPlanFromScenario(scenario);
     const result = parseAiAssistantStructuredReply(
       JSON.stringify({
         replyMarkdown: 'I prepared stories for the selected goal.',
@@ -523,10 +568,7 @@ describe('AiAssistantStructuredReplyParser', () => {
             kind: 'create_batch_stories',
             data: {
               parentId: 'goal-1',
-              stories: [
-                { title: 'Learn the fundamentals' },
-                { title: 'Build first workflows' },
-              ],
+              stories: [{ title: 'Learn the fundamentals' }],
             },
           },
         ],
@@ -534,18 +576,11 @@ describe('AiAssistantStructuredReplyParser', () => {
       {
         allowActions: true,
         validationSnapshot: snapshot,
-        intent: 'breakdown',
+        scenario,
+        actionPlan,
       }
     );
 
-    expect(result.actions).toHaveLength(2);
-    expect(result.actions[0]).toMatchObject({
-      kind: 'create_story',
-      target: { kind: 'goal', id: 'goal-1' },
-    });
-    expect(result.actions[1]).toMatchObject({
-      kind: 'create_story',
-      target: { kind: 'goal', id: 'goal-1' },
-    });
+    expect(result.actions).toEqual([]);
   });
 });

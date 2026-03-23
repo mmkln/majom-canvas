@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createAiAssistantTestMemory, createAiAssistantTestSnapshot } from './AiAssistantTestUtils.ts';
 import {
-  buildAiAssistantActionPlanFromIntent,
+  createAiAssistantTestMemory,
+  createAiAssistantTestSnapshot,
+} from './AiAssistantTestUtils.ts';
+import {
   buildAiAssistantActionPlanFromScenario,
 } from './AiAssistantActionPlan.ts';
 import {
@@ -51,12 +53,19 @@ describe('AiAssistantActionPlan', () => {
     ]);
   });
 
-  it('builds a generic follow-up plan for intent-only requests', () => {
-    const plan = buildAiAssistantActionPlanFromIntent('general_question');
+  it('builds a fallback plan for conversational scenarios', () => {
+    const scenario = buildAiAssistantScenarioDescriptor({
+      intent: 'general_question',
+      prompt: 'What can you help with?',
+      snapshot: createAiAssistantTestSnapshot(),
+      memory: createAiAssistantTestMemory(),
+      toolResults: [],
+    });
+    const plan = buildAiAssistantActionPlanFromScenario(scenario);
 
     expect(plan?.scenarioId).toBe('general_question.default');
-    expect(plan?.confirmationMode).toBe('follow-up');
-    expect(plan?.requiresFollowUp).toBe(true);
+    expect(plan?.confirmationMode).toBe('none');
+    expect(plan?.requiresFollowUp).toBe(false);
     expect(plan?.batchable).toBe(false);
   });
 

@@ -34,7 +34,6 @@ export function resolveAiAssistantScenarioFromSubmission(
     intentContext: submission.intentContext,
     contextMode: submission.contextMode,
     target: buildTargetInput(submission.snapshot),
-    fallbackTarget: buildTargetInput(submission.snapshot),
   });
 }
 
@@ -48,20 +47,15 @@ export function resolveAiAssistantScenarioFromPrompt(
     ...input,
     contextMode: input.contextMode,
     target: buildTargetInput(input.snapshot),
-    fallbackTarget: buildTargetInput(input.snapshot),
   });
 }
 
 export function resolveAiAssistantScenario(
   input: AiAssistantScenarioResolutionInput
 ): AiAssistantScenarioDescriptor {
-  const effectiveIntent =
-    input.intent ?? (input.source === 'manual' ? input.fallbackIntent : undefined);
-  const effectiveIntentContext =
-    input.intentContext ??
-    (input.source === 'manual' ? input.fallbackIntentContext : undefined);
-  const targetInput =
-    input.target ?? (input.source === 'manual' ? input.fallbackTarget : undefined);
+  const effectiveIntent = input.intent;
+  const effectiveIntentContext = input.intentContext;
+  const targetInput = input.target;
 
   if (!effectiveIntent) {
     return {

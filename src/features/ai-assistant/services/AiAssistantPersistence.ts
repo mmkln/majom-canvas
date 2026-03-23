@@ -15,6 +15,8 @@ import {
   sanitizeStoredAiAssistantReviewFindings,
 } from './AiAssistantStructuredReplyParser.ts';
 
+const AI_ASSISTANT_CONVERSATION_STORAGE_VERSION = 2;
+
 export class AiAssistantPersistence {
   constructor(
     private readonly storageKeyPrefix = AI_ASSISTANT_STORAGE_KEY_PREFIX,
@@ -27,11 +29,16 @@ export class AiAssistantPersistence {
     try {
       const raw = window.localStorage.getItem(this.buildStorageKey(key));
       if (!raw) return [];
-      const parsed = JSON.parse(raw) as AiAssistantMessage[];
-      if (!Array.isArray(parsed)) return [];
-      return parsed
+      const parsed = JSON.parse(raw) as unknown;
+      const record = normalizeConversationRecord(parsed);
+      if (!record) return [];
+      const messages = record.messages
         .map((message) => this.normalizeMessage(message))
         .filter((message): message is AiAssistantMessage => message !== null);
+      if (record.needsUpgrade) {
+        this.saveConversation(key, messages);
+      }
+      return messages;
     } catch {
       return [];
     }
@@ -44,7 +51,10 @@ export class AiAssistantPersistence {
     try {
       window.localStorage.setItem(
         this.buildStorageKey(key),
-        JSON.stringify(messages.slice(-this.historyLimit))
+        JSON.stringify({
+          version: AI_ASSISTANT_CONVERSATION_STORAGE_VERSION,
+          messages: messages.slice(-this.historyLimit),
+        })
       );
     } catch {
       // no-op
@@ -148,11 +158,57 @@ function normalizeAiAssistantIntentKind(
     case 'clarify':
     case 'fill_details':
       return value;
-    case 'bootstrap_plan':
-      return 'strategic_plan';
     default:
       return null;
   }
+}
+
+function normalizeConversationRecord(
+  value: unknown
+): { messages: unknown[]; needsUpgrade: boolean } | null {
+  if (Array.isArray(value)) {
+    return {
+      messages: value.map((message) => migrateConversationMessage(message)),
+      needsUpgrade: true,
+    };
+  }
+
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const record = value as {
+    version?: unknown;
+    messages?: unknown;
+  };
+  if (!Array.isArray(record.messages)) {
+    return null;
+  }
+
+  return {
+    messages: record.messages.map((message) => migrateConversationMessage(message)),
+    needsUpgrade: record.version !== AI_ASSISTANT_CONVERSATION_STORAGE_VERSION,
+  };
+}
+
+function migrateConversationMessage(value: unknown): unknown {
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  const message = value as Record<string, unknown>;
+  const requestIntent = message.requestIntent;
+  if (
+    requestIntent === 'bootstrap_plan' ||
+    requestIntent === 'bootstrap-plan'
+  ) {
+    return {
+      ...message,
+      requestIntent: 'strategic_plan',
+    };
+  }
+
+  return message;
 }
 
 function normalizeAiAssistantIntentContext(
