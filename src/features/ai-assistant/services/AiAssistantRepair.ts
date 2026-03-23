@@ -6,7 +6,10 @@ import type { AiAssistantApiMessage } from './AiAssistantApiTypes.ts';
 import type { AiAssistantIntentKind } from '../aiAssistantEvents.ts';
 import { describeAiAssistantStructuredReplyKinds } from './AiAssistantActionPolicy.ts';
 import { describeAiAssistantProfiles } from './AiAssistantContextTypes.ts';
-import type { AiAssistantTokenUsage } from './AiAssistantTelemetryTypes.ts';
+import type {
+  AiAssistantTelemetryScenarioContext,
+  AiAssistantTokenUsage,
+} from './AiAssistantTelemetryTypes.ts';
 
 type AiAssistantTextClient = {
   completeText: (
@@ -181,28 +184,36 @@ export function buildAiAssistantRouterRepairMessages(params: {
   invalidResponse: string;
   validationError: string;
   originalMessages?: AiAssistantApiMessage[];
+  scenario?: AiAssistantTelemetryScenarioContext;
 }): AiAssistantApiMessage[] {
   const allowedProfiles = describeAiAssistantProfiles();
   const originalContext =
     params.originalMessages && params.originalMessages.length > 0
       ? `Original router request:\n${JSON.stringify(params.originalMessages, null, 2)}`
       : null;
+  const scenarioContext = describeScenarioContext(params.scenario);
+  const systemLines = [
+    'You repair invalid JSON emitted by a routing model.',
+    'Return JSON only.',
+    'Do not add markdown fences, explanations, or commentary.',
+    'Preserve the original routing intent whenever possible.',
+    'Use the original router request context to recover the intended decision when the invalid response was conversational or off-format.',
+  ];
+  if (scenarioContext) {
+    systemLines.push(scenarioContext);
+  }
+  systemLines.push(
+    `Use one of these exact profile values: ${allowedProfiles}.`,
+    'Allowed decision shapes:',
+    '{"kind":"load_instructions","profile":"<exact profile value>","contextMode":"<none|canvas|viewport|selection>","instructionIds":["<instruction id>"]}',
+    '{"kind":"execute_tools","profile":"<exact profile value>","contextMode":"<none|canvas|viewport|selection>","calls":[{"tool":"<tool name>","input":{}}]}',
+    '{"kind":"ask_followup","profile":"<exact profile value>","contextMode":"<none|canvas|viewport|selection>","question":"<question>"}',
+    '{"kind":"finalize","profile":"<exact profile value>","contextMode":"<none|canvas|viewport|selection>"}'
+  );
   return [
     {
       role: 'system',
-      content: [
-        'You repair invalid JSON emitted by a routing model.',
-        'Return JSON only.',
-        'Do not add markdown fences, explanations, or commentary.',
-        'Preserve the original routing intent whenever possible.',
-        'Use the original router request context to recover the intended decision when the invalid response was conversational or off-format.',
-        `Use one of these exact profile values: ${allowedProfiles}.`,
-        'Allowed decision shapes:',
-        '{"kind":"load_instructions","profile":"<exact profile value>","contextMode":"<none|canvas|viewport|selection>","instructionIds":["<instruction id>"]}',
-        '{"kind":"execute_tools","profile":"<exact profile value>","contextMode":"<none|canvas|viewport|selection>","calls":[{"tool":"<tool name>","input":{}}]}',
-        '{"kind":"ask_followup","profile":"<exact profile value>","contextMode":"<none|canvas|viewport|selection>","question":"<question>"}',
-        '{"kind":"finalize","profile":"<exact profile value>","contextMode":"<none|canvas|viewport|selection>"}',
-      ].join('\n'),
+      content: systemLines.join('\n'),
     },
     {
       role: 'user',
@@ -221,6 +232,7 @@ export function buildAiAssistantStructuredReplyRepairMessages(params: {
   validationError: string;
   allowActions: boolean;
   intent?: AiAssistantIntentKind;
+  scenario?: AiAssistantTelemetryScenarioContext;
 }): AiAssistantApiMessage[] {
   const systemLines = [
     'You repair invalid AI assistant responses into the required structured JSON envelope.',
@@ -229,6 +241,10 @@ export function buildAiAssistantStructuredReplyRepairMessages(params: {
     'Preserve the original replyMarkdown meaning whenever possible.',
     `Required envelope shape: ${AI_ASSISTANT_STRUCTURED_ENVELOPE_SHAPE}`,
   ];
+  const scenarioContext = describeScenarioContext(params.scenario);
+  if (scenarioContext) {
+    systemLines.push(scenarioContext);
+  }
 
   if (!params.allowActions) {
     systemLines.push('If unsure, set "actions": [].');
@@ -260,6 +276,24 @@ export function buildAiAssistantStructuredReplyRepairMessages(params: {
       ].join('\n\n'),
     },
   ];
+}
+
+function describeScenarioContext(
+  scenario: AiAssistantTelemetryScenarioContext | undefined
+): string | null {
+  if (!scenario) {
+    return null;
+  }
+
+  const parts = [
+    scenario.scenarioId ? `scenarioId=${scenario.scenarioId}` : null,
+    scenario.scenarioMode ? `scenarioMode=${scenario.scenarioMode}` : null,
+    scenario.scenarioKind ? `scenarioKind=${scenario.scenarioKind}` : null,
+    scenario.routeLength ? `routeLength=${scenario.routeLength}` : null,
+    scenario.proposalStyle ? `proposalStyle=${scenario.proposalStyle}` : null,
+  ].filter(Boolean);
+
+  return parts.length > 0 ? `Scenario context: ${parts.join(', ')}` : null;
 }
 
 export function tryParseAiAssistantJsonCandidate<T = unknown>(

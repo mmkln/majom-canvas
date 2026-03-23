@@ -11,6 +11,7 @@ import type {
 import {
   getAiAssistantActionLabel,
   isAiAssistantActionKind,
+  isAiAssistantActionConfirmationMode,
   isAiAssistantActionStatus,
   isAiAssistantCreateElementStatus,
   type AiAssistantGoalBlueprintAction,
@@ -38,8 +39,16 @@ import {
   type AiAssistantUpdatePatch,
 } from '../aiAssistantActions.ts';
 import {
+  buildAiAssistantActionPlanFromIntent,
+  buildAiAssistantActionPlanFromHint,
+  buildAiAssistantActionPlanFromScenario,
+} from './AiAssistantActionPlan.ts';
+import type { AiAssistantActionPlan } from './AiAssistantActionPlanTypes.ts';
+import type { AiAssistantScenarioDescriptor } from './AiAssistantContextPlanner.ts';
+import {
   isAiAssistantStructuredActionEntryKind,
   isAiAssistantStructuredReplyEnvelopeLike,
+  type AiAssistantStructuredActionPlanHint,
   type AiAssistantStructuredCreateBatchEntry,
   type AiAssistantStructuredRemoveRelationBatchEntry,
   type AiAssistantStructuredRelationBatchEntry,
@@ -54,12 +63,15 @@ type ParseAiAssistantStructuredReplyOptions = {
   allowActions: boolean;
   validationSnapshot?: AiAssistantCanvasSnapshot | null;
   intent?: AiAssistantIntentKind;
+  scenario?: AiAssistantScenarioDescriptor | null;
+  actionPlan?: AiAssistantActionPlan | null;
 };
 
 type SanitizeActionOptions = {
   validationSnapshot?: AiAssistantCanvasSnapshot | null;
   preserveExecutionState?: boolean;
   group?: AiAssistantActionGroup;
+  confirmationMode?: AiAssistantActionPlan['confirmationMode'];
 };
 
 export function parseAiAssistantStructuredReply(
@@ -86,9 +98,11 @@ export function parseAiAssistantStructuredReply(
     typeof parsed.replyMarkdown === 'string'
       ? parsed.replyMarkdown.trim()
       : '';
+  const actionPlan = resolveParsedActionPlan(parsed.actionPlan, options);
   const actions = filterActionsForIntent(
-    normalizeStructuredActions(parsed.actions, options),
-    options.intent
+    normalizeStructuredActions(parsed.actions, options, actionPlan),
+    options.intent,
+    actionPlan
   );
   const reviewFindings = sanitizeAiAssistantReviewFindings(
     parsed.reviewFindings
@@ -101,6 +115,43 @@ export function parseAiAssistantStructuredReply(
     actions: actions.length > 0 ? actions : fallbackActions,
     reviewFindings: reviewFindings ?? undefined,
   };
+}
+
+function resolveParsedActionPlan(
+  planHint: AiAssistantStructuredActionPlanHint | undefined,
+  options: ParseAiAssistantStructuredReplyOptions
+): AiAssistantActionPlan | null {
+  if (options.actionPlan) {
+    return options.actionPlan;
+  }
+  if (options.scenario) {
+    return buildAiAssistantActionPlanFromScenario(options.scenario);
+  }
+  if (
+    planHint?.scenarioId ||
+    planHint?.scenarioMode ||
+    planHint?.confirmationMode ||
+    planHint?.allowedStructuredReplyKinds
+  ) {
+    const derivedPlan =
+      buildAiAssistantActionPlanFromScenario(options.scenario) ??
+      buildAiAssistantActionPlanFromHint(planHint) ??
+      buildAiAssistantActionPlanFromIntent(options.intent);
+    if (derivedPlan) {
+      return {
+        ...derivedPlan,
+        scenarioId: planHint.scenarioId ?? derivedPlan.scenarioId,
+        scenarioMode: planHint.scenarioMode ?? derivedPlan.scenarioMode,
+        confirmationMode:
+          planHint.confirmationMode ?? derivedPlan.confirmationMode,
+        allowedStructuredReplyKinds:
+          planHint.allowedStructuredReplyKinds ??
+          derivedPlan.allowedStructuredReplyKinds,
+        allowedRuntimeActionKinds: derivedPlan.allowedRuntimeActionKinds,
+      };
+    }
+  }
+  return buildAiAssistantActionPlanFromIntent(options.intent);
 }
 
 function isSystemFallbackMessage(content: string): boolean {
@@ -126,7 +177,8 @@ export function sanitizeStoredAiAssistantReviewFindings(
 
 function normalizeStructuredActions(
   value: unknown,
-  options: ParseAiAssistantStructuredReplyOptions
+  options: ParseAiAssistantStructuredReplyOptions,
+  actionPlan: AiAssistantActionPlan | null
 ): AiAssistantAction[] {
   if (!options.allowActions || !Array.isArray(value)) {
     return [];
@@ -137,6 +189,7 @@ function normalizeStructuredActions(
     actions.push(
       ...normalizeStructuredActionEntry(item, {
         validationSnapshot: options.validationSnapshot,
+        confirmationMode: actionPlan?.confirmationMode,
       })
     );
   });
@@ -765,6 +818,7 @@ function buildCommonActionFields(
     supportedBy?: unknown;
     evidenceIds?: unknown;
     sourceContext?: unknown;
+    confirmationMode?: unknown;
   },
   options: SanitizeActionOptions,
   defaultLabel: string,
@@ -775,6 +829,7 @@ function buildCommonActionFields(
   | 'label'
   | 'title'
   | 'status'
+  | 'confirmationMode'
   | 'errorMessage'
   | 'createdElementId'
   | 'affectedElementIds'
@@ -787,6 +842,14 @@ function buildCommonActionFields(
 > {
   const sanitizedGroup = sanitizeActionGroup(value);
   const sourceContext = sanitizeText(value.sourceContext, 400) ?? undefined;
+  const confirmationMode =
+    (isAiAssistantActionConfirmationMode(value.confirmationMode)
+      ? value.confirmationMode
+      : undefined) ??
+    (options.confirmationMode &&
+    isAiAssistantActionConfirmationMode(options.confirmationMode)
+      ? options.confirmationMode
+      : undefined);
   const group = {
     groupId: sanitizedGroup.groupId ?? options.group?.groupId,
     groupTitle: sanitizedGroup.groupTitle ?? options.group?.groupTitle,
@@ -799,6 +862,7 @@ function buildCommonActionFields(
     status: options.preserveExecutionState
       ? normalizeActionStatus(value.status)
       : 'idle',
+    confirmationMode,
     errorMessage: options.preserveExecutionState
       ? sanitizeText(value.errorMessage, 300) ?? undefined
       : undefined,
@@ -1228,9 +1292,12 @@ function extractJsonObject(content: string): string | null {
 
 function filterActionsForIntent(
   actions: AiAssistantAction[],
-  intent: AiAssistantIntentKind | undefined
+  intent: AiAssistantIntentKind | undefined,
+  actionPlan: AiAssistantActionPlan | null
 ): AiAssistantAction[] {
-  const allowedKinds = resolveAiAssistantActionKindsForIntent(intent);
+  const allowedKinds =
+    actionPlan?.allowedRuntimeActionKinds ??
+    resolveAiAssistantActionKindsForIntent(intent);
   if (!allowedKinds) {
     return actions;
   }

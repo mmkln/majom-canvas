@@ -3,6 +3,7 @@ import { getAiAssistantSelectedItems } from '../services/AiAssistantContent.ts';
 import type { AiAssistantCanvasSnapshot } from '../aiAssistantEvents.ts';
 import type {
   AiAssistantAction,
+  AiAssistantActionConfirmationMode,
   AiAssistantCreateElementStatus,
   AiAssistantReviewFindings,
   AiAssistantReviewFindingSeverity,
@@ -192,6 +193,13 @@ export function buildAiAssistantActionTagModels(
   if (action.sourceContext) {
     tags.push({
       text: 'source context',
+      tone: getAiAssistantNeutralBadgeTone(),
+    });
+  }
+
+  if (action.confirmationMode && action.confirmationMode !== 'none') {
+    tags.push({
+      text: formatAiAssistantConfirmationModeLabel(action.confirmationMode),
       tone: getAiAssistantNeutralBadgeTone(),
     });
   }
@@ -454,5 +462,21 @@ function formatAiAssistantUpdatePatchTagLabel(
       return 'Status change';
     default:
       return `${key}: ${String(value)}`;
+  }
+}
+
+function formatAiAssistantConfirmationModeLabel(
+  mode: AiAssistantActionConfirmationMode
+): string {
+  switch (mode) {
+    case 'batch':
+      return 'Batch confirm';
+    case 'single':
+      return 'Single confirm';
+    case 'follow-up':
+      return 'Follow-up';
+    case 'none':
+    default:
+      return 'No confirm';
   }
 }

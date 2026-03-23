@@ -518,30 +518,13 @@ describe('AiAssistantOrchestrator', () => {
     });
   });
 
-  it('uses planner and final answer model calls for manual requests', async () => {
+  it('classifies manual requests before running the response flow', async () => {
     const completeText = vi
       .fn()
       .mockResolvedValueOnce(
         JSON.stringify({
-          kind: 'load_instructions',
-          profile: 'review-selection',
-          contextMode: 'selection',
-          instructionIds: ['planning.review-selection'],
-        })
-      )
-      .mockResolvedValueOnce(
-        JSON.stringify({
-          kind: 'execute_tools',
-          profile: 'review-selection',
-          contextMode: 'selection',
-          calls: [{ tool: 'get_focus_bundle', input: { target: 'selection' } }],
-        })
-      )
-      .mockResolvedValueOnce(
-        JSON.stringify({
-          kind: 'finalize',
-          profile: 'review-selection',
-          contextMode: 'selection',
+          intent: 'review',
+          confidence: 0.95,
         })
       )
       .mockResolvedValueOnce(
@@ -565,16 +548,94 @@ describe('AiAssistantOrchestrator', () => {
       allowActions: false,
     });
 
-    expect(completeText).toHaveBeenCalledTimes(4);
+    expect(completeText).toHaveBeenCalledTimes(2);
+    expect(completeText.mock.calls[0]?.[0]?.[0]?.content).toContain(
+      'classify workspace requests into scenarios'
+    );
     expect(reply.plan.calls).toEqual([
       { tool: 'get_focus_bundle', input: { target: 'selection' } },
     ]);
     expect(reply.actions).toEqual([]);
   });
 
+  it('classifies a manual prompt into a typed breakdown scenario', async () => {
+    const completeText = vi
+      .fn()
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          intent: 'breakdown',
+          breakdownMode: 'story_tasks',
+          confidence: 0.96,
+        })
+      )
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          replyMarkdown: 'I split the selected story into tasks.',
+          actions: [
+            {
+              kind: 'create_batch_tasks',
+              title: 'Task group',
+              summary: 'Split the story into next actions.',
+              target: {
+                kind: 'story',
+                id: 'story-1',
+              },
+              items: [
+                {
+                  title: 'Confirm the checkout step',
+                },
+                {
+                  title: 'Define the receipt email',
+                },
+              ],
+            },
+          ],
+        })
+      );
+    const orchestrator = new AiAssistantOrchestrator({
+      apiClient: {
+        completeText,
+      },
+    });
+
+    const reply = await orchestrator.reply({
+      prompt: 'Please break the selected story into tasks.',
+      source: 'manual',
+      snapshot: createAiAssistantTestSnapshot(),
+      contextMode: 'selection',
+      memory: createAiAssistantTestMemory({
+        currentIntent: null,
+        conversationSummary: null,
+        agreedFacts: [],
+        lastRecommendations: [],
+      }),
+      allowActions: true,
+    });
+
+    expect(completeText).toHaveBeenCalledTimes(2);
+    expect(completeText.mock.calls[0]?.[0]?.[0]?.content).toContain(
+      'classify workspace requests into scenarios'
+    );
+    expect(completeText.mock.calls[1]?.[0]?.[0]?.content).toContain(
+      'workspace action command "breakdown"'
+    );
+    expect(reply.replyMarkdown).toBe('I split the selected story into tasks.');
+    expect(reply.actions).toHaveLength(2);
+    expect(reply.actions.map((action) => action.kind)).toEqual([
+      'create_task',
+      'create_task',
+    ]);
+  });
+
   it('can answer capability questions by loading capability instructions and frontend context', async () => {
     const completeText = vi
       .fn()
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          intent: null,
+          confidence: 0.15,
+        })
+      )
       .mockResolvedValueOnce(
         'Привіт! Я можу допомогти з плануванням на канвасі, перевіркою структури, наступними кроками та уточненням вибраних елементів.'
       )
@@ -646,20 +707,20 @@ describe('AiAssistantOrchestrator', () => {
       },
     });
 
-    expect(completeText).toHaveBeenCalledTimes(5);
-    expect(completeText.mock.calls[0]?.[0]?.[1]?.content).toContain(
+    expect(completeText).toHaveBeenCalledTimes(6);
+    expect(completeText.mock.calls[1]?.[0]?.[1]?.content).toContain(
       'planning.capability-help'
     );
-    expect(completeText.mock.calls[1]?.[0]?.[1]?.content).toContain(
+    expect(completeText.mock.calls[2]?.[0]?.[1]?.content).toContain(
       'Original router request:'
     );
-    expect(completeText.mock.calls[1]?.[0]?.[1]?.content).toContain(
+    expect(completeText.mock.calls[2]?.[0]?.[1]?.content).toContain(
       'get_chat_capabilities'
     );
-    expect(completeText.mock.calls[3]?.[0]?.[1]?.content).toContain(
+    expect(completeText.mock.calls[4]?.[0]?.[1]?.content).toContain(
       'planning.capability-help'
     );
-    expect(completeText.mock.calls[4]?.[0]?.[2]?.content).toContain(
+    expect(completeText.mock.calls[5]?.[0]?.[2]?.content).toContain(
       'get_chat_capabilities'
     );
     expect(reply.replyMarkdown).toContain('review the selected work');
@@ -669,6 +730,12 @@ describe('AiAssistantOrchestrator', () => {
   it('normalizes router profile aliases such as workspace into general-question', async () => {
     const completeText = vi
       .fn()
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          intent: null,
+          confidence: 0.15,
+        })
+      )
       .mockResolvedValueOnce(
         JSON.stringify({
           kind: 'load_instructions',
@@ -745,6 +812,12 @@ describe('AiAssistantOrchestrator', () => {
       .fn()
       .mockResolvedValueOnce(
         JSON.stringify({
+          intent: null,
+          confidence: 0.15,
+        })
+      )
+      .mockResolvedValueOnce(
+        JSON.stringify({
           kind: 'finalize',
           profile: 'review-selection',
           contextMode: 'selection',
@@ -786,14 +859,22 @@ describe('AiAssistantOrchestrator', () => {
   });
 
   it('can return a follow-up question without calling the final answer model', async () => {
-    const completeText = vi.fn(async () =>
-      JSON.stringify({
-        kind: 'ask_followup',
-        profile: 'general-question',
-        contextMode: 'selection',
-        question: 'Which story should I inspect?',
-      })
-    );
+    const completeText = vi
+      .fn()
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          intent: null,
+          confidence: 0.15,
+        })
+      )
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          kind: 'ask_followup',
+          profile: 'general-question',
+          contextMode: 'selection',
+          question: 'Which story should I inspect?',
+        })
+      );
     const orchestrator = new AiAssistantOrchestrator({
       apiClient: {
         completeText,
@@ -809,7 +890,7 @@ describe('AiAssistantOrchestrator', () => {
       allowActions: false,
     });
 
-    expect(completeText).toHaveBeenCalledTimes(1);
+    expect(completeText).toHaveBeenCalledTimes(2);
     expect(reply.replyMarkdown).toBe('Which story should I inspect?');
     expect(reply.actions).toEqual([]);
   });
@@ -817,6 +898,12 @@ describe('AiAssistantOrchestrator', () => {
   it('repairs one invalid router response before continuing', async () => {
     const completeText = vi
       .fn()
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          intent: null,
+          confidence: 0.15,
+        })
+      )
       .mockResolvedValueOnce('not json')
       .mockResolvedValueOnce(
         JSON.stringify({
@@ -846,8 +933,8 @@ describe('AiAssistantOrchestrator', () => {
       allowActions: false,
     });
 
-    expect(completeText).toHaveBeenCalledTimes(3);
-    expect(completeText.mock.calls[1]?.[0]?.[0]?.content).toContain(
+    expect(completeText).toHaveBeenCalledTimes(4);
+    expect(completeText.mock.calls[2]?.[0]?.[0]?.content).toContain(
       'You repair invalid JSON emitted by a routing model.'
     );
     expect(reply.replyMarkdown).toBe('Recovered reply');
@@ -856,6 +943,12 @@ describe('AiAssistantOrchestrator', () => {
   it('repairs one invalid final envelope before parsing it', async () => {
     const completeText = vi
       .fn()
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          intent: null,
+          confidence: 0.15,
+        })
+      )
       .mockResolvedValueOnce(
         JSON.stringify({
           kind: 'finalize',
@@ -885,8 +978,8 @@ describe('AiAssistantOrchestrator', () => {
       allowActions: false,
     });
 
-    expect(completeText).toHaveBeenCalledTimes(3);
-    expect(completeText.mock.calls[2]?.[0]?.[0]?.content).toContain(
+    expect(completeText).toHaveBeenCalledTimes(4);
+    expect(completeText.mock.calls[3]?.[0]?.[0]?.content).toContain(
       'You repair invalid AI assistant responses into the required structured JSON envelope.'
     );
     expect(reply.replyMarkdown).toBe('Repaired structured reply');

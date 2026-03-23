@@ -9,6 +9,12 @@ export type AiAssistantCreateActionKind =
   | 'create_story'
   | 'create_goal';
 
+export type AiAssistantActionConfirmationMode =
+  | 'none'
+  | 'single'
+  | 'batch'
+  | 'follow-up';
+
 export type AiAssistantCreateGoalsItem = {
   title: string;
   description?: string;
@@ -58,6 +64,7 @@ type AiAssistantActionBase = AiAssistantActionGroup & {
   label: string;
   title: string;
   status: AiAssistantActionStatus;
+  confirmationMode?: AiAssistantActionConfirmationMode;
   errorMessage?: string;
   createdElementId?: string;
   affectedElementIds?: string[];
@@ -289,8 +296,19 @@ export function isAiAssistantCreateElementStatus(
   return (
     value === 'defined' ||
     value === 'pending' ||
-      value === 'in-progress' ||
-      value === 'done'
+    value === 'in-progress' ||
+    value === 'done'
+  );
+}
+
+export function isAiAssistantActionConfirmationMode(
+  value: unknown
+): value is AiAssistantActionConfirmationMode {
+  return (
+    value === 'none' ||
+    value === 'single' ||
+    value === 'batch' ||
+    value === 'follow-up'
   );
 }
 

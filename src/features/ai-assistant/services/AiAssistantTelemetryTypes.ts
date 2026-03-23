@@ -4,6 +4,12 @@ import type { AiAssistantProfile } from './AiAssistantContextTypes.ts';
 
 export type AiAssistantTelemetryRouteType = 'intent' | 'manual';
 
+export type AiAssistantTelemetryRouteLength = 'short' | 'long';
+
+export type AiAssistantTelemetryProposalStyle =
+  | 'clarify-first'
+  | 'direct';
+
 export type AiAssistantTokenUsage = {
   promptTokens?: number;
   completionTokens?: number;
@@ -16,10 +22,23 @@ export type AiAssistantTelemetryContext = {
   requestId: string;
 };
 
+export type AiAssistantTelemetryScenarioContext = {
+  scenarioId?: string;
+  scenarioMode?: string;
+  scenarioKind?: 'typed' | 'fallback';
+  routeLength?: AiAssistantTelemetryRouteLength;
+  proposalStyle?: AiAssistantTelemetryProposalStyle;
+};
+
 export type AiAssistantInteractionTelemetryEvent = {
   kind: 'interaction';
   timestamp: number;
   context: AiAssistantTelemetryContext;
+  scenarioId?: string;
+  scenarioMode?: string;
+  scenarioKind?: 'typed' | 'fallback';
+  routeLength?: AiAssistantTelemetryRouteLength;
+  proposalStyle?: AiAssistantTelemetryProposalStyle;
   routeType: AiAssistantTelemetryRouteType;
   intent?: AiAssistantIntentKind;
   profile?: AiAssistantProfile;
@@ -40,6 +59,8 @@ export type AiAssistantRepairTelemetryEvent = {
   kind: 'repair';
   timestamp: number;
   context: AiAssistantTelemetryContext;
+  scenarioId?: string;
+  scenarioMode?: string;
   stage: 'router' | 'command' | 'answer';
   attempt: number;
   validationError: string;
@@ -49,6 +70,8 @@ export type AiAssistantActionTelemetryEvent = {
   kind: 'action_execution';
   timestamp: number;
   context: AiAssistantTelemetryContext;
+  scenarioId?: string;
+  scenarioMode?: string;
   messageId: string;
   appliedActionCount: number;
   pendingActionCount: number;

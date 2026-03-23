@@ -4,6 +4,7 @@ import type {
 } from '../aiAssistantActions.ts';
 import type {
   AiAssistantCanvasElement,
+  AiAssistantCanvasSnapshot,
   AiAssistantIntentKind,
 } from '../aiAssistantEvents.ts';
 import type {
@@ -120,6 +121,30 @@ export type AiAssistantScenarioResolutionInput = {
   fallbackIntent?: AiAssistantIntentKind;
   fallbackIntentContext?: AiAssistantIntentContext;
   fallbackTarget?: AiAssistantScenarioTargetInput;
+};
+
+export type AiAssistantScenarioClassification = {
+  intent: AiAssistantIntentKind | null;
+  strategicPlanMode?: AiAssistantStrategicPlanMode;
+  breakdownMode?: AiAssistantBreakdownMode;
+  confidence: number;
+  intentContext?: AiAssistantIntentContext;
+};
+
+export type AiAssistantScenarioClassifierTarget = {
+  canvasTitle: string | null;
+  selectionCount: number;
+  focus: {
+    id: string;
+    kind: AiAssistantCanvasElement['kind'];
+    title: string;
+  } | null;
+  selection: Array<{
+    id: string;
+    kind: AiAssistantCanvasElement['kind'];
+    title: string;
+  }>;
+  summary?: AiAssistantCanvasSnapshot['summary'];
 };
 
 export function buildAiAssistantScenarioTarget(

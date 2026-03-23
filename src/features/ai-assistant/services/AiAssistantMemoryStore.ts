@@ -8,7 +8,11 @@ import {
   getSelectedElements,
 } from './AiAssistantSnapshotLens.ts';
 import type { AiAssistantIntentContext } from './AiAssistantIntentContext.ts';
-import type { AiAssistantMemoryState } from './AiAssistantContextTypes.ts';
+import type {
+  AiAssistantFollowUpSlotRecord,
+  AiAssistantActiveScenario,
+  AiAssistantMemoryState,
+} from './AiAssistantContextTypes.ts';
 import { EMPTY_AI_ASSISTANT_MEMORY_STATE } from './AiAssistantContextTypes.ts';
 
 export class AiAssistantMemoryStore {
@@ -32,6 +36,7 @@ export class AiAssistantMemoryStore {
     snapshot: AiAssistantCanvasSnapshot | null;
     intent?: string | null;
     intentContext?: AiAssistantIntentContext;
+    scenario?: AiAssistantActiveScenario | null;
   }): AiAssistantMemoryState {
     const current = this.get(params.conversationKey);
     const recordedAt = Date.now();
@@ -41,6 +46,7 @@ export class AiAssistantMemoryStore {
       conversationSummary: this.buildConversationSummary(params),
       agreedFacts: this.buildAgreedFacts(params.snapshot),
       workingSet: this.buildWorkingSet(params.snapshot),
+      activeScenario: params.scenario ? this.cloneScenario(params.scenario) : null,
       confirmedFacts: this.mergeFactRecords(
         current.confirmedFacts,
         this.buildConfirmedFacts(params.snapshot, recordedAt)
@@ -51,10 +57,12 @@ export class AiAssistantMemoryStore {
           params.prompt,
           params.intent,
           params.intentContext,
+          params.scenario,
           recordedAt
         )
       ),
       openFollowUpSlots: [],
+      openFollowUpSlotRecords: [],
       awaitingInput: null,
       updatedAt: recordedAt,
     };
@@ -68,15 +76,23 @@ export class AiAssistantMemoryStore {
     reply: string;
     snapshot: AiAssistantCanvasSnapshot | null;
     awaitingUserInput?: boolean;
+    scenario?: AiAssistantActiveScenario | null;
   }): AiAssistantMemoryState {
     const current = this.get(params.conversationKey);
     const recordedAt = Date.now();
+    const activeScenario =
+      params.scenario !== undefined
+        ? params.scenario
+          ? this.cloneScenario(params.scenario)
+          : null
+        : current.activeScenario;
     const nextState: AiAssistantMemoryState = {
       ...current,
       conversationSummary: this.buildConversationSummary(params),
       agreedFacts: this.buildAgreedFacts(params.snapshot),
       workingSet: this.buildWorkingSet(params.snapshot),
       lastRecommendations: this.extractRecommendations(params.reply),
+      activeScenario,
       confirmedFacts: this.mergeFactRecords(
         current.confirmedFacts,
         this.buildConfirmedFacts(params.snapshot, recordedAt)
@@ -86,10 +102,26 @@ export class AiAssistantMemoryStore {
             prompt: params.prompt.trim().slice(0, 180),
             replyPreview: params.reply.trim().slice(0, 180),
             recordedAt,
+            scenarioId: activeScenario?.id,
+            scenarioMode: activeScenario?.mode,
+            scenarioKind: activeScenario?.kind,
+            routeLength: params.awaitingUserInput ? 'long' : undefined,
+            proposalStyle: params.awaitingUserInput
+              ? 'clarify-first'
+              : activeScenario
+                ? this.describeScenarioProposalStyle(activeScenario)
+                : undefined,
           }
         : null,
       openFollowUpSlots: params.awaitingUserInput
         ? [params.reply.trim().slice(0, 180)].filter(Boolean)
+        : [],
+      openFollowUpSlotRecords: params.awaitingUserInput
+        ? this.buildFollowUpSlotRecords(
+            params.reply,
+            recordedAt,
+            activeScenario
+          )
         : [],
       updatedAt: recordedAt,
     };
@@ -101,6 +133,7 @@ export class AiAssistantMemoryStore {
     conversationKey: string;
     actions: AiAssistantAction[];
     sourceMessageId?: string;
+    scenario?: AiAssistantActiveScenario | null;
   }): AiAssistantMemoryState {
     if (params.actions.length === 0) {
       return this.get(params.conversationKey);
@@ -108,11 +141,19 @@ export class AiAssistantMemoryStore {
 
     const current = this.get(params.conversationKey);
     const recordedAt = Date.now();
+    const activeScenario =
+      params.scenario !== undefined
+        ? params.scenario
+          ? this.cloneScenario(params.scenario)
+          : null
+        : current.activeScenario;
     const actionRecords = params.actions.map((action) => ({
       actionKind: action.kind,
       label: this.describeActionLabel(action),
       summary: this.describeAppliedActionSummary(action),
       sourceMessageId: params.sourceMessageId,
+      scenarioId: activeScenario?.id,
+      scenarioMode: activeScenario?.mode,
       createdElementIds:
         typeof action.createdElementId === 'string' &&
         action.createdElementId.length > 0
@@ -126,6 +167,7 @@ export class AiAssistantMemoryStore {
 
     const nextState: AiAssistantMemoryState = {
       ...current,
+      activeScenario,
       confirmedFacts: this.mergeFactRecords(
         current.confirmedFacts,
         actionRecords.map((record) => ({
@@ -261,6 +303,7 @@ export class AiAssistantMemoryStore {
     prompt: string,
     intent: string | null | undefined,
     intentContext: AiAssistantIntentContext | undefined,
+    scenario: AiAssistantActiveScenario | null | undefined,
     recordedAt: number
   ) {
     const constraints: Array<{
@@ -283,6 +326,15 @@ export class AiAssistantMemoryStore {
     if (intentContextText) {
       constraints.push({
         text: intentContextText,
+        source: 'user',
+        recordedAt,
+      });
+    }
+
+    const scenarioText = this.describeScenarioConstraint(scenario);
+    if (scenarioText) {
+      constraints.push({
+        text: scenarioText,
         source: 'user',
         recordedAt,
       });
@@ -322,6 +374,78 @@ export class AiAssistantMemoryStore {
     additions: AiAssistantMemoryState['userConstraints']
   ): AiAssistantMemoryState['userConstraints'] {
     return this.mergeRecords(existing, additions, 12);
+  }
+
+  private buildFollowUpSlotRecords(
+    reply: string,
+    recordedAt: number,
+    scenario: AiAssistantActiveScenario | null
+  ): AiAssistantFollowUpSlotRecord[] {
+    const slotText = reply.trim().slice(0, 180);
+    if (slotText.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        text: slotText,
+        source: 'assistant',
+        recordedAt,
+        scenarioId: scenario?.id,
+        scenarioMode: scenario?.mode,
+      },
+    ];
+  }
+
+  private describeScenarioConstraint(
+    scenario: AiAssistantActiveScenario | null | undefined
+  ): string | null {
+    if (!scenario) {
+      return null;
+    }
+
+    const parts = [
+      `scenario=${scenario.id}`,
+      `mode=${scenario.mode}`,
+      `kind=${scenario.kind}`,
+      `scope=${scenario.scope}`,
+      `confidence=${scenario.confidence.toFixed(2)}`,
+      scenario.routeLength ? `routeLength=${scenario.routeLength}` : null,
+      scenario.proposalStyle ? `proposalStyle=${scenario.proposalStyle}` : null,
+      scenario.targetSummary ? `targetSummary=${scenario.targetSummary}` : null,
+      `allowedActionCount=${scenario.allowedActionCount}`,
+    ].filter((part): part is string => Boolean(part));
+
+    if (scenario.confirmationMode !== 'none') {
+      parts.push(`confirmationMode=${scenario.confirmationMode}`);
+    }
+
+    if (scenario.missingSlots.length > 0) {
+      parts.push(`missingSlots=${scenario.missingSlots.join('|')}`);
+    }
+
+    return `Scenario context: ${parts.join(', ')}`;
+  }
+
+  private describeScenarioRouteLength(
+    scenario: AiAssistantActiveScenario
+  ): 'short' | 'long' {
+    return scenario.routeLength ?? 'long';
+  }
+
+  private describeScenarioProposalStyle(
+    scenario: AiAssistantActiveScenario
+  ): 'clarify-first' | 'direct' {
+    return scenario.proposalStyle ?? 'direct';
+  }
+
+  private cloneScenario(
+    scenario: AiAssistantActiveScenario
+  ): AiAssistantActiveScenario {
+    return {
+      ...scenario,
+      missingSlots: [...scenario.missingSlots],
+    };
   }
 
   private mergeRecords<T extends { text: string }>(

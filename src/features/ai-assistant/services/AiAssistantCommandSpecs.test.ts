@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { getAiAssistantCommandSpec } from './AiAssistantCommandSpecs.ts';
+import {
+  getAiAssistantCommandSpec,
+  getAiAssistantCommandSpecForScenario,
+} from './AiAssistantCommandSpecs.ts';
 import {
   createAiAssistantTestMemory,
   createAiAssistantTestSnapshot,
 } from './AiAssistantTestUtils.ts';
+import { buildAiAssistantScenarioDescriptor } from './AiAssistantContextPlanner.ts';
 
 function createFocusedFillDetailsSnapshot() {
   const baseSnapshot = createAiAssistantTestSnapshot();
@@ -711,5 +715,33 @@ describe('AiAssistantCommandSpecs', () => {
     });
 
     expect(error).toBeNull();
+  });
+
+  it('exposes an explicit action plan in strategic plan command contexts', () => {
+    const snapshot = createSelectedGoalSnapshot();
+    const scenario = buildAiAssistantScenarioDescriptor({
+      intent: 'strategic_plan',
+      prompt: 'декомпозуй поточну ціль у підцілі',
+      snapshot,
+      memory: createAiAssistantTestMemory(),
+      toolResults: [],
+    });
+
+    const spec = getAiAssistantCommandSpecForScenario(scenario);
+    expect(spec).toBe(getAiAssistantCommandSpec('strategic_plan'));
+
+    const compiledContext = spec!.buildCompiledContext({
+      prompt: 'декомпозуй поточну ціль у підцілі',
+      memory: createAiAssistantTestMemory(),
+      toolResults: [],
+      snapshot,
+    }) as {
+      actionPlan?: { confirmationMode?: string; allowedRuntimeActionKinds?: string[] };
+    };
+
+    expect(compiledContext.actionPlan).toMatchObject({
+      confirmationMode: 'batch',
+      allowedRuntimeActionKinds: ['create_goals', 'create_goal_blueprint'],
+    });
   });
 });

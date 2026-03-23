@@ -27,9 +27,11 @@ export type AiAssistantMemoryState = {
   agreedFacts: string[];
   workingSet: string[];
   lastRecommendations: string[];
+  activeScenario: AiAssistantActiveScenario | null;
   confirmedFacts: AiAssistantMemoryFactRecord[];
   userConstraints: AiAssistantUserConstraintRecord[];
   openFollowUpSlots: string[];
+  openFollowUpSlotRecords: AiAssistantFollowUpSlotRecord[];
   awaitingInput: AiAssistantAwaitingInputContext | null;
   appliedActions: AiAssistantAppliedActionRecord[];
   updatedAt: number | null;
@@ -62,6 +64,11 @@ export type AiAssistantAwaitingInputContext = {
   prompt: string;
   replyPreview: string;
   recordedAt: number;
+  scenarioId?: string;
+  scenarioMode?: string;
+  scenarioKind?: AiAssistantActiveScenario['kind'];
+  routeLength?: 'short' | 'long';
+  proposalStyle?: 'clarify-first' | 'direct';
 };
 
 export type AiAssistantAppliedActionRecord = {
@@ -69,9 +76,34 @@ export type AiAssistantAppliedActionRecord = {
   label: string;
   summary: string;
   sourceMessageId?: string;
+  scenarioId?: string;
+  scenarioMode?: string;
   createdElementIds: string[];
   affectedElementIds: string[];
   recordedAt: number;
+};
+
+export type AiAssistantActiveScenario = {
+  id: string;
+  kind: 'typed' | 'fallback';
+  intent: string | null;
+  mode: string;
+  scope: string;
+  confidence: number;
+  confirmationMode: 'none' | 'single' | 'batch';
+  routeLength?: 'short' | 'long';
+  proposalStyle?: 'clarify-first' | 'direct';
+  targetSummary?: string;
+  missingSlots: string[];
+  allowedActionCount: number;
+};
+
+export type AiAssistantFollowUpSlotRecord = {
+  text: string;
+  source: 'assistant' | 'user' | 'scenario';
+  recordedAt: number;
+  scenarioId?: string;
+  scenarioMode?: string;
 };
 
 export const EMPTY_AI_ASSISTANT_MEMORY_STATE: AiAssistantMemoryState = {
@@ -80,9 +112,11 @@ export const EMPTY_AI_ASSISTANT_MEMORY_STATE: AiAssistantMemoryState = {
   agreedFacts: [],
   workingSet: [],
   lastRecommendations: [],
+  activeScenario: null,
   confirmedFacts: [],
   userConstraints: [],
   openFollowUpSlots: [],
+  openFollowUpSlotRecords: [],
   awaitingInput: null,
   appliedActions: [],
   updatedAt: null,

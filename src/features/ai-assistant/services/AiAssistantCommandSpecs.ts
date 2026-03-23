@@ -9,8 +9,10 @@ import type {
 import {
   isAiAssistantCreateElementStatus,
   isAiAssistantRelationSuggestionType,
+  type AiAssistantActionKind,
   type AiAssistantRelationSuggestionType,
 } from '../aiAssistantActions.ts';
+import type { AiAssistantActionPlan } from './AiAssistantActionPlanTypes.ts';
 import type { AiAssistantApiMessage } from './AiAssistantApiTypes.ts';
 import type {
   AiAssistantFocusItem,
@@ -20,6 +22,9 @@ import {
   buildAiAssistantScenarioDescriptor,
   type AiAssistantScenarioDescriptor,
 } from './AiAssistantContextPlanner.ts';
+import {
+  buildAiAssistantActionPlanFromScenario,
+} from './AiAssistantActionPlan.ts';
 import type { AiAssistantIntentContext } from './AiAssistantIntentContext.ts';
 import type { AiAssistantInstructionPacket } from './AiAssistantInstructionTypes.ts';
 import {
@@ -112,6 +117,7 @@ type AiAssistantDependenciesCommandContext = {
   existingRelations: AiAssistantDependencyRelationSummary[];
   dependencyFindings: AiAssistantDependencyFinding[];
   scenario: AiAssistantScenarioDescriptor;
+  actionPlan: AiAssistantActionPlan;
   constraints: {
     allowedRelationTypes: ['blocks', 'leads_to', 'relates_to'];
     forbidReviewFindings: true;
@@ -139,6 +145,7 @@ type AiAssistantFillDetailsCommandContext = {
   target?: AiAssistantFillDetailsTarget;
   targets?: AiAssistantFillDetailsTarget[];
   scenario: AiAssistantScenarioDescriptor;
+  actionPlan: AiAssistantActionPlan;
   constraints: {
     allowedPatchFields: ['title', 'description'];
     allowTitleParaphraseForDescription: false;
@@ -160,11 +167,13 @@ type AiAssistantStrategicPlanCommandContext = {
   selectedGoal?: AiAssistantCommandElementSummary;
   strategicHints: string[];
   scenario: AiAssistantScenarioDescriptor;
+  actionPlan: AiAssistantActionPlan;
   constraints: {
-    allowedActionKinds: ['create_goals', 'create_goal_blueprint'];
+    allowedActionKinds: AiAssistantActionKind[];
     forbidReviewFindings: true;
     requireSingleStrategicProposal: true;
     strategicLevelOnly: true;
+    confirmationMode: AiAssistantActionPlan['confirmationMode'];
   };
 };
 
@@ -179,6 +188,7 @@ type AiAssistantBreakdownCommandContext = {
     | 'unspecified_goal_decomposition';
   target?: AiAssistantCommandElementSummary;
   scenario: AiAssistantScenarioDescriptor;
+  actionPlan: AiAssistantActionPlan;
   constraints: {
     forbidReviewFindings: true;
     requireConciseFollowupQuestionWhenAmbiguous: true;
@@ -298,6 +308,15 @@ export function getAiAssistantCommandSpec(
   }
 }
 
+export function getAiAssistantCommandSpecForScenario(
+  scenario: AiAssistantScenarioDescriptor | null | undefined
+): AiAssistantCommandSpec | null {
+  if (!scenario?.kind) {
+    return null;
+  }
+  return getAiAssistantCommandSpec(scenario.kind);
+}
+
 function buildDependenciesCommandContext(
   params: AiAssistantCommandBuildContextParams
 ): AiAssistantDependenciesCommandContext {
@@ -322,6 +341,7 @@ function buildDependenciesCommandContext(
     toolResults: params.toolResults,
     intentContext: params.intentContext,
   });
+  const actionPlan = buildAiAssistantActionPlanFromScenario(scenario)!;
 
   return {
     intent: 'dependencies',
@@ -340,6 +360,7 @@ function buildDependenciesCommandContext(
     ),
     dependencyFindings: readDependencyFindings(params.toolResults),
     scenario,
+    actionPlan,
     constraints: {
       allowedRelationTypes: ['blocks', 'leads_to', 'relates_to'],
       forbidReviewFindings: true,
@@ -371,6 +392,7 @@ function buildFillDetailsCommandContext(
     toolResults: params.toolResults,
     intentContext: params.intentContext,
   });
+  const actionPlan = buildAiAssistantActionPlanFromScenario(scenario)!;
 
   if (targets.length <= 1) {
     return {
@@ -382,6 +404,7 @@ function buildFillDetailsCommandContext(
       allowedElementIds: targets.map((target) => target.id),
       target: targets[0],
       scenario,
+      actionPlan,
       constraints: {
         allowedPatchFields: ['title', 'description'],
         allowTitleParaphraseForDescription: false,
@@ -407,6 +430,7 @@ function buildFillDetailsCommandContext(
     allowedElementIds: targets.map((target) => target.id),
     targets,
     scenario,
+    actionPlan,
     constraints: {
       allowedPatchFields: ['title', 'description'],
       allowTitleParaphraseForDescription: false,
@@ -445,6 +469,7 @@ function buildStrategicPlanCommandContext(
     toolResults: params.toolResults,
     intentContext: params.intentContext,
   });
+  const actionPlan = buildAiAssistantActionPlanFromScenario(scenario)!;
   return {
     intent: 'strategic_plan',
     commandVersion: 2,
@@ -456,11 +481,13 @@ function buildStrategicPlanCommandContext(
     selectedGoal: scenario.target?.kind === 'goal' ? scenario.target : selectedGoal,
     strategicHints: scenario.strategicHints,
     scenario,
+    actionPlan,
     constraints: {
-      allowedActionKinds: ['create_goals', 'create_goal_blueprint'],
+      allowedActionKinds: actionPlan.allowedRuntimeActionKinds,
       forbidReviewFindings: true,
       requireSingleStrategicProposal: true,
       strategicLevelOnly: true,
+      confirmationMode: actionPlan.confirmationMode,
     },
   };
 }
@@ -479,6 +506,7 @@ function buildBreakdownCommandContext(
     toolResults: params.toolResults,
     intentContext: params.intentContext,
   });
+  const actionPlan = buildAiAssistantActionPlanFromScenario(scenario)!;
   return {
     intent: 'breakdown',
     commandVersion: 1,
@@ -486,6 +514,7 @@ function buildBreakdownCommandContext(
     mode: scenario.mode,
     target: scenario.target ?? target,
     scenario,
+    actionPlan,
     constraints: {
       forbidReviewFindings: true,
       requireConciseFollowupQuestionWhenAmbiguous: true,
@@ -644,6 +673,7 @@ function buildDependenciesCommandSystemPrompt(): string {
     'You are executing the workspace action command "dependencies".',
     'Return valid JSON only.',
     `Use this exact envelope shape: ${AI_ASSISTANT_STRUCTURED_ENVELOPE_SHAPE}`,
+    'Prepared command context.actionPlan is authoritative for confirmation semantics and allowed reply kinds.',
     'Do not include reviewFindings for this command.',
     'Use only these action kinds: suggest_relation, suggest_relations, remove_relation, remove_relations, update_relation, or update_relations.',
     'For suggest_relation use this exact shape:',
@@ -675,6 +705,7 @@ function buildFillDetailsCommandSystemPrompt(): string {
     'You are executing the workspace action command "fill_details".',
     'Return valid JSON only.',
     `Use this exact envelope shape: ${AI_ASSISTANT_STRUCTURED_ENVELOPE_SHAPE}`,
+    'Prepared command context.actionPlan is authoritative for confirmation semantics and allowed reply kinds.',
     'Do not include reviewFindings for this command.',
     'Use only these action kinds: suggest_update or suggest_updates.',
     'For suggest_update use this exact shape:',
@@ -756,6 +787,7 @@ function buildStrategicPlanCommandSystemPrompt(): string {
     'You are executing the workspace action command "strategic_plan".',
     'Return valid JSON only.',
     `Use this exact envelope shape: ${AI_ASSISTANT_STRUCTURED_ENVELOPE_SHAPE}`,
+    'Prepared command context.actionPlan is authoritative for confirmation semantics and allowed reply kinds.',
     'Do not include reviewFindings for this command.',
     'Use only these action kinds: create_goals or create_goal_blueprint.',
     'For create_goals use this exact shape:',
@@ -838,6 +870,7 @@ function buildBreakdownCommandSystemPrompt(): string {
     'You are executing the workspace action command "breakdown".',
     'Return valid JSON only.',
     `Use this exact envelope shape: ${AI_ASSISTANT_STRUCTURED_ENVELOPE_SHAPE}`,
+    'Prepared command context.actionPlan is authoritative for confirmation semantics and allowed reply kinds.',
     'Do not include reviewFindings for this command.',
     'Use only the action kinds allowed by Prepared command context.mode.',
     'For goal_stories use this exact shape:',
@@ -998,18 +1031,28 @@ function validateStrategicPlanCommandEnvelope(
     return 'strategic_plan must return at most one strategic proposal action.';
   }
 
+  const actionPlan = readActionPlanFromCommandContext(compiledContext);
   const mode = readStrategicPlanMode(compiledContext);
   const selectedGoalId = readStrategicPlanSelectedGoalId(compiledContext);
+  const allowedActionKinds = new Set(
+    actionPlan?.allowedStructuredReplyKinds ?? [
+      'create_goals',
+      'create_goal_blueprint',
+    ]
+  );
   for (const action of actions) {
     if (!isPlainObject(action) || typeof action.kind !== 'string') {
       return 'Every action must be a JSON object with a supported kind.';
     }
 
-    if (action.kind === 'create_goals') {
+    if (action.kind === 'create_goals' && allowedActionKinds.has(action.kind)) {
       return validateStrategicCreateGoalsEntry(action, mode, selectedGoalId);
     }
 
-    if (action.kind === 'create_goal_blueprint') {
+    if (
+      action.kind === 'create_goal_blueprint' &&
+      allowedActionKinds.has(action.kind)
+    ) {
       return validateStrategicGoalBlueprintEntry(action, mode, selectedGoalId);
     }
 
@@ -1044,6 +1087,17 @@ function validateBreakdownCommandEnvelope(
   const actions = Array.isArray(envelope.actions) ? envelope.actions : [];
   const mode = readBreakdownMode(compiledContext);
   const target = readBreakdownTarget(compiledContext);
+  const actionPlan = readActionPlanFromCommandContext(compiledContext);
+  const allowedActionKinds = new Set(
+    actionPlan?.allowedStructuredReplyKinds ??
+      (mode === 'goal_stories'
+        ? ['create_batch_stories']
+        : mode === 'story_tasks'
+          ? ['create_batch_tasks']
+          : mode === 'task_refine'
+            ? ['suggest_update', 'suggest_updates']
+            : [])
+  );
 
   if (mode === 'unspecified_goal_decomposition') {
     if (actions.length > 0) {
@@ -1064,30 +1118,56 @@ function validateBreakdownCommandEnvelope(
   }
 
   if (mode === 'goal_stories') {
-    if (action.kind !== 'create_batch_stories') {
-      return 'goal_stories breakdown must return create_batch_stories.';
+    if (
+      action.kind !== 'create_batch_stories' &&
+      action.kind !== 'create_story'
+    ) {
+      return 'goal_stories breakdown must return create_story or create_batch_stories.';
     }
-    return validateBreakdownCreateBatchEntry(
-      action,
-      'goal',
-      target?.id ?? null,
-      'stories'
-    );
+    return action.kind === 'create_story'
+      ? validateBreakdownSingleCreateEntry(
+          action,
+          'goal',
+          target?.id ?? null,
+          'story'
+        )
+      : validateBreakdownCreateBatchEntry(
+          action,
+          'goal',
+          target?.id ?? null,
+          'stories'
+        );
   }
 
   if (mode === 'story_tasks') {
-    if (action.kind !== 'create_batch_tasks') {
-      return 'story_tasks breakdown must return create_batch_tasks.';
+    if (
+      action.kind !== 'create_batch_tasks' &&
+      action.kind !== 'create_task'
+    ) {
+      return 'story_tasks breakdown must return create_task or create_batch_tasks.';
     }
-    return validateBreakdownCreateBatchEntry(
-      action,
-      'story',
-      target?.id ?? null,
-      'tasks'
-    );
+    return action.kind === 'create_task'
+      ? validateBreakdownSingleCreateEntry(
+          action,
+          'story',
+          target?.id ?? null,
+          'task'
+        )
+      : validateBreakdownCreateBatchEntry(
+          action,
+          'story',
+          target?.id ?? null,
+          'tasks'
+        );
   }
 
   if (mode === 'task_refine') {
+    if (
+      !allowedActionKinds.has('suggest_update') &&
+      !allowedActionKinds.has('suggest_updates')
+    ) {
+      return 'task_refine breakdown must allow suggest_update or suggest_updates.';
+    }
     if (action.kind !== 'suggest_update' && action.kind !== 'suggest_updates') {
       return 'task_refine breakdown must return suggest_update or suggest_updates.';
     }
@@ -1551,6 +1631,48 @@ function validateBreakdownCreateBatchEntry(
   return null;
 }
 
+function validateBreakdownSingleCreateEntry(
+  value: Record<string, unknown>,
+  targetKind: 'goal' | 'story',
+  expectedTargetId: string | null,
+  entityLabel: 'story' | 'task'
+): string | null {
+  if (typeof value.title !== 'string' || value.title.trim().length === 0) {
+    return `Each create_${entityLabel} action must include a non-empty title.`;
+  }
+  if (
+    value.description !== undefined &&
+    (typeof value.description !== 'string' || value.description.trim().length === 0)
+  ) {
+    return `create_${entityLabel} description must be a non-empty string when provided.`;
+  }
+  if (value.priority !== undefined && !isUiPriority(value.priority)) {
+    return `create_${entityLabel} priority must use a supported priority value.`;
+  }
+  if (
+    value.elementStatus !== undefined &&
+    !isAiAssistantCreateElementStatus(value.elementStatus)
+  ) {
+    return `create_${entityLabel} elementStatus must use a supported status value.`;
+  }
+  if (!isPlainObject(value.target)) {
+    return `create_${entityLabel} must include a canonical target object.`;
+  }
+  if (value.target.kind !== targetKind) {
+    return `create_${entityLabel} target must be a ${targetKind}.`;
+  }
+  if (
+    typeof value.target.id !== 'string' ||
+    value.target.id.trim().length === 0
+  ) {
+    return `create_${entityLabel} target must include id.`;
+  }
+  if (expectedTargetId && value.target.id.trim() !== expectedTargetId) {
+    return `create_${entityLabel} target must match the selected ${targetKind}.`;
+  }
+  return null;
+}
+
 function hasGoalBlueprintCycle(
   parentByRef: ReadonlyMap<string, string | null>
 ): boolean {
@@ -1789,6 +1911,37 @@ function readFillDetailsLatestUserInput(
   return typeof value.latestUserInput === 'string'
     ? value.latestUserInput.trim()
     : '';
+}
+
+function readActionPlanFromCommandContext(
+  value: Record<string, unknown>
+): AiAssistantActionPlan | null {
+  const actionPlan = value.actionPlan;
+  if (!isPlainObject(actionPlan)) {
+    return null;
+  }
+
+  const confirmationMode = actionPlan.confirmationMode;
+  if (
+    typeof actionPlan.scenarioId !== 'string' ||
+    typeof actionPlan.scenarioKind !== 'string' ||
+    typeof actionPlan.scenarioMode !== 'string' ||
+    (actionPlan.intent !== null && typeof actionPlan.intent !== 'string') ||
+    !Array.isArray(actionPlan.allowedRuntimeActionKinds) ||
+    !Array.isArray(actionPlan.allowedStructuredReplyKinds) ||
+    (actionPlan.primaryRuntimeActionKind !== null &&
+      typeof actionPlan.primaryRuntimeActionKind !== 'string') ||
+    (confirmationMode !== 'batch' &&
+      confirmationMode !== 'single' &&
+      confirmationMode !== 'follow-up') ||
+    typeof actionPlan.requiresConfirmation !== 'boolean' ||
+    typeof actionPlan.requiresFollowUp !== 'boolean' ||
+    typeof actionPlan.batchable !== 'boolean'
+  ) {
+    return null;
+  }
+
+  return actionPlan as AiAssistantActionPlan;
 }
 
 function readStrategicPlanMode(

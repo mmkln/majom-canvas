@@ -24,6 +24,10 @@ import type {
   AiAssistantProfile,
 } from './AiAssistantContextTypes.ts';
 import { isAiAssistantProfile } from './AiAssistantContextTypes.ts';
+import {
+  buildAiAssistantScenarioClassificationMessages,
+  parseAiAssistantScenarioClassification,
+} from './AiAssistantScenarioClassifier.ts';
 import type { AiAssistantScenarioDescriptor } from './AiAssistantScenarioTypes.ts';
 import { resolveAiAssistantScenario } from './AiAssistantScenarioResolver.ts';
 import {
@@ -167,15 +171,7 @@ export class AiAssistantOrchestrator {
   public async reply(
     request: AiAssistantOrchestratorRequest
   ): Promise<AiAssistantOrchestratorReply> {
-    const scenario =
-      request.scenario ??
-      resolveAiAssistantScenario({
-        source: request.source,
-        intent: request.intent,
-        intentContext: request.intentContext,
-        target: this.buildScenarioTargetInput(request.snapshot),
-        fallbackTarget: this.buildScenarioTargetInput(request.snapshot),
-      });
+    const scenario = await this.resolveScenarioForRequest(request);
     const effectiveIntent = scenario.intent ?? request.intent;
     const state = this.createInitialState(request);
 
@@ -305,6 +301,15 @@ export class AiAssistantOrchestrator {
   public async buildManualPlan(
     request: AiAssistantOrchestratorRequest
   ): Promise<AiAssistantExecutionPlan> {
+    const scenario = await this.resolveScenarioForRequest(request);
+    if (scenario.intent) {
+      return buildAiAssistantIntentPlan({
+        ...request,
+        intent: scenario.intent,
+        intentContext: scenario.intentContext ?? request.intentContext,
+      });
+    }
+
     const state = this.createInitialState(request);
     let decision = await this.requestInitialRouterDecision(request, state);
 
@@ -355,6 +360,67 @@ export class AiAssistantOrchestrator {
       state
     );
     state.toolResults.push(...(await this.executePlan(intentPlan, request, state)));
+  }
+
+  private async resolveScenarioForRequest(
+    request: AiAssistantOrchestratorRequest
+  ): Promise<AiAssistantScenarioDescriptor> {
+    if (request.scenario) {
+      return request.scenario;
+    }
+
+    if (request.intent) {
+      return resolveAiAssistantScenario({
+        source: request.source,
+        intent: request.intent,
+        intentContext: request.intentContext,
+        target: this.buildScenarioTargetInput(request.snapshot),
+        fallbackTarget: this.buildScenarioTargetInput(request.snapshot),
+      });
+    }
+
+    if (request.source === 'manual') {
+      const classifiedScenario = await this.classifyManualScenario(request);
+      if (classifiedScenario) {
+        return classifiedScenario;
+      }
+    }
+
+    return resolveAiAssistantScenario({
+      source: 'manual',
+      target: this.buildScenarioTargetInput(request.snapshot),
+      fallbackTarget: this.buildScenarioTargetInput(request.snapshot),
+    });
+  }
+
+  private async classifyManualScenario(
+    request: AiAssistantOrchestratorRequest
+  ): Promise<AiAssistantScenarioDescriptor | null> {
+    const content = await this.options.apiClient.completeText(
+      buildAiAssistantScenarioClassificationMessages({
+        prompt: request.prompt,
+        snapshot: request.snapshot,
+        contextMode: request.contextMode,
+      }),
+      {
+        signal: request.signal,
+        temperature: 0,
+        maxTokens: 140,
+      }
+    );
+
+    const classification = parseAiAssistantScenarioClassification(content);
+    if (!classification) {
+      return null;
+    }
+
+    return resolveAiAssistantScenario({
+      source: 'manual',
+      intent: classification.intent ?? undefined,
+      intentContext: classification.intentContext,
+      target: this.buildScenarioTargetInput(request.snapshot),
+      fallbackTarget: this.buildScenarioTargetInput(request.snapshot),
+    });
   }
 
   private async runManualDecisionLoop(

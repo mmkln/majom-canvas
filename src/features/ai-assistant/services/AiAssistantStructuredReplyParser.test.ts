@@ -3,6 +3,9 @@ import type { AiAssistantCanvasSnapshot } from '../aiAssistantEvents.ts';
 import {
   parseAiAssistantStructuredReply,
 } from './AiAssistantStructuredReplyParser.ts';
+import { buildAiAssistantActionPlanFromScenario } from './AiAssistantActionPlan.ts';
+import { buildAiAssistantScenarioDescriptor } from './AiAssistantContextPlanner.ts';
+import { createAiAssistantTestMemory } from './AiAssistantTestUtils.ts';
 
 function createSnapshot(): AiAssistantCanvasSnapshot {
   return {
@@ -107,6 +110,40 @@ describe('AiAssistantStructuredReplyParser', () => {
       kind: 'story',
       id: 'story-1',
     });
+  });
+
+  it('preserves confirmation semantics from a scenario action plan', () => {
+    const scenario = buildAiAssistantScenarioDescriptor({
+      intent: 'strategic_plan',
+      prompt: 'декомпозуй поточну ціль у підцілі',
+      snapshot: createSnapshot(),
+      memory: createAiAssistantTestMemory(),
+      toolResults: [],
+    });
+    const actionPlan = buildAiAssistantActionPlanFromScenario(scenario);
+
+    const result = parseAiAssistantStructuredReply(
+      JSON.stringify({
+        replyMarkdown: 'I prepared strategic goals.',
+        actions: [
+          {
+            kind: 'create_goals',
+            title: 'Strategic goals',
+            target: { kind: 'goal', id: 'goal-1' },
+            items: [{ title: 'Learn the basics' }, { title: 'Build the first flow' }],
+          },
+        ],
+      }),
+      {
+        allowActions: true,
+        validationSnapshot: createSnapshot(),
+        scenario,
+        actionPlan,
+      }
+    );
+
+    expect(result.actions[0]?.confirmationMode).toBe('batch');
+    expect(result.actions[0]?.kind).toBe('create_goals');
   });
 
   it('falls back to plain markdown when the payload is not valid JSON', () => {

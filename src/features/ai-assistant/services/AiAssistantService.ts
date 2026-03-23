@@ -21,9 +21,13 @@ import type {
   AiAssistantMemoryState,
   AiAssistantProfile,
 } from './AiAssistantContextTypes.ts';
-import type { AiAssistantTelemetryCollector } from './AiAssistantTelemetryTypes.ts';
+import type {
+  AiAssistantTelemetryCollector,
+  AiAssistantTelemetryContext,
+} from './AiAssistantTelemetryTypes.ts';
 import type { AiAssistantContextMode } from './AiAssistantContextMode.ts';
 import type { AiAssistantIntentContext } from './AiAssistantIntentContext.ts';
+import type { AiAssistantScenarioDescriptor } from './AiAssistantScenarioTypes.ts';
 import type { AiAssistantToolHost } from './AiAssistantToolTypes.ts';
 
 export type AiAssistantReplyRequest = {
@@ -31,6 +35,7 @@ export type AiAssistantReplyRequest = {
   source: 'manual' | 'intent';
   intent?: AiAssistantIntentKind;
   intentContext?: AiAssistantIntentContext;
+  scenario?: AiAssistantScenarioDescriptor;
   telemetryContext?: AiAssistantTelemetryContext;
   profile?: AiAssistantProfile;
   contextMode: AiAssistantContextMode;
@@ -157,6 +162,7 @@ export class AiAssistantService implements AiAssistantServiceLike {
       source: request.source,
       intent: request.intent,
       intentContext: request.intentContext,
+      scenario: request.scenario,
       profile: request.profile,
       snapshot: request.snapshot,
       contextMode: request.contextMode,

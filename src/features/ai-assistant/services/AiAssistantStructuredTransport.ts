@@ -2,6 +2,7 @@ import type { UiPriority } from '../../../majom-wrapper/utils/priorityMapping.ts
 import type {
   AiAssistantActionTarget,
   AiAssistantCreateActionKind,
+  AiAssistantActionConfirmationMode,
   AiAssistantCreateElementStatus,
   AiAssistantGoalBlueprintGoal,
   AiAssistantGoalBlueprintPattern,
@@ -29,6 +30,15 @@ export type AiAssistantStructuredActionEvidence = {
   supportedBy?: string[];
   evidenceIds?: string[];
   sourceContext?: string;
+};
+
+export type AiAssistantStructuredActionPlanHint = {
+  scenarioId?: string;
+  scenarioMode?: string;
+  confirmationMode?: AiAssistantActionConfirmationMode;
+  allowedStructuredReplyKinds?: Array<
+    AiAssistantStructuredActionEntryKind | 'reviewFindings'
+  >;
 };
 
 export type AiAssistantStructuredCreateActionEntry = {
@@ -192,6 +202,7 @@ export type AiAssistantStructuredReplyEnvelope = {
   replyMarkdown?: string;
   actions?: AiAssistantStructuredActionEntry[];
   reviewFindings?: AiAssistantReviewFindings;
+  actionPlan?: AiAssistantStructuredActionPlanHint;
 };
 
 export const AI_ASSISTANT_STRUCTURED_ENVELOPE_SHAPE =
@@ -209,6 +220,7 @@ export const AI_ASSISTANT_STRUCTURED_ACTION_KIND_NOTES = [
   '- update_relations: for changing the type of an existing non-hierarchical link that should stay but with a different meaning.',
   '- suggest_updates: for title, description, priority, or status refinements to existing items.',
   '- optional evidence metadata such as supportedBy, evidenceIds, and sourceContext may be attached to an action when it helps reviewability.',
+  '- optional actionPlan metadata may be attached when confirmation semantics or scenario hints need to be explicit.',
 ];
 
 export function isAiAssistantStructuredActionEntryKind(
@@ -347,6 +359,15 @@ export function getAiAssistantStructuredReplyExamples() {
 
   const strategicBlueprintExample: AiAssistantStructuredReplyEnvelope = {
     replyMarkdown: 'I prepared a strategic plan blueprint you can create in one step.',
+    actionPlan: {
+      scenarioId: 'strategic_plan.goal_subgoals',
+      scenarioMode: 'goal_subgoals',
+      confirmationMode: 'batch',
+      allowedStructuredReplyKinds: [
+        'create_goals',
+        'create_goal_blueprint',
+      ],
+    },
     actions: [
       {
         kind: 'create_goal_blueprint',

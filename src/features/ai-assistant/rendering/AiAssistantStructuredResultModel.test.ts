@@ -124,6 +124,7 @@ describe('AiAssistantStructuredResultModel', () => {
       status: 'idle',
       priority: 'highest',
       elementStatus: 'in-progress',
+      confirmationMode: 'batch',
     };
     const updateAction: AiAssistantAction = {
       id: 'update-story',
@@ -140,7 +141,7 @@ describe('AiAssistantStructuredResultModel', () => {
     };
 
     expect(buildAiAssistantActionTagModels(createAction).map((tag) => tag.text))
-      .toEqual(['highest', 'In progress']);
+      .toEqual(['highest', 'In progress', 'Batch confirm']);
     expect(buildAiAssistantActionTagModels(updateAction).map((tag) => tag.text))
       .toEqual(['Priority change', 'Status change']);
   });

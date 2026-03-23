@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildAiAssistantRouterRepairMessages,
+  buildAiAssistantStructuredReplyRepairMessages,
   completeAiAssistantTextWithRepair,
   tryParseAiAssistantJsonCandidate,
 } from './AiAssistantRepair.ts';
@@ -72,5 +73,40 @@ describe('AiAssistantRepair', () => {
       expect(result.error.message).toBe('Still invalid JSON.');
       expect(result.repairAttempts).toBe(1);
     }
+  });
+
+  it('includes scenario context in repair prompts when available', () => {
+    const routerMessages = buildAiAssistantRouterRepairMessages({
+      invalidResponse: '{"kind":"finalize"}',
+      validationError: 'Invalid decision.',
+      scenario: {
+        scenarioId: 'strategic_plan.goal_subgoals',
+        scenarioMode: 'goal_subgoals',
+        scenarioKind: 'typed',
+        routeLength: 'long',
+        proposalStyle: 'clarify-first',
+      },
+    });
+    expect(routerMessages[0]?.content).toContain('Scenario context:');
+    expect(routerMessages[0]?.content).toContain(
+      'scenarioId=strategic_plan.goal_subgoals'
+    );
+
+    const structuredMessages = buildAiAssistantStructuredReplyRepairMessages({
+      invalidResponse: '{"replyMarkdown":"x","actions":[]}',
+      validationError: 'Invalid envelope.',
+      allowActions: true,
+      scenario: {
+        scenarioId: 'strategic_plan.goal_subgoals',
+        scenarioMode: 'goal_subgoals',
+        scenarioKind: 'typed',
+        routeLength: 'long',
+        proposalStyle: 'clarify-first',
+      },
+    });
+    expect(structuredMessages[0]?.content).toContain('Scenario context:');
+    expect(structuredMessages[0]?.content).toContain(
+      'proposalStyle=clarify-first'
+    );
   });
 });
