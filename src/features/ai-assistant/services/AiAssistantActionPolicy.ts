@@ -39,7 +39,7 @@ export function resolveAiAssistantActionKindsForIntent(
     case 'breakdown':
       return ['create_task', 'create_story', 'suggest_update'];
     case 'strategic_plan':
-      return ['create_goal', 'create_goal_blueprint'];
+      return ['create_goals', 'create_goal_blueprint'];
     default:
       return null;
   }

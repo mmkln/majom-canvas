@@ -58,6 +58,18 @@ export function getAiAssistantActionButtonLabel(
     }
     return 'Create plan';
   }
+  if (action.kind === 'create_goals') {
+    if (action.status === 'applied') {
+      return 'Created';
+    }
+    if (action.status === 'applying') {
+      return 'Creating...';
+    }
+    if (action.status === 'failed') {
+      return 'Retry';
+    }
+    return 'Create all';
+  }
 
   const isApplyAction =
     action.kind === 'suggest_relation' ||
@@ -156,6 +168,34 @@ export function buildAiAssistantActionTagModels(
     }
   }
 
+  if (action.kind === 'create_goals') {
+    tags.push({
+      text: `${action.items.length} goal${action.items.length === 1 ? '' : 's'}`,
+      tone: getAiAssistantNeutralBadgeTone(),
+    });
+  }
+
+  if (action.supportedBy && action.supportedBy.length > 0) {
+    tags.push({
+      text: `supported by ${action.supportedBy.length}`,
+      tone: getAiAssistantNeutralBadgeTone(),
+    });
+  }
+
+  if (action.evidenceIds && action.evidenceIds.length > 0) {
+    tags.push({
+      text: `${action.evidenceIds.length} evidence`,
+      tone: getAiAssistantNeutralBadgeTone(),
+    });
+  }
+
+  if (action.sourceContext) {
+    tags.push({
+      text: 'source context',
+      tone: getAiAssistantNeutralBadgeTone(),
+    });
+  }
+
   return tags;
 }
 
@@ -179,6 +219,7 @@ export function getAiAssistantActionAccentColor(
       return '#0f766e';
     case 'create_goal_blueprint':
       return '#1d4ed8';
+    case 'create_goals':
     case 'create_goal':
     case 'create_story':
     case 'create_task':
@@ -206,6 +247,15 @@ export function getAiAssistantActionSecondaryText(
   }
   if (action.kind === 'create_goal_blueprint') {
     return `${action.goals.length} strategic goal${action.goals.length === 1 ? '' : 's'}${action.relations.length > 0 ? ` · ${action.relations.length} leads-to link${action.relations.length === 1 ? '' : 's'}` : ''}`;
+  }
+  if (action.kind === 'create_goals') {
+    const base = `${action.items.length} strategic goal${action.items.length === 1 ? '' : 's'}`;
+    const targetPreview = getAiAssistantActionTargetPreview(
+      action,
+      context,
+      contextEnabled
+    );
+    return targetPreview === 'On canvas' ? base : `${base} · ${targetPreview}`;
   }
   return getAiAssistantActionTargetPreview(action, context, contextEnabled);
 }

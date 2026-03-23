@@ -16,6 +16,7 @@ import type {
   AiAssistantFocusItem,
   AiAssistantMemoryState,
 } from './AiAssistantContextTypes.ts';
+import type { AiAssistantIntentContext } from './AiAssistantIntentContext.ts';
 import type { AiAssistantInstructionPacket } from './AiAssistantInstructionTypes.ts';
 import {
   AI_ASSISTANT_STRUCTURED_ENVELOPE_SHAPE,
@@ -29,6 +30,7 @@ type AiAssistantCommandBuildContextParams = {
   memory: AiAssistantMemoryState;
   toolResults: AiAssistantToolResult[];
   snapshot: AiAssistantCanvasSnapshot | null;
+  intentContext?: AiAssistantIntentContext;
 };
 
 type AiAssistantCommandBuildMessagesParams = {
@@ -408,7 +410,7 @@ function buildStrategicPlanCommandContext(
   const selectedGoal =
     focus?.item.kind === 'goal' ? toCommandElementSummary(focus.item) : undefined;
   const latestUserInput = params.prompt.trim();
-  const mode = resolveStrategicPlanMode(latestUserInput, selectedGoal);
+  const mode = resolveStrategicPlanMode(params.intentContext, selectedGoal);
   return {
     intent: 'strategic_plan',
     commandVersion: 2,
@@ -438,7 +440,7 @@ function buildBreakdownCommandContext(
     intent: 'breakdown',
     commandVersion: 1,
     latestUserInput: params.prompt.trim(),
-    mode: resolveBreakdownMode(params.prompt.trim(), focus?.item ?? null),
+    mode: resolveBreakdownMode(params.intentContext, focus?.item ?? null),
     target,
     constraints: {
       forbidReviewFindings: true,
@@ -720,6 +722,7 @@ function buildStrategicPlanCommandSystemPrompt(): string {
     'Prefer create_goal_blueprint whenever hierarchy or leads_to links are part of the proposal.',
     'Prefer create_goals when the best structure is only several strategic goals with no reliable links.',
     'If Prepared command context.mode is goal_subgoals or goal_replan, anchor the proposal to Prepared command context.selectedGoal by using target.kind = "goal" with that exact id.',
+    'Optional evidence metadata such as supportedBy, evidenceIds, and sourceContext may be attached to any action when it helps reviewability.',
     'Do not return create_goal, create_story, create_task, create_batch_stories, create_batch_tasks, suggest_relations, or suggest_updates.',
     'Do not collapse the plan into one goal with the rest hidden inside description prose.',
     'Default to strategic goals only. Do not propose stories or tasks unless the user explicitly asked for execution detail.',
@@ -799,6 +802,7 @@ function buildBreakdownCommandSystemPrompt(): string {
     '{"kind":"create_batch_tasks","title":"<group title>","summary":"<short summary>","target":{"kind":"story","id":"<selected story id>"},"items":[{"title":"<task title>","description":"<optional description>","priority":"<optional priority>","elementStatus":"<optional status>"}]}',
     'For task_refine use this exact shape:',
     '{"kind":"suggest_update","elementId":"<task id>","patch":{"title":"<optional title>","description":"<optional description>"},"reason":"<why this refinement helps>"}',
+    'Optional evidence metadata such as supportedBy, evidenceIds, and sourceContext may be attached to any action when it helps reviewability.',
     'Never use wrappers like data.parentId, data.stories, or data.tasks.',
     'replyMarkdown must be user-facing, short, and concrete.',
     'If Prepared command context.mode is unspecified_goal_decomposition, ask one concise follow-up question and return "actions": [].',
@@ -922,7 +926,7 @@ function validateDependenciesCommandEnvelope(
 
   if (
     actions.length === 0 &&
-    !isConciseDependenciesFollowupQuestion(envelope.replyMarkdown)
+    !isConciseFollowupReply(envelope.replyMarkdown)
   ) {
     return 'Dependencies command must return relation suggestions or one concise follow-up question.';
   }
@@ -970,7 +974,7 @@ function validateStrategicPlanCommandEnvelope(
 
   if (
     actions.length === 0 &&
-    !isConciseDependenciesFollowupQuestion(envelope.replyMarkdown)
+    !isConciseFollowupReply(envelope.replyMarkdown)
   ) {
     return 'strategic_plan must return one strategic proposal or one concise follow-up question.';
   }
@@ -1001,7 +1005,7 @@ function validateBreakdownCommandEnvelope(
     if (actions.length > 0) {
       return 'Ambiguous goal decomposition should ask a follow-up question instead of returning actions.';
     }
-    return isConciseDependenciesFollowupQuestion(envelope.replyMarkdown)
+    return isConciseFollowupReply(envelope.replyMarkdown)
       ? null
       : 'Ambiguous goal decomposition must return one concise follow-up question.';
   }
@@ -1108,7 +1112,6 @@ function validateFillDetailsCommandEnvelope(
 
   if (
     actions.length === 0 &&
-    envelope.replyMarkdown.includes('?') &&
     hasConcreteLatestUserInputForFillDetails(targetsById, latestUserInput)
   ) {
     return 'Fill_details should use the explicit user details instead of asking another follow-up question.';
@@ -1944,19 +1947,17 @@ function hasConcreteUserProvidedFillDetails(
 }
 
 function resolveStrategicPlanMode(
-  prompt: string,
+  intentContext: AiAssistantIntentContext | undefined,
   selectedGoal: AiAssistantCommandElementSummary | undefined
 ): AiAssistantStrategicPlanCommandContext['mode'] {
+  const requestedMode = intentContext?.strategicPlanMode;
+  if (requestedMode) {
+    return requestedMode;
+  }
   if (!selectedGoal) {
     return 'canvas_bootstrap';
   }
-
-  const normalized = prompt.toLocaleLowerCase();
-  const hasReplanSignal =
-    /(?:replan|reshape|restructure|rebuild|redo|переплан|перебуд|реструктур|перезбир|онови стратег)/u.test(
-      normalized
-    );
-  return hasReplanSignal ? 'goal_replan' : 'goal_subgoals';
+  return 'goal_subgoals';
 }
 
 function extractStrategicHints(
@@ -1979,9 +1980,13 @@ function extractStrategicHints(
 }
 
 function resolveBreakdownMode(
-  prompt: string,
+  intentContext: AiAssistantIntentContext | undefined,
   target: AiAssistantCanvasElement | null
 ): AiAssistantBreakdownCommandContext['mode'] {
+  const requestedMode = intentContext?.breakdownMode;
+  if (requestedMode) {
+    return requestedMode;
+  }
   if (!target) {
     return 'unspecified_goal_decomposition';
   }
@@ -1991,11 +1996,7 @@ function resolveBreakdownMode(
   if (target.kind === 'task') {
     return 'task_refine';
   }
-
-  const normalized = prompt.toLocaleLowerCase();
-  const hasStorySignal =
-    /(?:story|stories|істор|епік|epic)/u.test(normalized);
-  return hasStorySignal ? 'goal_stories' : 'unspecified_goal_decomposition';
+  return 'unspecified_goal_decomposition';
 }
 
 function collectFillDetailsUserInputFragments(
@@ -2019,13 +2020,12 @@ function collectFillDetailsUserInputFragments(
   return novelFragments;
 }
 
-function isConciseDependenciesFollowupQuestion(replyMarkdown: string): boolean {
+function isConciseFollowupReply(replyMarkdown: string): boolean {
   const trimmed = replyMarkdown.trim();
   return (
     trimmed.length > 0 &&
     trimmed.length <= 220 &&
-    !trimmed.includes('\n') &&
-    trimmed.includes('?')
+    !trimmed.includes('\n')
   );
 }
 

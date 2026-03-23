@@ -1,6 +1,14 @@
 import { Command } from '../commands/Command.ts';
 import { Subject } from 'rxjs';
 
+export type HistoryServiceSnapshot = {
+  undoStack: Command[];
+  redoStack: Command[];
+  branchId: number;
+  savedBranchId: number;
+  savedIndex: number;
+};
+
 export class HistoryService {
   private undoStack: Command[] = [];
   private redoStack: Command[] = [];
@@ -21,6 +29,25 @@ export class HistoryService {
       this.branchId += 1;
     }
     this.redoStack = [];
+    this.changes.next();
+  }
+
+  public captureState(): HistoryServiceSnapshot {
+    return {
+      undoStack: [...this.undoStack],
+      redoStack: [...this.redoStack],
+      branchId: this.branchId,
+      savedBranchId: this.savedBranchId,
+      savedIndex: this.savedIndex,
+    };
+  }
+
+  public restoreState(snapshot: HistoryServiceSnapshot): void {
+    this.undoStack = [...snapshot.undoStack];
+    this.redoStack = [...snapshot.redoStack];
+    this.branchId = snapshot.branchId;
+    this.savedBranchId = snapshot.savedBranchId;
+    this.savedIndex = snapshot.savedIndex;
     this.changes.next();
   }
 

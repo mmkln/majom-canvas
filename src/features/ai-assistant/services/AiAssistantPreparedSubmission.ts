@@ -4,6 +4,7 @@ import type {
 } from '../aiAssistantEvents.ts';
 import type { AiAssistantContextMode } from './AiAssistantContextMode.ts';
 import type { AiAssistantProfile } from './AiAssistantContextTypes.ts';
+import type { AiAssistantIntentContext } from './AiAssistantIntentContext.ts';
 import type { AiAssistantToolHost } from './AiAssistantToolTypes.ts';
 import type { AiAssistantMessageKind } from './AiAssistantTypes.ts';
 
@@ -13,6 +14,7 @@ export type AiAssistantPreparedSubmission = {
   contextMode: AiAssistantContextMode;
   source?: 'manual' | 'intent';
   intent?: AiAssistantIntentKind;
+  intentContext?: AiAssistantIntentContext;
   profile?: AiAssistantProfile;
   liveHost?: AiAssistantToolHost | null;
   requestLabel?: string;

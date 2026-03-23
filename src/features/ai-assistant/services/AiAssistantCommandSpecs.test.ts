@@ -643,6 +643,23 @@ describe('AiAssistantCommandSpecs', () => {
     expect(error).toBeNull();
   });
 
+  it('uses explicit intent context to mark selected-goal replanning as goal_replan', () => {
+    const spec = getAiAssistantCommandSpec('strategic_plan');
+    expect(spec).not.toBeNull();
+
+    const compiledContext = spec!.buildCompiledContext({
+      prompt: 'Rebuild the strategic structure around the selected goal.',
+      memory: createAiAssistantTestMemory(),
+      toolResults: [],
+      snapshot: createSelectedGoalSnapshot(),
+      intentContext: {
+        strategicPlanMode: 'goal_replan',
+      },
+    }) as { mode?: string };
+
+    expect(compiledContext.mode).toBe('goal_replan');
+  });
+
   it('requires goal-level strategic proposals to target the selected goal explicitly', () => {
     const spec = getAiAssistantCommandSpec('strategic_plan');
     expect(spec).not.toBeNull();
@@ -673,7 +690,7 @@ describe('AiAssistantCommandSpecs', () => {
     );
   });
 
-  it('requires ambiguous goal breakdown prompts to return a follow-up question instead of actions', () => {
+  it('accepts an ambiguous goal breakdown follow-up without relying on a question mark', () => {
     const spec = getAiAssistantCommandSpec('breakdown');
     expect(spec).not.toBeNull();
 
@@ -687,7 +704,7 @@ describe('AiAssistantCommandSpecs', () => {
     const error = spec!.validateEnvelope({
       envelope: {
         replyMarkdown:
-          'Do you want strategic subgoals or execution-level stories for this goal?',
+          'Choose the target level for this goal: strategic subgoals or execution-level stories.',
         actions: [],
       },
       compiledContext,

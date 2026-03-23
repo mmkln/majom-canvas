@@ -9,8 +9,20 @@ export type AiAssistantCreateActionKind =
   | 'create_story'
   | 'create_goal';
 
+export type AiAssistantCreateGoalsItem = {
+  title: string;
+  description?: string;
+  priority?: UiPriority;
+  elementStatus?: AiAssistantCreateElementStatus;
+  target?: AiAssistantActionTarget;
+  supportedBy?: string[];
+  evidenceIds?: string[];
+  sourceContext?: string;
+};
+
 export type AiAssistantActionKind =
   | AiAssistantCreateActionKind
+  | 'create_goals'
   | 'create_goal_blueprint'
   | 'suggest_relation'
   | 'remove_relation'
@@ -49,6 +61,9 @@ type AiAssistantActionBase = AiAssistantActionGroup & {
   errorMessage?: string;
   createdElementId?: string;
   affectedElementIds?: string[];
+  supportedBy?: string[];
+  evidenceIds?: string[];
+  sourceContext?: string;
 };
 
 export type AiAssistantCreateAction = AiAssistantActionBase & {
@@ -57,6 +72,12 @@ export type AiAssistantCreateAction = AiAssistantActionBase & {
   priority?: UiPriority;
   elementStatus?: AiAssistantCreateElementStatus;
   target?: AiAssistantActionTarget;
+};
+
+export type AiAssistantCreateGoalsAction = AiAssistantActionBase & {
+  kind: 'create_goals';
+  target?: AiAssistantActionTarget;
+  items: AiAssistantCreateGoalsItem[];
 };
 
 export type AiAssistantGoalBlueprintPattern =
@@ -143,6 +164,7 @@ export type AiAssistantUpdateAction = AiAssistantActionBase & {
 
 export type AiAssistantAction =
   | AiAssistantCreateAction
+  | AiAssistantCreateGoalsAction
   | AiAssistantGoalBlueprintAction
   | AiAssistantRelationAction
   | AiAssistantRemoveRelationAction
@@ -206,6 +228,8 @@ export function getAiAssistantActionLabel(
       return 'Create story';
     case 'create_goal':
       return 'Create goal';
+    case 'create_goals':
+      return 'Create goals';
     case 'create_goal_blueprint':
       return 'Create plan';
     case 'suggest_relation':
@@ -239,6 +263,7 @@ export function isAiAssistantActionKind(
     value === 'create_task' ||
     value === 'create_story' ||
     value === 'create_goal' ||
+    value === 'create_goals' ||
     value === 'create_goal_blueprint' ||
     value === 'suggest_relation' ||
     value === 'remove_relation' ||

@@ -6,6 +6,7 @@ import type {
 import type { AiAssistantAction } from '../aiAssistantActions.ts';
 import { AiAssistantSessionController } from './AiAssistantSessionController.ts';
 import type { AiAssistantMessage } from './AiAssistantTypes.ts';
+import { createAiAssistantTelemetryCollector } from './AiAssistantTelemetryStore.ts';
 
 type Deferred<T> = {
   promise: Promise<T>;
@@ -382,12 +383,70 @@ describe('AiAssistantSessionController', () => {
       'Analyze the selected cluster and suggest relations.'
     );
     expect(messages[1]?.requestIntent).toBe('dependencies');
+    expect(messages[1]?.requestIntentContext).toBeUndefined();
     expect(reply.mock.calls[0]?.[0].prompt).toBe(
       'Analyze the selected cluster and suggest relations.'
     );
   });
 
-  it('auto-upgrades explicit relation cleanup prompts into dependencies intent flow', async () => {
+  it('records telemetry when an assistant action is applied from the chat', async () => {
+    const collector = createAiAssistantTelemetryCollector();
+    const service = {
+      createMessage,
+      createSystemMessage,
+      createWelcomeMessage: (context: AiAssistantCanvasSnapshot | null) =>
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
+      getQuickActions: vi.fn(() => []),
+      reply: vi.fn(async () =>
+        createMessage(
+          'assistant',
+          'I prepared one goal for review.',
+          Date.now(),
+          [
+            {
+              id: 'goal-action-1',
+              kind: 'create_goal',
+              label: 'Create goal',
+              title: 'Launch automation',
+              status: 'idle',
+            },
+          ]
+        )
+      ),
+    };
+    const controller = new AiAssistantSessionController({
+      service,
+      telemetry: collector,
+    });
+    controller.setContext(makeContext('canvas-a', 'Canvas A'));
+
+    await controller.submitPrompt('Create a goal');
+    const assistantMessage = controller.getState().messages.at(-1);
+    expect(assistantMessage?.actions).toHaveLength(1);
+
+    await controller.executeMessageAction(
+      assistantMessage!.id,
+      assistantMessage!.actions![0]!.id,
+      async () => ({
+        status: 'applied',
+        createdElementId: 'goal-1',
+        affectedElementIds: ['goal-1'],
+      })
+    );
+
+    expect(collector.snapshot()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'action_execution',
+          appliedActionCount: 1,
+          pendingActionCount: 1,
+          actionKinds: ['create_goal'],
+        }),
+      ])
+    );
+  });
+
+  it('keeps manual relation cleanup prompts on the manual path', async () => {
     const reply = vi.fn(async () =>
       createMessage('assistant', 'I prepared relation removals for review.', Date.now(), [
         {
@@ -431,12 +490,12 @@ describe('AiAssistantSessionController', () => {
     await controller.submitPrompt('delete all relations for the elements');
 
     expect(reply).toHaveBeenCalledTimes(1);
-    expect(reply.mock.calls[0]?.[0].source).toBe('intent');
-    expect(reply.mock.calls[0]?.[0].intent).toBe('dependencies');
+    expect(reply.mock.calls[0]?.[0].source).toBe('manual');
+    expect(reply.mock.calls[0]?.[0].intent).toBeUndefined();
     expect(controller.getState().messages[1]).toMatchObject({
       role: 'user',
       content: 'delete all relations for the elements',
-      requestIntent: 'dependencies',
+      requestIntent: undefined,
     });
     expect(controller.getState().pendingConfirmation).toMatchObject({
       actionIds: ['remove-relation-1'],
@@ -445,7 +504,7 @@ describe('AiAssistantSessionController', () => {
     });
   });
 
-  it('auto-upgrades empty-canvas strategic planning prompts into strategic_plan intent flow', async () => {
+  it('keeps manual strategic planning prompts on the manual path', async () => {
     const reply = vi.fn(async () =>
       createMessage('assistant', 'I prepared one strategic plan.', Date.now(), [
         {
@@ -495,12 +554,12 @@ describe('AiAssistantSessionController', () => {
     );
 
     expect(reply).toHaveBeenCalledTimes(1);
-    expect(reply.mock.calls[0]?.[0].source).toBe('intent');
-    expect(reply.mock.calls[0]?.[0].intent).toBe('strategic_plan');
-    expect(reply.mock.calls[0]?.[0].profile).toBe('strategic-plan');
+    expect(reply.mock.calls[0]?.[0].source).toBe('manual');
+    expect(reply.mock.calls[0]?.[0].intent).toBeUndefined();
+    expect(reply.mock.calls[0]?.[0].profile).toBeUndefined();
     expect(controller.getState().messages[1]).toMatchObject({
       role: 'user',
-      requestIntent: 'strategic_plan',
+      requestIntent: undefined,
     });
     expect(controller.getState().pendingConfirmation).toMatchObject({
       actionIds: ['plan-blueprint-1'],
@@ -510,7 +569,7 @@ describe('AiAssistantSessionController', () => {
     });
   });
 
-  it('auto-upgrades selected-goal subgoal prompts into strategic_plan intent flow', async () => {
+  it('preserves explicit strategic_plan intent context on prepared submissions', async () => {
     const reply = vi.fn(async () => createMessage('assistant', 'Reply'));
     const service = {
       createMessage,
@@ -533,14 +592,28 @@ describe('AiAssistantSessionController', () => {
       )
     );
 
-    await controller.submitPrompt(
-      'декомпозуй поточну ціль у паралельні або послідовні підцілі'
-    );
+    const context = controller.getState().context;
+    await controller.submitPreparedSubmission({
+      prompt: 'Create a strategic goal-level plan around the selected goal.',
+      snapshot: context,
+      contextMode: 'selection',
+      source: 'intent',
+      intent: 'strategic_plan',
+      intentContext: {
+        strategicPlanMode: 'goal_subgoals',
+      },
+      profile: 'strategic-plan',
+      requestLabel: 'Generate strategic plan',
+      requestMessageKind: 'command',
+    });
 
     expect(reply).toHaveBeenCalledTimes(1);
     expect(reply.mock.calls[0]?.[0].source).toBe('intent');
     expect(reply.mock.calls[0]?.[0].intent).toBe('strategic_plan');
     expect(reply.mock.calls[0]?.[0].profile).toBe('strategic-plan');
+    expect(reply.mock.calls[0]?.[0].intentContext).toEqual({
+      strategicPlanMode: 'goal_subgoals',
+    });
   });
 
   it('restores the seed message after turning canvas context back on', () => {
@@ -942,6 +1015,80 @@ describe('AiAssistantSessionController', () => {
     );
   });
 
+  it('expands create_goals into runtime create_goal requests at execution time', async () => {
+    const service = {
+      createMessage,
+      createSystemMessage,
+      createWelcomeMessage: (context: AiAssistantCanvasSnapshot | null) =>
+        createSystemMessage(`Welcome ${context?.canvasTitle ?? 'none'}`),
+      getQuickActions: vi.fn(() => []),
+      reply: vi.fn(async () =>
+        createMessage('assistant', 'I prepared strategic goals.', Date.now(), [
+          {
+            id: 'action-goals',
+            kind: 'create_goals',
+            label: 'Create goals',
+            title: 'Strategic goals',
+            status: 'idle',
+            summary: 'Top-level strategic goals for the topic.',
+            target: { kind: 'canvas' },
+            items: [
+              { title: 'Learn automation fundamentals' },
+              { title: 'Build first automation workflow' },
+            ],
+            supportedBy: ['goal-1'],
+            evidenceIds: ['goal-1'],
+            sourceContext: 'Selected goal description',
+          },
+        ])
+      ),
+    };
+    const controller = new AiAssistantSessionController({ service });
+    controller.setContext(makeContext('canvas-a', 'Canvas A'));
+
+    await controller.submitPrompt('Create strategic goals');
+
+    const assistantMessage = controller
+      .getState()
+      .messages.find((message) => message.actions?.length);
+    expect(controller.getState().pendingConfirmation).toMatchObject({
+      actionIds: ['action-goals'],
+      actionLabel: 'Create all',
+      actionTitle: 'Strategic goals (2)',
+      actionCount: 1,
+    });
+
+    const singleExecutor = vi.fn(async () => ({
+      status: 'failed' as const,
+      errorMessage: 'Single executor should not be used.',
+    }));
+    const batchExecutor = vi.fn(async (requests: Array<{ action: { kind: string } }>) =>
+      requests.map((request, index) => ({
+        status: 'applied' as const,
+        createdElementId: `${request.action.kind}-${index + 1}`,
+      }))
+    );
+    const executor = Object.assign(singleExecutor, {
+      executeBatch: batchExecutor,
+    });
+
+    await controller.executeMessageAction(
+      assistantMessage!.id,
+      'action-goals',
+      executor
+    );
+
+    expect(batchExecutor).toHaveBeenCalledTimes(1);
+    expect(batchExecutor.mock.calls[0]?.[0].map((request) => request.action.kind)).toEqual([
+      'create_goal',
+      'create_goal',
+    ]);
+    expect(singleExecutor).not.toHaveBeenCalled();
+    expect(controller.getState().messages.at(-1)?.content).toBe(
+      'Created 2 strategic goals.'
+    );
+  });
+
   it('summarizes applied relation type updates as updated relations', async () => {
     const service = {
       createMessage,
@@ -1142,13 +1289,13 @@ describe('AiAssistantSessionController', () => {
     );
   });
 
-  it('continues an intent flow when the latest assistant reply is a follow-up question', async () => {
+  it('continues an intent flow when the latest assistant reply is awaiting input without punctuation heuristics', async () => {
     const reply = vi
       .fn()
       .mockResolvedValueOnce(
         createMessage(
           'assistant',
-          'What specific metrics define success for this goal?'
+          'Share the specific metrics that define success for this goal.'
         )
       )
       .mockResolvedValueOnce(createMessage('assistant', 'Structured follow-up answer'));
@@ -1184,6 +1331,7 @@ describe('AiAssistantSessionController', () => {
     });
 
     expect(controller.getState().messages.at(-1)?.requestIntent).toBe('fill_details');
+    expect(controller.getState().messages.at(-1)?.awaitingUserInput).toBe(true);
 
     await controller.submitPrompt(
       '85kg minimum, broad shoulders, big chest, 6-pack abs, strong forearms, glutes and legs trained.'

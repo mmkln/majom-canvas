@@ -3,6 +3,7 @@ import type {
   AiAssistantIntentKind,
 } from '../aiAssistantEvents.ts';
 import type { AiAssistantStructuredReply } from '../aiAssistantActions.ts';
+import type { AiAssistantIntentContext } from './AiAssistantIntentContext.ts';
 import {
   parseAiAssistantStructuredReply,
   tryParseAiAssistantStructuredReplyEnvelope,
@@ -41,6 +42,14 @@ import {
   completeAiAssistantTextWithRepair,
   tryParseAiAssistantJsonCandidate,
 } from './AiAssistantRepair.ts';
+import type { AiAssistantTokenUsage } from './AiAssistantTelemetryTypes.ts';
+import type {
+  AiAssistantTelemetryCollector,
+  AiAssistantTelemetryContext,
+} from './AiAssistantTelemetryTypes.ts';
+import {
+  getSharedAiAssistantTelemetryCollector,
+} from './AiAssistantTelemetryStore.ts';
 import type {
   AiAssistantInstructionPacket,
   AiAssistantRouterDecision,
@@ -65,12 +74,26 @@ type AiAssistantLlmClient = {
       maxTokens?: number;
     }
   ) => Promise<string>;
+  completeTextWithMetadata?: (
+    messages: AiAssistantApiMessage[],
+    options?: {
+      signal?: AbortSignal;
+      model?: string;
+      temperature?: number;
+      maxTokens?: number;
+    }
+  ) => Promise<{
+    content: string;
+    usage?: AiAssistantTokenUsage;
+  }>;
 };
 
 export type AiAssistantOrchestratorRequest = {
   prompt: string;
   source: 'manual' | 'intent';
   intent?: AiAssistantIntentKind;
+  intentContext?: AiAssistantIntentContext;
+  telemetryContext?: AiAssistantTelemetryContext;
   profile?: AiAssistantProfile;
   snapshot: AiAssistantCanvasSnapshot | null;
   contextMode: AiAssistantContextMode;
@@ -92,6 +115,7 @@ type AiAssistantOrchestratorOptions = {
   instructionRegistry?: AiAssistantInstructionRegistry;
   registry?: AiAssistantToolRegistry;
   executor?: AiAssistantToolExecutor;
+  telemetry?: AiAssistantTelemetryCollector;
 };
 
 type AiAssistantOrchestrationState = {
@@ -101,6 +125,13 @@ type AiAssistantOrchestrationState = {
   toolResults: AiAssistantToolResult[];
   instructionPackets: AiAssistantInstructionPacket[];
   loadedInstructionIds: Set<string>;
+  telemetry: {
+    routerHopCount: number;
+    toolExecutionRounds: number;
+    repairAttempts: number;
+    invalidEnvelopeCount: number;
+    tokenUsage?: AiAssistantTokenUsage;
+  };
 };
 
 const MAX_TOOL_STEPS = 6;
@@ -113,11 +144,14 @@ export class AiAssistantOrchestrator {
   private readonly instructionRegistry: AiAssistantInstructionRegistry;
   private readonly registry: AiAssistantToolRegistry;
   private readonly executor: AiAssistantToolExecutor;
+  private readonly telemetry: AiAssistantTelemetryCollector;
 
   constructor(private readonly options: AiAssistantOrchestratorOptions) {
     this.instructionRegistry =
       options.instructionRegistry ?? createAiAssistantInstructionRegistry();
     this.registry = options.registry ?? createAiAssistantToolRegistry();
+    this.telemetry =
+      options.telemetry ?? getSharedAiAssistantTelemetryCollector();
     this.executor =
       options.executor ??
       new AiAssistantToolExecutor({
@@ -130,95 +164,124 @@ export class AiAssistantOrchestrator {
     request: AiAssistantOrchestratorRequest
   ): Promise<AiAssistantOrchestratorReply> {
     const effectiveIntent = request.intent;
-    this.emitProgress(request, {
-      phase: 'routing',
-      label:
-        effectiveIntent ? 'Preparing workflow' : 'Analyzing request',
-      detail:
-        effectiveIntent
-          ? describeAiAssistantIntentProgressDetail(effectiveIntent)
-          : 'Choosing context, instructions, and tools.',
-    });
-
     const state = this.createInitialState(request);
-    const commandSpec = effectiveIntent
-      ? getAiAssistantCommandSpec(effectiveIntent)
-      : null;
 
-    if (effectiveIntent) {
-      await this.executeIntentSeed(request, state);
-    } else {
-      const followupQuestion = await this.runManualDecisionLoop(request, state);
-      if (followupQuestion) {
-        return {
-          replyMarkdown: followupQuestion,
-          actions: [],
-          plan: state.plan,
-          toolResults: state.toolResults,
-        };
-      }
-    }
+    try {
+      this.emitProgress(request, {
+        phase: 'routing',
+        label:
+          effectiveIntent ? 'Preparing workflow' : 'Analyzing request',
+        detail:
+          effectiveIntent
+            ? describeAiAssistantIntentProgressDetail(effectiveIntent)
+            : 'Choosing context, instructions, and tools.',
+      });
 
-    if (commandSpec) {
-      return this.completeCommandReply(request, state, commandSpec);
-    }
+      const commandSpec = effectiveIntent
+        ? getAiAssistantCommandSpec(effectiveIntent)
+        : null;
 
-    this.loadInstructionPackets([RESPONSE_PACKET_ID], state);
-    this.emitProgress(request, {
-      phase: 'drafting',
-      label: 'Drafting structured reply',
-      detail: 'Preparing the final workspace answer.',
-    });
-
-    const finalReplyResult = await completeAiAssistantTextWithRepair({
-      client: this.options.apiClient,
-      messages: buildAiAssistantAnswerMessages({
-        prompt: request.prompt,
-        intent: effectiveIntent,
-        profile: state.plan.profile,
-        memory: request.memory,
-        instructionPackets: state.instructionPackets,
-        toolResults: state.toolResults,
-        allowActions: request.allowActions,
-      }),
-      validate: (content) => {
-        if (!tryParseAiAssistantStructuredReplyEnvelope(content)) {
-          throw new Error('Final answer is not a valid structured reply envelope.');
+      if (effectiveIntent) {
+        await this.executeIntentSeed(request, state);
+      } else {
+        const followupQuestion = await this.runManualDecisionLoop(request, state);
+        if (followupQuestion) {
+          const reply = {
+            replyMarkdown: followupQuestion,
+            actions: [],
+            plan: state.plan,
+            toolResults: state.toolResults,
+          };
+          this.recordInteractionTelemetry(request, state, {
+            outcome: 'followup',
+            followupQuestionReturned: true,
+          });
+          return reply;
         }
-        return content;
-      },
-      buildRepairMessages: ({ invalidResponse, validationError }) =>
-        buildAiAssistantStructuredReplyRepairMessages({
-          invalidResponse,
-          validationError,
-          allowActions: request.allowActions,
-          intent: effectiveIntent,
-        }),
-      signal: request.signal,
-      maxRepairAttempts: MAX_FINAL_REPLY_REPAIR_ATTEMPTS,
-      onRepairAttempt: ({ attempt }) => {
-        this.emitProgress(request, {
-          phase: 'repairing',
-          label: 'Repairing output',
-          detail:
-            attempt === 1
-              ? 'Fixing the structured reply envelope.'
-              : `Fixing the structured reply envelope (attempt ${attempt}).`,
-        });
-      },
-    });
-    const rawContent = finalReplyResult.rawContent;
-    const structured = parseAiAssistantStructuredReply(rawContent, {
-      allowActions: request.allowActions,
-      validationSnapshot: request.validationSnapshot ?? request.snapshot,
-      intent: effectiveIntent,
-    });
+      }
 
-    return {
-      ...structured,
-      plan: state.plan,
-      toolResults: state.toolResults,
-    };
+      if (commandSpec) {
+        const reply = await this.completeCommandReply(request, state, commandSpec);
+        this.recordInteractionTelemetry(request, state, {
+          outcome: 'reply',
+          followupQuestionReturned: false,
+        });
+        return reply;
+      }
+
+      this.loadInstructionPackets([RESPONSE_PACKET_ID], state);
+      this.emitProgress(request, {
+        phase: 'drafting',
+        label: 'Drafting structured reply',
+        detail: 'Preparing the final workspace answer.',
+      });
+
+      const finalReplyResult = await completeAiAssistantTextWithRepair({
+        client: this.options.apiClient,
+        messages: buildAiAssistantAnswerMessages({
+          prompt: request.prompt,
+          intent: effectiveIntent,
+          profile: state.plan.profile,
+          memory: request.memory,
+          instructionPackets: state.instructionPackets,
+          toolResults: state.toolResults,
+          allowActions: request.allowActions,
+        }),
+        validate: (content) => {
+          if (!tryParseAiAssistantStructuredReplyEnvelope(content)) {
+            throw new Error('Final answer is not a valid structured reply envelope.');
+          }
+          return content;
+        },
+        buildRepairMessages: ({ invalidResponse, validationError }) =>
+          buildAiAssistantStructuredReplyRepairMessages({
+            invalidResponse,
+            validationError,
+            allowActions: request.allowActions,
+            intent: effectiveIntent,
+          }),
+        signal: request.signal,
+        maxRepairAttempts: MAX_FINAL_REPLY_REPAIR_ATTEMPTS,
+        onRepairAttempt: ({ attempt, validationError }) => {
+          this.recordRepairTelemetry(request, state, 'answer', attempt, validationError);
+          this.emitProgress(request, {
+            phase: 'repairing',
+            label: 'Repairing output',
+            detail:
+              attempt === 1
+                ? 'Fixing the structured reply envelope.'
+                : `Fixing the structured reply envelope (attempt ${attempt}).`,
+          });
+        },
+      });
+      state.telemetry.tokenUsage = mergeTelemetryUsage(
+        state.telemetry.tokenUsage,
+        finalReplyResult.usage
+      );
+      const rawContent = finalReplyResult.rawContent;
+      const structured = parseAiAssistantStructuredReply(rawContent, {
+        allowActions: request.allowActions,
+        validationSnapshot: request.validationSnapshot ?? request.snapshot,
+        intent: effectiveIntent,
+      });
+      const reply = {
+        ...structured,
+        plan: state.plan,
+        toolResults: state.toolResults,
+      };
+
+      this.recordInteractionTelemetry(request, state, {
+        outcome: 'reply',
+        followupQuestionReturned: false,
+      });
+      return reply;
+    } catch (error) {
+      this.recordInteractionTelemetry(request, state, {
+        outcome: 'error',
+        followupQuestionReturned: false,
+      });
+      throw error;
+    }
   }
 
   public buildIntentPlan(
@@ -338,6 +401,7 @@ export class AiAssistantOrchestrator {
       memory: request.memory,
       toolResults: state.toolResults,
       snapshot: request.validationSnapshot ?? request.snapshot,
+      intentContext: request.intentContext,
     });
 
     this.emitProgress(request, {
@@ -376,7 +440,14 @@ export class AiAssistantOrchestrator {
         }),
       signal: request.signal,
       maxRepairAttempts: MAX_FINAL_REPLY_REPAIR_ATTEMPTS,
-      onRepairAttempt: ({ attempt }) => {
+      onRepairAttempt: ({ attempt, validationError }) => {
+        this.recordRepairTelemetry(
+          request,
+          state,
+          'command',
+          attempt,
+          validationError
+        );
         this.emitProgress(request, {
           phase: 'repairing',
           label: 'Repairing output',
@@ -387,6 +458,10 @@ export class AiAssistantOrchestrator {
         });
       },
     });
+    state.telemetry.tokenUsage = mergeTelemetryUsage(
+      state.telemetry.tokenUsage,
+      finalReplyResult.usage
+    );
     const rawContent = finalReplyResult.rawContent;
     const structured = parseAiAssistantStructuredReply(rawContent, {
       allowActions: request.allowActions,
@@ -466,7 +541,10 @@ export class AiAssistantOrchestrator {
       return [];
     }
 
-    return this.executor.executePlan(this.limitPlanCalls(plan), this.buildRuntimeContext(request, state), {
+    const results = await this.executor.executePlan(
+      this.limitPlanCalls(plan),
+      this.buildRuntimeContext(request, state),
+      {
       onToolStart: ({ definition, step, totalSteps }) => {
         this.emitProgress(request, {
           phase: 'tools',
@@ -476,7 +554,10 @@ export class AiAssistantOrchestrator {
           totalSteps,
         });
       },
-    });
+      }
+    );
+    state.telemetry.toolExecutionRounds += 1;
+    return results;
   }
 
   private buildRuntimeContext(
@@ -511,6 +592,12 @@ export class AiAssistantOrchestrator {
       toolResults: [],
       instructionPackets: [],
       loadedInstructionIds: new Set<string>(),
+      telemetry: {
+        routerHopCount: 0,
+        toolExecutionRounds: 0,
+        repairAttempts: 0,
+        invalidEnvelopeCount: 0,
+      },
     };
   }
 
@@ -627,7 +714,14 @@ export class AiAssistantOrchestrator {
         }),
       signal,
       maxRepairAttempts: MAX_ROUTER_REPAIR_ATTEMPTS,
-      onRepairAttempt: ({ attempt }) => {
+      onRepairAttempt: ({ attempt, validationError }) => {
+        this.recordRepairTelemetry(
+          request,
+          state,
+          'router',
+          attempt,
+          validationError
+        );
         this.emitProgress(request, {
           phase: 'repairing',
           label: 'Repairing planner output',
@@ -638,6 +732,12 @@ export class AiAssistantOrchestrator {
         });
       },
     });
+
+    state.telemetry.routerHopCount += 1;
+    state.telemetry.tokenUsage = mergeTelemetryUsage(
+      state.telemetry.tokenUsage,
+      result.usage
+    );
 
     if (result.ok) {
       return result.value;
@@ -651,6 +751,98 @@ export class AiAssistantOrchestrator {
         'I could not validate the next planning step. Please restate the request a bit more specifically.',
     };
   }
+
+  private recordInteractionTelemetry(
+    request: AiAssistantOrchestratorRequest,
+    state: AiAssistantOrchestrationState,
+    params: {
+      outcome: 'reply' | 'followup' | 'error' | 'aborted';
+      followupQuestionReturned: boolean;
+    }
+  ): void {
+    this.telemetry.record({
+      kind: 'interaction',
+      timestamp: Date.now(),
+      context: this.resolveTelemetryContext(request),
+      routeType: request.source,
+      intent: request.intent,
+      profile: state.plan.profile,
+      contextMode: state.contextMode,
+      commandSpecUsed: Boolean(request.intent && getAiAssistantCommandSpec(request.intent)),
+      routerHopCount: state.telemetry.routerHopCount,
+      toolExecutionRounds: state.telemetry.toolExecutionRounds,
+      toolCallCount: state.toolResults.length,
+      instructionPacketCount: state.instructionPackets.length,
+      repairAttempts: state.telemetry.repairAttempts,
+      invalidEnvelopeCount: state.telemetry.invalidEnvelopeCount,
+      followupQuestionReturned: params.followupQuestionReturned,
+      tokenUsage: state.telemetry.tokenUsage,
+      outcome: params.outcome,
+    });
+  }
+
+  private recordRepairTelemetry(
+    request: AiAssistantOrchestratorRequest,
+    state: AiAssistantOrchestrationState,
+    stage: 'router' | 'command' | 'answer',
+    attempt: number,
+    validationError: string
+  ): void {
+    this.telemetry.record({
+      kind: 'repair',
+      timestamp: Date.now(),
+      context: this.resolveTelemetryContext(request),
+      stage,
+      attempt,
+      validationError,
+    });
+    state.telemetry.repairAttempts += 1;
+    state.telemetry.invalidEnvelopeCount += 1;
+  }
+
+  private resolveTelemetryContext(
+    request: AiAssistantOrchestratorRequest
+  ): AiAssistantTelemetryContext {
+    return (
+      request.telemetryContext ?? {
+        conversationKey: 'unknown',
+        requestId: 'unknown',
+      }
+    );
+  }
+}
+
+function mergeTelemetryUsage(
+  first: AiAssistantTokenUsage | undefined,
+  second: AiAssistantTokenUsage | undefined
+): AiAssistantTokenUsage | undefined {
+  if (!first && !second) {
+    return undefined;
+  }
+
+  return {
+    promptTokens: sumTelemetryUsageField(first?.promptTokens, second?.promptTokens),
+    completionTokens: sumTelemetryUsageField(
+      first?.completionTokens,
+      second?.completionTokens
+    ),
+    totalTokens: sumTelemetryUsageField(first?.totalTokens, second?.totalTokens),
+    cost: sumTelemetryUsageField(first?.cost, second?.cost),
+  };
+}
+
+function sumTelemetryUsageField(
+  first: number | undefined,
+  second: number | undefined
+): number | undefined {
+  if (typeof first !== 'number' && typeof second !== 'number') {
+    return undefined;
+  }
+
+  return (
+    (typeof first === 'number' ? first : 0) +
+    (typeof second === 'number' ? second : 0)
+  );
 }
 
 function sanitizeRouterDecision(

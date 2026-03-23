@@ -1,5 +1,6 @@
 import type { AiAssistantMessage } from './AiAssistantTypes.ts';
 import type { AiAssistantIntentKind } from '../aiAssistantEvents.ts';
+import type { AiAssistantIntentContext } from './AiAssistantIntentContext.ts';
 import {
   AI_ASSISTANT_CONTEXT_MODE_STORAGE_KEY_PREFIX,
   AI_ASSISTANT_HISTORY_LIMIT,
@@ -124,6 +125,11 @@ export class AiAssistantPersistence {
           ? message.requestPrompt.trim()
           : undefined,
       requestIntent: normalizeAiAssistantIntentKind(message.requestIntent) ?? undefined,
+      requestIntentContext: normalizeAiAssistantIntentContext(
+        message.requestIntentContext
+      ),
+      awaitingUserInput:
+        message.awaitingUserInput === true ? true : undefined,
       actions: actions && actions.length > 0 ? actions : undefined,
       reviewFindings: reviewFindings ?? undefined,
     };
@@ -147,4 +153,34 @@ function normalizeAiAssistantIntentKind(
     default:
       return null;
   }
+}
+
+function normalizeAiAssistantIntentContext(
+  value: unknown
+): AiAssistantIntentContext | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const context = value as Partial<AiAssistantIntentContext>;
+  const strategicPlanMode =
+    context.strategicPlanMode === 'canvas_bootstrap' ||
+    context.strategicPlanMode === 'goal_subgoals' ||
+    context.strategicPlanMode === 'goal_replan'
+      ? context.strategicPlanMode
+      : undefined;
+  const breakdownMode =
+    context.breakdownMode === 'goal_stories' ||
+    context.breakdownMode === 'story_tasks' ||
+    context.breakdownMode === 'task_refine' ||
+    context.breakdownMode === 'unspecified_goal_decomposition'
+      ? context.breakdownMode
+      : undefined;
+
+  return strategicPlanMode || breakdownMode
+    ? {
+        strategicPlanMode,
+        breakdownMode,
+      }
+    : undefined;
 }

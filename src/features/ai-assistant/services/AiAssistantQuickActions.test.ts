@@ -48,12 +48,20 @@ describe('AiAssistantQuickActions', () => {
     });
 
     expect(actions[0]?.label).toBe('Generate strategic plan');
+    expect(actions[0]?.submission?.intent).toBe('strategic_plan');
+    expect(actions[0]?.submission?.intentContext).toEqual({
+      strategicPlanMode: 'canvas_bootstrap',
+    });
   });
 
   it('adds a breakdown shortcut and selection-scoped review actions for a selected story', () => {
     const actions = getAiAssistantQuickActions(createAiAssistantTestSnapshot());
 
     expect(actions[0]?.label).toBe('Break into tasks');
+    expect(actions[0]?.submission?.intent).toBe('breakdown');
+    expect(actions[0]?.submission?.intentContext).toEqual({
+      breakdownMode: 'story_tasks',
+    });
     expect(actions.some((action) => action.label === 'Review selection')).toBe(true);
     expect(actions.some((action) => action.label === 'Find duplicates')).toBe(true);
     expect(actions.some((action) => action.label === 'Review recent changes')).toBe(true);

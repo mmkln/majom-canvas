@@ -314,6 +314,58 @@ describe('AiAssistantCanvasActionExecutor', () => {
     expect(goals[0]?.y).toBe(260);
   });
 
+  it('lays out multiple created goals without overlap', async () => {
+    const scene = new Scene();
+    const executor = createExecutor(scene);
+
+    const results = await executor.executeBatch([
+      makeRequest({
+        id: 'action-goal-1',
+        kind: 'create_goal',
+        label: 'Create goal',
+        title: 'Improve onboarding',
+        status: 'idle',
+      }),
+      makeRequest({
+        id: 'action-goal-2',
+        kind: 'create_goal',
+        label: 'Create goal',
+        title: 'Improve retention',
+        status: 'idle',
+      }),
+    ]);
+
+    expect(results.map((result) => result.status)).toEqual(['applied', 'applied']);
+    const goals = scene
+      .getElements()
+      .filter((element): element is GoalElement => element instanceof GoalElement);
+    expect(goals).toHaveLength(2);
+    const firstGoal = goals[0];
+    const secondGoal = goals[1];
+    expect(firstGoal).toBeDefined();
+    expect(secondGoal).toBeDefined();
+    if (!firstGoal || !secondGoal) {
+      return;
+    }
+    expect(
+      rectsOverlap(
+        {
+          x: firstGoal.x,
+          y: firstGoal.y,
+          width: firstGoal.width,
+          height: firstGoal.height,
+        },
+        {
+          x: secondGoal.x,
+          y: secondGoal.y,
+          width: secondGoal.width,
+          height: secondGoal.height,
+        }
+      )
+    ).toBe(false);
+    expect(historyService.canUndo()).toBe(true);
+  });
+
   it('creates a child goal under an existing goal target', async () => {
     const scene = new Scene();
     const parentGoal = new GoalElement({
@@ -349,6 +401,56 @@ describe('AiAssistantCanvasActionExecutor', () => {
       relationType: ConnectionRelationType.ParentChild,
       fromId: 'goal-parent',
     });
+  });
+
+  it('places a goal away from an occupied viewport center', async () => {
+    const scene = new Scene();
+    scene.addElement(
+      new GoalElement({
+        id: 'goal-occupied',
+        x: 360,
+        y: 260,
+        title: 'Existing goal',
+      })
+    );
+    const executor = createExecutor(scene);
+
+    const result = await executor.execute(
+      makeRequest({
+        id: 'action-goal-occupied',
+        kind: 'create_goal',
+        label: 'Create goal',
+        title: 'Improve trust',
+        status: 'idle',
+      })
+    );
+
+    expect(result.status).toBe('applied');
+    const goals = scene
+      .getElements()
+      .filter((element): element is GoalElement => element instanceof GoalElement);
+    expect(goals).toHaveLength(2);
+    const createdGoal = goals.find((goal) => goal.id !== 'goal-occupied');
+    expect(createdGoal).toBeDefined();
+    if (!createdGoal) {
+      return;
+    }
+    expect(
+      rectsOverlap(
+        {
+          x: createdGoal.x,
+          y: createdGoal.y,
+          width: createdGoal.width,
+          height: createdGoal.height,
+        },
+        {
+          x: 360,
+          y: 260,
+          width: GoalElement.width,
+          height: GoalElement.height,
+        }
+      )
+    ).toBe(false);
   });
 
   it('applies a suggested non-hierarchical relation through the command stack', async () => {
@@ -615,6 +717,111 @@ describe('AiAssistantCanvasActionExecutor', () => {
         .filter((element): element is GoalElement => element instanceof GoalElement)
     ).toHaveLength(3);
     expect(scene.getConnections()).toHaveLength(3);
+  });
+
+  it('places a strategic blueprint away from occupied canvas regions', async () => {
+    const scene = new Scene();
+    scene.addElement(
+      new GoalElement({
+        id: 'goal-occupied',
+        x: 360,
+        y: 260,
+        title: 'Existing goal',
+      })
+    );
+    const executor = createExecutor(scene);
+
+    const result = await executor.execute(
+      makeRequest({
+        id: 'plan-blueprint-occupied',
+        kind: 'create_goal_blueprint',
+        label: 'Create plan',
+        title: 'Marketing automation learning plan',
+        status: 'idle',
+        pattern: 'goal_tree_with_sequence',
+        goals: [
+          { ref: 'root', title: 'Master marketing automation strategically' },
+          {
+            ref: 'fundamentals',
+            title: 'Learn core automation concepts',
+            parentRef: 'root',
+          },
+          {
+            ref: 'practice',
+            title: 'Build first automation workflows',
+            parentRef: 'root',
+          },
+        ],
+        relations: [
+          {
+            fromRef: 'fundamentals',
+            toRef: 'practice',
+            relationType: 'leads_to',
+          },
+        ],
+      })
+    );
+
+    expect(result.status).toBe('applied');
+    const goals = scene
+      .getElements()
+      .filter((element): element is GoalElement => element instanceof GoalElement);
+    expect(goals).toHaveLength(4);
+    const createdGoals = goals.filter((goal) => goal.id !== 'goal-occupied');
+    createdGoals.forEach((goal) => {
+      expect(
+        rectsOverlap(
+          {
+            x: goal.x,
+            y: goal.y,
+            width: goal.width,
+            height: goal.height,
+          },
+          {
+            x: 360,
+            y: 260,
+            width: GoalElement.width,
+            height: GoalElement.height,
+          }
+        )
+      ).toBe(false);
+    });
+  });
+
+  it('rolls back a mixed batch when one action fails', async () => {
+    const scene = new Scene();
+    const executor = createExecutor(scene);
+
+    const results = await executor.executeBatch([
+      makeRequest({
+        id: 'action-goal-rollback',
+        kind: 'create_goal',
+        label: 'Create goal',
+        title: 'Improve onboarding',
+        status: 'idle',
+      }),
+      makeRequest({
+        id: 'relation-invalid',
+        kind: 'suggest_relation',
+        label: 'Add relation',
+        title: 'Invalid relation',
+        relationType: 'blocks',
+        fromId: 'missing-from',
+        toId: 'missing-to',
+        fromLabel: 'Missing',
+        toLabel: 'Missing',
+        status: 'idle',
+      }),
+    ]);
+
+    expect(results.map((result) => result.status)).toEqual(['failed', 'failed']);
+    expect(
+      scene
+        .getElements()
+        .filter((element): element is GoalElement => element instanceof GoalElement)
+    ).toHaveLength(0);
+    expect(scene.getConnections()).toHaveLength(0);
+    expect(historyService.canUndo()).toBe(false);
   });
 
   it('attaches blueprint roots under a targeted existing goal', async () => {

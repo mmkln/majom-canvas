@@ -237,4 +237,33 @@ describe('AiAssistantStructuredResultModel', () => {
       '1 sequence link',
     ]);
   });
+
+  it('renders create_goals actions with batch labels and evidence metadata', () => {
+    const action: AiAssistantAction = {
+      id: 'goals-1',
+      kind: 'create_goals',
+      label: 'Create goals',
+      title: 'Strategic goals',
+      status: 'idle',
+      target: { kind: 'goal', id: 'goal-a' },
+      items: [
+        { title: 'Learn the basics' },
+        { title: 'Build first workflows' },
+      ],
+      supportedBy: ['goal-a'],
+      evidenceIds: ['goal-a'],
+      sourceContext: 'Selected goal description',
+    };
+
+    expect(getAiAssistantActionButtonLabel(action)).toBe('Create all');
+    expect(getAiAssistantActionSecondaryText(action, context, true)).toBe(
+      '2 strategic goals · In goal "Launch"'
+    );
+    expect(buildAiAssistantActionTagModels(action).map((tag) => tag.text)).toEqual([
+      '2 goals',
+      'supported by 1',
+      '1 evidence',
+      'source context',
+    ]);
+  });
 });

@@ -77,6 +77,7 @@ describe('resolveAiAssistantIntentSubmission', () => {
     expect(submission.contextMode).toBe('selection');
     expect(submission.source).toBe('intent');
     expect(submission.intent).toBe('missing');
+    expect(submission.intentContext).toBeUndefined();
     expect(submission.profile).toBe('readiness-check');
     expect(submission.requestLabel).toBe('What is missing?');
     expect(submission.requestMessageKind).toBe('command');
@@ -152,6 +153,7 @@ describe('resolveAiAssistantIntentSubmission', () => {
 
     expect(submission.contextMode).toBe('selection');
     expect(submission.intent).toBe('clarify');
+    expect(submission.intentContext).toBeUndefined();
     expect(submission.profile).toBe('breakdown');
     expect(submission.requestLabel).toBe('Clarify');
     expect(submission.snapshot?.selectionIds).toEqual(['story-1']);
@@ -171,6 +173,9 @@ describe('resolveAiAssistantIntentSubmission', () => {
 
     expect(submission.contextMode).toBe('canvas');
     expect(submission.intent).toBe('strategic_plan');
+    expect(submission.intentContext).toEqual({
+      strategicPlanMode: 'canvas_bootstrap',
+    });
     expect(submission.profile).toBe('strategic-plan');
     expect(submission.requestLabel).toBe('Generate strategic plan');
     expect(submission.requestMessageKind).toBe('command');

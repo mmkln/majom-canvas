@@ -21,13 +21,17 @@ import type {
   AiAssistantMemoryState,
   AiAssistantProfile,
 } from './AiAssistantContextTypes.ts';
+import type { AiAssistantTelemetryCollector } from './AiAssistantTelemetryTypes.ts';
 import type { AiAssistantContextMode } from './AiAssistantContextMode.ts';
+import type { AiAssistantIntentContext } from './AiAssistantIntentContext.ts';
 import type { AiAssistantToolHost } from './AiAssistantToolTypes.ts';
 
 export type AiAssistantReplyRequest = {
   prompt: string;
   source: 'manual' | 'intent';
   intent?: AiAssistantIntentKind;
+  intentContext?: AiAssistantIntentContext;
+  telemetryContext?: AiAssistantTelemetryContext;
   profile?: AiAssistantProfile;
   contextMode: AiAssistantContextMode;
   memory: AiAssistantMemoryState;
@@ -64,6 +68,7 @@ export interface AiAssistantServiceLike {
 type AiAssistantServiceOptions = {
   apiClient?: AiAssistantApiClient;
   orchestrator?: AiAssistantOrchestrator;
+  telemetry?: AiAssistantTelemetryCollector;
 };
 
 export class AiAssistantService implements AiAssistantServiceLike {
@@ -76,6 +81,7 @@ export class AiAssistantService implements AiAssistantServiceLike {
       options.orchestrator ??
       new AiAssistantOrchestrator({
         apiClient: this.apiClient,
+        telemetry: options.telemetry,
       });
   }
 
@@ -131,10 +137,26 @@ export class AiAssistantService implements AiAssistantServiceLike {
       return this.createMessage('assistant', 'AI Assistant is not configured.');
     }
 
+    const requestTelemetryContext = request.telemetryContext as
+      | {
+          conversationKey?: unknown;
+          requestId?: unknown;
+        }
+      | undefined;
+    const telemetryContext =
+      typeof requestTelemetryContext?.conversationKey === 'string' &&
+      typeof requestTelemetryContext?.requestId === 'string'
+        ? {
+            conversationKey: requestTelemetryContext.conversationKey,
+            requestId: requestTelemetryContext.requestId,
+          }
+        : undefined;
+
     const structured = await this.orchestrator.reply({
       prompt: request.prompt,
       source: request.source,
       intent: request.intent,
+      intentContext: request.intentContext,
       profile: request.profile,
       snapshot: request.snapshot,
       contextMode: request.contextMode,
@@ -144,6 +166,7 @@ export class AiAssistantService implements AiAssistantServiceLike {
       liveHost: request.liveHost ?? null,
       onProgress: request.onProgress,
       signal: request.signal,
+      telemetryContext,
     });
     return this.createMessage(
       'assistant',

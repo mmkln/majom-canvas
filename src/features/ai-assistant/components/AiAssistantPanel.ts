@@ -1,6 +1,5 @@
 import {
   createIconButton,
-  createSurface,
   createTextButton,
 } from '../../../ui-lib/src/hud/index.ts';
 import { createIcon, type IconName } from '../../../ui-lib/src/hud/icons.ts';
@@ -51,8 +50,12 @@ type AiAssistantPanelOptions = {
 };
 
 const CHAT_ISLAND_MARGIN_PX = 8;
-const CHAT_ISLAND_RADIUS_PX = 22;
 const CHAT_AUTO_SCROLL_THRESHOLD_PX = 40;
+const CHAT_PANEL_BORDER = '1px solid rgba(226, 232, 240, 0.8)';
+const CHAT_PANEL_SURFACE_BORDER = '1px solid rgba(226, 232, 240, 0.9)';
+const CHAT_PANEL_BACKGROUND = '#ffffff';
+const CHAT_PANEL_SUBTLE_BACKGROUND = 'rgba(248, 250, 252, 0.8)';
+const CHAT_PANEL_RADIUS_PX = 16;
 
 export class AiAssistantPanel {
   private readonly container: HTMLElement;
@@ -80,7 +83,9 @@ export class AiAssistantPanel {
   private readonly sendButton: HTMLButtonElement;
   private readonly chatController: AiAssistantSessionController;
   private readonly markdownRenderer: AiAssistantMarkdownRenderer;
-  private readonly executeAction?: AiAssistantActionExecutionHandler | undefined;
+  private readonly executeAction?:
+    | AiAssistantActionExecutionHandler
+    | undefined;
   private unsubscribeController: (() => void) | null = null;
   private copyFeedback: {
     messageId: string;
@@ -114,19 +119,14 @@ export class AiAssistantPanel {
     this.executeAction = options.executeAction;
     this.chatController = options.controller;
     this.markdownRenderer = new AiAssistantMarkdownRenderer();
-    this.container = createSurface({
-      elevated: true,
-      className: 'overflow-hidden',
-    });
+    this.container = document.createElement('div');
     this.container.id = 'ai-assistant-panel';
+    this.container.style.boxSizing = 'border-box';
     this.container.style.position = 'fixed';
-    this.container.style.top = `${CHAT_ISLAND_MARGIN_PX + GLOBAL_APP_HEADER_HEIGHT_PX}px`;
-    this.container.style.right = `${CHAT_ISLAND_MARGIN_PX}px`;
-    this.container.style.bottom = `${CHAT_ISLAND_MARGIN_PX}px`;
     this.container.style.width = `${this.widthPx}px`;
     this.container.style.zIndex = '38';
     this.container.style.display = 'none';
-    this.container.style.overflow = 'hidden';
+    this.applyIslandContainerStyles();
 
     this.panel = document.createElement('div');
     this.panel.style.height = '100%';
@@ -199,7 +199,7 @@ export class AiAssistantPanel {
     this.contextMeta.style.overflow = 'hidden';
     this.contextMeta.style.textOverflow = 'ellipsis';
 
-    this.contextCard = this.createSubtleSurface('!rounded-[14px]');
+    this.contextCard = this.createSubtleSurface(14);
     this.contextCard.style.display = 'flex';
     this.contextCard.style.flexDirection = 'column';
     this.contextCard.style.gap = '3px';
@@ -278,7 +278,7 @@ export class AiAssistantPanel {
     composer.style.borderTop = '1px solid rgba(226, 232, 240, 0.82)';
     composer.style.background = 'transparent';
 
-    this.pendingConfirmationBar = this.createSubtleSurface('!rounded-[18px]');
+    this.pendingConfirmationBar = this.createSubtleSurface(18);
     this.pendingConfirmationBar.style.display = 'none';
     this.pendingConfirmationBar.style.alignItems = 'center';
     this.pendingConfirmationBar.style.justifyContent = 'space-between';
@@ -475,16 +475,7 @@ export class AiAssistantPanel {
       return;
     }
 
-    this.container.style.top = `${CHAT_ISLAND_MARGIN_PX + GLOBAL_APP_HEADER_HEIGHT_PX}px`;
-    this.container.style.right = `${CHAT_ISLAND_MARGIN_PX}px`;
-    this.container.style.bottom = `${CHAT_ISLAND_MARGIN_PX}px`;
-    this.container.style.border = '';
-    this.container.style.borderLeft = '';
-    this.container.style.borderRadius = '';
-    this.container.style.background = '';
-    this.container.style.boxShadow = '';
-    this.container.style.backdropFilter = '';
-    this.container.style.overflow = 'hidden';
+    this.applyIslandContainerStyles();
   }
 
   public getWidthPx(): number {
@@ -544,10 +535,13 @@ export class AiAssistantPanel {
         ? `Pending confirmation · ${pendingConfirmation.actionCount} actions`
         : 'Pending confirmation';
     this.pendingConfirmationTitle.textContent = pendingConfirmation.actionTitle;
-    this.pendingConfirmationButton.textContent = pendingConfirmation.actionLabel;
+    this.pendingConfirmationButton.textContent =
+      pendingConfirmation.actionLabel;
     this.pendingConfirmationButton.disabled = replying;
     this.pendingConfirmationButton.style.opacity = replying ? '0.65' : '1';
-    this.pendingConfirmationButton.style.cursor = replying ? 'default' : 'pointer';
+    this.pendingConfirmationButton.style.cursor = replying
+      ? 'default'
+      : 'pointer';
   }
 
   private renderContext(
@@ -685,7 +679,7 @@ export class AiAssistantPanel {
 
     meta.append(roleLabel, stateLabel);
 
-    const bubble = this.createSubtleSurface('!rounded-[20px]');
+    const bubble = this.createSubtleSurface(20);
     bubble.style.maxWidth = '94%';
     bubble.style.padding = '14px';
     bubble.style.display = 'flex';
@@ -881,6 +875,7 @@ export class AiAssistantPanel {
   private createQuickActionButton(action: {
     label: string;
     prompt: string;
+    submission?: AiAssistantPreparedSubmission;
   }): HTMLButtonElement {
     return this.createQuietPillButton({
       text: action.label,
@@ -888,6 +883,10 @@ export class AiAssistantPanel {
       ariaLabel: action.label,
       onClick: () => {
         this.pinMessagesToBottom();
+        if (action.submission) {
+          void this.submitPreparedSubmission(action.submission);
+          return;
+        }
         void this.submitPrompt(action.prompt);
       },
     });
@@ -902,7 +901,8 @@ export class AiAssistantPanel {
   ): HTMLDivElement {
     const isCommandMessage = message.kind === 'command';
     const isSystemMessage =
-      !isCommandMessage && (message.kind === 'system' || message.role === 'system');
+      !isCommandMessage &&
+      (message.kind === 'system' || message.role === 'system');
     const isUserMessage = message.role === 'user';
     const isAssistantMessage = message.role === 'assistant';
     const canCopyMessage = message.content.trim().length > 0;
@@ -927,17 +927,17 @@ export class AiAssistantPanel {
       ? 'You'
       : isCommandMessage
         ? 'Action'
-      : isSystemMessage
-        ? 'System'
-        : 'Assistant';
+        : isSystemMessage
+          ? 'System'
+          : 'Assistant';
     roleLabel.style.fontWeight = '700';
     roleLabel.style.color = isUserMessage
       ? '#475569'
       : isCommandMessage
         ? '#1d4ed8'
-      : isSystemMessage
-        ? '#6366f1'
-        : '#64748b';
+        : isSystemMessage
+          ? '#6366f1'
+          : '#64748b';
 
     const timeLabel = document.createElement('span');
     timeLabel.textContent = this.formatMessageTime(message.createdAt);
@@ -961,23 +961,23 @@ export class AiAssistantPanel {
         ? '#0f172a'
         : isCommandMessage
           ? '#334155'
-        : isSystemMessage
-          ? '#334155'
-          : '#1f2937';
+          : isSystemMessage
+            ? '#334155'
+            : '#1f2937';
       bubble.style.background = isUserMessage
         ? 'rgba(248, 250, 252, 0.96)'
         : isCommandMessage
           ? 'rgba(248, 250, 252, 0.92)'
-        : isSystemMessage
-          ? 'rgba(248, 250, 252, 0.92)'
-          : 'rgba(255, 255, 255, 0.99)';
+          : isSystemMessage
+            ? 'rgba(248, 250, 252, 0.92)'
+            : 'rgba(255, 255, 255, 0.99)';
       bubble.style.border = isUserMessage
         ? '1px solid rgba(203, 213, 225, 0.88)'
         : isCommandMessage
           ? '1px solid rgba(226, 232, 240, 0.9)'
-        : isSystemMessage
-          ? '1px solid rgba(226, 232, 240, 0.9)'
-          : '1px solid rgba(148, 163, 184, 0.18)';
+          : isSystemMessage
+            ? '1px solid rgba(226, 232, 240, 0.9)'
+            : '1px solid rgba(148, 163, 184, 0.18)';
       bubble.appendChild(this.createMessageContent(message));
       wrap.appendChild(bubble);
     }
@@ -1082,8 +1082,7 @@ export class AiAssistantPanel {
     bubble.style.gap = '8px';
 
     const detail = document.createElement('p');
-    detail.textContent =
-      replyProgress?.detail ?? 'Working on your request.';
+    detail.textContent = replyProgress?.detail ?? 'Working on your request.';
     detail.style.margin = '0';
     detail.style.fontSize = '11.5px';
     detail.style.lineHeight = '1.6';
@@ -1139,10 +1138,7 @@ export class AiAssistantPanel {
   private async submitPrompt(prompt: string): Promise<void> {
     const trimmed = prompt.trim();
     if (trimmed.length === 0) return;
-    if (
-      this.currentPendingConfirmation &&
-      this.isConfirmPrompt(trimmed)
-    ) {
+    if (this.currentPendingConfirmation && this.isConfirmPrompt(trimmed)) {
       this.composerInput.value = '';
       this.pinMessagesToBottom();
       await this.confirmPendingSuggestion();
@@ -1197,7 +1193,9 @@ export class AiAssistantPanel {
   private updateScrollToBottomButtonVisibility(): void {
     const shouldShow =
       !this.stickMessagesToBottom && this.messagesList.childElementCount > 0;
-    this.scrollToBottomButton.style.display = shouldShow ? 'inline-flex' : 'none';
+    this.scrollToBottomButton.style.display = shouldShow
+      ? 'inline-flex'
+      : 'none';
     this.scrollToBottomButton.style.opacity = shouldShow ? '1' : '0';
     this.scrollToBottomButton.style.transform = shouldShow
       ? 'translate(-50%, 0)'
@@ -1205,10 +1203,7 @@ export class AiAssistantPanel {
   }
 
   private isConfirmPrompt(prompt: string): boolean {
-    const normalized = prompt
-      .trim()
-      .toLocaleLowerCase()
-      .replace(/[!.]/g, '');
+    const normalized = prompt.trim().toLocaleLowerCase().replace(/[!.]/g, '');
     return (
       normalized === 'confirm' ||
       normalized === 'confirmed' ||
@@ -1286,7 +1281,7 @@ export class AiAssistantPanel {
     if (!group) {
       throw new Error('Grouped action card requires at least one action.');
     }
-    const card = this.createFlatSurface('!rounded-[20px]');
+    const card = this.createFlatSurface(20);
     card.style.padding = '14px';
     card.style.display = 'flex';
     card.style.flexDirection = 'column';
@@ -1422,8 +1417,8 @@ export class AiAssistantPanel {
   ): HTMLDivElement {
     const card =
       action.status === 'applied'
-        ? this.createSubtleSurface('!rounded-[20px]')
-        : this.createFlatSurface('!rounded-[20px]');
+        ? this.createSubtleSurface(20)
+        : this.createFlatSurface(20);
     card.style.padding = '14px';
     card.style.display = 'flex';
     card.style.flexDirection = 'column';
@@ -1674,7 +1669,7 @@ export class AiAssistantPanel {
       return null;
     }
 
-    const container = this.createSubtleSurface('!rounded-[14px]');
+    const container = this.createSubtleSurface(14);
     container.style.display = 'flex';
     container.style.flexDirection = 'column';
     container.style.gap = '8px';
@@ -1717,7 +1712,7 @@ export class AiAssistantPanel {
       return null;
     }
 
-    const container = this.createSubtleSurface('!rounded-[14px]');
+    const container = this.createSubtleSurface(14);
     container.style.display = 'flex';
     container.style.flexDirection = 'column';
     container.style.gap = '10px';
@@ -1756,7 +1751,8 @@ export class AiAssistantPanel {
       const goalsByRef = new Map(action.goals.map((goal) => [goal.ref, goal]));
       action.relations.forEach((relation) => {
         const row = document.createElement('p');
-        const from = goalsByRef.get(relation.fromRef)?.title ?? relation.fromRef;
+        const from =
+          goalsByRef.get(relation.fromRef)?.title ?? relation.fromRef;
         const to = goalsByRef.get(relation.toRef)?.title ?? relation.toRef;
         row.textContent = `${from} -> ${to}`;
         row.style.margin = '0';
@@ -1810,7 +1806,10 @@ export class AiAssistantPanel {
     rows.style.flexDirection = 'column';
     rows.style.gap = '5px';
 
-    const childrenByParent = new Map<string | null, AiAssistantGoalBlueprintAction['goals']>();
+    const childrenByParent = new Map<
+      string | null,
+      AiAssistantGoalBlueprintAction['goals']
+    >();
     action.goals.forEach((goal) => {
       const key = goal.parentRef ?? null;
       const bucket = childrenByParent.get(key) ?? [];
@@ -1858,9 +1857,7 @@ export class AiAssistantPanel {
     return section;
   }
 
-  private createActionTagRow(
-    action: AiAssistantAction
-  ): HTMLDivElement | null {
+  private createActionTagRow(action: AiAssistantAction): HTMLDivElement | null {
     const tagModels = buildAiAssistantActionTagModels(action);
     if (tagModels.length === 0) return null;
 
@@ -1898,17 +1895,43 @@ export class AiAssistantPanel {
     return tag;
   }
 
-  private createFlatSurface(className = ''): HTMLDivElement {
-    return createSurface({
-      className: `!border-slate-200/90 !bg-white !shadow-none ${className}`.trim(),
+  private applyIslandContainerStyles(): void {
+    this.container.style.top = `${CHAT_ISLAND_MARGIN_PX + GLOBAL_APP_HEADER_HEIGHT_PX}px`;
+    this.container.style.right = `${CHAT_ISLAND_MARGIN_PX}px`;
+    this.container.style.bottom = `${CHAT_ISLAND_MARGIN_PX}px`;
+    this.container.style.border = CHAT_PANEL_BORDER;
+    this.container.style.borderLeft = '';
+    this.container.style.borderRadius = `${CHAT_PANEL_RADIUS_PX}px`;
+    this.container.style.background = CHAT_PANEL_BACKGROUND;
+    this.container.style.backdropFilter = 'none';
+    this.container.style.overflow = 'hidden';
+  }
+
+  private createFlatSurface(radiusPx = CHAT_PANEL_RADIUS_PX): HTMLDivElement {
+    return this.createPanelSurface({
+      radiusPx,
+      background: CHAT_PANEL_BACKGROUND,
     });
   }
 
-  private createSubtleSurface(className = ''): HTMLDivElement {
-    return createSurface({
-      className:
-        `!border-slate-200/90 !bg-slate-50/80 !shadow-none ${className}`.trim(),
+  private createSubtleSurface(radiusPx = CHAT_PANEL_RADIUS_PX): HTMLDivElement {
+    return this.createPanelSurface({
+      radiusPx,
+      background: CHAT_PANEL_SUBTLE_BACKGROUND,
     });
+  }
+
+  private createPanelSurface(options: {
+    radiusPx: number;
+    background: string;
+  }): HTMLDivElement {
+    const surface = document.createElement('div');
+    surface.style.boxSizing = 'border-box';
+    surface.style.border = CHAT_PANEL_SURFACE_BORDER;
+    surface.style.borderRadius = `${options.radiusPx}px`;
+    surface.style.background = options.background;
+    surface.style.boxShadow = 'none';
+    return surface;
   }
 
   private createQuietPillButton(options: {
@@ -1995,7 +2018,7 @@ export class AiAssistantPanel {
   private createReviewFindingsCard(
     review: AiAssistantReviewFindings
   ): HTMLDivElement {
-    const card = this.createFlatSurface('!rounded-[20px]');
+    const card = this.createFlatSurface(20);
     card.style.display = 'flex';
     card.style.flexDirection = 'column';
     card.style.gap = '12px';
@@ -2067,7 +2090,7 @@ export class AiAssistantPanel {
     findings.style.gap = '10px';
 
     review.findings.forEach((finding) => {
-      const item = this.createSubtleSurface('!rounded-[16px]');
+      const item = this.createSubtleSurface(16);
       item.style.display = 'flex';
       item.style.flexDirection = 'column';
       item.style.gap = '6px';

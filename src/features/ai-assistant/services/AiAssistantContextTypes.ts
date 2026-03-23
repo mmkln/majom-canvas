@@ -27,6 +27,11 @@ export type AiAssistantMemoryState = {
   agreedFacts: string[];
   workingSet: string[];
   lastRecommendations: string[];
+  confirmedFacts: AiAssistantMemoryFactRecord[];
+  userConstraints: AiAssistantUserConstraintRecord[];
+  openFollowUpSlots: string[];
+  awaitingInput: AiAssistantAwaitingInputContext | null;
+  appliedActions: AiAssistantAppliedActionRecord[];
   updatedAt: number | null;
 };
 
@@ -41,12 +46,45 @@ export type AiAssistantFocusItem = {
   }>;
 };
 
+export type AiAssistantMemoryFactRecord = {
+  text: string;
+  source: 'snapshot' | 'user' | 'assistant' | 'action';
+  recordedAt: number;
+};
+
+export type AiAssistantUserConstraintRecord = {
+  text: string;
+  source: 'user' | 'assistant';
+  recordedAt: number;
+};
+
+export type AiAssistantAwaitingInputContext = {
+  prompt: string;
+  replyPreview: string;
+  recordedAt: number;
+};
+
+export type AiAssistantAppliedActionRecord = {
+  actionKind: string;
+  label: string;
+  summary: string;
+  sourceMessageId?: string;
+  createdElementIds: string[];
+  affectedElementIds: string[];
+  recordedAt: number;
+};
+
 export const EMPTY_AI_ASSISTANT_MEMORY_STATE: AiAssistantMemoryState = {
   currentIntent: null,
   conversationSummary: null,
   agreedFacts: [],
   workingSet: [],
   lastRecommendations: [],
+  confirmedFacts: [],
+  userConstraints: [],
+  openFollowUpSlots: [],
+  awaitingInput: null,
+  appliedActions: [],
   updatedAt: null,
 };
 

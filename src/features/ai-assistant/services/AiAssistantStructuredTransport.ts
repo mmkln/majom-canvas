@@ -25,6 +25,12 @@ export type AiAssistantStructuredActionEntryKind =
   | 'update_relations'
   | 'suggest_updates';
 
+export type AiAssistantStructuredActionEvidence = {
+  supportedBy?: string[];
+  evidenceIds?: string[];
+  sourceContext?: string;
+};
+
 export type AiAssistantStructuredCreateActionEntry = {
   kind: AiAssistantCreateActionKind;
   title: string;
@@ -32,7 +38,7 @@ export type AiAssistantStructuredCreateActionEntry = {
   priority?: UiPriority;
   elementStatus?: AiAssistantCreateElementStatus;
   target?: AiAssistantActionTarget;
-};
+} & AiAssistantStructuredActionEvidence;
 
 export type AiAssistantStructuredCreateBatchItem = Omit<
   AiAssistantStructuredCreateActionEntry,
@@ -48,6 +54,13 @@ export type AiAssistantStructuredCreateBatchEntry = {
   description?: string;
   target?: AiAssistantActionTarget;
   items: AiAssistantStructuredCreateBatchItem[];
+} & AiAssistantStructuredActionEvidence;
+
+export type AiAssistantStructuredCreateGoalsItem = Omit<
+  AiAssistantStructuredCreateBatchItem,
+  'target'
+> & {
+  target?: AiAssistantActionTarget;
 };
 
 export type AiAssistantStructuredGoalBlueprintEntry = {
@@ -59,7 +72,7 @@ export type AiAssistantStructuredGoalBlueprintEntry = {
   pattern: AiAssistantGoalBlueprintPattern;
   goals: AiAssistantGoalBlueprintGoal[];
   relations?: AiAssistantGoalBlueprintRelation[];
-};
+} & AiAssistantStructuredActionEvidence;
 
 export type AiAssistantStructuredRelationSuggestion = {
   fromId: string;
@@ -79,7 +92,7 @@ export type AiAssistantStructuredRelationActionEntry = {
   fromLabel?: string;
   toLabel?: string;
   reason?: string;
-};
+} & AiAssistantStructuredActionEvidence;
 
 export type AiAssistantStructuredRemoveRelationActionEntry = {
   kind: 'remove_relation';
@@ -90,7 +103,7 @@ export type AiAssistantStructuredRemoveRelationActionEntry = {
   fromLabel?: string;
   toLabel?: string;
   reason?: string;
-};
+} & AiAssistantStructuredActionEvidence;
 
 export type AiAssistantStructuredRelationBatchEntry = {
   kind: 'suggest_relations';
@@ -98,7 +111,7 @@ export type AiAssistantStructuredRelationBatchEntry = {
   summary?: string;
   description?: string;
   relations: AiAssistantStructuredRelationSuggestion[];
-};
+} & AiAssistantStructuredActionEvidence;
 
 export type AiAssistantStructuredRemoveRelationBatchEntry = {
   kind: 'remove_relations';
@@ -106,7 +119,7 @@ export type AiAssistantStructuredRemoveRelationBatchEntry = {
   summary?: string;
   description?: string;
   relations: AiAssistantStructuredRelationSuggestion[];
-};
+} & AiAssistantStructuredActionEvidence;
 
 export type AiAssistantStructuredRelationTypeChange = {
   fromId: string;
@@ -128,7 +141,7 @@ export type AiAssistantStructuredUpdateRelationActionEntry = {
   fromLabel?: string;
   toLabel?: string;
   reason?: string;
-};
+} & AiAssistantStructuredActionEvidence;
 
 export type AiAssistantStructuredUpdateRelationBatchEntry = {
   kind: 'update_relations';
@@ -136,7 +149,7 @@ export type AiAssistantStructuredUpdateRelationBatchEntry = {
   summary?: string;
   description?: string;
   relations: AiAssistantStructuredRelationTypeChange[];
-};
+} & AiAssistantStructuredActionEvidence;
 
 export type AiAssistantStructuredUpdateSuggestion = {
   elementId: string;
@@ -152,7 +165,7 @@ export type AiAssistantStructuredUpdateActionEntry = {
   patch: AiAssistantUpdatePatch;
   reason?: string;
   targetTitle?: string;
-};
+} & AiAssistantStructuredActionEvidence;
 
 export type AiAssistantStructuredUpdateBatchEntry = {
   kind: 'suggest_updates';
@@ -160,7 +173,7 @@ export type AiAssistantStructuredUpdateBatchEntry = {
   summary?: string;
   description?: string;
   updates: AiAssistantStructuredUpdateSuggestion[];
-};
+} & AiAssistantStructuredActionEvidence;
 
 export type AiAssistantStructuredActionEntry =
   | AiAssistantStructuredCreateActionEntry
@@ -195,6 +208,7 @@ export const AI_ASSISTANT_STRUCTURED_ACTION_KIND_NOTES = [
   '- remove_relations: for removing incorrect non-hierarchical links that already exist on the canvas.',
   '- update_relations: for changing the type of an existing non-hierarchical link that should stay but with a different meaning.',
   '- suggest_updates: for title, description, priority, or status refinements to existing items.',
+  '- optional evidence metadata such as supportedBy, evidenceIds, and sourceContext may be attached to an action when it helps reviewability.',
 ];
 
 export function isAiAssistantStructuredActionEntryKind(
@@ -260,6 +274,8 @@ export function getAiAssistantStructuredReplyExamples() {
         priority: 'lowest',
         elementStatus: 'in-progress',
         target: { kind: 'canvas' },
+        supportedBy: ['goal-1'],
+        sourceContext: 'Selected goal summary',
       },
     ],
     reviewFindings: {

@@ -6,6 +6,7 @@ import type {
 } from '../aiAssistantEvents.ts';
 import { getAiAssistantSelectedItems } from './AiAssistantContent.ts';
 import type { AiAssistantProfile } from './AiAssistantContextTypes.ts';
+import type { AiAssistantIntentContext } from './AiAssistantIntentContext.ts';
 import type { AiAssistantPreparedSubmission } from './AiAssistantPreparedSubmission.ts';
 import { buildAiAssistantIntentPrompt } from '../aiAssistantPrompts.ts';
 
@@ -29,10 +30,37 @@ export function resolveAiAssistantIntentSubmission(
     contextMode: scope === 'selection' ? 'selection' : 'canvas',
     source: 'intent',
     intent: detail.intent,
+    intentContext: getAiAssistantIntentContext(detail.intent, selection),
     profile: getAiAssistantIntentProfile(detail.intent),
     requestLabel: getAiAssistantIntentRequestLabel(detail.intent, selection),
     requestMessageKind: 'command',
   };
+}
+
+function getAiAssistantIntentContext(
+  intent: AiAssistantIntentKind,
+  selection: AiAssistantSelectionItem[]
+): AiAssistantIntentContext | undefined {
+  const item = selection[0];
+  if (intent === 'strategic_plan') {
+    return {
+      strategicPlanMode:
+        item?.kind === 'goal' ? 'goal_subgoals' : 'canvas_bootstrap',
+    };
+  }
+  if (intent === 'breakdown') {
+    return {
+      breakdownMode:
+        item?.kind === 'goal'
+          ? 'goal_stories'
+          : item?.kind === 'story'
+            ? 'story_tasks'
+            : item?.kind === 'task'
+              ? 'task_refine'
+              : 'unspecified_goal_decomposition',
+    };
+  }
+  return undefined;
 }
 
 function getAiAssistantIntentProfile(

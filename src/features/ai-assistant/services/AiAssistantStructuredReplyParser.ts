@@ -24,6 +24,8 @@ import {
   type AiAssistantActionStatus,
   type AiAssistantCreateAction,
   type AiAssistantCreateActionKind,
+  type AiAssistantCreateGoalsAction,
+  type AiAssistantCreateGoalsItem,
   type AiAssistantCreateElementStatus,
   type AiAssistantRemoveRelationAction,
   type AiAssistantRelationAction,
@@ -158,12 +160,8 @@ function normalizeStructuredActionEntry(
     return normalizeCreateBatchActions('create_story', value, options);
   }
   if (entry.kind === 'create_goals') {
-    return normalizeCreateBatchActions(
-      'create_goal',
-      value,
-      options,
-      'Strategic goals'
-    );
+    const action = sanitizeAiAssistantAction(value, options);
+    return action ? [action] : [];
   }
   if (entry.kind === 'create_goal_blueprint') {
     const action = sanitizeAiAssistantAction(value, options);
@@ -250,6 +248,18 @@ function normalizeCreateBatchActions(
           (item as { target?: unknown }).target !== undefined
             ? (item as { target?: unknown }).target
             : batch.target ?? legacyTarget,
+        supportedBy:
+          (item as { supportedBy?: unknown }).supportedBy !== undefined
+            ? (item as { supportedBy?: unknown }).supportedBy
+            : (batch as { supportedBy?: unknown }).supportedBy,
+        evidenceIds:
+          (item as { evidenceIds?: unknown }).evidenceIds !== undefined
+            ? (item as { evidenceIds?: unknown }).evidenceIds
+            : (batch as { evidenceIds?: unknown }).evidenceIds,
+        sourceContext:
+          (item as { sourceContext?: unknown }).sourceContext !== undefined
+            ? (item as { sourceContext?: unknown }).sourceContext
+            : (batch as { sourceContext?: unknown }).sourceContext,
       };
       return sanitizeAiAssistantAction(merged, {
         ...options,
@@ -403,6 +413,14 @@ function sanitizeAiAssistantAction(
         value as Partial<AiAssistantCreateAction> & { target?: unknown },
         options
       );
+    case 'create_goals':
+      return sanitizeCreateGoalsAction(
+        value as Partial<AiAssistantCreateGoalsAction> & {
+          items?: unknown;
+          target?: unknown;
+        },
+        options
+      );
     case 'create_goal_blueprint':
       return sanitizeGoalBlueprintAction(
         value as Partial<AiAssistantGoalBlueprintAction>,
@@ -474,6 +492,35 @@ function sanitizeCreateAction(
   };
 }
 
+function sanitizeCreateGoalsAction(
+  action: Partial<AiAssistantCreateGoalsAction> & {
+    items?: unknown;
+    target?: unknown;
+  },
+  options: SanitizeActionOptions
+): AiAssistantCreateGoalsAction | null {
+  const target = normalizeTarget('create_goal', action.target, options.validationSnapshot);
+  if (action.target !== undefined && target === null) return null;
+
+  const items = normalizeCreateGoalsItems(action.items, target, options.validationSnapshot);
+  if (!items || items.length === 0) return null;
+
+  const title =
+    sanitizeText(action.title) ?? 'Strategic goals';
+
+  return {
+    ...buildCommonActionFields(
+      action,
+      options,
+      getAiAssistantActionLabel('create_goals'),
+      title
+    ),
+    kind: 'create_goals',
+    target: target ?? undefined,
+    items,
+  };
+}
+
 function sanitizeGoalBlueprintAction(
   action: Partial<AiAssistantGoalBlueprintAction>,
   options: SanitizeActionOptions
@@ -513,6 +560,57 @@ function sanitizeGoalBlueprintAction(
     assumptions: sanitizeTextList(action.assumptions, 8, 160),
     goals,
     relations: relations ?? [],
+  };
+}
+
+function normalizeCreateGoalsItems(
+  value: unknown,
+  batchTarget: AiAssistantCreateGoalsAction['target'] | undefined,
+  validationSnapshot?: AiAssistantCanvasSnapshot | null
+): AiAssistantCreateGoalsItem[] | null {
+  if (!Array.isArray(value)) return null;
+
+  const items = value
+    .map((item) =>
+      sanitizeCreateGoalsItem(item, batchTarget, validationSnapshot)
+    )
+    .filter((item): item is AiAssistantCreateGoalsItem => item !== null);
+  return items.length > 0 && items.length === value.length ? items : null;
+}
+
+function sanitizeCreateGoalsItem(
+  value: unknown,
+  batchTarget: AiAssistantCreateGoalsAction['target'] | undefined,
+  validationSnapshot?: AiAssistantCanvasSnapshot | null
+): AiAssistantCreateGoalsItem | null {
+  if (!value || typeof value !== 'object') return null;
+  const item = value as Partial<AiAssistantCreateGoalsItem> & { target?: unknown };
+  const title = sanitizeText(item.title);
+  if (!title) return null;
+
+  const priority = normalizePriority(item.priority);
+  if (item.priority !== undefined && priority === null) return null;
+
+  const elementStatus = normalizeElementStatus(item.elementStatus);
+  if (item.elementStatus !== undefined && elementStatus === null) {
+    return null;
+  }
+
+  const target =
+    item.target !== undefined
+      ? normalizeTarget('create_goal', item.target, validationSnapshot)
+      : batchTarget;
+  if (item.target !== undefined && target === null) return null;
+
+  return {
+    title,
+    description: sanitizeText(item.description, 600) ?? undefined,
+    priority: priority ?? undefined,
+    elementStatus: elementStatus ?? undefined,
+    target: target ?? undefined,
+    supportedBy: sanitizeStringList(item.supportedBy),
+    evidenceIds: sanitizeStringList(item.evidenceIds),
+    sourceContext: sanitizeText(item.sourceContext, 400) ?? undefined,
   };
 }
 
@@ -664,6 +762,9 @@ function buildCommonActionFields(
     groupId?: unknown;
     groupTitle?: unknown;
     groupSummary?: unknown;
+    supportedBy?: unknown;
+    evidenceIds?: unknown;
+    sourceContext?: unknown;
   },
   options: SanitizeActionOptions,
   defaultLabel: string,
@@ -680,8 +781,12 @@ function buildCommonActionFields(
   | 'groupId'
   | 'groupTitle'
   | 'groupSummary'
+  | 'supportedBy'
+  | 'evidenceIds'
+  | 'sourceContext'
 > {
   const sanitizedGroup = sanitizeActionGroup(value);
+  const sourceContext = sanitizeText(value.sourceContext, 400) ?? undefined;
   const group = {
     groupId: sanitizedGroup.groupId ?? options.group?.groupId,
     groupTitle: sanitizedGroup.groupTitle ?? options.group?.groupTitle,
@@ -706,6 +811,9 @@ function buildCommonActionFields(
     groupId: group.groupId,
     groupTitle: group.groupTitle,
     groupSummary: group.groupSummary,
+    supportedBy: sanitizeStringList(value.supportedBy),
+    evidenceIds: sanitizeStringList(value.evidenceIds),
+    sourceContext,
   };
 }
 

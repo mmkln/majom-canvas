@@ -19,7 +19,9 @@ import { AiAssistantService } from './AiAssistantService.ts';
 import type {
   AiAssistantProfile,
 } from './AiAssistantContextTypes.ts';
-import { EMPTY_AI_ASSISTANT_MEMORY_STATE } from './AiAssistantContextTypes.ts';
+import type { AiAssistantIntentContext } from './AiAssistantIntentContext.ts';
+import type { AiAssistantTelemetryCollector } from './AiAssistantTelemetryTypes.ts';
+import { getSharedAiAssistantTelemetryCollector } from './AiAssistantTelemetryStore.ts';
 import type {
   AiAssistantMessage,
   AiAssistantQuickAction,
@@ -68,10 +70,17 @@ type AiAssistantActionStatePatch = Partial<
   >
 >;
 
+type AiAssistantPreparedExecutionRequest = {
+  sourceAction: AiAssistantAction;
+  action: AiAssistantActionExecutionRequest['action'];
+  allowSelectionTargeting: boolean;
+};
+
 type AiAssistantSessionControllerOptions = {
   persistence?: AiAssistantPersistence;
   service?: AiAssistantServiceLike;
   resolveLiveHost?: () => AiAssistantToolHost | null;
+  telemetry?: AiAssistantTelemetryCollector;
 };
 
 export class AiAssistantSessionController {
@@ -81,13 +90,20 @@ export class AiAssistantSessionController {
   private readonly sessions = new Map<string, AiAssistantSessionState>();
   private readonly listeners = new Set<() => void>();
   private readonly resolveLiveHost?: (() => AiAssistantToolHost | null) | undefined;
+  private readonly telemetry: AiAssistantTelemetryCollector;
   private currentView: WorkspaceView = 'canvas';
   private context: AiAssistantCanvasSnapshot | null = null;
   private activeConversationKey = 'canvas:draft';
 
   constructor(options: AiAssistantSessionControllerOptions = {}) {
     this.persistence = options.persistence ?? new AiAssistantPersistence();
-    this.service = options.service ?? new AiAssistantService();
+    this.telemetry =
+      options.telemetry ?? getSharedAiAssistantTelemetryCollector();
+    this.service =
+      options.service ??
+      new AiAssistantService({
+        telemetry: this.telemetry,
+      });
     this.resolveLiveHost = options.resolveLiveHost;
     this.switchConversationScope();
   }
@@ -197,6 +213,7 @@ export class AiAssistantSessionController {
       profile: submission.profile,
       source: submission.source ?? 'manual',
       intent: submission.intent,
+      intentContext: submission.intentContext,
       liveHost: submission.liveHost ?? this.resolveLiveHost?.() ?? null,
       requestLabel: submission.requestLabel,
       requestMessageKind: submission.requestMessageKind,
@@ -209,6 +226,7 @@ export class AiAssistantSessionController {
       profile?: AiAssistantProfile;
       source?: 'manual' | 'intent';
       intent?: AiAssistantPreparedSubmission['intent'];
+      intentContext?: AiAssistantIntentContext;
       liveHost?: AiAssistantToolHost | null;
       requestLabel?: string;
       requestMessageKind?: AiAssistantPreparedSubmission['requestMessageKind'];
@@ -223,15 +241,14 @@ export class AiAssistantSessionController {
       session.abortController?.abort();
     }
 
-    const autoIntent =
-      !options.intent && (options.source === undefined || options.source === 'manual')
-        ? this.resolveAutoIntent(trimmed, this.getScopedContext(session))
-        : undefined;
     const continuedIntent =
       !options.intent && (options.source === undefined || options.source === 'manual')
         ? this.resolvePendingFollowupIntent(session)
         : undefined;
-    const resolvedIntent = options.intent ?? continuedIntent ?? autoIntent;
+    const resolvedIntent = options.intent ?? continuedIntent;
+    const resolvedIntentContext =
+      options.intentContext ??
+      (resolvedIntent && continuedIntent ? this.resolvePendingFollowupIntentContext(session) : undefined);
     const resolvedSource = options.source ?? (resolvedIntent ? 'intent' : 'manual');
     const resolvedProfile =
       options.profile ??
@@ -244,7 +261,8 @@ export class AiAssistantSessionController {
         ? this.createCommandMessage(
             options.requestLabel ?? trimmed,
             trimmed,
-            resolvedIntent
+            resolvedIntent,
+            resolvedIntentContext
           )
         : options.requestMessageKind === 'system'
           ? this.service.createSystemMessage(options.requestLabel ?? trimmed)
@@ -252,6 +270,7 @@ export class AiAssistantSessionController {
               ...this.service.createMessage('user', trimmed),
               requestPrompt: resolvedIntent ? trimmed : undefined,
               requestIntent: resolvedIntent,
+              requestIntentContext: resolvedIntentContext,
             };
     session.messages = [...session.messages, requestMessage];
     this.persistence.saveConversation(conversationKey, session.messages);
@@ -266,15 +285,20 @@ export class AiAssistantSessionController {
     this.emitChange();
 
     const contextSnapshot = this.getScopedContext(session);
-    const memorySnapshot = contextSnapshot
-      ? this.memoryStore.get(conversationKey)
-      : { ...EMPTY_AI_ASSISTANT_MEMORY_STATE };
+    const memorySnapshot = this.memoryStore.recordUserInput({
+      conversationKey,
+      prompt: trimmed,
+      snapshot: contextSnapshot,
+      intent: resolvedIntent ? resolvedIntent : null,
+      intentContext: resolvedIntentContext,
+    });
 
     try {
       const reply = await this.service.reply({
         prompt: trimmed,
         source: resolvedSource,
         intent: resolvedIntent,
+        intentContext: resolvedIntentContext,
         profile: resolvedProfile,
         contextMode: session.contextMode,
         memory: memorySnapshot,
@@ -286,12 +310,18 @@ export class AiAssistantSessionController {
           this.updateReplyProgress(conversationKey, requestId, progress);
         },
         signal: abortController?.signal,
+        telemetryContext: {
+          conversationKey,
+          requestId,
+        },
       });
+      const awaitingUserInput = this.shouldMarkAwaitingUserInput(reply);
       this.memoryStore.updateAfterReply({
         conversationKey,
         prompt: trimmed,
         reply: reply.content,
         snapshot: contextSnapshot,
+        awaitingUserInput,
       });
       this.commitReply(conversationKey, requestId, {
         ...reply,
@@ -299,6 +329,10 @@ export class AiAssistantSessionController {
           resolvedSource === 'intent' && resolvedIntent
             ? resolvedIntent
             : reply.requestIntent,
+        requestIntentContext:
+          resolvedSource === 'intent' && resolvedIntent
+            ? resolvedIntentContext
+            : reply.requestIntentContext,
       });
     } catch (error) {
       if (this.isAbortError(error)) {
@@ -345,6 +379,7 @@ export class AiAssistantSessionController {
     const abortController =
       typeof AbortController === 'undefined' ? null : new AbortController();
     const requestIntent = promptMessage.requestIntent;
+    const requestIntentContext = promptMessage.requestIntentContext;
 
     session.messages = session.messages.slice(0, messageIndex);
     session.replying = true;
@@ -363,15 +398,23 @@ export class AiAssistantSessionController {
     const profile = requestIntent
       ? resolveAiAssistantIntentProfile(requestIntent, undefined)
       : undefined;
+    const memorySnapshot = this.memoryStore.recordUserInput({
+      conversationKey,
+      prompt,
+      snapshot: contextSnapshot,
+      intent: requestIntent ?? null,
+      intentContext: requestIntentContext,
+    });
 
     try {
       const reply = await this.service.reply({
         prompt,
         source: requestIntent ? 'intent' : 'manual',
         intent: requestIntent,
+        intentContext: requestIntentContext,
         profile,
         contextMode: session.contextMode,
-        memory: { ...EMPTY_AI_ASSISTANT_MEMORY_STATE },
+        memory: memorySnapshot,
         snapshot: contextSnapshot,
         validationSnapshot: contextSnapshot,
         allowActions: this.currentView === 'canvas',
@@ -380,12 +423,18 @@ export class AiAssistantSessionController {
           this.updateReplyProgress(conversationKey, requestId, progress);
         },
         signal: abortController?.signal,
+        telemetryContext: {
+          conversationKey,
+          requestId,
+        },
       });
+      const awaitingUserInput = this.shouldMarkAwaitingUserInput(reply);
       this.memoryStore.updateAfterReply({
         conversationKey,
         prompt,
         reply: reply.content,
         snapshot: contextSnapshot,
+        awaitingUserInput,
       });
       this.commitReply(conversationKey, requestId, reply);
     } catch (error) {
@@ -439,22 +488,47 @@ export class AiAssistantSessionController {
     });
 
     const appliedActions: AiAssistantAction[] = [];
-    const requests = pendingActions.map(
-      (action): AiAssistantActionExecutionRequest => ({
-        action,
-        allowSelectionTargeting: session.contextMode !== 'none',
-      })
+    const executionGroups: Array<{
+      sourceAction: AiAssistantAction;
+      preparedRequests: AiAssistantPreparedExecutionRequest[];
+      executionRequests: AiAssistantActionExecutionRequest[];
+    }> = pendingActions.map((action) => {
+      const preparedRequests = this.expandExecutionRequestsForAction(action, session);
+      return {
+        sourceAction: action,
+        preparedRequests,
+        executionRequests: preparedRequests.map((request) =>
+          this.toExecutionRequest(request)
+        ),
+      };
+    });
+    const requests = executionGroups.reduce<AiAssistantActionExecutionRequest[]>(
+      (allRequests, group) => {
+        allRequests.push(...group.executionRequests);
+        return allRequests;
+      },
+      []
     );
+    if (requests.length === 0) {
+      return;
+    }
 
-    if (pendingActions.length > 1 && executor?.executeBatch) {
+    if (requests.length > 1 && executor?.executeBatch) {
       try {
         const results = await executor.executeBatch(requests);
-        pendingActions.forEach((action, index) => {
-          this.commitActionExecutionResult(
+        let resultIndex = 0;
+        executionGroups.forEach((group) => {
+          const groupResults = results.slice(
+            resultIndex,
+            resultIndex + group.executionRequests.length
+          );
+          resultIndex += group.executionRequests.length;
+          this.commitExpandedActionExecutionResults(
             conversationKey,
             messageId,
-            action,
-            results[index],
+            group.sourceAction,
+            group.executionRequests,
+            groupResults,
             appliedActions
           );
         });
@@ -469,37 +543,57 @@ export class AiAssistantSessionController {
         });
       }
     } else {
-      for (const request of requests) {
-        const { action } = request;
-
-        try {
-          const result: AiAssistantActionExecutionResult = executor
-            ? await executor(request)
-            : {
-                status: 'failed',
-                errorMessage: 'Canvas is unavailable.',
-              };
-          this.commitActionExecutionResult(
-            conversationKey,
-            messageId,
-            action,
-            result,
-            appliedActions
-          );
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : 'Failed to apply action.';
-          this.updateActionState(conversationKey, messageId, action.id, {
-            status: 'failed',
-            errorMessage: message,
-          });
+      for (const group of executionGroups) {
+        const resultsForGroup: AiAssistantActionExecutionResult[] = [];
+        for (const request of group.executionRequests) {
+          try {
+            const result: AiAssistantActionExecutionResult = executor
+              ? await executor(request)
+              : {
+                  status: 'failed',
+                  errorMessage: 'Canvas is unavailable.',
+                };
+            resultsForGroup.push(result);
+          } catch (error) {
+            resultsForGroup.push({
+              status: 'failed',
+              errorMessage:
+                error instanceof Error ? error.message : 'Failed to apply action.',
+            });
+          }
         }
+        this.commitExpandedActionExecutionResults(
+          conversationKey,
+          messageId,
+          group.sourceAction,
+          group.executionRequests,
+          resultsForGroup,
+          appliedActions
+        );
       }
     }
 
     if (appliedActions.length === 0) {
       return;
     }
+
+    this.memoryStore.recordAppliedActions({
+      conversationKey,
+      actions: appliedActions,
+      sourceMessageId: messageId,
+    });
+    this.telemetry.record({
+      kind: 'action_execution',
+      timestamp: Date.now(),
+      context: {
+        conversationKey,
+        requestId: messageId,
+      },
+      messageId,
+      appliedActionCount: appliedActions.length,
+      pendingActionCount: pendingActions.length,
+      actionKinds: appliedActions.map((action) => action.kind),
+    });
 
     this.appendConversationMessage(
       conversationKey,
@@ -538,6 +632,138 @@ export class AiAssistantSessionController {
       status: 'failed',
       errorMessage: result?.errorMessage ?? 'Failed to apply action.',
     });
+  }
+
+  private commitExpandedActionExecutionResults(
+    conversationKey: string,
+    messageId: string,
+    sourceAction: AiAssistantAction,
+    executionRequests: AiAssistantActionExecutionRequest[],
+    results: AiAssistantActionExecutionResult[],
+    appliedActions: AiAssistantAction[]
+  ): void {
+    if (sourceAction.kind === 'create_goals') {
+      this.commitCreateGoalsExecutionResults(
+        conversationKey,
+        messageId,
+        sourceAction,
+        executionRequests,
+        results,
+        appliedActions
+      );
+      return;
+    }
+
+    const request = executionRequests[0];
+    if (!request) {
+      return;
+    }
+    this.commitActionExecutionResult(
+      conversationKey,
+      messageId,
+      request.action,
+      results[0],
+      appliedActions
+    );
+  }
+
+  private commitCreateGoalsExecutionResults(
+    conversationKey: string,
+    messageId: string,
+    sourceAction: AiAssistantAction,
+    executionRequests: AiAssistantActionExecutionRequest[],
+    results: AiAssistantActionExecutionResult[],
+    appliedActions: AiAssistantAction[]
+  ): void {
+    const createdElementIds = results
+      .map((result) => result.createdElementId)
+      .filter((value): value is string => typeof value === 'string');
+    const affectedElementIds = results.reduce<string[]>((ids, result) => {
+      const nextIds = result.affectedElementIds ?? [];
+      nextIds.forEach((id) => {
+        if (!ids.includes(id)) {
+          ids.push(id);
+        }
+      });
+      return ids;
+    }, []);
+    const failure = results.find((result) => result.status === 'failed');
+    const allApplied =
+      results.length === executionRequests.length &&
+      results.every((result) => result.status === 'applied');
+
+    if (!allApplied) {
+      this.updateActionState(conversationKey, messageId, sourceAction.id, {
+        status: 'failed',
+        errorMessage: failure?.errorMessage ?? 'Failed to apply action.',
+      });
+      return;
+    }
+
+    this.updateActionState(conversationKey, messageId, sourceAction.id, {
+      status: 'applied',
+      errorMessage: undefined,
+      createdElementId: createdElementIds[0],
+      affectedElementIds:
+        createdElementIds.length > 0
+          ? createdElementIds
+          : affectedElementIds.length > 0
+            ? affectedElementIds
+            : undefined,
+    });
+    const updatedAction = this.getActionFromConversation(
+      conversationKey,
+      messageId,
+      sourceAction.id
+    );
+    if (updatedAction) {
+      appliedActions.push(updatedAction);
+    }
+  }
+
+  private expandExecutionRequestsForAction(
+    action: AiAssistantAction,
+    session: AiAssistantSessionState
+  ): AiAssistantPreparedExecutionRequest[] {
+    const allowSelectionTargeting = session.contextMode !== 'none';
+
+    if (action.kind !== 'create_goals') {
+      return [
+        {
+          sourceAction: action,
+          action,
+          allowSelectionTargeting,
+        },
+      ];
+    }
+
+    const baseEvidence = {
+      supportedBy: action.supportedBy,
+      evidenceIds: action.evidenceIds,
+      sourceContext: action.sourceContext,
+    };
+
+    return action.items.map((item, index) => ({
+      sourceAction: action,
+      allowSelectionTargeting,
+      action: {
+        id: `${action.id}-goal-${index + 1}`,
+        kind: 'create_goal',
+        label: 'Create goal',
+        title: item.title,
+        status: 'idle',
+        description: item.description,
+        priority: item.priority,
+        elementStatus: item.elementStatus,
+        target: item.target ?? action.target,
+        supportedBy: item.supportedBy ?? baseEvidence.supportedBy,
+        evidenceIds: item.evidenceIds ?? baseEvidence.evidenceIds,
+        sourceContext: item.sourceContext ?? baseEvidence.sourceContext,
+        groupId: action.groupId,
+        groupTitle: action.groupTitle,
+        groupSummary: action.groupSummary,
+      } as AiAssistantAction,
+    }));
   }
 
   public clearConversation(): void {
@@ -647,9 +873,27 @@ export class AiAssistantSessionController {
   ): void {
     const session = this.sessions.get(conversationKey);
     if (!session || session.pendingRequestId !== requestId) return;
-    session.messages = [...session.messages, reply];
+    session.messages = [...session.messages, this.decorateAssistantReply(reply)];
     this.persistence.saveConversation(conversationKey, session.messages);
     this.finishPendingRequest(conversationKey, requestId);
+  }
+
+  private decorateAssistantReply(reply: AiAssistantMessage): AiAssistantMessage {
+    if (reply.role !== 'assistant') {
+      return reply;
+    }
+
+    const awaitingUserInput = this.shouldMarkAwaitingUserInput(reply);
+
+    return awaitingUserInput ? { ...reply, awaitingUserInput: true } : reply;
+  }
+
+  private shouldMarkAwaitingUserInput(reply: AiAssistantMessage): boolean {
+    return (
+      !reply.reviewFindings &&
+      (!Array.isArray(reply.actions) || reply.actions.length === 0) &&
+      typeof reply.requestIntent === 'string'
+    );
   }
 
   private finishPendingRequest(conversationKey: string, requestId: string): void {
@@ -786,13 +1030,28 @@ export class AiAssistantSessionController {
     if (lastMessage.reviewFindings) {
       return undefined;
     }
-    return this.looksLikeFollowupQuestion(lastMessage.content)
+    return this.isAwaitingFollowupInput(lastMessage)
       ? lastMessage.requestIntent
       : undefined;
   }
 
-  private looksLikeFollowupQuestion(content: string): boolean {
-    return content.includes('?');
+  private resolvePendingFollowupIntentContext(
+    session: AiAssistantSessionState
+  ): AiAssistantIntentContext | undefined {
+    const lastMessage = session.messages[session.messages.length - 1];
+    if (
+      !lastMessage ||
+      lastMessage.role !== 'assistant' ||
+      !lastMessage.requestIntent ||
+      !this.isAwaitingFollowupInput(lastMessage)
+    ) {
+      return undefined;
+    }
+    return lastMessage.requestIntentContext;
+  }
+
+  private isAwaitingFollowupInput(message: AiAssistantMessage): boolean {
+    return message.awaitingUserInput === true;
   }
 
   private resolvePendingConfirmation(
@@ -826,7 +1085,8 @@ export class AiAssistantSessionController {
   private createCommandMessage(
     content: string,
     requestPrompt: string,
-    requestIntent?: AiAssistantPreparedSubmission['intent']
+    requestIntent?: AiAssistantPreparedSubmission['intent'],
+    requestIntentContext?: AiAssistantIntentContext
   ): AiAssistantMessage {
     return {
       id: `chat-${Math.random().toString(36).slice(2, 10)}`,
@@ -836,135 +1096,8 @@ export class AiAssistantSessionController {
       createdAt: Date.now(),
       requestPrompt,
       requestIntent,
+      requestIntentContext,
     };
-  }
-
-  private resolveAutoIntent(
-    prompt: string,
-    scopedContext: AiAssistantCanvasSnapshot | null
-  ): AiAssistantPreparedSubmission['intent'] | undefined {
-    const normalized = prompt.trim().toLocaleLowerCase();
-    if (normalized.length === 0) {
-      return undefined;
-    }
-
-    if (this.isStrategicPlanPrompt(normalized, scopedContext)) {
-      return 'strategic_plan';
-    }
-
-    if (this.isBreakdownPrompt(normalized, scopedContext)) {
-      return 'breakdown';
-    }
-
-    // Keep this narrow: only explicit relation/dependency action requests
-    // should bypass the generic manual router and enter the typed
-    // dependencies command flow.
-    const hasRelationSignal =
-      /(?:relation|relations|dependency|dependencies|blocker|blockers|link|links|connection|connections|sequence|sequences|залежн|зв['’`]?яз|блокер)/u.test(
-        normalized
-      );
-    if (!hasRelationSignal) {
-      return undefined;
-    }
-
-    const hasRelationActionSignal =
-      /(?:delete|remove|clear|unlink|disconnect|cleanup|clean up|change|update|retype|replace|connect|link|add|create|suggest|видал|прибер|очист|розірв|від['’`]?єд|змін|онов|додай|створ|зв['’`]?яж)/u.test(
-        normalized
-    );
-    return hasRelationActionSignal ? 'dependencies' : undefined;
-  }
-
-  private isEmptyCanvasContext(
-    context: AiAssistantCanvasSnapshot | null
-  ): boolean {
-    if (!context) {
-      return false;
-    }
-    return (
-      context.summary.goalCount === 0 &&
-      context.summary.storyCount === 0 &&
-      context.summary.taskCount === 0
-    );
-  }
-
-  private isStrategicPlanPrompt(
-    normalizedPrompt: string,
-    context: AiAssistantCanvasSnapshot | null
-  ): boolean {
-    const selection = context?.elements.filter((element) => element.selected) ?? [];
-    const selectedGoal =
-      selection.length === 1 && selection[0]?.kind === 'goal' ? selection[0] : null;
-    const hasSubgoalSignal =
-      /(?:subgoal|subgoals|phase|phases|goal structure|strategic goal|підціл|під-ціл|фаз|структур.*ціл|стратег)/u.test(
-        normalizedPrompt
-      );
-    if (selectedGoal && hasSubgoalSignal) {
-      return true;
-    }
-
-    const hasPlanSignal =
-      /(?:strateg(?:y|ic)|roadmap|plan|learning plan|starter plan|study plan|blueprint|framework|каркас|стратег|роадмап|дорожн|план|структур|схем)/u.test(
-        normalizedPrompt
-      );
-    if (!hasPlanSignal) {
-      return false;
-    }
-
-    const hasGenerationSignal =
-      /(?:generate|create|build|draft|make|bootstrap|start|outline|згенер|створ|побуд|сформ|склад|накин|зроби|розпиш|сплан)/u.test(
-        normalizedPrompt
-      );
-    if (!hasGenerationSignal) {
-      return false;
-    }
-
-    if (selectedGoal && (hasSubgoalSignal || hasPlanSignal)) {
-      return true;
-    }
-
-    return (
-      this.isEmptyCanvasContext(context) &&
-      /(?:learn|learning|study|roadmap|strategy|plan|вивчен|освоєн|навчан|стратег|план|роадмап)/u.test(
-        normalizedPrompt
-      )
-    );
-  }
-
-  private isBreakdownPrompt(
-    normalizedPrompt: string,
-    context: AiAssistantCanvasSnapshot | null
-  ): boolean {
-    const selection = context?.elements.filter((element) => element.selected) ?? [];
-    if (selection.length !== 1) {
-      return false;
-    }
-
-    const item = selection[0];
-    const hasBreakdownSignal =
-      /(?:break down|breakdown|decompose|split|розбий|декомпоз|розкла|поділи)/u.test(
-        normalizedPrompt
-      );
-    if (!hasBreakdownSignal) {
-      return false;
-    }
-
-    const hasStrategicSignal =
-      /(?:subgoal|subgoals|phase|phases|goal structure|strategic goal|підціл|під-ціл|фаз|структур.*ціл|стратег)/u.test(
-        normalizedPrompt
-      );
-    if (item?.kind === 'goal' && hasStrategicSignal) {
-      return false;
-    }
-
-    if (item?.kind === 'story' || item?.kind === 'task') {
-      return true;
-    }
-
-    if (item?.kind === 'goal') {
-      return true;
-    }
-
-    return false;
   }
 
   private describeActionTarget(action: AiAssistantAction): string {
@@ -975,6 +1108,8 @@ export class AiAssistantSessionController {
         return `story "${action.title}"`;
       case 'create_goal':
         return `goal "${action.title}"`;
+      case 'create_goals':
+        return `${action.items.length} strategic goal${action.items.length === 1 ? '' : 's'}`;
       case 'create_goal_blueprint':
         return `strategic plan "${action.title}"`;
       case 'suggest_relation': {
@@ -1001,7 +1136,14 @@ export class AiAssistantSessionController {
     actions: AiAssistantAction[]
   ): string {
     if (actions.length === 1) {
-      return actions[0]?.label ?? 'Confirm';
+      const action = actions[0];
+      if (!action) {
+        return 'Confirm';
+      }
+      if (action.kind === 'create_goals') {
+        return 'Create all';
+      }
+      return action.label ?? 'Confirm';
     }
 
     const kinds = new Set(actions.map((action) => action.kind));
@@ -1009,11 +1151,12 @@ export class AiAssistantSessionController {
       return 'Confirm all';
     }
 
-    switch (actions[0]?.kind) {
-      case 'create_task':
-      case 'create_story':
-      case 'create_goal':
-        return 'Create all';
+      switch (actions[0]?.kind) {
+        case 'create_task':
+        case 'create_story':
+        case 'create_goal':
+        case 'create_goals':
+          return 'Create all';
       case 'suggest_relation':
       case 'remove_relation':
       case 'update_relation':
@@ -1027,7 +1170,14 @@ export class AiAssistantSessionController {
     actions: AiAssistantAction[]
   ): string {
     if (actions.length === 1) {
-      return actions[0]?.title ?? 'Pending action';
+      const action = actions[0];
+      if (!action) {
+        return 'Pending action';
+      }
+      if (action.kind === 'create_goals') {
+        return `${action.title || 'Strategic goals'} (${action.items.length})`;
+      }
+      return action.title ?? 'Pending action';
     }
 
     const firstAction = actions[0];
@@ -1052,6 +1202,12 @@ export class AiAssistantSessionController {
           return `Stories to create (${actions.length})`;
         case 'create_goal':
           return `Goals to create (${actions.length})`;
+        case 'create_goals':
+          return `Goals to create (${
+            firstAction?.kind === 'create_goals'
+              ? firstAction.items.length
+              : actions.length
+          })`;
         case 'suggest_relation':
           return `Suggested relations (${actions.length})`;
         case 'remove_relation':
@@ -1074,7 +1230,7 @@ export class AiAssistantSessionController {
       if (!action) {
         return 'Applied 0 actions.';
       }
-    const verb =
+      const verb =
         action.kind === 'suggest_relation' ||
         action.kind === 'suggest_update'
           ? 'Applied'
@@ -1084,6 +1240,8 @@ export class AiAssistantSessionController {
             ? 'Removed'
           : action.kind === 'create_goal_blueprint'
             ? 'Created'
+            : action.kind === 'create_goals'
+              ? 'Created'
           : 'Created';
       return `${verb} ${this.describeActionTarget(action)}.`;
     }
@@ -1092,6 +1250,13 @@ export class AiAssistantSessionController {
       this.describeAppliedActionKind(actions, 'create_task', 'Created', 'task'),
       this.describeAppliedActionKind(actions, 'create_story', 'Created', 'story'),
       this.describeAppliedActionKind(actions, 'create_goal', 'Created', 'goal'),
+      this.describeAppliedActionKind(
+        actions,
+        'create_goals',
+        'Created',
+        'goal',
+        (action) => action.items.length
+      ),
       this.describeAppliedActionKind(
         actions,
         'create_goal_blueprint',
@@ -1147,17 +1312,32 @@ export class AiAssistantSessionController {
     return `${leading}, and ${trailing}.`;
   }
 
-  private describeAppliedActionKind(
+  private describeAppliedActionKind<K extends AiAssistantAction['kind']>(
     actions: AiAssistantAction[],
-    kind: AiAssistantAction['kind'],
+    kind: K,
     verb: 'Applied' | 'Created' | 'Removed' | 'Updated',
-    noun: string
+    noun: string,
+    countSelector?: (action: Extract<AiAssistantAction, { kind: K }>) => number
   ): string | null {
-    const count = actions.filter((action) => action.kind === kind).length;
+    const count = actions.reduce((total, action) => {
+      if (action.kind !== kind) {
+        return total;
+      }
+      return total + (countSelector ? countSelector(action as Extract<AiAssistantAction, { kind: K }>) : 1);
+    }, 0);
     if (count === 0) {
       return null;
     }
     return `${verb} ${count} ${this.pluralizeAppliedActionNoun(noun, count)}`;
+  }
+
+  private toExecutionRequest(
+    request: AiAssistantPreparedExecutionRequest
+  ): AiAssistantActionExecutionRequest {
+    return {
+      action: request.action,
+      allowSelectionTargeting: request.allowSelectionTargeting,
+    };
   }
 
   private pluralizeAppliedActionNoun(noun: string, count: number): string {

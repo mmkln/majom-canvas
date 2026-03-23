@@ -3,6 +3,7 @@ import type {
   AiAssistantReviewFindings,
 } from '../aiAssistantActions.ts';
 import type { AiAssistantIntentKind } from '../aiAssistantEvents.ts';
+import type { AiAssistantPreparedSubmission } from './AiAssistantPreparedSubmission.ts';
 
 export type AiAssistantMessageRole = 'assistant' | 'user' | 'system';
 export type AiAssistantMessageKind = 'default' | 'system' | 'command';
@@ -29,6 +30,8 @@ export type AiAssistantMessage = {
   createdAt: number;
   requestPrompt?: string;
   requestIntent?: AiAssistantIntentKind;
+  requestIntentContext?: AiAssistantPreparedSubmission['intentContext'];
+  awaitingUserInput?: boolean;
   actions?: AiAssistantAction[];
   reviewFindings?: AiAssistantReviewFindings;
 };
@@ -37,6 +40,7 @@ export type AiAssistantQuickAction = {
   id: string;
   label: string;
   prompt: string;
+  submission?: AiAssistantPreparedSubmission;
 };
 
 export function isAiAssistantHistoryMessage(

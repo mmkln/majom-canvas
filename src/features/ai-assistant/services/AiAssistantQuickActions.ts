@@ -1,6 +1,7 @@
 import type { AiAssistantCanvasSnapshot } from '../aiAssistantEvents.ts';
 import { getAiAssistantSelectedItems } from './AiAssistantContent.ts';
 import type { AiAssistantQuickAction } from './AiAssistantTypes.ts';
+import { resolveAiAssistantIntentSubmission } from './AiAssistantIntentResolver.ts';
 import {
   buildAiAssistantBreakdownPrompt,
   buildAiAssistantDuplicatePrompt,
@@ -26,11 +27,13 @@ export function getAiAssistantQuickActions(
       id: 'review',
       label: selection.length > 0 ? 'Review selection' : 'Review plan',
       prompt: buildAiAssistantReviewPrompt(scopedSelection),
+      submission: createIntentQuickActionSubmission(context, 'review'),
     },
     {
       id: 'missing',
       label: 'What is missing?',
       prompt: buildAiAssistantMissingPrompt(scopedSelection),
+      submission: createIntentQuickActionSubmission(context, 'missing'),
     },
     {
       id: 'next-steps',
@@ -58,6 +61,7 @@ export function getAiAssistantQuickActions(
       id: 'strategic-plan',
       label: 'Generate strategic plan',
       prompt: buildAiAssistantStrategicPlanPrompt([]),
+      submission: createIntentQuickActionSubmission(context, 'strategic_plan'),
     });
   }
 
@@ -71,6 +75,7 @@ export function getAiAssistantQuickActions(
       id: 'break-selection',
       label: item.kind === 'goal' ? 'Break into stories' : 'Break into tasks',
       prompt: buildAiAssistantBreakdownPrompt(item),
+      submission: createIntentQuickActionSubmission(context, 'breakdown'),
     });
   }
   if (item.kind === 'goal') {
@@ -78,13 +83,30 @@ export function getAiAssistantQuickActions(
       id: 'strategic-plan-selection',
       label: 'Generate strategic plan',
       prompt: buildAiAssistantStrategicPlanPrompt([item]),
+      submission: createIntentQuickActionSubmission(context, 'strategic_plan'),
     });
   }
   actions.splice(3, 0, {
     id: 'dependencies-selection',
     label: selection.length > 1 ? 'Connect selected' : 'Suggest dependencies',
     prompt: buildAiAssistantDependencyPrompt([item]),
+    submission: createIntentQuickActionSubmission(context, 'dependencies'),
   });
 
   return actions;
+}
+
+function createIntentQuickActionSubmission(
+  context: AiAssistantCanvasSnapshot,
+  intent: 'review' | 'breakdown' | 'strategic_plan' | 'dependencies' | 'missing'
+) {
+  const selection = getAiAssistantSelectedItems(context);
+  return resolveAiAssistantIntentSubmission(
+    {
+      intent,
+      scope: selection.length > 0 ? 'selection' : 'canvas',
+      targetIds: selection.length > 0 ? selection.map((item) => item.id) : undefined,
+    },
+    context
+  );
 }

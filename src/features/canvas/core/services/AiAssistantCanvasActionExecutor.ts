@@ -17,6 +17,7 @@ import {
 import { CanvasManager } from '../managers/CanvasManager.ts';
 import { Scene } from '../scene/Scene.ts';
 import { historyService } from './HistoryService.ts';
+import { GoalPlacementService } from './GoalPlacementService.ts';
 import { StoryLayoutService } from './StoryLayoutService.ts';
 import { addTaskToStory } from '../../ui/storyTaskActions.ts';
 import {
@@ -76,11 +77,13 @@ type PlanningRect = {
 
 export class AiAssistantCanvasActionExecutor {
   private readonly layoutService: StoryLayoutService;
+  private readonly goalPlacementService: GoalPlacementService;
 
   constructor(
     private readonly options: AiAssistantCanvasActionExecutorOptions
   ) {
     this.layoutService = options.layoutService ?? new StoryLayoutService();
+    this.goalPlacementService = new GoalPlacementService();
   }
 
   public execute(
@@ -100,6 +103,8 @@ export class AiAssistantCanvasActionExecutor {
   public executeBatch(
     requests: AiAssistantActionExecutionRequest[]
   ): Promise<AiAssistantActionExecutionResult[]> {
+    const historySnapshot = historyService.captureState();
+    const selectionSnapshot = this.options.scene.getSelectedElements();
     try {
       const results = new Array<AiAssistantActionExecutionResult>(requests.length);
       let index = 0;
@@ -146,7 +151,47 @@ export class AiAssistantCanvasActionExecutor {
           }
         }
 
-        results[index] = this.executeRequest(request);
+        if (request.action.kind === 'create_goal') {
+          const nextIndex = this.findBatchRunEnd(requests, index, 'create_goal');
+          if (nextIndex - index > 1) {
+            const runResult = this.applyCreateGoalBatch(
+              requests.slice(index, nextIndex).map((batchRequest, offset) => ({
+                index: index + offset,
+                request: batchRequest,
+                action: batchRequest.action as AiAssistantCreateGoalAction,
+              }))
+            );
+            runResult.results.forEach((result, resultIndex) => {
+              results[resultIndex] = result;
+            });
+            if ([...runResult.results.values()].some((result) => result.status === 'failed')) {
+              this.rollbackBatchState(historySnapshot, selectionSnapshot);
+              return results.map(
+                () =>
+                  ({
+                    status: 'failed',
+                    errorMessage: 'The batch was rolled back because one action failed.',
+                  }) as AiAssistantActionExecutionResult
+              );
+            }
+            index = nextIndex;
+            continue;
+          }
+        }
+
+        const result = this.executeRequest(request);
+        results[index] = result;
+        if (result.status === 'failed') {
+          this.rollbackBatchState(historySnapshot, selectionSnapshot);
+          return results.map(
+            () =>
+              ({
+                status: 'failed',
+                errorMessage:
+                  result.errorMessage ?? 'The batch was rolled back because one action failed.',
+              }) as AiAssistantActionExecutionResult
+          );
+        }
         index += 1;
       }
 
@@ -160,6 +205,7 @@ export class AiAssistantCanvasActionExecutor {
         )
       );
     } catch (error) {
+      this.rollbackBatchState(historySnapshot, selectionSnapshot);
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to create element.';
       return Promise.resolve(
@@ -345,9 +391,10 @@ export class AiAssistantCanvasActionExecutor {
     });
 
     if (commands.length > 0) {
-      historyService.execute(
-        commands.length === 1 ? commands[0]! : new CompositeCommand(commands)
-      );
+      const command = commands.length === 1 ? commands[0] : new CompositeCommand(commands);
+      if (command) {
+        historyService.execute(command);
+      }
       this.options.scene.setSelected(createdTasks);
       this.options.canvasManager.draw();
     }
@@ -476,9 +523,10 @@ export class AiAssistantCanvasActionExecutor {
     });
 
     if (commands.length > 0) {
-      historyService.execute(
-        commands.length === 1 ? commands[0]! : new CompositeCommand(commands)
-      );
+      const command = commands.length === 1 ? commands[0] : new CompositeCommand(commands);
+      if (command) {
+        historyService.execute(command);
+      }
       storyGoalLinks.forEach(({ story, goal }) => {
         emitStoryGoalLinkSet(story, goal);
       });
@@ -714,10 +762,20 @@ export class AiAssistantCanvasActionExecutor {
       };
     }
 
-    const { x, y } = this.getViewportCenter();
+    const preferredCenter = parentGoal
+      ? {
+          x: parentGoal.x + parentGoal.width / 2,
+          y: parentGoal.y + parentGoal.height + GoalElement.height + 72,
+        }
+      : this.getViewportCenter();
+    const position = this.goalPlacementService.planGoalPosition({
+      preferredCenter,
+      occupiedRects: this.getPlanningRects(),
+      preferDownward: Boolean(parentGoal),
+    });
     const goal = new GoalElement({
-      x: x - GoalElement.width / 2,
-      y: y - GoalElement.height / 2,
+      x: position.x - GoalElement.width / 2,
+      y: position.y - GoalElement.height / 2,
       title: action.title,
       description: action.description ?? '',
       priority: action.priority ?? 'low',
@@ -745,6 +803,94 @@ export class AiAssistantCanvasActionExecutor {
     };
   }
 
+  private applyCreateGoalBatch(
+    entries: BatchEntry<AiAssistantCreateGoalAction>[]
+  ): BatchRunResult {
+    const results = new Map<number, AiAssistantActionExecutionResult>();
+    const commands: Command[] = [];
+    const createdGoals: GoalElement[] = [];
+    const occupied = this.getPlanningRects();
+    const resolvedTargets: Array<GoalElement | null> = [];
+
+    entries.forEach((entry) => {
+      const targetGoal = this.resolveGoalTarget(
+        entry.action,
+        entry.request.allowSelectionTargeting
+      );
+      if (entry.action.target?.kind === 'goal' && !targetGoal) {
+        resolvedTargets.push(null);
+        return;
+      }
+      resolvedTargets.push(targetGoal);
+    });
+
+    if (
+      entries.some(
+        (entry, index) =>
+          entry.action.target?.kind === 'goal' && resolvedTargets[index] === null
+      )
+    ) {
+      entries.forEach((entry) => {
+        results.set(entry.index, {
+          status: 'failed',
+          errorMessage: 'Target goal is unavailable.',
+        });
+      });
+      return { results };
+    }
+
+    entries.forEach((entry, index) => {
+      const parentGoal = resolvedTargets[index] ?? null;
+      const preferredCenter = parentGoal
+        ? {
+            x: parentGoal.x + parentGoal.width / 2,
+            y: parentGoal.y + parentGoal.height + GoalElement.height + 72,
+          }
+        : this.getViewportCenter();
+      const position = this.goalPlacementService.planGoalPosition({
+        preferredCenter,
+        occupiedRects: occupied,
+        preferDownward: Boolean(parentGoal),
+      });
+      const goal = new GoalElement({
+        x: position.x - GoalElement.width / 2,
+        y: position.y - GoalElement.height / 2,
+        title: entry.action.title,
+        description: entry.action.description ?? '',
+        priority: entry.action.priority ?? 'low',
+        status: this.toElementStatus(entry.action.elementStatus),
+      });
+      createdGoals.push(goal);
+      occupied.push(this.getRect(goal));
+      commands.push(new AddElementCommand(this.options.scene, goal));
+      if (parentGoal) {
+        commands.push(
+          new ConnectCommand(
+            this.options.scene,
+            parentGoal.id,
+            goal.id,
+            ConnectionRelationType.ParentChild
+          )
+        );
+      }
+      results.set(entry.index, {
+        status: 'applied',
+        createdElementId: goal.id,
+      });
+    });
+
+    if (commands.length > 0) {
+      const command = commands.length === 1 ? commands[0] : new CompositeCommand(commands);
+      if (command) {
+        historyService.execute(command);
+      }
+      this.options.scene.setSelected(createdGoals);
+      this.options.canvasManager.draw();
+    }
+
+    return { results };
+  }
+
   private applyCreateGoalBlueprint(
     action: AiAssistantGoalBlueprintAction
   ): AiAssistantActionExecutionResult {
@@ -755,7 +901,28 @@ export class AiAssistantCanvasActionExecutor {
       };
     }
 
-    const positions = this.buildGoalBlueprintPositions(action);
+    const targetGoal =
+      action.target?.kind === 'goal'
+        ? this.findGoalById(action.target.id)
+        : null;
+    if (action.target?.kind === 'goal' && !targetGoal) {
+      return {
+        status: 'failed',
+        errorMessage: 'Target goal is unavailable.',
+      };
+    }
+
+    const preferredCenter = targetGoal
+      ? {
+          x: targetGoal.x + targetGoal.width / 2,
+          y: targetGoal.y + targetGoal.height + GoalElement.height + 96,
+        }
+      : this.getViewportCenter();
+    const positions = this.goalPlacementService.planBlueprintPositions(action, {
+      occupiedRects: this.getPlanningRects(),
+      preferredCenter,
+      preferDownward: Boolean(targetGoal),
+    });
     const createdGoals = action.goals.map((goalDefinition) => {
       const position = positions.get(goalDefinition.ref) ?? this.getViewportCenter();
       return new GoalElement({
@@ -774,16 +941,6 @@ export class AiAssistantCanvasActionExecutor {
         createdGoals[index],
       ])
     );
-    const targetGoal =
-      action.target?.kind === 'goal'
-        ? this.findGoalById(action.target.id)
-        : null;
-    if (action.target?.kind === 'goal' && !targetGoal) {
-      return {
-        status: 'failed',
-        errorMessage: 'Target goal is unavailable.',
-      };
-    }
 
     const commands: Command[] = [
       new AddElementCommand(this.options.scene, createdGoals),
@@ -865,7 +1022,7 @@ export class AiAssistantCanvasActionExecutor {
   private findBatchRunEnd(
     requests: AiAssistantActionExecutionRequest[],
     startIndex: number,
-    kind: 'create_task' | 'create_story'
+    kind: 'create_task' | 'create_story' | 'create_goal'
   ): number {
     let index = startIndex;
     while (requests[index]?.action.kind === kind) {
@@ -1073,121 +1230,22 @@ export class AiAssistantCanvasActionExecutor {
     };
   }
 
-  private buildGoalBlueprintPositions(
-    action: AiAssistantGoalBlueprintAction
-  ): Map<string, { x: number; y: number }> {
-    return action.pattern === 'goal_graph'
-      ? this.buildGoalGraphPositions(action)
-      : this.buildGoalTreePositions(action);
-  }
-
-  private buildGoalGraphPositions(
-    action: AiAssistantGoalBlueprintAction
-  ): Map<string, { x: number; y: number }> {
-    const center = this.getViewportCenter();
-    const positions = new Map<string, { x: number; y: number }>();
-    const columnCount = Math.max(2, Math.ceil(Math.sqrt(action.goals.length)));
-    const horizontalGap = GoalElement.width + 96;
-    const verticalGap = GoalElement.height + 120;
-    const rowCount = Math.ceil(action.goals.length / columnCount);
-
-    action.goals.forEach((goal, index) => {
-      const column = index % columnCount;
-      const row = Math.floor(index / columnCount);
-      const x =
-        center.x + (column - (columnCount - 1) / 2) * horizontalGap;
-      const y = center.y + (row - (rowCount - 1) / 2) * verticalGap;
-      positions.set(goal.ref, { x, y });
-    });
-
-    return positions;
-  }
-
-  private buildGoalTreePositions(
-    action: AiAssistantGoalBlueprintAction
-  ): Map<string, { x: number; y: number }> {
-    const center = this.getViewportCenter();
-    const childrenByParent = new Map<
-      string | null,
-      AiAssistantGoalBlueprintAction['goals']
-    >();
-    action.goals.forEach((goal) => {
-      const key = goal.parentRef ?? null;
-      const bucket = childrenByParent.get(key) ?? [];
-      bucket.push(goal);
-      childrenByParent.set(key, bucket);
-    });
-
-    const leafCounts = new Map<string, number>();
-    const depthByRef = new Map<string, number>();
-    const countLeaves = (ref: string): number => {
-      const cached = leafCounts.get(ref);
-      if (typeof cached === 'number') {
-        return cached;
-      }
-      const children = childrenByParent.get(ref) ?? [];
-      const count =
-        children.length === 0
-          ? 1
-          : children.reduce((total, child) => total + countLeaves(child.ref), 0);
-      leafCounts.set(ref, count);
-      return count;
+  private rollbackBatchState(
+    snapshot: ReturnType<typeof historyService.captureState>,
+    selectedElements: Array<GoalElement | StoryElement | TaskElement>
+  ): void {
+    const snapshotToken = {
+      branchId: snapshot.branchId,
+      index: snapshot.undoStack.filter((command) =>
+        command.affectsUnsavedChanges()
+      ).length,
     };
-    const collectDepth = (ref: string, depth: number): number => {
-      depthByRef.set(ref, depth);
-      const children = childrenByParent.get(ref) ?? [];
-      if (children.length === 0) {
-        return depth;
-      }
-      return children.reduce((maxDepth, child) => {
-        return Math.max(maxDepth, collectDepth(child.ref, depth + 1));
-      }, depth);
-    };
-
-    const roots = childrenByParent.get(null) ?? action.goals.slice(0, 1);
-    const totalLeaves = Math.max(
-      1,
-      roots.reduce((total, root) => total + countLeaves(root.ref), 0)
-    );
-    const maxDepth = roots.reduce((depth, root) => {
-      return Math.max(depth, collectDepth(root.ref, 0));
-    }, 0);
-
-    const horizontalGap = GoalElement.width + 96;
-    const verticalGap = GoalElement.height + 120;
-    const positions = new Map<string, { x: number; y: number }>();
-
-    const assign = (goalRef: string, startLeafIndex: number): void => {
-      const leafCount = leafCounts.get(goalRef) ?? 1;
-      const depth = depthByRef.get(goalRef) ?? 0;
-      const x =
-        center.x +
-        (startLeafIndex + (leafCount - 1) / 2 - (totalLeaves - 1) / 2) *
-          horizontalGap;
-      const y = center.y + (depth - maxDepth / 2) * verticalGap;
-      positions.set(goalRef, { x, y });
-
-      let childStartLeafIndex = startLeafIndex;
-      const children = childrenByParent.get(goalRef) ?? [];
-      children.forEach((child) => {
-        assign(child.ref, childStartLeafIndex);
-        childStartLeafIndex += leafCounts.get(child.ref) ?? 1;
-      });
-    };
-
-    let currentLeafIndex = 0;
-    roots.forEach((root) => {
-      assign(root.ref, currentLeafIndex);
-      currentLeafIndex += leafCounts.get(root.ref) ?? 1;
-    });
-
-    action.goals.forEach((goal) => {
-      if (!positions.has(goal.ref)) {
-        positions.set(goal.ref, center);
-      }
-    });
-
-    return positions;
+    while (!historyService.isTokenCurrent(snapshotToken) && historyService.canUndo()) {
+      historyService.undo();
+    }
+    historyService.restoreState(snapshot);
+    this.options.scene.setSelected(selectedElements);
+    this.options.canvasManager.draw();
   }
 
   private getSingleSelectedStory(): StoryElement | null {

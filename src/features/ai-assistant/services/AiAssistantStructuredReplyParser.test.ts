@@ -359,7 +359,7 @@ describe('AiAssistantStructuredReplyParser', () => {
     expect(result.actions[0]?.groupTitle).toBe('Relation type changes');
   });
 
-  it('normalizes create_goals batches into grouped create_goal actions', () => {
+  it('keeps create_goals batches as a single grouped strategic action', () => {
     const result = parseAiAssistantStructuredReply(
       JSON.stringify({
         replyMarkdown: 'I prepared strategic goals for the empty canvas.',
@@ -368,6 +368,10 @@ describe('AiAssistantStructuredReplyParser', () => {
             kind: 'create_goals',
             title: 'Strategic goals',
             summary: 'Top-level strategic goals for the topic.',
+            supportedBy: ['goal-1'],
+            evidenceIds: ['goal-1'],
+            sourceContext: 'Selected strategic goal',
+            target: { kind: 'goal', id: 'goal-1' },
             items: [
               {
                 title: 'Learn automation fundamentals',
@@ -383,16 +387,22 @@ describe('AiAssistantStructuredReplyParser', () => {
       }),
       {
         allowActions: true,
-        validationSnapshot: createEmptySnapshot(),
+        validationSnapshot: createSnapshot(),
         intent: 'strategic_plan',
       }
     );
 
-    expect(result.actions).toHaveLength(2);
-    expect(result.actions[0]?.kind).toBe('create_goal');
-    expect(result.actions[1]?.kind).toBe('create_goal');
-    expect(result.actions[0]?.groupTitle).toBe('Strategic goals');
-    expect(result.actions[0]?.groupId).toBe(result.actions[1]?.groupId);
+    expect(result.actions).toHaveLength(1);
+    expect(result.actions[0]?.kind).toBe('create_goals');
+    if (result.actions[0]?.kind !== 'create_goals') {
+      throw new Error('Expected create_goals action.');
+    }
+    expect(result.actions[0].title).toBe('Strategic goals');
+    expect(result.actions[0].items).toHaveLength(2);
+    expect(result.actions[0].target).toEqual({ kind: 'goal', id: 'goal-1' });
+    expect(result.actions[0].supportedBy).toEqual(['goal-1']);
+    expect(result.actions[0].evidenceIds).toEqual(['goal-1']);
+    expect(result.actions[0].sourceContext).toBe('Selected strategic goal');
   });
 
   it('keeps create_goal_blueprint as one strategic plan action', () => {

@@ -4,6 +4,7 @@ import {
   createAiAssistantTestMemory,
   createAiAssistantTestSnapshot,
 } from './AiAssistantTestUtils.ts';
+import { createAiAssistantTelemetryCollector } from './AiAssistantTelemetryStore.ts';
 
 describe('AiAssistantOrchestrator', () => {
   it('uses deterministic intent plans without calling the planner model', async () => {
@@ -37,6 +38,141 @@ describe('AiAssistantOrchestrator', () => {
       'find_missing_descriptions',
     ]);
     expect(reply.replyMarkdown).toBe('Structured reply');
+  });
+
+  it('records telemetry for command-spec replies, including token usage', async () => {
+    const collector = createAiAssistantTelemetryCollector();
+    const completeTextWithMetadata = vi.fn(async () => ({
+      content: JSON.stringify({
+        replyMarkdown: 'Do you want stories or tasks?',
+        actions: [],
+      }),
+      usage: {
+        promptTokens: 11,
+        completionTokens: 4,
+        totalTokens: 15,
+      },
+    }));
+    const orchestrator = new AiAssistantOrchestrator({
+      apiClient: {
+        completeText: vi.fn(async () => {
+          throw new Error('completeText should not be used when metadata is available.');
+        }),
+        completeTextWithMetadata,
+      },
+      telemetry: collector,
+    });
+
+    const reply = await orchestrator.reply({
+      prompt: 'декомпозуй поточну ціль',
+      source: 'intent',
+      intent: 'breakdown',
+      intentContext: {
+        breakdownMode: 'unspecified_goal_decomposition',
+      },
+      telemetryContext: {
+        conversationKey: 'canvas:test',
+        requestId: 'request-1',
+      },
+      snapshot: createAiAssistantTestSnapshot(),
+      contextMode: 'selection',
+      memory: createAiAssistantTestMemory({
+        currentIntent: null,
+        conversationSummary: null,
+        agreedFacts: [],
+        lastRecommendations: [],
+      }),
+      allowActions: true,
+    });
+
+    expect(reply.replyMarkdown).toBe('Do you want stories or tasks?');
+    expect(completeTextWithMetadata).toHaveBeenCalledTimes(1);
+    const events = collector.snapshot();
+    const interaction = events.find((event) => event.kind === 'interaction');
+    expect(interaction).toMatchObject({
+      kind: 'interaction',
+      routeType: 'intent',
+      intent: 'breakdown',
+      commandSpecUsed: true,
+      toolCallCount: 1,
+      repairAttempts: 0,
+      invalidEnvelopeCount: 0,
+      tokenUsage: {
+        totalTokens: 15,
+      },
+      outcome: 'reply',
+    });
+    expect(events.some((event) => event.kind === 'repair')).toBe(false);
+  });
+
+  it('records repair telemetry when a command-spec reply is repaired', async () => {
+    const collector = createAiAssistantTelemetryCollector();
+    const completeTextWithMetadata = vi
+      .fn()
+      .mockResolvedValueOnce({
+        content: 'not json',
+        usage: {
+          totalTokens: 5,
+        },
+      })
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          replyMarkdown: 'Need a little more detail.',
+          actions: [],
+        }),
+        usage: {
+          totalTokens: 7,
+        },
+      });
+    const orchestrator = new AiAssistantOrchestrator({
+      apiClient: {
+        completeText: vi.fn(async () => {
+          throw new Error('completeText should not be used when metadata is available.');
+        }),
+        completeTextWithMetadata,
+      },
+      telemetry: collector,
+    });
+
+    const reply = await orchestrator.reply({
+      prompt: 'декомпозуй поточну ціль',
+      source: 'intent',
+      intent: 'breakdown',
+      intentContext: {
+        breakdownMode: 'unspecified_goal_decomposition',
+      },
+      telemetryContext: {
+        conversationKey: 'canvas:test',
+        requestId: 'request-2',
+      },
+      snapshot: createAiAssistantTestSnapshot(),
+      contextMode: 'selection',
+      memory: createAiAssistantTestMemory({
+        currentIntent: null,
+        conversationSummary: null,
+        agreedFacts: [],
+        lastRecommendations: [],
+      }),
+      allowActions: true,
+    });
+
+    expect(reply.replyMarkdown).toBe('Need a little more detail.');
+    expect(completeTextWithMetadata).toHaveBeenCalledTimes(2);
+    const events = collector.snapshot();
+    expect(events.some((event) => event.kind === 'repair')).toBe(true);
+    expect(events.find((event) => event.kind === 'repair')).toMatchObject({
+      kind: 'repair',
+      stage: 'command',
+      attempt: 1,
+    });
+    expect(events.find((event) => event.kind === 'interaction')).toMatchObject({
+      kind: 'interaction',
+      repairAttempts: 1,
+      invalidEnvelopeCount: 1,
+      tokenUsage: {
+        totalTokens: 12,
+      },
+    });
   });
 
   it('emits staged progress updates while building an intent reply', async () => {

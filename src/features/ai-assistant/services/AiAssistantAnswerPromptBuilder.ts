@@ -86,19 +86,62 @@ function buildAnswerSystemPromptForIntent(
 }
 
 function buildAnswerMemorySection(memory: AiAssistantMemoryState): string {
+  const confirmedFacts = renderMemoryFactEntries(memory.confirmedFacts);
+  const userConstraints = renderMemoryConstraintEntries(memory.userConstraints);
+  const appliedActions = renderAppliedActionEntries(memory.appliedActions);
   const parts = [
     memory.currentIntent ? `Current intent: ${memory.currentIntent}` : null,
     memory.conversationSummary
       ? `Conversation summary: ${memory.conversationSummary}`
       : null,
+    confirmedFacts.length > 0
+      ? `Confirmed facts:\n- ${confirmedFacts.join('\n- ')}`
+      : null,
     memory.agreedFacts.length > 0
       ? `Agreed facts:\n- ${memory.agreedFacts.join('\n- ')}`
+      : null,
+    userConstraints.length > 0
+      ? `User constraints:\n- ${userConstraints.join('\n- ')}`
+      : null,
+    memory.awaitingInput
+      ? `Awaiting input:\n- ${memory.awaitingInput.prompt}${
+          memory.awaitingInput.replyPreview
+            ? `\n- Follow-up: ${memory.awaitingInput.replyPreview}`
+            : ''
+        }`
+      : null,
+    memory.openFollowUpSlots.length > 0
+      ? `Open follow-up slots:\n- ${memory.openFollowUpSlots.join('\n- ')}`
+      : null,
+    appliedActions.length > 0
+      ? `Applied actions:\n- ${appliedActions.join('\n- ')}`
       : null,
     memory.lastRecommendations.length > 0
       ? `Last recommendations:\n- ${memory.lastRecommendations.join('\n- ')}`
       : null,
   ].filter(Boolean);
   return parts.length > 0 ? parts.join('\n') : 'Conversation memory: none';
+}
+
+function renderMemoryFactEntries(
+  entries: AiAssistantMemoryState['confirmedFacts']
+): string[] {
+  return entries.map((entry) => entry.text).filter((text) => text.length > 0);
+}
+
+function renderMemoryConstraintEntries(
+  entries: AiAssistantMemoryState['userConstraints']
+): string[] {
+  return entries.map((entry) => entry.text).filter((text) => text.length > 0);
+}
+
+function renderAppliedActionEntries(
+  entries: AiAssistantMemoryState['appliedActions']
+): string[] {
+  return entries
+    .slice(-5)
+    .map((entry) => entry.summary)
+    .filter((text) => text.length > 0);
 }
 
 function buildInstructionPacketSystemMessage(

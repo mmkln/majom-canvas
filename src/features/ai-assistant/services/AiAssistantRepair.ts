@@ -6,6 +6,7 @@ import type { AiAssistantApiMessage } from './AiAssistantApiTypes.ts';
 import type { AiAssistantIntentKind } from '../aiAssistantEvents.ts';
 import { describeAiAssistantStructuredReplyKinds } from './AiAssistantActionPolicy.ts';
 import { describeAiAssistantProfiles } from './AiAssistantContextTypes.ts';
+import type { AiAssistantTokenUsage } from './AiAssistantTelemetryTypes.ts';
 
 type AiAssistantTextClient = {
   completeText: (
@@ -17,6 +18,18 @@ type AiAssistantTextClient = {
       maxTokens?: number;
     }
   ) => Promise<string>;
+  completeTextWithMetadata?: (
+    messages: AiAssistantApiMessage[],
+    options?: {
+      signal?: AbortSignal;
+      model?: string;
+      temperature?: number;
+      maxTokens?: number;
+    }
+  ) => Promise<{
+    content: string;
+    usage?: AiAssistantTokenUsage;
+  }>;
 };
 
 type AiAssistantValidationResult<T> =
@@ -25,12 +38,14 @@ type AiAssistantValidationResult<T> =
       value: T;
       rawContent: string;
       repairAttempts: number;
+      usage?: AiAssistantTokenUsage;
     }
   | {
       ok: false;
       error: Error;
       rawContent: string;
       repairAttempts: number;
+      usage?: AiAssistantTokenUsage;
     };
 
 export async function completeAiAssistantTextWithRepair<T>(params: {
@@ -49,9 +64,15 @@ export async function completeAiAssistantTextWithRepair<T>(params: {
   }) => void;
 }): Promise<AiAssistantValidationResult<T>> {
   const maxRepairAttempts = Math.max(0, params.maxRepairAttempts ?? 1);
-  let rawContent = await params.client.completeText(params.messages, {
-    signal: params.signal,
-  });
+  const initialResponse = await requestCompletion(
+    params.client,
+    params.messages,
+    {
+      signal: params.signal,
+    }
+  );
+  let rawContent = initialResponse.content;
+  let usage = cloneUsage(initialResponse.usage);
   let repairAttempts = 0;
 
   while (true) {
@@ -61,6 +82,7 @@ export async function completeAiAssistantTextWithRepair<T>(params: {
         value: params.validate(rawContent),
         rawContent,
         repairAttempts,
+        usage,
       };
     } catch (error) {
       const normalizedError =
@@ -71,6 +93,7 @@ export async function completeAiAssistantTextWithRepair<T>(params: {
           error: normalizedError,
           rawContent,
           repairAttempts,
+          usage,
         };
       }
 
@@ -78,7 +101,8 @@ export async function completeAiAssistantTextWithRepair<T>(params: {
         attempt: repairAttempts + 1,
         validationError: normalizedError.message,
       });
-      rawContent = await params.client.completeText(
+      const repairResponse = await requestCompletion(
+        params.client,
         params.buildRepairMessages({
           invalidResponse: rawContent,
           validationError: normalizedError.message,
@@ -87,9 +111,70 @@ export async function completeAiAssistantTextWithRepair<T>(params: {
           signal: params.signal,
         }
       );
+      rawContent = repairResponse.content;
+      usage = combineUsage(usage, repairResponse.usage);
       repairAttempts += 1;
     }
   }
+}
+
+function requestCompletion(
+  client: AiAssistantTextClient,
+  messages: AiAssistantApiMessage[],
+  options?: {
+    signal?: AbortSignal;
+    model?: string;
+    temperature?: number;
+    maxTokens?: number;
+  }
+): Promise<{
+  content: string;
+  usage?: AiAssistantTokenUsage;
+}> {
+  if (client.completeTextWithMetadata) {
+    return client.completeTextWithMetadata(messages, options);
+  }
+
+  return client.completeText(messages, options).then((content) => ({ content }));
+}
+
+function cloneUsage(
+  usage: AiAssistantTokenUsage | undefined
+): AiAssistantTokenUsage | undefined {
+  return usage ? { ...usage } : undefined;
+}
+
+function combineUsage(
+  first: AiAssistantTokenUsage | undefined,
+  second: AiAssistantTokenUsage | undefined
+): AiAssistantTokenUsage | undefined {
+  if (!first && !second) {
+    return undefined;
+  }
+
+  return {
+    promptTokens: sumUsageField(first?.promptTokens, second?.promptTokens),
+    completionTokens: sumUsageField(
+      first?.completionTokens,
+      second?.completionTokens
+    ),
+    totalTokens: sumUsageField(first?.totalTokens, second?.totalTokens),
+    cost: sumUsageField(first?.cost, second?.cost),
+  };
+}
+
+function sumUsageField(
+  first: number | undefined,
+  second: number | undefined
+): number | undefined {
+  if (typeof first !== 'number' && typeof second !== 'number') {
+    return undefined;
+  }
+
+  return (
+    (typeof first === 'number' ? first : 0) +
+    (typeof second === 'number' ? second : 0)
+  );
 }
 
 export function buildAiAssistantRouterRepairMessages(params: {
