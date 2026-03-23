@@ -75,6 +75,16 @@ export function buildAiAssistantIntentPlan(
           { tool: 'get_selection_cluster', input: idsInput },
         ],
       };
+    case 'next_steps':
+    case 'recent_changes':
+    case 'duplicates':
+    case 'capability_help':
+    case 'general_question':
+      return {
+        profile,
+        contextMode: request.contextMode,
+        calls: [],
+      };
     case 'breakdown':
     default:
       return {
@@ -86,7 +96,7 @@ export function buildAiAssistantIntentPlan(
 }
 
 export function resolveAiAssistantIntentInstructionIds(
-  intent: AiAssistantIntentKind | undefined
+  intent: AiAssistantIntentKind | null | undefined
 ): string[] {
   switch (intent) {
     case 'review':
@@ -103,13 +113,23 @@ export function resolveAiAssistantIntentInstructionIds(
       return ['planning.clarify-selection'];
     case 'breakdown':
       return ['planning.breakdown'];
+    case 'next_steps':
+      return ['planning.next-steps'];
+    case 'recent_changes':
+      return ['planning.recent-changes'];
+    case 'duplicates':
+      return ['planning.duplicate-review'];
+    case 'capability_help':
+      return ['planning.capability-help'];
+    case 'general_question':
+      return ['planning.general-question'];
     default:
       return ['planning.general-question'];
   }
 }
 
 export function resolveAiAssistantIntentProfile(
-  intent: AiAssistantIntentKind | undefined,
+  intent: AiAssistantIntentKind | null | undefined,
   profile: AiAssistantProfile | undefined
 ): AiAssistantProfile {
   if (profile && isAiAssistantProfile(profile)) {
@@ -127,9 +147,16 @@ export function resolveAiAssistantIntentProfile(
     case 'fill_details':
       return 'readiness-check';
     case 'clarify':
-      return 'breakdown';
+      return 'review-selection';
     case 'breakdown':
       return 'breakdown';
+    case 'next_steps':
+      return 'next-steps';
+    case 'recent_changes':
+    case 'duplicates':
+    case 'capability_help':
+    case 'general_question':
+      return 'general-question';
     default:
       return 'general-question';
   }

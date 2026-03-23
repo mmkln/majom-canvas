@@ -6,6 +6,7 @@ import type {
 import type { AiAssistantStructuredActionEntryKind } from './AiAssistantStructuredTransport.ts';
 
 const TYPED_BATCH_CONFIRMATION = 'batch' as const;
+const TYPED_SINGLE_CONFIRMATION = 'single' as const;
 const FALLBACK_SINGLE_CONFIRMATION = 'single' as const;
 const FALLBACK_NONE_CONFIRMATION = 'none' as const;
 
@@ -114,12 +115,12 @@ export const AI_ASSISTANT_SCENARIO_REGISTRY: Record<
   },
   'clarify.default': {
     id: 'clarify.default',
-    kind: 'fallback',
+    kind: 'typed',
     intent: 'clarify',
     mode: 'clarify_selection',
     scope: 'selection',
     allowedActions: ['suggest_update'],
-    confirmationMode: FALLBACK_SINGLE_CONFIRMATION,
+    confirmationMode: TYPED_SINGLE_CONFIRMATION,
   },
   'next_steps.default': {
     id: 'next_steps.default',

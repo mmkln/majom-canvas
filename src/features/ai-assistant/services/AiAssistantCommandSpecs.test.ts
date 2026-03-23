@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   getAiAssistantCommandSpec,
-  getAiAssistantCommandSpecForScenario,
 } from './AiAssistantCommandSpecs.ts';
 import {
   createAiAssistantTestMemory,
   createAiAssistantTestSnapshot,
 } from './AiAssistantTestUtils.ts';
-import { buildAiAssistantScenarioDescriptor } from './AiAssistantContextPlanner.ts';
 
 function createFocusedFillDetailsSnapshot() {
   const baseSnapshot = createAiAssistantTestSnapshot();
@@ -438,6 +436,39 @@ describe('AiAssistantCommandSpecs', () => {
     expect(error).toBeNull();
   });
 
+  it('accepts clarify title updates for a selected story', () => {
+    const spec = getAiAssistantCommandSpec('clarify');
+    expect(spec).not.toBeNull();
+
+    const compiledContext = spec!.buildCompiledContext({
+      prompt: 'Clarify the selected story wording.',
+      memory: createAiAssistantTestMemory(),
+      toolResults: [],
+      snapshot: createFocusedFillDetailsSnapshot(),
+    });
+
+    const error = spec!.validateEnvelope({
+      envelope: {
+        replyMarkdown:
+          'I prepared a clearer story title so the scope reads more cleanly.',
+        actions: [
+          {
+            kind: 'suggest_update',
+            elementId: 'story-2',
+            patch: {
+              title: 'Post-purchase follow-up',
+            },
+            reason:
+              'This tightens the wording without changing the story intent.',
+          },
+        ],
+      },
+      compiledContext,
+    });
+
+    expect(error).toBeNull();
+  });
+
   it('accepts fill-details description updates that use explicit user-provided details in thin context', () => {
     const spec = getAiAssistantCommandSpec('fill_details');
     expect(spec).not.toBeNull();
@@ -664,6 +695,22 @@ describe('AiAssistantCommandSpecs', () => {
     expect(compiledContext.mode).toBe('goal_replan');
   });
 
+  it('normalizes strategic plan context mode and hints on an empty canvas', () => {
+    const spec = getAiAssistantCommandSpec('strategic_plan');
+    expect(spec).not.toBeNull();
+
+    const compiledContext = spec!.buildCompiledContext({
+      prompt: 'Generate a strategic learning plan for marketing automation.',
+      memory: createAiAssistantTestMemory(),
+      toolResults: [],
+      snapshot: createEmptyCanvasSnapshot(),
+    }) as { mode?: string; strategicHints?: string[] };
+
+    expect(compiledContext.mode).toBe('canvas_bootstrap');
+    expect(compiledContext.strategicHints).toEqual([]);
+    expect(Array.isArray(compiledContext.strategicHints)).toBe(true);
+  });
+
   it('requires goal-level strategic proposals to target the selected goal explicitly', () => {
     const spec = getAiAssistantCommandSpec('strategic_plan');
     expect(spec).not.toBeNull();
@@ -717,31 +764,4 @@ describe('AiAssistantCommandSpecs', () => {
     expect(error).toBeNull();
   });
 
-  it('exposes an explicit action plan in strategic plan command contexts', () => {
-    const snapshot = createSelectedGoalSnapshot();
-    const scenario = buildAiAssistantScenarioDescriptor({
-      intent: 'strategic_plan',
-      prompt: 'декомпозуй поточну ціль у підцілі',
-      snapshot,
-      memory: createAiAssistantTestMemory(),
-      toolResults: [],
-    });
-
-    const spec = getAiAssistantCommandSpecForScenario(scenario);
-    expect(spec).toBe(getAiAssistantCommandSpec('strategic_plan'));
-
-    const compiledContext = spec!.buildCompiledContext({
-      prompt: 'декомпозуй поточну ціль у підцілі',
-      memory: createAiAssistantTestMemory(),
-      toolResults: [],
-      snapshot,
-    }) as {
-      actionPlan?: { confirmationMode?: string; allowedRuntimeActionKinds?: string[] };
-    };
-
-    expect(compiledContext.actionPlan).toMatchObject({
-      confirmationMode: 'batch',
-      allowedRuntimeActionKinds: ['create_goals', 'create_goal_blueprint'],
-    });
-  });
 });

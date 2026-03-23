@@ -29,7 +29,7 @@ describe('AiAssistantIntentPlanFactory', () => {
     expect(resolveAiAssistantIntentInstructionIds('clarify')).toEqual([
       'planning.clarify-selection',
     ]);
-    expect(resolveAiAssistantIntentProfile('clarify', undefined)).toBe('breakdown');
+    expect(resolveAiAssistantIntentProfile('clarify', undefined)).toBe('review-selection');
   });
 
   it('builds a dependency plan with cluster context for relation suggestions', () => {
@@ -91,6 +91,36 @@ describe('AiAssistantIntentPlanFactory', () => {
     ]);
     expect(resolveAiAssistantIntentProfile('strategic_plan', undefined)).toBe(
       'strategic-plan'
+    );
+  });
+
+  it('maps fallback runtime intents to instruction packets without forcing tool calls', () => {
+    expect(buildAiAssistantIntentPlan({
+      intent: 'next_steps',
+      profile: undefined,
+      snapshot: createAiAssistantTestSnapshot(),
+      contextMode: 'canvas',
+    }).calls).toEqual([]);
+    expect(resolveAiAssistantIntentInstructionIds('next_steps')).toEqual([
+      'planning.next-steps',
+    ]);
+    expect(resolveAiAssistantIntentInstructionIds('recent_changes')).toEqual([
+      'planning.recent-changes',
+    ]);
+    expect(resolveAiAssistantIntentInstructionIds('duplicates')).toEqual([
+      'planning.duplicate-review',
+    ]);
+    expect(resolveAiAssistantIntentInstructionIds('capability_help')).toEqual([
+      'planning.capability-help',
+    ]);
+    expect(resolveAiAssistantIntentInstructionIds('general_question')).toEqual([
+      'planning.general-question',
+    ]);
+    expect(resolveAiAssistantIntentProfile('next_steps', undefined)).toBe(
+      'next-steps'
+    );
+    expect(resolveAiAssistantIntentProfile('general_question', undefined)).toBe(
+      'general-question'
     );
   });
 });

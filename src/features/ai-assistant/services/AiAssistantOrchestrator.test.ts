@@ -93,6 +93,11 @@ describe('AiAssistantOrchestrator', () => {
       kind: 'interaction',
       routeType: 'intent',
       intent: 'breakdown',
+      scenarioId: 'breakdown.unspecified_goal_decomposition',
+      scenarioMode: 'unspecified_goal_decomposition',
+      scenarioKind: 'typed',
+      routeLength: 'long',
+      proposalStyle: 'direct',
       commandSpecUsed: true,
       toolCallCount: 1,
       repairAttempts: 0,
@@ -169,6 +174,8 @@ describe('AiAssistantOrchestrator', () => {
       kind: 'interaction',
       repairAttempts: 1,
       invalidEnvelopeCount: 1,
+      scenarioId: 'breakdown.unspecified_goal_decomposition',
+      scenarioKind: 'typed',
       tokenUsage: {
         totalTokens: 12,
       },
@@ -331,6 +338,68 @@ describe('AiAssistantOrchestrator', () => {
       'I found one concrete detail to add from the nearby canvas context.'
     );
     expect(reply.reviewFindings).toBeUndefined();
+  });
+
+  it('uses a command-spec flow for clarify and returns a suggest_update action', async () => {
+    const baseSnapshot = createAiAssistantTestSnapshot();
+    const snapshot = {
+      ...baseSnapshot,
+      selectionIds: ['story-2'],
+      focusId: 'story-2',
+      summary: {
+        ...baseSnapshot.summary,
+        selectedCount: 1,
+      },
+      elements: baseSnapshot.elements.map((element) => ({
+        ...element,
+        selected: element.id === 'story-2',
+        focused: element.id === 'story-2',
+      })),
+    };
+    const completeText = vi.fn().mockResolvedValue(
+      JSON.stringify({
+        replyMarkdown: 'I prepared a clearer story title.',
+        actions: [
+          {
+            kind: 'suggest_update',
+            elementId: 'story-2',
+            patch: {
+              title: 'Post-purchase follow-up',
+            },
+            reason:
+              'This tightens the wording without changing the story intent.',
+          },
+        ],
+      })
+    );
+    const orchestrator = new AiAssistantOrchestrator({
+      apiClient: {
+        completeText,
+      },
+    });
+
+    const reply = await orchestrator.reply({
+      prompt: 'Clarify the selected story.',
+      source: 'intent',
+      intent: 'clarify',
+      snapshot,
+      contextMode: 'selection',
+      memory: createAiAssistantTestMemory({
+        currentIntent: null,
+        conversationSummary: null,
+        agreedFacts: [],
+        lastRecommendations: [],
+      }),
+      allowActions: true,
+    });
+
+    expect(completeText).toHaveBeenCalledTimes(1);
+    expect(completeText.mock.calls[0]?.[0]?.[0]?.content).toContain(
+      'workspace action command "clarify"'
+    );
+    expect(reply.actions).toHaveLength(1);
+    expect(reply.actions[0]?.kind).toBe('suggest_update');
+    expect(reply.replyMarkdown).toBe('I prepared a clearer story title.');
   });
 
   it('repairs a repeated fill-details follow-up into an update when the user already supplied concrete details', async () => {

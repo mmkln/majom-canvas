@@ -20,6 +20,8 @@ import type {
 } from './AiAssistantContextTypes.ts';
 import {
   buildAiAssistantScenarioDescriptor,
+  extractAiAssistantStrategicHints,
+  resolveAiAssistantStrategicPlanMode,
 } from './AiAssistantContextPlanner.ts';
 import {
   buildAiAssistantActionPlanFromScenario,
@@ -156,6 +158,26 @@ type AiAssistantFillDetailsCommandContext = {
   };
 };
 
+type AiAssistantClarifyCommandContext = {
+  intent: 'clarify';
+  commandVersion: 1;
+  latestUserInput: string;
+  scope: 'single' | 'cluster';
+  preferredActionShape: 'suggest_update' | 'suggest_updates';
+  allowedElementIds: string[];
+  target?: AiAssistantFillDetailsTarget;
+  targets?: AiAssistantFillDetailsTarget[];
+  scenario: AiAssistantScenarioDescriptor;
+  actionPlan: AiAssistantActionPlan;
+  constraints: {
+    allowedPatchFields: ['title', 'description'];
+    keepIntentStable: true;
+    preferTitleOrDescriptionRefinement: true;
+    requireContextBackedDescriptionDetail: true;
+    forbidReviewFindings: true;
+  };
+};
+
 type AiAssistantStrategicPlanCommandContext = {
   intent: 'strategic_plan';
   commandVersion: 2;
@@ -243,6 +265,30 @@ const FILL_DETAILS_COMMAND_SPEC: AiAssistantCommandSpec = {
     }),
 };
 
+const CLARIFY_COMMAND_SPEC: AiAssistantCommandSpec = {
+  intent: 'clarify',
+  buildCompiledContext: (params) => buildClarifyCommandContext(params),
+  buildMessages: ({ instructionPackets, compiledContext }) =>
+    buildClarifyCommandMessages({
+      instructionPackets,
+      compiledContext,
+    }),
+  validateEnvelope: ({ envelope, compiledContext }) =>
+    validateClarifyCommandEnvelope(envelope, compiledContext),
+  buildRepairMessages: ({
+    invalidResponse,
+    validationError,
+    instructionPackets,
+    compiledContext,
+  }) =>
+    buildClarifyCommandRepairMessages({
+      invalidResponse,
+      validationError,
+      instructionPackets,
+      compiledContext,
+    }),
+};
+
 const STRATEGIC_PLAN_COMMAND_SPEC: AiAssistantCommandSpec = {
   intent: 'strategic_plan',
   buildCompiledContext: (params) => buildStrategicPlanCommandContext(params),
@@ -299,6 +345,8 @@ export function getAiAssistantCommandSpec(
       return DEPENDENCIES_COMMAND_SPEC;
     case 'strategic_plan':
       return STRATEGIC_PLAN_COMMAND_SPEC;
+    case 'clarify':
+      return CLARIFY_COMMAND_SPEC;
     case 'fill_details':
       return FILL_DETAILS_COMMAND_SPEC;
     case 'breakdown':
@@ -306,15 +354,6 @@ export function getAiAssistantCommandSpec(
     default:
       return null;
   }
-}
-
-export function getAiAssistantCommandSpecForScenario(
-  scenario: AiAssistantScenarioDescriptor | null | undefined
-): AiAssistantCommandSpec | null {
-  if (!scenario?.intent) {
-    return null;
-  }
-  return getAiAssistantCommandSpec(scenario.intent);
 }
 
 function buildDependenciesCommandContext(
@@ -447,6 +486,67 @@ function buildFillDetailsCommandContext(
   };
 }
 
+function buildClarifyCommandContext(
+  params: AiAssistantCommandBuildContextParams
+): AiAssistantClarifyCommandContext {
+  const focus = readFocusBundle(params.toolResults) ?? deriveFocusFromSnapshot(params.snapshot);
+  const cluster =
+    readSelectionCluster(params.toolResults) ?? params.snapshot ?? null;
+  const candidateElements = resolveClarifyCandidateElements(focus, cluster);
+  const targets = candidateElements.map((element) =>
+    buildFillDetailsTarget(element, focus, new Set<string>())
+  );
+  const scenario = buildAiAssistantScenarioDescriptor({
+    intent: 'clarify',
+    prompt: params.prompt,
+    memory: params.memory,
+    snapshot: params.snapshot,
+    toolResults: params.toolResults,
+    intentContext: params.intentContext,
+  });
+  const actionPlan = buildAiAssistantActionPlanFromScenario(scenario)!;
+
+  if (targets.length <= 1) {
+    return {
+      intent: 'clarify',
+      commandVersion: 1,
+      latestUserInput: params.prompt.trim(),
+      scope: 'single',
+      preferredActionShape: 'suggest_update',
+      allowedElementIds: targets.map((target) => target.id),
+      target: targets[0],
+      scenario,
+      actionPlan,
+      constraints: {
+        allowedPatchFields: ['title', 'description'],
+        keepIntentStable: true,
+        preferTitleOrDescriptionRefinement: true,
+        requireContextBackedDescriptionDetail: true,
+        forbidReviewFindings: true,
+      },
+    };
+  }
+
+  return {
+    intent: 'clarify',
+    commandVersion: 1,
+    latestUserInput: params.prompt.trim(),
+    scope: 'cluster',
+    preferredActionShape: 'suggest_updates',
+    allowedElementIds: targets.map((target) => target.id),
+    targets,
+    scenario,
+    actionPlan,
+    constraints: {
+      allowedPatchFields: ['title', 'description'],
+      keepIntentStable: true,
+      preferTitleOrDescriptionRefinement: true,
+      requireContextBackedDescriptionDetail: true,
+      forbidReviewFindings: true,
+    },
+  };
+}
+
 function buildStrategicPlanCommandContext(
   params: AiAssistantCommandBuildContextParams
 ): AiAssistantStrategicPlanCommandContext {
@@ -470,16 +570,25 @@ function buildStrategicPlanCommandContext(
     intentContext: params.intentContext,
   });
   const actionPlan = buildAiAssistantActionPlanFromScenario(scenario)!;
+  const strategicMode = resolveAiAssistantStrategicPlanMode(
+    scenario.intentContext,
+    scenario.target?.kind === 'goal'
+      ? scenario.target
+      : selectedGoal ?? null
+  );
+  const strategicHints =
+    scenario.strategicHints ??
+    (selectedGoal ? extractAiAssistantStrategicHints(selectedGoal) : []);
   return {
     intent: 'strategic_plan',
     commandVersion: 2,
     latestUserInput,
     canvasTitle: params.snapshot?.canvasTitle ?? 'Untitled canvas',
     targetScope: scenario.targetScope === 'canvas' ? 'canvas' : 'selected_goal',
-    mode: scenario.mode,
+    mode: strategicMode,
     summary,
     selectedGoal: scenario.target?.kind === 'goal' ? scenario.target : selectedGoal,
-    strategicHints: scenario.strategicHints,
+    strategicHints,
     scenario,
     actionPlan,
     constraints: {
@@ -588,6 +697,39 @@ function buildFillDetailsCommandMessages(params: {
   return messages;
 }
 
+function buildClarifyCommandMessages(params: {
+  instructionPackets: AiAssistantInstructionPacket[];
+  compiledContext: Record<string, unknown>;
+}): AiAssistantApiMessage[] {
+  const messages: AiAssistantApiMessage[] = [
+    {
+      role: 'system',
+      content: buildClarifyCommandSystemPrompt(),
+    },
+  ];
+
+  const instructionMessage = buildInstructionPacketSystemMessage(
+    params.instructionPackets
+  );
+  if (instructionMessage) {
+    messages.push({
+      role: 'system',
+      content: instructionMessage,
+    });
+  }
+
+  messages.push({
+    role: 'user',
+    content: [
+      'Action command: clarify',
+      'Prepared command context:',
+      JSON.stringify(params.compiledContext, null, 2),
+    ].join('\n\n'),
+  });
+
+  return messages;
+}
+
 function buildDependenciesCommandRepairMessages(params: {
   invalidResponse: string;
   validationError: string;
@@ -639,6 +781,46 @@ function buildFillDetailsCommandRepairMessages(params: {
       role: 'system',
       content: [
         buildFillDetailsCommandSystemPrompt(),
+        'Repair the previous answer into one valid command reply JSON object.',
+        'Preserve the original meaning whenever possible.',
+      ].join('\n'),
+    },
+  ];
+
+  const instructionMessage = buildInstructionPacketSystemMessage(
+    params.instructionPackets
+  );
+  if (instructionMessage) {
+    messages.push({
+      role: 'system',
+      content: instructionMessage,
+    });
+  }
+
+  messages.push({
+    role: 'user',
+    content: [
+      `Validation error: ${params.validationError}`,
+      'Prepared command context:',
+      JSON.stringify(params.compiledContext, null, 2),
+      `Invalid response:\n${params.invalidResponse}`,
+    ].join('\n\n'),
+  });
+
+  return messages;
+}
+
+function buildClarifyCommandRepairMessages(params: {
+  invalidResponse: string;
+  validationError: string;
+  instructionPackets: AiAssistantInstructionPacket[];
+  compiledContext: Record<string, unknown>;
+}): AiAssistantApiMessage[] {
+  const messages: AiAssistantApiMessage[] = [
+    {
+      role: 'system',
+      content: [
+        buildClarifyCommandSystemPrompt(),
         'Repair the previous answer into one valid command reply JSON object.',
         'Preserve the original meaning whenever possible.',
       ].join('\n'),
@@ -722,6 +904,28 @@ function buildFillDetailsCommandSystemPrompt(): string {
     'A description update is valid only when it adds at least one concrete detail supported either by explicit latestUserInput from the user or by parent, child, sibling, or related canvas context.',
     'Ask a follow-up question only when both nearby canvas context and latestUserInput are too thin to support a concrete update.',
     'When you do return an update, explain what concrete detail you added and whether it came from user-provided details or nearby canvas context.',
+  ].join('\n');
+}
+
+function buildClarifyCommandSystemPrompt(): string {
+  return [
+    'You are executing the workspace action command "clarify".',
+    'Return valid JSON only.',
+    `Use this exact envelope shape: ${AI_ASSISTANT_STRUCTURED_ENVELOPE_SHAPE}`,
+    'Prepared command context.actionPlan is authoritative for confirmation semantics and allowed reply kinds.',
+    'Do not include reviewFindings for this command.',
+    'Use only these action kinds: suggest_update or suggest_updates.',
+    'For suggest_update use this exact shape:',
+    '{"kind":"suggest_update","elementId":"<element id>","patch":{"title":"...","description":"..."},"reason":"<why this wording improvement is safe>"}',
+    'For suggest_updates use this exact shape:',
+    '{"kind":"suggest_updates","updates":[{"elementId":"<element id>","patch":{"title":"...","description":"..."},"reason":"<why this wording improvement is safe>"}]}',
+    'The patch object may only contain title and/or description.',
+    'Tighten wording without changing intent, scope, sequencing, ownership, or implementation detail.',
+    'Prefer a title update when the current title is awkward, unclear, mixed-language, or harder to plan against than it needs to be.',
+    'A description update is valid only when it stays inside the current item intent and adds concrete clarity from nearby canvas context instead of inventing new scope.',
+    'If a concrete wording improvement is obvious, return it as an action instead of describing it only in prose.',
+    'replyMarkdown must be user-facing, short, and concrete.',
+    'If no specific wording improvement is justified from the prepared context, ask one concise follow-up question and return "actions": [].',
   ].join('\n');
 }
 
@@ -880,7 +1084,7 @@ function buildBreakdownCommandSystemPrompt(): string {
     'For task_refine use this exact shape:',
     '{"kind":"suggest_update","elementId":"<task id>","patch":{"title":"<optional title>","description":"<optional description>"},"reason":"<why this refinement helps>"}',
     'Optional evidence metadata such as supportedBy, evidenceIds, and sourceContext may be attached to any action when it helps reviewability.',
-    'Never use wrappers like data.parentId, data.stories, or data.tasks.',
+    'Use canonical top-level items and target fields only; do not use legacy data.* wrappers.',
     'replyMarkdown must be user-facing, short, and concrete.',
     'If Prepared command context.mode is unspecified_goal_decomposition, ask one concise follow-up question and return "actions": [].',
   ].join('\n');
@@ -1239,6 +1443,73 @@ function validateFillDetailsCommandEnvelope(
     hasConcreteLatestUserInputForFillDetails(targetsById, latestUserInput)
   ) {
     return 'Fill_details should use the explicit user details instead of asking another follow-up question.';
+  }
+
+  return null;
+}
+
+function validateClarifyCommandEnvelope(
+  envelope: AiAssistantStructuredReplyEnvelope,
+  compiledContext: Record<string, unknown>
+): string | null {
+  if (
+    typeof envelope.replyMarkdown !== 'string' ||
+    envelope.replyMarkdown.trim().length === 0
+  ) {
+    return 'replyMarkdown must be a non-empty string.';
+  }
+
+  if (envelope.reviewFindings !== undefined) {
+    return 'reviewFindings are not allowed for clarify commands.';
+  }
+
+  const allowedElementIds = new Set(
+    readAllowedElementIdsFromCommandContext(compiledContext)
+  );
+  const targetsById = readFillDetailsTargetsById(compiledContext);
+  const latestUserInput = readFillDetailsLatestUserInput(compiledContext);
+  const actions = Array.isArray(envelope.actions) ? envelope.actions : [];
+
+  for (const action of actions) {
+    if (!isPlainObject(action) || typeof action.kind !== 'string') {
+      return 'Every action must be a JSON object with a supported kind.';
+    }
+
+    if (action.kind === 'suggest_update') {
+      const error = validateFillDetailsUpdateEntry(
+        action,
+        allowedElementIds,
+        targetsById,
+        latestUserInput
+      );
+      if (error) return error;
+      continue;
+    }
+
+    if (action.kind === 'suggest_updates') {
+      if (!Array.isArray(action.updates) || action.updates.length === 0) {
+        return 'suggest_updates must contain a non-empty updates array.';
+      }
+      for (const update of action.updates) {
+        const error = validateFillDetailsUpdateEntry(
+          update,
+          allowedElementIds,
+          targetsById,
+          latestUserInput
+        );
+        if (error) return error;
+      }
+      continue;
+    }
+
+    return `Unsupported action kind "${action.kind}" for clarify command.`;
+  }
+
+  if (
+    actions.length === 0 &&
+    !isConciseFollowupReply(envelope.replyMarkdown)
+  ) {
+    return 'Clarify command must return wording updates or one concise follow-up question.';
   }
 
   return null;
@@ -1804,6 +2075,20 @@ function resolveFillDetailsCandidateElements(
   }
 
   return focus?.item ? [focus.item] : [];
+}
+
+function resolveClarifyCandidateElements(
+  focus: AiAssistantFocusItem | null,
+  cluster: AiAssistantCanvasSnapshot | null
+): AiAssistantCanvasElement[] {
+  if (focus?.item) {
+    return [focus.item];
+  }
+
+  const selectedIds = new Set(cluster?.selectionIds ?? []);
+  const selectedElements =
+    cluster?.elements.filter((element) => selectedIds.has(element.id)) ?? [];
+  return selectedElements;
 }
 
 function buildFillDetailsTarget(
