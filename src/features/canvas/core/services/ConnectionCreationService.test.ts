@@ -6,6 +6,7 @@ import { TaskElement } from '../../elements/TaskElement.ts';
 import { historyService } from './HistoryService.ts';
 import { ConnectionCreationService } from './ConnectionCreationService.ts';
 import { ConnectionRelationType } from '../interfaces/connection.ts';
+import { ConnectCommand } from '../commands/ConnectCommand.ts';
 import {
   CANVAS_LINK_LIFECYCLE_EVENT,
   type CanvasLinkLifecycleDetail,
@@ -84,7 +85,54 @@ describe('ConnectionCreationService', () => {
     expect(scene.getConnections()).toHaveLength(0);
   });
 
-  it('skips reverse relates-to duplicates when duplicate prevention is enabled', () => {
+  it('creates batch links from one source to many targets', () => {
+    const scene = new Scene();
+    const goal = new GoalElement({ id: 'goal-root' });
+    const childA = new GoalElement({ id: 'goal-a' });
+    const childB = new GoalElement({ id: 'goal-b' });
+    scene.addElement(goal);
+    scene.addElement(childA);
+    scene.addElement(childB);
+
+    const service = new ConnectionCreationService(scene);
+    const result = service.createFromSourceToManyTargets(
+      goal,
+      [childA, childB],
+      {
+        preventDuplicates: true,
+      }
+    );
+
+    expect(result.createdPlans).toHaveLength(2);
+    expect(scene.getConnections()).toHaveLength(2);
+    expect(
+      scene
+        .getConnections()
+        .map((connection) => ({
+          fromId: connection.fromId,
+          toId: connection.toId,
+          relationType: connection.relationType,
+        }))
+        .sort((a, b) => a.toId.localeCompare(b.toId))
+    ).toEqual([
+      {
+        fromId: goal.id,
+        toId: childA.id,
+        relationType: ConnectionRelationType.LeadsTo,
+      },
+      {
+        fromId: goal.id,
+        toId: childB.id,
+        relationType: ConnectionRelationType.LeadsTo,
+      },
+    ]);
+
+    historyService.undo();
+
+    expect(scene.getConnections()).toHaveLength(0);
+  });
+
+  it('blocks reverse creation when the pair is already occupied', () => {
     const scene = new Scene();
     const taskA = new TaskElement({ id: 'task-a' });
     const taskB = new TaskElement({ id: 'task-b' });
@@ -102,10 +150,67 @@ describe('ConnectionCreationService', () => {
     expect(result.skipped).toEqual([
       expect.objectContaining({
         source: taskA,
-        reason: 'duplicate',
+        reason: 'pair-occupied',
       }),
     ]);
     expect(scene.getConnections()).toHaveLength(1);
+  });
+
+  it('redirects an existing directional connection instead of creating a reverse duplicate', () => {
+    const scene = new Scene();
+    const goalA = new GoalElement({ id: 'goal-a' });
+    const goalB = new GoalElement({ id: 'goal-b' });
+    scene.addElement(goalA);
+    scene.addElement(goalB);
+
+    const service = new ConnectionCreationService(scene);
+    service.create(goalA, goalB, { preventDuplicates: true });
+
+    expect(service.canCreate(goalB, goalA, { preventDuplicates: true })).toBe(
+      false
+    );
+    expect(service.canRedirect(goalB, goalA)).toBe(true);
+
+    const redirectResult = service.redirect(goalB, goalA);
+
+    expect(redirectResult.ok).toBe(true);
+    expect(scene.getConnections()).toHaveLength(1);
+    expect(scene.getConnections()[0]).toMatchObject({
+      fromId: goalB.id,
+      toId: goalA.id,
+      relationType: ConnectionRelationType.LeadsTo,
+    });
+  });
+
+  it('prevents duplicate pairs even for direct ConnectCommand usage', () => {
+    const scene = new Scene();
+    const goalA = new GoalElement({ id: 'goal-a' });
+    const goalB = new GoalElement({ id: 'goal-b' });
+    scene.addElement(goalA);
+    scene.addElement(goalB);
+
+    historyService.execute(
+      new ConnectCommand(
+        scene,
+        goalA.id,
+        goalB.id,
+        ConnectionRelationType.LeadsTo
+      )
+    );
+    historyService.execute(
+      new ConnectCommand(
+        scene,
+        goalB.id,
+        goalA.id,
+        ConnectionRelationType.LeadsTo
+      )
+    );
+
+    expect(scene.getConnections()).toHaveLength(1);
+    expect(scene.getConnections()[0]).toMatchObject({
+      fromId: goalA.id,
+      toId: goalB.id,
+    });
   });
 
   it('skips links for tasks already contained by the target story', () => {

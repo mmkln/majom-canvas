@@ -29,8 +29,10 @@ import {
   createSurface,
   createDivider,
   createDropdownItem,
+  createDropdownIconRow,
   createSplitDropdownItem,
   type MenuItemVariant,
+  type DropdownIconActionTone,
 } from './primitives/index.ts';
 import { createIcon, type IconName } from './icons.ts';
 import {
@@ -39,9 +41,7 @@ import {
   STATUS_ICON_TONE_CLASS,
   STATUS_ORDER,
 } from './statusPresentation.ts';
-import {
-  emitAiAssistantIntentRequested,
-} from '../../ai-assistant/aiAssistantEvents.ts';
+import { emitAiAssistantIntentRequested } from '../../ai-assistant/aiAssistantEvents.ts';
 import {
   getAiAssistantBreakdownHint,
   getAiAssistantClarifyHint,
@@ -84,10 +84,23 @@ type ContextMenuSplitActionItem = ContextMenuActionItem & {
   secondaryLabel: string;
 };
 
+type ContextMenuRowButton = {
+  icon: IconName;
+  label: string;
+  action: () => MenuActionResult;
+  tone?: DropdownIconActionTone;
+  disabled?: boolean;
+};
+
+type ContextMenuRowItem = {
+  row: ContextMenuRowButton[];
+};
+
 type ContextMenuItem =
   | ContextMenuActionItem
   | ContextMenuSubmenuItem
-  | ContextMenuSplitActionItem;
+  | ContextMenuSplitActionItem
+  | ContextMenuRowItem;
 
 type ContextMenuSection = {
   title?: string;
@@ -294,40 +307,36 @@ export class ContextMenu {
 
     const sections: ContextMenuSection[] = [];
     const actionItems: ContextMenuItem[] = [];
-    const planningElement = isPlanningElement
-      ? element
-      : null;
-    const selectionLinkItem = planningElement
-      ? this.buildSelectionLinkItem(planningElement)
-      : null;
+    const planningElement = isPlanningElement ? element : null;
+    const selectionScopedElements = planningElement
+      ? this.getSelectionScopedElements(planningElement)
+      : [];
+    const selectionConnectionItems = planningElement
+      ? this.buildSelectionConnectionItems(
+          planningElement,
+          selectionScopedElements
+        )
+      : [];
 
-    if (selectionLinkItem) {
+    if (selectionConnectionItems.length > 0) {
       sections.push({
         title: 'Selection',
-        items: [selectionLinkItem],
+        items: selectionConnectionItems,
       });
     }
 
-    if (isPlanningElement) {
-      actionItems.push({
-        label: 'Edit',
-        action: () => {
-          planningElement?.onDoubleClick?.();
-        },
+    const connectionItems =
+      planningElement && selectionScopedElements.length === 0
+        ? this.buildConnectionItems(planningElement)
+        : [];
+    if (connectionItems.length > 0) {
+      sections.push({
+        title: 'Connections',
+        items: connectionItems,
       });
     }
-    actionItems.push(
-      {
-        label: 'Copy',
-        action: () =>
-          historyService.execute(new CopyCommand(this.scene, [element])),
-      },
-      {
-        label: 'Remove from Canvas',
-        action: () =>
-          historyService.execute(new DeleteCommand(this.scene, [element])),
-      }
-    );
+
+    actionItems.push(this.buildElementActionRow(element, planningElement));
     if (planningElement) {
       actionItems.push({
         label: 'AI assist',
@@ -445,25 +454,105 @@ export class ContextMenu {
     return sections;
   }
 
-  private buildSelectionLinkItem(
+  private getSelectionScopedElements(
     target: PlanningElement
-  ): ContextMenuActionItem | null {
+  ): PlanningElement[] {
     const selected = SelectionContext.getPlanningSelection(this.scene);
-    if (selected.length === 0) return null;
-    if (selected.some((element) => element.id === target.id)) return null;
+    if (selected.length === 0) return [];
+    if (selected.some((element) => element.id === target.id)) return [];
+    return selected;
+  }
+
+  private buildSelectionConnectionItems(
+    target: PlanningElement,
+    selected: PlanningElement[]
+  ): ContextMenuActionItem[] {
+    if (selected.length === 0) return [];
+
+    const items: ContextMenuActionItem[] = [];
 
     const eligibleSources = this.bulkActions.getEligibleLinkSourcesToTarget(
       selected,
       target
     );
-    if (eligibleSources.length === 0) return null;
+    if (eligibleSources.length > 0) {
+      items.push({
+        label: 'Link Selected Here',
+        action: () => {
+          this.bulkActions.connectToTarget(eligibleSources, target);
+        },
+      });
+    }
 
-    return {
-      label: 'Link Selected Here',
-      action: () => {
-        this.bulkActions.connectToTarget(eligibleSources, target);
+    const redirectableSources =
+      this.bulkActions.getRedirectableLinkSourcesToTarget(selected, target);
+    if (redirectableSources.length > 0) {
+      items.push({
+        label: 'Redirect Selected Here',
+        action: () => {
+          this.bulkActions.redirectToTarget(redirectableSources, target);
+        },
+      });
+    }
+
+    const eligibleTargets = this.bulkActions.getEligibleLinkTargetsFromSource(
+      target,
+      selected
+    );
+    if (eligibleTargets.length > 0) {
+      items.push({
+        label: 'Link Here to Selection',
+        action: () => {
+          this.bulkActions.connectFromSourceToTargets(target, eligibleTargets);
+        },
+      });
+    }
+
+    const redirectableTargets =
+      this.bulkActions.getRedirectableLinkTargetsFromSource(target, selected);
+    if (redirectableTargets.length > 0) {
+      items.push({
+        label: 'Redirect Here to Selection',
+        action: () => {
+          this.bulkActions.redirectFromSourceToTargets(
+            target,
+            redirectableTargets
+          );
+        },
+      });
+    }
+
+    if (
+      this.bulkActions.hasConnectionsBetweenElementAndTargets(target, selected)
+    ) {
+      items.push({
+        label: 'Remove Links',
+        action: () => {
+          this.bulkActions.removeConnectionsBetweenElementAndTargets(
+            target,
+            selected
+          );
+        },
+      });
+    }
+
+    return items;
+  }
+  private buildConnectionItems(
+    target: PlanningElement
+  ): ContextMenuActionItem[] {
+    if (!this.bulkActions.hasConnectionsForElement(target)) {
+      return [];
+    }
+
+    return [
+      {
+        label: 'Remove Links',
+        action: () => {
+          this.bulkActions.removeConnectionsForElement(target);
+        },
       },
-    };
+    ];
   }
 
   private renderSections(sections: ContextMenuSection[]): void {
@@ -484,6 +573,11 @@ export class ContextMenu {
         this.menu.appendChild(header);
       }
       section.items.forEach((item) => {
+        if (this.isRowItem(item)) {
+          this.menu.appendChild(this.createRow(item));
+          return;
+        }
+
         if (this.isSubmenuItem(item)) {
           const btn = createDropdownItem({
             label: item.label ?? '',
@@ -533,6 +627,10 @@ export class ContextMenu {
 
   private isSubmenuItem(item: ContextMenuItem): item is ContextMenuSubmenuItem {
     return 'submenu' in item;
+  }
+
+  private isRowItem(item: ContextMenuItem): item is ContextMenuRowItem {
+    return 'row' in item;
   }
 
   private isSplitActionItem(

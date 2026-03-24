@@ -5,13 +5,16 @@ import { DeleteCommand } from '../commands/DeleteCommand.ts';
 import { ElementStatus } from '../../elements/ElementStatus.ts';
 import type { PlanningElement } from './SelectionContext.ts';
 import { ConnectionCreationService } from './ConnectionCreationService.ts';
+import { ConnectionRemovalService } from './ConnectionRemovalService.ts';
 import { notify } from './NotificationService.ts';
 
 export class BulkActionsController {
   private readonly connectionCreationService: ConnectionCreationService;
+  private readonly connectionRemovalService: ConnectionRemovalService;
 
   constructor(private readonly scene: Scene) {
     this.connectionCreationService = new ConnectionCreationService(scene);
+    this.connectionRemovalService = new ConnectionRemovalService(scene);
   }
 
   public copy(elements: PlanningElement[]): void {
@@ -65,6 +68,49 @@ export class BulkActionsController {
     );
   }
 
+  public getEligibleLinkTargetsFromSource(
+    source: PlanningElement,
+    elements: PlanningElement[]
+  ): PlanningElement[] {
+    return elements.filter((element) =>
+      this.connectionCreationService.canCreate(source, element, {
+        preventDuplicates: true,
+      })
+    );
+  }
+
+  public getRedirectableLinkSourcesToTarget(
+    elements: PlanningElement[],
+    target: PlanningElement
+  ): PlanningElement[] {
+    return elements.filter((element) =>
+      this.connectionCreationService.canRedirect(element, target)
+    );
+  }
+
+  public getRedirectableLinkTargetsFromSource(
+    source: PlanningElement,
+    elements: PlanningElement[]
+  ): PlanningElement[] {
+    return elements.filter((element) =>
+      this.connectionCreationService.canRedirect(source, element)
+    );
+  }
+
+  public hasConnectionsForElement(element: PlanningElement): boolean {
+    return this.connectionRemovalService.hasConnectionsForElement(element);
+  }
+
+  public hasConnectionsBetweenElementAndTargets(
+    source: PlanningElement,
+    elements: PlanningElement[]
+  ): boolean {
+    return this.connectionRemovalService.hasConnectionsBetweenElementAndTargets(
+      source,
+      elements
+    );
+  }
+
   public connectToTarget(
     elements: PlanningElement[],
     target: PlanningElement
@@ -81,5 +127,79 @@ export class BulkActionsController {
       return;
     }
     notify('No new links could be created for the current selection.', 'info');
+  }
+
+  public connectFromSourceToTargets(
+    source: PlanningElement,
+    elements: PlanningElement[]
+  ): void {
+    if (elements.length === 0) return;
+    const result = this.connectionCreationService.createFromSourceToManyTargets(
+      source,
+      elements,
+      {
+        preventDuplicates: true,
+      }
+    );
+    if (result.createdPlans.length > 0) {
+      return;
+    }
+    notify('No new links could be created for the current selection.', 'info');
+  }
+
+  public redirectToTarget(
+    elements: PlanningElement[],
+    target: PlanningElement
+  ): void {
+    if (elements.length === 0) return;
+    const result = this.connectionCreationService.redirectManyToTarget(
+      elements,
+      target
+    );
+    if (result.redirectedPlans.length > 0) {
+      return;
+    }
+    notify('No links could be redirected for the current selection.', 'info');
+  }
+
+  public redirectFromSourceToTargets(
+    source: PlanningElement,
+    elements: PlanningElement[]
+  ): void {
+    if (elements.length === 0) return;
+    const result = this.connectionCreationService.redirectFromSourceToManyTargets(
+      source,
+      elements
+    );
+    if (result.redirectedPlans.length > 0) {
+      return;
+    }
+    notify('No links could be redirected for the current selection.', 'info');
+  }
+
+  public removeConnectionsForElement(element: PlanningElement): void {
+    const result = this.connectionRemovalService.removeConnectionsForElement(
+      element
+    );
+    if (result.removedConnections.length > 0) {
+      return;
+    }
+    notify('No links found for this item.', 'info');
+  }
+
+  public removeConnectionsBetweenElementAndTargets(
+    source: PlanningElement,
+    elements: PlanningElement[]
+  ): void {
+    if (elements.length === 0) return;
+    const result =
+      this.connectionRemovalService.removeConnectionsBetweenElementAndTargets(
+        source,
+        elements
+      );
+    if (result.removedConnections.length > 0) {
+      return;
+    }
+    notify('No links found for the current selection.', 'info');
   }
 }

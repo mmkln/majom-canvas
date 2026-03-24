@@ -1,7 +1,11 @@
 import type { IConnectable } from '../interfaces/connectable.ts';
-import { ConnectionRelationType } from '../interfaces/connection.ts';
+import {
+  ConnectionRelationType,
+  type IConnection,
+} from '../interfaces/connection.ts';
 import { ConnectCommand } from '../commands/ConnectCommand.ts';
 import { CompositeCommand } from '../commands/CompositeCommand.ts';
+import { UpdateConnectionCommand } from '../commands/UpdateConnectionCommand.ts';
 import { historyService } from './HistoryService.ts';
 import { Scene } from '../scene/Scene.ts';
 import {
@@ -12,11 +16,24 @@ import { emitStoryGoalLinkSet } from '../canvasLinkLifecycle.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
 import { StoryElement } from '../../elements/StoryElement.ts';
 import { GoalElement } from '../../elements/GoalElement.ts';
+import {
+  findConnectionForPair,
+  getConnectionPairKey,
+  isDirectionalConnectionRelation,
+} from '../utils/connectionPairs.ts';
 
 export type ConnectionCreateSkipReason =
   | 'same-element'
   | 'invalid-pair'
-  | 'duplicate';
+  | 'duplicate'
+  | 'pair-occupied';
+
+export type ConnectionRedirectSkipReason =
+  | 'same-element'
+  | 'invalid-pair'
+  | 'no-existing-connection'
+  | 'already-directed'
+  | 'not-redirectable';
 
 export type ConnectionCreateOptions = {
   preventDuplicates?: boolean;
@@ -36,11 +53,41 @@ export type ConnectionPlanningResult =
   | { ok: true; plan: ConnectionCreationPlan }
   | { ok: false; reason: ConnectionCreateSkipReason };
 
+export type ConnectionRedirectPlan = {
+  source: IConnectable;
+  target: IConnectable;
+  from: IConnectable;
+  to: IConnectable;
+  fromRef: string;
+  toRef: string;
+  relationType: ConnectionRelationType;
+  existingConnection: IConnection;
+};
+
+export type ConnectionRedirectPlanningResult =
+  | { ok: true; plan: ConnectionRedirectPlan }
+  | { ok: false; reason: ConnectionRedirectSkipReason };
+
 export type ConnectionBatchCreateResult = {
   createdPlans: ConnectionCreationPlan[];
   skipped: Array<{
     source: IConnectable;
+    target: IConnectable;
     reason: ConnectionCreateSkipReason;
+  }>;
+};
+
+type ConnectionCreateRequest = {
+  source: IConnectable;
+  target: IConnectable;
+};
+
+export type ConnectionBatchRedirectResult = {
+  redirectedPlans: ConnectionRedirectPlan[];
+  skipped: Array<{
+    source: IConnectable;
+    target: IConnectable;
+    reason: ConnectionRedirectSkipReason;
   }>;
 };
 
@@ -50,25 +97,39 @@ export class ConnectionCreationService {
   public canCreate(
     from: IConnectable,
     to: IConnectable,
-    options: ConnectionCreateOptions = {}
+    _options: ConnectionCreateOptions = {}
   ): boolean {
-    return this.plan(from, to, options).ok;
+    void _options;
+    return this.plan(from, to).ok;
+  }
+
+  public canRedirect(from: IConnectable, to: IConnectable): boolean {
+    return this.planRedirect(from, to).ok;
   }
 
   public plan(
     from: IConnectable,
     to: IConnectable,
-    options: ConnectionCreateOptions = {}
+    _options: ConnectionCreateOptions = {}
   ): ConnectionPlanningResult {
-    return this.planInternal(from, to, options, new Set<string>());
+    void _options;
+    return this.planInternal(from, to, new Set<string>());
+  }
+
+  public planRedirect(
+    from: IConnectable,
+    to: IConnectable
+  ): ConnectionRedirectPlanningResult {
+    return this.planRedirectInternal(from, to);
   }
 
   public create(
     from: IConnectable,
     to: IConnectable,
-    options: ConnectionCreateOptions = {}
+    _options: ConnectionCreateOptions = {}
   ): ConnectionPlanningResult {
-    const result = this.plan(from, to, options);
+    void _options;
+    const result = this.plan(from, to);
     if (!result.ok) {
       return result;
     }
@@ -76,19 +137,65 @@ export class ConnectionCreationService {
     return result;
   }
 
+  public redirect(
+    from: IConnectable,
+    to: IConnectable
+  ): ConnectionRedirectPlanningResult {
+    const result = this.planRedirect(from, to);
+    if (!result.ok) {
+      return result;
+    }
+    this.executeRedirectPlans([result.plan]);
+    return result;
+  }
+
   public createManyToTarget(
     sources: ReadonlyArray<IConnectable>,
     target: IConnectable,
-    options: ConnectionCreateOptions = {}
+    _options: ConnectionCreateOptions = {}
+  ): ConnectionBatchCreateResult {
+    void _options;
+    return this.createBatch(sources.map((source) => ({ source, target })));
+  }
+
+  public redirectManyToTarget(
+    sources: ReadonlyArray<IConnectable>,
+    target: IConnectable
+  ): ConnectionBatchRedirectResult {
+    return this.redirectBatch(
+      sources.map((source) => ({ source, target }))
+    );
+  }
+
+  public createFromSourceToManyTargets(
+    source: IConnectable,
+    targets: ReadonlyArray<IConnectable>,
+    _options: ConnectionCreateOptions = {}
+  ): ConnectionBatchCreateResult {
+    void _options;
+    return this.createBatch(targets.map((target) => ({ source, target })));
+  }
+
+  public redirectFromSourceToManyTargets(
+    source: IConnectable,
+    targets: ReadonlyArray<IConnectable>
+  ): ConnectionBatchRedirectResult {
+    return this.redirectBatch(
+      targets.map((target) => ({ source, target }))
+    );
+  }
+
+  private createBatch(
+    requests: ReadonlyArray<ConnectionCreateRequest>
   ): ConnectionBatchCreateResult {
     const pendingKeys = new Set<string>();
     const createdPlans: ConnectionCreationPlan[] = [];
     const skipped: ConnectionBatchCreateResult['skipped'] = [];
 
-    sources.forEach((source) => {
-      const result = this.planInternal(source, target, options, pendingKeys);
+    requests.forEach(({ source, target }) => {
+      const result = this.planInternal(source, target, pendingKeys);
       if (!result.ok) {
-        skipped.push({ source, reason: result.reason });
+        skipped.push({ source, target, reason: result.reason });
         return;
       }
       createdPlans.push(result.plan);
@@ -105,10 +212,34 @@ export class ConnectionCreationService {
     };
   }
 
+  private redirectBatch(
+    requests: ReadonlyArray<ConnectionCreateRequest>
+  ): ConnectionBatchRedirectResult {
+    const redirectedPlans: ConnectionRedirectPlan[] = [];
+    const skipped: ConnectionBatchRedirectResult['skipped'] = [];
+
+    requests.forEach(({ source, target }) => {
+      const result = this.planRedirectInternal(source, target);
+      if (!result.ok) {
+        skipped.push({ source, target, reason: result.reason });
+        return;
+      }
+      redirectedPlans.push(result.plan);
+    });
+
+    if (redirectedPlans.length > 0) {
+      this.executeRedirectPlans(redirectedPlans);
+    }
+
+    return {
+      redirectedPlans,
+      skipped,
+    };
+  }
+
   private planInternal(
     source: IConnectable,
     target: IConnectable,
-    options: ConnectionCreateOptions,
     pendingKeys: Set<string>
   ): ConnectionPlanningResult {
     if (source === target || source.id === target.id) {
@@ -135,14 +266,77 @@ export class ConnectionCreationService {
       relationType,
     };
 
-    if (options.preventDuplicates) {
-      const planKey = this.getPlanKey(plan);
-      if (pendingKeys.has(planKey) || this.hasExistingConnection(plan)) {
-        return { ok: false, reason: 'duplicate' };
-      }
+    const pairMatch = this.findPairMatch(plan.fromRef, plan.toRef);
+    if (
+      pairMatch &&
+      pairMatch.connection.relationType === plan.relationType &&
+      pairMatch.connection.fromId === plan.fromRef &&
+      pairMatch.connection.toId === plan.toRef
+    ) {
+      return { ok: false, reason: 'duplicate' };
+    }
+    if (pairMatch) {
+      return { ok: false, reason: 'pair-occupied' };
+    }
+    const planKey = this.getPlanKey(plan);
+    if (pendingKeys.has(planKey)) {
+      return { ok: false, reason: 'duplicate' };
     }
 
     return { ok: true, plan };
+  }
+
+  private planRedirectInternal(
+    source: IConnectable,
+    target: IConnectable
+  ): ConnectionRedirectPlanningResult {
+    if (source === target || source.id === target.id) {
+      return { ok: false, reason: 'same-element' };
+    }
+
+    if (this.isInvalidPair(source, target)) {
+      return { ok: false, reason: 'invalid-pair' };
+    }
+
+    const relationType = this.resolveRelationType(source, target);
+    const normalized = this.normalizeEndpoints(relationType, source, target);
+    if (!normalized) {
+      return { ok: false, reason: 'invalid-pair' };
+    }
+
+    const fromRef = this.getElementRef(normalized.from);
+    const toRef = this.getElementRef(normalized.to);
+    const pairMatch = this.findPairMatch(fromRef, toRef);
+    if (!pairMatch) {
+      return { ok: false, reason: 'no-existing-connection' };
+    }
+
+    if (pairMatch.connection.relationType !== relationType) {
+      return { ok: false, reason: 'not-redirectable' };
+    }
+    if (!isDirectionalConnectionRelation(relationType)) {
+      return { ok: false, reason: 'not-redirectable' };
+    }
+    if (
+      pairMatch.connection.fromId === fromRef &&
+      pairMatch.connection.toId === toRef
+    ) {
+      return { ok: false, reason: 'already-directed' };
+    }
+
+    return {
+      ok: true,
+      plan: {
+        source,
+        target,
+        from: normalized.from,
+        to: normalized.to,
+        fromRef,
+        toRef,
+        relationType,
+        existingConnection: pairMatch.connection,
+      },
+    };
   }
 
   private executePlans(plans: ReadonlyArray<ConnectionCreationPlan>): void {
@@ -180,6 +374,27 @@ export class ConnectionCreationService {
         emitStoryGoalLinkSet(plan.to, plan.from);
       }
     });
+  }
+
+  private executeRedirectPlans(
+    plans: ReadonlyArray<ConnectionRedirectPlan>
+  ): void {
+    if (plans.length === 0) {
+      return;
+    }
+
+    const commands = plans.map(
+      (plan) =>
+        new UpdateConnectionCommand(this.scene, plan.existingConnection, {
+          fromId: plan.fromRef,
+          toId: plan.toRef,
+          relationType: plan.relationType,
+        })
+    );
+
+    historyService.execute(
+      commands.length === 1 ? commands[0] : new CompositeCommand(commands)
+    );
   }
 
   private resolveRelationType(
@@ -233,33 +448,15 @@ export class ConnectionCreationService {
     );
   }
 
-  private hasExistingConnection(plan: ConnectionCreationPlan): boolean {
-    const directExists = this.scene.getConnections().some(
-      (connection) =>
-        connection.fromId === plan.fromRef &&
-        connection.toId === plan.toRef &&
-        connection.relationType === plan.relationType
-    );
-    if (directExists) {
-      return true;
-    }
-    if (plan.relationType !== ConnectionRelationType.RelatesTo) {
-      return false;
-    }
-    return this.scene.getConnections().some(
-      (connection) =>
-        connection.fromId === plan.toRef &&
-        connection.toId === plan.fromRef &&
-        connection.relationType === plan.relationType
-    );
+  private findPairMatch(
+    fromRef: string,
+    toRef: string
+  ): ReturnType<typeof findConnectionForPair> {
+    return findConnectionForPair(this.scene.getConnections(), fromRef, toRef);
   }
 
   private getPlanKey(plan: ConnectionCreationPlan): string {
-    if (plan.relationType === ConnectionRelationType.RelatesTo) {
-      const refs = [plan.fromRef, plan.toRef].sort();
-      return `${plan.relationType}:${refs[0]}:${refs[1]}`;
-    }
-    return `${plan.relationType}:${plan.fromRef}:${plan.toRef}`;
+    return getConnectionPairKey(plan.fromRef, plan.toRef);
   }
 
   private getElementRef(element: IConnectable): string {
