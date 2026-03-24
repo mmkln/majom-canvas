@@ -41,6 +41,12 @@ export {
   type HudMenuItemVariant as MenuItemVariant,
 } from './HudDropdownItem.ts';
 export {
+  createHudDropdownIconRow as createDropdownIconRow,
+  type HudDropdownIconAction as DropdownIconAction,
+  type HudDropdownIconActionTone as DropdownIconActionTone,
+  type HudDropdownIconRowOptions as DropdownIconRowOptions,
+} from './HudDropdownIconRow.ts';
+export {
   createHudSplitDropdownItem as createSplitDropdownItem,
   type HudSplitDropdownItemOptions as SplitDropdownItemOptions,
 } from './HudSplitDropdownItem.ts';
@@ -120,6 +126,12 @@ export {
   type HudDropdownItemTone,
   type HudMenuItemVariant,
 } from './HudDropdownItem.ts';
+export {
+  createHudDropdownIconRow,
+  type HudDropdownIconAction,
+  type HudDropdownIconActionTone,
+  type HudDropdownIconRowOptions,
+} from './HudDropdownIconRow.ts';
 export {
   createHudSplitDropdownItem,
   type HudSplitDropdownItemOptions,

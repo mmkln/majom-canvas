@@ -87,3 +87,10 @@
 - Owner: `src/ui-lib/src/hud`
 - Read first: `src/ui-lib/src/hud/AGENTS.md`
 - Expected result: update the shared icon registry in `src/ui-lib/src/hud/icons.ts`, keep feature re-exports thin, and avoid tests when the change is only static icon registration.
+
+### Extend Canvas Context Menu
+
+- Use when the request changes canvas `ContextMenu` sections, adds a new menu item type, or restructures how context-menu items render.
+- Owner: `src/features/canvas/ui`
+- Read first: `src/features/canvas/ui/AGENTS.md`
+- Expected result: extend `ContextMenu` through its own item model and renderers, keep its visuals separate from `SelectionActionMenu`, and move reusable context-menu primitives into HUD when needed.

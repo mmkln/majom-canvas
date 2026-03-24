@@ -94,6 +94,7 @@ type ContextMenuRowButton = {
 
 type ContextMenuRowItem = {
   row: ContextMenuRowButton[];
+  dividerAfter?: boolean;
 };
 
 type ContextMenuItem =
@@ -572,9 +573,12 @@ export class ContextMenu {
         header.textContent = section.title;
         this.menu.appendChild(header);
       }
-      section.items.forEach((item) => {
+      section.items.forEach((item, itemIndex) => {
         if (this.isRowItem(item)) {
           this.menu.appendChild(this.createRow(item));
+          if (item.dividerAfter && itemIndex < section.items.length - 1) {
+            this.menu.appendChild(createDivider({ inset: false }));
+          }
           return;
         }
 
@@ -706,6 +710,40 @@ export class ContextMenu {
     return items;
   }
 
+  private buildElementActionRow(
+    element: ICanvasElement,
+    planningElement: PlanningElement | null
+  ): ContextMenuRowItem {
+    const row: ContextMenuRowButton[] = [];
+    if (planningElement) {
+      row.push({
+        icon: 'pencil',
+        label: 'Edit',
+        action: () => {
+          planningElement.onDoubleClick?.();
+        },
+      });
+    }
+    row.push(
+      {
+        icon: 'square-2-stack',
+        label: 'Copy',
+        action: () =>
+          historyService.execute(new CopyCommand(this.scene, [element])),
+      },
+      {
+        icon: 'minus',
+        label: 'Remove from Canvas',
+        action: () =>
+          historyService.execute(new DeleteCommand(this.scene, [element])),
+      }
+    );
+    return {
+      row,
+      dividerAfter: true,
+    };
+  }
+
   private createStatusIcon(status: ElementStatus): HTMLSpanElement {
     const wrap = document.createElement('span');
     wrap.className = 'inline-flex items-center justify-center';
@@ -747,6 +785,25 @@ export class ContextMenu {
     });
     btn.setAttribute('role', 'menuitem');
     return btn;
+  }
+
+  private createRow(item: ContextMenuRowItem): HTMLDivElement {
+    const row = createDropdownIconRow({
+      actions: item.row.map((button) => ({
+        icon: button.icon,
+        label: button.label,
+        tone: button.tone,
+        disabled: button.disabled,
+        onClick: () => this.executeItemAction(button.action),
+      })),
+    });
+    row.addEventListener('mouseenter', () => {
+      this.closeSubmenu();
+    });
+    row.addEventListener('focusin', () => {
+      this.closeSubmenu();
+    });
+    return row;
   }
 
   private createSplitActionRow(

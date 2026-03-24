@@ -65,6 +65,16 @@ export const HUD_MENU_ITEM_DISABLED_CLASS =
   'cursor-not-allowed text-slate-400 hover:bg-transparent hover:text-slate-400';
 export const HUD_MENU_ITEM_HINT_TRIGGER_CLASS =
   'inline-flex shrink-0 cursor-help items-center justify-center text-slate-400 transition-colors hover:text-slate-500';
+export const HUD_MENU_ICON_ROW_CLASS =
+  'flex w-full items-stretch';
+export const HUD_MENU_ICON_BUTTON_BASE_CLASS =
+  'flex min-w-0 flex-1 items-center justify-center px-0 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:ring-inset disabled:cursor-not-allowed';
+export const HUD_MENU_ICON_BUTTON_DEFAULT_CLASS =
+  'text-slate-600 hover:bg-indigo-50 hover:text-slate-800';
+export const HUD_MENU_ICON_BUTTON_WARNING_CLASS =
+  'font-medium text-amber-700 hover:bg-amber-50 hover:text-amber-800';
+export const HUD_MENU_ICON_BUTTON_DANGER_CLASS =
+  'font-medium text-rose-600 hover:bg-rose-50 hover:text-rose-700';
 
 export const HUD_PAGE_EYEBROW_CLASS =
   'mb-2 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400';
@@ -149,6 +159,14 @@ export const MENU_ITEM_ACCENT_CREATE_CLASS = HUD_MENU_ITEM_ACCENT_CREATE_CLASS;
 export const MENU_ITEM_DANGER_CLASS = HUD_MENU_ITEM_DANGER_CLASS;
 export const MENU_ITEM_DISABLED_CLASS = HUD_MENU_ITEM_DISABLED_CLASS;
 export const MENU_ITEM_HINT_TRIGGER_CLASS = HUD_MENU_ITEM_HINT_TRIGGER_CLASS;
+export const MENU_ICON_ROW_CLASS = HUD_MENU_ICON_ROW_CLASS;
+export const MENU_ICON_BUTTON_BASE_CLASS = HUD_MENU_ICON_BUTTON_BASE_CLASS;
+export const MENU_ICON_BUTTON_DEFAULT_CLASS =
+  HUD_MENU_ICON_BUTTON_DEFAULT_CLASS;
+export const MENU_ICON_BUTTON_WARNING_CLASS =
+  HUD_MENU_ICON_BUTTON_WARNING_CLASS;
+export const MENU_ICON_BUTTON_DANGER_CLASS =
+  HUD_MENU_ICON_BUTTON_DANGER_CLASS;
 export const PAGE_EYEBROW_CLASS = HUD_PAGE_EYEBROW_CLASS;
 export const PAGE_TITLE_CLASS = HUD_PAGE_TITLE_CLASS;
 export const FIELD_CLASS = HUD_FIELD_CLASS;
