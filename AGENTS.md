@@ -71,6 +71,8 @@
 - For canvas planning elements, treat connections as unique per unordered pair of elements: at most one connection may exist between any two elements, regardless of direction.
 - Do not create a second reverse-direction connection for an already connected pair.
 - When the user wants the opposite direction for an existing directional connection, update or redirect the existing connection instead of creating another one.
+- For story-goal links, the user-facing connect direction is `story -> goal` only.
+- The stored `ParentChild` relation normalizes that pair as `goal -> story`; UI affordances must not expose that storage direction as a separate reverse action.
 
 ### Canvas Menu Boundaries
 

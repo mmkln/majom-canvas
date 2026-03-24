@@ -7,13 +7,35 @@ import { ElementStatus } from '../../elements/ElementStatus.ts';
 
 export type PlanningElement = TaskElement | StoryElement | GoalElement;
 
+type BoundedCanvasElement = ICanvasElement & {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+type CircularCanvasElement = ICanvasElement & {
+  x: number;
+  y: number;
+  radius: number;
+};
+
 export class SelectionContext {
   public static getPlanningSelection(scene: Scene): PlanningElement[] {
     return scene
       .getSelectedElements()
-      .filter((el) =>
+      .filter((el): el is PlanningElement =>
         SelectionContext.isPlanningElement(el)
-      ) as PlanningElement[];
+      );
+  }
+
+  public static getPlanningSelectionExcluding(
+    scene: Scene,
+    excludedElementId: string
+  ): PlanningElement[] {
+    return SelectionContext.getPlanningSelection(scene).filter(
+      (element) => element.id !== excludedElementId
+    );
   }
 
   public static isPlanningElement(
@@ -64,7 +86,7 @@ export class SelectionContext {
   ): boolean {
     if (elements.length === 0) return false;
     if (selected.length !== elements.length) return false;
-    const selectedIds = new Set(selected.map((el) => (el as any).id));
+    const selectedIds = new Set(selected.map((el) => el.id));
     return elements.every((el) => selectedIds.has(el.id));
   }
 
@@ -74,18 +96,54 @@ export class SelectionContext {
     width: number;
     height: number;
   } {
-    const el = element as any;
-    if (typeof el.width === 'number' && typeof el.height === 'number') {
-      return { x: el.x, y: el.y, width: el.width, height: el.height };
-    }
-    if (typeof el.radius === 'number') {
+    if (SelectionContext.hasBoxBounds(element)) {
       return {
-        x: el.x - el.radius,
-        y: el.y - el.radius,
-        width: el.radius * 2,
-        height: el.radius * 2,
+        x: element.x,
+        y: element.y,
+        width: element.width,
+        height: element.height,
       };
     }
-    return { x: el.x, y: el.y, width: 0, height: 0 };
+    if (SelectionContext.hasRadiusBounds(element)) {
+      return {
+        x: element.x - element.radius,
+        y: element.y - element.radius,
+        width: element.radius * 2,
+        height: element.radius * 2,
+      };
+    }
+    return { x: 0, y: 0, width: 0, height: 0 };
+  }
+
+  private static hasBoxBounds(
+    element: ICanvasElement
+  ): element is BoundedCanvasElement {
+    return (
+      typeof element === 'object' &&
+      element !== null &&
+      'x' in element &&
+      'y' in element &&
+      'width' in element &&
+      'height' in element &&
+      typeof element.x === 'number' &&
+      typeof element.y === 'number' &&
+      typeof element.width === 'number' &&
+      typeof element.height === 'number'
+    );
+  }
+
+  private static hasRadiusBounds(
+    element: ICanvasElement
+  ): element is CircularCanvasElement {
+    return (
+      typeof element === 'object' &&
+      element !== null &&
+      'x' in element &&
+      'y' in element &&
+      'radius' in element &&
+      typeof element.x === 'number' &&
+      typeof element.y === 'number' &&
+      typeof element.radius === 'number'
+    );
   }
 }

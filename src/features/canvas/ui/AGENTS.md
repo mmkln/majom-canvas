@@ -22,6 +22,7 @@
 4. If the new behavior needs a reusable visual primitive for context menus, add it in `src/ui-lib/src/hud` and re-export it through `src/features/canvas/ui/primitives/index.ts`.
 5. Extend the `ContextMenuItem` union and add a dedicated renderer/helper in `ContextMenu.ts` instead of inlining ad-hoc DOM branches in section builders.
 6. Keep destructive or confirm-heavy actions explicit; compact icon rows are best for familiar, low-ambiguity actions.
+7. For selection-scoped actions, treat the right-clicked target as the anchor and exclude it from the selected peer set instead of disabling the whole selection flow when the target is already selected.
 
 ### Testing
 

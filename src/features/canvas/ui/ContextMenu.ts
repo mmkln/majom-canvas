@@ -458,10 +458,10 @@ export class ContextMenu {
   private getSelectionScopedElements(
     target: PlanningElement
   ): PlanningElement[] {
-    const selected = SelectionContext.getPlanningSelection(this.scene);
-    if (selected.length === 0) return [];
-    if (selected.some((element) => element.id === target.id)) return [];
-    return selected;
+    return SelectionContext.getPlanningSelectionExcluding(
+      this.scene,
+      target.id
+    );
   }
 
   private buildSelectionConnectionItems(
@@ -471,14 +471,19 @@ export class ContextMenu {
     if (selected.length === 0) return [];
 
     const items: ContextMenuActionItem[] = [];
+    const connectToTargetLabel = this.getConnectToTargetLabel(target);
 
     const eligibleSources = this.bulkActions.getEligibleLinkSourcesToTarget(
       selected,
       target
-    );
+    )
+      .filter((element) =>
+        this.shouldExposeRequestedConnectionDirection(element, target)
+      );
     if (eligibleSources.length > 0) {
       items.push({
-        label: 'Link Selected Here',
+        label: connectToTargetLabel,
+        leading: this.createLeadingIcon('link'),
         action: () => {
           this.bulkActions.connectToTarget(eligibleSources, target);
         },
@@ -486,23 +491,37 @@ export class ContextMenu {
     }
 
     const redirectableSources =
-      this.bulkActions.getRedirectableLinkSourcesToTarget(selected, target);
+      this.bulkActions
+        .getRedirectableLinkSourcesToTarget(selected, target)
+        .filter((element) =>
+          this.shouldExposeRequestedConnectionDirection(element, target)
+        );
     if (redirectableSources.length > 0) {
       items.push({
-        label: 'Redirect Selected Here',
+        label: this.getRedirectConnectionLabel(redirectableSources.length),
+        leading: this.createLeadingIcon('arrows-right-left'),
         action: () => {
           this.bulkActions.redirectToTarget(redirectableSources, target);
         },
       });
     }
 
-    const eligibleTargets = this.bulkActions.getEligibleLinkTargetsFromSource(
-      target,
-      selected
-    );
+    let eligibleTargets = this.bulkActions
+      .getEligibleLinkTargetsFromSource(target, selected)
+      .filter((element) =>
+        this.shouldExposeRequestedConnectionDirection(target, element)
+      );
+    if (this.shouldCollapseConnectTargetsAction(target, eligibleSources, eligibleTargets)) {
+      eligibleTargets = [];
+    }
     if (eligibleTargets.length > 0) {
       items.push({
-        label: 'Link Here to Selection',
+        label: this.getConnectFromTargetLabel(
+          target,
+          eligibleTargets,
+          connectToTargetLabel
+        ),
+        leading: this.createLeadingIcon('link'),
         action: () => {
           this.bulkActions.connectFromSourceToTargets(target, eligibleTargets);
         },
@@ -510,10 +529,15 @@ export class ContextMenu {
     }
 
     const redirectableTargets =
-      this.bulkActions.getRedirectableLinkTargetsFromSource(target, selected);
+      this.bulkActions
+        .getRedirectableLinkTargetsFromSource(target, selected)
+        .filter((element) =>
+          this.shouldExposeRequestedConnectionDirection(target, element)
+        );
     if (redirectableTargets.length > 0) {
       items.push({
-        label: 'Redirect Here to Selection',
+        label: this.getRedirectConnectionLabel(redirectableTargets.length),
+        leading: this.createLeadingIcon('arrows-right-left'),
         action: () => {
           this.bulkActions.redirectFromSourceToTargets(
             target,
@@ -527,7 +551,8 @@ export class ContextMenu {
       this.bulkActions.hasConnectionsBetweenElementAndTargets(target, selected)
     ) {
       items.push({
-        label: 'Remove Links',
+        label: 'Remove connections',
+        leading: this.createLeadingIcon('link-slash'),
         action: () => {
           this.bulkActions.removeConnectionsBetweenElementAndTargets(
             target,
@@ -539,6 +564,82 @@ export class ContextMenu {
 
     return items;
   }
+
+  private shouldExposeRequestedConnectionDirection(
+    source: PlanningElement,
+    target: PlanningElement
+  ): boolean {
+    return this.getConnectionUiMode(source, target) !== 'story-goal-reverse';
+  }
+
+  private shouldCollapseConnectTargetsAction(
+    source: PlanningElement,
+    eligibleSources: PlanningElement[],
+    eligibleTargets: PlanningElement[]
+  ): boolean {
+    return (
+      eligibleSources.length > 0 &&
+      eligibleTargets.length > 0 &&
+      eligibleTargets.every(
+        (target) => this.getConnectionUiMode(source, target) === 'undirected'
+      )
+    );
+  }
+
+  private getConnectionUiMode(
+    source: PlanningElement,
+    target: PlanningElement
+  ): 'story-goal-forward' | 'story-goal-reverse' | 'directional' | 'undirected' {
+    if (source instanceof StoryElement && target instanceof GoalElement) {
+      return 'story-goal-forward';
+    }
+    if (source instanceof GoalElement && target instanceof StoryElement) {
+      return 'story-goal-reverse';
+    }
+    if (source instanceof GoalElement && target instanceof GoalElement) {
+      return 'directional';
+    }
+    return 'undirected';
+  }
+
+  private getConnectToTargetLabel(target: PlanningElement): string {
+    return `Connect to ${this.describePlanningElements([target])}`;
+  }
+
+  private getConnectFromTargetLabel(
+    source: PlanningElement,
+    targets: PlanningElement[],
+    existingConnectToLabel: string
+  ): string {
+    const connectToTargetsLabel = `Connect to ${this.describePlanningElements(targets)}`;
+    if (connectToTargetsLabel !== existingConnectToLabel) {
+      return connectToTargetsLabel;
+    }
+    return `Connect from ${this.describePlanningElements([source])}`;
+  }
+
+  private getRedirectConnectionLabel(count: number): string {
+    return count === 1 ? 'Redirect connection' : 'Redirect connections';
+  }
+
+  private describePlanningElements(elements: PlanningElement[]): string {
+    const goalCount = elements.filter((element) => element instanceof GoalElement).length;
+    const storyCount = elements.filter((element) => element instanceof StoryElement).length;
+    const taskCount = elements.filter((element) => element instanceof TaskElement).length;
+    const kinds = [
+      goalCount > 0 ? 'goal' : null,
+      storyCount > 0 ? 'story' : null,
+      taskCount > 0 ? 'task' : null,
+    ].filter(Boolean);
+
+    if (kinds.length !== 1) {
+      return elements.length === 1 ? 'item' : 'selection';
+    }
+
+    if (goalCount > 0) return goalCount === 1 ? 'Goal' : 'Goals';
+    if (storyCount > 0) return storyCount === 1 ? 'Story' : 'Stories';
+    return taskCount === 1 ? 'Task' : 'Tasks';
+  }
   private buildConnectionItems(
     target: PlanningElement
   ): ContextMenuActionItem[] {
@@ -548,7 +649,8 @@ export class ContextMenu {
 
     return [
       {
-        label: 'Remove Links',
+        label: 'Remove connections',
+        leading: this.createLeadingIcon('link-slash'),
         action: () => {
           this.bulkActions.removeConnectionsForElement(target);
         },
@@ -650,6 +752,19 @@ export class ContextMenu {
     const chevron = createIcon('chevron-right', { size: 14, strokeWidth: 2 });
     chevron.setAttribute('aria-hidden', 'true');
     wrap.appendChild(chevron);
+    return wrap;
+  }
+
+  private createLeadingIcon(
+    name: IconName,
+    className = 'text-slate-400'
+  ): HTMLSpanElement {
+    const wrap = document.createElement('span');
+    wrap.className = `inline-flex items-center justify-center ${className}`.trim();
+    const icon = createIcon(name, { size: 14, strokeWidth: 1.9 });
+    icon.classList.add('shrink-0');
+    icon.setAttribute('aria-hidden', 'true');
+    wrap.appendChild(icon);
     return wrap;
   }
 
