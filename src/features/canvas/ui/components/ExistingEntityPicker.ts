@@ -212,7 +212,17 @@ export class ExistingEntityPicker<
       className: 'px-3 py-1.5 text-[11px] font-medium',
     });
     expandBtn.addEventListener('click', () => this.setViewMode('full'));
-    compactPanel.append(compactTitle, compactHint, expandBtn);
+    const compactCloseBtn = createTextButton({
+      text: 'Close',
+      tone: 'text',
+      className: 'px-3 py-1 text-[11px] font-medium',
+      ariaLabel: 'Close picker',
+    });
+    compactCloseBtn.addEventListener('click', () => this.close());
+    const compactActions = document.createElement('div');
+    compactActions.className = 'flex flex-col items-center gap-2';
+    compactActions.append(expandBtn, compactCloseBtn);
+    compactPanel.append(compactTitle, compactHint, compactActions);
 
     const containerParts: HTMLElement[] = [];
     if (this.mobilePresentation) {
