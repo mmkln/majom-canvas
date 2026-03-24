@@ -263,6 +263,36 @@ describe('AiAssistantPanel auto-scroll', () => {
     panel.unmount();
   });
 
+  it('uses hover/focus CSS visibility for older message actions and keeps latest actions always visible', () => {
+    const state = createState([
+      createMessage('user-1', 'user', 'Older user draft'),
+      createMessage('user-2', 'user', 'Latest user draft'),
+    ]);
+    const { controller } = createController(state);
+    const panel = new AiAssistantPanel({ controller });
+    const { messagesList } = getPanelInternals(panel);
+
+    const copyButtons = Array.from(
+      messagesList.querySelectorAll<HTMLButtonElement>(
+        'button[aria-label="Copy message to clipboard"]'
+      )
+    );
+
+    expect(copyButtons).toHaveLength(2);
+    const olderButton = copyButtons[0];
+    const latestButton = copyButtons[1];
+
+    const olderActions = olderButton.parentElement as HTMLDivElement;
+    const latestActions = latestButton.parentElement as HTMLDivElement;
+    expect(olderActions.classList.contains('opacity-0')).toBe(true);
+    expect(olderActions.classList.contains('group-hover:opacity-100')).toBe(true);
+    expect(
+      olderActions.classList.contains('group-focus-within:opacity-100')
+    ).toBe(true);
+    expect(latestActions.classList.contains('opacity-0')).toBe(false);
+    panel.unmount();
+  });
+
   it('renders a copy button for user messages and copies their text', async () => {
     const writeText = vi.fn(() => Promise.resolve(undefined));
     vi.stubGlobal('navigator', {
