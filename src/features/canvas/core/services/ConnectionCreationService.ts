@@ -103,6 +103,22 @@ export class ConnectionCreationService {
     return this.plan(from, to).ok;
   }
 
+  public canCreateWithRelationType(
+    from: IConnectable,
+    to: IConnectable,
+    relationType: ConnectionRelationType
+  ): boolean {
+    return this.planWithRelationType(from, to, relationType).ok;
+  }
+
+  public canUseRelationType(
+    from: IConnectable,
+    to: IConnectable,
+    relationType: ConnectionRelationType
+  ): boolean {
+    return this.resolveRelationType(from, to, relationType) !== null;
+  }
+
   public canCreateManyToTarget(
     sources: ReadonlyArray<IConnectable>,
     target: IConnectable,
@@ -129,6 +145,14 @@ export class ConnectionCreationService {
 
   public canRedirect(from: IConnectable, to: IConnectable): boolean {
     return this.planRedirect(from, to).ok;
+  }
+
+  public canRedirectWithRelationType(
+    from: IConnectable,
+    to: IConnectable,
+    relationType: ConnectionRelationType
+  ): boolean {
+    return this.planRedirectWithRelationType(from, to, relationType).ok;
   }
 
   public canRedirectManyToTarget(
@@ -160,11 +184,27 @@ export class ConnectionCreationService {
     return this.planInternal(from, to, new Set<string>());
   }
 
+  public planWithRelationType(
+    from: IConnectable,
+    to: IConnectable,
+    relationType: ConnectionRelationType
+  ): ConnectionPlanningResult {
+    return this.planInternal(from, to, new Set<string>(), relationType);
+  }
+
   public planRedirect(
     from: IConnectable,
     to: IConnectable
   ): ConnectionRedirectPlanningResult {
     return this.planRedirectInternal(from, to);
+  }
+
+  public planRedirectWithRelationType(
+    from: IConnectable,
+    to: IConnectable,
+    relationType: ConnectionRelationType
+  ): ConnectionRedirectPlanningResult {
+    return this.planRedirectInternal(from, to, relationType);
   }
 
   public create(
@@ -181,11 +221,37 @@ export class ConnectionCreationService {
     return result;
   }
 
+  public createWithRelationType(
+    from: IConnectable,
+    to: IConnectable,
+    relationType: ConnectionRelationType
+  ): ConnectionPlanningResult {
+    const result = this.planWithRelationType(from, to, relationType);
+    if (!result.ok) {
+      return result;
+    }
+    this.executePlans([result.plan]);
+    return result;
+  }
+
   public redirect(
     from: IConnectable,
     to: IConnectable
   ): ConnectionRedirectPlanningResult {
     const result = this.planRedirect(from, to);
+    if (!result.ok) {
+      return result;
+    }
+    this.executeRedirectPlans([result.plan]);
+    return result;
+  }
+
+  public redirectWithRelationType(
+    from: IConnectable,
+    to: IConnectable,
+    relationType: ConnectionRelationType
+  ): ConnectionRedirectPlanningResult {
+    const result = this.planRedirectWithRelationType(from, to, relationType);
     if (!result.ok) {
       return result;
     }
@@ -324,7 +390,8 @@ export class ConnectionCreationService {
   private planInternal(
     source: IConnectable,
     target: IConnectable,
-    pendingKeys: Set<string>
+    pendingKeys: Set<string>,
+    requestedRelationType?: ConnectionRelationType
   ): ConnectionPlanningResult {
     if (source === target || source.id === target.id) {
       return { ok: false, reason: 'same-element' };
@@ -334,7 +401,14 @@ export class ConnectionCreationService {
       return { ok: false, reason: 'invalid-pair' };
     }
 
-    const relationType = this.resolveRelationType(source, target);
+    const relationType = this.resolveRelationType(
+      source,
+      target,
+      requestedRelationType
+    );
+    if (!relationType) {
+      return { ok: false, reason: 'invalid-pair' };
+    }
     const normalized = this.normalizeEndpoints(relationType, source, target);
     if (!normalized) {
       return { ok: false, reason: 'invalid-pair' };
@@ -354,8 +428,9 @@ export class ConnectionCreationService {
     if (
       pairMatch &&
       pairMatch.connection.relationType === plan.relationType &&
-      pairMatch.connection.fromId === plan.fromRef &&
-      pairMatch.connection.toId === plan.toRef
+      ((pairMatch.connection.fromId === plan.fromRef &&
+        pairMatch.connection.toId === plan.toRef) ||
+        !isDirectionalConnectionRelation(plan.relationType))
     ) {
       return { ok: false, reason: 'duplicate' };
     }
@@ -372,7 +447,8 @@ export class ConnectionCreationService {
 
   private planRedirectInternal(
     source: IConnectable,
-    target: IConnectable
+    target: IConnectable,
+    requestedRelationType?: ConnectionRelationType
   ): ConnectionRedirectPlanningResult {
     if (source === target || source.id === target.id) {
       return { ok: false, reason: 'same-element' };
@@ -382,7 +458,14 @@ export class ConnectionCreationService {
       return { ok: false, reason: 'invalid-pair' };
     }
 
-    const relationType = this.resolveRelationType(source, target);
+    const relationType = this.resolveRelationType(
+      source,
+      target,
+      requestedRelationType
+    );
+    if (!relationType) {
+      return { ok: false, reason: 'invalid-pair' };
+    }
     const normalized = this.normalizeEndpoints(relationType, source, target);
     if (!normalized) {
       return { ok: false, reason: 'invalid-pair' };
@@ -483,8 +566,14 @@ export class ConnectionCreationService {
 
   private resolveRelationType(
     from: IConnectable,
-    to: IConnectable
-  ): ConnectionRelationType {
+    to: IConnectable,
+    requestedRelationType?: ConnectionRelationType
+  ): ConnectionRelationType | null {
+    if (requestedRelationType) {
+      return this.isRequestedRelationTypeAllowed(from, to, requestedRelationType)
+        ? requestedRelationType
+        : null;
+    }
     if (from instanceof GoalElement && to instanceof GoalElement) {
       return ConnectionRelationType.LeadsTo;
     }
@@ -492,6 +581,20 @@ export class ConnectionCreationService {
       return ConnectionRelationType.ParentChild;
     }
     return ConnectionRelationType.RelatesTo;
+  }
+
+  private isRequestedRelationTypeAllowed(
+    from: IConnectable,
+    to: IConnectable,
+    relationType: ConnectionRelationType
+  ): boolean {
+    if (relationType === ConnectionRelationType.ParentChild) {
+      return this.isGoalStoryParentChildPair(from, to);
+    }
+    if (this.isGoalStoryParentChildPair(from, to)) {
+      return false;
+    }
+    return true;
   }
 
   private normalizeEndpoints(

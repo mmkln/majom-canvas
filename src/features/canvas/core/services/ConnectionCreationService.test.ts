@@ -166,7 +166,7 @@ describe('ConnectionCreationService', () => {
     expect(scene.getConnections()).toHaveLength(0);
   });
 
-  it('blocks reverse creation when the pair is already occupied', () => {
+  it('treats reverse undirected creation as a duplicate for the same pair', () => {
     const scene = new Scene();
     const taskA = new TaskElement({ id: 'task-a' });
     const taskB = new TaskElement({ id: 'task-b' });
@@ -184,7 +184,7 @@ describe('ConnectionCreationService', () => {
     expect(result.skipped).toEqual([
       expect.objectContaining({
         source: taskA,
-        reason: 'pair-occupied',
+        reason: 'duplicate',
       }),
     ]);
     expect(scene.getConnections()).toHaveLength(1);
@@ -214,6 +214,77 @@ describe('ConnectionCreationService', () => {
       toId: goalA.id,
       relationType: ConnectionRelationType.LeadsTo,
     });
+  });
+
+  it('creates explicit non-hierarchical relations for AI-driven links', () => {
+    const scene = new Scene();
+    const taskA = new TaskElement({ id: 'task-a' });
+    const taskB = new TaskElement({ id: 'task-b' });
+    scene.addElement(taskA);
+    scene.addElement(taskB);
+
+    const service = new ConnectionCreationService(scene);
+    const result = service.createWithRelationType(
+      taskA,
+      taskB,
+      ConnectionRelationType.Blocks
+    );
+
+    expect(result.ok).toBe(true);
+    expect(scene.getConnections()).toHaveLength(1);
+    expect(scene.getConnections()[0]).toMatchObject({
+      fromId: taskA.id,
+      toId: taskB.id,
+      relationType: ConnectionRelationType.Blocks,
+    });
+  });
+
+  it('treats reverse relates_to requests as duplicates for the same pair', () => {
+    const scene = new Scene();
+    const taskA = new TaskElement({ id: 'task-a' });
+    const taskB = new TaskElement({ id: 'task-b' });
+    scene.addElement(taskA);
+    scene.addElement(taskB);
+
+    const service = new ConnectionCreationService(scene);
+    service.createWithRelationType(
+      taskA,
+      taskB,
+      ConnectionRelationType.RelatesTo
+    );
+
+    const reverseResult = service.createWithRelationType(
+      taskB,
+      taskA,
+      ConnectionRelationType.RelatesTo
+    );
+
+    expect(reverseResult).toEqual({
+      ok: false,
+      reason: 'duplicate',
+    });
+    expect(scene.getConnections()).toHaveLength(1);
+  });
+
+  it('rejects explicit non-hierarchical relations for goal-story pairs', () => {
+    const scene = new Scene();
+    const goal = new GoalElement({ id: 'goal-a' });
+    const story = new StoryElement({ id: 'story-a' });
+    scene.addElement(goal);
+    scene.addElement(story);
+
+    const service = new ConnectionCreationService(scene);
+    const result = service.createWithRelationType(
+      goal,
+      story,
+      ConnectionRelationType.Blocks
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'invalid-pair',
+    });
+    expect(scene.getConnections()).toHaveLength(0);
   });
 
   it('prevents duplicate pairs even for direct ConnectCommand usage', () => {

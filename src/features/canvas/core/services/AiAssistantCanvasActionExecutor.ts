@@ -19,10 +19,12 @@ import { Scene } from '../scene/Scene.ts';
 import { historyService } from './HistoryService.ts';
 import { GoalPlacementService } from './GoalPlacementService.ts';
 import { StoryLayoutService } from './StoryLayoutService.ts';
+import { ConnectionCreationService } from './ConnectionCreationService.ts';
 import { addTaskToStory } from '../../ui/storyTaskActions.ts';
 import {
   emitStoryGoalLinkSet,
 } from '../canvasLinkLifecycle.ts';
+import { findConnectionForPair } from '../utils/connectionPairs.ts';
 import type {
   AiAssistantActionExecutionRequest,
   AiAssistantActionExecutionResult,
@@ -78,12 +80,14 @@ type PlanningRect = {
 export class AiAssistantCanvasActionExecutor {
   private readonly layoutService: StoryLayoutService;
   private readonly goalPlacementService: GoalPlacementService;
+  private readonly connectionCreationService: ConnectionCreationService;
 
   constructor(
     private readonly options: AiAssistantCanvasActionExecutorOptions
   ) {
     this.layoutService = options.layoutService ?? new StoryLayoutService();
     this.goalPlacementService = new GoalPlacementService();
+    this.connectionCreationService = new ConnectionCreationService(options.scene);
   }
 
   public execute(
@@ -550,21 +554,45 @@ export class AiAssistantCanvasActionExecutor {
     }
 
     const relationType = this.toConnectionRelationType(action.relationType);
-    const existingConnection = this.findMatchingConnection(
-      from.id,
-      to.id,
+    const createResult = this.connectionCreationService.createWithRelationType(
+      from,
+      to,
       relationType
     );
-    if (existingConnection) {
-      return {
-        status: 'failed',
-        errorMessage: 'This relation already exists on the canvas.',
-      };
+    if (!createResult.ok) {
+      if (createResult.reason === 'duplicate') {
+        return {
+          status: 'failed',
+          errorMessage: 'This relation already exists on the canvas.',
+        };
+      }
+      if (createResult.reason === 'pair-occupied') {
+        const redirectResult =
+          this.connectionCreationService.redirectWithRelationType(
+            from,
+            to,
+            relationType
+          );
+        if (!redirectResult.ok) {
+          return {
+            status: 'failed',
+            errorMessage:
+              'These items already have a different relation on the canvas. Update or remove it instead.',
+          };
+        }
+      } else if (createResult.reason === 'invalid-pair') {
+        return {
+          status: 'failed',
+          errorMessage: 'This relation type is not valid for these items.',
+        };
+      } else {
+        return {
+          status: 'failed',
+          errorMessage: 'This relation could not be created on the canvas.',
+        };
+      }
     }
 
-    historyService.execute(
-      new ConnectCommand(this.options.scene, from.id, to.id, relationType)
-    );
     this.options.scene.setSelected([from, to]);
     this.options.canvasManager.draw();
     return {
@@ -637,6 +665,19 @@ export class AiAssistantCanvasActionExecutor {
       return {
         status: 'failed',
         errorMessage: 'This relation is no longer available on the canvas.',
+      };
+    }
+
+    if (
+      !this.connectionCreationService.canUseRelationType(
+        from,
+        to,
+        nextRelationType
+      )
+    ) {
+      return {
+        status: 'failed',
+        errorMessage: 'The requested relation type is not valid for these items.',
       };
     }
 
@@ -783,15 +824,17 @@ export class AiAssistantCanvasActionExecutor {
     });
 
     const commands: Command[] = [new AddElementCommand(this.options.scene, goal)];
+    const parentLinkPlan = parentGoal
+      ? this.connectionCreationService.plan(parentGoal, goal)
+      : null;
+    if (parentLinkPlan && !parentLinkPlan.ok) {
+      return {
+        status: 'failed',
+        errorMessage: 'The new goal could not be linked to the target goal.',
+      };
+    }
     if (parentGoal) {
-      commands.push(
-        new ConnectCommand(
-          this.options.scene,
-          parentGoal.id,
-          goal.id,
-          ConnectionRelationType.ParentChild
-        )
-      );
+      commands.push(this.buildConnectCommand(parentLinkPlan.plan));
     }
     historyService.execute(new CompositeCommand(commands));
     this.options.scene.setSelected([goal]);
@@ -860,18 +903,21 @@ export class AiAssistantCanvasActionExecutor {
         priority: entry.action.priority ?? 'low',
         status: this.toElementStatus(entry.action.elementStatus),
       });
+      const parentLinkPlan = parentGoal
+        ? this.connectionCreationService.plan(parentGoal, goal)
+        : null;
+      if (parentLinkPlan && !parentLinkPlan.ok) {
+        results.set(entry.index, {
+          status: 'failed',
+          errorMessage: 'The new goal could not be linked to the target goal.',
+        });
+        return;
+      }
       createdGoals.push(goal);
       occupied.push(this.getRect(goal));
       commands.push(new AddElementCommand(this.options.scene, goal));
       if (parentGoal) {
-        commands.push(
-          new ConnectCommand(
-            this.options.scene,
-            parentGoal.id,
-            goal.id,
-            ConnectionRelationType.ParentChild
-          )
-        );
+        commands.push(this.buildConnectCommand(parentLinkPlan.plan));
       }
       results.set(entry.index, {
         status: 'applied',
@@ -954,14 +1000,14 @@ export class AiAssistantCanvasActionExecutor {
         if (!rootGoal) {
           return;
         }
-        commands.push(
-          new ConnectCommand(
-            this.options.scene,
-            targetGoal.id,
-            rootGoal.id,
-            ConnectionRelationType.ParentChild
-          )
+        const targetLinkPlan = this.connectionCreationService.plan(
+          targetGoal,
+          rootGoal
         );
+        if (!targetLinkPlan.ok) {
+          throw new Error('The blueprint root could not be linked to the target goal.');
+        }
+        commands.push(this.buildConnectCommand(targetLinkPlan.plan));
       });
     }
     action.goals.forEach((goalDefinition) => {
@@ -973,14 +1019,14 @@ export class AiAssistantCanvasActionExecutor {
       if (!parentGoal || !childGoal) {
         return;
       }
-      commands.push(
-        new ConnectCommand(
-          this.options.scene,
-          parentGoal.id,
-          childGoal.id,
-          ConnectionRelationType.ParentChild
-        )
+      const hierarchyPlan = this.connectionCreationService.plan(
+        parentGoal,
+        childGoal
       );
+      if (!hierarchyPlan.ok) {
+        throw new Error('The blueprint hierarchy could not be created on the canvas.');
+      }
+      commands.push(this.buildConnectCommand(hierarchyPlan.plan));
     });
     action.relations.forEach((relation) => {
       const fromGoal = goalByRef.get(relation.fromRef);
@@ -988,14 +1034,15 @@ export class AiAssistantCanvasActionExecutor {
       if (!fromGoal || !toGoal) {
         return;
       }
-      commands.push(
-        new ConnectCommand(
-          this.options.scene,
-          fromGoal.id,
-          toGoal.id,
-          ConnectionRelationType.LeadsTo
-        )
+      const relationPlan = this.connectionCreationService.planWithRelationType(
+        fromGoal,
+        toGoal,
+        ConnectionRelationType.LeadsTo
       );
+      if (!relationPlan.ok) {
+        throw new Error('The blueprint relation could not be created on the canvas.');
+      }
+      commands.push(this.buildConnectCommand(relationPlan.plan));
     });
 
     historyService.execute(new CompositeCommand(commands));
@@ -1029,6 +1076,19 @@ export class AiAssistantCanvasActionExecutor {
       index += 1;
     }
     return index;
+  }
+
+  private buildConnectCommand(plan: {
+    fromRef: string;
+    toRef: string;
+    relationType: ConnectionRelationType;
+  }): ConnectCommand {
+    return new ConnectCommand(
+      this.options.scene,
+      plan.fromRef,
+      plan.toRef,
+      plan.relationType
+    );
   }
 
   private createTaskElement(
@@ -1327,35 +1387,13 @@ export class AiAssistantCanvasActionExecutor {
     toId: string,
     relationType: ConnectionRelationType
   ): { connection: IConnection; reversed: boolean } | null {
-    const directConnection = this.options.scene.getConnections().find(
-      (connection) =>
-        connection.fromId === fromId &&
-        connection.toId === toId &&
-        connection.relationType === relationType
+    return findConnectionForPair(
+      this.options.scene
+        .getConnections()
+        .filter((connection) => connection.relationType === relationType),
+      fromId,
+      toId
     );
-    if (directConnection) {
-      return {
-        connection: directConnection,
-        reversed: false,
-      };
-    }
-    if (relationType !== ConnectionRelationType.RelatesTo) {
-      return null;
-    }
-    const reverseConnection =
-      this.options.scene.getConnections().find(
-        (connection) =>
-          connection.fromId === toId &&
-          connection.toId === fromId &&
-          connection.relationType === relationType
-      ) ?? null;
-    if (!reverseConnection) {
-      return null;
-    }
-    return {
-      connection: reverseConnection,
-      reversed: true,
-    };
   }
 
   private intersects(a: PlanningRect, b: PlanningRect): boolean {

@@ -24,7 +24,7 @@ function createExecutor(scene: Scene) {
           scrollY: number;
           scale: number;
         },
-    } as any,
+    },
   });
 }
 
@@ -165,17 +165,21 @@ describe('AiAssistantCanvasActionExecutor', () => {
       .getElements()
       .filter((element): element is TaskElement => element instanceof TaskElement);
     expect(tasks).toHaveLength(2);
+    const [firstTask, secondTask] = tasks;
+    if (!firstTask || !secondTask) {
+      return;
+    }
     expect(
       rectsOverlap(
         {
-          x: tasks[0]!.x,
-          y: tasks[0]!.y,
+          x: firstTask.x,
+          y: firstTask.y,
           width: TaskElement.width,
           height: TaskElement.height,
         },
         {
-          x: tasks[1]!.x,
-          y: tasks[1]!.y,
+          x: secondTask.x,
+          y: secondTask.y,
           width: TaskElement.width,
           height: TaskElement.height,
         }
@@ -260,19 +264,23 @@ describe('AiAssistantCanvasActionExecutor', () => {
       .getElements()
       .filter((element): element is StoryElement => element instanceof StoryElement);
     expect(stories).toHaveLength(2);
+    const [firstStory, secondStory] = stories;
+    if (!firstStory || !secondStory) {
+      return;
+    }
     expect(
       rectsOverlap(
         {
-          x: stories[0]!.x,
-          y: stories[0]!.y,
-          width: stories[0]!.width,
-          height: stories[0]!.height,
+          x: firstStory.x,
+          y: firstStory.y,
+          width: firstStory.width,
+          height: firstStory.height,
         },
         {
-          x: stories[1]!.x,
-          y: stories[1]!.y,
-          width: stories[1]!.width,
-          height: stories[1]!.height,
+          x: secondStory.x,
+          y: secondStory.y,
+          width: secondStory.width,
+          height: secondStory.height,
         }
       )
     ).toBe(false);
@@ -398,7 +406,7 @@ describe('AiAssistantCanvasActionExecutor', () => {
     expect(goals).toHaveLength(2);
     expect(scene.getConnections()).toHaveLength(1);
     expect(scene.getConnections()[0]).toMatchObject({
-      relationType: ConnectionRelationType.ParentChild,
+      relationType: ConnectionRelationType.LeadsTo,
       fromId: 'goal-parent',
     });
   });
@@ -494,6 +502,63 @@ describe('AiAssistantCanvasActionExecutor', () => {
     expect(historyService.canUndo()).toBe(true);
   });
 
+  it('redirects an opposite-direction directional relation instead of creating a duplicate pair', async () => {
+    const scene = new Scene();
+    const firstTask = new TaskElement({
+      id: 'task-1',
+      x: 80,
+      y: 80,
+      title: 'Validate payment form',
+    });
+    const secondTask = new TaskElement({
+      id: 'task-2',
+      x: 320,
+      y: 80,
+      title: 'Render order review',
+    });
+    scene.addElement(firstTask);
+    scene.addElement(secondTask);
+
+    await createExecutor(scene).execute(
+      makeRequest({
+        id: 'relation-existing-reverse',
+        kind: 'suggest_relation',
+        label: 'Add relation',
+        title: 'Add reverse blocking relation',
+        relationType: 'blocks',
+        fromId: 'task-2',
+        toId: 'task-1',
+        fromLabel: 'Render order review',
+        toLabel: 'Validate payment form',
+        status: 'idle',
+      })
+    );
+
+    const executor = createExecutor(scene);
+    const result = await executor.execute(
+      makeRequest({
+        id: 'relation-redirect-1',
+        kind: 'suggest_relation',
+        label: 'Add relation',
+        title: 'Flip blocking relation',
+        relationType: 'blocks',
+        fromId: 'task-1',
+        toId: 'task-2',
+        fromLabel: 'Validate payment form',
+        toLabel: 'Render order review',
+        status: 'idle',
+      })
+    );
+
+    expect(result.status).toBe('applied');
+    expect(scene.getConnections()).toHaveLength(1);
+    expect(scene.getConnections()[0]).toMatchObject({
+      relationType: ConnectionRelationType.Blocks,
+      fromId: 'task-1',
+      toId: 'task-2',
+    });
+  });
+
   it('removes an existing non-hierarchical relation through the command stack', async () => {
     const scene = new Scene();
     const firstTask = new TaskElement({
@@ -544,6 +609,57 @@ describe('AiAssistantCanvasActionExecutor', () => {
     expect(result.status).toBe('applied');
     expect(scene.getConnections()).toHaveLength(0);
     expect(historyService.canUndo()).toBe(true);
+  });
+
+  it('removes a directional relation even when the requested direction is reversed', async () => {
+    const scene = new Scene();
+    const firstTask = new TaskElement({
+      id: 'task-1',
+      x: 80,
+      y: 80,
+      title: 'Validate payment form',
+    });
+    const secondTask = new TaskElement({
+      id: 'task-2',
+      x: 320,
+      y: 80,
+      title: 'Render order review',
+    });
+    scene.addElement(firstTask);
+    scene.addElement(secondTask);
+    await createExecutor(scene).execute(
+      makeRequest({
+        id: 'relation-existing-reverse-remove',
+        kind: 'suggest_relation',
+        label: 'Add relation',
+        title: 'Add reverse blocking relation',
+        relationType: 'blocks',
+        fromId: 'task-2',
+        toId: 'task-1',
+        fromLabel: 'Render order review',
+        toLabel: 'Validate payment form',
+        status: 'idle',
+      })
+    );
+
+    const executor = createExecutor(scene);
+    const result = await executor.execute(
+      makeRequest({
+        id: 'relation-remove-reverse-1',
+        kind: 'remove_relation',
+        label: 'Remove relation',
+        title: 'Remove blocking relation',
+        relationType: 'blocks',
+        fromId: 'task-1',
+        toId: 'task-2',
+        fromLabel: 'Validate payment form',
+        toLabel: 'Render order review',
+        status: 'idle',
+      })
+    );
+
+    expect(result.status).toBe('applied');
+    expect(scene.getConnections()).toHaveLength(0);
   });
 
   it('updates an existing relation type and normalizes direction for relates_to links', async () => {
@@ -690,17 +806,9 @@ describe('AiAssistantCanvasActionExecutor', () => {
       scene
         .getConnections()
         .filter(
-          (connection) =>
-            connection.relationType === ConnectionRelationType.ParentChild
-        )
-    ).toHaveLength(2);
-    expect(
-      scene
-        .getConnections()
-        .filter(
           (connection) => connection.relationType === ConnectionRelationType.LeadsTo
         )
-    ).toHaveLength(1);
+    ).toHaveLength(3);
 
     historyService.undo();
     expect(
@@ -861,7 +969,7 @@ describe('AiAssistantCanvasActionExecutor', () => {
         .getConnections()
         .filter(
           (connection) =>
-            connection.relationType === ConnectionRelationType.ParentChild &&
+            connection.relationType === ConnectionRelationType.LeadsTo &&
             connection.fromId === 'goal-parent'
         )
     ).toHaveLength(2);
