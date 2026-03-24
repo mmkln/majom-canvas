@@ -38,10 +38,17 @@ It also unifies API interactions with automatic JWT authentication, global error
 - Integrate learning progress into the same work system as normal tasks.
 - Treat a lesson or exercise as something that can become a concrete item to complete, not only static content to read.
 
-### 3. Personal Development
+### 3. Platform Strategy
+
+- Some work items will eventually be coordinated here but executed through external services or external agents.
+- That integration strategy is platform-level, not module-specific.
+- See `docs/PLATFORM-INTEGRATIONS.md` for the current integration direction.
+
+### 4. Personal Development
 
 - The current product thesis is that planning and learning belong together because both serve personal development.
 - This shared thesis is more important than forcing the app into a single traditional category such as planner, LMS, or canvas tool.
+- Possible long-term strategic paths are tracked separately in `docs/STRATEGIC-DIRECTIONS.md`.
 
 ## Architecture & Tech Stack
 

@@ -9,6 +9,7 @@ export type IconName =
   | 'map-pin'
   | 'arrows-pointing-in'
   | 'arrows-pointing-out'
+  | 'arrows-right-left'
   | 'pencil'
   | 'fire'
   | 'fire-solid'
@@ -32,6 +33,8 @@ export type IconName =
   | 'x-mark'
   | 'eye'
   | 'eye-slash'
+  | 'link'
+  | 'link-slash'
   | 'check'
   | 'check-circle'
   | 'exclamation-circle'
@@ -122,6 +125,13 @@ export function createIcon(
       makePath(
         'M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15'
       )
+    );
+    return svg;
+  }
+
+  if (name === 'arrows-right-left') {
+    svg.appendChild(
+      makePath('M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5')
     );
     return svg;
   }
@@ -364,6 +374,24 @@ export function createIcon(
     svg.appendChild(
       makePath(
         'M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88'
+      )
+    );
+    return svg;
+  }
+
+  if (name === 'link') {
+    svg.appendChild(
+      makePath(
+        'M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244'
+      )
+    );
+    return svg;
+  }
+
+  if (name === 'link-slash') {
+    svg.appendChild(
+      makePath(
+        'M13.181 8.68a4.503 4.503 0 0 1 1.903 6.405m-9.768-2.782L3.56 14.06a4.5 4.5 0 0 0 6.364 6.365l3.129-3.129m5.614-5.615 1.757-1.757a4.5 4.5 0 0 0-6.364-6.365l-4.5 4.5c-.258.26-.479.541-.661.84m1.903 6.405a4.495 4.495 0 0 1-1.242-.88 4.483 4.483 0 0 1-1.062-1.683m6.587 2.345 5.907 5.907m-5.907-5.907L8.898 8.898M2.991 2.99 8.898 8.9'
       )
     );
     return svg;
