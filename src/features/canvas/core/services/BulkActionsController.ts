@@ -101,6 +101,10 @@ export class BulkActionsController {
     return this.connectionRemovalService.hasConnectionsForElement(element);
   }
 
+  public hasConnectionsForElements(elements: PlanningElement[]): boolean {
+    return this.connectionRemovalService.hasConnectionsForElements(elements);
+  }
+
   public hasConnectionsBetweenElementAndTargets(
     source: PlanningElement,
     elements: PlanningElement[]
@@ -185,6 +189,16 @@ export class BulkActionsController {
       return;
     }
     notify('No links found for this item.', 'info');
+  }
+
+  public removeConnectionsForElements(elements: PlanningElement[]): void {
+    if (elements.length === 0) return;
+    const result =
+      this.connectionRemovalService.removeConnectionsForElements(elements);
+    if (result.removedConnections.length > 0) {
+      return;
+    }
+    notify('No links found for the current selection.', 'info');
   }
 
   public removeConnectionsBetweenElementAndTargets(

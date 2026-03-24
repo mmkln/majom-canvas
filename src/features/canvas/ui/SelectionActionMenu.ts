@@ -1,11 +1,9 @@
 import { Subscription } from 'rxjs';
 import { Scene } from '../core/scene/Scene.ts';
 import type { CanvasManager } from '../core/managers/CanvasManager.ts';
-import type { ICanvasElement } from '../core/interfaces/canvasElement.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
-import { historyService } from '../core/services/HistoryService.ts';
 import { StoryLayoutService } from '../core/services/StoryLayoutService.ts';
 import {
   SelectionContext,
@@ -95,7 +93,7 @@ export class SelectionActionMenu {
     this.suspendUpdates = false;
     this.update();
   };
-  private activeElement: ICanvasElement | null = null;
+  private activeElement: PlanningElement | null = null;
   private selectedElements: PlanningElement[] = [];
   private layoutService = new StoryLayoutService();
 
@@ -277,6 +275,8 @@ export class SelectionActionMenu {
   private buildActionNodes(): ActionNode[] {
     const isSingle = (context: ActionContext): boolean => !context.isMulti;
     const isMulti = (context: ActionContext): boolean => context.isMulti;
+    const hasConnections = (context: ActionContext): boolean =>
+      this.bulkActions.hasConnectionsForElements(context.elements);
     const isStory = (context: ActionContext): boolean =>
       context.primary instanceof StoryElement;
     const isStoryOrGoal = (context: ActionContext): boolean =>
@@ -319,6 +319,14 @@ export class SelectionActionMenu {
         icon: 'square-2-stack',
         isVisible: isMulti,
         onClick: () => this.handleCopy(),
+      },
+      {
+        kind: 'action',
+        id: 'remove-connections-bulk',
+        title: 'Remove connections',
+        icon: 'link-slash',
+        isVisible: (context) => isMulti(context) && hasConnections(context),
+        onClick: () => this.handleRemoveConnections(),
       },
       {
         kind: 'action',
@@ -378,6 +386,14 @@ export class SelectionActionMenu {
         icon: 'square-2-stack',
         isVisible: isSingle,
         onClick: () => this.handleCopy(),
+      },
+      {
+        kind: 'action',
+        id: 'remove-connections',
+        title: 'Remove connections',
+        icon: 'link-slash',
+        isVisible: (context) => isSingle(context) && hasConnections(context),
+        onClick: () => this.handleRemoveConnections(),
       },
       {
         kind: 'action',
@@ -577,7 +593,7 @@ export class SelectionActionMenu {
 
   private handleEdit(): void {
     if (!this.activeElement) return;
-    (this.activeElement as any).onDoubleClick?.();
+    this.activeElement.onDoubleClick?.();
   }
 
   private handleCopy(): void {
@@ -668,6 +684,10 @@ export class SelectionActionMenu {
 
   private handleRemove(): void {
     this.bulkActions.removeFromCanvas(this.selectedElements);
+  }
+
+  private handleRemoveConnections(): void {
+    this.bulkActions.removeConnectionsForElements(this.selectedElements);
   }
 
   private updateStatusSelector(elements: PlanningElement[]): void {

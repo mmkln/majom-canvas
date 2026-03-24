@@ -76,4 +76,32 @@ describe('ConnectionRemovalService', () => {
 
     expect(scene.getConnections()).toHaveLength(3);
   });
+
+  it('removes all connections related to multiple selected elements without duplicates', () => {
+    const scene = new Scene();
+    const goalA = new GoalElement({ id: 'goal-a' });
+    const goalB = new GoalElement({ id: 'goal-b' });
+    const story = new StoryElement({ id: 'story-1' });
+    const task = new TaskElement({ id: 'task-1' });
+    scene.addElement(goalA);
+    scene.addElement(goalB);
+    scene.addElement(story);
+    scene.addElement(task);
+
+    const creationService = new ConnectionCreationService(scene);
+    creationService.create(goalA, goalB);
+    creationService.create(goalA, story);
+    creationService.create(task, goalB);
+    historyService.reset();
+
+    const removalService = new ConnectionRemovalService(scene);
+    const result = removalService.removeConnectionsForElements([goalA, goalB]);
+
+    expect(result.removedConnections).toHaveLength(3);
+    expect(scene.getConnections()).toHaveLength(0);
+
+    historyService.undo();
+
+    expect(scene.getConnections()).toHaveLength(3);
+  });
 });

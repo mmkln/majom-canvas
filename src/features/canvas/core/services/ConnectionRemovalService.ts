@@ -16,6 +16,12 @@ export class ConnectionRemovalService {
     return this.findConnectionsForElement(element).length > 0;
   }
 
+  public hasConnectionsForElements(
+    elements: ReadonlyArray<IConnectable>
+  ): boolean {
+    return this.findConnectionsForElements(elements).length > 0;
+  }
+
   public hasConnectionsBetweenElementAndTargets(
     source: IConnectable,
     targets: ReadonlyArray<IConnectable>
@@ -27,6 +33,12 @@ export class ConnectionRemovalService {
     element: IConnectable
   ): ConnectionBatchRemoveResult {
     return this.removeConnections(this.findConnectionsForElement(element));
+  }
+
+  public removeConnectionsForElements(
+    elements: ReadonlyArray<IConnectable>
+  ): ConnectionBatchRemoveResult {
+    return this.removeConnections(this.findConnectionsForElements(elements));
   }
 
   public removeConnectionsBetweenElementAndTargets(
@@ -43,6 +55,23 @@ export class ConnectionRemovalService {
     return this.scene.getConnections().filter(
       (connection) =>
         connection.fromId === elementRef || connection.toId === elementRef
+    );
+  }
+
+  private findConnectionsForElements(
+    elements: ReadonlyArray<IConnectable>
+  ): IConnection[] {
+    if (elements.length === 0) {
+      return [];
+    }
+
+    const elementRefs = new Set(
+      elements.map((element) => this.getElementRef(element))
+    );
+
+    return this.scene.getConnections().filter(
+      (connection) =>
+        elementRefs.has(connection.fromId) || elementRefs.has(connection.toId)
     );
   }
 
