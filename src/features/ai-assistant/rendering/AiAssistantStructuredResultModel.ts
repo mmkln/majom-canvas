@@ -49,6 +49,7 @@ export type AiAssistantActionHierarchyItem = {
   title: string;
   description?: string;
   depth: number;
+  meta?: string[];
 };
 
 type AiAssistantActionCardBaseModel = {
@@ -435,6 +436,9 @@ function getAiAssistantActionMeta(
   ) {
     return null;
   }
+  if (action.kind === 'create_goal_blueprint' && meta === 'Goal') {
+    return null;
+  }
   return meta;
 }
 
@@ -598,11 +602,39 @@ function buildGoalBlueprintHierarchyItems(
   title: string;
   description?: string;
   depth: number;
+  meta?: string[];
 }> {
+  const goalMetaByRef = new Map(
+    action.goals.map((goal) => [
+      goal.ref,
+      [
+        goal.priority
+          ? shouldDisplayAiAssistantPriority(goal.priority)
+            ? formatAiAssistantPriorityLabel(goal.priority)
+            : null
+          : null,
+        goal.elementStatus
+          ? shouldDisplayAiAssistantElementStatus(goal.elementStatus)
+            ? formatAiAssistantElementStatus(goal.elementStatus)
+            : null
+          : null,
+      ].filter((part): part is string => part !== null),
+    ])
+  );
+  const allGoalMetaTexts = action.goals.map((goal) =>
+    (goalMetaByRef.get(goal.ref) ?? []).join(' · ')
+  );
+  const firstMetaText = allGoalMetaTexts[0] ?? '';
+  const hideUniformGoalMeta =
+    firstMetaText.length > 0 &&
+    allGoalMetaTexts.length > 0 &&
+    allGoalMetaTexts.every((metaText) => metaText === firstMetaText);
+
   const items: Array<{
     title: string;
     description?: string;
     depth: number;
+    meta?: string[];
   }> = [];
   const childrenByParent = new Map<string | null, typeof action.goals>();
 
@@ -621,6 +653,7 @@ function buildGoalBlueprintHierarchyItems(
       title: goal.title,
       description: goal.description,
       depth,
+      meta: hideUniformGoalMeta ? [] : (goalMetaByRef.get(goal.ref) ?? []),
     });
     const children = childrenByParent.get(goal.ref) ?? [];
     children.forEach((child) => {
@@ -845,11 +878,11 @@ function formatAiAssistantGoalBlueprintPatternLabel(
 ): string {
   switch (pattern) {
     case 'goal_tree':
-      return 'Goal tree';
+      return 'Goal plan';
     case 'goal_tree_with_sequence':
-      return 'Goal tree + sequence';
+      return 'Sequenced plan';
     case 'goal_graph':
-      return 'Goal graph';
+      return 'Goal map';
     default:
       return pattern.replace(/_/g, ' ');
   }

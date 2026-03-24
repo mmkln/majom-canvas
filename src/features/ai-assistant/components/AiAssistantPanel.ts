@@ -2156,32 +2156,84 @@ export class AiAssistantPanel {
     return setAiActionComponentName(list, 'text-list');
   }
 
+  private createActionSequenceList(items: string[]): HTMLDivElement {
+    const list = document.createElement('div');
+    list.style.display = 'flex';
+    list.style.flexDirection = 'column';
+    list.style.gap = '6px';
+
+    items.forEach((item, index) => {
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.alignItems = 'flex-start';
+      row.style.gap = '8px';
+
+      const marker = document.createElement('span');
+      marker.textContent = `${index + 1}.`;
+      marker.style.minWidth = '16px';
+      marker.style.fontSize = '9.5px';
+      marker.style.fontWeight = '600';
+      marker.style.lineHeight = '1.55';
+      marker.style.color = '#94a3b8';
+
+      const text = createActionTextParagraphElement(item, {
+        fontSize: '10.75px',
+        lineHeight: '1.55',
+        color: '#475569',
+      });
+      text.style.flex = '1';
+
+      row.append(marker, text);
+
+      list.appendChild(row);
+    });
+
+    return setAiActionComponentName(list, 'sequence-list');
+  }
+
+  private createBlueprintPlanSummary(cardModel: AiAssistantBlueprintCardModel): HTMLParagraphElement {
+    const parts = [
+      `${cardModel.goals.length} ${cardModel.goals.length === 1 ? 'goal' : 'goals'}`,
+      cardModel.sequence.length > 0
+        ? `${cardModel.sequence.length} ${cardModel.sequence.length === 1 ? 'sequence link' : 'sequence links'}`
+        : null,
+    ].filter((part): part is string => Boolean(part));
+
+    return this.createActionMetaParagraph(parts.join(' · '));
+  }
+
   private createActionHierarchyList(
     items: AiAssistantBlueprintCardModel['goals']
   ): HTMLDivElement {
     const list = document.createElement('div');
     list.style.display = 'flex';
     list.style.flexDirection = 'column';
-    list.style.gap = AI_ASSISTANT_ACTION_TOKENS.layout.hierarchyListGap;
+    list.style.gap = '7px';
 
     items.forEach((item) => {
       const row = document.createElement('div');
+      setAiActionComponentName(row, 'plan-goal-row');
       row.style.display = 'flex';
       row.style.flexDirection = 'column';
-      row.style.gap = AI_ASSISTANT_ACTION_TOKENS.layout.hierarchyItemGap;
-      row.style.paddingLeft = `${item.depth * AI_ASSISTANT_ACTION_TOKENS.layout.hierarchyIndentPx}px`;
+      row.style.gap = '4px';
+      row.style.minWidth = '0';
+      applyGroupedActionEntryStyles(row, 'idle');
 
       const title = document.createElement('p');
       title.textContent = item.title;
       title.style.margin = '0';
       title.style.fontSize =
-        AI_ASSISTANT_ACTION_TOKENS.typography.hierarchyTitle.fontSize;
+        AI_ASSISTANT_ACTION_TOKENS.typography.entityTitle.fontSize;
       title.style.fontWeight = item.depth === 0 ? '650' : '600';
       title.style.lineHeight =
-        AI_ASSISTANT_ACTION_TOKENS.typography.hierarchyTitle.lineHeight;
+        AI_ASSISTANT_ACTION_TOKENS.typography.entityTitle.lineHeight;
       title.style.color =
-        AI_ASSISTANT_ACTION_TOKENS.typography.hierarchyTitle.color;
+        AI_ASSISTANT_ACTION_TOKENS.typography.entityTitle.color;
       row.appendChild(title);
+
+      if (item.meta && item.meta.length > 0) {
+        row.appendChild(this.createActionMetaParagraph(item.meta.join(' · ')));
+      }
 
       if (item.description) {
         row.appendChild(
@@ -2441,20 +2493,23 @@ export class AiAssistantPanel {
     container: HTMLElement,
     cardModel: AiAssistantBlueprintCardModel
   ): void {
-    this.appendStandardActionContent(container, cardModel);
+    this.appendActionMeta(container, cardModel.meta);
+    this.appendActionChips(container, cardModel.chips);
+    this.appendActionSummary(container, cardModel.summary);
+    container.appendChild(this.createBlueprintPlanSummary(cardModel));
     if (cardModel.goals.length > 0) {
-      container.appendChild(
-        createActionSurfaceSection(
-          cardModel.goals.length === 1 ? 'Goal' : 'Goals',
-          this.createActionHierarchyList(cardModel.goals)
-        )
+      const goalsSection = createActionInlineSection(
+        cardModel.goals.length === 1 ? 'Goal' : 'Goals',
+        this.createActionHierarchyList(cardModel.goals)
       );
+      goalsSection.style.margin = '8px 0';
+      container.appendChild(goalsSection);
     }
     if (cardModel.sequence.length > 0) {
       container.appendChild(
         createActionInlineSection(
           'Sequence',
-          this.createActionTextList(cardModel.sequence)
+          this.createActionSequenceList(cardModel.sequence)
         )
       );
     }
