@@ -4,26 +4,18 @@ import { PanZoomManager } from '../managers/PanZoomManager.ts';
 import type { IConnectable } from '../interfaces/connectable.ts';
 import type { ConnectionPoint } from '../interfaces/shape.ts';
 import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
-import { TaskElement } from '../../elements/TaskElement.ts';
-import { StoryElement } from '../../elements/StoryElement.ts';
-import { GoalElement } from '../../elements/GoalElement.ts';
 import { getOrderedConnectables } from '../utils/connectableUtils.ts';
 import {
   ConnectionRelationType,
   type IConnection,
 } from '../interfaces/connection.ts';
-import { historyService } from './HistoryService.ts';
-import { ConnectCommand } from '../commands/ConnectCommand.ts';
-import {
-  buildCanvasRelationEndpoint,
-  emitCanvasRelationLifecycle,
-} from '../canvasRelationLifecycle.ts';
-import { emitStoryGoalLinkSet } from '../canvasLinkLifecycle.ts';
+import { ConnectionCreationService } from './ConnectionCreationService.ts';
 
 export class ConnectionInteractionService {
   private creating = false;
   private startShape: IConnectable | null = null;
   private startPoint: ConnectionPoint | null = null;
+  private readonly connectionCreationService: ConnectionCreationService;
   private tempLine: {
     startX: number;
     startY: number;
@@ -34,7 +26,9 @@ export class ConnectionInteractionService {
   constructor(
     private scene: Scene,
     private panZoom: PanZoomManager
-  ) {}
+  ) {
+    this.connectionCreationService = new ConnectionCreationService(scene);
+  }
 
   /** Hit test existing connections */
   public hitTest(x: number, y: number): IConnection | null {
@@ -109,43 +103,7 @@ export class ConnectionInteractionService {
     if (target) {
       const src = this.startShape;
       const dst = target;
-      const invalid =
-        src === dst ||
-        (src instanceof StoryElement &&
-          dst instanceof TaskElement &&
-          src.tasks.some((t) => t.id === dst.id)) ||
-        (src instanceof TaskElement &&
-          dst instanceof StoryElement &&
-          dst.tasks.some((t) => t.id === src.id));
-      if (!invalid) {
-        const relationType =
-          src instanceof GoalElement && dst instanceof GoalElement
-            ? ConnectionRelationType.LeadsTo
-            : this.isParentChildPair(src, dst)
-              ? ConnectionRelationType.ParentChild
-              : ConnectionRelationType.RelatesTo;
-        const normalized = this.normalizeConnectionRefs(relationType, src, dst);
-        if (normalized) {
-          const fromRef = this.getElementRef(normalized.from);
-          const toRef = this.getElementRef(normalized.to);
-          historyService.execute(
-            new ConnectCommand(this.scene, fromRef, toRef, relationType)
-          );
-          emitCanvasRelationLifecycle({
-            action: 'created',
-            relationType,
-            from: buildCanvasRelationEndpoint(normalized.from, fromRef),
-            to: buildCanvasRelationEndpoint(normalized.to, toRef),
-          });
-          if (
-            relationType === ConnectionRelationType.ParentChild &&
-            normalized.from instanceof GoalElement &&
-            normalized.to instanceof StoryElement
-          ) {
-            emitStoryGoalLinkSet(normalized.to, normalized.from);
-          }
-        }
-      }
+      this.connectionCreationService.create(src, dst);
     }
     this.creating = false;
     this.startShape = null;
@@ -196,39 +154,6 @@ export class ConnectionInteractionService {
           return { shape, point };
         }
       }
-    }
-    return null;
-  }
-
-  private getElementRef(element: IConnectable): string {
-    const uuid = (element as { uuid?: string }).uuid;
-    return uuid ?? element.id;
-  }
-
-  private isParentChildPair(a: IConnectable, b: IConnectable): boolean {
-    return (
-      (a instanceof GoalElement && b instanceof GoalElement) ||
-      (a instanceof GoalElement && b instanceof StoryElement) ||
-      (a instanceof StoryElement && b instanceof GoalElement)
-    );
-  }
-
-  private normalizeConnectionRefs(
-    relationType: ConnectionRelationType,
-    from: IConnectable,
-    to: IConnectable
-  ): { from: IConnectable; to: IConnectable } | null {
-    if (relationType !== ConnectionRelationType.ParentChild) {
-      return { from, to };
-    }
-    if (from instanceof GoalElement && to instanceof StoryElement) {
-      return { from, to };
-    }
-    if (from instanceof GoalElement && to instanceof GoalElement) {
-      return { from, to };
-    }
-    if (from instanceof StoryElement && to instanceof GoalElement) {
-      return { from: to, to: from };
     }
     return null;
   }

@@ -48,6 +48,10 @@ import {
   getAiAssistantFillDetailsHint,
   getAiAssistantLinkBlockersHint,
 } from '../../ai-assistant/aiAssistantHints.ts';
+import {
+  SelectionContext,
+  type PlanningElement,
+} from '../core/services/SelectionContext.ts';
 
 type ContextMenuDetail = {
   element: ICanvasElement | null;
@@ -291,13 +295,24 @@ export class ContextMenu {
     const sections: ContextMenuSection[] = [];
     const actionItems: ContextMenuItem[] = [];
     const planningElement = isPlanningElement
-      ? (element as TaskElement | StoryElement | GoalElement)
+      ? element
       : null;
+    const selectionLinkItem = planningElement
+      ? this.buildSelectionLinkItem(planningElement)
+      : null;
+
+    if (selectionLinkItem) {
+      sections.push({
+        title: 'Selection',
+        items: [selectionLinkItem],
+      });
+    }
+
     if (isPlanningElement) {
       actionItems.push({
         label: 'Edit',
         action: () => {
-          (element as any).onDoubleClick?.();
+          planningElement?.onDoubleClick?.();
         },
       });
     }
@@ -428,6 +443,27 @@ export class ContextMenu {
     }
 
     return sections;
+  }
+
+  private buildSelectionLinkItem(
+    target: PlanningElement
+  ): ContextMenuActionItem | null {
+    const selected = SelectionContext.getPlanningSelection(this.scene);
+    if (selected.length === 0) return null;
+    if (selected.some((element) => element.id === target.id)) return null;
+
+    const eligibleSources = this.bulkActions.getEligibleLinkSourcesToTarget(
+      selected,
+      target
+    );
+    if (eligibleSources.length === 0) return null;
+
+    return {
+      label: 'Link Selected Here',
+      action: () => {
+        this.bulkActions.connectToTarget(eligibleSources, target);
+      },
+    };
   }
 
   private renderSections(sections: ContextMenuSection[]): void {

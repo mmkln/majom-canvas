@@ -4,9 +4,15 @@ import { CopyCommand } from '../commands/CopyCommand.ts';
 import { DeleteCommand } from '../commands/DeleteCommand.ts';
 import { ElementStatus } from '../../elements/ElementStatus.ts';
 import type { PlanningElement } from './SelectionContext.ts';
+import { ConnectionCreationService } from './ConnectionCreationService.ts';
+import { notify } from './NotificationService.ts';
 
 export class BulkActionsController {
-  constructor(private readonly scene: Scene) {}
+  private readonly connectionCreationService: ConnectionCreationService;
+
+  constructor(private readonly scene: Scene) {
+    this.connectionCreationService = new ConnectionCreationService(scene);
+  }
 
   public copy(elements: PlanningElement[]): void {
     if (elements.length === 0) return;
@@ -46,5 +52,34 @@ export class BulkActionsController {
       );
     });
     this.scene.changes.next();
+  }
+
+  public getEligibleLinkSourcesToTarget(
+    elements: PlanningElement[],
+    target: PlanningElement
+  ): PlanningElement[] {
+    return elements.filter((element) =>
+      this.connectionCreationService.canCreate(element, target, {
+        preventDuplicates: true,
+      })
+    );
+  }
+
+  public connectToTarget(
+    elements: PlanningElement[],
+    target: PlanningElement
+  ): void {
+    if (elements.length === 0) return;
+    const result = this.connectionCreationService.createManyToTarget(
+      elements,
+      target,
+      {
+        preventDuplicates: true,
+      }
+    );
+    if (result.createdPlans.length > 0) {
+      return;
+    }
+    notify('No new links could be created for the current selection.', 'info');
   }
 }
