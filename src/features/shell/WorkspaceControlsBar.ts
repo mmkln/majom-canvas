@@ -6,7 +6,7 @@ import { emitWorkspaceViewChangeRequested } from './workspaceEvents.ts';
 
 const CONTROL_TRANSITION = 'background-color 120ms ease, color 120ms ease';
 
-type WorkspaceControlsBarVariant = 'floating' | 'header';
+type WorkspaceControlsBarVariant = 'floating' | 'header' | 'sidebar';
 
 type ViewOption = {
   view: WorkspaceView;
@@ -40,6 +40,8 @@ type VariantMetrics = {
   hoverColor: string;
   activeBackground: string;
   activeColor: string;
+  dividerWidthPx: number;
+  showRoutinesLabel: boolean;
 };
 
 const VIEW_OPTIONS: ViewOption[] = [
@@ -65,6 +67,8 @@ const VARIANT_METRICS: Record<WorkspaceControlsBarVariant, VariantMetrics> = {
     hoverColor: '#0f172a',
     activeBackground: '#f1f5f9',
     activeColor: '#0f172a',
+    dividerWidthPx: 1,
+    showRoutinesLabel: true,
   },
   header: {
     rootGap: '4px',
@@ -83,6 +87,28 @@ const VARIANT_METRICS: Record<WorkspaceControlsBarVariant, VariantMetrics> = {
     hoverColor: '#0f172a',
     activeBackground: '#f1f5f9',
     activeColor: '#0f172a',
+    dividerWidthPx: 1,
+    showRoutinesLabel: true,
+  },
+  sidebar: {
+    rootGap: '6px',
+    groupGap: '6px',
+    iconButtonSizePx: 36,
+    iconButtonRadiusPx: 12,
+    routinesHeightPx: 36,
+    routinesPadding: '0',
+    routinesRadiusPx: 12,
+    dividerHeightPx: 1,
+    dividerMargin: '4px 0',
+    dividerColor: 'rgba(203, 213, 225, 0.75)',
+    inactiveIconColor: '#475569',
+    inactiveTextColor: '#334155',
+    hoverBackground: '#f8fafc',
+    hoverColor: '#0f172a',
+    activeBackground: '#f1f5f9',
+    activeColor: '#0f172a',
+    dividerWidthPx: 52,
+    showRoutinesLabel: false,
   },
 };
 
@@ -119,7 +145,8 @@ export class WorkspaceControlsBar {
       const group = document.createElement('div');
       group.setAttribute('role', 'radiogroup');
       group.setAttribute('aria-label', 'Workspace view');
-      group.style.display = 'inline-flex';
+      group.style.display = 'flex';
+      group.style.flexDirection = this.variant === 'sidebar' ? 'column' : 'row';
       group.style.alignItems = 'center';
       group.style.gap = this.metrics.groupGap;
 
@@ -187,8 +214,11 @@ export class WorkspaceControlsBar {
   }
 
   private applyRootStyles(): void {
-    this.element.style.display = 'inline-flex';
-    this.element.style.alignItems = 'center';
+    this.element.style.display = 'flex';
+    this.element.style.flexDirection =
+      this.variant === 'sidebar' ? 'column' : 'row';
+    this.element.style.alignItems =
+      this.variant === 'sidebar' ? 'center' : 'center';
     this.element.style.gap = this.metrics.rootGap;
     this.element.style.fontFamily = 'Poppins, sans-serif';
 
@@ -200,6 +230,12 @@ export class WorkspaceControlsBar {
       this.element.style.backdropFilter = 'none';
       this.element.style.boxShadow = '0 4px 14px rgba(15, 23, 42, 0.08)';
       this.element.style.pointerEvents = 'auto';
+      return;
+    }
+
+    if (this.variant === 'sidebar') {
+      this.element.style.width = '100%';
+      this.element.style.padding = '0';
       return;
     }
 
@@ -261,7 +297,10 @@ export class WorkspaceControlsBar {
     button.style.alignItems = 'center';
     button.style.justifyContent = 'center';
     button.style.gap = '6px';
-    button.style.width = 'auto';
+    button.style.width =
+      this.variant === 'sidebar'
+        ? `${this.metrics.routinesHeightPx}px`
+        : 'auto';
     button.style.height = `${this.metrics.routinesHeightPx}px`;
     button.style.padding = this.metrics.routinesPadding;
     button.style.cursor = 'pointer';
@@ -280,23 +319,27 @@ export class WorkspaceControlsBar {
 
     const icon = createIcon('check-circle', { size: 15, strokeWidth: 1.8 });
     icon.setAttribute('aria-hidden', 'true');
-    const label = document.createElement('span');
-    label.textContent = 'Routines';
-    label.style.fontSize = '12px';
-    label.style.fontWeight = '600';
-    label.style.lineHeight = '1';
-    button.append(icon, label);
+    button.appendChild(icon);
+    if (this.metrics.showRoutinesLabel) {
+      const label = document.createElement('span');
+      label.textContent = 'Routines';
+      label.style.fontSize = '12px';
+      label.style.fontWeight = '600';
+      label.style.lineHeight = '1';
+      button.appendChild(label);
+    }
     return button;
   }
 
   private createDivider(): HTMLSpanElement {
     const divider = document.createElement('span');
     divider.setAttribute('aria-hidden', 'true');
-    divider.style.display = 'inline-block';
-    divider.style.width = '1px';
+    divider.style.display = 'block';
+    divider.style.width = `${this.metrics.dividerWidthPx}px`;
     divider.style.height = `${this.metrics.dividerHeightPx}px`;
     divider.style.margin = this.metrics.dividerMargin;
     divider.style.background = this.metrics.dividerColor;
+    divider.style.alignSelf = 'center';
     return divider;
   }
 

@@ -1,5 +1,5 @@
 import { Subscription } from 'rxjs';
-import { GLOBAL_APP_HEADER_HEIGHT_PX } from './GlobalAppHeader.ts';
+import { GLOBAL_APP_SIDEBAR_WIDTH_PX } from './GlobalAppHeader.ts';
 import { KANBAN_DEV_ENABLED, ROUTINES_ENABLED } from '../config/env/index.ts';
 import { CanvasModule } from '../features/canvas/CanvasModule.ts';
 import { WallpaperService } from '../features/shell/services/WallpaperService.ts';
@@ -64,6 +64,7 @@ export class RuntimeHost {
   private chatOpen = false;
   private hostVisible = false;
   private starting = false;
+  private runtimeChromeMounted = false;
   private layoutSyncTimer: number | null = null;
   private workspaceResizeObserver: ResizeObserver | null = null;
   private readonly viewChangeHandler: (event: Event) => void;
@@ -77,12 +78,12 @@ export class RuntimeHost {
     this.workspaceRoot = document.createElement('div');
     this.workspaceRoot.id = 'workspace-modules-root';
     this.workspaceRoot.style.position = 'fixed';
-    this.workspaceRoot.style.left = '0';
-    this.workspaceRoot.style.top = `${GLOBAL_APP_HEADER_HEIGHT_PX}px`;
+    this.workspaceRoot.style.left = `${GLOBAL_APP_SIDEBAR_WIDTH_PX}px`;
+    this.workspaceRoot.style.top = '0';
     this.workspaceRoot.style.right = '0';
     this.workspaceRoot.style.bottom = '0';
-    this.workspaceRoot.style.width = '100vw';
-    this.workspaceRoot.style.height = `calc(100vh - ${GLOBAL_APP_HEADER_HEIGHT_PX}px)`;
+    this.workspaceRoot.style.width = `calc(100vw - ${GLOBAL_APP_SIDEBAR_WIDTH_PX}px)`;
+    this.workspaceRoot.style.height = '100vh';
     this.workspaceRoot.style.zIndex = '35';
     this.workspaceRoot.style.display = 'none';
     this.workspaceRoot.style.backgroundSize = 'cover';
@@ -124,10 +125,8 @@ export class RuntimeHost {
       controller: this.chatController,
       executeAction: executeChatAction,
     });
-    this.chatPanel.mount(document.body);
     this.chatOpen = loadPersistedAiAssistantOpen();
     this.chatPanel.setVisible(false);
-    this.viewSwitcher.mount(document.body);
     this.viewSwitcher.setVisible(false);
     this.viewSwitcher.setChatOpen(this.chatOpen);
     this.viewChangeHandler = (event: Event) => {
@@ -245,7 +244,7 @@ export class RuntimeHost {
       this.chatIntentHandler
     );
     window.removeEventListener('resize', this.windowResizeHandler);
-    this.viewSwitcher.unmount();
+    this.unmountRuntimeChrome();
     this.shell?.dispose();
     this.shell = null;
     this.canvasModule = null;
@@ -320,14 +319,15 @@ export class RuntimeHost {
     const canvas = document.getElementById('myCanvas');
     const chatWidth = this.chatOpen ? this.chatPanel.getWidthPx() : 0;
     if (!this.hostVisible) {
+      this.unmountRuntimeChrome();
       this.workspaceRoot.style.display = 'none';
       this.workspaceRoot.style.pointerEvents = 'none';
-      this.workspaceRoot.style.left = '0';
-      this.workspaceRoot.style.top = `${GLOBAL_APP_HEADER_HEIGHT_PX}px`;
+      this.workspaceRoot.style.left = `${GLOBAL_APP_SIDEBAR_WIDTH_PX}px`;
+      this.workspaceRoot.style.top = '0';
       this.workspaceRoot.style.right = '0';
       this.workspaceRoot.style.bottom = '0';
-      this.workspaceRoot.style.width = 'auto';
-      this.workspaceRoot.style.height = 'auto';
+      this.workspaceRoot.style.width = `calc(100vw - ${GLOBAL_APP_SIDEBAR_WIDTH_PX}px)`;
+      this.workspaceRoot.style.height = '100vh';
       this.workspaceRoot.style.borderRadius = '0';
       this.workspaceRoot.style.overflow = 'visible';
       this.workspaceRoot.style.boxShadow = 'none';
@@ -339,10 +339,10 @@ export class RuntimeHost {
       if (canvasUiRoot instanceof HTMLElement) {
         canvasUiRoot.style.display = 'none';
         canvasUiRoot.style.pointerEvents = 'none';
-        canvasUiRoot.style.left = '0';
-        canvasUiRoot.style.top = `${GLOBAL_APP_HEADER_HEIGHT_PX}px`;
-        canvasUiRoot.style.width = '100vw';
-        canvasUiRoot.style.height = `calc(100vh - ${GLOBAL_APP_HEADER_HEIGHT_PX}px)`;
+        canvasUiRoot.style.left = `${GLOBAL_APP_SIDEBAR_WIDTH_PX}px`;
+        canvasUiRoot.style.top = '0';
+        canvasUiRoot.style.width = `calc(100vw - ${GLOBAL_APP_SIDEBAR_WIDTH_PX}px)`;
+        canvasUiRoot.style.height = '100vh';
         canvasUiRoot.style.borderRadius = '0';
       }
       this.viewSwitcher.setVisible(false);
@@ -351,6 +351,7 @@ export class RuntimeHost {
       return;
     }
 
+    this.mountRuntimeChrome();
     const showCanvas = this.activeView === 'canvas';
     this.workspaceRoot.style.display = 'block';
     this.workspaceRoot.style.pointerEvents = 'auto';
@@ -413,8 +414,8 @@ export class RuntimeHost {
     chatWidth: number
   ): void {
     if (!chatOpen) {
-      this.workspaceRoot.style.left = '0';
-      this.workspaceRoot.style.top = `${GLOBAL_APP_HEADER_HEIGHT_PX}px`;
+      this.workspaceRoot.style.left = `${GLOBAL_APP_SIDEBAR_WIDTH_PX}px`;
+      this.workspaceRoot.style.top = '0';
       this.workspaceRoot.style.right = '0';
       this.workspaceRoot.style.bottom = '0';
       this.workspaceRoot.style.width = 'auto';
@@ -424,10 +425,10 @@ export class RuntimeHost {
       this.workspaceRoot.style.boxShadow = 'none';
       this.workspaceRoot.style.border = 'none';
       if (canvasUiRoot) {
-        canvasUiRoot.style.left = '0';
-        canvasUiRoot.style.top = `${GLOBAL_APP_HEADER_HEIGHT_PX}px`;
-        canvasUiRoot.style.width = '100vw';
-        canvasUiRoot.style.height = `calc(100vh - ${GLOBAL_APP_HEADER_HEIGHT_PX}px)`;
+        canvasUiRoot.style.left = `${GLOBAL_APP_SIDEBAR_WIDTH_PX}px`;
+        canvasUiRoot.style.top = '0';
+        canvasUiRoot.style.width = `calc(100vw - ${GLOBAL_APP_SIDEBAR_WIDTH_PX}px)`;
+        canvasUiRoot.style.height = '100vh';
         canvasUiRoot.style.borderRadius = '0';
       }
       return;
@@ -437,29 +438,30 @@ export class RuntimeHost {
       APP_ISLAND_MARGIN_PX + chatWidth + APP_ISLAND_GAP_PX;
     const workspaceWidth = Math.max(
       320,
-      window.innerWidth - workspaceRightInset - APP_ISLAND_MARGIN_PX
+      window.innerWidth -
+        workspaceRightInset -
+        APP_ISLAND_MARGIN_PX -
+        GLOBAL_APP_SIDEBAR_WIDTH_PX
     );
     const workspaceHeight = Math.max(
       240,
-      window.innerHeight -
-        APP_ISLAND_MARGIN_PX * 2 -
-        GLOBAL_APP_HEADER_HEIGHT_PX
+      window.innerHeight - APP_ISLAND_MARGIN_PX * 2
     );
 
-    this.workspaceRoot.style.left = `${APP_ISLAND_MARGIN_PX}px`;
-    this.workspaceRoot.style.top = `${APP_ISLAND_MARGIN_PX + GLOBAL_APP_HEADER_HEIGHT_PX}px`;
+    this.workspaceRoot.style.left = `${GLOBAL_APP_SIDEBAR_WIDTH_PX + APP_ISLAND_MARGIN_PX}px`;
+    this.workspaceRoot.style.top = `${APP_ISLAND_MARGIN_PX}px`;
     this.workspaceRoot.style.right = `${workspaceRightInset}px`;
     this.workspaceRoot.style.bottom = `${APP_ISLAND_MARGIN_PX}px`;
     this.workspaceRoot.style.width = 'auto';
     this.workspaceRoot.style.height = 'auto';
     this.workspaceRoot.style.borderRadius = `${APP_ISLAND_RADIUS_PX}px`;
     this.workspaceRoot.style.overflow = 'hidden';
-    this.workspaceRoot.style.border = '1px solid rgba(255, 255, 255, 0.6)';
+    this.workspaceRoot.style.border = 'none';
     this.workspaceRoot.style.boxShadow = 'none';
 
     if (canvasUiRoot) {
-      canvasUiRoot.style.left = `${APP_ISLAND_MARGIN_PX}px`;
-      canvasUiRoot.style.top = `${APP_ISLAND_MARGIN_PX + GLOBAL_APP_HEADER_HEIGHT_PX}px`;
+      canvasUiRoot.style.left = `${GLOBAL_APP_SIDEBAR_WIDTH_PX + APP_ISLAND_MARGIN_PX}px`;
+      canvasUiRoot.style.top = `${APP_ISLAND_MARGIN_PX}px`;
       canvasUiRoot.style.width = `${workspaceWidth}px`;
       canvasUiRoot.style.height = `${workspaceHeight}px`;
       canvasUiRoot.style.borderRadius = `${APP_ISLAND_RADIUS_PX}px`;
@@ -504,5 +506,19 @@ export class RuntimeHost {
     this.viewSwitcher.setChatOpen(open);
     emitAiAssistantVisibilityChanged(open);
     this.applyVisibility();
+  }
+
+  private mountRuntimeChrome(): void {
+    if (this.runtimeChromeMounted) return;
+    this.chatPanel.mount(document.body);
+    this.viewSwitcher.mount(document.body);
+    this.runtimeChromeMounted = true;
+  }
+
+  private unmountRuntimeChrome(): void {
+    if (!this.runtimeChromeMounted) return;
+    this.viewSwitcher.unmount();
+    this.chatPanel.unmount();
+    this.runtimeChromeMounted = false;
   }
 }

@@ -1,4 +1,4 @@
-import { GLOBAL_APP_HEADER_HEIGHT_PX } from '../../../../bootstrap/GlobalAppHeader.ts';
+import { GLOBAL_APP_SIDEBAR_OFFSET_CSS_VALUE } from '../../../../bootstrap/GlobalAppHeader.ts';
 
 type LoadingScreenState = 'loading' | 'error';
 
@@ -42,7 +42,7 @@ export class LoadingScreen {
     this.root = document.createElement('div');
     this.root.className =
       'fixed inset-0 z-[205] hidden items-center justify-center bg-[linear-gradient(to_bottom,#ffffff,#f8fafc)] px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]';
-    this.root.style.top = `${GLOBAL_APP_HEADER_HEIGHT_PX}px`;
+    this.root.style.left = GLOBAL_APP_SIDEBAR_OFFSET_CSS_VALUE;
 
     const content = document.createElement('section');
     content.className = 'flex w-full max-w-xs flex-col items-center';

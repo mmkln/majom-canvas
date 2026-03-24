@@ -6,7 +6,6 @@ import {
 } from '../../../ui-lib/src/hud/index.ts';
 import { createIcon, type IconName } from '../../../ui-lib/src/hud/icons.ts';
 import { ComponentFactory } from '../../../ui-lib/src/core/ComponentFactory.ts';
-import { GLOBAL_APP_HEADER_HEIGHT_PX } from '../../../bootstrap/GlobalAppHeader.ts';
 import { AiAssistantMarkdownRenderer } from '../rendering/AiAssistantMarkdownRenderer.ts';
 import {
   buildAiAssistantActionEntryModel,
@@ -122,6 +121,7 @@ export class AiAssistantPanel {
     status: 'copied' | 'failed';
   } | null = null;
   private readonly collapsedActionMessages = new Map<string, boolean>();
+  private mounted = false;
   private stickMessagesToBottom = true;
   private currentPendingConfirmation: ReturnType<
     AiAssistantSessionController['getState']
@@ -246,11 +246,6 @@ export class AiAssistantPanel {
     this.messagesViewport.style.overflowY = 'auto';
     this.messagesViewport.style.padding = '18px 18px 24px';
     this.messagesViewport.style.background = 'transparent';
-    this.messagesViewport.addEventListener(
-      'scroll',
-      this.messagesViewportScrollHandler
-    );
-
     this.messagesToolsRow = document.createElement('div');
     this.messagesToolsRow.style.display = 'none';
     this.messagesToolsRow.style.alignItems = 'center';
@@ -432,16 +427,18 @@ export class AiAssistantPanel {
     );
     this.container.appendChild(this.panel);
 
-    this.unsubscribeController = this.chatController.subscribe(() => {
-      this.render();
-    });
     this.render();
   }
 
   public mount(parent: HTMLElement = document.body): void {
-    if (this.container.parentElement) return;
+    if (this.mounted) return;
     parent.appendChild(this.container);
+    this.mounted = true;
     this.contextModeMenuButton.mount();
+    this.messagesViewport.addEventListener(
+      'scroll',
+      this.messagesViewportScrollHandler
+    );
     window.addEventListener(
       WORKSPACE_VIEW_CHANGED_EVENT,
       this.workspaceViewChangedHandler
@@ -450,9 +447,15 @@ export class AiAssistantPanel {
       AI_ASSISTANT_CONTEXT_CHANGED_EVENT,
       this.chatContextChangedHandler
     );
+    this.unsubscribeController = this.chatController.subscribe(() => {
+      this.render();
+    });
+    this.render();
   }
 
   public unmount(): void {
+    if (!this.mounted) return;
+    this.mounted = false;
     this.contextModeMenuButton.unmount();
     window.removeEventListener(
       WORKSPACE_VIEW_CHANGED_EVENT,
@@ -472,6 +475,7 @@ export class AiAssistantPanel {
       window.clearTimeout(this.copyFeedbackTimer);
       this.copyFeedbackTimer = null;
     }
+    this.contextModeMenuButton.close();
     this.container.remove();
   }
 
@@ -484,7 +488,7 @@ export class AiAssistantPanel {
 
   public setIslandMode(enabled: boolean): void {
     if (!enabled) {
-      this.container.style.top = `${GLOBAL_APP_HEADER_HEIGHT_PX}px`;
+      this.container.style.top = '0';
       this.container.style.right = '0';
       this.container.style.bottom = '0';
       this.container.style.border = 'none';
@@ -2611,7 +2615,7 @@ export class AiAssistantPanel {
   }
 
   private applyIslandContainerStyles(): void {
-    this.container.style.top = `${CHAT_ISLAND_MARGIN_PX + GLOBAL_APP_HEADER_HEIGHT_PX}px`;
+    this.container.style.top = `${CHAT_ISLAND_MARGIN_PX}px`;
     this.container.style.right = `${CHAT_ISLAND_MARGIN_PX}px`;
     this.container.style.bottom = `${CHAT_ISLAND_MARGIN_PX}px`;
     this.container.style.borderLeft = CHAT_PANEL_BORDER;

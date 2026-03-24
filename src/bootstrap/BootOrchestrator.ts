@@ -46,7 +46,6 @@ export class BootOrchestrator {
   }
 
   public start(): void {
-    this.globalHeader.mount(document.body);
     this.bindAuthFlow();
     this.runtimeHost.hideCanvas();
     this.dispatch('app_start');
@@ -79,6 +78,7 @@ export class BootOrchestrator {
 
   private render(): void {
     if (this.state === 'auth_required') {
+      this.globalHeader.unmount();
       this.runtimeHost.hideCanvas();
       this.loadingScreen.hide();
       this.loginPage.show();
@@ -87,6 +87,7 @@ export class BootOrchestrator {
     }
 
     if (this.state === 'booting') {
+      this.globalHeader.unmount();
       this.runtimeHost.hideCanvas();
       this.loginPage.hide();
       this.loadingScreen.showLoading('Fetching your data...');
@@ -94,6 +95,7 @@ export class BootOrchestrator {
     }
 
     if (this.state === 'boot_error') {
+      this.globalHeader.unmount();
       this.runtimeHost.hideCanvas();
       this.loginPage.hide();
       this.loadingScreen.showError(
@@ -107,6 +109,7 @@ export class BootOrchestrator {
 
     this.loginPage.hide();
     this.loadingScreen.hide();
+    this.globalHeader.mount(document.body);
     this.runtimeHost.showCanvas();
   }
 

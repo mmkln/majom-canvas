@@ -1,5 +1,5 @@
 import { LoginCredentials } from '../../../../majom-wrapper/interfaces/auth-interfaces.ts';
-import { GLOBAL_APP_HEADER_HEIGHT_PX } from '../../../../bootstrap/GlobalAppHeader.ts';
+import { GLOBAL_APP_SIDEBAR_OFFSET_CSS_VALUE } from '../../../../bootstrap/GlobalAppHeader.ts';
 import {
   normalizeLoginCredentials,
   validateLoginCredentialField,
@@ -37,7 +37,7 @@ export class LoginPage {
     const root = document.createElement('div');
     root.className =
       'fixed inset-0 z-[190] flex items-center justify-center overflow-y-auto bg-[radial-gradient(circle_at_16%_18%,rgba(14,165,233,0.03),transparent_41%),radial-gradient(circle_at_84%_82%,rgba(249,115,22,0.02),transparent_43%),linear-gradient(to_bottom,#ffffff,#f8fafc)] px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]';
-    root.style.top = `${GLOBAL_APP_HEADER_HEIGHT_PX}px`;
+    root.style.left = GLOBAL_APP_SIDEBAR_OFFSET_CSS_VALUE;
 
     const shell = document.createElement('section');
     shell.className =
@@ -315,9 +315,7 @@ export class LoginPage {
 
   private applyVerticalPlacement(): void {
     if (typeof window === 'undefined') return;
-    const viewportHeight =
-      (window.visualViewport?.height ?? window.innerHeight) -
-      GLOBAL_APP_HEADER_HEIGHT_PX;
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
     const shortViewport = viewportHeight < 720;
     this.root.classList.toggle('items-start', shortViewport);
     this.root.classList.toggle('items-center', !shortViewport);
