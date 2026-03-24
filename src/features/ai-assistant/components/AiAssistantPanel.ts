@@ -819,14 +819,15 @@ export class AiAssistantPanel {
         this.createEmptyStateCard(currentView, contextMode, context)
       );
     }
-    messages.forEach((message) => {
+    messages.forEach((message, index) => {
       this.messagesList.appendChild(
         this.createMessageBubble(
           message,
           context,
           contextEnabled,
           replying,
-          message.id === regeneratableMessageId
+          message.id === regeneratableMessageId,
+          index === messages.length - 1
         )
       );
     });
@@ -1129,7 +1130,8 @@ export class AiAssistantPanel {
     context: ReturnType<AiAssistantSessionController['getState']>['context'],
     contextEnabled: boolean,
     replying: boolean,
-    canRegenerate: boolean
+    canRegenerate: boolean,
+    isLastMessage: boolean
   ): HTMLDivElement {
     const isCommandMessage = message.kind === 'command';
     const isSystemMessage =
@@ -1143,6 +1145,9 @@ export class AiAssistantPanel {
     wrap.style.flexDirection = 'column';
     wrap.style.alignItems = isUserMessage ? 'flex-end' : 'flex-start';
     wrap.style.gap = '6px';
+    if (!isLastMessage) {
+      wrap.classList.add('group');
+    }
 
     const meta = document.createElement('div');
     meta.style.display = 'flex';
@@ -1280,6 +1285,18 @@ export class AiAssistantPanel {
       actions.style.justifyContent = 'flex-start';
       actions.style.gap = '6px';
       actions.style.padding = '0 4px';
+      if (!isLastMessage) {
+        actions.classList.add(
+          'opacity-0',
+          'pointer-events-none',
+          'transition-opacity',
+          'duration-150',
+          'group-hover:opacity-100',
+          'group-hover:pointer-events-auto',
+          'group-focus-within:opacity-100',
+          'group-focus-within:pointer-events-auto'
+        );
+      }
 
       if (canRegenerate) {
         const regenerateButton = this.createQuietIconButton({
