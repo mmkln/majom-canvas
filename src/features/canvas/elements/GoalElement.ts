@@ -285,6 +285,7 @@ export class GoalElement extends PlanningElement {
       x: this.x,
       y: this.y,
       title: this.title,
+      description: this.description,
       status: this.status,
       priority: this.priority,
       scale: this.scale,
