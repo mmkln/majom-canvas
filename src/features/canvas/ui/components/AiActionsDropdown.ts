@@ -34,7 +34,7 @@ export class AiActionsDropdown {
       tone: 'text',
       size: 'sm',
       className:
-        'inline-flex items-center justify-between gap-1.5 !rounded-sm !px-2.5 !text-[12px]',
+        'inline-flex items-center justify-between gap-1.5 !rounded-md !px-2.5 !text-[12px]',
     });
     this.triggerBtn.setAttribute('aria-haspopup', 'menu');
     this.triggerBtn.setAttribute('aria-expanded', 'false');
