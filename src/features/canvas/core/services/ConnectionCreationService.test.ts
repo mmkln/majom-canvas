@@ -65,15 +65,15 @@ describe('ConnectionCreationService', () => {
 
   it('creates batch links as a single undoable command', () => {
     const scene = new Scene();
-    const story = new StoryElement({ id: 'story-1' });
+    const goalRoot = new GoalElement({ id: 'goal-root' });
     const goalA = new GoalElement({ id: 'goal-a' });
     const goalB = new GoalElement({ id: 'goal-b' });
-    scene.addElement(story);
+    scene.addElement(goalRoot);
     scene.addElement(goalA);
     scene.addElement(goalB);
 
     const service = new ConnectionCreationService(scene);
-    const result = service.createManyToTarget([goalA, goalB], story, {
+    const result = service.createManyToTarget([goalA, goalB], goalRoot, {
       preventDuplicates: true,
     });
 
@@ -82,6 +82,40 @@ describe('ConnectionCreationService', () => {
 
     historyService.undo();
 
+    expect(scene.getConnections()).toHaveLength(0);
+  });
+
+  it('does not create batch links from one story to multiple goals', () => {
+    const scene = new Scene();
+    const story = new StoryElement({ id: 'story-1' });
+    const goalA = new GoalElement({ id: 'goal-a' });
+    const goalB = new GoalElement({ id: 'goal-b' });
+    scene.addElement(story);
+    scene.addElement(goalA);
+    scene.addElement(goalB);
+
+    const service = new ConnectionCreationService(scene);
+    const result = service.createFromSourceToManyTargets(
+      story,
+      [goalA, goalB],
+      {
+        preventDuplicates: true,
+      }
+    );
+
+    expect(result.createdPlans).toHaveLength(0);
+    expect(result.skipped).toEqual([
+      expect.objectContaining({
+        source: story,
+        target: goalA,
+        reason: 'invalid-pair',
+      }),
+      expect.objectContaining({
+        source: story,
+        target: goalB,
+        reason: 'invalid-pair',
+      }),
+    ]);
     expect(scene.getConnections()).toHaveLength(0);
   });
 

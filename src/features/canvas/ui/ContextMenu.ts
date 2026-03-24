@@ -480,7 +480,10 @@ export class ContextMenu {
       .filter((element) =>
         this.shouldExposeRequestedConnectionDirection(element, target)
       );
-    if (eligibleSources.length > 0) {
+    if (
+      eligibleSources.length > 0 &&
+      this.bulkActions.canConnectToTarget(eligibleSources, target)
+    ) {
       items.push({
         label: connectToTargetLabel,
         leading: this.createLeadingIcon('link'),
@@ -496,7 +499,10 @@ export class ContextMenu {
         .filter((element) =>
           this.shouldExposeRequestedConnectionDirection(element, target)
         );
-    if (redirectableSources.length > 0) {
+    if (
+      redirectableSources.length > 0 &&
+      this.bulkActions.canRedirectToTarget(redirectableSources, target)
+    ) {
       items.push({
         label: this.getRedirectConnectionLabel(redirectableSources.length),
         leading: this.createLeadingIcon('arrows-right-left'),
@@ -514,7 +520,10 @@ export class ContextMenu {
     if (this.shouldCollapseConnectTargetsAction(target, eligibleSources, eligibleTargets)) {
       eligibleTargets = [];
     }
-    if (eligibleTargets.length > 0) {
+    if (
+      eligibleTargets.length > 0 &&
+      this.bulkActions.canConnectFromSourceToTargets(target, eligibleTargets)
+    ) {
       items.push({
         label: this.getConnectFromTargetLabel(
           target,
@@ -534,7 +543,13 @@ export class ContextMenu {
         .filter((element) =>
           this.shouldExposeRequestedConnectionDirection(target, element)
         );
-    if (redirectableTargets.length > 0) {
+    if (
+      redirectableTargets.length > 0 &&
+      this.bulkActions.canRedirectFromSourceToTargets(
+        target,
+        redirectableTargets
+      )
+    ) {
       items.push({
         label: this.getRedirectConnectionLabel(redirectableTargets.length),
         leading: this.createLeadingIcon('arrows-right-left'),

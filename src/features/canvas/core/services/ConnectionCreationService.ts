@@ -103,8 +103,52 @@ export class ConnectionCreationService {
     return this.plan(from, to).ok;
   }
 
+  public canCreateManyToTarget(
+    sources: ReadonlyArray<IConnectable>,
+    target: IConnectable,
+    _options: ConnectionCreateOptions = {}
+  ): boolean {
+    void _options;
+    if (this.violatesSingleGoalPerStoryBatchRule(sources, [target])) {
+      return false;
+    }
+    return sources.some((source) => this.plan(source, target).ok);
+  }
+
+  public canCreateFromSourceToManyTargets(
+    source: IConnectable,
+    targets: ReadonlyArray<IConnectable>,
+    _options: ConnectionCreateOptions = {}
+  ): boolean {
+    void _options;
+    if (this.violatesSingleGoalPerStoryBatchRule([source], targets)) {
+      return false;
+    }
+    return targets.some((target) => this.plan(source, target).ok);
+  }
+
   public canRedirect(from: IConnectable, to: IConnectable): boolean {
     return this.planRedirect(from, to).ok;
+  }
+
+  public canRedirectManyToTarget(
+    sources: ReadonlyArray<IConnectable>,
+    target: IConnectable
+  ): boolean {
+    if (this.violatesSingleGoalPerStoryBatchRule(sources, [target])) {
+      return false;
+    }
+    return sources.some((source) => this.planRedirect(source, target).ok);
+  }
+
+  public canRedirectFromSourceToManyTargets(
+    source: IConnectable,
+    targets: ReadonlyArray<IConnectable>
+  ): boolean {
+    if (this.violatesSingleGoalPerStoryBatchRule([source], targets)) {
+      return false;
+    }
+    return targets.some((target) => this.planRedirect(source, target).ok);
   }
 
   public plan(
@@ -155,6 +199,16 @@ export class ConnectionCreationService {
     _options: ConnectionCreateOptions = {}
   ): ConnectionBatchCreateResult {
     void _options;
+    if (this.violatesSingleGoalPerStoryBatchRule(sources, [target])) {
+      return {
+        createdPlans: [],
+        skipped: sources.map((source) => ({
+          source,
+          target,
+          reason: 'invalid-pair' as const,
+        })),
+      };
+    }
     return this.createBatch(sources.map((source) => ({ source, target })));
   }
 
@@ -162,6 +216,16 @@ export class ConnectionCreationService {
     sources: ReadonlyArray<IConnectable>,
     target: IConnectable
   ): ConnectionBatchRedirectResult {
+    if (this.violatesSingleGoalPerStoryBatchRule(sources, [target])) {
+      return {
+        redirectedPlans: [],
+        skipped: sources.map((source) => ({
+          source,
+          target,
+          reason: 'invalid-pair' as const,
+        })),
+      };
+    }
     return this.redirectBatch(
       sources.map((source) => ({ source, target }))
     );
@@ -173,6 +237,16 @@ export class ConnectionCreationService {
     _options: ConnectionCreateOptions = {}
   ): ConnectionBatchCreateResult {
     void _options;
+    if (this.violatesSingleGoalPerStoryBatchRule([source], targets)) {
+      return {
+        createdPlans: [],
+        skipped: targets.map((target) => ({
+          source,
+          target,
+          reason: 'invalid-pair' as const,
+        })),
+      };
+    }
     return this.createBatch(targets.map((target) => ({ source, target })));
   }
 
@@ -180,6 +254,16 @@ export class ConnectionCreationService {
     source: IConnectable,
     targets: ReadonlyArray<IConnectable>
   ): ConnectionBatchRedirectResult {
+    if (this.violatesSingleGoalPerStoryBatchRule([source], targets)) {
+      return {
+        redirectedPlans: [],
+        skipped: targets.map((target) => ({
+          source,
+          target,
+          reason: 'invalid-pair' as const,
+        })),
+      };
+    }
     return this.redirectBatch(
       targets.map((target) => ({ source, target }))
     );
@@ -435,6 +519,29 @@ export class ConnectionCreationService {
       (a instanceof GoalElement && b instanceof StoryElement) ||
       (a instanceof StoryElement && b instanceof GoalElement)
     );
+  }
+
+  private violatesSingleGoalPerStoryBatchRule(
+    sources: ReadonlyArray<IConnectable>,
+    targets: ReadonlyArray<IConnectable>
+  ): boolean {
+    const stories = sources.filter(
+      (element): element is StoryElement => element instanceof StoryElement
+    );
+    const goals = targets.filter(
+      (element): element is GoalElement => element instanceof GoalElement
+    );
+    if (stories.length === 1 && goals.length > 1) {
+      return true;
+    }
+
+    const sourceGoals = sources.filter(
+      (element): element is GoalElement => element instanceof GoalElement
+    );
+    const targetStories = targets.filter(
+      (element): element is StoryElement => element instanceof StoryElement
+    );
+    return sourceGoals.length > 1 && targetStories.length === 1;
   }
 
   private isInvalidPair(from: IConnectable, to: IConnectable): boolean {

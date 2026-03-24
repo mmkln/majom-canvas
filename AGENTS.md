@@ -73,6 +73,7 @@
 - When the user wants the opposite direction for an existing directional connection, update or redirect the existing connection instead of creating another one.
 - For story-goal links, the user-facing connect direction is `story -> goal` only.
 - The stored `ParentChild` relation normalizes that pair as `goal -> story`; UI affordances must not expose that storage direction as a separate reverse action.
+- A story may link to only one goal at a time; batch affordances must not offer one story -> many goals actions.
 
 ### Canvas Menu Boundaries
 

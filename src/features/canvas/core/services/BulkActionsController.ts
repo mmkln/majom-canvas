@@ -216,4 +216,46 @@ export class BulkActionsController {
     }
     notify('No links found for the current selection.', 'info');
   }
+
+  public canConnectToTarget(
+    elements: PlanningElement[],
+    target: PlanningElement
+  ): boolean {
+    return this.connectionCreationService.canCreateManyToTarget(
+      elements,
+      target,
+      { preventDuplicates: true }
+    );
+  }
+
+  public canConnectFromSourceToTargets(
+    source: PlanningElement,
+    elements: PlanningElement[]
+  ): boolean {
+    return this.connectionCreationService.canCreateFromSourceToManyTargets(
+      source,
+      elements,
+      { preventDuplicates: true }
+    );
+  }
+
+  public canRedirectToTarget(
+    elements: PlanningElement[],
+    target: PlanningElement
+  ): boolean {
+    return this.connectionCreationService.canRedirectManyToTarget(
+      elements,
+      target
+    );
+  }
+
+  public canRedirectFromSourceToTargets(
+    source: PlanningElement,
+    elements: PlanningElement[]
+  ): boolean {
+    return this.connectionCreationService.canRedirectFromSourceToManyTargets(
+      source,
+      elements
+    );
+  }
 }
