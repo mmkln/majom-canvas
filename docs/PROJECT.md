@@ -1,6 +1,18 @@
 # Majom Canvas
 
-Majom Canvas is an interactive TypeScript application for visualizing and managing tasks, user stories, and personal goals on a drag-and-drop canvas. It unifies API interactions with automatic JWT authentication, global error handling, and layout caching.
+Majom Canvas is a personal development application built around two connected pillars:
+
+- planning and time management across strategic, tactical, and operational levels
+- learning and course progression integrated into the same work system
+
+The product direction is intentionally unified for now.
+Planning and learning are treated as two parts of the same personal-development workflow, even if they may become separate products in the future.
+
+At the application level, this means learning should not live in an isolated silo.
+Lessons, exercises, and other learning units should be able to appear as actionable work items alongside the rest of a user's tasks.
+
+Technically, the app is currently an interactive TypeScript workspace for visualizing and managing tasks, user stories, goals, and related workflows on a drag-and-drop canvas.
+It also unifies API interactions with automatic JWT authentication, global error handling, and layout caching.
 
 ## Key Features
 
@@ -11,6 +23,25 @@ Majom Canvas is an interactive TypeScript application for visualizing and managi
 - **Element Palette**: Searchable menu for Tasks, Stories, and Goals. Drag items onto the canvas to instantiate new elements at the drop location.
 - **Unsaved Changes Indicator**: A Save button appears in the top-right when layout changes are unsaved; clicking it persists the canvas layout to the backend.
 - **Clean Architecture**: Separation of data access, mapping, business logic, and UI rendering layers.
+
+## Product Direction
+
+### 1. Planning And Time Management
+
+- Track personal work in one place across strategic, tactical, and operational levels.
+- Connect long-term goals to execution-level tasks.
+- Give users a shared workspace for planning, prioritization, and execution.
+
+### 2. Learning As Part Of Execution
+
+- Support courses, lessons, and guided learning flows.
+- Integrate learning progress into the same work system as normal tasks.
+- Treat a lesson or exercise as something that can become a concrete item to complete, not only static content to read.
+
+### 3. Personal Development
+
+- The current product thesis is that planning and learning belong together because both serve personal development.
+- This shared thesis is more important than forcing the app into a single traditional category such as planner, LMS, or canvas tool.
 
 ## Architecture & Tech Stack
 
