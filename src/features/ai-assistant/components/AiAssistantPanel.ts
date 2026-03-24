@@ -78,14 +78,14 @@ type AiAssistantPanelOptions = {
   executeAction?: AiAssistantActionExecutionHandler;
 };
 
-const CHAT_ISLAND_MARGIN_PX = 4;
+const CHAT_ISLAND_MARGIN_PX = 0;
 const CHAT_AUTO_SCROLL_THRESHOLD_PX = 40;
-const CHAT_PANEL_BORDER = '1px solid rgba(203, 213, 225, 0.76)';
+const CHAT_PANEL_BORDER = '1px solid rgba(234, 238, 245, 1)';
 const CHAT_PANEL_SECTION_BORDER = '1px solid rgba(226, 232, 240, 0.72)';
 const CHAT_PANEL_SURFACE_BORDER = '1px solid rgba(226, 232, 240, 0.82)';
 const CHAT_PANEL_BACKGROUND = '#ffffff';
 const CHAT_PANEL_SUBTLE_BACKGROUND = 'rgba(248, 250, 252, 0.92)';
-const CHAT_PANEL_RADIUS_PX = 16;
+const CHAT_PANEL_RADIUS_PX = 0;
 
 export class AiAssistantPanel {
   private readonly container: HTMLElement;
@@ -774,7 +774,9 @@ export class AiAssistantPanel {
       messages.length > 1 ||
       messages.some((message) => message.role === 'user');
     const showQuickActions = !hasStartedConversation && actions.length > 0;
-    this.quickActionsSection.style.display = showQuickActions ? 'block' : 'none';
+    this.quickActionsSection.style.display = showQuickActions
+      ? 'block'
+      : 'none';
     this.header.style.borderBottom = showQuickActions
       ? 'none'
       : CHAT_PANEL_SECTION_BORDER;
@@ -1201,13 +1203,7 @@ export class AiAssistantPanel {
       bubble.style.background = isUserMessage
         ? 'rgba(241, 245, 249, 0.96)'
         : 'rgba(248, 250, 252, 0.82)';
-      bubble.style.border = isUserMessage
-        ? '1px solid rgba(203, 213, 225, 0.82)'
-        : isCommandMessage
-          ? 'none'
-          : isSystemMessage
-            ? 'none'
-            : 'none';
+      bubble.style.border = 'none';
       const messageContent = this.createMessageContent(message);
       if (roleIconName) {
         const contentRow = document.createElement('div');
@@ -1822,7 +1818,9 @@ export class AiAssistantPanel {
     header.appendChild(label);
 
     if (groupModel.header.summary) {
-      header.appendChild(this.createActionSummaryParagraph(groupModel.header.summary));
+      header.appendChild(
+        this.createActionSummaryParagraph(groupModel.header.summary)
+      );
     }
 
     const rows = document.createElement('div');
@@ -2020,7 +2018,8 @@ export class AiAssistantPanel {
     const footer = document.createElement('div');
     footer.style.display = 'flex';
     footer.style.justifyContent = 'flex-end';
-    footer.style.paddingTop = AI_ASSISTANT_ACTION_TOKENS.layout.footerPaddingTop;
+    footer.style.paddingTop =
+      AI_ASSISTANT_ACTION_TOKENS.layout.footerPaddingTop;
     footer.appendChild(button);
     return setAiActionComponentName(footer, 'footer');
   }
@@ -2034,10 +2033,12 @@ export class AiAssistantPanel {
     pill.style.display = 'inline-flex';
     pill.style.alignItems = 'center';
     pill.style.justifyContent = 'center';
-    pill.style.minHeight = AI_ASSISTANT_ACTION_TOKENS.layout.statusPillMinHeight;
+    pill.style.minHeight =
+      AI_ASSISTANT_ACTION_TOKENS.layout.statusPillMinHeight;
     pill.style.padding = AI_ASSISTANT_ACTION_TOKENS.layout.statusPillPadding;
     pill.style.borderRadius = '999px';
-    pill.style.fontSize = AI_ASSISTANT_ACTION_TOKENS.typography.statusPill.fontSize;
+    pill.style.fontSize =
+      AI_ASSISTANT_ACTION_TOKENS.typography.statusPill.fontSize;
     pill.style.fontWeight =
       AI_ASSISTANT_ACTION_TOKENS.typography.statusPill.fontWeight;
     pill.style.letterSpacing =
@@ -2093,7 +2094,10 @@ export class AiAssistantPanel {
 
   private createActionMetaParagraph(text: string): HTMLParagraphElement {
     return setAiActionComponentName(
-      createActionTextParagraphElement(text, AI_ASSISTANT_ACTION_TOKENS.typography.meta),
+      createActionTextParagraphElement(
+        text,
+        AI_ASSISTANT_ACTION_TOKENS.typography.meta
+      ),
       'meta-paragraph'
     );
   }
@@ -2125,7 +2129,8 @@ export class AiAssistantPanel {
     const section = document.createElement('div');
     section.style.display = 'flex';
     section.style.flexDirection = 'column';
-    section.style.gap = AI_ASSISTANT_ACTION_TOKENS.layout.secondaryTextSectionGap;
+    section.style.gap =
+      AI_ASSISTANT_ACTION_TOKENS.layout.secondaryTextSectionGap;
     section.style.paddingLeft =
       AI_ASSISTANT_ACTION_TOKENS.layout.secondaryTextPaddingLeft;
     section.append(
@@ -2191,7 +2196,9 @@ export class AiAssistantPanel {
     return setAiActionComponentName(list, 'sequence-list');
   }
 
-  private createBlueprintPlanSummary(cardModel: AiAssistantBlueprintCardModel): HTMLParagraphElement {
+  private createBlueprintPlanSummary(
+    cardModel: AiAssistantBlueprintCardModel
+  ): HTMLParagraphElement {
     const parts = [
       `${cardModel.goals.length} ${cardModel.goals.length === 1 ? 'goal' : 'goals'}`,
       cardModel.sequence.length > 0
@@ -2399,7 +2406,9 @@ export class AiAssistantPanel {
       container.appendChild(this.createUpdateWhySection(cardModel.rationale));
     }
     if (cardModel.provenance) {
-      container.appendChild(this.createActionProvenanceText(cardModel.provenance));
+      container.appendChild(
+        this.createActionProvenanceText(cardModel.provenance)
+      );
     }
     if (cardModel.error) {
       container.appendChild(
@@ -2444,7 +2453,8 @@ export class AiAssistantPanel {
       } else {
         row.style.display = 'grid';
         row.style.gridTemplateColumns = `${AI_ASSISTANT_ACTION_TOKENS.layout.keyValueLabelWidthPx}px minmax(0,1fr)`;
-        row.style.columnGap = AI_ASSISTANT_ACTION_TOKENS.layout.keyValueColumnGap;
+        row.style.columnGap =
+          AI_ASSISTANT_ACTION_TOKENS.layout.keyValueColumnGap;
         row.style.alignItems = 'start';
         row.append(label, value);
       }
@@ -2574,7 +2584,10 @@ export class AiAssistantPanel {
 
   private appendActionTail(
     container: HTMLElement,
-    cardModel: Pick<AiAssistantActionCardModel, 'rationale' | 'provenance' | 'error'>
+    cardModel: Pick<
+      AiAssistantActionCardModel,
+      'rationale' | 'provenance' | 'error'
+    >
   ): void {
     if (cardModel.rationale) {
       container.appendChild(
@@ -2582,7 +2595,9 @@ export class AiAssistantPanel {
       );
     }
     if (cardModel.provenance) {
-      container.appendChild(this.createActionProvenanceText(cardModel.provenance));
+      container.appendChild(
+        this.createActionProvenanceText(cardModel.provenance)
+      );
     }
     if (cardModel.error) {
       container.appendChild(
@@ -2599,8 +2614,7 @@ export class AiAssistantPanel {
     this.container.style.top = `${CHAT_ISLAND_MARGIN_PX + GLOBAL_APP_HEADER_HEIGHT_PX}px`;
     this.container.style.right = `${CHAT_ISLAND_MARGIN_PX}px`;
     this.container.style.bottom = `${CHAT_ISLAND_MARGIN_PX}px`;
-    this.container.style.border = CHAT_PANEL_BORDER;
-    this.container.style.borderLeft = '';
+    this.container.style.borderLeft = CHAT_PANEL_BORDER;
     this.container.style.borderRadius = `${CHAT_PANEL_RADIUS_PX}px`;
     this.container.style.background = CHAT_PANEL_BACKGROUND;
     this.container.style.backdropFilter = 'none';

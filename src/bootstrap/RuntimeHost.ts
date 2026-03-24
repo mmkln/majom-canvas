@@ -38,9 +38,9 @@ import { createAiAssistantRuntime } from '../features/ai-assistant/services/AiAs
 import { AiAssistantSessionController } from '../features/ai-assistant/services/AiAssistantSessionController.ts';
 import { buildAiAssistantCapabilityContext } from '../features/ai-assistant/services/AiAssistantCapabilities.ts';
 
-const CHAT_ISLAND_GAP_PX = 4;
-const CHAT_ISLAND_MARGIN_PX = 4;
-const CHAT_ISLAND_RADIUS_PX = 22;
+const APP_ISLAND_GAP_PX = 0;
+const APP_ISLAND_MARGIN_PX = 0;
+const APP_ISLAND_RADIUS_PX = 0;
 
 type KanbanModuleNamespace = {
   KanbanModule: new () => WorkspaceModule;
@@ -53,7 +53,6 @@ export class RuntimeHost {
   private shell: WorkspaceShell | null = null;
   private canvasModule: CanvasModule | null = null;
   private kanbanModule: WorkspaceModule | null = null;
-  private readonly workspaceBackdrop: HTMLDivElement;
   private readonly workspaceRoot: HTMLDivElement;
   private readonly wallpaperService: WallpaperService;
   private readonly wallpaperSubscription: Subscription;
@@ -75,16 +74,6 @@ export class RuntimeHost {
 
   constructor(wallpaperService: WallpaperService) {
     this.wallpaperService = wallpaperService;
-    this.workspaceBackdrop = document.createElement('div');
-    this.workspaceBackdrop.id = 'workspace-backdrop';
-    this.workspaceBackdrop.style.position = 'fixed';
-    this.workspaceBackdrop.style.inset = '0';
-    this.workspaceBackdrop.style.zIndex = '34';
-    this.workspaceBackdrop.style.display = 'none';
-    this.workspaceBackdrop.style.pointerEvents = 'none';
-    this.workspaceBackdrop.style.background = '#DDE5EE';
-    document.body.appendChild(this.workspaceBackdrop);
-
     this.workspaceRoot = document.createElement('div');
     this.workspaceRoot.id = 'workspace-modules-root';
     this.workspaceRoot.style.position = 'fixed';
@@ -127,9 +116,8 @@ export class RuntimeHost {
       (request: AiAssistantActionExecutionRequest) =>
         this.executeChatAction(request),
       {
-        executeBatch: (
-          requests: AiAssistantActionExecutionRequest[]
-        ) => this.executeChatActions(requests),
+        executeBatch: (requests: AiAssistantActionExecutionRequest[]) =>
+          this.executeChatActions(requests),
       }
     );
     this.chatPanel = new AiAssistantPanel({
@@ -263,7 +251,6 @@ export class RuntimeHost {
     this.canvasModule = null;
     this.kanbanModule = null;
     this.workspaceRoot.remove();
-    this.workspaceBackdrop.remove();
     this.chatPanel.unmount();
     this.chatController.dispose();
   }
@@ -333,7 +320,6 @@ export class RuntimeHost {
     const canvas = document.getElementById('myCanvas');
     const chatWidth = this.chatOpen ? this.chatPanel.getWidthPx() : 0;
     if (!this.hostVisible) {
-      this.workspaceBackdrop.style.display = 'none';
       this.workspaceRoot.style.display = 'none';
       this.workspaceRoot.style.pointerEvents = 'none';
       this.workspaceRoot.style.left = '0';
@@ -366,7 +352,6 @@ export class RuntimeHost {
     }
 
     const showCanvas = this.activeView === 'canvas';
-    this.workspaceBackdrop.style.display = this.chatOpen ? 'block' : 'none';
     this.workspaceRoot.style.display = 'block';
     this.workspaceRoot.style.pointerEvents = 'auto';
     this.applyWorkspaceLayout(canvasUiRoot, this.chatOpen, chatWidth);
@@ -449,35 +434,35 @@ export class RuntimeHost {
     }
 
     const workspaceRightInset =
-      CHAT_ISLAND_MARGIN_PX + chatWidth + CHAT_ISLAND_GAP_PX;
+      APP_ISLAND_MARGIN_PX + chatWidth + APP_ISLAND_GAP_PX;
     const workspaceWidth = Math.max(
       320,
-      window.innerWidth - workspaceRightInset - CHAT_ISLAND_MARGIN_PX
+      window.innerWidth - workspaceRightInset - APP_ISLAND_MARGIN_PX
     );
     const workspaceHeight = Math.max(
       240,
       window.innerHeight -
-        CHAT_ISLAND_MARGIN_PX * 2 -
+        APP_ISLAND_MARGIN_PX * 2 -
         GLOBAL_APP_HEADER_HEIGHT_PX
     );
 
-    this.workspaceRoot.style.left = `${CHAT_ISLAND_MARGIN_PX}px`;
-    this.workspaceRoot.style.top = `${CHAT_ISLAND_MARGIN_PX + GLOBAL_APP_HEADER_HEIGHT_PX}px`;
+    this.workspaceRoot.style.left = `${APP_ISLAND_MARGIN_PX}px`;
+    this.workspaceRoot.style.top = `${APP_ISLAND_MARGIN_PX + GLOBAL_APP_HEADER_HEIGHT_PX}px`;
     this.workspaceRoot.style.right = `${workspaceRightInset}px`;
-    this.workspaceRoot.style.bottom = `${CHAT_ISLAND_MARGIN_PX}px`;
+    this.workspaceRoot.style.bottom = `${APP_ISLAND_MARGIN_PX}px`;
     this.workspaceRoot.style.width = 'auto';
     this.workspaceRoot.style.height = 'auto';
-    this.workspaceRoot.style.borderRadius = `${CHAT_ISLAND_RADIUS_PX}px`;
+    this.workspaceRoot.style.borderRadius = `${APP_ISLAND_RADIUS_PX}px`;
     this.workspaceRoot.style.overflow = 'hidden';
     this.workspaceRoot.style.border = '1px solid rgba(255, 255, 255, 0.6)';
     this.workspaceRoot.style.boxShadow = 'none';
 
     if (canvasUiRoot) {
-      canvasUiRoot.style.left = `${CHAT_ISLAND_MARGIN_PX}px`;
-      canvasUiRoot.style.top = `${CHAT_ISLAND_MARGIN_PX + GLOBAL_APP_HEADER_HEIGHT_PX}px`;
+      canvasUiRoot.style.left = `${APP_ISLAND_MARGIN_PX}px`;
+      canvasUiRoot.style.top = `${APP_ISLAND_MARGIN_PX + GLOBAL_APP_HEADER_HEIGHT_PX}px`;
       canvasUiRoot.style.width = `${workspaceWidth}px`;
       canvasUiRoot.style.height = `${workspaceHeight}px`;
-      canvasUiRoot.style.borderRadius = `${CHAT_ISLAND_RADIUS_PX}px`;
+      canvasUiRoot.style.borderRadius = `${APP_ISLAND_RADIUS_PX}px`;
     }
   }
 
