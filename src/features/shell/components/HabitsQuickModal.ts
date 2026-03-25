@@ -4,6 +4,7 @@ import {
   AnchoredMenu,
   createDropdownItem,
   createIconButton,
+  createInputBase,
   createSurface,
   createTextButton,
 } from '../../../ui-lib/src/hud/index.ts';
@@ -21,12 +22,6 @@ const DAY_WINDOW_SIZE = 10;
 // Keep streak visuals aligned with Checkbox checked indicator (indigo-600, 20px).
 const STREAK_LINE_COLOR = '#EEF2FF';
 const STREAK_LINE_THICKNESS = 14;
-const UNCHECKED_INDICATOR_BORDER_COLOR = '#b7c4d6';
-const UNCHECKED_INDICATOR_HOVER_BORDER_COLOR = '#95a9c3';
-const UNCHECKED_PENDING_INDICATOR_BORDER_COLOR = '#c7cfda';
-const UNCHECKED_DISABLED_INDICATOR_BORDER_COLOR = '#cfd8e3';
-const UNCHECKED_DISABLED_INDICATOR_BACKGROUND_COLOR = '#f8fafc';
-const UNCHECKED_PENDING_INDICATOR_BACKGROUND_COLOR = '#f1f5f9';
 
 type HabitDay = {
   date: Date;
@@ -595,32 +590,43 @@ export class HabitsQuickModal {
     content.appendChild(this.renderQuickAddToolbar());
 
     const tableWrap = document.createElement('div');
-    tableWrap.className = 'overflow-x-auto rounded-lg border border-slate-100';
+    tableWrap.className =
+      'w-full overflow-x-auto rounded-xl border border-slate-200/80 bg-white';
     tableWrap.style.position = 'relative';
 
     const table = document.createElement('table');
-    table.className = 'min-w-[860px] w-full border-collapse';
+    table.className = 'min-w-[860px] w-full border-separate border-spacing-0';
     table.style.position = 'relative';
     table.style.zIndex = '1';
 
     const thead = document.createElement('thead');
     const headRow = document.createElement('tr');
+    const headerCellBaseClass =
+      'h-11 border-b border-slate-200/80 px-3 py-1.5 align-middle text-[12px] font-semibold leading-[1.35] text-slate-600';
+    const stickyLeftHeaderClass = 'sticky left-0 z-20 bg-slate-50 text-left';
+    const stickyLeftCellClass = 'sticky left-0 z-10 bg-white';
+    const stickyRightHeaderClass =
+      'sticky right-0 z-20 bg-slate-50 text-center';
+    const stickyRightCellClass =
+      'sticky right-0 z-10 bg-white';
     const titleHead = document.createElement('th');
     titleHead.className =
-      'sticky left-0 z-10 border-b border-slate-100 bg-slate-50 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500';
+      `${headerCellBaseClass} ${stickyLeftHeaderClass}`;
+    titleHead.setAttribute('scope', 'col');
     titleHead.textContent = 'Routine';
     headRow.appendChild(titleHead);
 
     const todayKey = toLocalDateKey(new Date());
     this.days.forEach((day) => {
       const th = document.createElement('th');
+      th.setAttribute('scope', 'col');
       th.className =
-        'border-b border-slate-100 px-2 py-2 text-center text-xs font-semibold text-slate-500';
-      th.style.background = day.key === todayKey ? '#eef2ff' : '#f8fafc';
+        `${headerCellBaseClass} text-center ${day.key === todayKey ? 'bg-indigo-50' : 'bg-slate-50'}`;
       const dayLabel = document.createElement('div');
+      dayLabel.className = 'text-[12px] font-semibold text-slate-600';
       dayLabel.textContent = day.dayLabel;
       const shortLabel = document.createElement('div');
-      shortLabel.className = 'text-[11px] font-normal text-slate-500';
+      shortLabel.className = 'text-[12px] font-normal text-slate-500';
       shortLabel.textContent = day.shortLabel;
       th.append(dayLabel, shortLabel);
       headRow.appendChild(th);
@@ -628,9 +634,13 @@ export class HabitsQuickModal {
 
     const actionsHead = document.createElement('th');
     actionsHead.className =
-      'border-b border-slate-100 bg-slate-50 px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-500';
-    actionsHead.textContent = '';
+      `${headerCellBaseClass} ${stickyRightHeaderClass} w-14`;
+    actionsHead.setAttribute('scope', 'col');
     actionsHead.setAttribute('aria-label', 'Actions');
+    const actionsLabel = document.createElement('span');
+    actionsLabel.className = 'sr-only';
+    actionsLabel.textContent = 'Actions';
+    actionsHead.appendChild(actionsLabel);
     headRow.appendChild(actionsHead);
 
     thead.appendChild(headRow);
@@ -638,6 +648,10 @@ export class HabitsQuickModal {
 
     const tbody = document.createElement('tbody');
     const streakRows: StreakRowOverlayMeta[] = [];
+    const rowCellStateClass =
+      'transition-colors group-hover:bg-slate-50/70 group-focus-within:bg-slate-50/90';
+    const stickyRowCellStateClass =
+      'transition-colors group-hover:bg-slate-50 group-focus-within:bg-slate-50';
     this.rows.forEach((row) => {
       const habitPending = this.isHabitPending(row.habit.id);
       const rowCheckedStates = this.days.map(
@@ -646,23 +660,24 @@ export class HabitsQuickModal {
       const dayAnchors: Array<{ xAnchor: HTMLElement; yAnchor: HTMLElement }> =
         [];
       const tr = document.createElement('tr');
-      tr.className = 'border-b border-slate-100 last:border-b-0';
+      tr.className = 'group h-11 border-b border-slate-200/80 last:border-b-0';
 
       const title = document.createElement('td');
       title.className =
-        'sticky left-0 z-0 bg-white px-3 py-2 text-sm text-slate-700';
+        `${stickyLeftCellClass} px-3 align-middle text-sm text-slate-900 ${stickyRowCellStateClass}`;
 
-      const titleInput = document.createElement('input');
-      titleInput.type = 'text';
-      titleInput.value = row.habit.title;
-      titleInput.disabled = this.loading || this.createPending || habitPending;
-      titleInput.className =
-        'w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-sm font-medium text-slate-700 outline-none transition-colors focus:border-indigo-200 focus:bg-indigo-50/40 disabled:text-slate-500';
-      titleInput.addEventListener('keydown', (event: KeyboardEvent) => {
-        if (event.key !== 'Enter') return;
-        event.preventDefault();
-        titleInput.blur();
+      const titleInput = createInputBase({
+        value: row.habit.title,
+        disabled: this.loading || this.createPending || habitPending,
+        className:
+          'h-[34px] min-w-0 border-transparent bg-transparent px-2 text-base font-medium leading-5 text-slate-900 shadow-none hover:border-slate-300 focus-visible:bg-white md:text-sm disabled:border-transparent disabled:bg-transparent disabled:text-slate-500',
+        onKeyDown: (event: KeyboardEvent) => {
+          if (event.key !== 'Enter') return;
+          event.preventDefault();
+          titleInput.blur();
+        },
       });
+      titleInput.title = row.habit.title;
       titleInput.addEventListener('blur', () => {
         void this.renameHabit(row, titleInput.value);
       });
@@ -671,7 +686,7 @@ export class HabitsQuickModal {
 
       this.days.forEach((day, index) => {
         const td = document.createElement('td');
-        td.className = 'px-2 py-2 text-center';
+        td.className = `h-11 px-3 text-center align-middle ${rowCellStateClass}`;
         const cellKey = this.toCellKey(row.habit.id, day.key);
         const pending = this.pendingCellKeys.has(cellKey);
         const checked = rowCheckedStates[index];
@@ -699,27 +714,6 @@ export class HabitsQuickModal {
         checkboxEl.style.alignItems = 'center';
         checkboxEl.style.justifyContent = 'center';
         const indicatorEl = checkboxEl.querySelector('div');
-        if (indicatorEl instanceof HTMLElement && !checked) {
-          if (checkboxDisabled) {
-            indicatorEl.style.borderColor = pending
-              ? UNCHECKED_PENDING_INDICATOR_BORDER_COLOR
-              : UNCHECKED_DISABLED_INDICATOR_BORDER_COLOR;
-            indicatorEl.style.backgroundColor = pending
-              ? UNCHECKED_PENDING_INDICATOR_BACKGROUND_COLOR
-              : UNCHECKED_DISABLED_INDICATOR_BACKGROUND_COLOR;
-          } else {
-            const baseBorderColor = UNCHECKED_INDICATOR_BORDER_COLOR;
-            indicatorEl.style.borderColor = baseBorderColor;
-            indicatorEl.style.backgroundColor = 'transparent';
-            checkboxEl.addEventListener('mouseenter', () => {
-              indicatorEl.style.borderColor =
-                UNCHECKED_INDICATOR_HOVER_BORDER_COLOR;
-            });
-            checkboxEl.addEventListener('mouseleave', () => {
-              indicatorEl.style.borderColor = baseBorderColor;
-            });
-          }
-        }
         streakCell.appendChild(checkboxEl);
 
         dayAnchors.push({
@@ -733,7 +727,8 @@ export class HabitsQuickModal {
       });
 
       const actions = document.createElement('td');
-      actions.className = 'px-3 py-2 align-top';
+      actions.className =
+        `${stickyRightCellClass} w-14 px-3 text-center align-middle ${stickyRowCellStateClass}`;
       const actionsRow = document.createElement('div');
       actionsRow.className = 'relative inline-flex';
 

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   Status,
@@ -114,8 +115,15 @@ describe('HabitsQuickModal routines management', () => {
     originalWindow = (globalThis as any).window;
     originalCustomEvent = (globalThis as any).CustomEvent;
     (globalThis as any).window = {
+      addEventListener: vi.fn(),
+      cancelAnimationFrame: vi.fn(),
       dispatchEvent: vi.fn(),
       confirm: vi.fn(() => true),
+      removeEventListener: vi.fn(),
+      requestAnimationFrame: vi.fn((callback: FrameRequestCallback) => {
+        callback(0);
+        return 1;
+      }),
     };
     if (typeof (globalThis as any).CustomEvent === 'undefined') {
       (globalThis as any).CustomEvent = class TestCustomEvent {
@@ -283,6 +291,87 @@ describe('HabitsQuickModal routines management', () => {
     modal.loading = false;
     modal.createPending = true;
     expect(modal.isCreateSubmitDisabled()).toBe(true);
+  });
+
+  it('renders the routines table with the documented table contract', () => {
+    const habit = makeHabit();
+    const { service } = createService([habit], async () => habit);
+    const modal = new HabitsQuickModal(service) as any;
+    modal.body = document.createElement('div');
+    modal.rows = [modal.mapHabitToRow(habit)];
+    modal.loading = false;
+
+    modal.renderBody();
+
+    const table = modal.body.querySelector('table') as HTMLTableElement | null;
+    expect(table).not.toBeNull();
+    expect(table?.className).toContain('border-separate');
+    expect(table?.className).toContain('border-spacing-0');
+
+    const tableWrap = table?.parentElement as HTMLDivElement | null;
+    expect(tableWrap).not.toBeNull();
+    expect(tableWrap.className).toContain('w-full');
+    expect(tableWrap.className).toContain('rounded-xl');
+    expect(tableWrap.className).toContain('border-slate-200/80');
+
+    const headers = Array.from(
+      modal.body.querySelectorAll('thead th')
+    ) as HTMLTableCellElement[];
+    expect(headers).toHaveLength(12);
+    expect(headers[0].getAttribute('scope')).toBe('col');
+    expect(headers[0].className).toContain('h-11');
+    expect(headers[0].className).toContain('z-20');
+    expect(headers[1].className).toContain('px-3');
+    expect(headers[1].className).toContain('text-[12px]');
+    expect(headers[1].className).toContain('bg-indigo-50');
+    expect(headers[1].style.background).toBe('');
+    expect(headers[11].className).toContain('sticky');
+    expect(headers[11].className).toContain('right-0');
+    expect(headers[11].className).toContain('z-20');
+    expect(headers[11].className).not.toContain('border-l');
+
+    const shortLabel = headers[1].children[1] as HTMLElement;
+    expect(shortLabel.className).toContain('text-[12px]');
+
+    const row = modal.body.querySelector('tbody tr') as HTMLTableRowElement | null;
+    expect(row).not.toBeNull();
+    expect(row?.className).toContain('group');
+
+    const titleCell = row?.querySelector('td') as HTMLTableCellElement | null;
+    expect(titleCell).not.toBeNull();
+    expect(titleCell?.className).toContain('z-10');
+    expect(titleCell?.className).toContain('group-hover:bg-slate-50');
+    expect(titleCell?.className).toContain('group-focus-within:bg-slate-50');
+    expect(titleCell?.className).not.toContain('group-hover:bg-slate-50/70');
+
+    const bodyCells = Array.from(row?.querySelectorAll('td') ?? []) as
+      HTMLTableCellElement[];
+    expect(bodyCells).toHaveLength(12);
+    expect(bodyCells[11].className).toContain('sticky');
+    expect(bodyCells[11].className).toContain('right-0');
+    expect(bodyCells[11].className).toContain('z-10');
+    expect(bodyCells[11].className).toContain('group-hover:bg-slate-50');
+    expect(bodyCells[11].className).toContain('group-focus-within:bg-slate-50');
+    expect(bodyCells[11].className).not.toContain('border-l');
+
+    const titleInput = row?.querySelector('input[type="text"]') as
+      | HTMLInputElement
+      | null;
+    expect(titleInput).not.toBeNull();
+    expect(titleInput?.getAttribute('data-component')).toBe('HudInputBase');
+    expect(titleInput?.className).toContain('text-base');
+    expect(titleInput?.className).toContain('md:text-sm');
+    expect(titleInput?.className).toContain('focus-visible:ring-2');
+
+    const checkboxRoot = row?.querySelector(
+      '[data-component="Checkbox"]'
+    ) as HTMLLabelElement | null;
+    expect(checkboxRoot).not.toBeNull();
+    const indicator = checkboxRoot?.querySelector('div') as HTMLDivElement | null;
+    expect(indicator).not.toBeNull();
+    expect(indicator?.className).toContain('hover:border-slate-400');
+    expect(indicator?.style.borderColor).toBe('');
+    expect(indicator?.style.backgroundColor).toBe('');
   });
 
   it('renames routine and keeps sorted rows', async () => {
