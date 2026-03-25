@@ -14,9 +14,29 @@ export class LocalStorageTimeClusteringRepository implements TimeClusteringRepos
       const parsed = JSON.parse(raw) as TimeClusteringStateSnapshot;
       if (!parsed || typeof parsed !== 'object') return null;
       if (typeof parsed.selectedDateKey !== 'string') return null;
+      const weekAnchorDateKey =
+        typeof parsed.weekAnchorDateKey === 'string' ? parsed.weekAnchorDateKey : parsed.selectedDateKey;
       if (parsed.viewMode !== 'day-compact' && parsed.viewMode !== 'week-fullscreen') return null;
+      if (parsed.layoutMode !== 'docked-left' && parsed.layoutMode !== 'fullscreen') {
+        return {
+          ...parsed,
+          weekAnchorDateKey,
+          layoutMode: 'docked-left',
+          lastWarnings: Array.isArray(parsed.lastWarnings) ? parsed.lastWarnings : [],
+        };
+      }
       if (!parsed.plansByDate || typeof parsed.plansByDate !== 'object') return null;
-      return parsed;
+      if (!Array.isArray(parsed.lastWarnings)) {
+        return {
+          ...parsed,
+          weekAnchorDateKey,
+          lastWarnings: [],
+        };
+      }
+      return {
+        ...parsed,
+        weekAnchorDateKey,
+      };
     } catch {
       return null;
     }

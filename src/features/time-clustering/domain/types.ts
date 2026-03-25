@@ -1,4 +1,5 @@
 export type TimeClusteringViewMode = 'day-compact' | 'week-fullscreen';
+export type TimeClusteringLayoutMode = 'docked-left' | 'fullscreen';
 
 export interface TimeCluster {
   id: string;
@@ -26,8 +27,24 @@ export interface DuplicationResult {
   warnings: DuplicationWarning[];
 }
 
+export type TimeClusteringSuggestionActionType =
+  | 'suggest_create_cluster'
+  | 'suggest_update_cluster'
+  | 'suggest_duplicate_day'
+  | 'suggest_rebalance_day';
+
+export interface TimeClusteringSuggestionAction {
+  id: string;
+  type: TimeClusteringSuggestionActionType;
+  explanation: string;
+  payload: Record<string, unknown>;
+}
+
 export interface TimeClusteringStateSnapshot {
   selectedDateKey: string;
+  weekAnchorDateKey: string;
   viewMode: TimeClusteringViewMode;
+  layoutMode: TimeClusteringLayoutMode;
   plansByDate: Record<string, DayClusterPlan>;
+  lastWarnings: DuplicationWarning[];
 }

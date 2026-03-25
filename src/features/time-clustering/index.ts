@@ -6,6 +6,7 @@ export {
 } from './data/LocalStorageTimeClusteringRepository.ts';
 export type {
   DayClusterPlan,
+  TimeClusteringLayoutMode,
   TimeCluster,
   TimeClusteringStateSnapshot,
   TimeClusteringViewMode,
