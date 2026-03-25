@@ -4,6 +4,7 @@ import {
   IS_DEVELOPMENT_MODE,
   KANBAN_DEV_ENABLED,
   ROUTINES_ENABLED,
+  TIME_CLUSTERING_DEV_ENABLED,
 } from '../config/env/index.ts';
 import { performManualLogout } from '../features/canvas/ui/auth/manualLogout.ts';
 import {
@@ -24,6 +25,7 @@ import {
 import { WorkspaceControlsBar } from '../features/shell/WorkspaceControlsBar.ts';
 import {
   loadPersistedAiAssistantOpen,
+  loadPersistedTimeClusteringOpen,
   loadPersistedWorkspaceView,
 } from '../features/shell/workspaceUiState.ts';
 import {
@@ -32,7 +34,9 @@ import {
   isAiAssistantVisibilityChangedDetail,
 } from '../features/ai-assistant/aiAssistantEvents.ts';
 import {
+  TIME_CLUSTERING_VISIBILITY_CHANGED_EVENT,
   WORKSPACE_VIEW_CHANGED_EVENT,
+  isTimeClusteringVisibilityChangedDetail,
   isWorkspaceViewChangedDetail,
 } from '../features/shell/workspaceEvents.ts';
 import { AuthService } from '../majom-wrapper/data-access/auth-service.ts';
@@ -81,6 +85,9 @@ export class GlobalAppHeader {
   private readonly menuController: AnchoredMenu | null;
   private readonly viewChangedHandler: (event: Event) => void;
   private readonly chatVisibilityChangedHandler: (event: Event) => void;
+  private readonly timeClusteringVisibilityChangedHandler: (
+    event: Event
+  ) => void;
   private stateSubscription: Subscription | null = null;
   private authState: AuthState = {
     isAuthenticated: this.authService.isLoggedIn(),
@@ -102,6 +109,11 @@ export class GlobalAppHeader {
       if (!isAiAssistantVisibilityChangedDetail(customEvent.detail)) return;
       this.controls?.setChatOpen(customEvent.detail.open);
       this.syncChatButtonState(customEvent.detail.open);
+    };
+    this.timeClusteringVisibilityChangedHandler = (event: Event) => {
+      const customEvent = event as CustomEvent<unknown>;
+      if (!isTimeClusteringVisibilityChangedDetail(customEvent.detail)) return;
+      this.controls?.setTimeClusteringOpen(customEvent.detail.open);
     };
 
     if (!IS_DEVELOPMENT_MODE || GLOBAL_APP_SIDEBAR_WIDTH_PX <= 0) {
@@ -138,6 +150,9 @@ export class GlobalAppHeader {
     brand.appendChild(brandBadge);
 
     const initialChatOpen = loadPersistedAiAssistantOpen();
+    const initialTimeClusteringOpen = loadPersistedTimeClusteringOpen(
+      TIME_CLUSTERING_DEV_ENABLED
+    );
     this.routinesModal = ROUTINES_ENABLED ? new HabitsQuickModal() : null;
 
     this.controls = new WorkspaceControlsBar({
@@ -145,7 +160,9 @@ export class GlobalAppHeader {
         allowKanban: KANBAN_DEV_ENABLED,
       }),
       initialChatOpen,
+      initialTimeClusteringOpen,
       showKanban: KANBAN_DEV_ENABLED,
+      showTimeClustering: TIME_CLUSTERING_DEV_ENABLED,
       showRoutines: false,
       showChat: false,
       variant: 'sidebar',
@@ -229,6 +246,10 @@ export class GlobalAppHeader {
       AI_ASSISTANT_VISIBILITY_CHANGED_EVENT,
       this.chatVisibilityChangedHandler as EventListener
     );
+    window.addEventListener(
+      TIME_CLUSTERING_VISIBILITY_CHANGED_EVENT,
+      this.timeClusteringVisibilityChangedHandler as EventListener
+    );
   }
 
   public unmount(): void {
@@ -243,6 +264,10 @@ export class GlobalAppHeader {
     window.removeEventListener(
       AI_ASSISTANT_VISIBILITY_CHANGED_EVENT,
       this.chatVisibilityChangedHandler as EventListener
+    );
+    window.removeEventListener(
+      TIME_CLUSTERING_VISIBILITY_CHANGED_EVENT,
+      this.timeClusteringVisibilityChangedHandler as EventListener
     );
     this.routinesModal?.close();
     this.controls?.destroy();

@@ -6,6 +6,7 @@ type WorkspaceViewSwitcherOptions = {
   showTimeClustering?: boolean;
   showRoutines?: boolean;
   showChat?: boolean;
+  initialTimeClusteringOpen?: boolean;
 };
 
 export class WorkspaceViewSwitcher {
@@ -19,6 +20,7 @@ export class WorkspaceViewSwitcher {
   ) {
     this.controls = new WorkspaceControlsBar({
       initialView,
+      initialTimeClusteringOpen: options.initialTimeClusteringOpen,
       showKanban: options.showKanban,
       showTimeClustering: options.showTimeClustering,
       showRoutines: options.showRoutines,
@@ -60,5 +62,9 @@ export class WorkspaceViewSwitcher {
 
   public setChatOpen(open: boolean): void {
     this.controls.setChatOpen(open);
+  }
+
+  public setTimeClusteringOpen(open: boolean): void {
+    this.controls.setTimeClusteringOpen(open);
   }
 }

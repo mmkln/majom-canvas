@@ -2,7 +2,10 @@ import { createIcon, type IconName } from '../canvas/ui/icons.ts';
 import { HabitsQuickModal } from './components/HabitsQuickModal.ts';
 import type { WorkspaceView } from './WorkspaceView.ts';
 import { emitAiAssistantToggleRequested } from '../ai-assistant/aiAssistantEvents.ts';
-import { emitWorkspaceViewChangeRequested } from './workspaceEvents.ts';
+import {
+  emitTimeClusteringToggleRequested,
+  emitWorkspaceViewChangeRequested,
+} from './workspaceEvents.ts';
 import {
   createSidebarDivider,
   createSidebarRailButton,
@@ -23,6 +26,7 @@ type ViewOption = {
 type WorkspaceControlsBarOptions = {
   initialView: WorkspaceView;
   initialChatOpen?: boolean;
+  initialTimeClusteringOpen?: boolean;
   showKanban?: boolean;
   showTimeClustering?: boolean;
   showRoutines?: boolean;
@@ -54,7 +58,6 @@ type VariantMetrics = {
 const VIEW_OPTIONS: ViewOption[] = [
   { view: 'canvas', label: 'Canvas', icon: 'map' },
   { view: 'kanban', label: 'Kanban', icon: 'view-columns' },
-  { view: 'time-clustering', label: 'Time', icon: 'rectangle-stack' },
 ];
 
 const VARIANT_METRICS: Record<WorkspaceControlsBarVariant, VariantMetrics> = {
@@ -127,15 +130,18 @@ export class WorkspaceControlsBar {
   private readonly metrics: VariantMetrics;
   private readonly routinesModal: HabitsQuickModal | null;
   private readonly viewButtons = new Map<WorkspaceView, HTMLButtonElement>();
+  private readonly timeClusteringButton: HTMLButtonElement | null;
   private readonly chatButton: HTMLButtonElement | null;
   private activeView: WorkspaceView;
   private chatOpen: boolean;
+  private timeClusteringOpen: boolean;
 
   constructor(options: WorkspaceControlsBarOptions) {
     this.variant = options.variant ?? 'floating';
     this.metrics = VARIANT_METRICS[this.variant];
     this.activeView = options.initialView;
     this.chatOpen = options.initialChatOpen ?? false;
+    this.timeClusteringOpen = options.initialTimeClusteringOpen ?? false;
 
     const showKanban = options.showKanban ?? true;
     const showTimeClustering = options.showTimeClustering ?? true;
@@ -143,14 +149,31 @@ export class WorkspaceControlsBar {
     const showChat = options.showChat ?? true;
     const viewOptions = VIEW_OPTIONS.filter((option) => {
       if (option.view === 'kanban') return showKanban;
-      if (option.view === 'time-clustering') return showTimeClustering;
       return true;
     });
     const shouldRenderViewGroup = viewOptions.length > 1;
-    this.shouldRender = shouldRenderViewGroup || showRoutines || showChat;
+    this.shouldRender =
+      showTimeClustering || shouldRenderViewGroup || showRoutines || showChat;
 
     this.element = document.createElement('div');
     this.applyRootStyles();
+
+    this.timeClusteringButton = showTimeClustering
+      ? this.createIconButton({
+          label: 'Toggle time clustering panel',
+          icon: 'rectangle-stack',
+          title: 'Time Clustering',
+        })
+      : null;
+    this.timeClusteringButton?.addEventListener('click', () => {
+      emitTimeClusteringToggleRequested();
+    });
+    if (this.timeClusteringButton) {
+      this.element.appendChild(this.timeClusteringButton);
+      if (shouldRenderViewGroup || showRoutines || showChat) {
+        this.element.appendChild(this.createDivider());
+      }
+    }
 
     if (shouldRenderViewGroup) {
       const group = document.createElement('div');
@@ -225,6 +248,11 @@ export class WorkspaceControlsBar {
 
   public setChatOpen(open: boolean): void {
     this.chatOpen = open;
+    this.syncButtons();
+  }
+
+  public setTimeClusteringOpen(open: boolean): void {
+    this.timeClusteringOpen = open;
     this.syncButtons();
   }
 
@@ -394,6 +422,21 @@ export class WorkspaceControlsBar {
         ? this.metrics.activeColor
         : this.metrics.inactiveIconColor;
     });
+
+    if (this.timeClusteringButton) {
+      const isActive = this.timeClusteringOpen;
+      if (this.variant === 'sidebar') {
+        setSidebarRailButtonActive(this.timeClusteringButton, isActive);
+      } else {
+        this.timeClusteringButton.dataset.active = isActive ? 'true' : 'false';
+        this.timeClusteringButton.style.background = isActive
+          ? this.metrics.activeBackground
+          : 'transparent';
+        this.timeClusteringButton.style.color = isActive
+          ? this.metrics.activeColor
+          : this.metrics.inactiveIconColor;
+      }
+    }
 
     if (this.chatButton) {
       if (this.variant === 'sidebar') {

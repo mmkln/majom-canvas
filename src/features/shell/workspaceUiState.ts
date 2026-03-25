@@ -2,6 +2,7 @@ import type { WorkspaceView } from './WorkspaceView.ts';
 
 export const WORKSPACE_ACTIVE_VIEW_STORAGE_KEY = 'workspace-active-view';
 export const AI_ASSISTANT_OPEN_STORAGE_KEY = 'ai-assistant-open';
+export const TIME_CLUSTERING_OPEN_STORAGE_KEY = 'time-clustering-open';
 const LEGACY_WORKSPACE_CHAT_OPEN_STORAGE_KEY = 'workspace-chat-open';
 
 type LoadPersistedWorkspaceViewOptions = {
@@ -18,7 +19,7 @@ export function loadPersistedWorkspaceView(
     const value = localStorage.getItem(WORKSPACE_ACTIVE_VIEW_STORAGE_KEY);
     if (value === 'kanban' && allowKanban) return 'kanban';
     if (value === 'time-clustering' && allowTimeClustering) {
-      return 'time-clustering';
+      return 'canvas';
     }
   } catch {
     // no-op
@@ -28,7 +29,37 @@ export function loadPersistedWorkspaceView(
 
 export function persistWorkspaceView(view: WorkspaceView): void {
   try {
-    localStorage.setItem(WORKSPACE_ACTIVE_VIEW_STORAGE_KEY, view);
+    localStorage.setItem(
+      WORKSPACE_ACTIVE_VIEW_STORAGE_KEY,
+      view === 'kanban' ? 'kanban' : 'canvas'
+    );
+  } catch {
+    // no-op
+  }
+}
+
+export function loadPersistedTimeClusteringOpen(
+  allowTimeClustering = true
+): boolean {
+  if (!allowTimeClustering) return false;
+  try {
+    const value = localStorage.getItem(TIME_CLUSTERING_OPEN_STORAGE_KEY);
+    if (value === '1' || value === 'true') return true;
+    if (
+      localStorage.getItem(WORKSPACE_ACTIVE_VIEW_STORAGE_KEY) ===
+      'time-clustering'
+    ) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
+export function persistTimeClusteringOpen(open: boolean): void {
+  try {
+    localStorage.setItem(TIME_CLUSTERING_OPEN_STORAGE_KEY, open ? '1' : '0');
   } catch {
     // no-op
   }

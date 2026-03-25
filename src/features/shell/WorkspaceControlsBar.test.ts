@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { WorkspaceControlsBar } from './WorkspaceControlsBar.ts';
+import {
+  TIME_CLUSTERING_TOGGLE_REQUEST_EVENT,
+  isTimeClusteringToggleRequestDetail,
+} from './workspaceEvents.ts';
 
 function getButtonByAriaLabel(
   root: HTMLElement,
@@ -14,6 +18,7 @@ describe('WorkspaceControlsBar sidebar variant', () => {
     const bar = new WorkspaceControlsBar({
       initialView: 'canvas',
       initialChatOpen: true,
+      initialTimeClusteringOpen: false,
       showKanban: true,
       showTimeClustering: true,
       showRoutines: true,
@@ -27,9 +32,9 @@ describe('WorkspaceControlsBar sidebar variant', () => {
     const viewGroup = bar.element.querySelector('[role="radiogroup"]');
     expect(viewGroup).not.toBeNull();
 
-    const canvasButton = bar.element.querySelector(
+    const canvasButton = bar.element.querySelector<HTMLButtonElement>(
       'button[data-view="canvas"]'
-    ) as HTMLButtonElement | null;
+    );
     expect(canvasButton).not.toBeNull();
     expect(canvasButton?.getAttribute('data-component')).toBe('HudIconButton');
     expect(canvasButton?.getAttribute('data-sidebar-rail-button')).toBe('true');
@@ -44,6 +49,13 @@ describe('WorkspaceControlsBar sidebar variant', () => {
       'HudIconButton'
     );
 
+    const timeButton = getButtonByAriaLabel(
+      bar.element,
+      'Toggle time clustering panel'
+    );
+    expect(timeButton).not.toBeNull();
+    expect(timeButton?.dataset.active).toBe('false');
+
     const chatButton = getButtonByAriaLabel(
       bar.element,
       'Toggle AI assistant panel'
@@ -54,13 +66,14 @@ describe('WorkspaceControlsBar sidebar variant', () => {
     const dividers = bar.element.querySelectorAll(
       '[data-component="HudSidebarDivider"]'
     );
-    expect(dividers).toHaveLength(2);
+    expect(dividers).toHaveLength(3);
   });
 
   it('updates sidebar active state via shared data attributes instead of inline styles', () => {
     const bar = new WorkspaceControlsBar({
       initialView: 'canvas',
       initialChatOpen: false,
+      initialTimeClusteringOpen: false,
       showKanban: true,
       showTimeClustering: true,
       showRoutines: true,
@@ -74,6 +87,10 @@ describe('WorkspaceControlsBar sidebar variant', () => {
     const kanbanButton = bar.element.querySelector(
       'button[data-view="kanban"]'
     ) as HTMLButtonElement;
+    const timeButton = getButtonByAriaLabel(
+      bar.element,
+      'Toggle time clustering panel'
+    ) as HTMLButtonElement;
     const chatButton = getButtonByAriaLabel(
       bar.element,
       'Toggle AI assistant panel'
@@ -81,14 +98,51 @@ describe('WorkspaceControlsBar sidebar variant', () => {
 
     bar.setActiveView('kanban');
     bar.setChatOpen(true);
+    bar.setTimeClusteringOpen(true);
 
     expect(canvasButton.dataset.active).toBe('false');
     expect(canvasButton.getAttribute('aria-checked')).toBe('false');
     expect(kanbanButton.dataset.active).toBe('true');
     expect(kanbanButton.getAttribute('aria-checked')).toBe('true');
+    expect(timeButton.dataset.active).toBe('true');
     expect(chatButton.dataset.active).toBe('true');
     expect(kanbanButton.style.background).toBe('');
+    expect(timeButton.style.background).toBe('');
     expect(chatButton.style.color).toBe('');
+  });
+
+  it('requests a time clustering toggle without changing the base view', () => {
+    const bar = new WorkspaceControlsBar({
+      initialView: 'canvas',
+      initialTimeClusteringOpen: true,
+      showKanban: true,
+      showTimeClustering: true,
+      showRoutines: false,
+      showChat: false,
+      variant: 'sidebar',
+    });
+
+    const events: string[] = [];
+    const handler = (event: Event): void => {
+      const customEvent = event as CustomEvent<unknown>;
+      if (!isTimeClusteringToggleRequestDetail(customEvent.detail)) return;
+      events.push(
+        typeof customEvent.detail.open === 'boolean'
+          ? String(customEvent.detail.open)
+          : 'toggle'
+      );
+    };
+    window.addEventListener(TIME_CLUSTERING_TOGGLE_REQUEST_EVENT, handler);
+
+    const timeButton = getButtonByAriaLabel(
+      bar.element,
+      'Toggle time clustering panel'
+    ) as HTMLButtonElement;
+    timeButton.click();
+
+    window.removeEventListener(TIME_CLUSTERING_TOGGLE_REQUEST_EVENT, handler);
+
+    expect(events).toEqual(['toggle']);
   });
 });
 
@@ -97,6 +151,7 @@ describe('WorkspaceControlsBar floating variant', () => {
     const bar = new WorkspaceControlsBar({
       initialView: 'kanban',
       initialChatOpen: true,
+      initialTimeClusteringOpen: true,
       showKanban: true,
       showTimeClustering: true,
       showRoutines: false,
@@ -114,12 +169,18 @@ describe('WorkspaceControlsBar floating variant', () => {
       bar.element,
       'Toggle AI assistant panel'
     ) as HTMLButtonElement;
+    const timeButton = getButtonByAriaLabel(
+      bar.element,
+      'Toggle time clustering panel'
+    ) as HTMLButtonElement;
 
     expect(kanbanButton.dataset.active).toBe('true');
     expect(kanbanButton.style.background).toBe('rgb(238, 242, 255)');
     expect(kanbanButton.style.color).toBe('rgb(67, 56, 202)');
     expect(canvasButton.dataset.active).toBe('false');
     expect(canvasButton.style.background).toBe('transparent');
+    expect(timeButton.dataset.active).toBe('true');
+    expect(timeButton.style.background).toBe('rgb(238, 242, 255)');
     expect(chatButton.dataset.active).toBe('true');
     expect(chatButton.style.background).toBe('rgb(238, 242, 255)');
     expect(chatButton.style.color).toBe('rgb(67, 56, 202)');
