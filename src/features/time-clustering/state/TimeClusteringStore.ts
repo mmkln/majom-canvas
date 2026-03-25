@@ -1,7 +1,15 @@
+import { BehaviorSubject, Subject, Subscription } from 'rxjs';
 import type { TimeClusteringStateSnapshot, TimeClusteringViewMode } from '../domain/types.ts';
 import type { TimeClusteringRepository } from '../data/TimeClusteringRepository.ts';
 
 export type TimeClusteringStoreListener = (snapshot: TimeClusteringStateSnapshot) => void;
+type TimeClusteringStoreAction =
+  | { type: 'setSelectedDate'; dateKey: string }
+  | { type: 'setViewMode'; mode: TimeClusteringViewMode }
+  | {
+      type: 'upsertDayPlan';
+      plan: TimeClusteringStateSnapshot['plansByDate'][string];
+    };
 
 function todayDateKey(): string {
   const now = new Date();
@@ -20,56 +28,81 @@ function createDefaultSnapshot(): TimeClusteringStateSnapshot {
 }
 
 export class TimeClusteringStore {
-  private snapshot: TimeClusteringStateSnapshot;
-  private readonly listeners = new Set<TimeClusteringStoreListener>();
+  private readonly stateSubject: BehaviorSubject<TimeClusteringStateSnapshot>;
+  private readonly actions$ = new Subject<TimeClusteringStoreAction>();
+  private readonly subscriptions = new Subscription();
 
   constructor(private readonly repository: TimeClusteringRepository) {
-    this.snapshot = repository.load() ?? createDefaultSnapshot();
+    this.stateSubject = new BehaviorSubject<TimeClusteringStateSnapshot>(
+      repository.load() ?? createDefaultSnapshot()
+    );
+    this.subscriptions.add(
+      this.actions$.subscribe((action) => {
+        const next = this.reduce(this.stateSubject.value, action);
+        this.stateSubject.next(next);
+        this.repository.save(next);
+      })
+    );
+  }
+
+  public get state$() {
+    return this.stateSubject.asObservable();
   }
 
   public getSnapshot(): TimeClusteringStateSnapshot {
-    return this.snapshot;
+    return this.stateSubject.value;
   }
 
   public subscribe(listener: TimeClusteringStoreListener): () => void {
-    this.listeners.add(listener);
-    listener(this.snapshot);
+    const subscription = this.state$.subscribe(listener);
     return () => {
-      this.listeners.delete(listener);
+      subscription.unsubscribe();
     };
   }
 
   public setSelectedDate(dateKey: string): void {
-    this.snapshot = {
-      ...this.snapshot,
-      selectedDateKey: dateKey,
-    };
-    this.publish();
+    this.actions$.next({ type: 'setSelectedDate', dateKey });
   }
 
   public setViewMode(mode: TimeClusteringViewMode): void {
-    this.snapshot = {
-      ...this.snapshot,
-      viewMode: mode,
-    };
-    this.publish();
+    this.actions$.next({ type: 'setViewMode', mode });
   }
 
   public upsertDayPlan(next: TimeClusteringStateSnapshot['plansByDate'][string]): void {
-    this.snapshot = {
-      ...this.snapshot,
-      plansByDate: {
-        ...this.snapshot.plansByDate,
-        [next.dateKey]: next,
-      },
-    };
-    this.publish();
+    this.actions$.next({ type: 'upsertDayPlan', plan: next });
   }
 
-  private publish(): void {
-    this.repository.save(this.snapshot);
-    for (const listener of this.listeners) {
-      listener(this.snapshot);
+  public destroy(): void {
+    this.subscriptions.unsubscribe();
+    this.actions$.complete();
+    this.stateSubject.complete();
+  }
+
+  private reduce(
+    previous: TimeClusteringStateSnapshot,
+    action: TimeClusteringStoreAction
+  ): TimeClusteringStateSnapshot {
+    switch (action.type) {
+      case 'setSelectedDate':
+        return {
+          ...previous,
+          selectedDateKey: action.dateKey,
+        };
+      case 'setViewMode':
+        return {
+          ...previous,
+          viewMode: action.mode,
+        };
+      case 'upsertDayPlan':
+        return {
+          ...previous,
+          plansByDate: {
+            ...previous.plansByDate,
+            [action.plan.dateKey]: action.plan,
+          },
+        };
+      default:
+        return previous;
     }
   }
 }

@@ -6,16 +6,20 @@ const LEGACY_WORKSPACE_CHAT_OPEN_STORAGE_KEY = 'workspace-chat-open';
 
 type LoadPersistedWorkspaceViewOptions = {
   allowKanban?: boolean;
+  allowTimeClustering?: boolean;
 };
 
 export function loadPersistedWorkspaceView(
   options: LoadPersistedWorkspaceViewOptions = {}
 ): WorkspaceView {
   const allowKanban = options.allowKanban ?? true;
+  const allowTimeClustering = options.allowTimeClustering ?? true;
   try {
     const value = localStorage.getItem(WORKSPACE_ACTIVE_VIEW_STORAGE_KEY);
     if (value === 'kanban' && allowKanban) return 'kanban';
-    if (value === 'time-clustering') return 'time-clustering';
+    if (value === 'time-clustering' && allowTimeClustering) {
+      return 'time-clustering';
+    }
   } catch {
     // no-op
   }
