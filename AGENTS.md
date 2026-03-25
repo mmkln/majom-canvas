@@ -49,6 +49,7 @@
 - Prefer extending `src/ui-lib/src` primitives and HUD variants over creating feature-local style dialects.
 - On mobile/touch viewports, keep computed `font-size` for text-entry controls (`input`, `textarea`, editable select/search fields) at `16px` or larger to prevent browser auto-zoom on focus.
 - If desktop needs smaller visual input text, apply that only from `md`/desktop breakpoints while preserving `16px` on mobile.
+- For top-level workspace islands (canvas, kanban, time-clustering, AI chat), default to full-size/full-bleed layout without card chrome or decorative outer margins unless separation is functionally required.
 
 ### Reactive UI Boundaries
 

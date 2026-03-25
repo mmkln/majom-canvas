@@ -27,6 +27,7 @@ These principles must not be violated in new non-canvas UI work.
 4. **Border-minimal policy:** borders are opt-in, not default decoration. Use borders only when they improve structure, affordance, or contrast.
 5. **Semantic text system:** use defined text roles (primary/secondary/muted/error/inverse) and avoid ad-hoc color choices in feature code.
 6. **Scale-bound typography and spacing:** font sizes, line heights, and text spacing follow a finite ladder; avoid random one-off values.
+7. **Major-island full-bleed default:** top-level workspace islands (canvas, kanban, time-clustering, AI chat) should use full-size layout without card-like outer wrappers unless explicit functional separation is needed.
 
 ---
 
@@ -168,6 +169,24 @@ The visual default is calm and minimal:
 - Use borders as a functional tool, not a default visual pattern.
 - If removing a visual detail does not reduce usability or meaning, remove it.
 
+### 3.10 Workspace islands (major functional blocks)
+
+For page-level islands such as canvas, kanban, time-clustering, and AI chat:
+
+- Default to **full-size/full-bleed occupancy** inside the workspace region.
+- Do **not** wrap each island in a decorative card shell (outer border + shadow + extra outer padding) by default.
+- Prefer separation via:
+  - page layout structure,
+  - spacing between primary regions,
+  - clear headings/navigation context,
+  - lightweight internal dividers only where interaction clarity requires them.
+- Allow card-like shells only when a functional reason exists (example: detachable floating panel, modal-like sub-surface, strong contrast repair).
+
+Why this aligns with the current style system:
+- supports the minimalist principle (less decorative noise),
+- preserves available working area for functional tools,
+- avoids duplicate “card-inside-workspace” framing.
+
 ---
 
 ## 4) Component usage rules
@@ -207,6 +226,82 @@ No bespoke modal focus trap/backdrop logic unless the use-case cannot be express
 
 Use the shared notification/toast pipeline and keep visual variants semantic (`success`, `error`, `info`).
 
+### 4.6 Tables and data grids
+
+Use table-style UI only when comparison across rows/columns is the primary task.
+
+- Prefer semantic `<table>` structure (or equivalent accessible grid semantics) for tabular data.
+- Keep top-level table surfaces minimal: avoid heavy outer card chrome by default.
+- Header cells:
+  - stronger text role than body (`text/primary` or strong secondary),
+  - stable height across the table,
+  - clear sort affordance where sorting exists.
+- Body cells:
+  - default body text role,
+  - consistent vertical rhythm and density per selected mode (`comfortable/default/compact`),
+  - predictable truncation/wrapping policy per column.
+- Alignment:
+  - text columns left-aligned,
+  - numeric/amount columns right-aligned,
+  - status/icon columns centered or consistently aligned by column contract.
+- Borders/dividers:
+  - use subtle row dividers when scanability needs it,
+  - avoid full cell boxing unless required for interaction semantics.
+- Interaction:
+  - row hover/focus-visible states must be perceivable,
+  - selected rows use semantic selection tone, not arbitrary custom colors,
+  - row actions should use shared icon/button primitives.
+- Responsive behavior:
+  - avoid horizontal collapse that destroys column meaning,
+  - for narrow screens, prefer horizontal scroll container or a documented alternate presentation pattern.
+- Accessibility:
+  - maintain header-cell association,
+  - keyboard focus order must be logical for interactive cells,
+  - do not encode critical meaning only through color.
+
+#### 4.6.1 Concrete table style contract (default mode)
+
+Use these concrete values for new table/grid UI unless a documented exception is approved:
+
+- **Table container**
+  - full-width in its region (`w-full`),
+  - radius `rounded-xl` for local table surfaces, `rounded-2xl` only for page-level table modules,
+  - border usage: one subtle outer boundary max (`border/subtle`) if needed for contrast.
+- **Header row**
+  - height: `44px` (`h-11`),
+  - horizontal cell padding: `12px` (`px-3`), can use `16px` (`px-4`) in comfortable mode,
+  - typography: `label/md` (12px, 600),
+  - text color: `text/secondary`,
+  - background: neutral subtle (`surface/elevated`-like, low contrast step above body).
+- **Body rows**
+  - default row height: `44px` (`h-11`),
+  - compact row height: `36px` (`h-9`) only in compact density contexts,
+  - cell typography: `body/md` (14px) default, `body/sm` (13px) for dense meta columns,
+  - text color: `text/primary` for core columns, `text/secondary` for support columns.
+- **Cell padding and rhythm**
+  - horizontal padding: `12px` baseline,
+  - vertical padding: `8px` when variable-height row content is required,
+  - keep one consistent padding contract per table.
+- **Dividers and borders**
+  - row separators: subtle divider (`border/subtle`) between body rows,
+  - avoid boxing every cell with full borders,
+  - do not combine heavy zebra + heavy borders simultaneously.
+- **Hover / selection / focus**
+  - row hover: low-emphasis neutral highlight,
+  - selected row: single semantic selection tone (accent-tinted neutral, not saturated solid fill),
+  - keyboard focus-visible: explicit focus ring on active row/cell control.
+- **Numeric/status/action columns**
+  - numeric values right-aligned and tabular-friendly where available,
+  - status chip/icon column width stable across rows,
+  - action column uses shared icon buttons at consistent size (`16px` icon baseline).
+- **Text overflow**
+  - primary identifiers: prefer single-line truncate with tooltip/title on overflow,
+  - descriptive columns: allow 2-line clamp only if row height contract explicitly supports it,
+  - do not mix truncate and wrap behavior arbitrarily in the same column.
+- **Mobile/narrow viewport fallback**
+  - keep semantic columns and enable horizontal scroll first,
+  - switch to alternate stacked/card representation only when column meaning cannot be preserved.
+
 ---
 
 ## 5) Tactical application patterns (with examples)
@@ -228,7 +323,10 @@ Use the shared notification/toast pipeline and keep visual variants semantic (`s
    - Use smaller radius (`rounded-md`) only for dense sub-controls inside already rounded parents.
    - Keep clickable area and state visibility accessible.
 
----
+5. **Top-level workspace island**
+   - Use full-bleed container (`w-full h-full`) with no decorative outer card.
+   - Keep visual hierarchy through internal structure (header/toolbar/content zones), not through heavy perimeter border/shadow.
+
 
 ## 6) Current audit: strengths
 
@@ -281,6 +379,7 @@ Before merging any non-canvas UI change:
 8. Confirmed mobile text-entry controls keep computed `font-size >= 16px`.
 9. Confirmed corner radius follows hierarchy (larger container => larger radius; compact control => smaller radius).
 10. Confirmed borders are used only where needed for affordance/contrast/semantic grouping.
+11. For table/grid UI, verified column alignment, truncation policy, and accessible header associations.
 
 If any item is "no", PR must include a brief exception rationale.
 
@@ -443,11 +542,110 @@ The following items remain to be finalized:
 
 ---
 
-## 13) Visual examples: how elements should look now
+## 13) Chat interface and message styling contract
+
+This section defines how non-canvas chat UIs (including AI assistant thread surfaces) should look and behave.
+
+### 13.1 Chat shell composition
+
+- Chat is a **top-level workspace island** and follows full-bleed default behavior.
+- Use a three-zone structure:
+  1. header/context strip,
+  2. message thread region,
+  3. composer/action region.
+- Separate zones with spacing and subtle dividers only when needed for readability.
+- Avoid decorative outer card shells around the full chat island.
+
+### 13.2 Message variants
+
+Use three semantic message classes:
+
+1. **Assistant message**
+   - Neutral surface tone (`surface/base` family).
+   - Primary text role for message content, secondary/muted for metadata.
+2. **User message**
+   - Accent-tinted surface with high-contrast text.
+   - Keep accent controlled; avoid highly saturated “notification-like” blocks.
+3. **System/status/error message**
+   - System: neutral/secondary tone.
+   - Error: `state/error` semantic only.
+   - Success/info: use corresponding semantic state tones only when meaning is explicit.
+4. **Action/command message**
+   - Keep the bubble surface aligned with assistant-neutral surface (no special tinted bubble).
+   - Distinguish by a leading in-message icon and semantic command label.
+
+### 13.2.1 Leading-icon pattern by message type
+
+Use leading in-message icons only where they add semantic disambiguation:
+
+| Message type | Leading icon | Why |
+|---|---|---|
+| User | No | Author identity is already explicit by alignment and label. |
+| Assistant (default) | No | Keep high-frequency assistant replies visually calm. |
+| System | Yes (`shield-exclamation`) | Marks platform/system notice semantics. |
+| Action/Command | Yes (`bolt`) | Signals executable/command-style intent. |
+| Typing/progress bubble | No (default) | Progress state already represented by phase label and dots; avoid extra noise. |
+
+Rule:
+- Add a leading icon only when the message semantic could otherwise be confused with a regular assistant reply.
+- Do not add decorative icons to all messages by default.
+
+### 13.3 Message geometry and spacing
+
+- Message bubble radius: `rounded-xl` or `rounded-2xl` (content block level).
+- Internal controls inside a message (action icons, tiny chips) use smaller radii (`rounded-md`/`rounded-lg`) per hierarchy rule.
+- Keep a stable vertical rhythm:
+  - same author consecutive messages: tighter gap,
+  - author change or semantic block change: larger gap.
+- Message internal padding must remain consistent across variants to avoid layout jitter.
+
+### 13.4 Typography inside chat
+
+- Message content: `body/md` by default (`14px`, role-based line height).
+- Metadata (timestamps/status labels): `body/sm` or `label/md` depending on emphasis.
+- Composer/input on mobile/touch must preserve computed `font-size >= 16px`.
+- For long content, wrap text before reducing type size.
+
+### 13.5 Chat actions and interaction states
+
+- Message-level actions (copy/retry/edit/regenerate) must use shared button/icon primitives and keep low visual weight by default.
+- Reveal affordances progressively (hover/focus/selection) without persistent visual clutter.
+- All interactive elements must expose: hover, focus-visible, active, disabled (and invalid when applicable).
+- Do not encode interaction state purely by color; include contrast and focus indicators.
+- **System and action/command messages must display a leading icon inside message content**, not only in metadata rows.
+  - Current icon semantics:
+    - action/command: bolt-like command icon,
+    - system: shield/notice icon.
+  - Icon treatment should stay subtle (non-dominant neutral tone) and align with message text baseline.
+
+### 13.6 Streaming and loading behavior
+
+- Streaming responses should use subtle, non-distracting motion.
+- Avoid aggressive pulsing, bouncing, or long decorative animations.
+- Respect reduced-motion preferences for all streaming/loading indicators.
+- Preserve message container dimensions as much as possible during streaming to reduce visual jumpiness.
+
+### 13.7 Attachments, code blocks, and rich content
+
+- Embedded sub-surfaces (attachments/code blocks) should appear as nested content regions, not independent competing cards.
+- Use border-minimal policy: introduce borders only for readability or affordance boundaries.
+- Maintain consistent spacing between rich blocks and surrounding message text.
+- Keep horizontal overflow behavior predictable (scroll within content block, not entire thread container).
+
+### 13.8 Minimalism guardrails for chat
+
+- One message should have one dominant visual emphasis at most.
+- Prefer hierarchy through spacing and typography before adding color or chrome.
+- Remove decorative shadows/borders from message bubbles unless they carry a functional purpose.
+- If a style detail does not improve comprehension, interaction, or accessibility, omit it.
+
+---
+
+## 14) Visual examples: how elements should look now
 
 Use these as ready-to-apply reference recipes for new non-canvas UI.
 
-### 13.1 Primary action button (default desktop)
+### 14.1 Primary action button (default desktop)
 
 - **Shape:** `rounded-lg`
 - **Height:** `h-9` (or `h-11` for touch-heavy contexts)
@@ -464,7 +662,7 @@ const primaryButtonClass =
   'focus-visible:ring-indigo-400 disabled:cursor-not-allowed disabled:opacity-50';
 ```
 
-### 13.2 Text input (mobile-safe)
+### 14.2 Text input (mobile-safe)
 
 - **Shape:** `rounded-lg`
 - **Height:** `h-11`
@@ -481,7 +679,7 @@ const inputClass =
   'focus-visible:ring-indigo-400 disabled:cursor-not-allowed disabled:bg-slate-100 md:text-[14px]';
 ```
 
-### 13.3 Surface card with hierarchy
+### 14.3 Surface card with hierarchy
 
 - **Container:** `rounded-2xl`, low elevation, optional subtle border
 - **Title:** `heading/sm` (18px, 600)
@@ -496,7 +694,7 @@ const surfaceCardClass =
   'rounded-2xl border border-slate-200/85 bg-white p-4 shadow-[0_4px_14px_rgba(15,23,42,0.08)]';
 ```
 
-### 13.4 Dropdown menu row
+### 14.4 Dropdown menu row
 
 - **Row spacing:** `px-4 py-3`
 - **Icon:** `16px`, stroke `1.8-1.9`
@@ -511,7 +709,7 @@ const dropdownRowClass =
   'hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300';
 ```
 
-### 13.5 Modal shell
+### 14.5 Modal shell
 
 - **Container:** `rounded-2xl`, overlay depth shadow
 - **Spacing:** section rhythm 12-16px, label/control gap 4-6px
