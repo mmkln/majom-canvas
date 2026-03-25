@@ -18,9 +18,9 @@ import { ShellHabitsService } from '../services/ShellHabitsService.ts';
 import { confirmDeleteRoutineModal } from './ConfirmDeleteRoutineModal.ts';
 
 const DAY_WINDOW_SIZE = 10;
-// Keep streak visuals aligned with Checkbox checked indicator (blue-600, 16px).
-const STREAK_LINE_COLOR = '#dbeafe';
-const STREAK_LINE_THICKNESS = 16;
+// Keep streak visuals aligned with Checkbox checked indicator (indigo-600, 20px).
+const STREAK_LINE_COLOR = '#EEF2FF';
+const STREAK_LINE_THICKNESS = 14;
 const UNCHECKED_INDICATOR_BORDER_COLOR = '#b7c4d6';
 const UNCHECKED_INDICATOR_HOVER_BORDER_COLOR = '#95a9c3';
 const UNCHECKED_PENDING_INDICATOR_BORDER_COLOR = '#c7cfda';
@@ -88,7 +88,11 @@ function buildRecentDays(size: number): HabitDay[] {
   });
   const days: HabitDay[] = [];
   for (let offset = 0; offset < size; offset += 1) {
-    const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() - offset);
+    const date = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() - offset
+    );
     days.push({
       date,
       key: toLocalDateKey(date),
@@ -224,7 +228,9 @@ export class HabitsQuickModal {
   }
 
   private sortRowsByTitle(): void {
-    this.rows.sort((left, right) => left.habit.title.localeCompare(right.habit.title));
+    this.rows.sort((left, right) =>
+      left.habit.title.localeCompare(right.habit.title)
+    );
   }
 
   private disposeRowMenus(): void {
@@ -289,7 +295,8 @@ export class HabitsQuickModal {
 
       let runStart: number | null = null;
       for (let index = 0; index <= row.checkedStates.length; index += 1) {
-        const checked = index < row.checkedStates.length && row.checkedStates[index];
+        const checked =
+          index < row.checkedStates.length && row.checkedStates[index];
         if (checked && runStart === null) {
           runStart = index;
           continue;
@@ -330,14 +337,18 @@ export class HabitsQuickModal {
     if (this.streakOverlayRafId !== null) return;
     this.streakOverlayRafId = window.requestAnimationFrame(() => {
       this.streakOverlayRafId = null;
-      if (!this.streakOverlayWrap || !this.streakOverlayWrap.isConnected) return;
+      if (!this.streakOverlayWrap || !this.streakOverlayWrap.isConnected)
+        return;
       this.renderStreakOverlay(this.streakOverlayWrap, this.streakOverlayRows);
     });
   }
 
   private detachStreakOverlay(): void {
     if (typeof window !== 'undefined') {
-      window.removeEventListener('resize', this.handleStreakOverlayWindowResize);
+      window.removeEventListener(
+        'resize',
+        this.handleStreakOverlayWindowResize
+      );
       if (this.streakOverlayRafId !== null) {
         window.cancelAnimationFrame(this.streakOverlayRafId);
       }
@@ -345,7 +356,10 @@ export class HabitsQuickModal {
     this.streakOverlayRafId = null;
     this.streakOverlayObserver?.disconnect();
     this.streakOverlayObserver = null;
-    this.streakOverlayWrap?.removeEventListener('scroll', this.handleStreakOverlayScroll);
+    this.streakOverlayWrap?.removeEventListener(
+      'scroll',
+      this.handleStreakOverlayScroll
+    );
     this.streakOverlayWrap = null;
     this.streakOverlayRows = [];
   }
@@ -424,12 +438,15 @@ export class HabitsQuickModal {
     if (this.createOverlay) return;
     this.focusCreateInputOnRender = true;
     this.createError = null;
-    const { overlay, container, body, footer } = createModalShell('New routine', {
-      subtitle: 'Add a routine you want to track daily.',
-      onClose: () => this.closeCreateModal(),
-      intent: 'form',
-      zIndex: 280,
-    });
+    const { overlay, container, body, footer } = createModalShell(
+      'New routine',
+      {
+        subtitle: 'Add a routine you want to track daily.',
+        onClose: () => this.closeCreateModal(),
+        intent: 'form',
+        zIndex: 280,
+      }
+    );
     container.style.width = 'min(30rem, calc(100vw - 2rem))';
     container.style.maxWidth = 'min(30rem, calc(100vw - 2rem))';
     this.createOverlay = overlay;
@@ -449,7 +466,9 @@ export class HabitsQuickModal {
   }
 
   private isCreateSubmitDisabled(): boolean {
-    return this.loading || this.createPending || this.createTitle.trim().length === 0;
+    return (
+      this.loading || this.createPending || this.createTitle.trim().length === 0
+    );
   }
 
   private renderCreateModal(): void {
@@ -630,7 +649,8 @@ export class HabitsQuickModal {
       tr.className = 'border-b border-slate-100 last:border-b-0';
 
       const title = document.createElement('td');
-      title.className = 'sticky left-0 z-0 bg-white px-3 py-2 text-sm text-slate-700';
+      title.className =
+        'sticky left-0 z-0 bg-white px-3 py-2 text-sm text-slate-700';
 
       const titleInput = document.createElement('input');
       titleInput.type = 'text';
@@ -692,7 +712,8 @@ export class HabitsQuickModal {
             indicatorEl.style.borderColor = baseBorderColor;
             indicatorEl.style.backgroundColor = 'transparent';
             checkboxEl.addEventListener('mouseenter', () => {
-              indicatorEl.style.borderColor = UNCHECKED_INDICATOR_HOVER_BORDER_COLOR;
+              indicatorEl.style.borderColor =
+                UNCHECKED_INDICATOR_HOVER_BORDER_COLOR;
             });
             checkboxEl.addEventListener('mouseleave', () => {
               indicatorEl.style.borderColor = baseBorderColor;
@@ -703,7 +724,8 @@ export class HabitsQuickModal {
 
         dayAnchors.push({
           xAnchor: streakCell,
-          yAnchor: indicatorEl instanceof HTMLElement ? indicatorEl : streakCell,
+          yAnchor:
+            indicatorEl instanceof HTMLElement ? indicatorEl : streakCell,
         });
 
         td.appendChild(streakCell);
@@ -978,7 +1000,8 @@ export class HabitsQuickModal {
   ): Promise<void> {
     const habitId = row.habit.id;
     const cellKey = this.toCellKey(habitId, day.key);
-    if (this.pendingCellKeys.has(cellKey) || this.isHabitPending(habitId)) return;
+    if (this.pendingCellKeys.has(cellKey) || this.isHabitPending(habitId))
+      return;
 
     this.error = null;
     row.completionByDateKey.set(day.key, !previousChecked);
@@ -987,7 +1010,10 @@ export class HabitsQuickModal {
     this.renderBody();
 
     try {
-      const updated = await this.service.toggleHabitCompletion(habitId, day.date);
+      const updated = await this.service.toggleHabitCompletion(
+        habitId,
+        day.date
+      );
       row.habit = updated;
       row.completionByDateKey = this.buildCompletionMap(updated);
       emitKanbanRefreshRequest();
