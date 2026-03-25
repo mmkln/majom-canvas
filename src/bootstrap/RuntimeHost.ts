@@ -1,6 +1,10 @@
 import { Subscription } from 'rxjs';
 import { GLOBAL_APP_SIDEBAR_WIDTH_PX } from './GlobalAppHeader.ts';
-import { KANBAN_DEV_ENABLED, ROUTINES_ENABLED } from '../config/env/index.ts';
+import {
+  KANBAN_DEV_ENABLED,
+  ROUTINES_ENABLED,
+  TIME_CLUSTERING_DEV_ENABLED,
+} from '../config/env/index.ts';
 import { CanvasModule } from '../features/canvas/CanvasModule.ts';
 import { WallpaperService } from '../features/shell/services/WallpaperService.ts';
 import type { WorkspaceModule } from '../features/shell/WorkspaceModule.ts';
@@ -46,13 +50,21 @@ type KanbanModuleNamespace = {
   KanbanModule: new () => WorkspaceModule;
 };
 
+type TimeClusteringModuleNamespace = {
+  TimeClusteringModule: new () => WorkspaceModule;
+};
+
 const loadKanbanModule = (): Promise<KanbanModuleNamespace> =>
   import('../features/kanban/KanbanModule.ts');
+
+const loadTimeClusteringModule = (): Promise<TimeClusteringModuleNamespace> =>
+  import('../features/time-clustering/TimeClusteringModule.ts');
 
 export class RuntimeHost {
   private shell: WorkspaceShell | null = null;
   private canvasModule: CanvasModule | null = null;
   private kanbanModule: WorkspaceModule | null = null;
+  private timeClusteringModule: WorkspaceModule | null = null;
   private readonly workspaceRoot: HTMLDivElement;
   private readonly wallpaperService: WallpaperService;
   private readonly wallpaperSubscription: Subscription;
@@ -104,9 +116,11 @@ export class RuntimeHost {
 
     this.activeView = loadPersistedWorkspaceView({
       allowKanban: KANBAN_DEV_ENABLED,
+      allowTimeClustering: TIME_CLUSTERING_DEV_ENABLED,
     });
     this.viewSwitcher = new WorkspaceViewSwitcher(this.activeView, {
       showKanban: KANBAN_DEV_ENABLED,
+      showTimeClustering: TIME_CLUSTERING_DEV_ENABLED,
       showRoutines: ROUTINES_ENABLED,
     });
     const chatRuntime = createAiAssistantRuntime({
@@ -249,6 +263,7 @@ export class RuntimeHost {
     this.shell = null;
     this.canvasModule = null;
     this.kanbanModule = null;
+    this.timeClusteringModule = null;
     this.workspaceRoot.remove();
     this.chatPanel.unmount();
     this.chatController.dispose();
@@ -293,6 +308,11 @@ export class RuntimeHost {
         this.kanbanModule = new KanbanModule();
         this.shell.register(this.kanbanModule);
       }
+      if (TIME_CLUSTERING_DEV_ENABLED && !this.timeClusteringModule) {
+        const { TimeClusteringModule } = await loadTimeClusteringModule();
+        this.timeClusteringModule = new TimeClusteringModule();
+        this.shell.register(this.timeClusteringModule);
+      }
       await this.shell.show(this.activeView);
       this.viewSwitcher.setActiveView(this.activeView);
       emitWorkspaceViewChanged(this.activeView);
@@ -305,6 +325,7 @@ export class RuntimeHost {
 
   public async setActiveView(view: WorkspaceView): Promise<void> {
     if (view === 'kanban' && !KANBAN_DEV_ENABLED) return;
+    if (view === 'time-clustering' && !TIME_CLUSTERING_DEV_ENABLED) return;
     this.activeView = view;
     persistWorkspaceView(view);
     if (!this.shell) return;

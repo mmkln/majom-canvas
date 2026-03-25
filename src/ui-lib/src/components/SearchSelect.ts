@@ -4,6 +4,12 @@ import { Component } from '../core/Component.ts';
 import { Input } from './Input.ts';
 import { ComponentFactory } from '../core/ComponentFactory.ts';
 import { EventEmitter } from '../core/EventEmitter.ts';
+import {
+  HUD_DROPDOWN_CLASS,
+  HUD_MENU_ITEM_BASE_CLASS,
+  HUD_MENU_ITEM_DEFAULT_CLASS,
+  HUD_MENU_ITEM_SELECTED_CLASS,
+} from '../hud/classNames.ts';
 
 export interface SelectItem {
   value: string;
@@ -23,10 +29,15 @@ export class SearchSelect extends Component<SearchSelectProps> {
   private listContainer!: HTMLUListElement;
   private filteredItems!: SelectItem[];
   private isListVisible: boolean = false;
-  private selectEmitter!: EventEmitter<string>;
+  private readonly selectEmitter = new EventEmitter<string>();
+  private selectedValue: string | null;
 
   constructor(readonly props: SearchSelectProps) {
     super(props);
+    this.selectedValue = props.selectedValue ?? null;
+    if (props.onSelect) {
+      this.onSelect(props.onSelect);
+    }
   }
 
   protected createElement(): HTMLElement {
@@ -52,13 +63,6 @@ export class SearchSelect extends Component<SearchSelectProps> {
       );
     }
 
-    if (this.props.onSelect) {
-      if (!this.selectEmitter) {
-        this.selectEmitter = new EventEmitter<string>();
-      }
-      this.onSelect(this.props.onSelect);
-    }
-
     const container = document.createElement('div');
     container.className = twMerge(
       'relative flex flex-col gap-2',
@@ -71,7 +75,8 @@ export class SearchSelect extends Component<SearchSelectProps> {
 
     this.listContainer = document.createElement('ul');
     this.listContainer.className = twMerge(
-      'absolute z-60 top-full left-0 w-full flex flex-col gap-2 mt-1 bg-gray-100 rounded-lg shadow-lg max-h-60 overflow-y-auto',
+      HUD_DROPDOWN_CLASS,
+      'absolute left-0 top-full z-60 mt-2 max-h-60 w-full overflow-y-auto p-1',
       this.isListVisible ? 'block' : 'hidden'
     );
     this.renderItems();
@@ -108,19 +113,31 @@ export class SearchSelect extends Component<SearchSelectProps> {
       const noItemsMessage = document.createElement('li');
       noItemsMessage.textContent = 'No items found';
       noItemsMessage.className = twMerge(
-        'px-3 py-2 text-gray-500 italic text-center bg-white rounded-lg border-2 border-gray-200'
+        'px-4 py-3 text-center text-sm leading-5 text-slate-500'
       );
       this.listContainer.appendChild(noItemsMessage);
     } else {
       this.filteredItems.forEach((item) => {
         const li = document.createElement('li');
-        li.textContent = item.label;
-        li.className = twMerge(
-          'px-3 py-2 text-gray-800 hover:bg-gray-200 cursor-pointer'
+        li.className = 'list-none';
+
+        const option = document.createElement('button');
+        option.type = 'button';
+        option.className = twMerge(
+          HUD_MENU_ITEM_BASE_CLASS,
+          item.value === this.selectedValue
+            ? HUD_MENU_ITEM_SELECTED_CLASS
+            : HUD_MENU_ITEM_DEFAULT_CLASS
         );
-        li.addEventListener('click', () => {
+        option.textContent = item.label;
+        option.addEventListener('mousedown', (event) => {
+          event.preventDefault();
+        });
+        option.addEventListener('click', () => {
           this.selectItem(item);
         });
+
+        li.appendChild(option);
         this.listContainer.appendChild(li);
       });
     }
@@ -132,14 +149,17 @@ export class SearchSelect extends Component<SearchSelectProps> {
     // При виборі встановлюємо у інпут значення label,
     // але callback отримує value елемента.
     this.filterInput.setValue(item.label);
+    this.selectedValue = item.value;
     this.isListVisible = false;
     this.selectEmitter.emit(item.value);
+    this.renderItems();
     this.updateListVisibility();
   }
 
   private updateListVisibility(): void {
     this.listContainer.className = twMerge(
-      'absolute z-60 top-full left-0 w-full flex flex-col gap-2 mt-1 bg-gray-100 rounded-lg shadow-lg max-h-60 overflow-y-auto',
+      HUD_DROPDOWN_CLASS,
+      'absolute left-0 top-full z-60 mt-2 max-h-60 w-full overflow-y-auto p-1',
       this.isListVisible ? 'block' : 'hidden'
     );
   }

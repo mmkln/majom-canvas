@@ -41,6 +41,10 @@ export {
   type HudMenuItemVariant as MenuItemVariant,
 } from './HudDropdownItem.ts';
 export {
+  createHudMenuControlRow as createMenuControlRow,
+  type HudMenuControlRowOptions as MenuControlRowOptions,
+} from './HudMenuControlRow.ts';
+export {
   createHudDropdownIconRow as createDropdownIconRow,
   type HudDropdownIconAction as DropdownIconAction,
   type HudDropdownIconActionTone as DropdownIconActionTone,
@@ -126,6 +130,10 @@ export {
   type HudDropdownItemTone,
   type HudMenuItemVariant,
 } from './HudDropdownItem.ts';
+export {
+  createHudMenuControlRow,
+  type HudMenuControlRowOptions,
+} from './HudMenuControlRow.ts';
 export {
   createHudDropdownIconRow,
   type HudDropdownIconAction,

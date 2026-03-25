@@ -12,6 +12,7 @@ import {
   createDivider,
   createDropdownItem,
   createIconButton,
+  createMenuControlRow,
   createSurface,
   createToggleSwitch,
 } from '../primitives/index.ts';
@@ -166,26 +167,32 @@ export class CanvasMenu {
     );
 
     const actions = document.createElement('div');
-    const animationsToggle = createToggleSwitch({
-      label: 'Canvas animations',
-      labelClassName: '!font-normal',
-      togglePosition: 'right',
-      checked: this.animationsEnabled,
-      onChange: (checked) => this.handleAnimationsToggle(checked),
+    const animationsToggle = createMenuControlRow({
+      control: createToggleSwitch({
+        label: 'Canvas animations',
+        labelClassName: '!font-normal',
+        togglePosition: 'right',
+        checked: this.animationsEnabled,
+        onChange: (checked) => this.handleAnimationsToggle(checked),
+      }),
     });
-    const autosaveToggle = createToggleSwitch({
-      label: 'Autosave',
-      labelClassName: '!font-normal',
-      togglePosition: 'right',
-      checked: this.autosaveEnabled,
-      onChange: (checked) => this.handleAutosaveToggle(checked),
+    const autosaveToggle = createMenuControlRow({
+      control: createToggleSwitch({
+        label: 'Autosave',
+        labelClassName: '!font-normal',
+        togglePosition: 'right',
+        checked: this.autosaveEnabled,
+        onChange: (checked) => this.handleAutosaveToggle(checked),
+      }),
     });
-    const smartGuidesToggle = createToggleSwitch({
-      label: 'Alignment guides',
-      labelClassName: '!font-normal',
-      togglePosition: 'right',
-      checked: this.smartGuidesEnabled,
-      onChange: (checked) => this.handleSmartGuidesToggle(checked),
+    const smartGuidesToggle = createMenuControlRow({
+      control: createToggleSwitch({
+        label: 'Alignment guides',
+        labelClassName: '!font-normal',
+        togglePosition: 'right',
+        checked: this.smartGuidesEnabled,
+        onChange: (checked) => this.handleSmartGuidesToggle(checked),
+      }),
     });
     actions.append(
       animationsToggle,

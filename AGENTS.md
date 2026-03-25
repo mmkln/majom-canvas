@@ -118,7 +118,7 @@
 - Use when the request is to add, rename, replace, or remove a reusable icon, especially when the user provides an SVG snippet or an icon name.
 - Owner: `src/ui-lib/src/hud`
 - Read first: `src/ui-lib/src/hud/AGENTS.md`
-- Expected result: update the shared icon registry in `src/ui-lib/src/hud/icons.ts`, keep feature re-exports thin, and avoid tests when the change is only static icon registration.
+- Expected result: update the shared icon registry in `src/ui-lib/src/hud/icons.ts`, keep feature re-exports thin, use the local fast path for direct icon swaps, and avoid broad validation when the change is only static icon registration.
 
 ### Extend Canvas Context Menu
 

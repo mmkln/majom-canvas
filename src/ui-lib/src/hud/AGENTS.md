@@ -30,6 +30,21 @@
 7. If the task is only to register the icon, do not touch consumers. Only update calling UI code when the task explicitly asks to use the icon.
 8. Verify by searching for the icon name in `src/ui-lib/src/hud/icons.ts` and make sure it appears once in `IconName` and once in `createIcon(...)`.
 
+### Fast Path For Small Icon Requests
+
+- Treat "add this icon" or "replace this button icon with X" as a narrow static-edit task unless the user asks for broader UI work.
+- If the user already names the consumer, do not run broad repo-wide discovery. Open the canonical registry plus the named consumer and patch both directly.
+- Prefer this sequence:
+  1. patch `src/ui-lib/src/hud/icons.ts`,
+  2. patch the named consumer if requested,
+  3. run a targeted `rg` check for the new icon name,
+  4. stop.
+- Do not run full `npm run build`, `npm run lint`, or test suites for registry-only icon additions or one-consumer icon swaps unless:
+  - the user explicitly asks for validation,
+  - the edit touches behavior beyond static icon wiring,
+  - or the file changes reveal uncertainty that a targeted check cannot resolve.
+- Do not inspect unrelated docs or feature modules once the canonical registry and direct consumer are known.
+
 ### Testing
 
 - Do not add tests for a registry-only icon addition.

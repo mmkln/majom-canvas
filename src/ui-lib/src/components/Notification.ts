@@ -1,6 +1,7 @@
 import { twMerge } from 'tailwind-merge';
 import { Component } from '../core/Component.ts';
 import type { NotificationType } from '../services/NotificationService.ts';
+import { createIcon, type IconName } from '../hud/icons.ts';
 
 // Inject keyframes for toast progress bar animation
 const PROGRESS_STYLE_ID = 'ui-lib-toast-progress-style';
@@ -26,13 +27,30 @@ export interface NotificationProps {
   onDismiss?: () => void;
 }
 
-// SVG icons per type
-const ICON_SVGS: Record<NotificationType, string> = {
-  success: `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-green-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>`,
-  error: `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>`,
-  info: `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01"/><circle cx="12" cy="12" r="9"/></svg>`,
+const NOTIFICATION_TONE: Record<
+  NotificationType,
+  {
+    icon: IconName;
+    iconClassName: string;
+    progressClassName: string;
+  }
+> = {
+  success: {
+    icon: 'check-circle',
+    iconClassName: 'text-emerald-600',
+    progressClassName: 'bg-emerald-500',
+  },
+  error: {
+    icon: 'x-mark',
+    iconClassName: 'text-rose-600',
+    progressClassName: 'bg-rose-500',
+  },
+  info: {
+    icon: 'exclamation-circle',
+    iconClassName: 'text-sky-600',
+    progressClassName: 'bg-sky-500',
+  },
 };
-const CLOSE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>`;
 
 export class Notification extends Component<NotificationProps> {
   private timeoutId: number | null = null;
@@ -58,16 +76,19 @@ export class Notification extends Component<NotificationProps> {
     this.startTime = Date.now();
     // Start CSS animation
     if (bar) bar.style.animationPlayState = 'running';
-    // Auto-dismiss handler
     const dismiss = () => {
+      if (this.timeoutId) clearTimeout(this.timeoutId);
       if (this.props.onDismiss) this.props.onDismiss();
-      // Cleanup
-      el.remove();
       if (bar) {
         bar.style.animationPlayState = 'paused';
       }
-      if (this.timeoutId) clearTimeout(this.timeoutId);
+      el.remove();
     };
+
+    const dismissButton = el.querySelector<HTMLButtonElement>(
+      '[data-toast-dismiss="true"]'
+    );
+    dismissButton?.addEventListener('click', dismiss);
     // Schedule auto-dismiss
     this.timeoutId = window.setTimeout(dismiss, this.remaining);
     // Pause/resume on hover
@@ -88,29 +109,24 @@ export class Notification extends Component<NotificationProps> {
       message,
       type = 'info',
       className = '',
-      onDismiss,
       duration = 3000,
     } = this.props;
+    const tone = NOTIFICATION_TONE[type];
     // Container
     const note = document.createElement('div');
     // Initial hidden state for animation
     const hiddenClasses =
-      'opacity-0 translate-x-2 transition ease-out duration-300';
+      'translate-x-2 opacity-0 transition duration-200 ease-out motion-reduce:translate-x-0 motion-reduce:transition-none';
     const base =
-      'relative flex items-start justify-between overflow-hidden rounded-2xl border border-slate-200/80 p-3.5 shadow-[0_14px_34px_rgba(15,23,42,0.16)] transition';
-    const variant = {
-      success: 'bg-emerald-50/95 text-emerald-900',
-      error: 'bg-rose-50/95 text-rose-900',
-      info: 'bg-sky-50/95 text-sky-900',
-    }[type];
-    note.className = twMerge(base, variant, className, hiddenClasses);
+      'pointer-events-auto relative flex items-start gap-3 overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 text-slate-700 shadow-[0_14px_32px_rgba(15,23,42,0.14)]';
+    note.className = twMerge(base, className, hiddenClasses);
 
     // Progress bar
     const barWrap = document.createElement('div');
-    barWrap.className = 'absolute bottom-0 left-0 w-full h-1 bg-gray-200';
+    barWrap.className = 'absolute bottom-0 left-0 h-1 w-full bg-slate-200/80';
     const bar = document.createElement('div');
     // Progress bar filler
-    bar.className = 'h-full bg-current progress-bar';
+    bar.className = twMerge('progress-bar h-full', tone.progressClassName);
     bar.style.width = '100%';
     // Use CSS animation for progress
     bar.style.animationName = 'toast-progress';
@@ -123,18 +139,27 @@ export class Notification extends Component<NotificationProps> {
 
     // Icon
     const iconEl = document.createElement('span');
-    iconEl.innerHTML = ICON_SVGS[type];
+    iconEl.className = twMerge(
+      'mt-0.5 inline-flex shrink-0 items-center justify-center',
+      tone.iconClassName
+    );
+    const icon = createIcon(tone.icon, { size: 18, strokeWidth: 1.9 });
+    icon.setAttribute('aria-hidden', 'true');
+    iconEl.appendChild(icon);
     // Message
     const msgEl = document.createElement('div');
-    msgEl.className = 'ml-3 flex-1 text-[13px] font-medium leading-5';
+    msgEl.className = 'min-w-0 flex-1 text-[13px] font-medium leading-[1.45]';
     msgEl.textContent = message;
     // Close button
     const btnEl = document.createElement('button');
     btnEl.type = 'button';
     btnEl.className =
-      'ml-4 p-1 rounded-full hover:bg-black/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary';
-    btnEl.innerHTML = CLOSE_SVG;
-    if (onDismiss) btnEl.addEventListener('click', onDismiss);
+      'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-[background-color,color,box-shadow] duration-150 ease-out hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-1';
+    btnEl.setAttribute('data-toast-dismiss', 'true');
+    btnEl.setAttribute('aria-label', 'Dismiss notification');
+    const closeIcon = createIcon('x-mark', { size: 14, strokeWidth: 1.9 });
+    closeIcon.setAttribute('aria-hidden', 'true');
+    btnEl.appendChild(closeIcon);
 
     note.append(iconEl, msgEl, btnEl);
     return note;

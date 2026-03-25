@@ -18,6 +18,7 @@ type WorkspaceControlsBarOptions = {
   initialView: WorkspaceView;
   initialChatOpen?: boolean;
   showKanban?: boolean;
+  showTimeClustering?: boolean;
   showRoutines?: boolean;
   showChat?: boolean;
   variant?: WorkspaceControlsBarVariant;
@@ -47,6 +48,7 @@ type VariantMetrics = {
 const VIEW_OPTIONS: ViewOption[] = [
   { view: 'canvas', label: 'Canvas', icon: 'map' },
   { view: 'kanban', label: 'Kanban', icon: 'view-columns' },
+  { view: 'time-clustering', label: 'Time', icon: 'rectangle-stack' },
 ];
 
 const VARIANT_METRICS: Record<WorkspaceControlsBarVariant, VariantMetrics> = {
@@ -130,11 +132,14 @@ export class WorkspaceControlsBar {
     this.chatOpen = options.initialChatOpen ?? false;
 
     const showKanban = options.showKanban ?? true;
+    const showTimeClustering = options.showTimeClustering ?? true;
     const showRoutines = options.showRoutines ?? true;
     const showChat = options.showChat ?? true;
-    const viewOptions = showKanban
-      ? VIEW_OPTIONS
-      : VIEW_OPTIONS.filter((option) => option.view !== 'kanban');
+    const viewOptions = VIEW_OPTIONS.filter((option) => {
+      if (option.view === 'kanban') return showKanban;
+      if (option.view === 'time-clustering') return showTimeClustering;
+      return true;
+    });
     const shouldRenderViewGroup = viewOptions.length > 1;
     this.shouldRender = shouldRenderViewGroup || showRoutines || showChat;
 

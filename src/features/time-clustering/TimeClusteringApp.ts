@@ -14,6 +14,7 @@ export class TimeClusteringApp {
 
   public unmount(): void {
     this.view.unmount();
+    this.store.destroy();
   }
 
   public async refreshSuggestions(): Promise<void> {

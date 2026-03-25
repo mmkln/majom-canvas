@@ -327,7 +327,6 @@ Use these concrete values for new table/grid UI unless a documented exception is
    - Use full-bleed container (`w-full h-full`) with no decorative outer card.
    - Keep visual hierarchy through internal structure (header/toolbar/content zones), not through heavy perimeter border/shadow.
 
----
 
 ## 6) Current audit: strengths
 
@@ -639,3 +638,87 @@ Rule:
 - Prefer hierarchy through spacing and typography before adding color or chrome.
 - Remove decorative shadows/borders from message bubbles unless they carry a functional purpose.
 - If a style detail does not improve comprehension, interaction, or accessibility, omit it.
+
+---
+
+## 14) Visual examples: how elements should look now
+
+Use these as ready-to-apply reference recipes for new non-canvas UI.
+
+### 14.1 Primary action button (default desktop)
+
+- **Shape:** `rounded-lg`
+- **Height:** `h-9` (or `h-11` for touch-heavy contexts)
+- **Typography:** `body/md` (14px, 500)
+- **Color:** accent background + `text/inverse`
+- **States:** visible hover darken, `focus-visible` ring, disabled reduced opacity/interaction lock
+
+Example class recipe:
+
+```ts
+const primaryButtonClass =
+  'inline-flex h-9 items-center justify-center gap-2 rounded-lg px-4 text-[14px] font-medium ' +
+  'bg-indigo-600 text-white hover:bg-indigo-500 focus-visible:outline-none focus-visible:ring-2 ' +
+  'focus-visible:ring-indigo-400 disabled:cursor-not-allowed disabled:opacity-50';
+```
+
+### 14.2 Text input (mobile-safe)
+
+- **Shape:** `rounded-lg`
+- **Height:** `h-11`
+- **Typography:** `16px` on mobile/touch, can scale to `14px` from `md` and above
+- **Border:** subtle (`border/subtle`) because affordance is required
+- **States:** default, hover, focus ring, invalid, disabled
+
+Example class recipe:
+
+```ts
+const inputClass =
+  'h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-[16px] text-slate-900 ' +
+  'placeholder:text-slate-400 hover:border-slate-400 focus-visible:outline-none focus-visible:ring-2 ' +
+  'focus-visible:ring-indigo-400 disabled:cursor-not-allowed disabled:bg-slate-100 md:text-[14px]';
+```
+
+### 14.3 Surface card with hierarchy
+
+- **Container:** `rounded-2xl`, low elevation, optional subtle border
+- **Title:** `heading/sm` (18px, 600)
+- **Body:** `body/md` (14px)
+- **Meta:** `body/sm` (13px) in muted tone
+- **Rule:** no extra nested borders unless they communicate real state/affordance
+
+Example class recipe:
+
+```ts
+const surfaceCardClass =
+  'rounded-2xl border border-slate-200/85 bg-white p-4 shadow-[0_4px_14px_rgba(15,23,42,0.08)]';
+```
+
+### 14.4 Dropdown menu row
+
+- **Row spacing:** `px-4 py-3`
+- **Icon:** `16px`, stroke `1.8-1.9`
+- **Colors:** neutral by default, accent for selected, danger only for destructive semantics
+- **Rule:** do not add border around every row; communicate state with tone and background
+
+Example class recipe:
+
+```ts
+const dropdownRowClass =
+  'flex w-full items-center gap-3 rounded-lg px-4 py-3 text-[14px] text-slate-700 ' +
+  'hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300';
+```
+
+### 14.5 Modal shell
+
+- **Container:** `rounded-2xl`, overlay depth shadow
+- **Spacing:** section rhythm 12-16px, label/control gap 4-6px
+- **Buttons:** use shared action-row presets (`h-9` default, `h-11` in touch mode)
+- **Rule:** always use shared modal shell/focus/backdrop lifecycle
+
+Example class recipe:
+
+```ts
+const modalContainerClass =
+  'rounded-2xl bg-white p-5 shadow-[0_24px_56px_rgba(15,23,42,0.18)]';
+```
