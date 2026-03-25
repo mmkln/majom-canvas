@@ -1,4 +1,3 @@
-export type TimeClusteringViewMode = 'day-compact' | 'week-fullscreen';
 export type TimeClusteringLayoutMode = 'docked-left' | 'fullscreen';
 
 export interface TimeCluster {
@@ -43,8 +42,6 @@ export interface TimeClusteringSuggestionAction {
 export interface TimeClusteringStateSnapshot {
   selectedDateKey: string;
   weekAnchorDateKey: string;
-  viewMode: TimeClusteringViewMode;
-  layoutMode: TimeClusteringLayoutMode;
   plansByDate: Record<string, DayClusterPlan>;
   lastWarnings: DuplicationWarning[];
 }

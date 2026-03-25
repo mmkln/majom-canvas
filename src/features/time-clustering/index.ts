@@ -9,5 +9,4 @@ export type {
   TimeClusteringLayoutMode,
   TimeCluster,
   TimeClusteringStateSnapshot,
-  TimeClusteringViewMode,
 } from './domain/types.ts';

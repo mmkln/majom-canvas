@@ -3,7 +3,9 @@ import type { TimeClusteringRepository } from './TimeClusteringRepository.ts';
 
 export const TIME_CLUSTERS_STORAGE_KEY = 'time_clusters_v1';
 
-export class LocalStorageTimeClusteringRepository implements TimeClusteringRepository {
+export class LocalStorageTimeClusteringRepository
+  implements TimeClusteringRepository
+{
   constructor(private readonly storage: Storage = window.localStorage) {}
 
   public load(): TimeClusteringStateSnapshot | null {
@@ -15,17 +17,11 @@ export class LocalStorageTimeClusteringRepository implements TimeClusteringRepos
       if (!parsed || typeof parsed !== 'object') return null;
       if (typeof parsed.selectedDateKey !== 'string') return null;
       const weekAnchorDateKey =
-        typeof parsed.weekAnchorDateKey === 'string' ? parsed.weekAnchorDateKey : parsed.selectedDateKey;
-      if (parsed.viewMode !== 'day-compact' && parsed.viewMode !== 'week-fullscreen') return null;
-      if (parsed.layoutMode !== 'docked-left' && parsed.layoutMode !== 'fullscreen') {
-        return {
-          ...parsed,
-          weekAnchorDateKey,
-          layoutMode: 'docked-left',
-          lastWarnings: Array.isArray(parsed.lastWarnings) ? parsed.lastWarnings : [],
-        };
-      }
-      if (!parsed.plansByDate || typeof parsed.plansByDate !== 'object') return null;
+        typeof parsed.weekAnchorDateKey === 'string'
+          ? parsed.weekAnchorDateKey
+          : parsed.selectedDateKey;
+      if (!parsed.plansByDate || typeof parsed.plansByDate !== 'object')
+        return null;
       if (!Array.isArray(parsed.lastWarnings)) {
         return {
           ...parsed,

@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { WorkspaceControlsBar } from './WorkspaceControlsBar.ts';
 import {
   TIME_CLUSTERING_TOGGLE_REQUEST_EVENT,
+  WORKSPACE_VIEW_CHANGE_REQUEST_EVENT,
   isTimeClusteringToggleRequestDetail,
+  isWorkspaceViewChangeRequestDetail,
 } from './workspaceEvents.ts';
 
 function getButtonByAriaLabel(
@@ -111,6 +113,36 @@ describe('WorkspaceControlsBar sidebar variant', () => {
     expect(chatButton.style.color).toBe('');
   });
 
+  it('suppresses the base view active style when time clustering is fullscreen', () => {
+    const bar = new WorkspaceControlsBar({
+      initialView: 'canvas',
+      initialTimeClusteringOpen: true,
+      initialTimeClusteringLayoutMode: 'docked-left',
+      showKanban: true,
+      showTimeClustering: true,
+      showRoutines: false,
+      showChat: false,
+      variant: 'sidebar',
+    });
+
+    const canvasButton = bar.element.querySelector(
+      'button[data-view="canvas"]'
+    ) as HTMLButtonElement;
+    const timeButton = getButtonByAriaLabel(
+      bar.element,
+      'Toggle time clustering panel'
+    ) as HTMLButtonElement;
+
+    expect(canvasButton.dataset.active).toBe('true');
+    expect(timeButton.dataset.active).toBe('true');
+
+    bar.setTimeClusteringLayoutMode('fullscreen');
+
+    expect(canvasButton.dataset.active).toBe('false');
+    expect(canvasButton.getAttribute('aria-checked')).toBe('false');
+    expect(timeButton.dataset.active).toBe('true');
+  });
+
   it('requests a time clustering toggle without changing the base view', () => {
     const bar = new WorkspaceControlsBar({
       initialView: 'canvas',
@@ -143,6 +175,35 @@ describe('WorkspaceControlsBar sidebar variant', () => {
     window.removeEventListener(TIME_CLUSTERING_TOGGLE_REQUEST_EVENT, handler);
 
     expect(events).toEqual(['toggle']);
+  });
+
+  it('lets the active canvas button request a base view change while time clustering is open', () => {
+    const bar = new WorkspaceControlsBar({
+      initialView: 'canvas',
+      initialTimeClusteringOpen: true,
+      showKanban: true,
+      showTimeClustering: true,
+      showRoutines: false,
+      showChat: false,
+      variant: 'sidebar',
+    });
+
+    const events: string[] = [];
+    const handler = (event: Event): void => {
+      const customEvent = event as CustomEvent<unknown>;
+      if (!isWorkspaceViewChangeRequestDetail(customEvent.detail)) return;
+      events.push(customEvent.detail.view);
+    };
+    window.addEventListener(WORKSPACE_VIEW_CHANGE_REQUEST_EVENT, handler);
+
+    const canvasButton = bar.element.querySelector(
+      'button[data-view="canvas"]'
+    ) as HTMLButtonElement;
+    canvasButton.click();
+
+    window.removeEventListener(WORKSPACE_VIEW_CHANGE_REQUEST_EVENT, handler);
+
+    expect(events).toEqual(['canvas']);
   });
 });
 

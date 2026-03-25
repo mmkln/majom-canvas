@@ -8,6 +8,7 @@ import {
 } from './services/TimeClusteringSuggestionService.ts';
 
 type TimeClusteringAppOptions = {
+  initialLayoutMode?: TimeClusteringLayoutMode;
   onLayoutModeChange?: (mode: TimeClusteringLayoutMode) => void;
 };
 
@@ -20,31 +21,34 @@ export class TimeClusteringApp {
   );
   private readonly suggestionService =
     new StubTimeClusteringSuggestionService();
-  private readonly view = new TimeClusteringRootView({
-    store: this.store,
-    onRefreshSuggestions: () => this.refreshSuggestions(),
-  });
-  private disposeLayoutModeSubscription: (() => void) | null = null;
-  private lastReportedLayoutMode: TimeClusteringLayoutMode | null = null;
+  private readonly view: TimeClusteringRootView;
+  private layoutMode: TimeClusteringLayoutMode;
 
   constructor(options: TimeClusteringAppOptions = {}) {
+    this.layoutMode = options.initialLayoutMode ?? 'docked-left';
     this.onLayoutModeChange = options.onLayoutModeChange;
+    this.view = new TimeClusteringRootView({
+      store: this.store,
+      layoutMode: this.layoutMode,
+      onLayoutModeChange: (mode) => this.setLayoutMode(mode),
+      onRefreshSuggestions: () => this.refreshSuggestions(),
+    });
   }
 
   public mount(parent: HTMLElement): void {
     this.view.mount(parent);
-    this.disposeLayoutModeSubscription = this.store.subscribe((snapshot) => {
-      if (snapshot.layoutMode === this.lastReportedLayoutMode) return;
-      this.lastReportedLayoutMode = snapshot.layoutMode;
-      this.onLayoutModeChange?.(snapshot.layoutMode);
-    });
   }
 
   public unmount(): void {
-    this.disposeLayoutModeSubscription?.();
-    this.disposeLayoutModeSubscription = null;
     this.view.unmount();
     this.store.destroy();
+  }
+
+  public setLayoutMode(mode: TimeClusteringLayoutMode): void {
+    if (this.layoutMode === mode) return;
+    this.layoutMode = mode;
+    this.view.setLayoutMode(mode);
+    this.onLayoutModeChange?.(mode);
   }
 
   public async refreshSuggestions(): Promise<TimeClusteringSuggestion[]> {

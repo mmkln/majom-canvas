@@ -1,1 +1,1 @@
-export type WorkspaceView = 'canvas' | 'kanban' | 'time-clustering';
+export type WorkspaceView = 'canvas' | 'kanban';

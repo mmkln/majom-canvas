@@ -1,6 +1,7 @@
 import { createIcon, type IconName } from '../canvas/ui/icons.ts';
 import { HabitsQuickModal } from './components/HabitsQuickModal.ts';
 import type { WorkspaceView } from './WorkspaceView.ts';
+import type { TimeClusteringLayoutMode } from '../time-clustering/domain/types.ts';
 import { emitAiAssistantToggleRequested } from '../ai-assistant/aiAssistantEvents.ts';
 import {
   emitTimeClusteringToggleRequested,
@@ -27,6 +28,7 @@ type WorkspaceControlsBarOptions = {
   initialView: WorkspaceView;
   initialChatOpen?: boolean;
   initialTimeClusteringOpen?: boolean;
+  initialTimeClusteringLayoutMode?: TimeClusteringLayoutMode;
   showKanban?: boolean;
   showTimeClustering?: boolean;
   showRoutines?: boolean;
@@ -135,6 +137,7 @@ export class WorkspaceControlsBar {
   private activeView: WorkspaceView;
   private chatOpen: boolean;
   private timeClusteringOpen: boolean;
+  private timeClusteringLayoutMode: TimeClusteringLayoutMode;
 
   constructor(options: WorkspaceControlsBarOptions) {
     this.variant = options.variant ?? 'floating';
@@ -142,6 +145,8 @@ export class WorkspaceControlsBar {
     this.activeView = options.initialView;
     this.chatOpen = options.initialChatOpen ?? false;
     this.timeClusteringOpen = options.initialTimeClusteringOpen ?? false;
+    this.timeClusteringLayoutMode =
+      options.initialTimeClusteringLayoutMode ?? 'docked-left';
 
     const showKanban = options.showKanban ?? true;
     const showTimeClustering = options.showTimeClustering ?? true;
@@ -197,7 +202,9 @@ export class WorkspaceControlsBar {
         button.dataset.view = option.view;
         button.setAttribute('role', 'radio');
         button.addEventListener('click', () => {
-          if (this.activeView === option.view) return;
+          if (this.activeView === option.view && !this.timeClusteringOpen) {
+            return;
+          }
           emitWorkspaceViewChangeRequested(option.view);
         });
         this.viewButtons.set(option.view, button);
@@ -253,6 +260,11 @@ export class WorkspaceControlsBar {
 
   public setTimeClusteringOpen(open: boolean): void {
     this.timeClusteringOpen = open;
+    this.syncButtons();
+  }
+
+  public setTimeClusteringLayoutMode(mode: TimeClusteringLayoutMode): void {
+    this.timeClusteringLayoutMode = mode;
     this.syncButtons();
   }
 
@@ -406,8 +418,10 @@ export class WorkspaceControlsBar {
   }
 
   private syncButtons(): void {
+    const suppressBaseViewActiveState =
+      this.timeClusteringOpen && this.timeClusteringLayoutMode === 'fullscreen';
     this.viewButtons.forEach((button, view) => {
-      const isActive = this.activeView === view;
+      const isActive = !suppressBaseViewActiveState && this.activeView === view;
       button.setAttribute('aria-checked', isActive ? 'true' : 'false');
       button.setAttribute('aria-disabled', 'false');
       if (this.variant === 'sidebar') {

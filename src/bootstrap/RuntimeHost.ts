@@ -12,6 +12,7 @@ import { WorkspaceShell } from '../features/shell/WorkspaceShell.ts';
 import {
   TIME_CLUSTERING_TOGGLE_REQUEST_EVENT,
   WORKSPACE_VIEW_CHANGE_REQUEST_EVENT,
+  emitTimeClusteringLayoutModeChanged,
   isTimeClusteringToggleRequestDetail,
   emitTimeClusteringVisibilityChanged,
   emitWorkspaceViewChanged,
@@ -57,10 +58,17 @@ type KanbanModuleNamespace = {
   KanbanModule: new () => WorkspaceModule;
 };
 
+type TimeClusteringIslandModule = {
+  mount(parent: HTMLElement): void;
+  unmount(): void;
+  setLayoutMode(mode: TimeClusteringLayoutMode): void;
+};
+
 type TimeClusteringModuleNamespace = {
   TimeClusteringModule: new (options?: {
+    initialLayoutMode?: TimeClusteringLayoutMode;
     onLayoutModeChange?: (mode: TimeClusteringLayoutMode) => void;
-  }) => WorkspaceModule;
+  }) => TimeClusteringIslandModule;
 };
 
 const loadKanbanModule = (): Promise<KanbanModuleNamespace> =>
@@ -73,7 +81,7 @@ export class RuntimeHost {
   private shell: WorkspaceShell | null = null;
   private canvasModule: CanvasModule | null = null;
   private kanbanModule: WorkspaceModule | null = null;
-  private timeClusteringModule: WorkspaceModule | null = null;
+  private timeClusteringModule: TimeClusteringIslandModule | null = null;
   private readonly workspaceRoot: HTMLDivElement;
   private readonly wallpaperService: WallpaperService;
   private readonly wallpaperSubscription: Subscription;
@@ -132,7 +140,7 @@ export class RuntimeHost {
     this.timeClusteringIslandRoot.style.transition =
       'left 180ms ease, top 180ms ease, right 180ms ease, bottom 180ms ease, width 180ms ease, border-radius 180ms ease';
     this.timeClusteringIslandRoot.style.borderRight =
-      '1px solid rgba(63, 63, 70, 0.9)';
+      '1px solid rgb(234, 238, 245)';
     document.body.appendChild(this.timeClusteringIslandRoot);
 
     this.wallpaperSubscription = this.wallpaperService.wallpaper$.subscribe(
@@ -144,14 +152,18 @@ export class RuntimeHost {
     this.currentWallpaperUrl = this.wallpaperService.wallpaperUrl.trim();
     this.syncWorkspaceWallpaper();
 
+    this.timeClusteringOpen = loadPersistedTimeClusteringOpen(
+      TIME_CLUSTERING_DEV_ENABLED
+    );
     this.activeView = loadPersistedWorkspaceView({
       allowKanban: KANBAN_DEV_ENABLED,
-      allowTimeClustering: TIME_CLUSTERING_DEV_ENABLED,
     });
+    if (this.timeClusteringOpen) {
+      this.activeView = 'canvas';
+    }
     this.viewSwitcher = new WorkspaceViewSwitcher(this.activeView, {
-      initialTimeClusteringOpen: loadPersistedTimeClusteringOpen(
-        TIME_CLUSTERING_DEV_ENABLED
-      ),
+      initialTimeClusteringOpen: this.timeClusteringOpen,
+      initialTimeClusteringLayoutMode: this.timeClusteringLayoutMode,
       showKanban: KANBAN_DEV_ENABLED,
       showTimeClustering: TIME_CLUSTERING_DEV_ENABLED,
       showRoutines: ROUTINES_ENABLED,
@@ -173,13 +185,13 @@ export class RuntimeHost {
       executeAction: executeChatAction,
     });
     this.chatOpen = loadPersistedAiAssistantOpen();
-    this.timeClusteringOpen = loadPersistedTimeClusteringOpen(
-      TIME_CLUSTERING_DEV_ENABLED
-    );
     this.chatPanel.setVisible(false);
     this.viewSwitcher.setVisible(false);
     this.viewSwitcher.setChatOpen(this.chatOpen);
     this.viewSwitcher.setTimeClusteringOpen(this.timeClusteringOpen);
+    this.viewSwitcher.setTimeClusteringLayoutMode(
+      this.timeClusteringLayoutMode
+    );
     this.viewChangeHandler = (event: Event) => {
       const customEvent = event as CustomEvent<unknown>;
       if (!isWorkspaceViewChangeRequestDetail(customEvent.detail)) return;
@@ -188,11 +200,7 @@ export class RuntimeHost {
     this.timeClusteringToggleHandler = (event: Event) => {
       const customEvent = event as CustomEvent<unknown>;
       if (!isTimeClusteringToggleRequestDetail(customEvent.detail)) return;
-      if (typeof customEvent.detail?.open === 'boolean') {
-        this.setTimeClusteringOpen(customEvent.detail.open);
-        return;
-      }
-      this.setTimeClusteringOpen(!this.timeClusteringOpen);
+      void this.handleTimeClusteringToggleRequest(customEvent.detail?.open);
     };
     this.chatToggleHandler = (event: Event) => {
       const customEvent = event as CustomEvent<unknown>;
@@ -367,6 +375,7 @@ export class RuntimeHost {
       if (TIME_CLUSTERING_DEV_ENABLED && !this.timeClusteringModule) {
         const { TimeClusteringModule } = await loadTimeClusteringModule();
         this.timeClusteringModule = new TimeClusteringModule({
+          initialLayoutMode: this.timeClusteringLayoutMode,
           onLayoutModeChange: (mode) =>
             this.handleTimeClusteringLayoutModeChange(mode),
         });
@@ -376,6 +385,7 @@ export class RuntimeHost {
       this.viewSwitcher.setActiveView(this.activeView);
       emitWorkspaceViewChanged(this.activeView);
       emitTimeClusteringVisibilityChanged(this.timeClusteringOpen);
+      emitTimeClusteringLayoutModeChanged(this.timeClusteringLayoutMode);
       emitAiAssistantVisibilityChanged(this.chatOpen);
       this.applyVisibility();
     } finally {
@@ -384,31 +394,82 @@ export class RuntimeHost {
   }
 
   public async setActiveView(view: WorkspaceView): Promise<void> {
-    if (view === 'time-clustering') {
-      if (!TIME_CLUSTERING_DEV_ENABLED) return;
-      this.setTimeClusteringOpen(!this.timeClusteringOpen);
+    if (view === 'kanban' && !KANBAN_DEV_ENABLED) return;
+    const shouldCloseTimeClustering = this.timeClusteringOpen;
+    if (shouldCloseTimeClustering) {
+      this.syncTimeClusteringOpenState(false);
+      this.setTimeClusteringLayoutMode('docked-left');
+    }
+    if (this.activeView === view) {
+      if (shouldCloseTimeClustering) {
+        this.applyVisibility();
+      }
       return;
     }
-    if (view === 'kanban' && !KANBAN_DEV_ENABLED) return;
-    if (this.activeView === view) return;
-    this.activeView = view;
-    persistWorkspaceView(view);
-    if (!this.shell) return;
-    await this.shell.show(view);
-    this.syncTimeClusteringIslandVisibility();
-    this.viewSwitcher.setActiveView(view);
-    emitWorkspaceViewChanged(view);
+    await this.activateBaseView(view);
+    this.applyVisibility();
+  }
+
+  private async handleTimeClusteringToggleRequest(
+    open?: boolean
+  ): Promise<void> {
+    if (!TIME_CLUSTERING_DEV_ENABLED) return;
+    const nextOpen =
+      typeof open === 'boolean' ? open : !this.timeClusteringOpen;
+    if (!nextOpen) {
+      this.syncTimeClusteringOpenState(false);
+      this.setTimeClusteringLayoutMode('docked-left');
+      this.applyVisibility();
+      return;
+    }
+
+    this.setTimeClusteringLayoutMode('docked-left');
+    await this.activateBaseView('canvas');
+    this.syncTimeClusteringOpenState(true);
     this.applyVisibility();
   }
 
   private handleTimeClusteringLayoutModeChange(
     mode: TimeClusteringLayoutMode
   ): void {
-    if (this.timeClusteringLayoutMode === mode) return;
-    this.timeClusteringLayoutMode = mode;
+    if (!this.syncTimeClusteringLayoutMode(mode)) return;
     if (this.hostVisible && this.timeClusteringOpen) {
       this.applyVisibility();
     }
+  }
+
+  private setTimeClusteringLayoutMode(mode: TimeClusteringLayoutMode): void {
+    if (!this.syncTimeClusteringLayoutMode(mode)) return;
+    this.timeClusteringModule?.setLayoutMode(mode);
+  }
+
+  private syncTimeClusteringLayoutMode(
+    mode: TimeClusteringLayoutMode
+  ): boolean {
+    if (this.timeClusteringLayoutMode === mode) return false;
+    this.timeClusteringLayoutMode = mode;
+    this.viewSwitcher.setTimeClusteringLayoutMode(mode);
+    emitTimeClusteringLayoutModeChanged(mode);
+    return true;
+  }
+
+  private syncTimeClusteringOpenState(open: boolean): void {
+    if (this.timeClusteringOpen === open) return;
+    this.timeClusteringOpen = open;
+    persistTimeClusteringOpen(open);
+    this.viewSwitcher.setTimeClusteringOpen(open);
+    emitTimeClusteringVisibilityChanged(open);
+  }
+
+  private async activateBaseView(view: WorkspaceView): Promise<void> {
+    if (this.activeView === view) return;
+    this.activeView = view;
+    persistWorkspaceView(view);
+    if (this.shell) {
+      await this.shell.show(view);
+    }
+    this.viewSwitcher.setActiveView(view);
+    emitWorkspaceViewChanged(view);
   }
 
   private getTimeClusteringIslandWidthPx(): number {
@@ -423,6 +484,8 @@ export class RuntimeHost {
     const canvas = document.getElementById('myCanvas');
     const chatWidth = this.chatOpen ? this.chatPanel.getWidthPx() : 0;
     const timeClusteringIslandWidth = this.getTimeClusteringIslandWidthPx();
+    const timeClusteringFullscreen =
+      this.timeClusteringOpen && this.timeClusteringLayoutMode === 'fullscreen';
     if (!this.hostVisible) {
       this.unmountRuntimeChrome();
       this.workspaceRoot.style.display = 'none';
@@ -458,14 +521,17 @@ export class RuntimeHost {
     }
 
     this.mountRuntimeChrome();
-    const showCanvas = this.activeView === 'canvas';
-    this.workspaceRoot.style.display = 'block';
-    this.workspaceRoot.style.pointerEvents = 'auto';
-    this.applyWorkspaceLayout(
-      canvasUiRoot,
-      timeClusteringIslandWidth,
-      chatWidth
-    );
+    const showWorkspace = !timeClusteringFullscreen;
+    const showCanvas = showWorkspace && this.activeView === 'canvas';
+    this.workspaceRoot.style.display = showWorkspace ? 'block' : 'none';
+    this.workspaceRoot.style.pointerEvents = showWorkspace ? 'auto' : 'none';
+    if (showWorkspace) {
+      this.applyWorkspaceLayout(
+        canvasUiRoot,
+        timeClusteringIslandWidth,
+        chatWidth
+      );
+    }
     if (canvas instanceof HTMLCanvasElement) {
       canvas.style.display = showCanvas ? 'block' : 'none';
       canvas.style.pointerEvents = showCanvas ? 'auto' : 'none';
@@ -474,19 +540,27 @@ export class RuntimeHost {
       canvasUiRoot.style.display = showCanvas ? 'block' : 'none';
       canvasUiRoot.style.pointerEvents = 'none';
     }
-    this.syncCanvasUiRootToWorkspace(canvasUiRoot);
+    if (showWorkspace) {
+      this.syncCanvasUiRootToWorkspace(canvasUiRoot);
+    }
     this.syncTimeClusteringIslandVisibility(chatWidth);
     this.chatPanel.setIslandMode(this.chatOpen);
     this.viewSwitcher.setVisible(true);
     this.chatPanel.setVisible(this.chatOpen);
     this.syncWorkspaceWallpaper();
-    this.scheduleLayoutSync();
+    if (showWorkspace) {
+      this.scheduleLayoutSync();
+    }
   }
 
   private async executeChatAction(
     request: AiAssistantActionExecutionRequest
   ): Promise<AiAssistantActionExecutionResult> {
-    if (this.activeView !== 'canvas') {
+    if (
+      this.activeView !== 'canvas' ||
+      (this.timeClusteringOpen &&
+        this.timeClusteringLayoutMode === 'fullscreen')
+    ) {
       return {
         status: 'failed',
         errorMessage: 'Switch to canvas to create elements.',
@@ -504,7 +578,11 @@ export class RuntimeHost {
   private async executeChatActions(
     requests: AiAssistantActionExecutionRequest[]
   ): Promise<AiAssistantActionExecutionResult[]> {
-    if (this.activeView !== 'canvas') {
+    if (
+      this.activeView !== 'canvas' ||
+      (this.timeClusteringOpen &&
+        this.timeClusteringLayoutMode === 'fullscreen')
+    ) {
       return requests.map(() => ({
         status: 'failed' as const,
         errorMessage: 'Switch to canvas to create elements.',
@@ -629,7 +707,7 @@ export class RuntimeHost {
       this.timeClusteringIslandRoot.style.right = 'auto';
       this.timeClusteringIslandRoot.style.width = `${TIME_CLUSTERING_ISLAND_WIDTH_PX}px`;
       this.timeClusteringIslandRoot.style.borderRight =
-        '1px solid rgba(63, 63, 70, 0.9)';
+        '1px solid rgb(234, 238, 245)';
       return;
     }
 
@@ -653,7 +731,7 @@ export class RuntimeHost {
       this.timeClusteringIslandRoot.style.right = 'auto';
       this.timeClusteringIslandRoot.style.width = `${TIME_CLUSTERING_ISLAND_WIDTH_PX}px`;
       this.timeClusteringIslandRoot.style.borderRight =
-        '1px solid rgba(63, 63, 70, 0.9)';
+        '1px solid rgb(234, 238, 245)';
     }
     this.timeClusteringIslandRoot.style.display = 'block';
     this.timeClusteringIslandRoot.style.pointerEvents = 'auto';
@@ -664,15 +742,6 @@ export class RuntimeHost {
     persistAiAssistantOpen(open);
     this.viewSwitcher.setChatOpen(open);
     emitAiAssistantVisibilityChanged(open);
-    this.applyVisibility();
-  }
-
-  private setTimeClusteringOpen(open: boolean): void {
-    if (this.timeClusteringOpen === open) return;
-    this.timeClusteringOpen = open;
-    persistTimeClusteringOpen(open);
-    this.viewSwitcher.setTimeClusteringOpen(open);
-    emitTimeClusteringVisibilityChanged(open);
     this.applyVisibility();
   }
 

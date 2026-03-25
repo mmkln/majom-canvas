@@ -34,8 +34,11 @@ import {
   isAiAssistantVisibilityChangedDetail,
 } from '../features/ai-assistant/aiAssistantEvents.ts';
 import {
+  emitTimeClusteringToggleRequested,
+  TIME_CLUSTERING_LAYOUT_MODE_CHANGED_EVENT,
   TIME_CLUSTERING_VISIBILITY_CHANGED_EVENT,
   WORKSPACE_VIEW_CHANGED_EVENT,
+  isTimeClusteringLayoutModeChangedDetail,
   isTimeClusteringVisibilityChangedDetail,
   isWorkspaceViewChangedDetail,
 } from '../features/shell/workspaceEvents.ts';
@@ -78,6 +81,7 @@ export class GlobalAppHeader {
   private readonly controls: WorkspaceControlsBar | null;
   private readonly routinesModal: HabitsQuickModal | null;
   private readonly routinesButton: HTMLButtonElement | null;
+  private readonly timeClusteringButton: HTMLButtonElement | null;
   private readonly chatButton: HTMLButtonElement | null;
   private readonly menuContainer: HTMLDivElement | null;
   private readonly menuButton: HTMLButtonElement | null;
@@ -85,6 +89,9 @@ export class GlobalAppHeader {
   private readonly menuController: AnchoredMenu | null;
   private readonly viewChangedHandler: (event: Event) => void;
   private readonly chatVisibilityChangedHandler: (event: Event) => void;
+  private readonly timeClusteringLayoutModeChangedHandler: (
+    event: Event
+  ) => void;
   private readonly timeClusteringVisibilityChangedHandler: (
     event: Event
   ) => void;
@@ -114,6 +121,12 @@ export class GlobalAppHeader {
       const customEvent = event as CustomEvent<unknown>;
       if (!isTimeClusteringVisibilityChangedDetail(customEvent.detail)) return;
       this.controls?.setTimeClusteringOpen(customEvent.detail.open);
+      this.syncTimeClusteringButtonState(customEvent.detail.open);
+    };
+    this.timeClusteringLayoutModeChangedHandler = (event: Event) => {
+      const customEvent = event as CustomEvent<unknown>;
+      if (!isTimeClusteringLayoutModeChangedDetail(customEvent.detail)) return;
+      this.controls?.setTimeClusteringLayoutMode(customEvent.detail.mode);
     };
 
     if (!IS_DEVELOPMENT_MODE || GLOBAL_APP_SIDEBAR_WIDTH_PX <= 0) {
@@ -121,6 +134,7 @@ export class GlobalAppHeader {
       this.controls = null;
       this.routinesModal = null;
       this.routinesButton = null;
+      this.timeClusteringButton = null;
       this.chatButton = null;
       this.menuContainer = null;
       this.menuButton = null;
@@ -153,16 +167,20 @@ export class GlobalAppHeader {
     const initialTimeClusteringOpen = loadPersistedTimeClusteringOpen(
       TIME_CLUSTERING_DEV_ENABLED
     );
+    const initialWorkspaceView = initialTimeClusteringOpen
+      ? 'canvas'
+      : loadPersistedWorkspaceView({
+          allowKanban: KANBAN_DEV_ENABLED,
+        });
     this.routinesModal = ROUTINES_ENABLED ? new HabitsQuickModal() : null;
 
     this.controls = new WorkspaceControlsBar({
-      initialView: loadPersistedWorkspaceView({
-        allowKanban: KANBAN_DEV_ENABLED,
-      }),
+      initialView: initialWorkspaceView,
       initialChatOpen,
       initialTimeClusteringOpen,
+      initialTimeClusteringLayoutMode: 'docked-left',
       showKanban: KANBAN_DEV_ENABLED,
-      showTimeClustering: TIME_CLUSTERING_DEV_ENABLED,
+      showTimeClustering: false,
       showRoutines: false,
       showChat: false,
       variant: 'sidebar',
@@ -182,6 +200,18 @@ export class GlobalAppHeader {
           },
         })
       : null;
+
+    this.timeClusteringButton = TIME_CLUSTERING_DEV_ENABLED
+      ? this.createSidebarActionButton({
+          title: 'Time Clustering',
+          ariaLabel: 'Toggle time clustering panel',
+          iconName: 'rectangle-stack',
+          onClick: () => {
+            emitTimeClusteringToggleRequested();
+          },
+        })
+      : null;
+    this.syncTimeClusteringButtonState(initialTimeClusteringOpen);
 
     this.chatButton = this.createSidebarActionButton({
       title: 'AI Assistant',
@@ -221,6 +251,9 @@ export class GlobalAppHeader {
     if (this.routinesButton) {
       this.menuContainer.appendChild(this.routinesButton);
     }
+    if (this.timeClusteringButton) {
+      this.menuContainer.appendChild(this.timeClusteringButton);
+    }
     this.menuContainer.append(this.chatButton, this.menuButton, this.menuPanel);
     element.append(brand, this.controls.element, this.menuContainer);
     this.element = element;
@@ -247,6 +280,10 @@ export class GlobalAppHeader {
       this.chatVisibilityChangedHandler as EventListener
     );
     window.addEventListener(
+      TIME_CLUSTERING_LAYOUT_MODE_CHANGED_EVENT,
+      this.timeClusteringLayoutModeChangedHandler as EventListener
+    );
+    window.addEventListener(
       TIME_CLUSTERING_VISIBILITY_CHANGED_EVENT,
       this.timeClusteringVisibilityChangedHandler as EventListener
     );
@@ -264,6 +301,10 @@ export class GlobalAppHeader {
     window.removeEventListener(
       AI_ASSISTANT_VISIBILITY_CHANGED_EVENT,
       this.chatVisibilityChangedHandler as EventListener
+    );
+    window.removeEventListener(
+      TIME_CLUSTERING_LAYOUT_MODE_CHANGED_EVENT,
+      this.timeClusteringLayoutModeChangedHandler as EventListener
     );
     window.removeEventListener(
       TIME_CLUSTERING_VISIBILITY_CHANGED_EVENT,
@@ -327,7 +368,11 @@ export class GlobalAppHeader {
   private createSidebarActionButton(options: {
     title: string;
     ariaLabel: string;
-    iconName: 'chat-bubble-left' | 'ellipsis-vertical' | 'check-circle';
+    iconName:
+      | 'chat-bubble-left'
+      | 'ellipsis-vertical'
+      | 'check-circle'
+      | 'rectangle-stack';
     onClick: () => void;
   }): HTMLButtonElement {
     return createSidebarRailButton({
@@ -341,5 +386,10 @@ export class GlobalAppHeader {
   private syncChatButtonState(open: boolean): void {
     if (!this.chatButton) return;
     setSidebarRailButtonActive(this.chatButton, open);
+  }
+
+  private syncTimeClusteringButtonState(open: boolean): void {
+    if (!this.timeClusteringButton) return;
+    setSidebarRailButtonActive(this.timeClusteringButton, open);
   }
 }

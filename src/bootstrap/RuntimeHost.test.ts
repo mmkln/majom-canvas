@@ -25,6 +25,7 @@ vi.mock('../features/shell/WorkspaceViewSwitcher.ts', () => ({
     public setVisible(): void {}
     public setChatOpen(): void {}
     public setTimeClusteringOpen(): void {}
+    public setTimeClusteringLayoutMode(): void {}
   },
 }));
 
@@ -68,12 +69,13 @@ type RuntimeHostInternalAccess = {
   workspaceRoot: HTMLDivElement;
   timeClusteringIslandRoot: HTMLDivElement;
   hostVisible: boolean;
-  activeView: 'canvas' | 'kanban' | 'time-clustering';
+  activeView: 'canvas' | 'kanban';
   timeClusteringOpen: boolean;
   timeClusteringLayoutMode: 'docked-left' | 'fullscreen';
   timeClusteringModule: {
     mount: (parent: HTMLElement) => void;
     unmount: () => void;
+    setLayoutMode: (mode: 'docked-left' | 'fullscreen') => void;
     getAiAssistantSnapshot: () => null;
   } | null;
   shell: {
@@ -82,9 +84,8 @@ type RuntimeHostInternalAccess = {
     dispose: () => void;
   } | null;
   applyVisibility: () => void;
-  setActiveView: (
-    view: 'canvas' | 'kanban' | 'time-clustering'
-  ) => Promise<void>;
+  handleTimeClusteringToggleRequest: (open?: boolean) => Promise<void>;
+  setActiveView: (view: 'canvas' | 'kanban') => Promise<void>;
   dispose: () => void;
 };
 
@@ -128,6 +129,9 @@ function createTimeClusteringModuleStub(): NonNullable<
       parent.appendChild(document.createElement('div'));
     },
     unmount(): void {},
+    setLayoutMode(mode: 'docked-left' | 'fullscreen'): void {
+      void mode;
+    },
     getAiAssistantSnapshot(): null {
       return null;
     },
@@ -208,29 +212,39 @@ describe('RuntimeHost time clustering island layout', () => {
 
     host.applyVisibility();
 
-    expect(host.workspaceRoot.style.left).toBe('0px');
+    expect(host.workspaceRoot.style.display).toBe('none');
     expect(host.timeClusteringIslandRoot.style.display).toBe('block');
     expect(host.timeClusteringIslandRoot.style.right).toBe('0px');
     expect(host.timeClusteringIslandRoot.style.width).toBe('auto');
-    expect(canvas.style.display).toBe('block');
-    expect(canvasUiRoot.style.display).toBe('block');
+    expect(canvas.style.display).toBe('none');
+    expect(canvasUiRoot.style.display).toBe('none');
 
     host.dispose();
   });
 
-  it('toggles time clustering without changing the base view', async () => {
+  it('opens time clustering in docked-left canvas mode', async () => {
     const host = getRuntimeHostInternals(createRuntimeHost());
-    host.activeView = 'canvas';
+    const show = vi.fn<[string], Promise<void>>().mockResolvedValue();
+    host.shell = {
+      show,
+      getActiveModule: () => null,
+      dispose(): void {},
+    };
+    host.activeView = 'kanban';
     host.timeClusteringOpen = false;
+    host.timeClusteringLayoutMode = 'fullscreen';
+    host.timeClusteringModule = createTimeClusteringModuleStub();
 
-    await host.setActiveView('time-clustering');
+    await host.handleTimeClusteringToggleRequest();
 
     expect(host.activeView).toBe('canvas');
+    expect(show).toHaveBeenCalledWith('canvas');
     expect(host.timeClusteringOpen).toBe(true);
+    expect(host.timeClusteringLayoutMode).toBe('docked-left');
     host.dispose();
   });
 
-  it('keeps time clustering open while switching the base view in fullscreen', async () => {
+  it('closes time clustering when switching the base view', async () => {
     const host = getRuntimeHostInternals(createRuntimeHost());
     const show = vi.fn<[string], Promise<void>>().mockResolvedValue();
     host.shell = {
@@ -246,7 +260,8 @@ describe('RuntimeHost time clustering island layout', () => {
 
     expect(show).toHaveBeenCalledWith('kanban');
     expect(host.activeView).toBe('kanban');
-    expect(host.timeClusteringOpen).toBe(true);
+    expect(host.timeClusteringOpen).toBe(false);
+    expect(host.timeClusteringLayoutMode).toBe('docked-left');
 
     host.dispose();
   });
