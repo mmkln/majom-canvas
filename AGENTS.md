@@ -50,6 +50,7 @@
 - When the user corrects the assistant and that correction reveals a stable project rule, a recurring mistake, a contradiction, or an important edge case, update `AGENTS.md` in the same task unless the user explicitly says not to.
 - Only promote corrections into `AGENTS.md` when they are durable guidance for future work, not one-off preferences or temporary task details.
 - Keep new rules concrete and actionable so they improve future decisions instead of adding vague process noise.
+- If the user states that a documentation file already exists on their latest branch state, do not create a replacement file with the same intent. First verify branch sync status and only proceed with file creation after explicit confirmation.
 
 ### Scenario Self-Improvement
 
