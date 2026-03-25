@@ -15,6 +15,7 @@ export function loadPersistedWorkspaceView(
   try {
     const value = localStorage.getItem(WORKSPACE_ACTIVE_VIEW_STORAGE_KEY);
     if (value === 'kanban' && allowKanban) return 'kanban';
+    if (value === 'time-clustering') return 'time-clustering';
   } catch {
     // no-op
   }

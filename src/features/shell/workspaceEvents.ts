@@ -13,7 +13,7 @@ export type WorkspaceViewChangedDetail = {
 };
 
 export function isWorkspaceView(value: unknown): value is WorkspaceView {
-  return value === 'canvas' || value === 'kanban' || value === 'calendar';
+  return value === 'canvas' || value === 'kanban' || value === 'time-clustering';
 }
 
 export function isWorkspaceViewChangeRequestDetail(
