@@ -37,10 +37,10 @@ describe('HudSidebar', () => {
     const divider = createSidebarDivider();
 
     expect(divider.getAttribute('data-component')).toBe('HudSidebarDivider');
-    expect(divider.className).toContain('w-[52px]');
     expect(divider.className).toContain('h-px');
-    expect(SIDEBAR_TOKENS.compactWidthPx).toBe(72);
-    expect(SIDEBAR_TOKENS.comfortWidthPx).toBe(80);
+    expect(divider.style.width).toBe('48px');
+    expect(SIDEBAR_TOKENS.compactWidthPx).toBe(64);
+    expect(SIDEBAR_TOKENS.comfortWidthPx).toBe(72);
     expect(SIDEBAR_TOKENS.railButtonSizePx).toBe(36);
   });
 });

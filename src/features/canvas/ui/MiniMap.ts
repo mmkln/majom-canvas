@@ -8,7 +8,7 @@ import { Scene } from '../core/scene/Scene.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
-import { createSurface } from './primitives/index.ts';
+import { createSurface, SIDEBAR_TOKENS } from './primitives/index.ts';
 
 type Rect = { x: number; y: number; width: number; height: number };
 
@@ -54,7 +54,7 @@ export class MiniMap {
   ) {
     const embedded = options.embedded ?? false;
     const useSurface = options.surface ?? true;
-    const baseClass = embedded ? '' : 'absolute right-[72px] bottom-4 z-20';
+    const baseClass = embedded ? '' : 'absolute bottom-4 z-20';
     const defaultInnerClass = useSurface ? 'overflow-hidden p-1' : '';
     const className =
       `${baseClass} ${options.className ?? defaultInnerClass}`.trim();
@@ -63,6 +63,9 @@ export class MiniMap {
       : document.createElement('div');
     if (!useSurface) {
       this.container.className = className;
+    }
+    if (!embedded) {
+      this.container.style.right = `${SIDEBAR_TOKENS.compactWidthPx}px`;
     }
     this.applyResponsiveSize();
 

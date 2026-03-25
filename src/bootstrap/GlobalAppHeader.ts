@@ -55,7 +55,7 @@ export const GLOBAL_APP_SIDEBAR_OFFSET_CSS_VALUE =
 const GLOBAL_APP_SIDEBAR_Z_INDEX = 260;
 const GLOBAL_APP_SIDEBAR_OFFSET_CSS_VAR = '--majom-global-app-sidebar-offset';
 const GLOBAL_APP_SIDEBAR_CLASS =
-  'fixed inset-y-0 left-0 box-border flex flex-col items-stretch justify-start gap-3 border-r border-slate-200/85 bg-white px-[10px] py-3';
+  'fixed inset-y-0 left-0 box-border flex flex-col items-stretch justify-start gap-3 border-r border-slate-200/85 bg-white px-2 py-3';
 const GLOBAL_APP_SIDEBAR_BRAND_CLASS =
   'mb-4 flex w-full items-center justify-center';
 const GLOBAL_APP_SIDEBAR_BRAND_BADGE_CLASS =
