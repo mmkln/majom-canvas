@@ -48,7 +48,7 @@ type VariantMetrics = {
 const VIEW_OPTIONS: ViewOption[] = [
   { view: 'canvas', label: 'Canvas', icon: 'map' },
   { view: 'kanban', label: 'Kanban', icon: 'view-columns' },
-  { view: 'time-clustering', label: 'Time', icon: 'status-pending' },
+  { view: 'time-clustering', label: 'Time', icon: 'rectangle-stack' },
 ];
 
 const VARIANT_METRICS: Record<WorkspaceControlsBarVariant, VariantMetrics> = {
