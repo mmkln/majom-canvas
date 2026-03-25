@@ -32,12 +32,16 @@ export class ToastProvider {
     this.container.setAttribute('data-component', 'ToastProvider');
     // Position classes
     const posClasses: Record<string, string> = {
-      'top-right': 'fixed top-4 right-4 flex flex-col space-y-2',
-      'top-left': 'fixed top-4 left-4 flex flex-col space-y-2',
-      'bottom-right': 'fixed bottom-4 right-4 flex flex-col-reverse space-y-2',
-      'bottom-left': 'fixed bottom-4 left-4 flex flex-col-reverse space-y-2',
+      'top-right':
+        'pointer-events-none fixed right-4 top-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] max-w-full flex-col gap-3',
+      'top-left':
+        'pointer-events-none fixed left-4 top-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] max-w-full flex-col gap-3',
+      'bottom-right':
+        'pointer-events-none fixed bottom-4 right-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] max-w-full flex-col-reverse gap-3',
+      'bottom-left':
+        'pointer-events-none fixed bottom-4 left-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] max-w-full flex-col-reverse gap-3',
     };
-    this.container.className = `${posClasses[position]} z-50`;
+    this.container.className = posClasses[position];
     parent.appendChild(this.container);
 
     // Subscribe to notifications with enqueue logic

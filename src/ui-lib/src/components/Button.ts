@@ -1,7 +1,11 @@
 // src/components/Button.ts
 import { twMerge } from 'tailwind-merge';
 import { Component } from '../core/Component.ts';
-import { ThemeManager } from '../core/Theme.ts';
+import {
+  HUD_BUTTON_BASE_CLASS,
+  HUD_DESTRUCTIVE_BUTTON_CLASS,
+  HUD_PRIMARY_BUTTON_CLASS,
+} from '../hud/classNames.ts';
 
 export type ButtonVariant =
   | 'default'
@@ -57,40 +61,35 @@ export class Button extends Component<ButtonProps> {
       button.title = this.props.tooltip;
     }
 
-    // Tailwind-based style logic
     const baseStyles = [
-      'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors',
-      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-      'disabled:pointer-events-none disabled:brightness-150 disabled:contrast-98 disabled:opacity-90 disabled:saturate-2 disabled:cursor-not-allowed',
+      'cursor-pointer whitespace-nowrap',
       '[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
-      'cursor-pointer',
     ].join(' ');
 
     const variantStyles: Record<ButtonVariant, string> = {
-      default:
-        'bg-primary text-white hover:bg-primary/90 active:bg-primary/80 transition-colors', // force white text for primary
-      destructive:
-        'bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80 transition-colors',
+      default: HUD_PRIMARY_BUTTON_CLASS,
+      destructive: HUD_DESTRUCTIVE_BUTTON_CLASS,
       outline:
-        'border border-input bg-background hover:bg-accent hover:text-accent-foreground active:bg-accent/80 transition-colors',
+        `${HUD_BUTTON_BASE_CLASS} border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100`,
       secondary:
-        'bg-gray-100 text-gray-900 hover:bg-gray-200 active:bg-gray-300 transition-colors',
+        `${HUD_BUTTON_BASE_CLASS} bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 active:bg-slate-300`,
       ghost:
-        'hover:bg-accent hover:text-accent-foreground active:bg-accent/80 transition-colors',
-      link: 'text-primary underline-offset-4 hover:underline active:text-primary/80 transition-colors',
+        `${HUD_BUTTON_BASE_CLASS} border-transparent bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-800 active:bg-slate-200`,
+      link:
+        'inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium leading-5 text-indigo-600 transition-[color,box-shadow] duration-150 ease-out hover:text-indigo-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:text-slate-400',
       lightgray:
-        'bg-gray-200 text-gray-900 hover:bg-gray-300 active:bg-gray-400 border border-gray-300 transition-colors',
+        `${HUD_BUTTON_BASE_CLASS} border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-200`,
       success:
-        'bg-green-600 text-white hover:bg-green-700 active:bg-green-800 transition-colors',
+        'inline-flex items-center justify-center rounded-lg border border-transparent bg-emerald-600 px-4 text-sm font-medium leading-5 text-white shadow-[0_1px_2px_rgba(15,23,42,0.08)] transition-[background-color,color,border-color,box-shadow] duration-150 ease-out hover:bg-emerald-500 active:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none',
       accent:
-        'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition-colors',
+        'inline-flex items-center justify-center rounded-lg border border-transparent bg-sky-600 px-4 text-sm font-medium leading-5 text-white shadow-[0_1px_2px_rgba(15,23,42,0.08)] transition-[background-color,color,border-color,box-shadow] duration-150 ease-out hover:bg-sky-500 active:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none',
     };
     const sizeStyles: Record<ButtonSize, string> = {
-      default: 'h-10 px-4 py-2',
-      sm: 'h-9 px-3',
-      lg: 'h-11 px-8',
-      icon: 'h-10 w-10',
-      'icon-sm': 'h-9 w-9',
+      default: 'h-9 px-4',
+      sm: 'h-8 px-3 text-sm',
+      lg: 'h-11 px-5',
+      icon: 'h-9 w-9',
+      'icon-sm': 'h-8 w-8',
       'icon-lg': 'h-11 w-11',
     };
 
@@ -100,8 +99,7 @@ export class Button extends Component<ButtonProps> {
       baseStyles,
       variantStyles[variant],
       sizeStyles[size],
-      this.props.className || '',
-      'rounded-full'
+      this.props.className || ''
     );
 
     return button;

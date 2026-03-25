@@ -10,18 +10,18 @@ export interface CheckboxProps {
   onChange?: (checked: boolean) => void;
 }
 
-const BASE_LABEL_CLASS = 'select-none';
+const BASE_LABEL_CLASS = 'inline-flex select-none';
 const BASE_INPUT_CLASS = 'sr-only';
 const BASE_INDICATOR_CLASS =
-  'w-4 h-4 flex items-center justify-center border-2 rounded-full transition duration-150 ease-in-out';
+  'flex h-5 w-5 items-center justify-center rounded-md border transition-[background-color,border-color,box-shadow] duration-150 ease-out';
 const UNCHECKED_ENABLED_CLASS =
-  'border-gray-400 hover:border-gray-500 bg-white';
-const UNCHECKED_DISABLED_CLASS = 'border-gray-300 bg-gray-100';
-const CHECKED_ENABLED_CLASS = 'bg-blue-600 border-blue-600';
-const CHECKED_DISABLED_CLASS = 'bg-gray-300 border-gray-300';
+  'border-slate-300 bg-white hover:border-slate-400';
+const UNCHECKED_DISABLED_CLASS = 'border-slate-200 bg-slate-100';
+const CHECKED_ENABLED_CLASS = 'border-indigo-600 bg-indigo-600 text-white';
+const CHECKED_DISABLED_CLASS = 'border-slate-300 bg-slate-300 text-white';
 const CHECKMARK_WRAPPER_CLASS = 'text-white';
 const CHECKMARK_SVG_CLASS = 'w-3 h-3';
-const INDICATOR_FOCUS_CLASS = 'ring-2 ring-blue-500 ring-offset-1';
+const INDICATOR_FOCUS_CLASS = 'ring-2 ring-indigo-300 ring-offset-1';
 
 export class Checkbox {
   private readonly changeEmitter = new EventEmitter<boolean>();
@@ -150,6 +150,7 @@ export class Checkbox {
     if (this.className) {
       classNames.push(this.className);
     }
+    classNames.push('items-center', 'justify-center');
     classNames.push(this.disabled ? 'cursor-not-allowed' : 'cursor-pointer');
     return classNames.join(' ');
   }
