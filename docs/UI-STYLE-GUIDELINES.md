@@ -644,6 +644,46 @@ Rule:
 - Remove decorative shadows from message bubbles unless they carry a functional purpose.
 - If a style detail does not improve comprehension, interaction, or accessibility, omit it.
 
+### 13.9 AI assistant action-card component contract
+
+This subsection defines style and structure rules for action cards rendered inside AI assistant chat messages (single and grouped cards with execution CTA controls).
+
+#### 13.9.1 Structure and composition
+
+- Keep the action-card tree predictable:
+  - `action-cards` list container,
+  - `action-card` or `grouped-action-card` surface,
+  - entry body (`header + family-specific content`) and footer CTA/status area.
+- Grouped cards may add one footer row with a batch CTA and subtle divider.
+- Keep action cards as nested message content regions, not standalone competing page cards.
+
+#### 13.9.2 Surface and border policy
+
+- Keep default action-card surface borderless and low-chrome.
+- Allow borders only for meaningful semantic state (for example failed/error state) or section-level dividers.
+- Do not apply generic `HudSurface` default chrome directly to chat action cards when it introduces unnecessary border/shadow.
+- Message-bubble border ban remains absolute; action-card separation belongs at internal section/container level only.
+
+#### 13.9.3 Typography and information hierarchy
+
+- Keep at most three text hierarchy levels inside one action card:
+  1. primary (title and actionable payload),
+  2. secondary (summary/rationale),
+  3. tertiary (labels/provenance/supporting metadata).
+- Do not introduce extra local font-size/color levels unless they represent a clear new semantic layer.
+- Keep action-family layouts consistent so repeated operations remain scannable across messages.
+
+#### 13.9.4 CTA and status behavior
+
+- Action CTA must remain visually lightweight relative to message content while keeping clear affordance.
+- Disabled/applied/applying/failed states must be represented consistently between single and grouped cards.
+- Prefer one clear CTA location per action row; avoid duplicated competing CTA placements within the same card.
+
+#### 13.9.5 Implementation guidance
+
+- Keep action-card style recipes centralized in shared action tokens/primitives (not repeated inline literals in panel orchestration code).
+- If HUD reuse is needed, introduce an explicit chat-action variant/preset first; do not use a generic surface preset that adds decorative chrome.
+
 ---
 
 ## 14) Visual examples: how elements should look now
