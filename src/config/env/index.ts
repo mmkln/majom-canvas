@@ -19,6 +19,10 @@ export const CANVAS_PERF_LOG =
 export const KANBAN_DEV_ENABLED =
   IS_DEVELOPMENT_MODE &&
   (parseOptionalBoolean(import.meta.env.VITE_ENABLE_KANBAN_DEV) ?? true);
+export const TIME_CLUSTERING_DEV_ENABLED =
+  IS_DEVELOPMENT_MODE &&
+  (parseOptionalBoolean(import.meta.env.VITE_ENABLE_TIME_CLUSTERING_DEV) ??
+    true);
 export const ROUTINES_ENABLED =
   parseOptionalBoolean(import.meta.env.VITE_ENABLE_ROUTINES) ?? true;
 export const API_URL =

@@ -3,6 +3,7 @@ import type { WorkspaceView } from './WorkspaceView.ts';
 
 type WorkspaceViewSwitcherOptions = {
   showKanban?: boolean;
+  showTimeClustering?: boolean;
   showRoutines?: boolean;
   showChat?: boolean;
 };
@@ -19,6 +20,7 @@ export class WorkspaceViewSwitcher {
     this.controls = new WorkspaceControlsBar({
       initialView,
       showKanban: options.showKanban,
+      showTimeClustering: options.showTimeClustering,
       showRoutines: options.showRoutines,
       showChat: options.showChat,
       variant: 'floating',
