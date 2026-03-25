@@ -45,6 +45,7 @@ import { buildAiAssistantCapabilityContext } from '../features/ai-assistant/serv
 const APP_ISLAND_GAP_PX = 0;
 const APP_ISLAND_MARGIN_PX = 0;
 const APP_ISLAND_RADIUS_PX = 0;
+const TIME_CLUSTERING_ISLAND_WIDTH_PX = 380;
 
 type KanbanModuleNamespace = {
   KanbanModule: new () => WorkspaceModule;
@@ -70,6 +71,7 @@ export class RuntimeHost {
   private readonly wallpaperSubscription: Subscription;
   private currentWallpaperUrl = '';
   private readonly viewSwitcher: WorkspaceViewSwitcher;
+  private readonly timeClusteringIslandRoot: HTMLDivElement;
   private readonly chatPanel: AiAssistantPanel;
   private readonly chatController: AiAssistantSessionController;
   private activeView: WorkspaceView = 'canvas';
@@ -104,6 +106,18 @@ export class RuntimeHost {
     this.workspaceRoot.style.transition =
       'left 180ms ease, top 180ms ease, right 180ms ease, bottom 180ms ease, border-radius 180ms ease, box-shadow 180ms ease';
     document.body.appendChild(this.workspaceRoot);
+    this.timeClusteringIslandRoot = document.createElement('div');
+    this.timeClusteringIslandRoot.id = 'time-clustering-island-root';
+    this.timeClusteringIslandRoot.style.position = 'absolute';
+    this.timeClusteringIslandRoot.style.left = '0';
+    this.timeClusteringIslandRoot.style.top = '0';
+    this.timeClusteringIslandRoot.style.bottom = '0';
+    this.timeClusteringIslandRoot.style.width = `${TIME_CLUSTERING_ISLAND_WIDTH_PX}px`;
+    this.timeClusteringIslandRoot.style.zIndex = '42';
+    this.timeClusteringIslandRoot.style.display = 'none';
+    this.timeClusteringIslandRoot.style.pointerEvents = 'none';
+    this.timeClusteringIslandRoot.style.borderRight = '1px solid rgba(63, 63, 70, 0.9)';
+    this.workspaceRoot.appendChild(this.timeClusteringIslandRoot);
 
     this.wallpaperSubscription = this.wallpaperService.wallpaper$.subscribe(
       (url) => {
@@ -206,7 +220,9 @@ export class RuntimeHost {
   }
 
   private syncWorkspaceWallpaper(): void {
-    const isCanvasVisible = this.hostVisible && this.activeView === 'canvas';
+    const isCanvasVisible =
+      this.hostVisible &&
+      (this.activeView === 'canvas' || this.activeView === 'time-clustering');
     const isKanbanVisible = this.hostVisible && this.activeView === 'kanban';
     if (isCanvasVisible) {
       this.workspaceRoot.style.backgroundImage = '';
@@ -263,7 +279,9 @@ export class RuntimeHost {
     this.shell = null;
     this.canvasModule = null;
     this.kanbanModule = null;
+    this.timeClusteringModule?.unmount();
     this.timeClusteringModule = null;
+    this.timeClusteringIslandRoot.remove();
     this.workspaceRoot.remove();
     this.chatPanel.unmount();
     this.chatController.dispose();
@@ -311,9 +329,11 @@ export class RuntimeHost {
       if (TIME_CLUSTERING_DEV_ENABLED && !this.timeClusteringModule) {
         const { TimeClusteringModule } = await loadTimeClusteringModule();
         this.timeClusteringModule = new TimeClusteringModule();
-        this.shell.register(this.timeClusteringModule);
       }
-      await this.shell.show(this.activeView);
+      await this.shell.show(
+        this.activeView === 'time-clustering' ? 'canvas' : this.activeView
+      );
+      this.syncTimeClusteringIslandVisibility();
       this.viewSwitcher.setActiveView(this.activeView);
       emitWorkspaceViewChanged(this.activeView);
       emitAiAssistantVisibilityChanged(this.chatOpen);
@@ -329,7 +349,8 @@ export class RuntimeHost {
     this.activeView = view;
     persistWorkspaceView(view);
     if (!this.shell) return;
-    await this.shell.show(view);
+    await this.shell.show(view === 'time-clustering' ? 'canvas' : view);
+    this.syncTimeClusteringIslandVisibility();
     this.viewSwitcher.setActiveView(view);
     emitWorkspaceViewChanged(view);
     this.applyVisibility();
@@ -368,12 +389,14 @@ export class RuntimeHost {
       }
       this.viewSwitcher.setVisible(false);
       this.chatPanel.setVisible(false);
+      this.syncTimeClusteringIslandVisibility();
       this.syncWorkspaceWallpaper();
       return;
     }
 
     this.mountRuntimeChrome();
-    const showCanvas = this.activeView === 'canvas';
+    const showCanvas =
+      this.activeView === 'canvas' || this.activeView === 'time-clustering';
     this.workspaceRoot.style.display = 'block';
     this.workspaceRoot.style.pointerEvents = 'auto';
     this.applyWorkspaceLayout(canvasUiRoot, this.chatOpen, chatWidth);
@@ -386,6 +409,7 @@ export class RuntimeHost {
       canvasUiRoot.style.pointerEvents = 'none';
     }
     this.syncCanvasUiRootToWorkspace(canvasUiRoot);
+    this.syncTimeClusteringIslandVisibility();
     this.chatPanel.setIslandMode(this.chatOpen);
     this.viewSwitcher.setVisible(true);
     this.chatPanel.setVisible(this.chatOpen);
@@ -396,7 +420,10 @@ export class RuntimeHost {
   private async executeChatAction(
     request: AiAssistantActionExecutionRequest
   ): Promise<AiAssistantActionExecutionResult> {
-    if (this.activeView !== 'canvas') {
+    if (
+      this.activeView !== 'canvas' &&
+      this.activeView !== 'time-clustering'
+    ) {
       return {
         status: 'failed',
         errorMessage: 'Switch to canvas to create elements.',
@@ -414,7 +441,10 @@ export class RuntimeHost {
   private async executeChatActions(
     requests: AiAssistantActionExecutionRequest[]
   ): Promise<AiAssistantActionExecutionResult[]> {
-    if (this.activeView !== 'canvas') {
+    if (
+      this.activeView !== 'canvas' &&
+      this.activeView !== 'time-clustering'
+    ) {
       return requests.map(() => ({
         status: 'failed' as const,
         errorMessage: 'Switch to canvas to create elements.',
@@ -519,6 +549,26 @@ export class RuntimeHost {
       window.dispatchEvent(new Event('resize'));
       this.layoutSyncTimer = null;
     }, 220);
+  }
+
+  private syncTimeClusteringIslandVisibility(): void {
+    if (!TIME_CLUSTERING_DEV_ENABLED) return;
+    const shouldShowIsland =
+      this.hostVisible && this.activeView === 'time-clustering';
+
+    if (!shouldShowIsland) {
+      this.timeClusteringIslandRoot.style.display = 'none';
+      this.timeClusteringIslandRoot.style.pointerEvents = 'none';
+      return;
+    }
+
+    if (!this.timeClusteringModule) return;
+    if (!this.timeClusteringIslandRoot.hasChildNodes()) {
+      this.timeClusteringModule.mount(this.timeClusteringIslandRoot);
+    }
+
+    this.timeClusteringIslandRoot.style.display = 'block';
+    this.timeClusteringIslandRoot.style.pointerEvents = 'auto';
   }
 
   private setChatOpen(open: boolean): void {
