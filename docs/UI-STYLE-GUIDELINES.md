@@ -74,10 +74,12 @@ These values reflect the strongest existing conventions in `ui-lib/hud` and moda
 ### 3.3 Border policy (minimal-by-default)
 
 - Prefer separation by spacing, background contrast, and elevation first.
+- Border usage should be deliberately rare in new UI work.
 - Add borders only when at least one condition is true:
   1. control affordance requires edge definition (input/select),
   2. contrast needs reinforcement on low-elevation surfaces,
   3. semantic grouping requires explicit division.
+- If spacing + contrast already communicate structure, do not add a border.
 - Avoid nested/double borders (e.g., bordered card + bordered internal wrappers) unless needed for interaction semantics.
 
 ### 3.4 Spacing and control sizing
@@ -593,6 +595,7 @@ Rule:
 ### 13.3 Message geometry and spacing
 
 - Message bubble radius: `rounded-xl` or `rounded-2xl` (content block level).
+- Chat message bubbles must not use border outlines.
 - Internal controls inside a message (action icons, tiny chips) use smaller radii (`rounded-md`/`rounded-lg`) per hierarchy rule.
 - Keep a stable vertical rhythm:
   - same author consecutive messages: tighter gap,
@@ -636,8 +639,50 @@ Rule:
 
 - One message should have one dominant visual emphasis at most.
 - Prefer hierarchy through spacing and typography before adding color or chrome.
-- Remove decorative shadows/borders from message bubbles unless they carry a functional purpose.
+- Do not use borders on chat message bubbles (assistant, user, system, action/command, typing/progress).
+- Keep any optional structural borders at container/subsection level only, not on individual bubbles.
+- Remove decorative shadows from message bubbles unless they carry a functional purpose.
 - If a style detail does not improve comprehension, interaction, or accessibility, omit it.
+
+### 13.9 AI assistant action-card component contract
+
+This subsection defines style and structure rules for action cards rendered inside AI assistant chat messages (single and grouped cards with execution CTA controls).
+
+#### 13.9.1 Structure and composition
+
+- Keep the action-card tree predictable:
+  - `action-cards` list container,
+  - `action-card` or `grouped-action-card` surface,
+  - entry body (`header + family-specific content`) and footer CTA/status area.
+- Grouped cards may add one footer row with a batch CTA and subtle divider.
+- Keep action cards as nested message content regions, not standalone competing page cards.
+
+#### 13.9.2 Surface and border policy
+
+- Keep default action-card surface borderless and low-chrome.
+- Allow borders only for meaningful semantic state (for example failed/error state) or section-level dividers.
+- Do not apply generic `HudSurface` default chrome directly to chat action cards when it introduces unnecessary border/shadow.
+- Message-bubble border ban remains absolute; action-card separation belongs at internal section/container level only.
+
+#### 13.9.3 Typography and information hierarchy
+
+- Keep at most three text hierarchy levels inside one action card:
+  1. primary (title and actionable payload),
+  2. secondary (summary/rationale),
+  3. tertiary (labels/provenance/supporting metadata).
+- Do not introduce extra local font-size/color levels unless they represent a clear new semantic layer.
+- Keep action-family layouts consistent so repeated operations remain scannable across messages.
+
+#### 13.9.4 CTA and status behavior
+
+- Action CTA must remain visually lightweight relative to message content while keeping clear affordance.
+- Disabled/applied/applying/failed states must be represented consistently between single and grouped cards.
+- Prefer one clear CTA location per action row; avoid duplicated competing CTA placements within the same card.
+
+#### 13.9.5 Implementation guidance
+
+- Keep action-card style recipes centralized in shared action tokens/primitives (not repeated inline literals in panel orchestration code).
+- If HUD reuse is needed, introduce an explicit chat-action variant/preset first; do not use a generic surface preset that adds decorative chrome.
 
 ---
 

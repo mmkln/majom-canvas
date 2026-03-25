@@ -47,6 +47,8 @@
 - Inline utility classes are acceptable for small one-off layout tweaks; avoid large repeated class strings across files.
 - Add new colors/spacing/scales to `tailwind.config.js` when they represent reusable design tokens; do not hardcode repeated design values in feature code.
 - Prefer extending `src/ui-lib/src` primitives and HUD variants over creating feature-local style dialects.
+- Border usage should stay rare: prefer spacing/contrast/elevation first, and add borders only when affordance or contrast explicitly requires them.
+- In chat UIs, message bubbles must not use border outlines; if a divider is needed, keep it at container/subsection level.
 - On mobile/touch viewports, keep computed `font-size` for text-entry controls (`input`, `textarea`, editable select/search fields) at `16px` or larger to prevent browser auto-zoom on focus.
 - If desktop needs smaller visual input text, apply that only from `md`/desktop breakpoints while preserving `16px` on mobile.
 - For top-level workspace islands (canvas, kanban, time-clustering, AI chat), default to full-size/full-bleed layout without card chrome or decorative outer margins unless separation is functionally required.
@@ -147,3 +149,10 @@
 - Owner: `docs` + feature modules
 - Read first: `docs/UI-ARCHITECTURE.md`
 - Expected result: preserve separated reactive channels by concern (canvas runtime, module stores, global integration, local control state), while reducing duplicate or ambiguous event pathways.
+
+### Refine Workspace Sidebar UX
+
+- Use when the request targets left sidebar polish, spacing/visual consistency, rail interaction states, or sidebar-specific accessibility behavior.
+- Owner: `src/bootstrap` + `src/features/shell` + `docs`
+- Read first: `docs/UI-SIDEBAR-GUIDELINES.md`
+- Expected result: keep sidebar geometry and state styles aligned with shared UI standards, move repeated sidebar style recipes toward shared primitives/style maps, and preserve clear keyboard/focus semantics for icon-rail actions.
