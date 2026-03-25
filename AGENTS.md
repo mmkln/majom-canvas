@@ -31,6 +31,31 @@
 2. Reuse the existing component directly, or wrap/compose it if the screen needs a thin specialization.
 3. Add a new component only if no suitable primitive exists after that search.
 
+### UI Composition Standard
+
+- For any request about UI component structure, styling strategy, or templating, read `docs/UI-ARCHITECTURE.md` first.
+- Do not propose or perform a full UI paradigm rewrite (for example, migrating all UI creation to HTML templates) unless the user explicitly asks for a full migration plan.
+- Use this split by default:
+  - Tailwind config: design tokens and theme primitives.
+  - TypeScript UI modules: component variants, state-driven class composition, accessibility attributes, and behavior.
+  - HTML template helpers: only for mostly static markup blocks with low interaction complexity.
+- For interactive overlays, drag/drop surfaces, context menus, modal flows, and other lifecycle-heavy UI, prefer TypeScript component/controller patterns with explicit mount/unmount or open/close cleanup.
+
+### Styling Source Of Truth
+
+- Keep repeated or long utility-class compositions in typed UI-layer style maps (`classNames`, variant maps, component option maps), not inline in business logic branches.
+- Inline utility classes are acceptable for small one-off layout tweaks; avoid large repeated class strings across files.
+- Add new colors/spacing/scales to `tailwind.config.js` when they represent reusable design tokens; do not hardcode repeated design values in feature code.
+- Prefer extending `src/ui-lib/src` primitives and HUD variants over creating feature-local style dialects.
+
+### Reactive UI Boundaries
+
+- Treat UI reactivity as a hybrid architecture with explicit channel boundaries, as documented in `docs/UI-ARCHITECTURE.md`.
+- Keep canvas runtime reactivity (`Scene`/viewport/render-loop flows) isolated from module data-store reactivity.
+- Keep module domain/view-model state in typed module-local streams/stores.
+- Use global `window` custom events primarily for cross-module/app-shell integration, not as the default internal module state channel.
+- Avoid duplicate parallel channels for the same state transition; prefer one authoritative reactive path per concern.
+
 ### Script Conventions
 
 - `npm run start:stable` must remain a built app served through `vite preview`, but using Vite `development` mode config and env loading.
@@ -97,3 +122,17 @@
 - Owner: `src/features/canvas/ui`
 - Read first: `src/features/canvas/ui/AGENTS.md`
 - Expected result: extend `ContextMenu` through its own item model and renderers, keep its visuals separate from `SelectionActionMenu`, and move reusable context-menu primitives into HUD when needed.
+
+### Standardize UI Component Composition
+
+- Use when the request asks how to structure components, where styling rules should live, whether to use HTML templates, or how to unify UI patterns across modules.
+- Owner: `src/ui-lib` + `docs`
+- Read first: `docs/UI-ARCHITECTURE.md`
+- Expected result: keep a stable split between Tailwind tokens, TypeScript component recipes/behavior, and limited template usage for static fragments; avoid large-scale rewrites unless explicitly requested.
+
+### Align Reactive UI Channels
+
+- Use when the request discusses reactive behavior, event flow cleanup, stream-vs-event decisions, or module UI update consistency.
+- Owner: `docs` + feature modules
+- Read first: `docs/UI-ARCHITECTURE.md`
+- Expected result: preserve separated reactive channels by concern (canvas runtime, module stores, global integration, local control state), while reducing duplicate or ambiguous event pathways.
