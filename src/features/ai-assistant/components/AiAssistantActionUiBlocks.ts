@@ -51,9 +51,11 @@ export function createActionCardSurface(options: {
   return setAiActionComponentName(surface, 'card-surface');
 }
 
-export function createActionPreviewSurface(options: {
-  gap?: string;
-} = {}): HTMLDivElement {
+export function createActionPreviewSurface(
+  options: {
+    gap?: string;
+  } = {}
+): HTMLDivElement {
   const tokens = AI_ASSISTANT_ACTION_TOKENS;
   const surface = createActionSurfaceElement({
     radiusPx: tokens.surface.previewRadiusPx,

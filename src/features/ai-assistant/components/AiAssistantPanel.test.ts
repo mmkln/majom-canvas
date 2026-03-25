@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { AiAssistantAction } from '../aiAssistantActions.ts';
 import type {
   AiAssistantPanelState,
   AiAssistantSessionController,
@@ -33,10 +34,21 @@ function createState(messages: AiAssistantMessage[]): AiAssistantPanelState {
     replying: false,
     replyProgress: null,
     canClear:
-      messages.length > 1 || messages.some((message) => message.role === 'user'),
+      messages.length > 1 ||
+      messages.some((message) => message.role === 'user'),
     contextEnabled: true,
     contextMode: 'canvas',
     composerPlaceholder: 'Ask about the current canvas',
+  };
+}
+
+function createCreateTaskAction(id: string, title: string): AiAssistantAction {
+  return {
+    id,
+    kind: 'create_task',
+    label: title,
+    title,
+    status: 'idle',
   };
 }
 
@@ -162,6 +174,7 @@ describe('AiAssistantPanel auto-scroll', () => {
       createState(initialMessages)
     );
     const panel = new AiAssistantPanel({ controller });
+    panel.mount();
     const { messagesViewport: viewport } = getPanelInternals(panel);
     const metrics = installViewportMetrics(viewport, {
       scrollTop: 120,
@@ -189,10 +202,9 @@ describe('AiAssistantPanel auto-scroll', () => {
     ];
     const { controller } = createController(createState(initialMessages));
     const panel = new AiAssistantPanel({ controller });
-    const {
-      messagesViewport: viewport,
-      scrollToBottomButton: button,
-    } = getPanelInternals(panel);
+    panel.mount();
+    const { messagesViewport: viewport, scrollToBottomButton: button } =
+      getPanelInternals(panel);
     const metrics = installViewportMetrics(viewport, {
       scrollTop: 120,
       scrollHeight: 900,
@@ -220,6 +232,7 @@ describe('AiAssistantPanel auto-scroll', () => {
       createState(initialMessages)
     );
     const panel = new AiAssistantPanel({ controller });
+    panel.mount();
     const { messagesViewport: viewport } = getPanelInternals(panel);
     const metrics = installViewportMetrics(viewport, {
       scrollTop: 630,
@@ -241,7 +254,9 @@ describe('AiAssistantPanel auto-scroll', () => {
   });
 
   it('renders detailed reply progress instead of a generic thinking label', () => {
-    const state = createState([createMessage('user-1', 'user', 'Check this plan')]);
+    const state = createState([
+      createMessage('user-1', 'user', 'Check this plan'),
+    ]);
     state.replying = true;
     state.replyProgress = {
       phase: 'tools',
@@ -252,6 +267,7 @@ describe('AiAssistantPanel auto-scroll', () => {
     };
     const { controller } = createController(state);
     const panel = new AiAssistantPanel({ controller });
+    panel.mount();
     const { messagesList, sendButton } = getPanelInternals(panel);
 
     expect(messagesList.textContent).toContain('Checking context');
@@ -270,6 +286,7 @@ describe('AiAssistantPanel auto-scroll', () => {
     ]);
     const { controller } = createController(state);
     const panel = new AiAssistantPanel({ controller });
+    panel.mount();
     const { messagesList } = getPanelInternals(panel);
 
     const copyButtons = Array.from(
@@ -285,7 +302,9 @@ describe('AiAssistantPanel auto-scroll', () => {
     const olderActions = olderButton.parentElement as HTMLDivElement;
     const latestActions = latestButton.parentElement as HTMLDivElement;
     expect(olderActions.classList.contains('opacity-0')).toBe(true);
-    expect(olderActions.classList.contains('group-hover:opacity-100')).toBe(true);
+    expect(olderActions.classList.contains('group-hover:opacity-100')).toBe(
+      true
+    );
     expect(
       olderActions.classList.contains('group-focus-within:opacity-100')
     ).toBe(true);
@@ -304,6 +323,7 @@ describe('AiAssistantPanel auto-scroll', () => {
     const state = createState([createMessage('user-1', 'user', 'User draft')]);
     const { controller } = createController(state);
     const panel = new AiAssistantPanel({ controller });
+    panel.mount();
     const { messagesList } = getPanelInternals(panel);
 
     const copyButtons = Array.from(
@@ -335,7 +355,9 @@ describe('AiAssistantPanel auto-scroll', () => {
       createState([createMessage('user-1', 'user', 'User draft')])
     );
     const panel = new AiAssistantPanel({ controller });
-    const { messagesViewport: viewport, messagesList } = getPanelInternals(panel);
+    panel.mount();
+    const { messagesViewport: viewport, messagesList } =
+      getPanelInternals(panel);
     const metrics = installViewportMetrics(viewport, {
       scrollTop: 180,
       scrollHeight: 960,
@@ -344,7 +366,8 @@ describe('AiAssistantPanel auto-scroll', () => {
 
     viewport.dispatchEvent(new Event('scroll'));
 
-    const originalReplaceChildren = messagesList.replaceChildren.bind(messagesList);
+    const originalReplaceChildren =
+      messagesList.replaceChildren.bind(messagesList);
     messagesList.replaceChildren = (...nodes: (Node | string)[]) => {
       viewport.scrollTop = 0;
       originalReplaceChildren(...nodes);
@@ -364,4 +387,69 @@ describe('AiAssistantPanel auto-scroll', () => {
     panel.unmount();
   });
 
+  it('uses a shared text-button style for the action toggle so keyboard focus stays visible', () => {
+    const assistantMessage: AiAssistantMessage = {
+      id: 'assistant-actions',
+      role: 'assistant',
+      kind: 'default',
+      content: 'Proposed task batch',
+      createdAt: Date.UTC(2026, 2, 22, 10, 0, 0),
+      actions: [
+        createCreateTaskAction('action-1', 'First task'),
+        createCreateTaskAction('action-2', 'Second task'),
+      ],
+    };
+    const { controller } = createController(createState([assistantMessage]));
+    const panel = new AiAssistantPanel({ controller });
+    panel.mount();
+    const { messagesList } = getPanelInternals(panel);
+
+    const toggleButton = messagesList.querySelector<HTMLButtonElement>(
+      'button[aria-label="Hide actions"]'
+    );
+
+    expect(toggleButton).not.toBeNull();
+    expect(toggleButton?.className).toContain('focus-visible:ring-2');
+    expect(toggleButton?.className).toContain('focus-visible:ring-indigo-300');
+    expect(toggleButton?.classList.contains('truncate')).toBe(false);
+    expect(toggleButton?.style.outline).toBe('');
+    panel.unmount();
+  });
+
+  it('renders neutral meta labels and borderless message bubbles', () => {
+    const systemMessage: AiAssistantMessage = {
+      id: 'system-1',
+      role: 'system',
+      kind: 'system',
+      content: 'Canvas context is unavailable.',
+      createdAt: Date.UTC(2026, 2, 22, 10, 0, 0),
+    };
+    const state = createState([systemMessage]);
+    state.replying = true;
+    state.replyProgress = {
+      phase: 'drafting',
+      label: 'Thinking',
+      detail: 'Preparing a grounded reply.',
+      currentStep: 1,
+      totalSteps: 2,
+    };
+
+    const { controller } = createController(state);
+    const panel = new AiAssistantPanel({ controller });
+    panel.mount();
+    const { messagesList } = getPanelInternals(panel);
+
+    const messageWrap = messagesList.children[0] as HTMLDivElement;
+    const messageMeta = messageWrap.children[0] as HTMLDivElement;
+    const roleLabel = messageMeta.children[0] as HTMLSpanElement;
+    const messageBubble = messageWrap.children[1] as HTMLDivElement;
+
+    const typingWrap = messagesList.children[1] as HTMLDivElement;
+    const typingBubble = typingWrap.children[1] as HTMLDivElement;
+
+    expect(roleLabel.style.color).toBe('rgb(100, 116, 139)');
+    expect(messageBubble.style.border).toBe('');
+    expect(typingBubble.style.border).toBe('');
+    panel.unmount();
+  });
 });

@@ -28,24 +28,27 @@ export class AiAssistantMarkdownRenderer {
     root.querySelectorAll('p').forEach((element) => {
       const p = element as HTMLParagraphElement;
       p.style.margin = '0';
+      p.style.fontSize = '14px';
+      p.style.lineHeight = '1.6';
+      p.style.color = '#0f172a';
     });
 
     root.querySelectorAll('h1, h2, h3').forEach((element) => {
       const heading = element as HTMLElement;
       heading.style.margin = '0';
-      heading.style.fontWeight = '700';
+      heading.style.fontWeight = '600';
       heading.style.color = '#0f172a';
-      heading.style.lineHeight = '1.35';
+      heading.style.lineHeight = '1.25';
     });
 
     root.querySelectorAll('h1').forEach((element) => {
-      (element as HTMLElement).style.fontSize = '17px';
+      (element as HTMLElement).style.fontSize = '20px';
     });
     root.querySelectorAll('h2').forEach((element) => {
-      (element as HTMLElement).style.fontSize = '15px';
+      (element as HTMLElement).style.fontSize = '18px';
     });
     root.querySelectorAll('h3').forEach((element) => {
-      (element as HTMLElement).style.fontSize = '13.5px';
+      (element as HTMLElement).style.fontSize = '14px';
     });
 
     root.querySelectorAll('ul, ol').forEach((element) => {
@@ -69,7 +72,7 @@ export class AiAssistantMarkdownRenderer {
       pre.style.background = '#0f172a';
       pre.style.color = '#e2e8f0';
       pre.style.overflowX = 'auto';
-      pre.style.fontSize = '12px';
+      pre.style.fontSize = '13px';
       pre.style.lineHeight = '1.55';
     });
 
@@ -80,7 +83,7 @@ export class AiAssistantMarkdownRenderer {
       code.style.borderRadius = '6px';
       code.style.background = 'rgba(226, 232, 240, 0.8)';
       code.style.color = '#0f172a';
-      code.style.fontSize = '0.92em';
+      code.style.fontSize = '13px';
       code.style.fontFamily =
         'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
     });
@@ -89,13 +92,13 @@ export class AiAssistantMarkdownRenderer {
       const blockquote = element as HTMLQuoteElement;
       blockquote.style.margin = '0';
       blockquote.style.padding = '2px 0 2px 12px';
-      blockquote.style.borderLeft = '3px solid rgba(148, 163, 184, 0.55)';
+      blockquote.style.borderLeft = '2px solid rgba(148, 163, 184, 0.55)';
       blockquote.style.color = '#475569';
     });
 
     root.querySelectorAll('a').forEach((element) => {
       const link = element as HTMLAnchorElement;
-      link.style.color = '#0f766e';
+      link.style.color = '#4338ca';
       link.style.textDecoration = 'underline';
       link.target = '_blank';
       link.rel = 'noreferrer noopener';
@@ -104,15 +107,42 @@ export class AiAssistantMarkdownRenderer {
     root.querySelectorAll('table').forEach((element) => {
       const table = element as HTMLTableElement;
       table.style.width = '100%';
-      table.style.borderCollapse = 'collapse';
-      table.style.fontSize = '12px';
+      table.style.borderCollapse = 'separate';
+      table.style.borderSpacing = '0';
+      table.style.fontSize = '13px';
+      table.style.border = '1px solid rgba(226, 232, 240, 0.82)';
+      table.style.borderRadius = '12px';
+      table.style.background = 'rgba(255, 255, 255, 0.98)';
     });
 
-    root.querySelectorAll('th, td').forEach((element) => {
+    root.querySelectorAll('thead').forEach((element) => {
+      (element as HTMLTableSectionElement).style.background =
+        'rgba(248, 250, 252, 0.96)';
+    });
+
+    root.querySelectorAll('th').forEach((element) => {
       const cell = element as HTMLTableCellElement;
-      cell.style.border = '1px solid rgba(226, 232, 240, 0.9)';
-      cell.style.padding = '6px 8px';
+      cell.style.padding = '10px 12px';
       cell.style.textAlign = 'left';
+      cell.style.fontSize = '12px';
+      cell.style.fontWeight = '600';
+      cell.style.lineHeight = '1.4';
+      cell.style.color = '#475569';
+      cell.style.borderBottom = '1px solid rgba(226, 232, 240, 0.82)';
+    });
+
+    root.querySelectorAll('td').forEach((element) => {
+      const cell = element as HTMLTableCellElement;
+      cell.style.padding = '10px 12px';
+      cell.style.textAlign = 'left';
+      cell.style.fontSize = '13px';
+      cell.style.lineHeight = '1.5';
+      cell.style.color = '#0f172a';
+      cell.style.borderBottom = '1px solid rgba(226, 232, 240, 0.72)';
+    });
+
+    root.querySelectorAll('tbody tr:last-child td').forEach((element) => {
+      (element as HTMLTableCellElement).style.borderBottom = 'none';
     });
 
     root.querySelectorAll('hr').forEach((element) => {

@@ -1,6 +1,7 @@
 import {
   createIconButton,
   MenuButton,
+  createSurface,
   createTextButton,
   setTextButtonState,
 } from '../../../ui-lib/src/hud/index.ts';
@@ -82,9 +83,18 @@ const CHAT_AUTO_SCROLL_THRESHOLD_PX = 40;
 const CHAT_PANEL_BORDER = '1px solid rgba(234, 238, 245, 1)';
 const CHAT_PANEL_SECTION_BORDER = '1px solid rgba(226, 232, 240, 0.72)';
 const CHAT_PANEL_SURFACE_BORDER = '1px solid rgba(226, 232, 240, 0.82)';
+const CHAT_PANEL_SUBTLE_BORDER = '1px solid rgba(226, 232, 240, 0.78)';
 const CHAT_PANEL_BACKGROUND = '#ffffff';
 const CHAT_PANEL_SUBTLE_BACKGROUND = 'rgba(248, 250, 252, 0.92)';
 const CHAT_PANEL_RADIUS_PX = 0;
+const CHAT_FONT_SIZE_LABEL = '12px';
+const CHAT_FONT_SIZE_META = '13px';
+const CHAT_FONT_SIZE_BODY = '14px';
+const CHAT_TEXT_PRIMARY = '#0f172a';
+const CHAT_TEXT_BODY = '#334155';
+const CHAT_TEXT_SECONDARY = '#475569';
+const CHAT_TEXT_MUTED = '#64748b';
+const CHAT_TEXT_SUBTLE = '#94a3b8';
 
 export class AiAssistantPanel {
   private readonly container: HTMLElement;
@@ -191,14 +201,14 @@ export class AiAssistantPanel {
       strokeWidth: 1.9,
     });
     brandIcon.setAttribute('aria-hidden', 'true');
-    brandIcon.style.color = '#94a3b8';
+    brandIcon.style.color = CHAT_TEXT_SUBTLE;
 
     this.contextTitle = document.createElement('p');
     this.contextTitle.style.margin = '0';
     this.contextTitle.style.fontSize = '13px';
     this.contextTitle.style.fontWeight = '600';
     this.contextTitle.style.lineHeight = '1.4';
-    this.contextTitle.style.color = '#0f172a';
+    this.contextTitle.style.color = CHAT_TEXT_PRIMARY;
     this.contextTitle.style.flex = '1';
     this.contextTitle.style.minWidth = '0';
     this.contextTitle.style.whiteSpace = 'nowrap';
@@ -209,9 +219,9 @@ export class AiAssistantPanel {
 
     this.contextMeta = document.createElement('p');
     this.contextMeta.style.margin = '0';
-    this.contextMeta.style.fontSize = '11px';
+    this.contextMeta.style.fontSize = CHAT_FONT_SIZE_META;
     this.contextMeta.style.lineHeight = '1.45';
-    this.contextMeta.style.color = '#475569';
+    this.contextMeta.style.color = CHAT_TEXT_SECONDARY;
     this.contextMeta.style.paddingLeft = '24px';
     this.contextMeta.style.whiteSpace = 'nowrap';
     this.contextMeta.style.overflow = 'hidden';
@@ -305,18 +315,18 @@ export class AiAssistantPanel {
 
     this.pendingConfirmationMeta = document.createElement('p');
     this.pendingConfirmationMeta.style.margin = '0';
-    this.pendingConfirmationMeta.style.fontSize = '10px';
+    this.pendingConfirmationMeta.style.fontSize = CHAT_FONT_SIZE_LABEL;
     this.pendingConfirmationMeta.style.fontWeight = '700';
     this.pendingConfirmationMeta.style.letterSpacing = '0.08em';
     this.pendingConfirmationMeta.style.textTransform = 'uppercase';
-    this.pendingConfirmationMeta.style.color = '#64748b';
+    this.pendingConfirmationMeta.style.color = CHAT_TEXT_MUTED;
 
     this.pendingConfirmationTitle = document.createElement('p');
     this.pendingConfirmationTitle.style.margin = '0';
-    this.pendingConfirmationTitle.style.fontSize = '12px';
+    this.pendingConfirmationTitle.style.fontSize = CHAT_FONT_SIZE_META;
     this.pendingConfirmationTitle.style.fontWeight = '600';
     this.pendingConfirmationTitle.style.lineHeight = '1.45';
-    this.pendingConfirmationTitle.style.color = '#0f172a';
+    this.pendingConfirmationTitle.style.color = CHAT_TEXT_PRIMARY;
     this.pendingConfirmationTitle.style.whiteSpace = 'nowrap';
     this.pendingConfirmationTitle.style.overflow = 'hidden';
     this.pendingConfirmationTitle.style.textOverflow = 'ellipsis';
@@ -365,10 +375,10 @@ export class AiAssistantPanel {
 
     const composerHint = document.createElement('span');
     composerHint.textContent = 'Enter to send, Shift+Enter for a new line';
-    composerHint.style.fontSize = '11px';
+    composerHint.style.fontSize = CHAT_FONT_SIZE_LABEL;
     composerHint.style.lineHeight = '1.4';
     composerHint.style.letterSpacing = '0.01em';
-    composerHint.style.color = '#94a3b8';
+    composerHint.style.color = CHAT_TEXT_SUBTLE;
 
     this.contextModeMenuButton = new MenuButton({
       label: 'Whole canvas',
@@ -863,20 +873,20 @@ export class AiAssistantPanel {
     meta.style.alignItems = 'center';
     meta.style.gap = '7px';
     meta.style.padding = '0 4px';
-    meta.style.fontSize = '10px';
+    meta.style.fontSize = CHAT_FONT_SIZE_LABEL;
     meta.style.fontWeight = '600';
     meta.style.letterSpacing = '0.03em';
-    meta.style.color = '#94a3b8';
+    meta.style.color = CHAT_TEXT_SUBTLE;
 
     const roleLabel = document.createElement('span');
     roleLabel.textContent = 'System';
     roleLabel.style.fontWeight = '700';
-    roleLabel.style.color = '#4f46e5';
+    roleLabel.style.color = CHAT_TEXT_MUTED;
 
     const stateLabel = document.createElement('span');
     stateLabel.textContent = 'Start here';
     stateLabel.style.fontWeight = '500';
-    stateLabel.style.color = '#94a3b8';
+    stateLabel.style.color = CHAT_TEXT_SUBTLE;
 
     meta.append(roleLabel, stateLabel);
 
@@ -892,22 +902,22 @@ export class AiAssistantPanel {
     title.style.fontSize = '13px';
     title.style.fontWeight = '600';
     title.style.lineHeight = '1.4';
-    title.style.color = '#0f172a';
+    title.style.color = CHAT_TEXT_PRIMARY;
 
     const description = document.createElement('p');
     description.style.margin = '0';
-    description.style.fontSize = '11.5px';
-    description.style.lineHeight = '1.65';
-    description.style.color = '#475569';
+    description.style.fontSize = CHAT_FONT_SIZE_BODY;
+    description.style.lineHeight = '1.6';
+    description.style.color = CHAT_TEXT_SECONDARY;
 
     const examplesLabel = document.createElement('p');
     examplesLabel.textContent = 'Try';
     examplesLabel.style.margin = '2px 0 0';
-    examplesLabel.style.fontSize = '10px';
+    examplesLabel.style.fontSize = CHAT_FONT_SIZE_LABEL;
     examplesLabel.style.fontWeight = '700';
     examplesLabel.style.letterSpacing = '0.08em';
     examplesLabel.style.textTransform = 'uppercase';
-    examplesLabel.style.color = '#94a3b8';
+    examplesLabel.style.color = CHAT_TEXT_SUBTLE;
 
     const examples = document.createElement('div');
     examples.style.display = 'flex';
@@ -1154,10 +1164,10 @@ export class AiAssistantPanel {
     meta.style.alignItems = 'center';
     meta.style.gap = '7px';
     meta.style.padding = '0 4px';
-    meta.style.fontSize = '10px';
+    meta.style.fontSize = CHAT_FONT_SIZE_LABEL;
     meta.style.fontWeight = '600';
     meta.style.letterSpacing = '0.03em';
-    meta.style.color = '#94a3b8';
+    meta.style.color = CHAT_TEXT_SUBTLE;
 
     const roleIconName: IconName | null = isCommandMessage
       ? 'bolt'
@@ -1165,13 +1175,7 @@ export class AiAssistantPanel {
         ? 'shield-exclamation'
         : null;
 
-    const roleColor = isUserMessage
-      ? '#475569'
-      : isCommandMessage
-        ? '#1d4ed8'
-        : isSystemMessage
-          ? '#6366f1'
-          : '#64748b';
+    const roleColor = isUserMessage ? CHAT_TEXT_SECONDARY : CHAT_TEXT_MUTED;
 
     const roleLabel = document.createElement('span');
     roleLabel.textContent = isUserMessage
@@ -1187,7 +1191,7 @@ export class AiAssistantPanel {
     const timeLabel = document.createElement('span');
     timeLabel.textContent = this.formatMessageTime(message.createdAt);
     timeLabel.style.fontWeight = '500';
-    timeLabel.style.color = '#94a3b8';
+    timeLabel.style.color = CHAT_TEXT_SUBTLE;
 
     meta.append(roleLabel, timeLabel);
 
@@ -1200,19 +1204,18 @@ export class AiAssistantPanel {
       bubble.style.borderRadius = isUserMessage
         ? '20px 20px 8px 20px'
         : '20px 20px 20px 10px';
-      bubble.style.fontSize = '12.5px';
+      bubble.style.fontSize = CHAT_FONT_SIZE_BODY;
       bubble.style.lineHeight = '1.6';
       bubble.style.color = isUserMessage
-        ? '#0f172a'
+        ? CHAT_TEXT_PRIMARY
         : isCommandMessage
-          ? '#334155'
+          ? CHAT_TEXT_BODY
           : isSystemMessage
-            ? '#334155'
-            : '#1e293b';
+            ? CHAT_TEXT_BODY
+            : CHAT_TEXT_PRIMARY;
       bubble.style.background = isUserMessage
         ? 'rgba(241, 245, 249, 0.96)'
         : 'rgba(248, 250, 252, 0.82)';
-      bubble.style.border = 'none';
       const messageContent = this.createMessageContent(message);
       if (roleIconName) {
         const contentRow = document.createElement('div');
@@ -1227,7 +1230,7 @@ export class AiAssistantPanel {
         });
         roleIcon.setAttribute('aria-hidden', 'true');
         roleIcon.setAttribute('focusable', 'false');
-        roleIcon.style.color = '#94a3b8';
+        roleIcon.style.color = CHAT_TEXT_SUBTLE;
         roleIcon.style.flex = '0 0 auto';
         roleIcon.style.marginTop = '1px';
 
@@ -1486,40 +1489,22 @@ export class AiAssistantPanel {
     wrap.style.maxWidth = '94%';
     setAiActionComponentName(wrap, 'message-actions-toggle-wrap');
 
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.title = collapsed ? 'Show actions' : 'Hide actions';
-    button.setAttribute(
-      'aria-label',
-      collapsed ? 'Show actions' : 'Hide actions'
-    );
-    button.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-    button.style.display = 'flex';
-    button.style.alignItems = 'center';
-    button.style.justifyContent = 'flex-start';
-    button.style.gap = '12px';
-    button.style.width = '100%';
-    button.style.padding = '7px 4px';
-    button.style.borderRadius = '12px';
-    button.style.border = 'none';
-    button.style.background = 'transparent';
-    button.style.cursor = 'pointer';
-    button.style.textAlign = 'left';
-    button.style.boxShadow = 'none';
-    button.style.appearance = 'none';
-    button.style.outline = 'none';
-    button.style.transition = 'background 120ms ease';
-    button.addEventListener('mouseenter', () => {
-      button.style.background = 'rgba(248, 250, 252, 0.52)';
+    const button = createTextButton({
+      tone: 'text',
+      size: 'xs',
+      title: collapsed ? 'Show actions' : 'Hide actions',
+      ariaLabel: collapsed ? 'Show actions' : 'Hide actions',
+      className:
+        '!h-auto !w-full !justify-start !items-start !rounded-lg !px-1 !py-2 !text-left !shadow-none',
+      onClick: () => {
+        this.setActionMessageCollapsed(message.id, !collapsed);
+      },
     });
-    button.addEventListener('mouseleave', () => {
-      button.style.background = 'transparent';
-    });
-    button.addEventListener('click', () => {
-      this.setActionMessageCollapsed(message.id, !collapsed);
-    });
+    button.classList.remove('truncate');
+    button.style.whiteSpace = 'normal';
     setAiActionComponentName(button, 'message-actions-toggle');
     button.dataset.aiActionCollapsed = collapsed ? 'true' : 'false';
+    button.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
 
     const left = document.createElement('div');
     left.style.display = 'flex';
@@ -1533,7 +1518,7 @@ export class AiAssistantPanel {
       strokeWidth: 2.1,
     });
     chevron.setAttribute('aria-hidden', 'true');
-    chevron.style.color = '#94a3b8';
+    chevron.style.color = CHAT_TEXT_SUBTLE;
     chevron.style.flex = '0 0 auto';
     chevron.style.marginTop = '1px';
 
@@ -1546,10 +1531,10 @@ export class AiAssistantPanel {
 
     const title = document.createElement('div');
     title.textContent = summary.title;
-    title.style.fontSize = '11px';
+    title.style.fontSize = CHAT_FONT_SIZE_META;
     title.style.fontWeight = '600';
-    title.style.lineHeight = '1.35';
-    title.style.color = '#334155';
+    title.style.lineHeight = '1.4';
+    title.style.color = CHAT_TEXT_BODY;
     title.style.whiteSpace = 'nowrap';
     title.style.overflow = 'hidden';
     title.style.textOverflow = 'ellipsis';
@@ -1561,10 +1546,10 @@ export class AiAssistantPanel {
     if (detailText) {
       const detail = document.createElement('div');
       detail.textContent = detailText;
-      detail.style.fontSize = '10px';
+      detail.style.fontSize = CHAT_FONT_SIZE_LABEL;
       detail.style.fontWeight = '500';
-      detail.style.lineHeight = '1.35';
-      detail.style.color = '#94a3b8';
+      detail.style.lineHeight = '1.4';
+      detail.style.color = CHAT_TEXT_SUBTLE;
       detail.style.whiteSpace = 'nowrap';
       detail.style.overflow = 'hidden';
       detail.style.textOverflow = 'ellipsis';
@@ -1591,30 +1576,29 @@ export class AiAssistantPanel {
     meta.style.alignItems = 'center';
     meta.style.gap = '7px';
     meta.style.padding = '0 4px';
-    meta.style.fontSize = '10px';
+    meta.style.fontSize = CHAT_FONT_SIZE_LABEL;
     meta.style.fontWeight = '600';
     meta.style.letterSpacing = '0.03em';
-    meta.style.color = '#94a3b8';
+    meta.style.color = CHAT_TEXT_SUBTLE;
 
     const roleLabel = document.createElement('span');
     roleLabel.textContent = 'Assistant';
     roleLabel.style.fontWeight = '700';
-    roleLabel.style.color = '#64748b';
+    roleLabel.style.color = CHAT_TEXT_MUTED;
     const stateLabel = document.createElement('span');
     stateLabel.textContent = replyProgress?.label ?? 'Thinking';
     stateLabel.style.fontWeight = '500';
-    stateLabel.style.color = '#94a3b8';
+    stateLabel.style.color = CHAT_TEXT_SUBTLE;
     meta.append(roleLabel, stateLabel);
 
     const bubble = document.createElement('div');
     bubble.style.maxWidth = '94%';
     bubble.style.padding = '12px 14px';
     bubble.style.borderRadius = '20px 20px 20px 10px';
-    bubble.style.fontSize = '12.5px';
+    bubble.style.fontSize = CHAT_FONT_SIZE_BODY;
     bubble.style.lineHeight = '1.6';
-    bubble.style.color = '#64748b';
+    bubble.style.color = CHAT_TEXT_MUTED;
     bubble.style.background = 'rgba(248, 250, 252, 0.9)';
-    bubble.style.border = 'none';
     bubble.style.display = 'inline-flex';
     bubble.style.flexDirection = 'column';
     bubble.style.alignItems = 'flex-start';
@@ -1623,9 +1607,9 @@ export class AiAssistantPanel {
     const detail = document.createElement('p');
     detail.textContent = replyProgress?.detail ?? 'Working on your request.';
     detail.style.margin = '0';
-    detail.style.fontSize = '11.5px';
+    detail.style.fontSize = CHAT_FONT_SIZE_BODY;
     detail.style.lineHeight = '1.6';
-    detail.style.color = '#475569';
+    detail.style.color = CHAT_TEXT_SECONDARY;
     detail.style.whiteSpace = 'pre-wrap';
     detail.style.wordBreak = 'break-word';
 
@@ -1644,7 +1628,7 @@ export class AiAssistantPanel {
       dot.style.width = '5px';
       dot.style.height = '5px';
       dot.style.borderRadius = '999px';
-      dot.style.background = '#64748b';
+      dot.style.background = CHAT_TEXT_MUTED;
       dot.style.opacity = ['0.35', '0.6', '0.9'][index] ?? '0.6';
       dots.appendChild(dot);
     }
@@ -1657,11 +1641,11 @@ export class AiAssistantPanel {
     ) {
       const step = document.createElement('span');
       step.textContent = `${replyProgress.currentStep}/${replyProgress.totalSteps}`;
-      step.style.fontSize = '10px';
+      step.style.fontSize = CHAT_FONT_SIZE_LABEL;
       step.style.fontWeight = '700';
       step.style.lineHeight = '1';
       step.style.letterSpacing = '0.04em';
-      step.style.color = '#94a3b8';
+      step.style.color = CHAT_TEXT_SUBTLE;
       footer.appendChild(step);
     }
 
@@ -2070,13 +2054,13 @@ export class AiAssistantPanel {
       case 'applying':
         pill.style.background = 'rgba(239, 246, 255, 0.82)';
         pill.style.border = 'none';
-        pill.style.color = '#475569';
+        pill.style.color = CHAT_TEXT_SECONDARY;
         break;
       case 'applied':
       default:
         pill.style.background = 'rgba(241, 245, 249, 0.82)';
         pill.style.border = 'none';
-        pill.style.color = '#475569';
+        pill.style.color = CHAT_TEXT_SECONDARY;
         break;
     }
 
@@ -2197,16 +2181,15 @@ export class AiAssistantPanel {
       const marker = document.createElement('span');
       marker.textContent = `${index + 1}.`;
       marker.style.minWidth = '16px';
-      marker.style.fontSize = '9.5px';
+      marker.style.fontSize = CHAT_FONT_SIZE_LABEL;
       marker.style.fontWeight = '600';
-      marker.style.lineHeight = '1.55';
-      marker.style.color = '#94a3b8';
+      marker.style.lineHeight = '1.45';
+      marker.style.color = CHAT_TEXT_SUBTLE;
 
-      const text = createActionTextParagraphElement(item, {
-        fontSize: '10.75px',
-        lineHeight: '1.55',
-        color: '#475569',
-      });
+      const text = createActionTextParagraphElement(
+        item,
+        AI_ASSISTANT_ACTION_TOKENS.typography.secondaryText
+      );
       text.style.flex = '1';
 
       row.append(marker, text);
@@ -2433,11 +2416,10 @@ export class AiAssistantPanel {
     }
     if (cardModel.error) {
       container.appendChild(
-        createActionTextParagraphElement(cardModel.error, {
-          fontSize: '11px',
-          lineHeight: '1.45',
-          color: '#b91c1c',
-        })
+        createActionTextParagraphElement(
+          cardModel.error,
+          AI_ASSISTANT_ACTION_TOKENS.typography.error
+        )
       );
     }
   }
@@ -2622,11 +2604,10 @@ export class AiAssistantPanel {
     }
     if (cardModel.error) {
       container.appendChild(
-        createActionTextParagraphElement(cardModel.error, {
-          fontSize: '11px',
-          lineHeight: '1.45',
-          color: '#b91c1c',
-        })
+        createActionTextParagraphElement(
+          cardModel.error,
+          AI_ASSISTANT_ACTION_TOKENS.typography.error
+        )
       );
     }
   }
@@ -2654,7 +2635,7 @@ export class AiAssistantPanel {
     return this.createPanelSurface({
       radiusPx,
       background: CHAT_PANEL_SUBTLE_BACKGROUND,
-      border: 'none',
+      border: CHAT_PANEL_SUBTLE_BORDER,
     });
   }
 
@@ -2663,12 +2644,11 @@ export class AiAssistantPanel {
     background: string;
     border?: string;
   }): HTMLDivElement {
-    const surface = document.createElement('div');
+    const surface = createSurface();
     surface.style.boxSizing = 'border-box';
     surface.style.border = options.border ?? CHAT_PANEL_SURFACE_BORDER;
     surface.style.borderRadius = `${options.radiusPx}px`;
     surface.style.background = options.background;
-    surface.style.boxShadow = 'none';
     return surface;
   }
 
@@ -2686,7 +2666,7 @@ export class AiAssistantPanel {
       ariaLabel: options.ariaLabel,
       onClick: options.onClick,
       className:
-        '!h-8 !rounded-full !border !border-slate-200 !bg-slate-50 !px-3 !text-[11px] !font-semibold !text-slate-700 hover:!bg-white hover:!text-slate-800',
+        '!h-8 !rounded-full !border !border-slate-200 !bg-slate-50 !px-3 !text-xs !font-semibold !text-slate-700 hover:!bg-white hover:!text-slate-800',
     });
   }
 
@@ -2704,7 +2684,7 @@ export class AiAssistantPanel {
       ariaLabel: options.ariaLabel,
       onClick: options.onClick,
       className:
-        '!h-8 !rounded-full !px-3.5 !text-[11px] !font-semibold tracking-[0.01em] shadow-none',
+        '!h-8 !rounded-full !px-3.5 !text-xs !font-semibold tracking-[0.01em] shadow-none',
     });
   }
 
@@ -2771,20 +2751,20 @@ export class AiAssistantPanel {
 
     const label = document.createElement('span');
     label.textContent = review.title;
-    label.style.fontSize = '10px';
+    label.style.fontSize = CHAT_FONT_SIZE_LABEL;
     label.style.fontWeight = '700';
     label.style.letterSpacing = '0.08em';
     label.style.textTransform = 'uppercase';
-    label.style.color = '#64748b';
+    label.style.color = CHAT_TEXT_MUTED;
     header.appendChild(label);
 
     if (review.summary) {
       const summary = document.createElement('p');
       summary.textContent = review.summary;
       summary.style.margin = '0';
-      summary.style.fontSize = '11.5px';
+      summary.style.fontSize = CHAT_FONT_SIZE_BODY;
       summary.style.lineHeight = '1.6';
-      summary.style.color = '#334155';
+      summary.style.color = CHAT_TEXT_BODY;
       header.appendChild(summary);
     }
 
@@ -2813,9 +2793,9 @@ export class AiAssistantPanel {
       if (review.readinessVerdict) {
         const verdict = document.createElement('span');
         verdict.textContent = review.readinessVerdict;
-        verdict.style.fontSize = '11px';
+        verdict.style.fontSize = CHAT_FONT_SIZE_META;
         verdict.style.lineHeight = '1.5';
-        verdict.style.color = '#475569';
+        verdict.style.color = CHAT_TEXT_SECONDARY;
         readiness.appendChild(verdict);
       }
 
@@ -2852,26 +2832,26 @@ export class AiAssistantPanel {
       const title = document.createElement('p');
       title.textContent = finding.title;
       title.style.margin = '0';
-      title.style.fontSize = '12.5px';
+      title.style.fontSize = CHAT_FONT_SIZE_BODY;
       title.style.fontWeight = '600';
       title.style.lineHeight = '1.45';
-      title.style.color = '#0f172a';
+      title.style.color = CHAT_TEXT_PRIMARY;
 
       const category = document.createElement('p');
       category.textContent = finding.category;
       category.style.margin = '0';
-      category.style.fontSize = '10px';
+      category.style.fontSize = CHAT_FONT_SIZE_LABEL;
       category.style.fontWeight = '600';
       category.style.letterSpacing = '0.04em';
       category.style.textTransform = 'uppercase';
-      category.style.color = '#94a3b8';
+      category.style.color = CHAT_TEXT_SUBTLE;
 
       const detail = document.createElement('p');
       detail.textContent = finding.detail;
       detail.style.margin = '0';
-      detail.style.fontSize = '11px';
+      detail.style.fontSize = CHAT_FONT_SIZE_META;
       detail.style.lineHeight = '1.6';
-      detail.style.color = '#334155';
+      detail.style.color = CHAT_TEXT_BODY;
 
       const text = document.createElement('div');
       text.style.display = 'flex';
