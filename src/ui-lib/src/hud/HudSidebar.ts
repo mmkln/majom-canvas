@@ -12,7 +12,7 @@ export const HUD_SIDEBAR_TOKENS = {
 } as const;
 
 export const HUD_SIDEBAR_RAIL_BUTTON_CLASS =
-  'h-9 w-9 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100 active:text-slate-900 focus-visible:ring-slate-300 data-[active=true]:bg-slate-100 data-[active=true]:text-slate-900 data-[active=true]:hover:bg-slate-100 data-[active=true]:hover:text-slate-900 data-[active=true]:active:bg-slate-100';
+  'h-9 w-9 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100 active:text-slate-900 focus-visible:ring-slate-300 data-[active=true]:bg-indigo-50 data-[active=true]:text-indigo-700 data-[active=true]:hover:bg-indigo-50 data-[active=true]:hover:text-indigo-700 data-[active=true]:active:bg-indigo-100';
 
 export const HUD_SIDEBAR_DIVIDER_CLASS = 'block h-px w-[52px] bg-slate-200/85';
 

@@ -91,3 +91,37 @@ describe('WorkspaceControlsBar sidebar variant', () => {
     expect(chatButton.style.color).toBe('');
   });
 });
+
+describe('WorkspaceControlsBar floating variant', () => {
+  it('uses indigo active styles for selected controls', () => {
+    const bar = new WorkspaceControlsBar({
+      initialView: 'kanban',
+      initialChatOpen: true,
+      showKanban: true,
+      showTimeClustering: true,
+      showRoutines: false,
+      showChat: true,
+      variant: 'floating',
+    });
+
+    const kanbanButton = bar.element.querySelector(
+      'button[data-view="kanban"]'
+    ) as HTMLButtonElement;
+    const canvasButton = bar.element.querySelector(
+      'button[data-view="canvas"]'
+    ) as HTMLButtonElement;
+    const chatButton = getButtonByAriaLabel(
+      bar.element,
+      'Toggle AI assistant panel'
+    ) as HTMLButtonElement;
+
+    expect(kanbanButton.dataset.active).toBe('true');
+    expect(kanbanButton.style.background).toBe('rgb(238, 242, 255)');
+    expect(kanbanButton.style.color).toBe('rgb(67, 56, 202)');
+    expect(canvasButton.dataset.active).toBe('false');
+    expect(canvasButton.style.background).toBe('transparent');
+    expect(chatButton.dataset.active).toBe('true');
+    expect(chatButton.style.background).toBe('rgb(238, 242, 255)');
+    expect(chatButton.style.color).toBe('rgb(67, 56, 202)');
+  });
+});

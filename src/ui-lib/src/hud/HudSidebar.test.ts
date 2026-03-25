@@ -23,7 +23,8 @@ describe('HudSidebar', () => {
     expect(button.className).toContain('h-9');
     expect(button.className).toContain('w-9');
     expect(button.className).toContain('focus-visible:ring-slate-300');
-    expect(button.className).toContain('data-[active=true]:bg-slate-100');
+    expect(button.className).toContain('data-[active=true]:bg-indigo-50');
+    expect(button.className).toContain('data-[active=true]:text-indigo-700');
     expect(button.dataset.active).toBe('true');
     expect(button.style.background).toBe('');
 
