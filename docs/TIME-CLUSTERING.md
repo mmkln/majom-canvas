@@ -215,12 +215,15 @@ Stage 1 preserves this boundary by excluding task assignment and planner executi
 - Default focus on current day with quick previous/next day navigation.
 - Informational-first structure visibility.
 - Editing is available for cluster CRUD, with lightweight interaction surface.
+- Default presentation mode is a docked-left island so users can keep primary workspace context visible.
+- The day island can expand into fullscreen mode when the user needs a larger planning surface.
 
 ### Fullscreen Week View
 
 - Required planning surface for near-term distribution.
 - Supports week-level review and one-off duplication workflows.
 - Month mode is explicitly out of Stage 1 scope unless re-approved.
+- Fullscreen mode is reached through explicit expansion from the docked-left island and uses the same module state source.
 
 ## Non-Goals (Stage 1)
 
