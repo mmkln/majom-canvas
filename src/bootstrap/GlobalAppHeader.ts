@@ -16,8 +16,10 @@ import { HabitsQuickModal } from '../features/shell/components/HabitsQuickModal.
 import {
   AnchoredMenu,
   createDropdownItem,
-  createIconButton,
+  createSidebarRailButton,
   createSurface,
+  setSidebarRailButtonActive,
+  SIDEBAR_TOKENS,
 } from '../features/canvas/ui/primitives/index.ts';
 import { WorkspaceControlsBar } from '../features/shell/WorkspaceControlsBar.ts';
 import {
@@ -37,12 +39,22 @@ import { AuthService } from '../majom-wrapper/data-access/auth-service.ts';
 import { HttpInterceptorClient } from '../majom-wrapper/data-access/http-interceptor.ts';
 import { UserApiService } from '../majom-wrapper/data-access/user-api-service.ts';
 
-export const GLOBAL_APP_SIDEBAR_WIDTH_PX = IS_DEVELOPMENT_MODE ? 72 : 0;
+export const GLOBAL_APP_SIDEBAR_WIDTH_PX = IS_DEVELOPMENT_MODE
+  ? SIDEBAR_TOKENS.compactWidthPx
+  : 0;
 export const GLOBAL_APP_SIDEBAR_OFFSET_CSS_VALUE =
   'var(--majom-global-app-sidebar-offset, 0px)';
 
 const GLOBAL_APP_SIDEBAR_Z_INDEX = 260;
 const GLOBAL_APP_SIDEBAR_OFFSET_CSS_VAR = '--majom-global-app-sidebar-offset';
+const GLOBAL_APP_SIDEBAR_CLASS =
+  'fixed inset-y-0 left-0 box-border flex flex-col items-stretch justify-start gap-3 border-r border-slate-200/85 bg-white px-[10px] py-3';
+const GLOBAL_APP_SIDEBAR_BRAND_CLASS =
+  'mb-4 flex w-full items-center justify-center';
+const GLOBAL_APP_SIDEBAR_BRAND_BADGE_CLASS =
+  'inline-flex h-10 w-10 items-center justify-center';
+const GLOBAL_APP_SIDEBAR_MENU_CLUSTER_CLASS =
+  'relative mt-auto flex w-full shrink-0 flex-col items-center gap-1.5';
 
 const setGlobalAppSidebarOffset = (offsetPx: number): void => {
   if (typeof document === 'undefined') return;
@@ -107,37 +119,15 @@ export class GlobalAppHeader {
 
     const element = document.createElement('div');
     element.id = 'global-app-header';
-    element.style.position = 'fixed';
-    element.style.top = '0';
-    element.style.left = '0';
-    element.style.bottom = '0';
+    element.className = GLOBAL_APP_SIDEBAR_CLASS;
     element.style.width = `${GLOBAL_APP_SIDEBAR_WIDTH_PX}px`;
     element.style.zIndex = `${GLOBAL_APP_SIDEBAR_Z_INDEX}`;
-    element.style.boxSizing = 'border-box';
-    element.style.borderRight = '1px solid rgba(226, 232, 240, 0.92)';
-    element.style.background = 'rgba(255, 255, 255, 1)';
-    element.style.display = 'flex';
-    element.style.flexDirection = 'column';
-    element.style.alignItems = 'stretch';
-    element.style.justifyContent = 'flex-start';
-    element.style.padding = '12px 10px';
-    element.style.gap = '12px';
 
     const brand = document.createElement('div');
-    brand.style.display = 'flex';
-    brand.style.alignItems = 'center';
-    brand.style.justifyContent = 'center';
-    brand.style.width = '100%';
-    brand.style.marginBottom = '16px';
+    brand.className = GLOBAL_APP_SIDEBAR_BRAND_CLASS;
 
     const brandBadge = document.createElement('div');
-    brandBadge.style.display = 'inline-flex';
-    brandBadge.style.alignItems = 'center';
-    brandBadge.style.justifyContent = 'center';
-    brandBadge.style.width = '40px';
-    brandBadge.style.height = '40px';
-    brandBadge.style.border = 'none';
-    brandBadge.style.background = 'none';
+    brandBadge.className = GLOBAL_APP_SIDEBAR_BRAND_BADGE_CLASS;
 
     const brandIcon = document.createElement('img');
     brandIcon.src = '/favicon.svg';
@@ -160,19 +150,10 @@ export class GlobalAppHeader {
       showChat: false,
       variant: 'sidebar',
     });
-    this.controls.element.style.width = '100%';
-    this.controls.element.style.flex = '1 1 auto';
+    this.controls.element.classList.add('w-full', 'flex-1');
 
     this.menuContainer = document.createElement('div');
-    this.menuContainer.style.position = 'relative';
-    this.menuContainer.style.display = 'flex';
-    this.menuContainer.style.alignItems = 'center';
-    this.menuContainer.style.justifyContent = 'center';
-    this.menuContainer.style.flexDirection = 'column';
-    this.menuContainer.style.gap = '8px';
-    this.menuContainer.style.width = '100%';
-    this.menuContainer.style.marginTop = 'auto';
-    this.menuContainer.style.flexShrink = '0';
+    this.menuContainer.className = GLOBAL_APP_SIDEBAR_MENU_CLUSTER_CLASS;
 
     this.routinesButton = this.routinesModal
       ? this.createSidebarActionButton({
@@ -195,21 +176,15 @@ export class GlobalAppHeader {
     });
     this.syncChatButtonState(initialChatOpen);
 
-    this.menuButton = createIconButton({
+    this.menuButton = createSidebarRailButton({
       icon: 'ellipsis-vertical',
       title: 'Open app menu',
       ariaLabel: 'Open app menu',
-      tone: 'text',
-      size: 'md',
-      className:
-        'border border-slate-200/90 text-slate-600 hover:bg-slate-100 hover:text-slate-800',
     });
     this.menuButton.addEventListener('click', (event) => {
       event.stopPropagation();
       this.toggleMenu();
     });
-    this.menuButton.style.alignSelf = 'center';
-    this.menuButton.style.marginTop = '8px';
 
     this.menuPanel = createSurface({
       elevated: true,
@@ -222,8 +197,7 @@ export class GlobalAppHeader {
       panel: this.menuPanel,
       onOpenChange: (open) => {
         if (!this.menuButton) return;
-        this.menuButton.classList.toggle('bg-slate-100', open);
-        this.menuButton.classList.toggle('text-slate-900', open);
+        setSidebarRailButtonActive(this.menuButton, open);
       },
     });
 
@@ -331,23 +305,16 @@ export class GlobalAppHeader {
     iconName: 'chat-bubble-left' | 'ellipsis-vertical' | 'check-circle';
     onClick: () => void;
   }): HTMLButtonElement {
-    const button = createIconButton({
+    return createSidebarRailButton({
       icon: options.iconName,
       title: options.title,
       ariaLabel: options.ariaLabel,
-      tone: 'text',
-      size: 'md',
-      className:
-        'border border-slate-200/90 text-slate-600 hover:bg-slate-100 hover:text-slate-800',
+      onClick: () => options.onClick(),
     });
-    button.style.alignSelf = 'center';
-    button.addEventListener('click', options.onClick);
-    return button;
   }
 
   private syncChatButtonState(open: boolean): void {
     if (!this.chatButton) return;
-    this.chatButton.classList.toggle('bg-slate-100', open);
-    this.chatButton.classList.toggle('text-slate-900', open);
+    setSidebarRailButtonActive(this.chatButton, open);
   }
 }

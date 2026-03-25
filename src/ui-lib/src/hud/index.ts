@@ -86,6 +86,12 @@ export {
 
 export { createHudSurface as createSurface } from './HudSurface.ts';
 export {
+  createHudSidebarRailButton as createSidebarRailButton,
+  setHudSidebarRailButtonActive as setSidebarRailButtonActive,
+  createHudSidebarDivider as createSidebarDivider,
+  HUD_SIDEBAR_TOKENS as SIDEBAR_TOKENS,
+} from './HudSidebar.ts';
+export {
   HudMenuButton as MenuButton,
   type HudMenuButtonItem as MenuButtonItem,
   type HudMenuButtonVariant as MenuButtonVariant,
@@ -170,6 +176,12 @@ export {
   type HudToggleSwitchOptions,
 } from './HudToggleSwitch.ts';
 export { createHudSurface } from './HudSurface.ts';
+export {
+  createHudSidebarRailButton,
+  setHudSidebarRailButtonActive,
+  createHudSidebarDivider,
+  HUD_SIDEBAR_TOKENS,
+} from './HudSidebar.ts';
 export {
   HudMenuButton,
   type HudMenuButtonItem,

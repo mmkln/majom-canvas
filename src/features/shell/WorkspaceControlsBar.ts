@@ -3,6 +3,12 @@ import { HabitsQuickModal } from './components/HabitsQuickModal.ts';
 import type { WorkspaceView } from './WorkspaceView.ts';
 import { emitAiAssistantToggleRequested } from '../ai-assistant/aiAssistantEvents.ts';
 import { emitWorkspaceViewChangeRequested } from './workspaceEvents.ts';
+import {
+  createSidebarDivider,
+  createSidebarRailButton,
+  setSidebarRailButtonActive,
+  SIDEBAR_TOKENS,
+} from '../../ui-lib/src/hud/index.ts';
 
 const CONTROL_TRANSITION = 'background-color 120ms ease, color 120ms ease';
 
@@ -93,23 +99,23 @@ const VARIANT_METRICS: Record<WorkspaceControlsBarVariant, VariantMetrics> = {
     showRoutinesLabel: true,
   },
   sidebar: {
-    rootGap: '6px',
-    groupGap: '6px',
-    iconButtonSizePx: 36,
-    iconButtonRadiusPx: 12,
-    routinesHeightPx: 36,
+    rootGap: `${SIDEBAR_TOKENS.controlGapPx}px`,
+    groupGap: `${SIDEBAR_TOKENS.controlGapPx}px`,
+    iconButtonSizePx: SIDEBAR_TOKENS.railButtonSizePx,
+    iconButtonRadiusPx: SIDEBAR_TOKENS.railButtonRadiusPx,
+    routinesHeightPx: SIDEBAR_TOKENS.railButtonSizePx,
     routinesPadding: '0',
-    routinesRadiusPx: 12,
+    routinesRadiusPx: SIDEBAR_TOKENS.railButtonRadiusPx,
     dividerHeightPx: 1,
-    dividerMargin: '4px 0',
-    dividerColor: 'rgba(203, 213, 225, 0.75)',
+    dividerMargin: '0',
+    dividerColor: 'rgba(226, 232, 240, 0.85)',
     inactiveIconColor: '#475569',
     inactiveTextColor: '#334155',
     hoverBackground: '#f8fafc',
     hoverColor: '#0f172a',
     activeBackground: '#f1f5f9',
     activeColor: '#0f172a',
-    dividerWidthPx: 52,
+    dividerWidthPx: SIDEBAR_TOKENS.dividerWidthPx,
     showRoutinesLabel: false,
   },
 };
@@ -150,10 +156,14 @@ export class WorkspaceControlsBar {
       const group = document.createElement('div');
       group.setAttribute('role', 'radiogroup');
       group.setAttribute('aria-label', 'Workspace view');
-      group.style.display = 'flex';
-      group.style.flexDirection = this.variant === 'sidebar' ? 'column' : 'row';
-      group.style.alignItems = 'center';
-      group.style.gap = this.metrics.groupGap;
+      if (this.variant === 'sidebar') {
+        group.className = 'flex flex-col items-center gap-1.5';
+      } else {
+        group.style.display = 'flex';
+        group.style.flexDirection = 'row';
+        group.style.alignItems = 'center';
+        group.style.gap = this.metrics.groupGap;
+      }
 
       viewOptions.forEach((option) => {
         const button = this.createIconButton({
@@ -219,11 +229,15 @@ export class WorkspaceControlsBar {
   }
 
   private applyRootStyles(): void {
+    if (this.variant === 'sidebar') {
+      this.element.className = 'flex w-full flex-col items-center gap-1.5';
+      this.element.style.fontFamily = 'Poppins, sans-serif';
+      return;
+    }
+
     this.element.style.display = 'flex';
-    this.element.style.flexDirection =
-      this.variant === 'sidebar' ? 'column' : 'row';
-    this.element.style.alignItems =
-      this.variant === 'sidebar' ? 'center' : 'center';
+    this.element.style.flexDirection = 'row';
+    this.element.style.alignItems = 'center';
     this.element.style.gap = this.metrics.rootGap;
     this.element.style.fontFamily = 'Poppins, sans-serif';
 
@@ -238,12 +252,6 @@ export class WorkspaceControlsBar {
       return;
     }
 
-    if (this.variant === 'sidebar') {
-      this.element.style.width = '100%';
-      this.element.style.padding = '0';
-      return;
-    }
-
     this.element.style.height = '100%';
     this.element.style.minWidth = '0';
     this.element.style.flexShrink = '1';
@@ -254,6 +262,14 @@ export class WorkspaceControlsBar {
     icon: IconName;
     title: string;
   }): HTMLButtonElement {
+    if (this.variant === 'sidebar') {
+      return createSidebarRailButton({
+        icon: options.icon,
+        title: options.title,
+        ariaLabel: options.label,
+      });
+    }
+
     const button = document.createElement('button');
     button.type = 'button';
     button.title = options.title;
@@ -292,6 +308,15 @@ export class WorkspaceControlsBar {
   }
 
   private createRoutinesButton(onClick: () => void): HTMLButtonElement {
+    if (this.variant === 'sidebar') {
+      return createSidebarRailButton({
+        icon: 'check-circle',
+        title: 'Routines',
+        ariaLabel: 'Open routines',
+        onClick: () => onClick(),
+      });
+    }
+
     const button = document.createElement('button');
     button.type = 'button';
     button.title = 'Routines';
@@ -337,6 +362,10 @@ export class WorkspaceControlsBar {
   }
 
   private createDivider(): HTMLSpanElement {
+    if (this.variant === 'sidebar') {
+      return createSidebarDivider();
+    }
+
     const divider = document.createElement('span');
     divider.setAttribute('aria-hidden', 'true');
     divider.style.display = 'block';
@@ -353,6 +382,10 @@ export class WorkspaceControlsBar {
       const isActive = this.activeView === view;
       button.setAttribute('aria-checked', isActive ? 'true' : 'false');
       button.setAttribute('aria-disabled', 'false');
+      if (this.variant === 'sidebar') {
+        setSidebarRailButtonActive(button, isActive);
+        return;
+      }
       button.dataset.active = isActive ? 'true' : 'false';
       button.style.background = isActive
         ? this.metrics.activeBackground
@@ -363,13 +396,17 @@ export class WorkspaceControlsBar {
     });
 
     if (this.chatButton) {
-      this.chatButton.dataset.active = this.chatOpen ? 'true' : 'false';
-      this.chatButton.style.background = this.chatOpen
-        ? this.metrics.activeBackground
-        : 'transparent';
-      this.chatButton.style.color = this.chatOpen
-        ? this.metrics.activeColor
-        : this.metrics.inactiveIconColor;
+      if (this.variant === 'sidebar') {
+        setSidebarRailButtonActive(this.chatButton, this.chatOpen);
+      } else {
+        this.chatButton.dataset.active = this.chatOpen ? 'true' : 'false';
+        this.chatButton.style.background = this.chatOpen
+          ? this.metrics.activeBackground
+          : 'transparent';
+        this.chatButton.style.color = this.chatOpen
+          ? this.metrics.activeColor
+          : this.metrics.inactiveIconColor;
+      }
     }
   }
 }
