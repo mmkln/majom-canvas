@@ -74,10 +74,12 @@ These values reflect the strongest existing conventions in `ui-lib/hud` and moda
 ### 3.3 Border policy (minimal-by-default)
 
 - Prefer separation by spacing, background contrast, and elevation first.
+- Border usage should be deliberately rare in new UI work.
 - Add borders only when at least one condition is true:
   1. control affordance requires edge definition (input/select),
   2. contrast needs reinforcement on low-elevation surfaces,
   3. semantic grouping requires explicit division.
+- If spacing + contrast already communicate structure, do not add a border.
 - Avoid nested/double borders (e.g., bordered card + bordered internal wrappers) unless needed for interaction semantics.
 
 ### 3.4 Spacing and control sizing
@@ -593,6 +595,7 @@ Rule:
 ### 13.3 Message geometry and spacing
 
 - Message bubble radius: `rounded-xl` or `rounded-2xl` (content block level).
+- Chat message bubbles must not use border outlines.
 - Internal controls inside a message (action icons, tiny chips) use smaller radii (`rounded-md`/`rounded-lg`) per hierarchy rule.
 - Keep a stable vertical rhythm:
   - same author consecutive messages: tighter gap,
@@ -636,7 +639,9 @@ Rule:
 
 - One message should have one dominant visual emphasis at most.
 - Prefer hierarchy through spacing and typography before adding color or chrome.
-- Remove decorative shadows/borders from message bubbles unless they carry a functional purpose.
+- Do not use borders on chat message bubbles (assistant, user, system, action/command, typing/progress).
+- Keep any optional structural borders at container/subsection level only, not on individual bubbles.
+- Remove decorative shadows from message bubbles unless they carry a functional purpose.
 - If a style detail does not improve comprehension, interaction, or accessibility, omit it.
 
 ---
