@@ -274,7 +274,7 @@ describe('WorkspaceControlsBar floating variant', () => {
 
     runtime.setLocale('uk');
 
-    expect(routinesButton?.getAttribute('aria-label')).toBe('Відкрити рутини');
+    expect(routinesButton?.getAttribute('aria-label')).toBe('Відкрити звички');
     expect(chatButton?.getAttribute('aria-label')).toBe(
       'Перемкнути панель AI асистента'
     );
