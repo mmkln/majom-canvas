@@ -60,7 +60,9 @@ interface TimeClusteringRootViewOptions {
   runtime?: AppRuntime;
   store: TimeClusteringStore;
   layoutMode: TimeClusteringLayoutMode;
+  showOverlapWarnings: boolean;
   onLayoutModeChange: (mode: TimeClusteringLayoutMode) => void;
+  onShowOverlapWarningsChange: (show: boolean) => void;
   onRefreshSuggestions: () => Promise<TimeClusteringSuggestion[]>;
 }
 
@@ -96,6 +98,14 @@ const WEEKDAY_SELECTION_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
 type SelectedClusterRef = {
   clusterId: string;
+  dateKey?: string;
+};
+
+type CalendarContextMenuTarget = {
+  dateKey: string;
+  startMinute: number;
+  clientX: number;
+  clientY: number;
 };
 
 type ClusterGestureKind = 'move' | 'resize-start' | 'resize-end';
@@ -385,6 +395,10 @@ function roundUpToStep(minute: number, step: number): number {
   return Math.ceil(minute / step) * step;
 }
 
+function roundDownToStep(minute: number, step: number): number {
+  return Math.floor(minute / step) * step;
+}
+
 function deltaPixelsToSnappedMinutes(deltaPixels: number): number {
   const pixelsPerStep = (HOUR_ROW_HEIGHT_PX / 60) * CLUSTER_STEP_MINUTES;
   return Math.round(deltaPixels / pixelsPerStep) * CLUSTER_STEP_MINUTES;
@@ -638,11 +652,17 @@ export class TimeClusteringRootView {
   private readonly i18n: I18nService;
   private readonly store: TimeClusteringStore;
   private readonly onLayoutModeChange: (mode: TimeClusteringLayoutMode) => void;
+  private readonly onShowOverlapWarningsChange: (show: boolean) => void;
   private readonly root: HTMLDivElement;
   private readonly timeClusteringMenuContainer: HTMLDivElement;
   private readonly timeClusteringMenuButton: HTMLButtonElement;
   private readonly timeClusteringMenuPanel: HTMLDivElement;
   private readonly timeClusteringMenuController: AnchoredMenu;
+  private readonly clusterActionMenu: HTMLDivElement;
+  private readonly clusterActionEditButton: HTMLButtonElement;
+  private readonly clusterActionDeleteButton: HTMLButtonElement;
+  private readonly calendarContextMenu: HTMLDivElement;
+  private readonly calendarContextMenuCreateButton: HTMLButtonElement;
   private readonly addClusterButton: HTMLButtonElement;
   private readonly secondaryNav: HTMLDivElement;
   private readonly periodSwitcher: HTMLDivElement;
@@ -668,16 +688,31 @@ export class TimeClusteringRootView {
   private editingCluster: SelectedClusterRef | null = null;
   private recentClusterClick: RecentClusterClick | null = null;
   private selectedCluster: SelectedClusterRef | null = null;
+  private calendarContextMenuTarget: CalendarContextMenuTarget | null = null;
   private activeClusterGesture: ActiveClusterGesture | null = null;
   private layoutMode: TimeClusteringLayoutMode;
-  private showOverlapWarnings = true;
+  private showOverlapWarnings: boolean;
+  private suppressCalendarOverlayCloseOnScroll = false;
+  private readonly windowPointerDownHandler = (event: PointerEvent): void => {
+    if (!this.isCalendarContextMenuOpen()) return;
+    const target = event.target;
+    if (!(target instanceof Node)) return;
+    if (this.calendarContextMenu.contains(target)) return;
+    this.closeCalendarContextMenu();
+  };
+  private readonly viewportChangeHandler = (): void => {
+    this.closeCalendarContextMenu();
+    this.updateClusterActionMenu();
+  };
 
   constructor(options: TimeClusteringRootViewOptions) {
     this.runtime = options.runtime ?? createAppRuntime();
     this.i18n = this.runtime.i18n;
     this.store = options.store;
     this.layoutMode = options.layoutMode;
+    this.showOverlapWarnings = options.showOverlapWarnings;
     this.onLayoutModeChange = options.onLayoutModeChange;
+    this.onShowOverlapWarningsChange = options.onShowOverlapWarningsChange;
 
     this.root = document.createElement('div');
     this.root.className =
@@ -740,6 +775,66 @@ export class TimeClusteringRootView {
       this.timeClusteringMenuButton,
       this.timeClusteringMenuPanel
     );
+
+    this.clusterActionMenu = createSurface({
+      elevated: true,
+      className:
+        'fixed z-40 hidden items-center gap-1 rounded-full px-2.5 py-1 text-sm text-slate-800',
+    });
+    this.clusterActionMenu.dataset.role = 'cluster-action-menu';
+
+    this.clusterActionEditButton = createIconButton({
+      icon: 'pencil',
+      size: 'sm',
+      tone: 'text',
+      title: this.i18n.t('timeClustering.action.edit'),
+      ariaLabel: this.i18n.t('timeClustering.action.edit'),
+    });
+    this.clusterActionEditButton.dataset.role = 'cluster-action-edit-button';
+    this.clusterActionEditButton.onclick = (event) => {
+      event.stopPropagation();
+      if (!this.selectedCluster) return;
+      this.openClusterEditModal(this.selectedCluster.clusterId);
+    };
+
+    this.clusterActionDeleteButton = createIconButton({
+      icon: 'trash',
+      size: 'sm',
+      tone: 'danger',
+      title: this.i18n.t('timeClustering.action.delete'),
+      ariaLabel: this.i18n.t('timeClustering.action.delete'),
+    });
+    this.clusterActionDeleteButton.dataset.role =
+      'cluster-action-delete-button';
+    this.clusterActionDeleteButton.onclick = (event) => {
+      event.stopPropagation();
+      if (!this.selectedCluster) return;
+      const { clusterId } = this.selectedCluster;
+      this.clearSelectedCluster(false);
+      this.store.deleteCluster(clusterId);
+      this.hideClusterActionMenu();
+    };
+    this.clusterActionMenu.append(
+      this.clusterActionEditButton,
+      this.clusterActionDeleteButton
+    );
+
+    this.calendarContextMenu = createSurface({
+      elevated: true,
+      className:
+        'fixed z-50 hidden min-w-[220px] overflow-hidden rounded-xl p-0 text-sm text-slate-800',
+    });
+    this.calendarContextMenu.dataset.role = 'calendar-context-menu';
+    this.calendarContextMenu.setAttribute('role', 'menu');
+
+    this.calendarContextMenuCreateButton = createDropdownItem({
+      label: this.i18n.t('timeClustering.context.createHere'),
+      variant: 'default',
+      onClick: () => this.createClusterFromContextMenu(),
+    });
+    this.calendarContextMenuCreateButton.dataset.role =
+      'calendar-context-create-button';
+    this.calendarContextMenu.append(this.calendarContextMenuCreateButton);
 
     this.secondaryNav = document.createElement('div');
     this.secondaryNav.className = 'mt-4 flex flex-col gap-2.5';
@@ -866,12 +961,20 @@ export class TimeClusteringRootView {
 
     header.append(this.secondaryNav);
     body.append(this.calendarSurface);
-    this.root.append(header, this.warningBanner, body);
+    this.root.append(
+      header,
+      this.warningBanner,
+      body,
+      this.clusterActionMenu,
+      this.calendarContextMenu
+    );
   }
 
   public mount(parent: HTMLElement): void {
     parent.appendChild(this.root);
     this.timeClusteringMenuController.mount();
+    window.addEventListener('pointerdown', this.windowPointerDownHandler, true);
+    window.addEventListener('resize', this.viewportChangeHandler);
     this.disposeStoreSubscription = this.store.subscribe((snapshot) => {
       this.renderSnapshot(snapshot);
     });
@@ -888,6 +991,12 @@ export class TimeClusteringRootView {
     this.clearPendingScrollFrame();
     this.timeClusteringMenuController.close();
     this.timeClusteringMenuController.unmount();
+    window.removeEventListener(
+      'pointerdown',
+      this.windowPointerDownHandler,
+      true
+    );
+    window.removeEventListener('resize', this.viewportChangeHandler);
     this.disposeStoreSubscription?.();
     this.disposeStoreSubscription = null;
     this.disposeRuntimeSubscription?.();
@@ -901,6 +1010,12 @@ export class TimeClusteringRootView {
     if (this.root.isConnected) {
       this.refreshRuntimeState();
     }
+  }
+
+  public setShowOverlapWarnings(showOverlapWarnings: boolean): void {
+    if (this.showOverlapWarnings === showOverlapWarnings) return;
+    this.showOverlapWarnings = showOverlapWarnings;
+    this.requestRender();
   }
 
   private refreshRuntimeState(): void {
@@ -919,6 +1034,23 @@ export class TimeClusteringRootView {
     this.timeClusteringMenuButton.setAttribute(
       'aria-label',
       this.i18n.t('timeClustering.menu.title')
+    );
+    this.clusterActionEditButton.title = this.i18n.t(
+      'timeClustering.action.edit'
+    );
+    this.clusterActionEditButton.setAttribute(
+      'aria-label',
+      this.i18n.t('timeClustering.action.edit')
+    );
+    this.clusterActionDeleteButton.title = this.i18n.t(
+      'timeClustering.action.delete'
+    );
+    this.clusterActionDeleteButton.setAttribute(
+      'aria-label',
+      this.i18n.t('timeClustering.action.delete')
+    );
+    this.calendarContextMenuCreateButton.textContent = this.i18n.t(
+      'timeClustering.context.createHere'
     );
     const dayLabel = this.dayModeButton.querySelector('span');
     if (dayLabel) {
@@ -983,16 +1115,21 @@ export class TimeClusteringRootView {
       this.calendarScrollContainer
     ) {
       const { scrollLeft, scrollTop } = previousScrollState;
+      this.updateClusterActionMenu();
       this.clearPendingScrollFrame();
       this.pendingScrollFrameId = window.requestAnimationFrame(() => {
         if (!this.calendarScrollContainer) return;
-        this.calendarScrollContainer.scrollTop = scrollTop;
-        this.calendarScrollContainer.scrollLeft = scrollLeft;
+        this.runWithSuppressedCalendarScrollClose(() => {
+          this.calendarScrollContainer!.scrollTop = scrollTop;
+          this.calendarScrollContainer!.scrollLeft = scrollLeft;
+        });
+        this.updateClusterActionMenu();
         this.pendingScrollFrameId = null;
       });
       return;
     }
     this.syncCalendarScroll(snapshot, weekDateKeys);
+    this.updateClusterActionMenu();
   }
 
   private scheduleNowIndicatorRefresh(): void {
@@ -1026,6 +1163,14 @@ export class TimeClusteringRootView {
     this.pendingScrollFrameId = null;
   }
 
+  private runWithSuppressedCalendarScrollClose(callback: () => void): void {
+    this.suppressCalendarOverlayCloseOnScroll = true;
+    callback();
+    window.requestAnimationFrame(() => {
+      this.suppressCalendarOverlayCloseOnScroll = false;
+    });
+  }
+
   private getCalendarContextKey(
     snapshot: TimeClusteringStateSnapshot,
     weekDateKeys: string[]
@@ -1057,6 +1202,16 @@ export class TimeClusteringRootView {
     return this.selectedCluster?.clusterId === clusterId;
   }
 
+  private isClusterSelectedAtDate(
+    clusterId: string,
+    dateKey: string
+  ): boolean {
+    return (
+      this.selectedCluster?.clusterId === clusterId &&
+      this.selectedCluster?.dateKey === dateKey
+    );
+  }
+
   private isClusterVisible(
     snapshot: TimeClusteringStateSnapshot,
     visibleDateKeys: string[],
@@ -1083,8 +1238,18 @@ export class TimeClusteringRootView {
     visibleDateKeys: string[]
   ): void {
     if (this.selectedCluster) {
-      const { clusterId } = this.selectedCluster;
-      if (!this.isClusterVisible(snapshot, visibleDateKeys, clusterId)) {
+      const { clusterId, dateKey } = this.selectedCluster;
+      const cluster = this.findCluster(snapshot, clusterId);
+      if (!cluster) {
+        this.selectedCluster = null;
+      } else if (dateKey && !visibleDateKeys.includes(dateKey)) {
+        const nextVisibleDateKey = visibleDateKeys.find((visibleDateKey) =>
+          clusterIntersectsDateKey(cluster, visibleDateKey)
+        );
+        this.selectedCluster = nextVisibleDateKey
+          ? { clusterId, dateKey: nextVisibleDateKey }
+          : null;
+      } else if (!this.isClusterVisible(snapshot, visibleDateKeys, clusterId)) {
         this.selectedCluster = null;
       }
     }
@@ -1256,8 +1421,7 @@ export class TimeClusteringRootView {
         togglePosition: 'right',
         checked: this.showOverlapWarnings,
         onChange: (checked) => {
-          this.showOverlapWarnings = checked;
-          this.renderWarnings(this.store.getSnapshot());
+          this.onShowOverlapWarningsChange(checked);
         },
       }),
     });
@@ -1299,6 +1463,53 @@ export class TimeClusteringRootView {
     this.timeClusteringMenuController.close();
   }
 
+  private isCalendarContextMenuOpen(): boolean {
+    return !this.calendarContextMenu.classList.contains('hidden');
+  }
+
+  private closeCalendarContextMenu(): void {
+    this.calendarContextMenuTarget = null;
+    this.calendarContextMenu.classList.add('hidden');
+  }
+
+  private openCalendarContextMenu(
+    target: CalendarContextMenuTarget
+  ): void {
+    this.closeTimeClusteringMenu();
+    this.calendarContextMenuTarget = target;
+    this.calendarContextMenu.classList.remove('hidden');
+    this.positionFloatingPanel(
+      this.calendarContextMenu,
+      target.clientX,
+      target.clientY
+    );
+  }
+
+  private positionFloatingPanel(
+    panel: HTMLElement,
+    clientX: number,
+    clientY: number,
+    options: { gap?: number; margin?: number } = {}
+  ): void {
+    const gap = options.gap ?? 8;
+    const margin = options.margin ?? 8;
+    panel.style.visibility = 'hidden';
+    const rect = panel.getBoundingClientRect();
+    const width = rect.width || panel.offsetWidth || 220;
+    const height = rect.height || panel.offsetHeight || 48;
+    const left = Math.max(
+      margin,
+      Math.min(clientX + gap, window.innerWidth - width - margin)
+    );
+    const top = Math.max(
+      margin,
+      Math.min(clientY + gap, window.innerHeight - height - margin)
+    );
+    panel.style.left = `${Math.round(left)}px`;
+    panel.style.top = `${Math.round(top)}px`;
+    panel.style.visibility = 'visible';
+  }
+
   private renderCalendar(
     snapshot: TimeClusteringStateSnapshot,
     weekDateKeys: string[],
@@ -1310,6 +1521,15 @@ export class TimeClusteringRootView {
     const container = document.createElement('div');
     container.className = 'h-full overflow-auto';
     container.dataset.contextKey = contextKey;
+    container.addEventListener(
+      'scroll',
+      () => {
+        if (this.suppressCalendarOverlayCloseOnScroll) return;
+        this.closeCalendarContextMenu();
+        this.updateClusterActionMenu();
+      },
+      { passive: true }
+    );
     this.calendarScrollContainer = container;
 
     const surface = document.createElement('div');
@@ -1356,7 +1576,9 @@ export class TimeClusteringRootView {
 
     this.clearPendingScrollFrame();
     this.pendingScrollFrameId = window.requestAnimationFrame(() => {
-      container.scrollTop = targetTop;
+      this.runWithSuppressedCalendarScrollClose(() => {
+        container.scrollTop = targetTop;
+      });
       this.pendingScrollFrameId = null;
     });
   }
@@ -1474,6 +1696,7 @@ export class TimeClusteringRootView {
     if (!this.selectedCluster) return;
     this.recentClusterClick = null;
     this.selectedCluster = null;
+    this.hideClusterActionMenu();
     if (shouldRender) {
       this.requestRender();
     }
@@ -1486,6 +1709,7 @@ export class TimeClusteringRootView {
   ): void {
     if (event.button !== 0) return;
     if (this.activeClusterGesture) return;
+    this.closeCalendarContextMenu();
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
     if (target.closest('[data-role="cluster-block"]')) return;
@@ -1496,6 +1720,39 @@ export class TimeClusteringRootView {
     if (shouldUpdateDate) {
       this.store.setSelectedDate(dateKey);
     }
+  }
+
+  private handleCalendarBackgroundContextMenu(
+    event: MouseEvent,
+    dateKey: string
+  ): void {
+    if (this.activeClusterGesture) return;
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const currentTarget = event.currentTarget;
+    if (!(currentTarget instanceof HTMLElement)) return;
+    const clusterBlock = target.closest<HTMLElement>('[data-role="cluster-block"]');
+    if (clusterBlock?.dataset.clusterId) {
+      this.selectedCluster = {
+        clusterId: clusterBlock.dataset.clusterId,
+        dateKey: clusterBlock.dataset.dateKey ?? dateKey,
+      };
+    }
+    const startMinute = this.resolveContextMenuStartMinute(
+      currentTarget,
+      event.clientY
+    );
+    this.requestRender();
+    this.openCalendarContextMenu({
+      dateKey,
+      startMinute,
+      clientX: event.clientX,
+      clientY: event.clientY,
+    });
   }
 
   private beginClusterGesture(params: {
@@ -1560,6 +1817,7 @@ export class TimeClusteringRootView {
 
       if (!gesture.started && gesture.kind === 'move') {
         this.handleClusterTap(cluster.id, pointerEvent);
+        this.requestRender();
         return;
       }
 
@@ -1618,7 +1876,8 @@ export class TimeClusteringRootView {
       document.body.style.userSelect = '';
     };
 
-    this.selectedCluster = { clusterId: cluster.id };
+    this.closeCalendarContextMenu();
+    this.selectedCluster = { clusterId: cluster.id, dateKey: anchorDateKey };
     this.activeClusterGesture = gesture;
     document.body.style.userSelect = 'none';
     window.addEventListener('pointermove', handlePointerMove, true);
@@ -1742,7 +2001,13 @@ export class TimeClusteringRootView {
     if (!cluster) return;
 
     this.closeClusterEditModal();
-    this.selectedCluster = { clusterId };
+    this.selectedCluster = {
+      clusterId,
+      dateKey:
+        this.selectedCluster?.clusterId === clusterId
+          ? this.selectedCluster.dateKey
+          : getDateKeyForIso(cluster.startAtIso),
+    };
     this.editingCluster = { clusterId };
     this.requestRender();
 
@@ -2296,6 +2561,8 @@ export class TimeClusteringRootView {
     column.dataset.selectedDate = isSelectedDate ? 'true' : 'false';
     column.onpointerdown = (event) =>
       this.handleCalendarBackgroundPointerDown(event, dateKey, calendarMode);
+    column.oncontextmenu = (event) =>
+      this.handleCalendarBackgroundContextMenu(event, dateKey);
 
     for (let hour = 0; hour < 24; hour += 1) {
       const hourSlot = document.createElement('div');
@@ -2359,7 +2626,7 @@ export class TimeClusteringRootView {
   ): HTMLDivElement {
     const { cluster } = clusterSegment;
     const palette = getClusterPalette(cluster.colorToken);
-    const isSelected = this.isClusterSelected(cluster.id);
+    const isSelected = this.isClusterSelectedAtDate(cluster.id, dateKey);
     const isActiveGesture = this.activeClusterGesture?.clusterId === cluster.id;
     const top = (clusterSegment.startMinute / 60) * HOUR_ROW_HEIGHT_PX;
     const isDayMode = calendarMode === 'day';
@@ -2487,13 +2754,26 @@ export class TimeClusteringRootView {
     dateKey: string;
     isToday: boolean;
     isSelectedDate: boolean;
-  }): HTMLDivElement {
+  }): HTMLButtonElement {
     const { dateKey, isToday, isSelectedDate } = options;
-    const cell = document.createElement('div');
+    const cell = document.createElement('button');
+    cell.type = 'button';
     cell.dataset.selected = isSelectedDate ? 'true' : 'false';
     cell.className = isSelectedDate
-      ? 'relative rounded-lg px-3 py-1.5 ring-1 ring-slate-200/80'
-      : 'relative px-3 py-1.5';
+      ? 'relative rounded-lg px-3 py-1.5 text-left ring-1 ring-slate-200/80 transition-colors hover:bg-slate-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200'
+      : 'relative px-3 py-1.5 text-left transition-colors hover:bg-slate-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200';
+    cell.title = formatPeriodDate(this.i18n, dateKey);
+    cell.setAttribute(
+      'aria-label',
+      this.i18n.t('timeClustering.selectDay', {
+        date: formatPeriodDate(this.i18n, dateKey),
+      })
+    );
+    cell.setAttribute('aria-pressed', isSelectedDate ? 'true' : 'false');
+    cell.onclick = () => {
+      if (this.store.getSnapshot().selectedDateKey === dateKey) return;
+      this.store.setSelectedDate(dateKey);
+    };
 
     const weekday = document.createElement('p');
     weekday.className = isToday
@@ -2522,24 +2802,53 @@ export class TimeClusteringRootView {
   }
 
   private createClusterForSelectedDate(): void {
+    this.createClusterAtDateKey(this.store.getSnapshot().selectedDateKey);
+  }
+
+  private createClusterFromContextMenu(): void {
+    const target = this.calendarContextMenuTarget;
+    if (!target) return;
+    this.closeCalendarContextMenu();
+    const clusterId = this.createClusterAtDateKey(target.dateKey, {
+      startMinute: target.startMinute,
+    });
+    if (this.store.getSnapshot().selectedDateKey !== target.dateKey) {
+      this.store.setSelectedDate(target.dateKey);
+    }
+    this.selectedCluster = { clusterId, dateKey: target.dateKey };
+    this.requestRender();
+  }
+
+  private createClusterAtDateKey(
+    dateKey: string,
+    options: { startMinute?: number } = {}
+  ): string {
     const snapshot = this.store.getSnapshot();
-    const selectedDateKey = snapshot.selectedDateKey;
-    const existingClusters = buildTimeClusterSegmentsForDate(
-      selectedDateKey,
-      snapshot.clusters
-    )
+    const existingClusters = buildTimeClusterSegmentsForDate(dateKey, snapshot.clusters)
       .slice()
       .sort((a, b) => a.startMinute - b.startMinute);
 
-    let startMinute = 9 * 60;
-    for (const cluster of existingClusters) {
-      if (
-        startMinute + DEFAULT_CLUSTER_DURATION_MINUTES <=
-        cluster.startMinute
-      ) {
-        break;
+    let startMinute =
+      typeof options.startMinute === 'number'
+        ? Math.max(
+            0,
+            Math.min(
+              roundDownToStep(options.startMinute, CLUSTER_STEP_MINUTES),
+              MINUTES_PER_DAY - DEFAULT_CLUSTER_DURATION_MINUTES
+            )
+          )
+        : 9 * 60;
+
+    if (options.startMinute === undefined) {
+      for (const cluster of existingClusters) {
+        if (
+          startMinute + DEFAULT_CLUSTER_DURATION_MINUTES <=
+          cluster.startMinute
+        ) {
+          break;
+        }
+        startMinute = roundUpToStep(cluster.endMinute, 30);
       }
-      startMinute = roundUpToStep(cluster.endMinute, 30);
     }
 
     if (startMinute + DEFAULT_CLUSTER_DURATION_MINUTES > MINUTES_PER_DAY) {
@@ -2553,15 +2862,113 @@ export class TimeClusteringRootView {
       MINUTES_PER_DAY,
       startMinute + DEFAULT_CLUSTER_DURATION_MINUTES
     );
-    const tokens = ['blue', 'green', 'amber', 'rose', 'violet', 'cyan'];
-
+    const clusterId = uniqueId();
+    this.selectedCluster = { clusterId, dateKey };
     this.store.createCluster({
-      id: uniqueId(),
+      id: clusterId,
       title: `Cluster ${existingClusters.length + 1}`,
-      colorToken: tokens[existingClusters.length % tokens.length] ?? 'blue',
-      startAtIso: isoFromDateKeyMinute(selectedDateKey, startMinute),
-      endAtIso: isoFromDateKeyMinute(selectedDateKey, endMinute),
+      colorToken:
+        CLUSTER_COLOR_TOKENS[
+          snapshot.clusters.length % CLUSTER_COLOR_TOKENS.length
+        ] ?? 'blue',
+      startAtIso: isoFromDateKeyMinute(dateKey, startMinute),
+      endAtIso: isoFromDateKeyMinute(dateKey, endMinute),
       recurrence: 'none',
     });
+    return clusterId;
+  }
+
+  private resolveContextMenuStartMinute(
+    column: HTMLElement,
+    clientY: number
+  ): number {
+    const rect = column.getBoundingClientRect();
+    const offsetY = Math.max(
+      0,
+      Math.min(clientY - rect.top, HOUR_ROW_HEIGHT_PX * 24)
+    );
+    const rawMinute = Math.floor((offsetY / HOUR_ROW_HEIGHT_PX) * 60);
+    const snappedMinute = roundDownToStep(rawMinute, CLUSTER_STEP_MINUTES);
+    return Math.max(
+      0,
+      Math.min(
+        snappedMinute,
+        MINUTES_PER_DAY - DEFAULT_CLUSTER_DURATION_MINUTES
+      )
+    );
+  }
+
+  private findSelectedClusterBlock(): HTMLDivElement | null {
+    if (!this.selectedCluster) return null;
+    const blocks = Array.from(
+      this.root.querySelectorAll<HTMLDivElement>(
+        '[data-role="cluster-block"][data-selected="true"]'
+      )
+    );
+    return (
+      blocks.find(
+        (block) =>
+          block.dataset.clusterId === this.selectedCluster?.clusterId &&
+          block.dataset.dateKey === this.selectedCluster?.dateKey
+      ) ??
+      blocks.find(
+        (block) => block.dataset.clusterId === this.selectedCluster?.clusterId
+      ) ??
+      null
+    );
+  }
+
+  private hideClusterActionMenu(): void {
+    this.clusterActionMenu.classList.remove('flex');
+    this.clusterActionMenu.classList.add('hidden');
+  }
+
+  private showClusterActionMenu(): void {
+    this.clusterActionMenu.classList.remove('hidden');
+    this.clusterActionMenu.classList.add('flex');
+  }
+
+  private updateClusterActionMenu(): void {
+    if (
+      !this.selectedCluster ||
+      this.activeClusterGesture ||
+      this.editingCluster ||
+      this.isCalendarContextMenuOpen()
+    ) {
+      this.hideClusterActionMenu();
+      return;
+    }
+
+    const block = this.findSelectedClusterBlock();
+    if (!block) {
+      this.hideClusterActionMenu();
+      return;
+    }
+
+    const rect = block.getBoundingClientRect();
+    if (
+      rect.bottom < 0 ||
+      rect.top > window.innerHeight ||
+      rect.right < 0 ||
+      rect.left > window.innerWidth
+    ) {
+      this.hideClusterActionMenu();
+      return;
+    }
+
+    this.showClusterActionMenu();
+    this.positionFloatingPanel(this.clusterActionMenu, rect.left, rect.bottom, {
+      gap: 10,
+      margin: 12,
+    });
+    const menuRect = this.clusterActionMenu.getBoundingClientRect();
+    const centeredLeft = Math.max(
+      12,
+      Math.min(
+        rect.left + rect.width / 2 - menuRect.width / 2,
+        window.innerWidth - menuRect.width - 12
+      )
+    );
+    this.clusterActionMenu.style.left = `${Math.round(centeredLeft)}px`;
   }
 }

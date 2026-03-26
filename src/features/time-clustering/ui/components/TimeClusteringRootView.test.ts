@@ -89,22 +89,29 @@ function createSnapshot(
 
 function createView(
   store: TimeClusteringStore,
-  layoutMode: TimeClusteringLayoutMode = 'docked-left'
+  layoutMode: TimeClusteringLayoutMode = 'docked-left',
+  showOverlapWarnings = true
 ): {
   view: TimeClusteringRootView;
   onLayoutModeChange: ReturnType<typeof vi.fn>;
+  onShowOverlapWarningsChange: ReturnType<typeof vi.fn>;
 } {
   const onLayoutModeChange = vi.fn((mode: TimeClusteringLayoutMode) => {
     view.setLayoutMode(mode);
+  });
+  const onShowOverlapWarningsChange = vi.fn((show: boolean) => {
+    view.setShowOverlapWarnings(show);
   });
   const view = new TimeClusteringRootView({
     runtime: createAppRuntime({ initialLocale: 'en' }),
     store,
     layoutMode,
+    showOverlapWarnings,
     onLayoutModeChange,
+    onShowOverlapWarningsChange,
     onRefreshSuggestions: () => Promise.resolve([]),
   });
-  return { view, onLayoutModeChange };
+  return { view, onLayoutModeChange, onShowOverlapWarningsChange };
 }
 
 function dispatchPointerEvent(
@@ -138,6 +145,22 @@ function dispatchPointerEvent(
     value: options.pointerType ?? 'mouse',
   });
   target.dispatchEvent(event);
+}
+
+function dispatchContextMenuEvent(
+  target: EventTarget,
+  options: { clientX?: number; clientY?: number } = {}
+): void {
+  target.dispatchEvent(
+    new MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+      button: 2,
+      buttons: 2,
+      clientX: options.clientX ?? 0,
+      clientY: options.clientY ?? 0,
+    })
+  );
 }
 
 function getCluster(
@@ -362,6 +385,198 @@ describe('TimeClusteringRootView', () => {
     expect(
       parent.querySelectorAll('[data-role="cluster-resize-handle"]')
     ).toHaveLength(0);
+
+    view.unmount();
+    store.destroy();
+  });
+
+  it('shows an action menu for the selected cluster and can delete it', () => {
+    const store = new TimeClusteringStore(createRepository(createSnapshot()));
+    const { view } = createView(store);
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    view.mount(parent);
+
+    const clusterBlock = parent.querySelector<HTMLDivElement>(
+      '[data-role="cluster-block"][data-cluster-id="cluster-1"]'
+    );
+    expect(clusterBlock).not.toBeNull();
+
+    dispatchPointerEvent(clusterBlock!, 'pointerdown', { clientY: 120 });
+    dispatchPointerEvent(window, 'pointerup', { clientY: 120 });
+
+    const actionMenu = parent.querySelector<HTMLDivElement>(
+      '[data-role="cluster-action-menu"]'
+    );
+    const deleteButton = parent.querySelector<HTMLButtonElement>(
+      '[data-role="cluster-action-delete-button"]'
+    );
+
+    expect(actionMenu).not.toBeNull();
+    expect(actionMenu?.classList.contains('hidden')).toBe(false);
+    expect(deleteButton).not.toBeNull();
+
+    deleteButton?.click();
+
+    expect(
+      store.getSnapshot().clusters.find((cluster) => cluster.id === 'cluster-1')
+    ).toBeUndefined();
+    expect(
+      parent.querySelector('[data-role="cluster-block"][data-cluster-id="cluster-1"]')
+    ).toBeNull();
+
+    view.unmount();
+    store.destroy();
+  });
+
+  it('opens a calendar context menu and creates a cluster at the clicked time', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function mockGetBoundingClientRect(this: HTMLElement): DOMRect {
+        if (
+          this.dataset.role === 'calendar-column' &&
+          this.dataset.dateKey === '2026-03-25'
+        ) {
+          return {
+            x: 40,
+            y: 100,
+            width: 320,
+            height: 24 * 56,
+            top: 100,
+            right: 360,
+            bottom: 100 + 24 * 56,
+            left: 40,
+            toJSON: () => ({}),
+          } as DOMRect;
+        }
+
+        return {
+          x: 0,
+          y: 0,
+          width: 0,
+          height: 0,
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+          toJSON: () => ({}),
+        } as DOMRect;
+      }
+    );
+
+    const store = new TimeClusteringStore(createRepository(createSnapshot()));
+    const { view } = createView(store);
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    view.mount(parent);
+
+    const column = parent.querySelector<HTMLDivElement>(
+      '[data-role="calendar-column"][data-date-key="2026-03-25"]'
+    );
+    expect(column).not.toBeNull();
+
+    dispatchContextMenuEvent(column!, {
+      clientX: 120,
+      clientY: 100 + 56 * 7.5,
+    });
+
+    const contextMenu = parent.querySelector<HTMLDivElement>(
+      '[data-role="calendar-context-menu"]'
+    );
+    const createButton = parent.querySelector<HTMLButtonElement>(
+      '[data-role="calendar-context-create-button"]'
+    );
+
+    expect(contextMenu).not.toBeNull();
+    expect(contextMenu?.classList.contains('hidden')).toBe(false);
+    expect(createButton).not.toBeNull();
+
+    const initialCount = store.getSnapshot().clusters.length;
+    createButton?.click();
+
+    expect(store.getSnapshot().clusters).toHaveLength(initialCount + 1);
+    const createdCluster = store.getSnapshot().clusters.at(-1);
+    expect(createdCluster?.startAtIso).toBe(
+      isoFromDateKeyMinute('2026-03-25', 7 * 60 + 30)
+    );
+    expect(createdCluster?.endAtIso).toBe(
+      isoFromDateKeyMinute('2026-03-25', 9 * 60)
+    );
+
+    view.unmount();
+    store.destroy();
+  });
+
+  it('reopens the calendar context menu when right-clicking an existing cluster', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function mockGetBoundingClientRect(this: HTMLElement): DOMRect {
+        if (
+          this.dataset.role === 'calendar-column' &&
+          this.dataset.dateKey === '2026-03-25'
+        ) {
+          return {
+            x: 40,
+            y: 100,
+            width: 320,
+            height: 24 * 56,
+            top: 100,
+            right: 360,
+            bottom: 100 + 24 * 56,
+            left: 40,
+            toJSON: () => ({}),
+          } as DOMRect;
+        }
+
+        return {
+          x: 0,
+          y: 0,
+          width: 0,
+          height: 0,
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+          toJSON: () => ({}),
+        } as DOMRect;
+      }
+    );
+
+    const store = new TimeClusteringStore(createRepository(createSnapshot()));
+    const { view } = createView(store);
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    view.mount(parent);
+
+    const column = parent.querySelector<HTMLDivElement>(
+      '[data-role="calendar-column"][data-date-key="2026-03-25"]'
+    );
+    expect(column).not.toBeNull();
+
+    dispatchContextMenuEvent(column!, {
+      clientX: 120,
+      clientY: 100 + 56 * 7.5,
+    });
+    parent
+      .querySelector<HTMLButtonElement>('[data-role="calendar-context-create-button"]')
+      ?.click();
+
+    const createdClusterId = store.getSnapshot().clusters.at(-1)?.id;
+    const createdBlock = parent.querySelector<HTMLDivElement>(
+      `[data-role="cluster-block"][data-cluster-id="${createdClusterId}"]`
+    );
+    expect(createdBlock).not.toBeNull();
+
+    dispatchContextMenuEvent(createdBlock!, {
+      clientX: 120,
+      clientY: 100 + 56 * 7.5,
+    });
+
+    const contextMenu = parent.querySelector<HTMLDivElement>(
+      '[data-role="calendar-context-menu"]'
+    );
+    expect(contextMenu?.classList.contains('hidden')).toBe(false);
 
     view.unmount();
     store.destroy();
@@ -926,8 +1141,40 @@ describe('TimeClusteringRootView', () => {
     overlapToggle?.click();
     expect(warningBanner?.classList.contains('hidden')).toBe(true);
 
-    overlapToggle?.click();
+    const overlapToggleAfterHide = parent.querySelector<HTMLInputElement>(
+      '[role="switch"][aria-label="Overlap warnings"]'
+    );
+    overlapToggleAfterHide?.click();
     expect(warningBanner?.classList.contains('hidden')).toBe(false);
+
+    view.unmount();
+    store.destroy();
+  });
+
+  it('respects persisted overlap warning visibility on initial render', () => {
+    const store = new TimeClusteringStore(
+      createRepository(
+        createSnapshot({
+          lastWarnings: [
+            {
+              type: 'time-collision',
+              sourceClusterId: 'cluster-1',
+              targetClusterId: 'cluster-2',
+            },
+          ],
+        })
+      )
+    );
+    const { view } = createView(store, 'docked-left', false);
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    view.mount(parent);
+
+    const warningBanner = parent.querySelector<HTMLElement>(
+      '[data-role="warning-banner"]'
+    );
+    expect(warningBanner?.classList.contains('hidden')).toBe(true);
 
     view.unmount();
     store.destroy();
@@ -980,7 +1227,7 @@ describe('TimeClusteringRootView', () => {
     expect(weekDayHeaders).toHaveLength(7);
     expect(
       Array.from(weekDayHeaders).every(
-        (element) => element.tagName === 'DIV'
+        (element) => element.tagName === 'BUTTON'
       )
     ).toBe(true);
     expect(
@@ -1145,7 +1392,7 @@ describe('TimeClusteringRootView', () => {
     store.destroy();
   });
 
-  it('keeps week headers informational and does not switch layouts on click', () => {
+  it('switches the selected day when clicking a week header without changing layout', () => {
     const store = new TimeClusteringStore(
       createRepository(
         createSnapshot({
@@ -1164,7 +1411,10 @@ describe('TimeClusteringRootView', () => {
       '[data-role="week-day-header"][data-date-key="2026-03-26"]'
     );
 
-    expect(thursdayHeader?.tagName).toBe('DIV');
+    expect(thursdayHeader?.tagName).toBe('BUTTON');
+    thursdayHeader?.click();
+
+    expect(store.getSnapshot().selectedDateKey).toBe('2026-03-26');
     expect(onLayoutModeChange).not.toHaveBeenCalled();
     expect(parent.querySelector('[data-role="week-calendar"]')).not.toBeNull();
 

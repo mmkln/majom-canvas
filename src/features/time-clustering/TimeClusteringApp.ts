@@ -11,13 +11,16 @@ import { AppRuntime, createAppRuntime } from '../../app-runtime/index.ts';
 type TimeClusteringAppOptions = {
   runtime?: AppRuntime;
   initialLayoutMode?: TimeClusteringLayoutMode;
+  initialShowOverlapWarnings?: boolean;
   onLayoutModeChange?: (mode: TimeClusteringLayoutMode) => void;
+  onShowOverlapWarningsChange?: (show: boolean) => void;
 };
 
 export class TimeClusteringApp {
   private readonly onLayoutModeChange?: (
     mode: TimeClusteringLayoutMode
   ) => void;
+  private readonly onShowOverlapWarningsChange?: (show: boolean) => void;
   private readonly store = new TimeClusteringStore(
     new LocalStorageTimeClusteringRepository()
   );
@@ -26,16 +29,22 @@ export class TimeClusteringApp {
   private readonly view: TimeClusteringRootView;
   private readonly runtime: AppRuntime;
   private layoutMode: TimeClusteringLayoutMode;
+  private showOverlapWarnings: boolean;
 
   constructor(options: TimeClusteringAppOptions = {}) {
     this.runtime = options.runtime ?? createAppRuntime();
     this.layoutMode = options.initialLayoutMode ?? 'docked-left';
+    this.showOverlapWarnings = options.initialShowOverlapWarnings ?? true;
     this.onLayoutModeChange = options.onLayoutModeChange;
+    this.onShowOverlapWarningsChange = options.onShowOverlapWarningsChange;
     this.view = new TimeClusteringRootView({
       runtime: this.runtime,
       store: this.store,
       layoutMode: this.layoutMode,
+      showOverlapWarnings: this.showOverlapWarnings,
       onLayoutModeChange: (mode) => this.setLayoutMode(mode),
+      onShowOverlapWarningsChange: (show) =>
+        this.setShowOverlapWarnings(show),
       onRefreshSuggestions: () => this.refreshSuggestions(),
     });
   }
@@ -54,6 +63,13 @@ export class TimeClusteringApp {
     this.layoutMode = mode;
     this.view.setLayoutMode(mode);
     this.onLayoutModeChange?.(mode);
+  }
+
+  public setShowOverlapWarnings(show: boolean): void {
+    if (this.showOverlapWarnings === show) return;
+    this.showOverlapWarnings = show;
+    this.view.setShowOverlapWarnings(show);
+    this.onShowOverlapWarningsChange?.(show);
   }
 
   public async refreshSuggestions(): Promise<TimeClusteringSuggestion[]> {
