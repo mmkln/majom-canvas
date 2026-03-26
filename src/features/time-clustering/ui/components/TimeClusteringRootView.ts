@@ -926,7 +926,11 @@ export class TimeClusteringRootView {
       'inline-flex shrink-0 items-center justify-self-end gap-1.5';
     navigationActions.append(this.timeClusteringMenuContainer);
     this.periodSwitcher.classList.add('justify-self-center');
-    navigationRow.append(navigationStart, this.periodSwitcher, navigationActions);
+    navigationRow.append(
+      navigationStart,
+      this.periodSwitcher,
+      navigationActions
+    );
 
     this.daySwitcher = document.createElement('div');
     this.daySwitcher.className = 'grid w-full grid-cols-7 gap-0.5';
@@ -964,9 +968,12 @@ export class TimeClusteringRootView {
     this.disposeStoreSubscription = this.store.subscribe((snapshot) => {
       this.renderSnapshot(snapshot);
     });
-    this.disposeRuntimeSubscription = this.runtime.subscribe(() => {
-      this.refreshRuntimeState();
-    }, { emitCurrent: true });
+    this.disposeRuntimeSubscription = this.runtime.subscribe(
+      () => {
+        this.refreshRuntimeState();
+      },
+      { emitCurrent: true }
+    );
     this.scheduleNowIndicatorRefresh();
   }
 
@@ -1183,10 +1190,7 @@ export class TimeClusteringRootView {
     return this.selectedCluster?.clusterId === clusterId;
   }
 
-  private isClusterSelectedAtDate(
-    clusterId: string,
-    dateKey: string
-  ): boolean {
+  private isClusterSelectedAtDate(clusterId: string, dateKey: string): boolean {
     return (
       this.selectedCluster?.clusterId === clusterId &&
       this.selectedCluster?.dateKey === dateKey
@@ -1355,7 +1359,9 @@ export class TimeClusteringRootView {
         : this.i18n.t('timeClustering.overlap.many', { count });
   }
 
-  private renderTimeClusteringMenu(snapshot: TimeClusteringStateSnapshot): void {
+  private renderTimeClusteringMenu(
+    snapshot: TimeClusteringStateSnapshot
+  ): void {
     const isTodaySelected = snapshot.selectedDateKey === todayDateKey();
     const actions = document.createElement('div');
 
@@ -1453,9 +1459,7 @@ export class TimeClusteringRootView {
     this.calendarContextMenu.classList.add('hidden');
   }
 
-  private openCalendarContextMenu(
-    target: CalendarContextMenuTarget
-  ): void {
+  private openCalendarContextMenu(target: CalendarContextMenuTarget): void {
     this.closeTimeClusteringMenu();
     this.calendarContextMenuTarget = target;
     this.calendarContextMenu.classList.remove('hidden');
@@ -1607,7 +1611,7 @@ export class TimeClusteringRootView {
     header.style.minWidth = `${TIME_GUTTER_WIDTH_PX + WEEK_VIEW_DAY_WIDTH_PX * 7}px`;
 
     const spacer = document.createElement('div');
-    spacer.style.width = `${TIME_GUTTER_WIDTH_PX}px`; // Account for 1.5 padding and 1.5 gap
+    spacer.style.width = `${TIME_GUTTER_WIDTH_PX}px`;
     spacer.style.flex = '0 0 auto';
 
     const headerGrid = document.createElement('div');
@@ -1716,7 +1720,9 @@ export class TimeClusteringRootView {
 
     const currentTarget = event.currentTarget;
     if (!(currentTarget instanceof HTMLElement)) return;
-    const clusterBlock = target.closest<HTMLElement>('[data-role="cluster-block"]');
+    const clusterBlock = target.closest<HTMLElement>(
+      '[data-role="cluster-block"]'
+    );
     if (clusterBlock?.dataset.clusterId) {
       this.selectedCluster = {
         clusterId: clusterBlock.dataset.clusterId,
@@ -2825,7 +2831,10 @@ export class TimeClusteringRootView {
     options: { startMinute?: number } = {}
   ): string {
     const snapshot = this.store.getSnapshot();
-    const existingClusters = buildTimeClusterSegmentsForDate(dateKey, snapshot.clusters)
+    const existingClusters = buildTimeClusterSegmentsForDate(
+      dateKey,
+      snapshot.clusters
+    )
       .slice()
       .sort((a, b) => a.startMinute - b.startMinute);
 
