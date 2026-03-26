@@ -3,9 +3,7 @@
 export const SELECT_COLOR = '#1d4ed8';
 export const FOCUS_COLOR = '#8b5cf6';
 export const HIGHLIGHT_COLOR = '#fa8c16';
-export const FOCUS_GOAL_FILL = '#f3e8ff';
-export const HIGHLIGHT_GOAL_FILL = '#fff7ed';
-export const FOCUS_STORY_FILL = '#f5f3ff';
+export const FOCUS_STORY_FILL = '#f1ecff';
 export const HIGHLIGHT_STORY_FILL = '#fff7ed';
 export const HOVER_OVERLAY_FILL = 'rgba(29,78,216,0.1)';
 export const HOVER_OUTLINE_COLOR = 'rgba(29,78,216,0.4)';

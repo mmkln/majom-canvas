@@ -23,6 +23,8 @@ type CyberPathGeometry = {
 type ConnectionAnimDetail = 'full' | 'reduced';
 
 type RGBColor = { r: number; g: number; b: number };
+const CONNECTION_LIGHTEN_FACTOR = 0.18;
+const WHITE_RGB: RGBColor = { r: 255, g: 255, b: 255 };
 
 type RenderableConnection = {
   relationType: ConnectionRelationType;
@@ -380,14 +382,14 @@ class ConnectionRenderer {
   private getRelationColor(connection: RenderableConnection): string {
     switch (connection.relationType) {
       case ConnectionRelationType.LeadsTo:
-        return '#8b5cf6';
+        return '#a78bfa';
       case ConnectionRelationType.Blocks:
-        return '#ef4444';
+        return '#f87171';
       case ConnectionRelationType.ParentChild:
-        return '#0ea5e9';
+        return '#38bdf8';
       case ConnectionRelationType.RelatesTo:
       default:
-        return '#111827';
+        return '#64748b';
     }
   }
 
@@ -395,7 +397,9 @@ class ConnectionRenderer {
     const palette = element as { borderColor?: string; fillColor?: string };
     const color = palette.borderColor ?? palette.fillColor;
     if (!color) return null;
-    return this.parseColor(color);
+    const parsed = this.parseColor(color);
+    if (!parsed) return null;
+    return this.mixColor(parsed, WHITE_RGB, CONNECTION_LIGHTEN_FACTOR);
   }
 
   private parseColor(color: string): RGBColor | null {

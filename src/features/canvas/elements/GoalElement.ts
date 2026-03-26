@@ -3,11 +3,6 @@ import { PlanningElement } from './PlanningElement.ts';
 import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
 import {
-  SELECT_COLOR,
-  FOCUS_COLOR,
-  HIGHLIGHT_COLOR,
-  FOCUS_GOAL_FILL,
-  HIGHLIGHT_GOAL_FILL,
   FONT_FAMILY,
   TITLE_FONT_SIZE,
   SMALL_FONT_SIZE,
@@ -17,6 +12,7 @@ import {
 import { editElement$ } from '../core/eventBus.ts';
 import { v4 } from 'uuid';
 import { goalStyles } from './styles/goalStyles.ts';
+import { resolveGoalAppearance } from './styles/goalAppearance.ts';
 import { ElementStatus } from './ElementStatus.ts';
 import { TextRenderer } from '../utils/TextRenderer.ts';
 import { drawStatusAnimationHex } from './utils/statusAnimations.ts';
@@ -110,44 +106,35 @@ export class GoalElement extends PlanningElement {
       renderFlags?.showGoalText ?? panZoom.scale >= SHOW_GOAL_TEXT_SCALE;
     const showAnim = renderFlags?.showAnim ?? panZoom.scale >= SHOW_ANIM_SCALE;
     const { x, y, width, height, title } = this;
-    const style = goalStyles[this.status];
-    const chromeColor = this.focused
-      ? FOCUS_COLOR
-      : this.highlighted
-        ? HIGHLIGHT_COLOR
-        : style.borderColor;
-    const fillColor = this.focused
-      ? FOCUS_GOAL_FILL
-      : this.highlighted
-        ? HIGHLIGHT_GOAL_FILL
-        : style.fillColor;
+    const appearance = resolveGoalAppearance({
+      status: this.status,
+      focused: this.focused,
+      highlighted: this.highlighted,
+      selected: this.selected,
+    });
     const strokeWidth = getPriorityStrokeWidth(this.priority) / panZoom.scale;
-    this.fillColor = fillColor;
-    this.borderColor = chromeColor;
+    this.fillColor = appearance.fillColor;
+    this.borderColor = appearance.chromeColor;
     const centerX = x + width / 2;
     const centerY = y + height / 2;
     const radius = width / 2;
     const goalVertices = this.getGoalVertices(centerX, centerY, radius);
 
     // Background polygon
-    ctx.fillStyle = fillColor;
+    ctx.fillStyle = appearance.fillColor;
     ctx.beginPath();
     this.drawGoalPath(ctx, goalVertices);
     ctx.fill();
 
+    if (appearance.selectionStrokeColor) {
+      ctx.strokeStyle = appearance.selectionStrokeColor;
+      ctx.lineWidth = Math.max(strokeWidth, 2.4 / panZoom.scale);
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      this.drawGoalPath(ctx, goalVertices);
+      ctx.stroke();
+    }
 
-    // Border
-    ctx.strokeStyle = this.focused
-      ? FOCUS_COLOR
-      : this.highlighted
-        ? HIGHLIGHT_COLOR
-        : this.selected
-          ? SELECT_COLOR
-          : style.borderColor;
-    ctx.lineWidth = strokeWidth;
-    ctx.beginPath();
-    this.drawGoalPath(ctx, goalVertices);
-    ctx.stroke();
     if (showAnim) {
       drawStatusAnimationHex({
         status: this.status,
@@ -157,7 +144,7 @@ export class GoalElement extends PlanningElement {
         radius,
         lineWidth: strokeWidth,
         scale: panZoom.scale,
-        color: chromeColor,
+        color: appearance.chromeColor,
         timeMs: panZoom.timeMs,
         viewBounds: panZoom.viewBounds,
         detail: renderFlags?.statusAnimDetail,
@@ -167,7 +154,7 @@ export class GoalElement extends PlanningElement {
     if (showText) {
       // Center goal title inside the shape (horizontally and vertically).
       ctx.save();
-      ctx.fillStyle = '#000000';
+      ctx.fillStyle = appearance.textColor;
       const fontSize = 26;
       const lineHeight = 1.3;
       const lineStep = fontSize * lineHeight;
