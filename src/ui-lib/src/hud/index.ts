@@ -62,6 +62,19 @@ export {
   type HudInputBaseState as InputBaseState,
   type HudInputVariant as InputVariant,
 } from './HudInput.ts';
+export {
+  createHudColorPicker as createColorPicker,
+  HudColorPicker as ColorPicker,
+  type HudColorPickerOption as ColorPickerOption,
+  type HudColorPickerOptions as ColorPickerOptions,
+} from './HudColorPicker.ts';
+export {
+  createHudTimeSelect as createTimeSelect,
+  setHudTimeSelectState as setTimeSelectState,
+  type HudTimeSelectOptions as TimeSelectOptions,
+  type HudTimeSelectState as TimeSelectState,
+  type HudTimeSelectVariant as TimeSelectVariant,
+} from './HudTimeSelect.ts';
 
 export {
   createHudInput as createInput,
@@ -157,6 +170,19 @@ export {
   type HudInputBaseState,
   type HudInputVariant,
 } from './HudInput.ts';
+export {
+  createHudColorPicker,
+  HudColorPicker,
+  type HudColorPickerOption,
+  type HudColorPickerOptions,
+} from './HudColorPicker.ts';
+export {
+  createHudTimeSelect,
+  setHudTimeSelectState,
+  type HudTimeSelectOptions,
+  type HudTimeSelectState,
+  type HudTimeSelectVariant,
+} from './HudTimeSelect.ts';
 export {
   createHudInput,
   type HudInput,

@@ -1,4 +1,7 @@
-import { MINUTES_PER_DAY } from '../../domain/rules.ts';
+import {
+  MIN_CLUSTER_DURATION_MINUTES,
+  MINUTES_PER_DAY,
+} from '../../domain/rules.ts';
 import type {
   TimeCluster,
   TimeClusteringLayoutMode,
@@ -7,15 +10,21 @@ import type {
 import type { TimeClusteringSuggestion } from '../../services/TimeClusteringSuggestionService.ts';
 import type { TimeClusteringStore } from '../../state/TimeClusteringStore.ts';
 import {
+  createModalActionRow,
+  createModalShell,
+  getModalActionButtonClass,
+} from '../../../../ui-lib/src/components/Modal.ts';
+import {
   createIconButton,
+  createColorPicker,
+  createInputBase,
+  createTimeSelect,
   createTextButton,
+  type ColorPickerOption,
   type TextButtonElement,
   type TextButtonTone,
 } from '../../../../ui-lib/src/hud/index.ts';
-import {
-  createIcon,
-  type IconName,
-} from '../../../../ui-lib/src/hud/icons.ts';
+import { createIcon, type IconName } from '../../../../ui-lib/src/hud/icons.ts';
 
 interface TimeClusteringRootViewOptions {
   store: TimeClusteringStore;
@@ -33,10 +42,50 @@ type ClusterPalette = {
 };
 
 const DEFAULT_CLUSTER_DURATION_MINUTES = 90;
+const DEFAULT_VISIBLE_START_MINUTE = 7 * 60;
 const HOUR_ROW_HEIGHT_PX = 56;
 const TIME_GUTTER_WIDTH_PX = 56;
 const DAY_VIEW_MIN_WIDTH_PX = 300;
 const WEEK_VIEW_DAY_WIDTH_PX = 136;
+const CLUSTER_STEP_MINUTES = MIN_CLUSTER_DURATION_MINUTES;
+const CLUSTER_DRAG_THRESHOLD_PX = 4;
+const CLUSTER_DOUBLE_CLICK_WINDOW_MS = 300;
+const CLUSTER_COLOR_TOKENS = [
+  'blue',
+  'green',
+  'amber',
+  'rose',
+  'violet',
+  'cyan',
+  'orange',
+  'teal',
+  'indigo',
+];
+
+type SelectedClusterRef = {
+  dateKey: string;
+  clusterId: string;
+};
+
+type ClusterGestureKind = 'move' | 'resize-start' | 'resize-end';
+
+type ActiveClusterGesture = {
+  kind: ClusterGestureKind;
+  dateKey: string;
+  clusterId: string;
+  pointerId: number;
+  startClientY: number;
+  initialCluster: TimeCluster;
+  previewCluster: TimeCluster;
+  started: boolean;
+  cleanup: () => void;
+};
+
+type RecentClusterClick = {
+  dateKey: string;
+  clusterId: string;
+  timestamp: number;
+};
 
 const CLUSTER_PALETTES: ClusterPalette[] = [
   {
@@ -104,6 +153,11 @@ function dateKeyFromDate(date: Date): string {
 
 function todayDateKey(): string {
   return dateKeyFromDate(new Date());
+}
+
+function currentMinuteOfDay(): number {
+  const now = new Date();
+  return now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
 }
 
 function dayOffsetDateKey(baseDateKey: string, offset: number): string {
@@ -175,30 +229,173 @@ function formatWeekRange(dateKeys: string[]): string {
   return `${startLabel} - ${endLabel}`;
 }
 
+function formatLongDate(dateKey: string): string {
+  const date = dateFromKey(dateKey);
+  if (!date) return dateKey;
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date);
+}
+
 function roundUpToStep(minute: number, step: number): number {
   return Math.ceil(minute / step) * step;
 }
 
-function buildClusterLanes(clusters: TimeCluster[]): TimeCluster[][] {
-  const lanes: TimeCluster[][] = [];
+function clampValue(value: number, minimum: number, maximum: number): number {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+function snapMinuteToStep(minute: number): number {
+  return Math.round(minute / CLUSTER_STEP_MINUTES) * CLUSTER_STEP_MINUTES;
+}
+
+function deltaPixelsToSnappedMinutes(deltaPixels: number): number {
+  const pixelsPerStep = (HOUR_ROW_HEIGHT_PX / 60) * CLUSTER_STEP_MINUTES;
+  return Math.round(deltaPixels / pixelsPerStep) * CLUSTER_STEP_MINUTES;
+}
+
+function formatColorTokenLabel(colorToken: string): string {
+  return colorToken
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(' ');
+}
+
+function buildClusterColorPickerOptions(
+  colorTokens: string[]
+): ColorPickerOption<string>[] {
+  return colorTokens.map((colorToken) => {
+    const palette = getClusterPalette(colorToken);
+    return {
+      id: `cluster-color-${colorToken}`,
+      value: colorToken,
+      label: formatColorTokenLabel(colorToken),
+      swatchColor: palette.accent,
+      backgroundColor: palette.background,
+      borderColor: palette.border,
+      title: formatColorTokenLabel(colorToken),
+    };
+  });
+}
+
+function haveSameClusterRange(a: TimeCluster, b: TimeCluster): boolean {
+  return a.startMinute === b.startMinute && a.endMinute === b.endMinute;
+}
+
+function shiftClusterRange(
+  cluster: TimeCluster,
+  deltaMinutes: number
+): TimeCluster {
+  const duration = cluster.endMinute - cluster.startMinute;
+  const maxStartMinute = Math.max(0, MINUTES_PER_DAY - duration);
+  const nextStartMinute = clampValue(
+    cluster.startMinute + deltaMinutes,
+    0,
+    maxStartMinute
+  );
+  return {
+    ...cluster,
+    startMinute: nextStartMinute,
+    endMinute: nextStartMinute + duration,
+  };
+}
+
+function resizeClusterStart(
+  cluster: TimeCluster,
+  nextStartMinute: number
+): TimeCluster {
+  return {
+    ...cluster,
+    startMinute: clampValue(
+      nextStartMinute,
+      0,
+      cluster.endMinute - MIN_CLUSTER_DURATION_MINUTES
+    ),
+  };
+}
+
+function resizeClusterEnd(
+  cluster: TimeCluster,
+  nextEndMinute: number
+): TimeCluster {
+  return {
+    ...cluster,
+    endMinute: clampValue(
+      nextEndMinute,
+      cluster.startMinute + MIN_CLUSTER_DURATION_MINUTES,
+      MINUTES_PER_DAY
+    ),
+  };
+}
+
+type ClusterLayoutEntry = {
+  cluster: TimeCluster;
+  laneIndex: number;
+  laneCount: number;
+};
+
+function buildClusterLayoutEntries(
+  clusters: TimeCluster[]
+): ClusterLayoutEntry[] {
   const sorted = clusters.slice().sort((a, b) => {
     if (a.startMinute !== b.startMinute) return a.startMinute - b.startMinute;
     return a.endMinute - b.endMinute;
   });
 
+  const groups: TimeCluster[][] = [];
+  let currentGroup: TimeCluster[] = [];
+  let currentGroupEndMinute = -1;
+
   sorted.forEach((cluster) => {
-    const lane = lanes.find((candidate) => {
-      const lastCluster = candidate[candidate.length - 1];
-      return !lastCluster || lastCluster.endMinute <= cluster.startMinute;
-    });
-    if (lane) {
-      lane.push(cluster);
+    if (
+      currentGroup.length === 0 ||
+      cluster.startMinute < currentGroupEndMinute
+    ) {
+      currentGroup.push(cluster);
+      currentGroupEndMinute = Math.max(
+        currentGroupEndMinute,
+        cluster.endMinute
+      );
       return;
     }
-    lanes.push([cluster]);
+
+    groups.push(currentGroup);
+    currentGroup = [cluster];
+    currentGroupEndMinute = cluster.endMinute;
   });
 
-  return lanes;
+  if (currentGroup.length > 0) {
+    groups.push(currentGroup);
+  }
+
+  return groups.flatMap((group) => {
+    const lanes: TimeCluster[][] = [];
+
+    group.forEach((cluster) => {
+      const lane = lanes.find((candidate) => {
+        const lastCluster = candidate[candidate.length - 1];
+        return !lastCluster || lastCluster.endMinute <= cluster.startMinute;
+      });
+      if (lane) {
+        lane.push(cluster);
+        return;
+      }
+      lanes.push([cluster]);
+    });
+
+    const laneCount = Math.max(lanes.length, 1);
+    return lanes.flatMap((lane, laneIndex) =>
+      lane.map((cluster) => ({
+        cluster,
+        laneIndex,
+        laneCount,
+      }))
+    );
+  });
 }
 
 function hashString(value: string): number {
@@ -213,25 +410,43 @@ function getClusterPalette(colorToken: string): ClusterPalette {
   return CLUSTER_PALETTES[paletteIndex];
 }
 
+function mixHexWithWhite(hex: string, ratio: number): string {
+  const normalized = hex.replace('#', '');
+  const expanded =
+    normalized.length === 3
+      ? normalized
+          .split('')
+          .map((character) => `${character}${character}`)
+          .join('')
+      : normalized;
+  if (expanded.length !== 6) return 'rgb(241, 245, 249)';
+  const red = Number.parseInt(expanded.slice(0, 2), 16);
+  const green = Number.parseInt(expanded.slice(2, 4), 16);
+  const blue = Number.parseInt(expanded.slice(4, 6), 16);
+  if ([red, green, blue].some((value) => Number.isNaN(value))) {
+    return 'rgb(241, 245, 249)';
+  }
+  const weight = Math.max(0, Math.min(1, ratio));
+  const blend = (channel: number) =>
+    Math.round(channel + (255 - channel) * weight);
+  return `rgb(${blend(red)}, ${blend(green)}, ${blend(blue)})`;
+}
+
 function createButton(
   label: string,
   variant: 'secondary' | 'primary' | 'ghost' | 'accent' = 'secondary',
   iconName?: IconName
 ): TextButtonElement {
   const tone: TextButtonTone =
-    variant === 'primary'
-      ? 'primary'
-      : variant === 'ghost'
-        ? 'text'
-        : 'soft';
+    variant === 'primary' ? 'primary' : variant === 'ghost' ? 'text' : 'soft';
   const className =
     variant === 'primary'
       ? 'rounded-full !bg-slate-900 !text-white hover:!bg-slate-700'
       : variant === 'accent'
         ? 'rounded-full bg-indigo-50 !text-indigo-700 hover:!bg-indigo-100 hover:!text-indigo-800'
-      : variant === 'ghost'
-        ? 'rounded-full !text-slate-600 hover:!bg-slate-100 hover:!text-slate-900'
-        : 'rounded-full border border-slate-200 bg-white !text-slate-700 hover:border-slate-300 hover:!bg-white hover:!text-slate-900';
+        : variant === 'ghost'
+          ? 'rounded-full !text-slate-600 hover:!bg-slate-100 hover:!text-slate-900'
+          : 'rounded-full border border-slate-200 bg-white !text-slate-700 hover:border-slate-300 hover:!bg-white hover:!text-slate-900';
   const button = createTextButton({
     text: iconName ? undefined : label,
     tone,
@@ -270,7 +485,15 @@ export class TimeClusteringRootView {
   private readonly weekNextButton: HTMLButtonElement;
   private readonly warningBanner: HTMLDivElement;
   private readonly calendarSurface: HTMLDivElement;
+  private calendarScrollContainer: HTMLDivElement | null = null;
   private disposeStoreSubscription: (() => void) | null = null;
+  private nowIndicatorTimerId: number | null = null;
+  private pendingScrollFrameId: number | null = null;
+  private clusterEditModalOverlay: HTMLDivElement | null = null;
+  private editingCluster: SelectedClusterRef | null = null;
+  private recentClusterClick: RecentClusterClick | null = null;
+  private selectedCluster: SelectedClusterRef | null = null;
+  private activeClusterGesture: ActiveClusterGesture | null = null;
   private layoutMode: TimeClusteringLayoutMode;
 
   constructor(options: TimeClusteringRootViewOptions) {
@@ -286,10 +509,11 @@ export class TimeClusteringRootView {
     header.className = 'border-b border-slate-200 bg-white px-5 py-4';
 
     const headerRow = document.createElement('div');
-    headerRow.className = 'flex flex-wrap items-center justify-end gap-2';
+    headerRow.className = 'flex flex-wrap items-center gap-2';
 
     const actionGroup = document.createElement('div');
-    actionGroup.className = 'flex flex-wrap items-center justify-end gap-2';
+    actionGroup.className =
+      'ml-auto flex flex-wrap items-center justify-end gap-2';
 
     this.addClusterButton = createButton('Add cluster', 'accent', 'plus');
     this.addClusterButton.onclick = () => {
@@ -311,15 +535,12 @@ export class TimeClusteringRootView {
       );
     };
 
-    actionGroup.append(
-      this.addClusterButton,
-      this.layoutToggleButton
-    );
+    actionGroup.append(this.addClusterButton);
 
-    headerRow.append(actionGroup);
+    headerRow.append(this.layoutToggleButton, actionGroup);
 
     this.secondaryNav = document.createElement('div');
-    this.secondaryNav.className = 'mt-4 overflow-auto';
+    this.secondaryNav.className = 'mt-4 flex flex-col gap-2 overflow-auto';
 
     this.daySwitcher = document.createElement('div');
     this.daySwitcher.className = 'grid w-full grid-cols-7 gap-0.5';
@@ -327,13 +548,12 @@ export class TimeClusteringRootView {
 
     this.weekSwitcher = document.createElement('div');
     this.weekSwitcher.className =
-      'hidden items-center justify-center gap-1.5 px-0 py-0';
+      'flex w-full items-center justify-between gap-1.5 px-0 py-0';
     this.weekSwitcher.dataset.role = 'week-switcher';
-    this.weekSwitcher.style.minWidth = '360px';
 
     this.weekRangeLabel = document.createElement('p');
     this.weekRangeLabel.className =
-      'min-w-[168px] text-center text-sm font-medium text-slate-500';
+      'min-w-0 flex-1 text-center text-sm font-medium text-slate-500';
 
     this.weekPreviousButton = createIconButton({
       icon: 'chevron-left',
@@ -357,7 +577,7 @@ export class TimeClusteringRootView {
       this.weekRangeLabel,
       this.weekNextButton
     );
-    this.secondaryNav.append(this.daySwitcher, this.weekSwitcher);
+    this.secondaryNav.append(this.weekSwitcher, this.daySwitcher);
 
     this.warningBanner = document.createElement('div');
     this.warningBanner.className =
@@ -382,9 +602,14 @@ export class TimeClusteringRootView {
       this.renderSnapshot(snapshot);
     });
     this.renderSnapshot(this.store.getSnapshot());
+    this.scheduleNowIndicatorRefresh();
   }
 
   public unmount(): void {
+    this.cancelActiveClusterGesture(true, false);
+    this.closeClusterEditModal();
+    this.clearNowIndicatorRefresh();
+    this.clearPendingScrollFrame();
     this.disposeStoreSubscription?.();
     this.disposeStoreSubscription = null;
     this.root.remove();
@@ -400,30 +625,167 @@ export class TimeClusteringRootView {
 
   private renderSnapshot(snapshot: TimeClusteringStateSnapshot): void {
     const selectedDateKey = snapshot.selectedDateKey;
-    const weekDateKeys = buildWeekDateKeys(selectedDateKey);
-    const isWeekMode = this.layoutMode === 'fullscreen';
+    const weekDateKeys = buildWeekDateKeys(
+      snapshot.weekAnchorDateKey || selectedDateKey
+    );
+    const contextKey = this.getCalendarContextKey(snapshot, weekDateKeys);
+    const previousScrollContainer = this.calendarScrollContainer;
+    const previousScrollState = previousScrollContainer
+      ? {
+          contextKey: previousScrollContainer.dataset.contextKey ?? '',
+          scrollTop: previousScrollContainer.scrollTop,
+          scrollLeft: previousScrollContainer.scrollLeft,
+        }
+      : null;
+
+    this.reconcileTransientState(snapshot, weekDateKeys);
 
     this.updateLayoutToggleButton();
-
-    if (isWeekMode) {
-      this.weekRangeLabel.textContent = formatWeekRange(weekDateKeys);
-      this.weekPreviousButton.onclick = () =>
-        this.store.setSelectedDate(dayOffsetDateKey(selectedDateKey, -7));
-      this.weekNextButton.onclick = () =>
-        this.store.setSelectedDate(dayOffsetDateKey(selectedDateKey, 7));
-    }
+    this.weekRangeLabel.textContent = formatWeekRange(weekDateKeys);
+    this.weekPreviousButton.onclick = () =>
+      this.store.setSelectedDate(dayOffsetDateKey(selectedDateKey, -7));
+    this.weekNextButton.onclick = () =>
+      this.store.setSelectedDate(dayOffsetDateKey(selectedDateKey, 7));
 
     this.renderSecondaryNavigation(snapshot, weekDateKeys);
     this.renderWarnings(snapshot);
-    this.renderCalendar(snapshot, weekDateKeys);
+    this.renderCalendar(snapshot, weekDateKeys, contextKey);
+    if (
+      previousScrollState &&
+      previousScrollState.contextKey === contextKey &&
+      this.calendarScrollContainer
+    ) {
+      const { scrollLeft, scrollTop } = previousScrollState;
+      this.clearPendingScrollFrame();
+      this.pendingScrollFrameId = window.requestAnimationFrame(() => {
+        if (!this.calendarScrollContainer) return;
+        this.calendarScrollContainer.scrollTop = scrollTop;
+        this.calendarScrollContainer.scrollLeft = scrollLeft;
+        this.pendingScrollFrameId = null;
+      });
+      return;
+    }
+    this.syncCalendarScroll(snapshot, weekDateKeys);
+  }
+
+  private scheduleNowIndicatorRefresh(): void {
+    this.clearNowIndicatorRefresh();
+    const scheduleNextTick = () => {
+      const now = new Date();
+      const millisecondsUntilNextMinute =
+        (60 - now.getSeconds()) * 1000 - now.getMilliseconds() + 16;
+      this.nowIndicatorTimerId = window.setTimeout(
+        () => {
+          if (this.root.isConnected) {
+            this.renderSnapshot(this.store.getSnapshot());
+            scheduleNextTick();
+          }
+        },
+        Math.max(millisecondsUntilNextMinute, 1000)
+      );
+    };
+    scheduleNextTick();
+  }
+
+  private clearNowIndicatorRefresh(): void {
+    if (this.nowIndicatorTimerId === null) return;
+    window.clearTimeout(this.nowIndicatorTimerId);
+    this.nowIndicatorTimerId = null;
+  }
+
+  private clearPendingScrollFrame(): void {
+    if (this.pendingScrollFrameId === null) return;
+    window.cancelAnimationFrame(this.pendingScrollFrameId);
+    this.pendingScrollFrameId = null;
+  }
+
+  private getCalendarContextKey(
+    snapshot: TimeClusteringStateSnapshot,
+    weekDateKeys: string[]
+  ): string {
+    return this.layoutMode === 'fullscreen'
+      ? `week:${weekDateKeys.join('|')}`
+      : `day:${snapshot.selectedDateKey}`;
+  }
+
+  private requestRender(): void {
+    if (!this.root.isConnected) return;
+    this.renderSnapshot(this.store.getSnapshot());
+  }
+
+  private isClusterSelected(dateKey: string, clusterId: string): boolean {
+    return (
+      this.selectedCluster?.dateKey === dateKey &&
+      this.selectedCluster.clusterId === clusterId
+    );
+  }
+
+  private isClusterVisible(
+    snapshot: TimeClusteringStateSnapshot,
+    weekDateKeys: string[],
+    dateKey: string
+  ): boolean {
+    return this.layoutMode === 'fullscreen'
+      ? weekDateKeys.includes(dateKey)
+      : snapshot.selectedDateKey === dateKey;
+  }
+
+  private findCluster(
+    snapshot: TimeClusteringStateSnapshot,
+    dateKey: string,
+    clusterId: string
+  ): TimeCluster | null {
+    return (
+      snapshot.plansByDate[dateKey]?.clusters.find(
+        (cluster) => cluster.id === clusterId
+      ) ?? null
+    );
+  }
+
+  private reconcileTransientState(
+    snapshot: TimeClusteringStateSnapshot,
+    weekDateKeys: string[]
+  ): void {
+    if (this.selectedCluster) {
+      const { clusterId, dateKey } = this.selectedCluster;
+      const selectedCluster = this.findCluster(snapshot, dateKey, clusterId);
+      if (
+        !selectedCluster ||
+        !this.isClusterVisible(snapshot, weekDateKeys, dateKey)
+      ) {
+        this.selectedCluster = null;
+      }
+    }
+
+    if (this.activeClusterGesture) {
+      const { clusterId, dateKey } = this.activeClusterGesture;
+      const activeCluster = this.findCluster(snapshot, dateKey, clusterId);
+      if (
+        !activeCluster ||
+        !this.isClusterVisible(snapshot, weekDateKeys, dateKey)
+      ) {
+        const gesture = this.activeClusterGesture;
+        this.activeClusterGesture = null;
+        gesture.cleanup();
+      }
+    }
+
+    if (this.editingCluster) {
+      const { clusterId, dateKey } = this.editingCluster;
+      const editingCluster = this.findCluster(snapshot, dateKey, clusterId);
+      if (
+        !editingCluster ||
+        !this.isClusterVisible(snapshot, weekDateKeys, dateKey)
+      ) {
+        this.closeClusterEditModal();
+      }
+    }
   }
 
   private updateLayoutToggleButton(): void {
     const isDocked = this.layoutMode === 'docked-left';
     const label = isDocked ? 'Expand' : 'Dock left';
-    const iconName: IconName = isDocked
-      ? 'chevron-right'
-      : 'chevron-left';
+    const iconName: IconName = isDocked ? 'chevron-right' : 'chevron-left';
     const icon = createIcon(iconName, { size: 16, strokeWidth: 1.5 });
     icon.setAttribute('aria-hidden', 'true');
     this.layoutToggleButton.title = label;
@@ -438,8 +800,6 @@ export class TimeClusteringRootView {
     const isWeekMode = this.layoutMode === 'fullscreen';
 
     this.daySwitcher.classList.toggle('hidden', isWeekMode);
-    this.weekSwitcher.classList.toggle('hidden', !isWeekMode);
-    this.weekSwitcher.classList.toggle('flex', isWeekMode);
 
     if (isWeekMode) {
       return;
@@ -486,17 +846,20 @@ export class TimeClusteringRootView {
     this.warningBanner.textContent =
       count === 1
         ? '1 time overlap was detected. The overlapping blocks were kept visible.'
-        : `${count} time overlaps were detected. The overlapping blocks were kept visible.`;
+        : `${count} time overlaps were detected.`;
   }
 
   private renderCalendar(
     snapshot: TimeClusteringStateSnapshot,
-    weekDateKeys: string[]
+    weekDateKeys: string[],
+    contextKey: string
   ): void {
     this.calendarSurface.innerHTML = '';
     const isWeekMode = this.layoutMode === 'fullscreen';
     const container = document.createElement('div');
     container.className = 'h-full overflow-auto';
+    container.dataset.contextKey = contextKey;
+    this.calendarScrollContainer = container;
 
     const surface = document.createElement('div');
     surface.className =
@@ -513,11 +876,42 @@ export class TimeClusteringRootView {
     this.calendarSurface.appendChild(container);
   }
 
+  private syncCalendarScroll(
+    snapshot: TimeClusteringStateSnapshot,
+    weekDateKeys: string[]
+  ): void {
+    const container = this.calendarScrollContainer;
+    if (!container) return;
+
+    const shouldTrackNow =
+      this.layoutMode === 'fullscreen'
+        ? weekDateKeys.includes(todayDateKey())
+        : snapshot.selectedDateKey === todayDateKey();
+    const targetTop = shouldTrackNow
+      ? Math.max(
+          0,
+          (currentMinuteOfDay() / 60) * HOUR_ROW_HEIGHT_PX -
+            HOUR_ROW_HEIGHT_PX * 3
+        )
+      : Math.max(
+          0,
+          (DEFAULT_VISIBLE_START_MINUTE / 60) * HOUR_ROW_HEIGHT_PX -
+            HOUR_ROW_HEIGHT_PX
+        );
+
+    this.clearPendingScrollFrame();
+    this.pendingScrollFrameId = window.requestAnimationFrame(() => {
+      container.scrollTop = targetTop;
+      this.pendingScrollFrameId = null;
+    });
+  }
+
   private renderDayCalendar(
     snapshot: TimeClusteringStateSnapshot
   ): HTMLDivElement {
     const dateKey = snapshot.selectedDateKey;
     const clusters = (snapshot.plansByDate[dateKey]?.clusters ?? []).slice();
+    const isToday = dateKey === todayDateKey();
     const wrapper = document.createElement('div');
     wrapper.className = 'min-h-full';
     wrapper.dataset.role = 'day-calendar';
@@ -528,7 +922,7 @@ export class TimeClusteringRootView {
 
     body.append(
       this.renderTimeGutter(),
-      this.renderCalendarColumn(dateKey, clusters, true, true, 'day')
+      this.renderCalendarColumn(dateKey, clusters, isToday, 'day')
     );
     wrapper.append(body);
     return wrapper;
@@ -539,12 +933,13 @@ export class TimeClusteringRootView {
     weekDateKeys: string[]
   ): HTMLDivElement {
     const wrapper = document.createElement('div');
-    wrapper.className = 'min-h-full';
+    wrapper.className = 'relative min-h-full';
     wrapper.dataset.role = 'week-calendar';
 
     const header = document.createElement('div');
     header.className =
-      'flex min-w-0 items-end bg-white px-4 py-1.5';
+      'sticky top-0 z-30 flex min-w-0 items-end bg-white px-4 py-1.5 shadow-[0_1px_0_rgba(226,232,240,0.95)]';
+    header.dataset.role = 'week-calendar-header';
     header.style.minWidth = `${TIME_GUTTER_WIDTH_PX + WEEK_VIEW_DAY_WIDTH_PX * 7}px`;
 
     const spacer = document.createElement('div');
@@ -584,7 +979,6 @@ export class TimeClusteringRootView {
         dateKey,
         clusters,
         dateKey === todayKey,
-        false,
         'week'
       );
       column.dataset.role = 'calendar-day-column';
@@ -606,8 +1000,7 @@ export class TimeClusteringRootView {
 
     for (let hour = 0; hour < 24; hour += 1) {
       const slot = document.createElement('div');
-      slot.className =
-        'px-2 text-right text-[11px] font-medium text-slate-400';
+      slot.className = 'px-2 text-right text-[11px] font-medium text-slate-400';
       slot.style.height = `${HOUR_ROW_HEIGHT_PX}px`;
       slot.textContent = `${hour.toString().padStart(2, '0')}:00`;
       gutter.appendChild(slot);
@@ -616,57 +1009,539 @@ export class TimeClusteringRootView {
     return gutter;
   }
 
+  private getRenderedCluster(
+    dateKey: string,
+    cluster: TimeCluster
+  ): TimeCluster {
+    if (
+      this.activeClusterGesture &&
+      this.activeClusterGesture.dateKey === dateKey &&
+      this.activeClusterGesture.clusterId === cluster.id
+    ) {
+      return this.activeClusterGesture.previewCluster;
+    }
+    return cluster;
+  }
+
+  private clearSelectedCluster(): void {
+    if (!this.selectedCluster) return;
+    this.recentClusterClick = null;
+    this.selectedCluster = null;
+    this.requestRender();
+  }
+
+  private handleCalendarBackgroundPointerDown(
+    _dateKey: string,
+    event: PointerEvent
+  ): void {
+    if (event.button !== 0) return;
+    if (this.activeClusterGesture) return;
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.closest('[data-role="cluster-block"]')) return;
+    this.clearSelectedCluster();
+  }
+
+  private beginClusterGesture(params: {
+    cluster: TimeCluster;
+    dateKey: string;
+    event: PointerEvent;
+    kind: ClusterGestureKind;
+  }): void {
+    const { cluster, dateKey, event, kind } = params;
+    if (event.button !== 0) return;
+
+    this.cancelActiveClusterGesture(true);
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const gesture: ActiveClusterGesture = {
+      kind,
+      dateKey,
+      clusterId: cluster.id,
+      pointerId:
+        typeof event.pointerId === 'number' && !Number.isNaN(event.pointerId)
+          ? event.pointerId
+          : 1,
+      startClientY: event.clientY,
+      initialCluster: cluster,
+      previewCluster: cluster,
+      started: kind !== 'move',
+      cleanup: (): void => {},
+    };
+
+    const finishGesture = (
+      pointerEvent: PointerEvent,
+      cancelled: boolean
+    ): void => {
+      if (this.activeClusterGesture !== gesture) return;
+      if (pointerEvent.pointerId !== gesture.pointerId) return;
+
+      this.activeClusterGesture = null;
+      gesture.cleanup();
+
+      if (cancelled) {
+        if (gesture.started) {
+          this.requestRender();
+        }
+        return;
+      }
+
+      if (
+        gesture.started &&
+        !haveSameClusterRange(gesture.initialCluster, gesture.previewCluster)
+      ) {
+        this.recentClusterClick = null;
+        this.store.updateCluster(dateKey, cluster.id, {
+          startMinute: gesture.previewCluster.startMinute,
+          endMinute: gesture.previewCluster.endMinute,
+        });
+        return;
+      }
+
+      if (!gesture.started && gesture.kind === 'move') {
+        this.handleClusterTap(dateKey, cluster.id, pointerEvent);
+        return;
+      }
+
+      if (gesture.started) {
+        this.recentClusterClick = null;
+        this.requestRender();
+      }
+    };
+
+    const handlePointerMove = (moveEvent: PointerEvent): void => {
+      if (this.activeClusterGesture !== gesture) return;
+      if (moveEvent.pointerId !== gesture.pointerId) return;
+
+      if (!gesture.started) {
+        if (
+          Math.abs(moveEvent.clientY - gesture.startClientY) <
+          CLUSTER_DRAG_THRESHOLD_PX
+        ) {
+          return;
+        }
+        gesture.started = true;
+      }
+
+      moveEvent.preventDefault();
+
+      const nextPreviewCluster = this.buildPreviewCluster(
+        gesture,
+        moveEvent.clientY
+      );
+      if (haveSameClusterRange(gesture.previewCluster, nextPreviewCluster)) {
+        return;
+      }
+      gesture.previewCluster = nextPreviewCluster;
+      this.requestRender();
+    };
+
+    const handlePointerUp = (pointerEvent: PointerEvent): void => {
+      finishGesture(pointerEvent, false);
+    };
+
+    const handlePointerCancel = (pointerEvent: PointerEvent): void => {
+      finishGesture(pointerEvent, true);
+    };
+
+    gesture.cleanup = () => {
+      window.removeEventListener('pointermove', handlePointerMove, true);
+      window.removeEventListener('pointerup', handlePointerUp, true);
+      window.removeEventListener('pointercancel', handlePointerCancel, true);
+      document.body.style.userSelect = '';
+    };
+
+    this.selectedCluster = { dateKey, clusterId: cluster.id };
+    this.activeClusterGesture = gesture;
+    document.body.style.userSelect = 'none';
+    window.addEventListener('pointermove', handlePointerMove, true);
+    window.addEventListener('pointerup', handlePointerUp, true);
+    window.addEventListener('pointercancel', handlePointerCancel, true);
+    this.requestRender();
+  }
+
+  private buildPreviewCluster(
+    gesture: ActiveClusterGesture,
+    clientY: number
+  ): TimeCluster {
+    const deltaMinutes = deltaPixelsToSnappedMinutes(
+      clientY - gesture.startClientY
+    );
+
+    if (gesture.kind === 'move') {
+      return shiftClusterRange(gesture.initialCluster, deltaMinutes);
+    }
+
+    if (gesture.kind === 'resize-start') {
+      return resizeClusterStart(
+        gesture.initialCluster,
+        snapMinuteToStep(gesture.initialCluster.startMinute + deltaMinutes)
+      );
+    }
+
+    return resizeClusterEnd(
+      gesture.initialCluster,
+      snapMinuteToStep(gesture.initialCluster.endMinute + deltaMinutes)
+    );
+  }
+
+  private cancelActiveClusterGesture(
+    cancelled: boolean,
+    shouldRender: boolean = true
+  ): void {
+    const activeGesture = this.activeClusterGesture;
+    if (!activeGesture) return;
+
+    this.activeClusterGesture = null;
+    activeGesture.cleanup();
+
+    if (cancelled && activeGesture.started && shouldRender) {
+      this.requestRender();
+    }
+  }
+
+  private closeClusterEditModal(): void {
+    if (this.clusterEditModalOverlay) {
+      this.clusterEditModalOverlay.remove();
+      this.clusterEditModalOverlay = null;
+    }
+    this.editingCluster = null;
+  }
+
+  private handleClusterTap(
+    dateKey: string,
+    clusterId: string,
+    event: PointerEvent
+  ): void {
+    const eventTimestamp =
+      typeof event.timeStamp === 'number' && event.timeStamp > 0
+        ? event.timeStamp
+        : Date.now();
+    const previousClick = this.recentClusterClick;
+    const isDoubleClick =
+      previousClick &&
+      previousClick.dateKey === dateKey &&
+      previousClick.clusterId === clusterId &&
+      eventTimestamp - previousClick.timestamp <=
+        CLUSTER_DOUBLE_CLICK_WINDOW_MS;
+
+    if (isDoubleClick) {
+      this.recentClusterClick = null;
+      this.openClusterEditModal(dateKey, clusterId);
+      return;
+    }
+
+    this.recentClusterClick = {
+      dateKey,
+      clusterId,
+      timestamp: eventTimestamp,
+    };
+  }
+
+  private openClusterEditModal(dateKey: string, clusterId: string): void {
+    const snapshot = this.store.getSnapshot();
+    const cluster = this.findCluster(snapshot, dateKey, clusterId);
+    if (!cluster) return;
+
+    this.closeClusterEditModal();
+    this.selectedCluster = { dateKey, clusterId };
+    this.editingCluster = { dateKey, clusterId };
+    this.requestRender();
+
+    const { overlay, container, body, footer } = createModalShell(
+      'Edit cluster',
+      {
+        subtitle: formatLongDate(dateKey),
+        onClose: () => this.closeClusterEditModal(),
+        intent: 'form',
+        zIndex: 240,
+      }
+    );
+    this.clusterEditModalOverlay = overlay;
+    overlay.dataset.role = 'cluster-edit-modal';
+    container.dataset.role = 'cluster-edit-modal-container';
+    container.style.width = 'min(32rem, calc(100vw - 2rem))';
+    container.style.maxWidth = 'min(32rem, calc(100vw - 2rem))';
+
+    const content = document.createElement('div');
+    content.className = 'flex flex-col gap-4';
+
+    const titleField = document.createElement('label');
+    titleField.className = 'flex flex-col gap-1.5';
+
+    const titleLabel = document.createElement('span');
+    titleLabel.className =
+      'text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500';
+    titleLabel.textContent = 'Title';
+
+    const titleInput = createInputBase({
+      value: cluster.title,
+      autoFocus: true,
+      autoComplete: 'off',
+      className: 'w-full',
+    });
+    titleInput.dataset.role = 'cluster-edit-title-input';
+
+    titleField.append(titleLabel, titleInput);
+
+    const timeGrid = document.createElement('div');
+    timeGrid.className = 'grid gap-3 sm:grid-cols-2';
+
+    const startField = document.createElement('label');
+    startField.className = 'flex flex-col gap-1.5';
+
+    const startLabel = document.createElement('span');
+    startLabel.className =
+      'text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500';
+    startLabel.textContent = 'Start';
+
+    const startInput = createTimeSelect({
+      selectedMinute: cluster.startMinute,
+      stepMinutes: CLUSTER_STEP_MINUTES,
+      minMinute: 0,
+      maxMinute: MINUTES_PER_DAY - MIN_CLUSTER_DURATION_MINUTES,
+      className: 'w-full font-mono',
+    });
+    startInput.dataset.role = 'cluster-edit-start-input';
+
+    startField.append(startLabel, startInput);
+
+    const endField = document.createElement('label');
+    endField.className = 'flex flex-col gap-1.5';
+
+    const endLabel = document.createElement('span');
+    endLabel.className =
+      'text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500';
+    endLabel.textContent = 'End';
+
+    const endInput = createTimeSelect({
+      selectedMinute: cluster.endMinute,
+      stepMinutes: CLUSTER_STEP_MINUTES,
+      minMinute: MIN_CLUSTER_DURATION_MINUTES,
+      maxMinute: MINUTES_PER_DAY,
+      className: 'w-full font-mono',
+    });
+    endInput.dataset.role = 'cluster-edit-end-input';
+
+    endField.append(endLabel, endInput);
+    timeGrid.append(startField, endField);
+
+    const colorField = document.createElement('label');
+    colorField.className = 'flex flex-col gap-1.5';
+
+    const colorLabel = document.createElement('span');
+    colorLabel.className =
+      'text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500';
+    colorLabel.textContent = 'Color';
+
+    const colorOptions = CLUSTER_COLOR_TOKENS.includes(cluster.colorToken)
+      ? CLUSTER_COLOR_TOKENS
+      : [cluster.colorToken, ...CLUSTER_COLOR_TOKENS];
+    const colorPicker = createColorPicker({
+      options: buildClusterColorPickerOptions(colorOptions),
+      value: cluster.colorToken,
+      ariaLabel: 'Cluster color',
+    });
+    colorPicker.element.dataset.role = 'cluster-edit-color-picker';
+
+    colorField.append(colorLabel, colorPicker.element);
+
+    const helperText = document.createElement('p');
+    helperText.className = 'text-xs text-slate-500';
+    helperText.textContent = `Use HH:MM and ${CLUSTER_STEP_MINUTES}-minute steps.`;
+
+    const errorMessage = document.createElement('p');
+    errorMessage.className = 'hidden text-sm text-rose-600';
+    errorMessage.dataset.role = 'cluster-edit-error';
+
+    const setError = (message: string | null): void => {
+      if (!message) {
+        errorMessage.textContent = '';
+        errorMessage.classList.add('hidden');
+        return;
+      }
+      errorMessage.textContent = message;
+      errorMessage.classList.remove('hidden');
+    };
+
+    const submit = (): void => {
+      const nextTitle = titleInput.value.trim();
+      if (!nextTitle) {
+        setError('Title is required.');
+        return;
+      }
+
+      const nextStartMinute = Number(startInput.value);
+      const nextEndMinute = Number(endInput.value);
+      if (Number.isNaN(nextStartMinute) || Number.isNaN(nextEndMinute)) {
+        setError('Select both start and end times.');
+        return;
+      }
+      if (nextEndMinute - nextStartMinute < MIN_CLUSTER_DURATION_MINUTES) {
+        setError(
+          `End time must be at least ${MIN_CLUSTER_DURATION_MINUTES} minutes after start time.`
+        );
+        return;
+      }
+
+      setError(null);
+      this.store.updateCluster(dateKey, clusterId, {
+        title: nextTitle,
+        colorToken: colorPicker.getValue() ?? cluster.colorToken,
+        startMinute: nextStartMinute,
+        endMinute: nextEndMinute,
+      });
+      this.closeClusterEditModal();
+    };
+
+    const handleInputKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      submit();
+    };
+
+    titleInput.addEventListener('keydown', handleInputKeyDown);
+    titleInput.addEventListener('input', () => setError(null));
+    startInput.addEventListener('change', () => setError(null));
+    endInput.addEventListener('change', () => setError(null));
+    colorPicker.element.addEventListener('click', () => setError(null));
+
+    const footerActions = createModalActionRow({ variant: 'form' });
+
+    const cancelButton = createTextButton({
+      text: 'Cancel',
+      tone: 'text',
+      size: 'md',
+      className: getModalActionButtonClass('default'),
+    });
+    cancelButton.dataset.role = 'cluster-edit-cancel-button';
+    cancelButton.onclick = () => this.closeClusterEditModal();
+
+    const saveButton = createTextButton({
+      text: 'Save',
+      tone: 'primary',
+      size: 'md',
+      className: getModalActionButtonClass('default'),
+    });
+    saveButton.dataset.role = 'cluster-edit-save-button';
+    saveButton.onclick = () => submit();
+
+    footerActions.append(cancelButton, saveButton);
+
+    content.append(titleField, timeGrid, colorField, helperText, errorMessage);
+    body.appendChild(content);
+    footer.appendChild(footerActions);
+  }
+
+  private renderClusterResizeHandle(options: {
+    cluster: TimeCluster;
+    dateKey: string;
+    edge: 'start' | 'end';
+    palette: ClusterPalette;
+  }): HTMLButtonElement {
+    const { cluster, dateKey, edge, palette } = options;
+    const handle = document.createElement('button');
+    handle.type = 'button';
+    handle.className =
+      'absolute left-1/2 z-20 flex h-3 w-10 -translate-x-1/2 items-center justify-center rounded-full bg-white/95 shadow-sm transition hover:bg-white';
+    handle.dataset.role = 'cluster-resize-handle';
+    handle.dataset.edge = edge;
+    handle.style.top = edge === 'start' ? '0px' : '';
+    handle.style.bottom = edge === 'end' ? '0px' : '';
+    handle.style.touchAction = 'none';
+    handle.setAttribute(
+      'aria-label',
+      edge === 'start'
+        ? `Resize start for ${cluster.title}`
+        : `Resize end for ${cluster.title}`
+    );
+
+    const grip = document.createElement('span');
+    grip.className = 'pointer-events-none block h-[3px] w-5 rounded-full';
+    grip.style.background = palette.accent;
+
+    handle.appendChild(grip);
+    handle.onpointerdown = (event) =>
+      this.beginClusterGesture({
+        cluster,
+        dateKey,
+        event,
+        kind: edge === 'start' ? 'resize-start' : 'resize-end',
+      });
+
+    return handle;
+  }
+
   private renderCalendarColumn(
     dateKey: string,
     clusters: TimeCluster[],
     highlighted: boolean,
-    showEmptyState: boolean,
     calendarMode: 'day' | 'week'
   ): HTMLDivElement {
     const column = document.createElement('div');
-    column.className = highlighted
-      ? 'relative bg-sky-50/40'
-      : 'relative';
+    column.className = highlighted ? 'relative bg-sky-50/40' : 'relative';
     column.style.height = `${HOUR_ROW_HEIGHT_PX * 24}px`;
+    column.style.width = '100%';
     column.dataset.role = 'calendar-column';
     column.dataset.dateKey = dateKey;
+    column.onpointerdown = (event) =>
+      this.handleCalendarBackgroundPointerDown(dateKey, event);
 
     for (let hour = 0; hour < 24; hour += 1) {
       const hourSlot = document.createElement('div');
-      hourSlot.className =
-        hour === 0 ? '' : 'border-t border-slate-200/80';
+      hourSlot.className = 'box-border border-t border-slate-300/90';
       hourSlot.style.height = `${HOUR_ROW_HEIGHT_PX}px`;
       hourSlot.dataset.role = 'calendar-hour-slot';
       column.appendChild(hourSlot);
     }
 
-    const lanes = buildClusterLanes(clusters);
-    const laneCount = Math.max(lanes.length, 1);
-    const laneWidthPercent = 100 / laneCount;
+    const renderedClusters = clusters.map((cluster) =>
+      this.getRenderedCluster(dateKey, cluster)
+    );
+    const layoutEntries = buildClusterLayoutEntries(renderedClusters);
 
-    lanes.forEach((lane, laneIndex) => {
-      lane.forEach((cluster) => {
-        const eventBlock = this.renderClusterBlock(
-          cluster,
-          laneIndex,
-          laneWidthPercent,
-          laneCount,
-          dateKey,
-          calendarMode
-        );
-        column.appendChild(eventBlock);
-      });
+    layoutEntries.forEach(({ cluster, laneCount, laneIndex }) => {
+      const eventBlock = this.renderClusterBlock(
+        cluster,
+        laneIndex,
+        100 / laneCount,
+        laneCount,
+        dateKey,
+        calendarMode
+      );
+      column.appendChild(eventBlock);
     });
 
-    if (showEmptyState && clusters.length === 0) {
-      const emptyState = document.createElement('div');
-      emptyState.className =
-        'pointer-events-none absolute inset-x-4 top-8 rounded-2xl border border-dashed border-slate-200 bg-white/80 px-4 py-3 text-sm text-slate-400';
-      emptyState.textContent = 'No clusters scheduled.';
-      column.appendChild(emptyState);
+    if (dateKey === todayDateKey()) {
+      column.appendChild(this.renderCurrentTimeIndicator());
     }
 
     return column;
+  }
+
+  private renderCurrentTimeIndicator(): HTMLDivElement {
+    const indicatorColor = '#2563eb';
+    const indicator = document.createElement('div');
+    indicator.className = 'pointer-events-none absolute inset-x-0 z-20';
+    indicator.dataset.role = 'current-time-indicator';
+    indicator.style.top = `${(currentMinuteOfDay() / 60) * HOUR_ROW_HEIGHT_PX}px`;
+
+    const line = document.createElement('div');
+    line.style.borderTop = `2px solid ${indicatorColor}`;
+
+    const dot = document.createElement('div');
+    dot.style.position = 'absolute';
+    dot.style.left = '-4px';
+    dot.style.top = '-4px';
+    dot.style.width = '8px';
+    dot.style.height = '8px';
+    dot.style.borderRadius = '999px';
+    dot.style.background = indicatorColor;
+
+    indicator.append(dot, line);
+    return indicator;
   }
 
   private renderClusterBlock(
@@ -678,16 +1553,17 @@ export class TimeClusteringRootView {
     calendarMode: 'day' | 'week'
   ): HTMLDivElement {
     const palette = getClusterPalette(cluster.colorToken);
+    const isSelected = this.isClusterSelected(dateKey, cluster.id);
+    const isActiveGesture =
+      this.activeClusterGesture?.dateKey === dateKey &&
+      this.activeClusterGesture.clusterId === cluster.id;
     const top = (cluster.startMinute / 60) * HOUR_ROW_HEIGHT_PX;
     const isDayMode = calendarMode === 'day';
     const verticalInsetPx = isDayMode ? 0 : 4;
     const horizontalInsetPx = isDayMode ? (laneCount > 1 ? 4 : 0) : 8;
     const baseHeight =
       ((cluster.endMinute - cluster.startMinute) / 60) * HOUR_ROW_HEIGHT_PX;
-    const height = Math.max(
-      baseHeight - verticalInsetPx * 2,
-      32
-    );
+    const height = Math.max(baseHeight - verticalInsetPx * 2, 32);
     const widthPercent = Math.max(
       laneWidthPercent - 1.5,
       laneCount > 1 ? laneWidthPercent - 2.5 : 97
@@ -696,28 +1572,57 @@ export class TimeClusteringRootView {
 
     const block = document.createElement('div');
     block.className =
-      'absolute overflow-hidden rounded-xl border px-2.5 py-2';
+      'absolute box-border overflow-hidden rounded-md px-3 py-2 transition-shadow';
     block.dataset.role = 'cluster-block';
     block.dataset.clusterId = cluster.id;
     block.dataset.dateKey = dateKey;
+    block.dataset.selected = isSelected ? 'true' : 'false';
     block.style.top = `${top + verticalInsetPx}px`;
     block.style.height = `${height}px`;
+    block.style.zIndex = isActiveGesture ? '30' : isSelected ? '20' : '10';
     block.style.left =
       laneCount > 1
         ? `calc(${leftPercent}% + ${horizontalInsetPx}px)`
         : `${horizontalInsetPx}px`;
-    block.style.width =
-      laneCount > 1
-        ? `calc(${widthPercent}% - ${isDayMode ? 6 : 12}px)`
-        : horizontalInsetPx === 0
+    if (laneCount > 1) {
+      block.style.width = `calc(${widthPercent}% - ${isDayMode ? 6 : 12}px)`;
+    } else {
+      block.style.width =
+        horizontalInsetPx === 0
           ? '100%'
           : `calc(100% - ${horizontalInsetPx * 2}px)`;
-    block.style.background = 'rgba(255,255,255,0.96)';
-    block.style.borderColor = palette.border;
-    block.style.boxShadow = `inset 3px 0 0 0 ${palette.accent}`;
+    }
+    block.style.background = isSelected
+      ? palette.background
+      : mixHexWithWhite(palette.accent, 0.92);
+    block.style.boxShadow = isSelected
+      ? '0 16px 24px rgba(15, 23, 42, 0.16)'
+      : '0 10px 18px rgba(15, 23, 42, 0.08)';
+    block.style.cursor =
+      isActiveGesture && this.activeClusterGesture?.kind === 'move'
+        ? 'grabbing'
+        : 'grab';
+    block.style.touchAction = 'none';
+    block.onpointerdown = (event) =>
+      this.beginClusterGesture({
+        cluster,
+        dateKey,
+        event,
+        kind: 'move',
+      });
+
+    const accentRail = document.createElement('div');
+    accentRail.className = 'pointer-events-none absolute';
+    accentRail.setAttribute('aria-hidden', 'true');
+    accentRail.style.left = '0px';
+    accentRail.style.top = '0px';
+    accentRail.style.bottom = '0px';
+    accentRail.style.width = '3px';
+    accentRail.style.background = palette.accent;
 
     const header = document.createElement('div');
-    header.className = 'flex items-start justify-between gap-2';
+    header.className = 'relative';
+    header.style.paddingLeft = '10px';
 
     const content = document.createElement('div');
     content.className = 'min-w-0 flex-1';
@@ -728,22 +1633,27 @@ export class TimeClusteringRootView {
 
     const details = document.createElement('p');
     details.className = 'mt-0.5 truncate text-[11px] text-slate-500';
-    details.textContent = `${formatMinute(cluster.startMinute)} - ${formatMinute(cluster.endMinute)} • ${cluster.parallelizable ? 'Parallel' : 'Focus'}`;
-
-    const deleteButton = document.createElement('button');
-    deleteButton.type = 'button';
-    deleteButton.className =
-      'shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium text-slate-400 transition hover:text-rose-600';
-    deleteButton.textContent = 'Delete';
-    deleteButton.setAttribute('aria-label', `Delete ${cluster.title}`);
-    deleteButton.onclick = (event) => {
-      event.stopPropagation();
-      this.store.deleteCluster(dateKey, cluster.id);
-    };
+    details.textContent = `${formatMinute(cluster.startMinute)} - ${formatMinute(cluster.endMinute)}`;
 
     content.append(title, details);
-    header.append(content, deleteButton);
-    block.append(header);
+    header.append(content);
+    block.append(accentRail, header);
+    if (isSelected) {
+      block.append(
+        this.renderClusterResizeHandle({
+          cluster,
+          dateKey,
+          edge: 'start',
+          palette,
+        }),
+        this.renderClusterResizeHandle({
+          cluster,
+          dateKey,
+          edge: 'end',
+          palette,
+        })
+      );
+    }
     return block;
   }
 
@@ -812,7 +1722,6 @@ export class TimeClusteringRootView {
       colorToken: tokens[existingClusters.length % tokens.length] ?? 'blue',
       startMinute,
       endMinute,
-      parallelizable: false,
     });
   }
 }
