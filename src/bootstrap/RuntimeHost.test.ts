@@ -204,11 +204,11 @@ describe('RuntimeHost time clustering island layout', () => {
 
     host.applyVisibility();
 
-    expect(host.workspaceRoot.style.left).toBe('430px');
+    expect(host.workspaceRoot.style.left).toBe('360px');
     expect(host.workspaceRoot.style.right).toBe('0px');
     expect(host.timeClusteringIslandRoot.style.display).toBe('block');
     expect(host.timeClusteringIslandRoot.style.left).toBe('0px');
-    expect(host.timeClusteringIslandRoot.style.width).toBe('430px');
+    expect(host.timeClusteringIslandRoot.style.width).toBe('360px');
     expect(canvas.style.display).toBe('block');
 
     host.dispose();
