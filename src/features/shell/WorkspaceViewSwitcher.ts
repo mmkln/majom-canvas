@@ -2,6 +2,7 @@ import { WorkspaceControlsBar } from './WorkspaceControlsBar.ts';
 import type { WorkspaceView } from './WorkspaceView.ts';
 import type { TimeClusteringLayoutMode } from '../time-clustering/domain/types.ts';
 import { AppRuntime, createAppRuntime } from '../../app-runtime/index.ts';
+import { WorkspaceAppMenu } from './components/WorkspaceAppMenu.ts';
 
 type WorkspaceViewSwitcherOptions = {
   runtime?: AppRuntime;
@@ -16,14 +17,17 @@ type WorkspaceViewSwitcherOptions = {
 export class WorkspaceViewSwitcher {
   private readonly container: HTMLDivElement;
   private readonly controls: WorkspaceControlsBar;
+  private readonly appMenu: WorkspaceAppMenu;
   private readonly shouldRender: boolean;
 
   constructor(
     initialView: WorkspaceView,
     options: WorkspaceViewSwitcherOptions = {}
   ) {
+    const runtime = options.runtime ?? createAppRuntime();
+    this.appMenu = new WorkspaceAppMenu(runtime);
     this.controls = new WorkspaceControlsBar({
-      runtime: options.runtime ?? createAppRuntime(),
+      runtime,
       initialView,
       initialTimeClusteringOpen: options.initialTimeClusteringOpen,
       initialTimeClusteringLayoutMode: options.initialTimeClusteringLayoutMode,
@@ -31,6 +35,7 @@ export class WorkspaceViewSwitcher {
       showTimeClustering: options.showTimeClustering,
       showRoutines: options.showRoutines,
       showChat: options.showChat,
+      trailingAccessory: this.appMenu.element,
       variant: 'floating',
     });
     this.shouldRender = this.controls.shouldRender;
@@ -43,16 +48,18 @@ export class WorkspaceViewSwitcher {
     this.container.style.transform = 'translateX(-50%)';
     this.container.style.zIndex = '45';
     this.container.style.pointerEvents = 'none';
-    this.container.appendChild(this.controls.element);
+    this.container.append(this.controls.element);
   }
 
   public mount(parent: HTMLElement = document.body): void {
     if (!this.shouldRender) return;
     if (this.container.parentElement) return;
     parent.appendChild(this.container);
+    this.appMenu.mount();
   }
 
   public unmount(): void {
+    this.appMenu.unmount();
     this.controls.destroy();
     this.container.remove();
   }
@@ -63,6 +70,9 @@ export class WorkspaceViewSwitcher {
 
   public setVisible(visible: boolean): void {
     if (!this.shouldRender) return;
+    if (!visible) {
+      this.appMenu.close();
+    }
     this.container.style.display = visible ? 'block' : 'none';
   }
 

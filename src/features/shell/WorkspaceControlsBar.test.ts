@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { WorkspaceControlsBar } from './WorkspaceControlsBar.ts';
 import { createAppRuntime } from '../../app-runtime/index.ts';
+import { EnergyLevel } from './energy.ts';
 import {
   TIME_CLUSTERING_TOGGLE_REQUEST_EVENT,
   WORKSPACE_VIEW_CHANGE_REQUEST_EVENT,
@@ -66,10 +67,24 @@ describe('WorkspaceControlsBar sidebar variant', () => {
     expect(chatButton).not.toBeNull();
     expect(chatButton?.dataset.active).toBe('true');
 
+    const energyButton = getButtonByAriaLabel(bar.element, 'Select energy');
+    expect(energyButton).not.toBeNull();
+    expect(energyButton?.getAttribute('data-component')).toBe('HudIconButton');
+
+    const railButtons = Array.from(
+      bar.element.querySelectorAll<HTMLButtonElement>('button[aria-label]')
+    );
+    expect(railButtons.indexOf(chatButton as HTMLButtonElement)).toBeGreaterThan(
+      railButtons.indexOf(routinesButton as HTMLButtonElement)
+    );
+    expect(
+      railButtons.indexOf(energyButton as HTMLButtonElement)
+    ).toBeGreaterThan(railButtons.indexOf(chatButton as HTMLButtonElement));
+
     const dividers = bar.element.querySelectorAll(
       '[data-component="HudSidebarDivider"]'
     );
-    expect(dividers).toHaveLength(3);
+    expect(dividers).toHaveLength(4);
   });
 
   it('updates sidebar active state via shared data attributes instead of inline styles', () => {
@@ -206,6 +221,7 @@ describe('WorkspaceControlsBar sidebar variant', () => {
 
     expect(events).toEqual(['canvas']);
   });
+
 });
 
 describe('WorkspaceControlsBar floating variant', () => {
@@ -248,6 +264,31 @@ describe('WorkspaceControlsBar floating variant', () => {
     expect(chatButton.style.color).toBe('rgb(67, 56, 202)');
   });
 
+  it('renders a trailing accessory inside the same floating controls block', () => {
+    const accessory = document.createElement('div');
+    accessory.className = 'relative flex items-center shrink-0';
+    const accessoryButton = document.createElement('button');
+    accessoryButton.type = 'button';
+    accessoryButton.setAttribute('aria-label', 'Open app menu');
+    accessory.appendChild(accessoryButton);
+
+    const bar = new WorkspaceControlsBar({
+      initialView: 'canvas',
+      showKanban: true,
+      showTimeClustering: false,
+      showRoutines: false,
+      showChat: false,
+      showEnergy: false,
+      trailingAccessory: accessory,
+      variant: 'floating',
+    });
+
+    expect(bar.element.contains(accessory)).toBe(true);
+    expect(bar.element.lastElementChild).toBe(accessory);
+    expect(bar.element.children).toHaveLength(3);
+    expect(bar.element.children[1]?.getAttribute('aria-hidden')).toBe('true');
+  });
+
   it('refreshes control labels when locale changes', () => {
     const runtime = createAppRuntime({ initialLocale: 'en' });
     const bar = new WorkspaceControlsBar({
@@ -271,6 +312,7 @@ describe('WorkspaceControlsBar floating variant', () => {
       bar.element,
       'Toggle time clustering panel'
     );
+    const energyButton = getButtonByAriaLabel(bar.element, 'Select energy');
 
     runtime.setLocale('uk');
 
@@ -279,10 +321,133 @@ describe('WorkspaceControlsBar floating variant', () => {
       'Перемкнути панель AI асистента'
     );
     expect(timeButton?.title).toBe('Кластери часу');
+    expect(energyButton?.getAttribute('aria-label')).toBe('Обрати енергію');
     expect(
       bar.element
         .querySelector('[role="radiogroup"]')
         ?.getAttribute('aria-label')
     ).toBe('Режим workspace');
+  });
+
+  it('updates the shared energy button icon after selecting an energy level', async () => {
+    const runtime = createAppRuntime({
+      initialLocale: 'en',
+      energyService: {
+        loadEnergy: async () => null,
+        loadEnergyHistory: async () => [],
+        saveEnergy: async (level) => ({
+          id: 'energy-1',
+          recordedAt: '2026-03-26T09:00:00.000Z',
+          energy: level,
+        }),
+      },
+    });
+    const floatingBar = new WorkspaceControlsBar({
+      runtime,
+      initialView: 'canvas',
+      showKanban: true,
+      showTimeClustering: false,
+      showRoutines: false,
+      showChat: false,
+      variant: 'floating',
+    });
+    document.body.appendChild(floatingBar.element);
+    const sidebarBar = new WorkspaceControlsBar({
+      runtime,
+      initialView: 'canvas',
+      showKanban: true,
+      showTimeClustering: false,
+      showRoutines: false,
+      showChat: false,
+      variant: 'sidebar',
+    });
+    document.body.appendChild(sidebarBar.element);
+
+    const energyButton = getButtonByAriaLabel(
+      floatingBar.element,
+      'Select energy'
+    ) as HTMLButtonElement;
+    energyButton.click();
+
+    expect(floatingBar.element.textContent).toContain('Energy level');
+
+    const highOption = floatingBar.element.querySelector<HTMLButtonElement>(
+      'button[data-energy-level="4"]'
+    );
+    expect(highOption).not.toBeNull();
+
+    highOption?.click();
+    await Promise.resolve();
+
+    expect(energyButton.getAttribute('aria-label')).toBe("Energy: It's rolling");
+    expect(
+      energyButton
+        .querySelector('img')
+        ?.getAttribute('data-energy-emoji')
+    ).toBe('😛');
+    const sidebarEnergyButton = getButtonByAriaLabel(
+      sidebarBar.element,
+      "Energy: It's rolling"
+    );
+    expect(
+      sidebarEnergyButton
+        ?.querySelector('img')
+        ?.getAttribute('data-energy-emoji')
+    ).toBe('😛');
+
+    floatingBar.destroy();
+    sidebarBar.destroy();
+    floatingBar.element.remove();
+    sidebarBar.element.remove();
+  });
+
+  it('shows a stats action at the bottom of the energy dropdown and opens the modal', async () => {
+    const runtime = createAppRuntime({
+      initialLocale: 'en',
+      energyService: {
+        loadEnergy: async () => null,
+        loadEnergyHistory: async () => [],
+        saveEnergy: async (level) => ({
+          id: 'energy-1',
+          recordedAt: '2026-03-26T09:00:00.000Z',
+          energy: level,
+        }),
+      },
+    });
+    const bar = new WorkspaceControlsBar({
+      runtime,
+      initialView: 'canvas',
+      showKanban: true,
+      showTimeClustering: false,
+      showRoutines: false,
+      showChat: false,
+      variant: 'floating',
+    });
+    document.body.appendChild(bar.element);
+
+    const energyButton = getButtonByAriaLabel(
+      bar.element,
+      'Select energy'
+    ) as HTMLButtonElement;
+    energyButton.click();
+
+    const statsButton = bar.element.querySelector<HTMLButtonElement>(
+      'button[data-role="energy-stats-button"]'
+    );
+    expect(statsButton).not.toBeNull();
+    expect(bar.element.querySelector('[data-component="HudDivider"]')).not.toBeNull();
+
+    statsButton?.click();
+    await Promise.resolve();
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+
+    expect(document.body.textContent).toContain('Energy stats');
+    expect(document.body.textContent).toContain('No energy entries yet.');
+
+    bar.destroy();
+    bar.element.remove();
+    document
+      .querySelectorAll('[data-component="ModalOverlay"]')
+      .forEach((node) => node.remove());
   });
 });

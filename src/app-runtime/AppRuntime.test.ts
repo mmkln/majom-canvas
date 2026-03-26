@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { AppRuntime, createAppRuntime } from './AppRuntime.ts';
 import { I18nService } from '../i18n/I18nService.ts';
+import { EnergyLevel } from '../features/shell/energy.ts';
 
 describe('AppRuntime', () => {
   afterEach(() => {
@@ -13,6 +14,7 @@ describe('AppRuntime', () => {
     const runtime = createAppRuntime({ initialLocale: 'uk' });
 
     expect(runtime.getSnapshot().locale).toBe('uk');
+    expect(runtime.getSnapshot().energy.level).toBeNull();
     expect(runtime.i18n.getLocale()).toBe('uk');
   });
 
@@ -54,5 +56,30 @@ describe('AppRuntime', () => {
     }, { emitCurrent: true });
 
     expect(changes).toEqual(['uk']);
+  });
+
+  it('loads and updates energy state through the runtime service', async () => {
+    const runtime = createAppRuntime({
+      energyService: {
+        loadEnergy: async () => ({
+          id: 'energy-1',
+          recordedAt: '2026-03-26T08:00:00.000Z',
+          energy: EnergyLevel.LOW,
+        }),
+        saveEnergy: async (level, existingRecordId) => ({
+          id: existingRecordId ?? 'energy-1',
+          recordedAt: '2026-03-26T09:00:00.000Z',
+          energy: level,
+        }),
+      },
+    });
+
+    await runtime.ensureEnergyLoaded();
+    expect(runtime.getEnergyState().level).toBe(EnergyLevel.LOW);
+
+    await runtime.setEnergyLevel(EnergyLevel.HIGH);
+
+    expect(runtime.getEnergyState().level).toBe(EnergyLevel.HIGH);
+    expect(runtime.getSnapshot().energy.saving).toBe(false);
   });
 });

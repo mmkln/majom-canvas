@@ -15,6 +15,7 @@ import {
 } from '../../ui-lib/src/hud/index.ts';
 import { AppRuntime, createAppRuntime } from '../../app-runtime/index.ts';
 import type { I18nService } from '../../i18n/index.ts';
+import { EnergySelectorControl } from './components/EnergySelectorControl.ts';
 
 const CONTROL_TRANSITION = 'background-color 120ms ease, color 120ms ease';
 
@@ -35,6 +36,8 @@ type WorkspaceControlsBarOptions = {
   showTimeClustering?: boolean;
   showRoutines?: boolean;
   showChat?: boolean;
+  showEnergy?: boolean;
+  trailingAccessory?: HTMLElement | null;
   variant?: WorkspaceControlsBarVariant;
 };
 
@@ -138,6 +141,7 @@ export class WorkspaceControlsBar {
   private readonly viewButtons = new Map<WorkspaceView, HTMLButtonElement>();
   private readonly timeClusteringButton: HTMLButtonElement | null;
   private readonly chatButton: HTMLButtonElement | null;
+  private readonly energyControl: EnergySelectorControl | null;
   private viewGroup: HTMLDivElement | null = null;
   private routinesButton: HTMLButtonElement | null = null;
   private routinesLabel: HTMLSpanElement | null = null;
@@ -162,16 +166,23 @@ export class WorkspaceControlsBar {
     const showTimeClustering = options.showTimeClustering ?? true;
     const showRoutines = options.showRoutines ?? true;
     const showChat = options.showChat ?? true;
+    const showEnergy = options.showEnergy ?? true;
     const viewOptions = VIEW_OPTIONS.filter((option) => {
       if (option.view === 'kanban') return showKanban;
       return true;
     });
     const shouldRenderViewGroup = viewOptions.length > 1;
-    this.shouldRender =
-      showTimeClustering || shouldRenderViewGroup || showRoutines || showChat;
+    this.shouldRender = true;
 
     this.element = document.createElement('div');
     this.applyRootStyles();
+
+    const appendSection = (node: HTMLElement): void => {
+      if (this.element.childElementCount > 0) {
+        this.element.appendChild(this.createDivider());
+      }
+      this.element.appendChild(node);
+    };
 
     this.timeClusteringButton = showTimeClustering
       ? this.createIconButton({
@@ -184,10 +195,7 @@ export class WorkspaceControlsBar {
       emitTimeClusteringToggleRequested();
     });
     if (this.timeClusteringButton) {
-      this.element.appendChild(this.timeClusteringButton);
-      if (shouldRenderViewGroup || showRoutines || showChat) {
-        this.element.appendChild(this.createDivider());
-      }
+      appendSection(this.timeClusteringButton);
     }
 
     if (shouldRenderViewGroup) {
@@ -226,20 +234,27 @@ export class WorkspaceControlsBar {
       });
 
       this.viewGroup = group;
-      this.element.appendChild(group);
+      appendSection(group);
     }
 
     this.routinesModal = showRoutines
       ? new HabitsQuickModal(undefined, this.runtime)
       : null;
     if (showRoutines) {
-      if (shouldRenderViewGroup) {
-        this.element.appendChild(this.createDivider());
-      }
       this.routinesButton = this.createRoutinesButton(() =>
         this.routinesModal?.open()
       );
-      this.element.appendChild(this.routinesButton);
+      appendSection(this.routinesButton);
+    }
+
+    this.energyControl = showEnergy
+      ? new EnergySelectorControl({
+          runtime: this.runtime,
+          variant: this.variant,
+        })
+      : null;
+    if (this.energyControl && this.variant !== 'sidebar') {
+      appendSection(this.energyControl.element);
     }
 
     this.chatButton = showChat
@@ -253,14 +268,19 @@ export class WorkspaceControlsBar {
       emitAiAssistantToggleRequested();
     });
     if (this.chatButton) {
-      if (shouldRenderViewGroup || showRoutines) {
-        this.element.appendChild(this.createDivider());
-      }
-      this.element.appendChild(this.chatButton);
+      appendSection(this.chatButton);
+    }
+
+    if (this.energyControl && this.variant === 'sidebar') {
+      appendSection(this.energyControl.element);
+    }
+
+    if (options.trailingAccessory) {
+      appendSection(options.trailingAccessory);
     }
 
     this.disposeRuntimeSubscription = this.runtime.subscribe(
-      () => this.refreshTranslations(),
+      () => this.refreshFromRuntime(),
       { emitCurrent: true }
     );
     this.syncButtons();
@@ -269,6 +289,7 @@ export class WorkspaceControlsBar {
   public destroy(): void {
     this.disposeRuntimeSubscription?.();
     this.disposeRuntimeSubscription = null;
+    this.energyControl?.destroy();
     this.routinesModal?.destroy();
   }
 
@@ -425,6 +446,11 @@ export class WorkspaceControlsBar {
       button.appendChild(label);
     }
     return button;
+  }
+
+  private refreshFromRuntime(): void {
+    this.refreshTranslations();
+    this.syncButtons();
   }
 
   private refreshTranslations(): void {

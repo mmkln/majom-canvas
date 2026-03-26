@@ -1,33 +1,17 @@
-import { firstValueFrom, type Subscription } from 'rxjs';
-import { environment } from '../config/environment.ts';
 import {
   IS_DEVELOPMENT_MODE,
   KANBAN_DEV_ENABLED,
   ROUTINES_ENABLED,
   TIME_CLUSTERING_DEV_ENABLED,
 } from '../config/env/index.ts';
-import { performManualLogout } from '../features/canvas/ui/auth/manualLogout.ts';
-import {
-  AuthController,
-  type AuthState,
-} from '../features/canvas/ui/auth/AuthController.ts';
-import { openTopbarDropdown } from '../features/canvas/ui/components/topbarDropdownLayout.ts';
-import { createAccountMenuProfileSection } from '../features/canvas/ui/components/accountMenuProfileSection.ts';
 import { HabitsQuickModal } from '../features/shell/components/HabitsQuickModal.ts';
 import {
-  AnchoredMenu,
-  createDivider,
-  createDropdownItem,
   createSidebarRailButton,
-  createSurface,
   setSidebarRailButtonActive,
   SIDEBAR_TOKENS,
 } from '../features/canvas/ui/primitives/index.ts';
 import { WorkspaceControlsBar } from '../features/shell/WorkspaceControlsBar.ts';
-import {
-  createLocaleSubmenu,
-  type LocaleSubmenuHandle,
-} from '../features/canvas/ui/components/LocaleSubmenu.ts';
+import { EnergySelectorControl } from '../features/shell/components/EnergySelectorControl.ts';
 import {
   loadPersistedAiAssistantOpen,
   loadPersistedTimeClusteringOpen,
@@ -47,10 +31,7 @@ import {
   isTimeClusteringVisibilityChangedDetail,
   isWorkspaceViewChangedDetail,
 } from '../features/shell/workspaceEvents.ts';
-import { AuthService } from '../majom-wrapper/data-access/auth-service.ts';
-import { HttpInterceptorClient } from '../majom-wrapper/data-access/http-interceptor.ts';
-import { UserApiService } from '../majom-wrapper/data-access/user-api-service.ts';
-import { type AppLocale, type I18nService } from '../i18n/index.ts';
+import { type I18nService } from '../i18n/index.ts';
 import { AppRuntime, createAppRuntime } from '../app-runtime/index.ts';
 
 export const GLOBAL_APP_SIDEBAR_WIDTH_PX = IS_DEVELOPMENT_MODE
@@ -82,23 +63,13 @@ export class GlobalAppHeader {
   private readonly runtime: AppRuntime;
   private readonly i18n: I18nService;
   private readonly element: HTMLDivElement | null;
-  private readonly authService = new AuthService();
-  private readonly userApiService = new UserApiService(
-    new HttpInterceptorClient(environment.apiUrl)
-  );
-  private readonly authController = new AuthController(
-    this.authService,
-    this.userApiService
-  );
   private readonly controls: WorkspaceControlsBar | null;
   private readonly routinesModal: HabitsQuickModal | null;
   private readonly routinesButton: HTMLButtonElement | null;
   private readonly timeClusteringButton: HTMLButtonElement | null;
   private readonly chatButton: HTMLButtonElement | null;
+  private readonly energyControl: EnergySelectorControl | null;
   private readonly menuContainer: HTMLDivElement | null;
-  private readonly menuButton: HTMLButtonElement | null;
-  private readonly menuPanel: HTMLDivElement | null;
-  private readonly menuController: AnchoredMenu | null;
   private readonly viewChangedHandler: (event: Event) => void;
   private readonly chatVisibilityChangedHandler: (event: Event) => void;
   private readonly timeClusteringLayoutModeChangedHandler: (
@@ -107,18 +78,7 @@ export class GlobalAppHeader {
   private readonly timeClusteringVisibilityChangedHandler: (
     event: Event
   ) => void;
-  private stateSubscription: Subscription | null = null;
   private disposeRuntimeSubscription: (() => void) | null = null;
-  private localeSubmenu: LocaleSubmenuHandle | null = null;
-  private localePersistInFlight = false;
-  private authState: AuthState = {
-    isAuthenticated: this.authService.isLoggedIn(),
-    isLoginRequested: false,
-    isSubmitting: false,
-    isUserLoading: false,
-    user: null,
-    error: null,
-  };
 
   constructor(runtime: AppRuntime = createAppRuntime()) {
     this.runtime = runtime;
@@ -153,10 +113,8 @@ export class GlobalAppHeader {
       this.routinesButton = null;
       this.timeClusteringButton = null;
       this.chatButton = null;
+      this.energyControl = null;
       this.menuContainer = null;
-      this.menuButton = null;
-      this.menuPanel = null;
-      this.menuController = null;
       return;
     }
 
@@ -201,6 +159,7 @@ export class GlobalAppHeader {
       showTimeClustering: false,
       showRoutines: false,
       showChat: false,
+      showEnergy: false,
       variant: 'sidebar',
     });
     this.controls.element.classList.add('w-full', 'flex-1');
@@ -240,42 +199,19 @@ export class GlobalAppHeader {
       },
     });
     this.syncChatButtonState(initialChatOpen);
-
-    this.menuButton = createSidebarRailButton({
-      icon: 'ellipsis-vertical',
-      title: this.i18n.t('header.openAppMenu'),
-      ariaLabel: this.i18n.t('header.openAppMenu'),
-    });
-    this.menuButton.addEventListener('click', (event) => {
-      event.stopPropagation();
-      this.toggleMenu();
+    this.energyControl = new EnergySelectorControl({
+      runtime: this.runtime,
+      variant: 'sidebar',
     });
 
-    this.menuPanel = createSurface({
-      elevated: true,
-      className: 'absolute left-0 top-0 hidden min-w-[10rem] overflow-hidden',
-    });
-    this.menuPanel.style.zIndex = `${GLOBAL_APP_SIDEBAR_Z_INDEX + 1}`;
-
-    this.menuController = new AnchoredMenu({
-      container: this.menuContainer,
-      panel: this.menuPanel,
-      onOpenChange: (open) => {
-        if (!this.menuButton) return;
-        setSidebarRailButtonActive(this.menuButton, open);
-        if (!open) {
-          this.localeSubmenu?.close();
-        }
-      },
-    });
-
+    this.menuContainer.appendChild(this.energyControl.element);
     if (this.routinesButton) {
       this.menuContainer.appendChild(this.routinesButton);
     }
     if (this.timeClusteringButton) {
       this.menuContainer.appendChild(this.timeClusteringButton);
     }
-    this.menuContainer.append(this.chatButton, this.menuButton, this.menuPanel);
+    this.menuContainer.append(this.chatButton);
     element.append(brand, this.controls.element, this.menuContainer);
     this.element = element;
   }
@@ -284,17 +220,9 @@ export class GlobalAppHeader {
     if (!this.element || this.element.isConnected) return;
     parent.appendChild(this.element);
     setGlobalAppSidebarOffset(GLOBAL_APP_SIDEBAR_WIDTH_PX);
-    this.menuController?.mount();
     this.disposeRuntimeSubscription = this.runtime.subscribe(() => {
       this.refreshTranslations();
     }, { emitCurrent: true });
-    this.authController.initialize();
-    this.stateSubscription = this.authController.state$.subscribe((state) => {
-      this.authState = state;
-      if (this.menuController?.isOpen()) {
-        this.renderMenu();
-      }
-    });
     window.addEventListener(
       WORKSPACE_VIEW_CHANGED_EVENT,
       this.viewChangedHandler as EventListener
@@ -318,8 +246,6 @@ export class GlobalAppHeader {
     setGlobalAppSidebarOffset(0);
     this.disposeRuntimeSubscription?.();
     this.disposeRuntimeSubscription = null;
-    this.stateSubscription?.unsubscribe();
-    this.stateSubscription = null;
     window.removeEventListener(
       WORKSPACE_VIEW_CHANGED_EVENT,
       this.viewChangedHandler as EventListener
@@ -337,12 +263,8 @@ export class GlobalAppHeader {
       this.timeClusteringVisibilityChangedHandler as EventListener
     );
     this.routinesModal?.destroy();
-    this.localeSubmenu?.destroy();
-    this.localeSubmenu = null;
     this.controls?.destroy();
-    this.authController.destroy();
-    this.menuController?.close();
-    this.menuController?.unmount();
+    this.energyControl?.destroy();
     this.element.remove();
   }
 
@@ -368,101 +290,6 @@ export class GlobalAppHeader {
         this.i18n.t('header.toggleAiAssistantPanel')
       );
     }
-    if (this.menuButton) {
-      this.menuButton.title = this.i18n.t('header.openAppMenu');
-      this.menuButton.setAttribute(
-        'aria-label',
-        this.i18n.t('header.openAppMenu')
-      );
-    }
-    if (this.menuController?.isOpen()) {
-      this.renderMenu();
-    }
-  }
-
-  private toggleMenu(): void {
-    if (!this.menuButton || !this.menuPanel || !this.menuController) return;
-    if (this.menuController.isOpen()) {
-      this.menuController.close();
-      return;
-    }
-    if (this.authState.isAuthenticated && !this.authState.user) {
-      this.authController.loadUserIfNeeded();
-    }
-    this.renderMenu();
-    openTopbarDropdown({
-      controller: this.menuController,
-      anchor: this.menuButton,
-      align: 'end',
-    });
-  }
-
-  private renderMenu(): void {
-    if (!this.menuPanel || !this.menuController) return;
-    this.localeSubmenu?.destroy();
-    this.localeSubmenu = createLocaleSubmenu({
-      i18n: this.i18n,
-      currentLocale: this.i18n.getLocale(),
-      disabled: this.localePersistInFlight,
-      panelZIndex: GLOBAL_APP_SIDEBAR_Z_INDEX + 2,
-      onSelect: (locale) => {
-        void this.handleLocaleChange(locale);
-      },
-    });
-
-    const logoutButton = createDropdownItem({
-      label: this.i18n.t('header.logout'),
-      variant: 'emphasis',
-      disabled: !this.authState.isAuthenticated,
-      onClick: () => this.handleLogout(),
-    });
-
-    this.menuPanel.replaceChildren(
-      ...createAccountMenuProfileSection(
-        this.authState.user,
-        this.authState.isUserLoading,
-        {
-          loadingLabel: this.i18n.t('common.accountLoading'),
-        }
-      ),
-      this.localeSubmenu.trigger,
-      createDivider(),
-      logoutButton
-    );
-    if (this.menuController.isOpen()) {
-      this.menuController.reposition();
-    }
-  }
-
-  private handleLogout(): void {
-    if (!this.authState.isAuthenticated) return;
-    performManualLogout({
-      logout: () => this.authController.logout(),
-      onAfterLogout: () => this.menuController?.close(),
-    });
-  }
-
-  private async handleLocaleChange(nextLocale: AppLocale): Promise<void> {
-    if (this.localePersistInFlight) return;
-    const previousLocale = this.i18n.getLocale();
-    if (previousLocale === nextLocale) return;
-
-    this.localePersistInFlight = true;
-    this.runtime.setLocale(nextLocale);
-    try {
-      if (this.authState.isAuthenticated) {
-        const updatedUser = await firstValueFrom(
-          this.userApiService.setUserProfileLanguage(nextLocale)
-        );
-        this.authController.syncUser(updatedUser);
-      }
-    } catch (error: unknown) {
-      console.warn('Failed to persist user language.', error);
-      this.runtime.setLocale(previousLocale);
-    } finally {
-      this.localePersistInFlight = false;
-      this.refreshTranslations();
-    }
   }
 
   private createSidebarActionButton(options: {
@@ -470,7 +297,6 @@ export class GlobalAppHeader {
     ariaLabel: string;
     iconName:
       | 'chat-bubble-left'
-      | 'ellipsis-vertical'
       | 'check-circle'
       | 'rectangle-stack';
     onClick: () => void;
