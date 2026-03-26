@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { SELECT_COLOR } from '../../core/constants.ts';
+import {
+  FOCUS_COLOR,
+  HIGHLIGHT_COLOR,
+  SELECT_COLOR,
+} from '../../core/constants.ts';
 import { ElementStatus } from '../ElementStatus.ts';
 import { resolveGoalAppearance } from './goalAppearance.ts';
 
@@ -14,7 +18,7 @@ describe('resolveGoalAppearance', () => {
 
     expect(appearance.fillColor).toBe('#a57aff');
     expect(appearance.selectionStrokeColor).toBe(SELECT_COLOR);
-    expect(appearance.chromeColor).toBe('#8FA3B8');
+    expect(appearance.chromeColor).toBe(FOCUS_COLOR);
     expect(appearance.textColor).toBe('#f8fafc');
   });
 
@@ -28,7 +32,7 @@ describe('resolveGoalAppearance', () => {
 
     expect(appearance.fillColor).toBe('#F2A03D');
     expect(appearance.selectionStrokeColor).toBe(SELECT_COLOR);
-    expect(appearance.chromeColor).toBe('#D8A441');
+    expect(appearance.chromeColor).toBe(HIGHLIGHT_COLOR);
     expect(appearance.textColor).toBe('#f8fafc');
   });
 

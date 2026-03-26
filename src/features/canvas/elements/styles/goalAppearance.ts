@@ -1,4 +1,8 @@
-import { SELECT_COLOR } from '../../core/constants.ts';
+import {
+  FOCUS_COLOR,
+  HIGHLIGHT_COLOR,
+  SELECT_COLOR,
+} from '../../core/constants.ts';
 import { ElementStatus } from '../ElementStatus.ts';
 import { goalStyles } from './goalStyles.ts';
 
@@ -59,7 +63,11 @@ export function resolveGoalAppearance(
 
   return {
     fillColor,
-    chromeColor: style.borderColor,
+    chromeColor: state.focused
+      ? FOCUS_COLOR
+      : state.highlighted
+        ? HIGHLIGHT_COLOR
+        : style.borderColor,
     selectionStrokeColor: state.selected ? SELECT_COLOR : null,
     textColor: hasInteractionFill
       ? GOAL_TEXT_COLOR_LIGHT
