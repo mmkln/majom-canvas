@@ -158,9 +158,6 @@ export class RuntimeHost {
     this.activeView = loadPersistedWorkspaceView({
       allowKanban: KANBAN_DEV_ENABLED,
     });
-    if (this.timeClusteringOpen) {
-      this.activeView = 'canvas';
-    }
     this.viewSwitcher = new WorkspaceViewSwitcher(this.activeView, {
       initialTimeClusteringOpen: this.timeClusteringOpen,
       initialTimeClusteringLayoutMode: this.timeClusteringLayoutMode,
@@ -200,7 +197,7 @@ export class RuntimeHost {
     this.timeClusteringToggleHandler = (event: Event) => {
       const customEvent = event as CustomEvent<unknown>;
       if (!isTimeClusteringToggleRequestDetail(customEvent.detail)) return;
-      void this.handleTimeClusteringToggleRequest(customEvent.detail?.open);
+      this.handleTimeClusteringToggleRequest(customEvent.detail?.open);
     };
     this.chatToggleHandler = (event: Event) => {
       const customEvent = event as CustomEvent<unknown>;
@@ -395,7 +392,9 @@ export class RuntimeHost {
 
   public async setActiveView(view: WorkspaceView): Promise<void> {
     if (view === 'kanban' && !KANBAN_DEV_ENABLED) return;
-    const shouldCloseTimeClustering = this.timeClusteringOpen;
+    const shouldCloseTimeClustering =
+      this.timeClusteringOpen &&
+      this.timeClusteringLayoutMode === 'fullscreen';
     if (shouldCloseTimeClustering) {
       this.syncTimeClusteringOpenState(false);
       this.setTimeClusteringLayoutMode('docked-left');
@@ -410,9 +409,7 @@ export class RuntimeHost {
     this.applyVisibility();
   }
 
-  private async handleTimeClusteringToggleRequest(
-    open?: boolean
-  ): Promise<void> {
+  private handleTimeClusteringToggleRequest(open?: boolean): void {
     if (!TIME_CLUSTERING_DEV_ENABLED) return;
     const nextOpen =
       typeof open === 'boolean' ? open : !this.timeClusteringOpen;
@@ -424,7 +421,6 @@ export class RuntimeHost {
     }
 
     this.setTimeClusteringLayoutMode('docked-left');
-    await this.activateBaseView('canvas');
     this.syncTimeClusteringOpenState(true);
     this.applyVisibility();
   }

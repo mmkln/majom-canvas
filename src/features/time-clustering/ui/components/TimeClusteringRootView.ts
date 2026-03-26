@@ -8,12 +8,14 @@ import {
   MINUTES_PER_DAY,
   currentMinuteOfDay,
   dateFromKey,
+  dayDifference,
   dayOffsetDateKey,
   differenceInMinutes,
   formatDateTimeLocalInputValue,
   isoFromDateKeyMinute,
   isoFromLocalDateTimeInput,
   parseIsoToMillis,
+  shiftIsoByDays,
   shiftIsoByMinutes,
   startOfWeekDateKey,
   todayDateKey,
@@ -87,7 +89,10 @@ type ClusterGestureKind = 'move' | 'resize-start' | 'resize-end';
 type ActiveClusterGesture = {
   kind: ClusterGestureKind;
   clusterId: string;
+  anchorDateKey: string;
+  previewDateKey: string;
   pointerId: number;
+  startClientX: number;
   startClientY: number;
   initialCluster: TimeCluster;
   previewCluster: TimeCluster;
@@ -288,6 +293,21 @@ function shiftClusterRange(
   };
 }
 
+function shiftClusterRangeByDays(
+  cluster: TimeCluster,
+  deltaDays: number
+): TimeCluster {
+  if (deltaDays === 0) return cluster;
+  const nextStartAtIso = shiftIsoByDays(cluster.startAtIso, deltaDays);
+  const nextEndAtIso = shiftIsoByDays(cluster.endAtIso, deltaDays);
+  if (!nextStartAtIso || !nextEndAtIso) return cluster;
+  return {
+    ...cluster,
+    startAtIso: nextStartAtIso,
+    endAtIso: nextEndAtIso,
+  };
+}
+
 function resizeClusterStart(
   cluster: TimeCluster,
   deltaMinutes: number
@@ -311,8 +331,7 @@ function resizeClusterStart(
   }
   return {
     ...cluster,
-    startAtIso:
-      nextStartMs > latestStartMs ? latestStartAtIso : nextStartAtIso,
+    startAtIso: nextStartMs > latestStartMs ? latestStartAtIso : nextStartAtIso,
   };
 }
 
@@ -773,7 +792,9 @@ export class TimeClusteringRootView {
     snapshot: TimeClusteringStateSnapshot,
     clusterId: string
   ): TimeCluster | null {
-    return snapshot.clusters.find((cluster) => cluster.id === clusterId) ?? null;
+    return (
+      snapshot.clusters.find((cluster) => cluster.id === clusterId) ?? null
+    );
   }
 
   private reconcileTransientState(
@@ -894,7 +915,9 @@ export class TimeClusteringRootView {
         this.renderWeekCalendar(snapshot, weekDateKeys, renderedClustersByDate)
       );
     } else {
-      surface.appendChild(this.renderDayCalendar(snapshot, renderedClustersByDate));
+      surface.appendChild(
+        this.renderDayCalendar(snapshot, renderedClustersByDate)
+      );
     }
 
     container.appendChild(surface);
@@ -965,7 +988,7 @@ export class TimeClusteringRootView {
 
     const header = document.createElement('div');
     header.className =
-      'sticky top-0 z-30 flex min-w-0 items-end bg-white px-4 py-1.5 shadow-[0_1px_0_rgba(226,232,240,0.95)]';
+      'sticky top-0 z-40 flex min-w-0 items-end bg-white px-4 py-1.5 shadow-[0_1px_0_rgba(226,232,240,0.95)]';
     header.dataset.role = 'week-calendar-header';
     header.style.minWidth = `${TIME_GUTTER_WIDTH_PX + WEEK_VIEW_DAY_WIDTH_PX * 7}px`;
 
@@ -1054,10 +1077,11 @@ export class TimeClusteringRootView {
 
   private beginClusterGesture(params: {
     cluster: TimeCluster;
+    anchorDateKey: string;
     event: PointerEvent;
     kind: ClusterGestureKind;
   }): void {
-    const { cluster, event, kind } = params;
+    const { cluster, anchorDateKey, event, kind } = params;
     if (event.button !== 0) return;
 
     this.cancelActiveClusterGesture(true);
@@ -1068,10 +1092,13 @@ export class TimeClusteringRootView {
     const gesture: ActiveClusterGesture = {
       kind,
       clusterId: cluster.id,
+      anchorDateKey,
+      previewDateKey: anchorDateKey,
       pointerId:
         typeof event.pointerId === 'number' && !Number.isNaN(event.pointerId)
           ? event.pointerId
           : 1,
+      startClientX: event.clientX,
       startClientY: event.clientY,
       initialCluster: cluster,
       previewCluster: cluster,
@@ -1125,8 +1152,10 @@ export class TimeClusteringRootView {
 
       if (!gesture.started) {
         if (
-          Math.abs(moveEvent.clientY - gesture.startClientY) <
-          CLUSTER_DRAG_THRESHOLD_PX
+          Math.max(
+            Math.abs(moveEvent.clientX - gesture.startClientX),
+            Math.abs(moveEvent.clientY - gesture.startClientY)
+          ) < CLUSTER_DRAG_THRESHOLD_PX
         ) {
           return;
         }
@@ -1135,14 +1164,19 @@ export class TimeClusteringRootView {
 
       moveEvent.preventDefault();
 
-      const nextPreviewCluster = this.buildPreviewCluster(
+      const nextPreview = this.buildPreviewCluster(
         gesture,
+        moveEvent.clientX,
         moveEvent.clientY
       );
-      if (haveSameClusterRange(gesture.previewCluster, nextPreviewCluster)) {
+      if (
+        gesture.previewDateKey === nextPreview.previewDateKey &&
+        haveSameClusterRange(gesture.previewCluster, nextPreview.previewCluster)
+      ) {
         return;
       }
-      gesture.previewCluster = nextPreviewCluster;
+      gesture.previewDateKey = nextPreview.previewDateKey;
+      gesture.previewCluster = nextPreview.previewCluster;
       this.requestRender();
     };
 
@@ -1172,21 +1206,63 @@ export class TimeClusteringRootView {
 
   private buildPreviewCluster(
     gesture: ActiveClusterGesture,
+    clientX: number,
     clientY: number
-  ): TimeCluster {
+  ): {
+    previewDateKey: string;
+    previewCluster: TimeCluster;
+  } {
     const deltaMinutes = deltaPixelsToSnappedMinutes(
       clientY - gesture.startClientY
     );
 
     if (gesture.kind === 'move') {
-      return shiftClusterRange(gesture.initialCluster, deltaMinutes);
+      const previewDateKey =
+        this.layoutMode === 'fullscreen'
+          ? this.resolveWeekGestureDateKey(clientX, gesture.previewDateKey)
+          : gesture.anchorDateKey;
+      const deltaDays = dayDifference(gesture.anchorDateKey, previewDateKey);
+      return {
+        previewDateKey,
+        previewCluster: shiftClusterRange(
+          shiftClusterRangeByDays(gesture.initialCluster, deltaDays),
+          deltaMinutes
+        ),
+      };
     }
 
     if (gesture.kind === 'resize-start') {
-      return resizeClusterStart(gesture.initialCluster, deltaMinutes);
+      return {
+        previewDateKey: gesture.anchorDateKey,
+        previewCluster: resizeClusterStart(
+          gesture.initialCluster,
+          deltaMinutes
+        ),
+      };
     }
 
-    return resizeClusterEnd(gesture.initialCluster, deltaMinutes);
+    return {
+      previewDateKey: gesture.anchorDateKey,
+      previewCluster: resizeClusterEnd(gesture.initialCluster, deltaMinutes),
+    };
+  }
+
+  private resolveWeekGestureDateKey(
+    clientX: number,
+    fallbackDateKey: string
+  ): string {
+    const dayColumns = Array.from(
+      this.root.querySelectorAll<HTMLElement>(
+        '[data-role="calendar-day-column"]'
+      )
+    );
+    for (const column of dayColumns) {
+      const rect = column.getBoundingClientRect();
+      if (clientX >= rect.left && clientX <= rect.right) {
+        return column.dataset.dateKey ?? fallbackDateKey;
+      }
+    }
+    return fallbackDateKey;
   }
 
   private cancelActiveClusterGesture(
@@ -1212,10 +1288,7 @@ export class TimeClusteringRootView {
     this.editingCluster = null;
   }
 
-  private handleClusterTap(
-    clusterId: string,
-    event: PointerEvent
-  ): void {
+  private handleClusterTap(clusterId: string, event: PointerEvent): void {
     const eventTimestamp =
       typeof event.timeStamp === 'number' && event.timeStamp > 0
         ? event.timeStamp
@@ -1437,10 +1510,11 @@ export class TimeClusteringRootView {
 
   private renderClusterResizeHandle(options: {
     cluster: TimeCluster;
+    dateKey: string;
     edge: 'start' | 'end';
     palette: ClusterPalette;
   }): HTMLButtonElement {
-    const { cluster, edge, palette } = options;
+    const { cluster, dateKey, edge, palette } = options;
     const handle = document.createElement('button');
     handle.type = 'button';
     handle.className =
@@ -1465,6 +1539,7 @@ export class TimeClusteringRootView {
     handle.onpointerdown = (event) =>
       this.beginClusterGesture({
         cluster,
+        anchorDateKey: dateKey,
         event,
         kind: edge === 'start' ? 'resize-start' : 'resize-end',
       });
@@ -1484,7 +1559,8 @@ export class TimeClusteringRootView {
     column.style.width = '100%';
     column.dataset.role = 'calendar-column';
     column.dataset.dateKey = dateKey;
-    column.onpointerdown = (event) => this.handleCalendarBackgroundPointerDown(event);
+    column.onpointerdown = (event) =>
+      this.handleCalendarBackgroundPointerDown(event);
 
     for (let hour = 0; hour < 24; hour += 1) {
       const hourSlot = document.createElement('div');
@@ -1600,6 +1676,7 @@ export class TimeClusteringRootView {
     block.onpointerdown = (event) =>
       this.beginClusterGesture({
         cluster,
+        anchorDateKey: dateKey,
         event,
         kind: 'move',
       });
@@ -1636,6 +1713,7 @@ export class TimeClusteringRootView {
         block.append(
           this.renderClusterResizeHandle({
             cluster,
+            dateKey,
             edge: 'start',
             palette,
           })
@@ -1645,6 +1723,7 @@ export class TimeClusteringRootView {
         block.append(
           this.renderClusterResizeHandle({
             cluster,
+            dateKey,
             edge: 'end',
             palette,
           })

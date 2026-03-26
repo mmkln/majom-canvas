@@ -167,11 +167,9 @@ export class GlobalAppHeader {
     const initialTimeClusteringOpen = loadPersistedTimeClusteringOpen(
       TIME_CLUSTERING_DEV_ENABLED
     );
-    const initialWorkspaceView = initialTimeClusteringOpen
-      ? 'canvas'
-      : loadPersistedWorkspaceView({
-          allowKanban: KANBAN_DEV_ENABLED,
-        });
+    const initialWorkspaceView = loadPersistedWorkspaceView({
+      allowKanban: KANBAN_DEV_ENABLED,
+    });
     this.routinesModal = ROUTINES_ENABLED ? new HabitsQuickModal() : null;
 
     this.controls = new WorkspaceControlsBar({

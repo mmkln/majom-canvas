@@ -84,7 +84,7 @@ type RuntimeHostInternalAccess = {
     dispose: () => void;
   } | null;
   applyVisibility: () => void;
-  handleTimeClusteringToggleRequest: (open?: boolean) => Promise<void>;
+  handleTimeClusteringToggleRequest: (open?: boolean) => void;
   setActiveView: (view: 'canvas' | 'kanban') => Promise<void>;
   dispose: () => void;
 };
@@ -222,7 +222,7 @@ describe('RuntimeHost time clustering island layout', () => {
     host.dispose();
   });
 
-  it('opens time clustering in docked-left canvas mode', async () => {
+  it('opens time clustering in docked-left mode without changing the base view', () => {
     const host = getRuntimeHostInternals(createRuntimeHost());
     const show = vi.fn<[string], Promise<void>>().mockResolvedValue();
     host.shell = {
@@ -235,16 +235,50 @@ describe('RuntimeHost time clustering island layout', () => {
     host.timeClusteringLayoutMode = 'fullscreen';
     host.timeClusteringModule = createTimeClusteringModuleStub();
 
-    await host.handleTimeClusteringToggleRequest();
+    host.handleTimeClusteringToggleRequest();
 
-    expect(host.activeView).toBe('canvas');
-    expect(show).toHaveBeenCalledWith('canvas');
+    expect(host.activeView).toBe('kanban');
+    expect(show).not.toHaveBeenCalled();
     expect(host.timeClusteringOpen).toBe(true);
     expect(host.timeClusteringLayoutMode).toBe('docked-left');
     host.dispose();
   });
 
-  it('closes time clustering when switching the base view', async () => {
+  it('preserves a persisted kanban base view when time clustering is already open', () => {
+    localStorage.setItem('workspace-active-view', 'kanban');
+    localStorage.setItem('time-clustering-open', '1');
+
+    const host = getRuntimeHostInternals(createRuntimeHost());
+
+    expect(host.activeView).toBe('kanban');
+    expect(host.timeClusteringOpen).toBe(true);
+
+    host.dispose();
+  });
+
+  it('keeps docked-left time clustering open when switching the base view', async () => {
+    const host = getRuntimeHostInternals(createRuntimeHost());
+    const show = vi.fn<[string], Promise<void>>().mockResolvedValue();
+    host.shell = {
+      show,
+      getActiveModule: () => null,
+      dispose(): void {},
+    };
+    host.activeView = 'canvas';
+    host.timeClusteringOpen = true;
+    host.timeClusteringLayoutMode = 'docked-left';
+
+    await host.setActiveView('kanban');
+
+    expect(show).toHaveBeenCalledWith('kanban');
+    expect(host.activeView).toBe('kanban');
+    expect(host.timeClusteringOpen).toBe(true);
+    expect(host.timeClusteringLayoutMode).toBe('docked-left');
+
+    host.dispose();
+  });
+
+  it('closes fullscreen time clustering when switching the base view', async () => {
     const host = getRuntimeHostInternals(createRuntimeHost());
     const show = vi.fn<[string], Promise<void>>().mockResolvedValue();
     host.shell = {

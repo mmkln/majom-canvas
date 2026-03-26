@@ -152,6 +152,48 @@ function getClusterSegment(
   return segment!;
 }
 
+function mockWeekColumnRects(dateKeys: string[]): void {
+  const columnWidth = 100;
+  const columnHeight = 24 * 56;
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+    function mockGetBoundingClientRect(this: HTMLElement): DOMRect {
+      if (this.dataset.role === 'calendar-day-column') {
+        const dateKey = this.dataset.dateKey ?? '';
+        const index = dateKeys.indexOf(dateKey);
+        if (index >= 0) {
+          const left = index * columnWidth;
+          const top = 0;
+          const right = left + columnWidth;
+          const bottom = top + columnHeight;
+          return {
+            x: left,
+            y: top,
+            width: columnWidth,
+            height: columnHeight,
+            top,
+            right,
+            bottom,
+            left,
+            toJSON: () => ({}),
+          } as DOMRect;
+        }
+      }
+
+      return {
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+        toJSON: () => ({}),
+      } as DOMRect;
+    }
+  );
+}
+
 describe('TimeClusteringRootView', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -159,6 +201,7 @@ describe('TimeClusteringRootView', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.useRealTimers();
     document.body.innerHTML = '';
   });
@@ -426,6 +469,76 @@ describe('TimeClusteringRootView', () => {
     const segment = getClusterSegment(store, '2026-03-25', 'cluster-1');
     expect(segment.startMinute).toBe(9 * 60 + 15);
     expect(segment.endMinute).toBe(10 * 60 + 45);
+
+    view.unmount();
+    store.destroy();
+  });
+
+  it('moves a cluster to another day in fullscreen week mode when dragged horizontally', () => {
+    const weekDateKeys = [
+      '2026-03-23',
+      '2026-03-24',
+      '2026-03-25',
+      '2026-03-26',
+      '2026-03-27',
+      '2026-03-28',
+      '2026-03-29',
+    ];
+    const store = new TimeClusteringStore(
+      createRepository(
+        createSnapshot({
+          selectedDateKey: '2026-03-23',
+          weekAnchorDateKey: '2026-03-23',
+        })
+      )
+    );
+    const { view } = createView(store, 'fullscreen');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    mockWeekColumnRects(weekDateKeys);
+    view.mount(parent);
+
+    const clusterBlock = parent.querySelector<HTMLDivElement>(
+      '[data-role="cluster-block"][data-cluster-id="cluster-1"][data-date-key="2026-03-25"]'
+    );
+    expect(clusterBlock).not.toBeNull();
+
+    dispatchPointerEvent(clusterBlock!, 'pointerdown', {
+      clientX: 250,
+      clientY: 520,
+    });
+    dispatchPointerEvent(window, 'pointermove', {
+      clientX: 350,
+      clientY: 520,
+    });
+
+    expect(
+      parent.querySelector(
+        '[data-role="cluster-block"][data-cluster-id="cluster-1"][data-date-key="2026-03-26"]'
+      )
+    ).not.toBeNull();
+    expect(
+      parent.querySelector(
+        '[data-role="cluster-block"][data-cluster-id="cluster-1"][data-date-key="2026-03-25"]'
+      )
+    ).toBeNull();
+
+    dispatchPointerEvent(window, 'pointerup', {
+      clientX: 350,
+      clientY: 520,
+      buttons: 0,
+    });
+
+    expect(
+      buildTimeClusterSegmentsForDate('2026-03-25', [getCluster(store, 'cluster-1')])
+    ).toHaveLength(0);
+    expect(getClusterSegment(store, '2026-03-26', 'cluster-1').startMinute).toBe(
+      9 * 60
+    );
+    expect(getClusterSegment(store, '2026-03-26', 'cluster-1').endMinute).toBe(
+      10 * 60 + 30
+    );
 
     view.unmount();
     store.destroy();
