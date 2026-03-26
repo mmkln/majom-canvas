@@ -1,8 +1,13 @@
 import type { WorkspaceView } from './WorkspaceView.ts';
+import type { TimeClusteringLayoutMode } from '../time-clustering/domain/types.ts';
 
 export const WORKSPACE_ACTIVE_VIEW_STORAGE_KEY = 'workspace-active-view';
 export const AI_ASSISTANT_OPEN_STORAGE_KEY = 'ai-assistant-open';
 export const TIME_CLUSTERING_OPEN_STORAGE_KEY = 'time-clustering-open';
+export const TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY =
+  'time-clustering-layout-mode';
+export const TIME_CLUSTERING_OVERLAP_WARNINGS_VISIBLE_STORAGE_KEY =
+  'time-clustering-overlap-warnings-visible';
 const LEGACY_WORKSPACE_CHAT_OPEN_STORAGE_KEY = 'workspace-chat-open';
 
 type LoadPersistedWorkspaceViewOptions = {
@@ -58,6 +63,58 @@ export function loadPersistedTimeClusteringOpen(
 export function persistTimeClusteringOpen(open: boolean): void {
   try {
     localStorage.setItem(TIME_CLUSTERING_OPEN_STORAGE_KEY, open ? '1' : '0');
+  } catch {
+    // no-op
+  }
+}
+
+export function loadPersistedTimeClusteringLayoutMode(
+  defaultMode: TimeClusteringLayoutMode = 'docked-left'
+): TimeClusteringLayoutMode {
+  try {
+    const value = localStorage.getItem(TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY);
+    if (value === 'docked-left' || value === 'fullscreen') {
+      return value;
+    }
+  } catch {
+    return defaultMode;
+  }
+  return defaultMode;
+}
+
+export function persistTimeClusteringLayoutMode(
+  mode: TimeClusteringLayoutMode
+): void {
+  try {
+    localStorage.setItem(TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY, mode);
+  } catch {
+    // no-op
+  }
+}
+
+export function loadPersistedTimeClusteringOverlapWarningsVisible(
+  defaultVisible = true
+): boolean {
+  try {
+    const value = localStorage.getItem(
+      TIME_CLUSTERING_OVERLAP_WARNINGS_VISIBLE_STORAGE_KEY
+    );
+    if (value === '1' || value === 'true') return true;
+    if (value === '0' || value === 'false') return false;
+  } catch {
+    return defaultVisible;
+  }
+  return defaultVisible;
+}
+
+export function persistTimeClusteringOverlapWarningsVisible(
+  visible: boolean
+): void {
+  try {
+    localStorage.setItem(
+      TIME_CLUSTERING_OVERLAP_WARNINGS_VISIBLE_STORAGE_KEY,
+      visible ? '1' : '0'
+    );
   } catch {
     // no-op
   }

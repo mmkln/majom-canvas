@@ -83,6 +83,9 @@ const WEEK_VIEW_DAY_WIDTH_PX = 136;
 const CLUSTER_STEP_MINUTES = MIN_CLUSTER_DURATION_MINUTES;
 const CLUSTER_DRAG_THRESHOLD_PX = 4;
 const CLUSTER_DOUBLE_CLICK_WINDOW_MS = 300;
+const DAY_VIEW_OVERLAP_HORIZONTAL_INSET_PX = 1;
+const DAY_VIEW_OVERLAP_WIDTH_PERCENT_TRIM = 0.1;
+const DAY_VIEW_OVERLAP_WIDTH_PX_TRIM = 2;
 const CLUSTER_COLOR_TOKENS = [
   'blue',
   'green',
@@ -2634,7 +2637,7 @@ export class TimeClusteringRootView {
     const verticalInsetPx = isDayMode ? 0 : 1;
     const horizontalInsetPx = isDayMode
       ? laneCount > 1
-        ? 4
+        ? DAY_VIEW_OVERLAP_HORIZONTAL_INSET_PX
         : 0
       : isWeekOverlap
         ? 1
@@ -2644,9 +2647,19 @@ export class TimeClusteringRootView {
       HOUR_ROW_HEIGHT_PX;
     const height = Math.max(baseHeight - verticalInsetPx * 2, 32);
     const widthPercent = Math.max(
-      laneWidthPercent - (isDayMode ? 1.5 : isWeekOverlap ? 0.1 : 0.35),
+      laneWidthPercent -
+        (isDayMode
+          ? DAY_VIEW_OVERLAP_WIDTH_PERCENT_TRIM
+          : isWeekOverlap
+            ? 0.1
+            : 0.35),
       laneCount > 1
-        ? laneWidthPercent - (isDayMode ? 2.5 : isWeekOverlap ? 0.15 : 0.5)
+        ? laneWidthPercent -
+            (isDayMode
+              ? DAY_VIEW_OVERLAP_WIDTH_PERCENT_TRIM + 0.05
+              : isWeekOverlap
+                ? 0.15
+                : 0.5)
         : isDayMode
           ? 97
           : 99.25
@@ -2668,7 +2681,7 @@ export class TimeClusteringRootView {
         ? `calc(${leftPercent}% + ${horizontalInsetPx}px)`
         : `${horizontalInsetPx}px`;
     if (laneCount > 1) {
-      block.style.width = `calc(${widthPercent}% - ${isDayMode ? 6 : isWeekOverlap ? 2 : 4}px)`;
+      block.style.width = `calc(${widthPercent}% - ${isDayMode ? DAY_VIEW_OVERLAP_WIDTH_PX_TRIM : isWeekOverlap ? 2 : 4}px)`;
     } else {
       block.style.width =
         horizontalInsetPx === 0

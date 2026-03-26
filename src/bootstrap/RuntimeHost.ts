@@ -29,9 +29,13 @@ import {
 } from '../features/ai-assistant/aiAssistantEvents.ts';
 import {
   loadPersistedAiAssistantOpen,
+  loadPersistedTimeClusteringLayoutMode,
+  loadPersistedTimeClusteringOverlapWarningsVisible,
   loadPersistedTimeClusteringOpen,
   loadPersistedWorkspaceView,
   persistAiAssistantOpen,
+  persistTimeClusteringLayoutMode,
+  persistTimeClusteringOverlapWarningsVisible,
   persistTimeClusteringOpen,
   persistWorkspaceView,
 } from '../features/shell/workspaceUiState.ts';
@@ -63,13 +67,16 @@ type TimeClusteringIslandModule = {
   mount(parent: HTMLElement): void;
   unmount(): void;
   setLayoutMode(mode: TimeClusteringLayoutMode): void;
+  setShowOverlapWarnings(show: boolean): void;
 };
 
 type TimeClusteringModuleNamespace = {
   TimeClusteringModule: new (options?: {
     runtime?: AppRuntime;
     initialLayoutMode?: TimeClusteringLayoutMode;
+    initialShowOverlapWarnings?: boolean;
     onLayoutModeChange?: (mode: TimeClusteringLayoutMode) => void;
+    onShowOverlapWarningsChange?: (show: boolean) => void;
   }) => TimeClusteringIslandModule;
 };
 
@@ -95,7 +102,8 @@ export class RuntimeHost {
   private activeView: WorkspaceView = 'canvas';
   private chatOpen = false;
   private timeClusteringOpen = false;
-  private timeClusteringLayoutMode: TimeClusteringLayoutMode = 'docked-left';
+  private timeClusteringLayoutMode: TimeClusteringLayoutMode;
+  private timeClusteringShowOverlapWarnings = true;
   private hostVisible = false;
   private starting = false;
   private runtimeChromeMounted = false;
@@ -160,6 +168,10 @@ export class RuntimeHost {
     this.timeClusteringOpen = loadPersistedTimeClusteringOpen(
       TIME_CLUSTERING_DEV_ENABLED
     );
+    this.timeClusteringLayoutMode =
+      loadPersistedTimeClusteringLayoutMode('docked-left');
+    this.timeClusteringShowOverlapWarnings =
+      loadPersistedTimeClusteringOverlapWarningsVisible(true);
     this.activeView = loadPersistedWorkspaceView({
       allowKanban: KANBAN_DEV_ENABLED,
     });
@@ -382,8 +394,11 @@ export class RuntimeHost {
         this.timeClusteringModule = new TimeClusteringModule({
           runtime: this.runtime,
           initialLayoutMode: this.timeClusteringLayoutMode,
+          initialShowOverlapWarnings: this.timeClusteringShowOverlapWarnings,
           onLayoutModeChange: (mode) =>
             this.handleTimeClusteringLayoutModeChange(mode),
+          onShowOverlapWarningsChange: (show) =>
+            this.handleTimeClusteringOverlapWarningsChange(show),
         });
       }
       await this.shell.show(this.activeView);
@@ -442,6 +457,10 @@ export class RuntimeHost {
     }
   }
 
+  private handleTimeClusteringOverlapWarningsChange(show: boolean): void {
+    this.syncTimeClusteringOverlapWarnings(show);
+  }
+
   private setTimeClusteringLayoutMode(mode: TimeClusteringLayoutMode): void {
     if (!this.syncTimeClusteringLayoutMode(mode)) return;
     this.timeClusteringModule?.setLayoutMode(mode);
@@ -452,8 +471,16 @@ export class RuntimeHost {
   ): boolean {
     if (this.timeClusteringLayoutMode === mode) return false;
     this.timeClusteringLayoutMode = mode;
+    persistTimeClusteringLayoutMode(mode);
     this.viewSwitcher.setTimeClusteringLayoutMode(mode);
     emitTimeClusteringLayoutModeChanged(mode);
+    return true;
+  }
+
+  private syncTimeClusteringOverlapWarnings(show: boolean): boolean {
+    if (this.timeClusteringShowOverlapWarnings === show) return false;
+    this.timeClusteringShowOverlapWarnings = show;
+    persistTimeClusteringOverlapWarningsVisible(show);
     return true;
   }
 

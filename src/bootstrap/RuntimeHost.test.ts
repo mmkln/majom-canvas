@@ -64,6 +64,10 @@ vi.mock('../features/ai-assistant/services/AiAssistantCapabilities.ts', () => ({
 }));
 
 import { RuntimeHost } from './RuntimeHost.ts';
+import {
+  TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY,
+  TIME_CLUSTERING_OVERLAP_WARNINGS_VISIBLE_STORAGE_KEY,
+} from '../features/shell/workspaceUiState.ts';
 
 type RuntimeHostInternalAccess = {
   workspaceRoot: HTMLDivElement;
@@ -72,10 +76,12 @@ type RuntimeHostInternalAccess = {
   activeView: 'canvas' | 'kanban';
   timeClusteringOpen: boolean;
   timeClusteringLayoutMode: 'docked-left' | 'fullscreen';
+  timeClusteringShowOverlapWarnings: boolean;
   timeClusteringModule: {
     mount: (parent: HTMLElement) => void;
     unmount: () => void;
     setLayoutMode: (mode: 'docked-left' | 'fullscreen') => void;
+    setShowOverlapWarnings: (show: boolean) => void;
     getAiAssistantSnapshot: () => null;
   } | null;
   shell: {
@@ -85,6 +91,10 @@ type RuntimeHostInternalAccess = {
   } | null;
   applyVisibility: () => void;
   handleTimeClusteringToggleRequest: (open?: boolean) => void;
+  handleTimeClusteringLayoutModeChange: (
+    mode: 'docked-left' | 'fullscreen'
+  ) => void;
+  handleTimeClusteringOverlapWarningsChange: (show: boolean) => void;
   setActiveView: (view: 'canvas' | 'kanban') => Promise<void>;
   dispose: () => void;
 };
@@ -131,6 +141,9 @@ function createTimeClusteringModuleStub(): NonNullable<
     unmount(): void {},
     setLayoutMode(mode: 'docked-left' | 'fullscreen'): void {
       void mode;
+    },
+    setShowOverlapWarnings(show: boolean): void {
+      void show;
     },
     getAiAssistantSnapshot(): null {
       return null;
@@ -191,11 +204,11 @@ describe('RuntimeHost time clustering island layout', () => {
 
     host.applyVisibility();
 
-    expect(host.workspaceRoot.style.left).toBe('390px');
+    expect(host.workspaceRoot.style.left).toBe('430px');
     expect(host.workspaceRoot.style.right).toBe('0px');
     expect(host.timeClusteringIslandRoot.style.display).toBe('block');
     expect(host.timeClusteringIslandRoot.style.left).toBe('0px');
-    expect(host.timeClusteringIslandRoot.style.width).toBe('380px');
+    expect(host.timeClusteringIslandRoot.style.width).toBe('430px');
     expect(canvas.style.display).toBe('block');
 
     host.dispose();
@@ -247,11 +260,44 @@ describe('RuntimeHost time clustering island layout', () => {
   it('preserves a persisted kanban base view when time clustering is already open', () => {
     localStorage.setItem('workspace-active-view', 'kanban');
     localStorage.setItem('time-clustering-open', '1');
+    localStorage.setItem(TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY, 'fullscreen');
+    localStorage.setItem(
+      TIME_CLUSTERING_OVERLAP_WARNINGS_VISIBLE_STORAGE_KEY,
+      '0'
+    );
 
     const host = getRuntimeHostInternals(createRuntimeHost());
 
     expect(host.activeView).toBe('kanban');
     expect(host.timeClusteringOpen).toBe(true);
+    expect(host.timeClusteringLayoutMode).toBe('fullscreen');
+    expect(host.timeClusteringShowOverlapWarnings).toBe(false);
+
+    host.dispose();
+  });
+
+  it('persists time clustering layout mode changes', () => {
+    const host = getRuntimeHostInternals(createRuntimeHost());
+
+    host.handleTimeClusteringLayoutModeChange('fullscreen');
+
+    expect(
+      localStorage.getItem(TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY)
+    ).toBe('fullscreen');
+    expect(host.timeClusteringLayoutMode).toBe('fullscreen');
+
+    host.dispose();
+  });
+
+  it('persists overlap warning visibility changes', () => {
+    const host = getRuntimeHostInternals(createRuntimeHost());
+
+    host.handleTimeClusteringOverlapWarningsChange(false);
+
+    expect(
+      localStorage.getItem(TIME_CLUSTERING_OVERLAP_WARNINGS_VISIBLE_STORAGE_KEY)
+    ).toBe('0');
+    expect(host.timeClusteringShowOverlapWarnings).toBe(false);
 
     host.dispose();
   });
@@ -296,6 +342,9 @@ describe('RuntimeHost time clustering island layout', () => {
     expect(host.activeView).toBe('kanban');
     expect(host.timeClusteringOpen).toBe(false);
     expect(host.timeClusteringLayoutMode).toBe('docked-left');
+    expect(
+      localStorage.getItem(TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY)
+    ).toBe('docked-left');
 
     host.dispose();
   });
