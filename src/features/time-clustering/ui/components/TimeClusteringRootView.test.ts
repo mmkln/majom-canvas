@@ -764,6 +764,8 @@ describe('TimeClusteringRootView', () => {
       '[data-role="time-clustering-menu"]'
     );
     const navigationRow = periodSwitcher?.parentElement;
+    const navigationStart = viewModeSwitcher?.parentElement;
+    const navigationActions = addClusterButton?.parentElement;
     const secondaryNav = daySwitcher?.parentElement;
 
     expect(secondaryNav?.firstElementChild).toBe(navigationRow);
@@ -777,6 +779,13 @@ describe('TimeClusteringRootView', () => {
     expect(viewModeSwitcher).not.toBeNull();
     expect(addClusterButton).not.toBeNull();
     expect(timeClusteringMenu).not.toBeNull();
+    expect(navigationRow?.className).toContain('grid-cols-[auto_1fr_auto]');
+    expect(navigationStart?.contains(viewModeSwitcher ?? null)).toBe(true);
+    expect(navigationStart).not.toBe(navigationActions);
+    expect(periodSwitcher?.className).toContain('justify-self-center');
+    expect(navigationActions?.className).toContain('justify-self-end');
+    expect(navigationActions?.className).toContain('gap-1.5');
+    expect(navigationActions?.className).not.toContain('rounded-xl');
     expect(
       daySwitcher?.querySelectorAll('[data-role="day-switch-button"]')
     ).toHaveLength(7);
@@ -806,6 +815,12 @@ describe('TimeClusteringRootView', () => {
     expect(dayButton?.getAttribute('aria-checked')).toBe('true');
     expect(weekButton?.dataset.selected).toBe('false');
     expect(weekButton?.getAttribute('aria-checked')).toBe('false');
+    expect(dayButton?.querySelector('[data-icon-name="rectangle-stack"]')).not.toBeNull();
+    expect(
+      weekButton?.querySelector('[data-icon-name="calendar-date-range"]')
+    ).not.toBeNull();
+    expect(dayButton?.querySelector('span')?.className).toContain('sr-only');
+    expect(weekButton?.querySelector('span')?.className).toContain('sr-only');
 
     view.unmount();
     store.destroy();

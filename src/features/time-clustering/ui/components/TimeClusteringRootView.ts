@@ -684,7 +684,7 @@ export class TimeClusteringRootView {
       'flex h-full w-full flex-col overflow-hidden bg-slate-50 text-slate-900';
 
     const header = document.createElement('div');
-    header.className = 'border-b border-slate-200 bg-white px-5 py-4';
+    header.className = 'border-b border-slate-200 bg-white px-5 py-3';
 
     this.addClusterButton = createIconButton({
       icon: 'plus',
@@ -746,7 +746,7 @@ export class TimeClusteringRootView {
 
     const navigationRow = document.createElement('div');
     navigationRow.className =
-      'flex flex-col items-start gap-2 sm:flex-row sm:flex-wrap sm:items-center';
+      'grid grid-cols-[auto_1fr_auto] items-center gap-3';
 
     const periodPicker = createStepPicker({
       previousLabel: this.i18n.t('timeClustering.period.previous'),
@@ -785,26 +785,35 @@ export class TimeClusteringRootView {
 
     this.periodSwitcher.append(this.periodDateInput);
 
+    const navigationStart = document.createElement('div');
+    navigationStart.className = 'inline-flex min-w-0 items-center';
+
     this.viewModeControl = createSegmentedControl<TimeClusteringLayoutMode>({
       ariaLabel: this.i18n.t('timeClustering.viewMode'),
       size: 'sm',
+      variant: 'bare',
       value: this.layoutMode,
       options: [
         {
           id: 'time-clustering-view-day',
           value: 'docked-left',
           label: this.i18n.t('timeClustering.view.day'),
+          icon: 'rectangle-stack',
+          title: this.i18n.t('timeClustering.view.day'),
         },
         {
           id: 'time-clustering-view-week',
           value: 'fullscreen',
           label: this.i18n.t('timeClustering.view.week'),
+          icon: 'calendar-date-range',
+          title: this.i18n.t('timeClustering.view.week'),
         },
       ],
       onChange: (mode) => this.onLayoutModeChange(mode),
     });
     this.viewModeSwitcher = this.viewModeControl.element;
     this.viewModeSwitcher.dataset.role = 'view-mode-switcher';
+    this.viewModeSwitcher.classList.add('shrink-0');
     const [dayModeButton, weekModeButton] = Array.from(
       this.viewModeSwitcher.querySelectorAll<HTMLButtonElement>('button')
     );
@@ -814,16 +823,29 @@ export class TimeClusteringRootView {
     this.dayModeButton.dataset.mode = 'day';
     this.weekModeButton.dataset.role = 'view-mode-button';
     this.weekModeButton.dataset.mode = 'week';
+    this.dayModeButton.title = this.i18n.t('timeClustering.view.day');
+    this.dayModeButton.setAttribute(
+      'aria-label',
+      this.i18n.t('timeClustering.view.day')
+    );
+    this.weekModeButton.title = this.i18n.t('timeClustering.view.week');
+    this.weekModeButton.setAttribute(
+      'aria-label',
+      this.i18n.t('timeClustering.view.week')
+    );
+    this.dayModeButton.querySelector('span')?.classList.add('sr-only');
+    this.weekModeButton.querySelector('span')?.classList.add('sr-only');
+    navigationStart.append(this.viewModeSwitcher);
 
     const navigationActions = document.createElement('div');
     navigationActions.className =
-      'inline-flex shrink-0 items-center gap-2 self-start';
+      'inline-flex shrink-0 items-center justify-self-end gap-1.5';
     navigationActions.append(
-      this.viewModeSwitcher,
       this.addClusterButton,
       this.timeClusteringMenuContainer
     );
-    navigationRow.append(this.periodSwitcher, navigationActions);
+    this.periodSwitcher.classList.add('justify-self-center');
+    navigationRow.append(navigationStart, this.periodSwitcher, navigationActions);
 
     this.daySwitcher = document.createElement('div');
     this.daySwitcher.className = 'grid w-full grid-cols-7 gap-0.5';
@@ -901,11 +923,23 @@ export class TimeClusteringRootView {
     const dayLabel = this.dayModeButton.querySelector('span');
     if (dayLabel) {
       dayLabel.textContent = this.i18n.t('timeClustering.view.day');
+      dayLabel.classList.add('sr-only');
     }
+    this.dayModeButton.title = this.i18n.t('timeClustering.view.day');
+    this.dayModeButton.setAttribute(
+      'aria-label',
+      this.i18n.t('timeClustering.view.day')
+    );
     const weekLabel = this.weekModeButton.querySelector('span');
     if (weekLabel) {
       weekLabel.textContent = this.i18n.t('timeClustering.view.week');
+      weekLabel.classList.add('sr-only');
     }
+    this.weekModeButton.title = this.i18n.t('timeClustering.view.week');
+    this.weekModeButton.setAttribute(
+      'aria-label',
+      this.i18n.t('timeClustering.view.week')
+    );
     this.renderSnapshot(this.store.getSnapshot());
     this.refreshClusterEditModalTranslations?.();
   }

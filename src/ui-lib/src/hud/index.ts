@@ -100,6 +100,7 @@ export {
   HudSegmentedControl as SegmentedControl,
   type HudSegmentedControlOption as SegmentedControlOption,
   type HudSegmentedControlSize as SegmentedControlSize,
+  type HudSegmentedControlVariant as SegmentedControlVariant,
 } from './HudSegmentedControl.ts';
 export {
   createHudStepPicker as createStepPicker,
@@ -223,6 +224,7 @@ export {
   HudSegmentedControl,
   type HudSegmentedControlOption,
   type HudSegmentedControlSize,
+  type HudSegmentedControlVariant,
 } from './HudSegmentedControl.ts';
 export {
   createHudSelectionChip,

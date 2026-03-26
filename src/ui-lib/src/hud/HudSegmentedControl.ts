@@ -1,6 +1,8 @@
 import {
+  HUD_SEGMENTED_CONTROL_BARE_CLASS,
   HUD_SEGMENTED_CONTROL_CLASS,
   HUD_SEGMENTED_ITEM_ACTIVE_CLASS,
+  HUD_SEGMENTED_ITEM_BARE_SM_CLASS,
   HUD_SEGMENTED_ITEM_CLASS,
   HUD_SEGMENTED_ITEM_DISABLED_CLASS,
   HUD_SEGMENTED_ITEM_INACTIVE_CLASS,
@@ -10,6 +12,7 @@ import {
 import { createIcon, type IconName } from './icons.ts';
 
 export type HudSegmentedControlSize = 'sm' | 'md';
+export type HudSegmentedControlVariant = 'default' | 'bare';
 
 export type HudSegmentedControlOption<T> = {
   id: string;
@@ -25,6 +28,7 @@ type HudSegmentedControlOptions<T> = {
   options: HudSegmentedControlOption<T>[];
   value?: T | null;
   size?: HudSegmentedControlSize;
+  variant?: HudSegmentedControlVariant;
   className?: string;
   fullWidth?: boolean;
   disabled?: boolean;
@@ -42,6 +46,21 @@ const classBySize: Record<HudSegmentedControlSize, string> = {
   sm: HUD_SEGMENTED_ITEM_SM_CLASS,
   md: HUD_SEGMENTED_ITEM_MD_CLASS,
 };
+
+const classByVariant: Record<HudSegmentedControlVariant, string> = {
+  default: HUD_SEGMENTED_CONTROL_CLASS,
+  bare: HUD_SEGMENTED_CONTROL_BARE_CLASS,
+};
+
+function getItemSizeClass(
+  size: HudSegmentedControlSize,
+  variant: HudSegmentedControlVariant
+): string {
+  if (variant === 'bare' && size === 'sm') {
+    return HUD_SEGMENTED_ITEM_BARE_SM_CLASS;
+  }
+  return classBySize[size];
+}
 
 function toggleClassNames(
   element: Element,
@@ -70,7 +89,7 @@ export class HudSegmentedControl<T> {
     this.element = document.createElement('div');
     this.element.setAttribute('data-component', 'HudSegmentedControl');
     this.element.className =
-      `${HUD_SEGMENTED_CONTROL_CLASS} ${options.className ?? ''}`.trim();
+      `${classByVariant[options.variant ?? 'default']} ${options.className ?? ''}`.trim();
     if (options.fullWidth) {
       this.element.style.display = 'flex';
       this.element.style.width = '100%';
@@ -112,7 +131,9 @@ export class HudSegmentedControl<T> {
     this.element.innerHTML = '';
     this.entries.length = 0;
 
-    const sizeClass = classBySize[this.options.size ?? 'md'];
+    const size = this.options.size ?? 'md';
+    const variant = this.options.variant ?? 'default';
+    const sizeClass = getItemSizeClass(size, variant);
     this.options.options.forEach((option, index) => {
       const button = document.createElement('button');
       button.type = 'button';

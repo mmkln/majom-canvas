@@ -128,11 +128,15 @@ export const HUD_SELECT_INLINE_CLASS =
 export const HUD_SEGMENTED_CONTROL_CLASS =
   'inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1';
 
+export const HUD_SEGMENTED_CONTROL_BARE_CLASS =
+  'inline-flex items-center gap-1 rounded-lg border-transparent bg-transparent p-0';
+
 export const HUD_SEGMENTED_ITEM_CLASS =
   'inline-flex items-center justify-center rounded-md px-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:ring-offset-0';
 
 export const HUD_SEGMENTED_ITEM_SM_CLASS = 'h-7 min-w-7 text-xs';
 export const HUD_SEGMENTED_ITEM_MD_CLASS = 'h-8 min-w-8 text-sm';
+export const HUD_SEGMENTED_ITEM_BARE_SM_CLASS = 'h-8 min-w-8 text-xs';
 
 export const HUD_SEGMENTED_ITEM_ACTIVE_CLASS = 'bg-indigo-50 text-indigo-800';
 
@@ -224,9 +228,11 @@ export const SELECT_BASE_CLASS = HUD_SELECT_BASE_CLASS;
 export const SELECT_DEFAULT_CLASS = HUD_SELECT_DEFAULT_CLASS;
 export const SELECT_INLINE_CLASS = HUD_SELECT_INLINE_CLASS;
 export const SEGMENTED_CONTROL_CLASS = HUD_SEGMENTED_CONTROL_CLASS;
+export const SEGMENTED_CONTROL_BARE_CLASS = HUD_SEGMENTED_CONTROL_BARE_CLASS;
 export const SEGMENTED_ITEM_CLASS = HUD_SEGMENTED_ITEM_CLASS;
 export const SEGMENTED_ITEM_SM_CLASS = HUD_SEGMENTED_ITEM_SM_CLASS;
 export const SEGMENTED_ITEM_MD_CLASS = HUD_SEGMENTED_ITEM_MD_CLASS;
+export const SEGMENTED_ITEM_BARE_SM_CLASS = HUD_SEGMENTED_ITEM_BARE_SM_CLASS;
 export const SEGMENTED_ITEM_ACTIVE_CLASS = HUD_SEGMENTED_ITEM_ACTIVE_CLASS;
 export const SEGMENTED_ITEM_INACTIVE_CLASS = HUD_SEGMENTED_ITEM_INACTIVE_CLASS;
 export const SEGMENTED_ITEM_DISABLED_CLASS = HUD_SEGMENTED_ITEM_DISABLED_CLASS;
