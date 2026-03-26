@@ -4,15 +4,19 @@ export interface TimeCluster {
   id: string;
   title: string;
   colorToken: string;
-  startMinute: number;
-  endMinute: number;
-  parallelizable: boolean;
+  startAtIso: string;
+  endAtIso: string;
 }
 
-export interface DayClusterPlan {
+export interface TimeClusterSegment {
+  cluster: TimeCluster;
   dateKey: string; // YYYY-MM-DD in local timezone
-  clusters: TimeCluster[];
-  updatedAtIso: string;
+  startMinute: number;
+  endMinute: number;
+  continuesBefore: boolean;
+  continuesAfter: boolean;
+  isStartSegment: boolean;
+  isEndSegment: boolean;
 }
 
 export interface DuplicationWarning {
@@ -22,7 +26,7 @@ export interface DuplicationWarning {
 }
 
 export interface DuplicationResult {
-  plan: DayClusterPlan;
+  clusters: TimeCluster[];
   warnings: DuplicationWarning[];
 }
 
@@ -42,6 +46,6 @@ export interface TimeClusteringSuggestionAction {
 export interface TimeClusteringStateSnapshot {
   selectedDateKey: string;
   weekAnchorDateKey: string;
-  plansByDate: Record<string, DayClusterPlan>;
+  clusters: TimeCluster[];
   lastWarnings: DuplicationWarning[];
 }

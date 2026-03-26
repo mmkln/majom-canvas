@@ -1,35 +1,67 @@
 import type {
-  DayClusterPlan,
   DuplicationResult,
   DuplicationWarning,
   TimeCluster,
 } from './types.ts';
+import {
+  dayDifference,
+  differenceInMinutes,
+  getDateKeyForIso,
+  parseIsoToMillis,
+  shiftIsoByDays,
+} from './time.ts';
 
-export const MINUTES_PER_DAY = 24 * 60;
+export { MINUTES_PER_DAY } from './time.ts';
 
-export function clampMinute(value: number): number {
-  if (value < 0) return 0;
-  if (value > MINUTES_PER_DAY) return MINUTES_PER_DAY;
-  return value;
+export const MIN_CLUSTER_DURATION_MINUTES = 15;
+
+function fallbackStartTime(): number {
+  return Date.now();
 }
 
-export function normalizeCluster(cluster: TimeCluster): TimeCluster {
-  const startMinute = clampMinute(cluster.startMinute);
-  const endMinute = clampMinute(cluster.endMinute);
+function normalizeIsoRange(cluster: TimeCluster): {
+  startAtIso: string;
+  endAtIso: string;
+} {
+  const rawStartMs = parseIsoToMillis(cluster.startAtIso);
+  const rawEndMs = parseIsoToMillis(cluster.endAtIso);
+  let startMs =
+    rawStartMs ?? (rawEndMs ?? fallbackStartTime()) - MIN_CLUSTER_DURATION_MINUTES * 60_000;
+  let endMs =
+    rawEndMs ?? (rawStartMs ?? fallbackStartTime()) + MIN_CLUSTER_DURATION_MINUTES * 60_000;
+
+  if (endMs - startMs < MIN_CLUSTER_DURATION_MINUTES * 60_000) {
+    endMs = startMs + MIN_CLUSTER_DURATION_MINUTES * 60_000;
+  }
+
   return {
-    ...cluster,
-    startMinute: Math.min(startMinute, endMinute),
-    endMinute: Math.max(startMinute, endMinute),
+    startAtIso: new Date(startMs).toISOString(),
+    endAtIso: new Date(endMs).toISOString(),
   };
 }
 
-export function canClustersOverlap(a: TimeCluster, b: TimeCluster): boolean {
-  // Stage 1 policy: overlap is allowed only when both clusters are explicitly marked parallelizable.
-  return a.parallelizable && b.parallelizable;
+export function normalizeCluster(cluster: TimeCluster): TimeCluster {
+  const normalizedRange = normalizeIsoRange(cluster);
+  return {
+    ...cluster,
+    ...normalizedRange,
+  };
 }
 
 export function hasTimeIntersection(a: TimeCluster, b: TimeCluster): boolean {
-  return a.startMinute < b.endMinute && b.startMinute < a.endMinute;
+  const aStart = parseIsoToMillis(a.startAtIso);
+  const aEnd = parseIsoToMillis(a.endAtIso);
+  const bStart = parseIsoToMillis(b.startAtIso);
+  const bEnd = parseIsoToMillis(b.endAtIso);
+  if (
+    aStart === null ||
+    aEnd === null ||
+    bStart === null ||
+    bEnd === null
+  ) {
+    return false;
+  }
+  return aStart < bEnd && bStart < aEnd;
 }
 
 export function validateClusterPlacement(
@@ -41,7 +73,6 @@ export function validateClusterPlacement(
 
   for (const cluster of existing) {
     if (!hasTimeIntersection(normalized, cluster)) continue;
-    if (canClustersOverlap(normalized, cluster)) continue;
     warnings.push({
       type: 'time-collision',
       sourceClusterId: normalized.id,
@@ -52,29 +83,50 @@ export function validateClusterPlacement(
   return warnings;
 }
 
-export function duplicateDayPlanKeepBoth(params: {
-  source: DayClusterPlan;
-  targetDateKey: string;
-  targetExisting?: DayClusterPlan | null;
-  nowIso: string;
-}): DuplicationResult {
-  const { nowIso, source, targetDateKey, targetExisting } = params;
+function buildDuplicateClusterId(
+  cluster: TimeCluster,
+  targetDateKey: string,
+  index: number
+): string {
+  return `${cluster.id}_${targetDateKey}_${index + 1}`;
+}
 
-  const existingClusters = targetExisting?.clusters ?? [];
-  const clonedClusters = source.clusters.map((cluster) => ({ ...cluster }));
-  const mergedClusters = [...existingClusters, ...clonedClusters];
+export function duplicateDayClusters(params: {
+  clusters: TimeCluster[];
+  sourceDateKey: string;
+  targetDateKey: string;
+}): DuplicationResult {
+  const { clusters, sourceDateKey, targetDateKey } = params;
+  const dayOffset = dayDifference(sourceDateKey, targetDateKey);
+  const sourceClusters = clusters.filter((cluster) => {
+    const normalized = normalizeCluster(cluster);
+    return getDateKeyForIso(normalized.startAtIso) === sourceDateKey;
+  });
+
+  const clonedClusters = sourceClusters.map((cluster, index) =>
+    normalizeCluster({
+      ...cluster,
+      id: buildDuplicateClusterId(cluster, targetDateKey, index),
+      startAtIso:
+        shiftIsoByDays(cluster.startAtIso, dayOffset) ?? cluster.startAtIso,
+      endAtIso: shiftIsoByDays(cluster.endAtIso, dayOffset) ?? cluster.endAtIso,
+    })
+  );
 
   const warnings: DuplicationWarning[] = [];
   for (const cluster of clonedClusters) {
-    warnings.push(...validateClusterPlacement(cluster, existingClusters));
+    warnings.push(...validateClusterPlacement(cluster, clusters));
   }
 
   return {
-    plan: {
-      dateKey: targetDateKey,
-      clusters: mergedClusters,
-      updatedAtIso: nowIso,
-    },
+    clusters: clonedClusters,
     warnings,
   };
+}
+
+export function getClusterDurationMinutes(cluster: TimeCluster): number {
+  return Math.max(
+    MIN_CLUSTER_DURATION_MINUTES,
+    differenceInMinutes(cluster.startAtIso, cluster.endAtIso)
+  );
 }

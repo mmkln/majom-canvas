@@ -1,12 +1,36 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { buildTimeClusterSegmentsForDate } from '../../domain/projection.ts';
+import { isoFromDateKeyMinute } from '../../domain/time.ts';
 import type {
+  TimeCluster,
   TimeClusteringLayoutMode,
   TimeClusteringStateSnapshot,
 } from '../../domain/types.ts';
 import type { TimeClusteringRepository } from '../../data/TimeClusteringRepository.ts';
 import { TimeClusteringStore } from '../../state/TimeClusteringStore.ts';
 import { TimeClusteringRootView } from './TimeClusteringRootView.ts';
+
+function createCluster(params: {
+  id: string;
+  title: string;
+  colorToken: string;
+  startDateKey: string;
+  startMinute: number;
+  endDateKey?: string;
+  endMinute: number;
+}): TimeCluster {
+  return {
+    id: params.id,
+    title: params.title,
+    colorToken: params.colorToken,
+    startAtIso: isoFromDateKeyMinute(params.startDateKey, params.startMinute),
+    endAtIso: isoFromDateKeyMinute(
+      params.endDateKey ?? params.startDateKey,
+      params.endMinute
+    ),
+  };
+}
 
 function createRepository(
   snapshot: TimeClusteringStateSnapshot
@@ -25,52 +49,32 @@ function createSnapshot(
     selectedDateKey: '2026-03-25',
     weekAnchorDateKey: '2026-03-25',
     lastWarnings: [],
-    plansByDate: {
-      '2026-03-24': {
-        dateKey: '2026-03-24',
-        updatedAtIso: '2026-03-24T08:00:00.000Z',
-        clusters: [],
-      },
-      '2026-03-25': {
-        dateKey: '2026-03-25',
-        updatedAtIso: '2026-03-25T08:00:00.000Z',
-        clusters: [
-          {
-            id: 'cluster-1',
-            title: 'Deep work',
-            colorToken: 'blue',
-            startMinute: 9 * 60,
-            endMinute: 10 * 60 + 30,
-          },
-        ],
-      },
-      '2026-03-26': {
-        dateKey: '2026-03-26',
-        updatedAtIso: '2026-03-26T08:00:00.000Z',
-        clusters: [
-          {
-            id: 'cluster-2',
-            title: 'Meetings',
-            colorToken: 'green',
-            startMinute: 12 * 60,
-            endMinute: 13 * 60,
-          },
-        ],
-      },
-      '2026-03-27': {
-        dateKey: '2026-03-27',
-        updatedAtIso: '2026-03-27T08:00:00.000Z',
-        clusters: [
-          {
-            id: 'cluster-3',
-            title: 'Review',
-            colorToken: 'amber',
-            startMinute: 15 * 60,
-            endMinute: 16 * 60,
-          },
-        ],
-      },
-    },
+    clusters: [
+      createCluster({
+        id: 'cluster-1',
+        title: 'Deep work',
+        colorToken: 'blue',
+        startDateKey: '2026-03-25',
+        startMinute: 9 * 60,
+        endMinute: 10 * 60 + 30,
+      }),
+      createCluster({
+        id: 'cluster-2',
+        title: 'Meetings',
+        colorToken: 'green',
+        startDateKey: '2026-03-26',
+        startMinute: 12 * 60,
+        endMinute: 13 * 60,
+      }),
+      createCluster({
+        id: 'cluster-3',
+        title: 'Review',
+        colorToken: 'amber',
+        startDateKey: '2026-03-27',
+        startMinute: 15 * 60,
+        endMinute: 16 * 60,
+      }),
+    ],
     ...overrides,
   };
 }
@@ -127,16 +131,25 @@ function dispatchPointerEvent(
   target.dispatchEvent(event);
 }
 
-function getCluster(
+function getCluster(store: TimeClusteringStore, clusterId: string): TimeCluster {
+  const cluster = store
+    .getSnapshot()
+    .clusters.find((entry) => entry.id === clusterId);
+  expect(cluster).toBeDefined();
+  return cluster!;
+}
+
+function getClusterSegment(
   store: TimeClusteringStore,
   dateKey: string,
   clusterId: string
 ) {
-  const cluster = store
-    .getSnapshot()
-    .plansByDate[dateKey]?.clusters.find((entry) => entry.id === clusterId);
-  expect(cluster).toBeDefined();
-  return cluster!;
+  const cluster = getCluster(store, clusterId);
+  const segment = buildTimeClusterSegmentsForDate(dateKey, [cluster]).find(
+    (entry) => entry.cluster.id === clusterId
+  );
+  expect(segment).toBeDefined();
+  return segment!;
 }
 
 describe('TimeClusteringRootView', () => {
@@ -198,35 +211,32 @@ describe('TimeClusteringRootView', () => {
     const store = new TimeClusteringStore(
       createRepository(
         createSnapshot({
-          plansByDate: {
-            '2026-03-25': {
-              dateKey: '2026-03-25',
-              updatedAtIso: '2026-03-25T08:00:00.000Z',
-              clusters: [
-                {
-                  id: 'cluster-overlap-a',
-                  title: 'Overlap A',
-                  colorToken: 'blue',
-                  startMinute: 9 * 60,
-                  endMinute: 10 * 60,
-                },
-                {
-                  id: 'cluster-overlap-b',
-                  title: 'Overlap B',
-                  colorToken: 'green',
-                  startMinute: 9 * 60 + 30,
-                  endMinute: 10 * 60 + 30,
-                },
-                {
-                  id: 'cluster-standalone',
-                  title: 'Standalone',
-                  colorToken: 'amber',
-                  startMinute: 14 * 60,
-                  endMinute: 15 * 60,
-                },
-              ],
-            },
-          },
+          clusters: [
+            createCluster({
+              id: 'cluster-overlap-a',
+              title: 'Overlap A',
+              colorToken: 'blue',
+              startDateKey: '2026-03-25',
+              startMinute: 9 * 60,
+              endMinute: 10 * 60,
+            }),
+            createCluster({
+              id: 'cluster-overlap-b',
+              title: 'Overlap B',
+              colorToken: 'green',
+              startDateKey: '2026-03-25',
+              startMinute: 9 * 60 + 30,
+              endMinute: 10 * 60 + 30,
+            }),
+            createCluster({
+              id: 'cluster-standalone',
+              title: 'Standalone',
+              colorToken: 'amber',
+              startDateKey: '2026-03-25',
+              startMinute: 14 * 60,
+              endMinute: 15 * 60,
+            }),
+          ],
         })
       )
     );
@@ -334,10 +344,10 @@ describe('TimeClusteringRootView', () => {
     const titleInput = document.body.querySelector<HTMLInputElement>(
       '[data-role="cluster-edit-title-input"]'
     );
-    const startInput = document.body.querySelector<HTMLSelectElement>(
+    const startInput = document.body.querySelector<HTMLInputElement>(
       '[data-role="cluster-edit-start-input"]'
     );
-    const endInput = document.body.querySelector<HTMLSelectElement>(
+    const endInput = document.body.querySelector<HTMLInputElement>(
       '[data-role="cluster-edit-end-input"]'
     );
     const colorPicker = document.body.querySelector<HTMLElement>(
@@ -352,8 +362,8 @@ describe('TimeClusteringRootView', () => {
 
     expect(modal).not.toBeNull();
     expect(titleInput?.value).toBe('Deep work');
-    expect(startInput?.value).toBe(String(9 * 60));
-    expect(endInput?.value).toBe(String(10 * 60 + 30));
+    expect(startInput?.value).toBe('2026-03-25T09:00');
+    expect(endInput?.value).toBe('2026-03-25T10:30');
     expect(colorPicker).not.toBeNull();
     expect(
       document.body.querySelector(
@@ -366,21 +376,25 @@ describe('TimeClusteringRootView', () => {
       titleInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
     if (startInput) {
-      startInput.value = String(10 * 60 + 15);
+      startInput.value = '2026-03-25T10:15';
       startInput.dispatchEvent(new Event('change', { bubbles: true }));
     }
     if (endInput) {
-      endInput.value = String(11 * 60 + 45);
+      endInput.value = '2026-03-25T11:45';
       endInput.dispatchEvent(new Event('change', { bubbles: true }));
     }
     roseColorOption?.click();
     saveButton?.click();
 
-    const cluster = getCluster(store, '2026-03-25', 'cluster-1');
+    const cluster = getCluster(store, 'cluster-1');
     expect(cluster.title).toBe('Updated cluster');
     expect(cluster.colorToken).toBe('rose');
-    expect(cluster.startMinute).toBe(10 * 60 + 15);
-    expect(cluster.endMinute).toBe(11 * 60 + 45);
+    expect(getClusterSegment(store, '2026-03-25', 'cluster-1').startMinute).toBe(
+      10 * 60 + 15
+    );
+    expect(getClusterSegment(store, '2026-03-25', 'cluster-1').endMinute).toBe(
+      11 * 60 + 45
+    );
     expect(
       document.body.querySelector('[data-role="cluster-edit-modal"]')
     ).toBeNull();
@@ -409,9 +423,9 @@ describe('TimeClusteringRootView', () => {
       buttons: 0,
     });
 
-    const cluster = getCluster(store, '2026-03-25', 'cluster-1');
-    expect(cluster.startMinute).toBe(9 * 60 + 15);
-    expect(cluster.endMinute).toBe(10 * 60 + 45);
+    const segment = getClusterSegment(store, '2026-03-25', 'cluster-1');
+    expect(segment.startMinute).toBe(9 * 60 + 15);
+    expect(segment.endMinute).toBe(10 * 60 + 45);
 
     view.unmount();
     store.destroy();
@@ -445,9 +459,9 @@ describe('TimeClusteringRootView', () => {
       buttons: 0,
     });
 
-    const cluster = getCluster(store, '2026-03-25', 'cluster-1');
-    expect(cluster.startMinute).toBe(9 * 60 + 15);
-    expect(cluster.endMinute).toBe(10 * 60 + 30);
+    const segment = getClusterSegment(store, '2026-03-25', 'cluster-1');
+    expect(segment.startMinute).toBe(9 * 60 + 15);
+    expect(segment.endMinute).toBe(10 * 60 + 30);
 
     view.unmount();
     store.destroy();
@@ -481,9 +495,69 @@ describe('TimeClusteringRootView', () => {
       buttons: 0,
     });
 
-    const cluster = getCluster(store, '2026-03-25', 'cluster-1');
-    expect(cluster.startMinute).toBe(9 * 60);
-    expect(cluster.endMinute).toBe(10 * 60 + 45);
+    const segment = getClusterSegment(store, '2026-03-25', 'cluster-1');
+    expect(segment.startMinute).toBe(9 * 60);
+    expect(segment.endMinute).toBe(10 * 60 + 45);
+
+    view.unmount();
+    store.destroy();
+  });
+
+  it('renders overnight clusters across both days and keeps handles on true interval edges', () => {
+    const store = new TimeClusteringStore(
+      createRepository(
+        createSnapshot({
+          clusters: [
+            createCluster({
+              id: 'cluster-sleep',
+              title: 'Sleep',
+              colorToken: 'indigo',
+              startDateKey: '2026-03-25',
+              startMinute: 22 * 60 + 30,
+              endDateKey: '2026-03-26',
+              endMinute: 6 * 60 + 45,
+            }),
+          ],
+        })
+      )
+    );
+    const { view } = createView(store);
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    view.mount(parent);
+
+    let block = parent.querySelector<HTMLDivElement>(
+      '[data-role="cluster-block"][data-cluster-id="cluster-sleep"]'
+    );
+    expect(block?.style.top).toBe('1260px');
+    expect(block?.style.height).toBe('84px');
+
+    dispatchPointerEvent(block!, 'pointerdown', { clientY: 1260 });
+    dispatchPointerEvent(window, 'pointerup', { clientY: 1260, buttons: 0 });
+
+    let handles = Array.from(
+      parent.querySelectorAll<HTMLButtonElement>('[data-role="cluster-resize-handle"]')
+    );
+    expect(handles).toHaveLength(1);
+    expect(handles[0]?.dataset.edge).toBe('start');
+
+    const nextDayButton = parent.querySelector<HTMLButtonElement>(
+      '[data-role="day-switch-button"][data-date-key="2026-03-26"]'
+    );
+    nextDayButton?.click();
+
+    block = parent.querySelector<HTMLDivElement>(
+      '[data-role="cluster-block"][data-cluster-id="cluster-sleep"]'
+    );
+    expect(block?.style.top).toBe('0px');
+    expect(block?.style.height).toBe('378px');
+
+    handles = Array.from(
+      parent.querySelectorAll<HTMLButtonElement>('[data-role="cluster-resize-handle"]')
+    );
+    expect(handles).toHaveLength(1);
+    expect(handles[0]?.dataset.edge).toBe('end');
 
     view.unmount();
     store.destroy();

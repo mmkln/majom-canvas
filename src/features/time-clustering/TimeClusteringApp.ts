@@ -55,7 +55,7 @@ export class TimeClusteringApp {
     const snapshot = this.store.getSnapshot();
     return this.suggestionService.buildSuggestions({
       dateKey: snapshot.selectedDateKey,
-      existingPlans: snapshot.plansByDate,
+      existingClusters: snapshot.clusters,
     });
   }
 }

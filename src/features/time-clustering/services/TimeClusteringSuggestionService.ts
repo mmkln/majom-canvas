@@ -1,4 +1,9 @@
-import type { DayClusterPlan, TimeClusteringSuggestionAction } from '../domain/types.ts';
+import { buildTimeClusterSegmentsForDate } from '../domain/projection.ts';
+import { isoFromDateKeyMinute } from '../domain/time.ts';
+import type {
+  TimeCluster,
+  TimeClusteringSuggestionAction,
+} from '../domain/types.ts';
 
 export interface TimeClusteringSuggestion {
   id: string;
@@ -10,35 +15,42 @@ export interface TimeClusteringSuggestion {
 export interface TimeClusteringSuggestionService {
   buildSuggestions(params: {
     dateKey: string;
-    existingPlans: Record<string, DayClusterPlan>;
+    existingClusters: TimeCluster[];
   }): Promise<TimeClusteringSuggestion[]>;
 }
 
-export class StubTimeClusteringSuggestionService implements TimeClusteringSuggestionService {
+export class StubTimeClusteringSuggestionService
+  implements TimeClusteringSuggestionService
+{
   public async buildSuggestions(params: {
     dateKey: string;
-    existingPlans: Record<string, DayClusterPlan>;
+    existingClusters: TimeCluster[];
   }): Promise<TimeClusteringSuggestion[]> {
-    const dayPlan = params.existingPlans[params.dateKey];
-    const hasMorningCluster = dayPlan?.clusters.some((cluster) => cluster.startMinute <= 9 * 60) ?? false;
+    const daySegments = buildTimeClusterSegmentsForDate(
+      params.dateKey,
+      params.existingClusters
+    );
+    const hasMorningCluster = daySegments.some(
+      (cluster) => cluster.startMinute < 12 * 60 && cluster.endMinute > 9 * 60
+    );
 
     if (!hasMorningCluster) {
       return [
         {
-          id: `${params.dateKey}_morning_focus`,
-          title: 'Add morning focus block',
-          description: 'Protect a focused morning segment before noon.',
+          id: `${params.dateKey}_morning_block`,
+          title: 'Add morning block',
+          description: 'Reserve a dedicated morning segment before noon.',
           action: {
-            id: `${params.dateKey}_morning_focus_action`,
+            id: `${params.dateKey}_morning_block_action`,
             type: 'suggest_create_cluster',
-            explanation: 'A dedicated morning block improves predictable progress on priority work.',
+            explanation:
+              'A dedicated morning block helps protect a reliable chunk of time before noon.',
             payload: {
               dateKey: params.dateKey,
-              title: 'Morning Focus',
+              title: 'Morning block',
               colorToken: 'indigo',
-              startMinute: 9 * 60,
-              endMinute: 11 * 60,
-              parallelizable: false,
+              startAtIso: isoFromDateKeyMinute(params.dateKey, 9 * 60),
+              endAtIso: isoFromDateKeyMinute(params.dateKey, 11 * 60),
             },
           },
         },
