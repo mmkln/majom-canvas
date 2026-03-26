@@ -13,6 +13,8 @@ import {
   setSidebarRailButtonActive,
   SIDEBAR_TOKENS,
 } from '../../ui-lib/src/hud/index.ts';
+import { AppRuntime, createAppRuntime } from '../../app-runtime/index.ts';
+import type { I18nService } from '../../i18n/index.ts';
 
 const CONTROL_TRANSITION = 'background-color 120ms ease, color 120ms ease';
 
@@ -20,11 +22,11 @@ type WorkspaceControlsBarVariant = 'floating' | 'header' | 'sidebar';
 
 type ViewOption = {
   view: WorkspaceView;
-  label: string;
   icon: IconName;
 };
 
 type WorkspaceControlsBarOptions = {
+  runtime?: AppRuntime;
   initialView: WorkspaceView;
   initialChatOpen?: boolean;
   initialTimeClusteringOpen?: boolean;
@@ -58,8 +60,8 @@ type VariantMetrics = {
 };
 
 const VIEW_OPTIONS: ViewOption[] = [
-  { view: 'canvas', label: 'Canvas', icon: 'map' },
-  { view: 'kanban', label: 'Kanban', icon: 'view-columns' },
+  { view: 'canvas', icon: 'map' },
+  { view: 'kanban', icon: 'view-columns' },
 ];
 
 const VARIANT_METRICS: Record<WorkspaceControlsBarVariant, VariantMetrics> = {
@@ -128,18 +130,26 @@ const VARIANT_METRICS: Record<WorkspaceControlsBarVariant, VariantMetrics> = {
 export class WorkspaceControlsBar {
   public readonly element: HTMLDivElement;
   public readonly shouldRender: boolean;
+  private readonly runtime: AppRuntime;
+  private readonly i18n: I18nService;
   private readonly variant: WorkspaceControlsBarVariant;
   private readonly metrics: VariantMetrics;
   private readonly routinesModal: HabitsQuickModal | null;
   private readonly viewButtons = new Map<WorkspaceView, HTMLButtonElement>();
   private readonly timeClusteringButton: HTMLButtonElement | null;
   private readonly chatButton: HTMLButtonElement | null;
+  private viewGroup: HTMLDivElement | null = null;
+  private routinesButton: HTMLButtonElement | null = null;
+  private routinesLabel: HTMLSpanElement | null = null;
   private activeView: WorkspaceView;
   private chatOpen: boolean;
   private timeClusteringOpen: boolean;
   private timeClusteringLayoutMode: TimeClusteringLayoutMode;
+  private disposeRuntimeSubscription: (() => void) | null = null;
 
   constructor(options: WorkspaceControlsBarOptions) {
+    this.runtime = options.runtime ?? createAppRuntime();
+    this.i18n = this.runtime.i18n;
     this.variant = options.variant ?? 'floating';
     this.metrics = VARIANT_METRICS[this.variant];
     this.activeView = options.initialView;
@@ -165,9 +175,9 @@ export class WorkspaceControlsBar {
 
     this.timeClusteringButton = showTimeClustering
       ? this.createIconButton({
-          label: 'Toggle time clustering panel',
+          label: this.i18n.t('workspaceControls.toggleTimeClusteringPanel'),
           icon: 'rectangle-stack',
-          title: 'Time Clustering',
+          title: this.i18n.t('workspaceControls.timeClustering'),
         })
       : null;
     this.timeClusteringButton?.addEventListener('click', () => {
@@ -183,7 +193,10 @@ export class WorkspaceControlsBar {
     if (shouldRenderViewGroup) {
       const group = document.createElement('div');
       group.setAttribute('role', 'radiogroup');
-      group.setAttribute('aria-label', 'Workspace view');
+      group.setAttribute(
+        'aria-label',
+        this.i18n.t('workspaceControls.workspaceView')
+      );
       if (this.variant === 'sidebar') {
         group.className = 'flex flex-col items-center gap-1.5';
       } else {
@@ -194,10 +207,11 @@ export class WorkspaceControlsBar {
       }
 
       viewOptions.forEach((option) => {
+        const label = this.getViewLabel(option.view);
         const button = this.createIconButton({
-          label: option.label,
+          label,
           icon: option.icon,
-          title: option.label,
+          title: label,
         });
         button.dataset.view = option.view;
         button.setAttribute('role', 'radio');
@@ -211,24 +225,28 @@ export class WorkspaceControlsBar {
         group.appendChild(button);
       });
 
+      this.viewGroup = group;
       this.element.appendChild(group);
     }
 
-    this.routinesModal = showRoutines ? new HabitsQuickModal() : null;
+    this.routinesModal = showRoutines
+      ? new HabitsQuickModal(undefined, this.runtime)
+      : null;
     if (showRoutines) {
       if (shouldRenderViewGroup) {
         this.element.appendChild(this.createDivider());
       }
-      this.element.appendChild(
-        this.createRoutinesButton(() => this.routinesModal?.open())
+      this.routinesButton = this.createRoutinesButton(() =>
+        this.routinesModal?.open()
       );
+      this.element.appendChild(this.routinesButton);
     }
 
     this.chatButton = showChat
       ? this.createIconButton({
-          label: 'Toggle AI assistant panel',
+          label: this.i18n.t('workspaceControls.toggleAiAssistantPanel'),
           icon: 'chat-bubble-left',
-          title: 'AI Assistant',
+          title: this.i18n.t('workspaceControls.aiAssistant'),
         })
       : null;
     this.chatButton?.addEventListener('click', () => {
@@ -241,11 +259,17 @@ export class WorkspaceControlsBar {
       this.element.appendChild(this.chatButton);
     }
 
+    this.disposeRuntimeSubscription = this.runtime.subscribe(
+      () => this.refreshTranslations(),
+      { emitCurrent: true }
+    );
     this.syncButtons();
   }
 
   public destroy(): void {
-    this.routinesModal?.close();
+    this.disposeRuntimeSubscription?.();
+    this.disposeRuntimeSubscription = null;
+    this.routinesModal?.destroy();
   }
 
   public setActiveView(view: WorkspaceView): void {
@@ -348,29 +372,30 @@ export class WorkspaceControlsBar {
   }
 
   private createRoutinesButton(onClick: () => void): HTMLButtonElement {
+    this.routinesLabel = null;
     if (this.variant === 'sidebar') {
       return createSidebarRailButton({
         icon: 'check-circle',
-        title: 'Routines',
-        ariaLabel: 'Open routines',
+        title: this.i18n.t('workspaceControls.routines'),
+        ariaLabel: this.i18n.t('workspaceControls.openRoutines'),
         onClick: () => onClick(),
       });
     }
 
     const button = document.createElement('button');
     button.type = 'button';
-    button.title = 'Routines';
-    button.setAttribute('aria-label', 'Open routines');
+    button.title = this.i18n.t('workspaceControls.routines');
+    button.setAttribute(
+      'aria-label',
+      this.i18n.t('workspaceControls.openRoutines')
+    );
     button.style.border = 'none';
     button.style.borderRadius = `${this.metrics.routinesRadiusPx}px`;
     button.style.display = 'inline-flex';
     button.style.alignItems = 'center';
     button.style.justifyContent = 'center';
     button.style.gap = '6px';
-    button.style.width =
-      this.variant === 'sidebar'
-        ? `${this.metrics.routinesHeightPx}px`
-        : 'auto';
+    button.style.width = 'auto';
     button.style.height = `${this.metrics.routinesHeightPx}px`;
     button.style.padding = this.metrics.routinesPadding;
     button.style.cursor = 'pointer';
@@ -392,13 +417,58 @@ export class WorkspaceControlsBar {
     button.appendChild(icon);
     if (this.metrics.showRoutinesLabel) {
       const label = document.createElement('span');
-      label.textContent = 'Routines';
+      label.textContent = this.i18n.t('workspaceControls.routines');
       label.style.fontSize = '12px';
       label.style.fontWeight = '600';
       label.style.lineHeight = '1';
+      this.routinesLabel = label;
       button.appendChild(label);
     }
     return button;
+  }
+
+  private refreshTranslations(): void {
+    this.viewGroup?.setAttribute(
+      'aria-label',
+      this.i18n.t('workspaceControls.workspaceView')
+    );
+    this.viewButtons.forEach((button, view) => {
+      const label = this.getViewLabel(view);
+      button.title = label;
+      button.setAttribute('aria-label', label);
+    });
+    if (this.routinesButton) {
+      this.routinesButton.title = this.i18n.t('workspaceControls.routines');
+      this.routinesButton.setAttribute(
+        'aria-label',
+        this.i18n.t('workspaceControls.openRoutines')
+      );
+    }
+    if (this.routinesLabel) {
+      this.routinesLabel.textContent = this.i18n.t('workspaceControls.routines');
+    }
+    if (this.timeClusteringButton) {
+      this.timeClusteringButton.title = this.i18n.t(
+        'workspaceControls.timeClustering'
+      );
+      this.timeClusteringButton.setAttribute(
+        'aria-label',
+        this.i18n.t('workspaceControls.toggleTimeClusteringPanel')
+      );
+    }
+    if (this.chatButton) {
+      this.chatButton.title = this.i18n.t('workspaceControls.aiAssistant');
+      this.chatButton.setAttribute(
+        'aria-label',
+        this.i18n.t('workspaceControls.toggleAiAssistantPanel')
+      );
+    }
+  }
+
+  private getViewLabel(view: WorkspaceView): string {
+    return view === 'kanban'
+      ? this.i18n.t('workspaceControls.kanban')
+      : this.i18n.t('workspaceControls.canvas');
   }
 
   private createDivider(): HTMLSpanElement {

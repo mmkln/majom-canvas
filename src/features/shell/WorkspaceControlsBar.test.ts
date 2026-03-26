@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { WorkspaceControlsBar } from './WorkspaceControlsBar.ts';
+import { createAppRuntime } from '../../app-runtime/index.ts';
 import {
   TIME_CLUSTERING_TOGGLE_REQUEST_EVENT,
   WORKSPACE_VIEW_CHANGE_REQUEST_EVENT,
@@ -245,5 +246,43 @@ describe('WorkspaceControlsBar floating variant', () => {
     expect(chatButton.dataset.active).toBe('true');
     expect(chatButton.style.background).toBe('rgb(238, 242, 255)');
     expect(chatButton.style.color).toBe('rgb(67, 56, 202)');
+  });
+
+  it('refreshes control labels when locale changes', () => {
+    const runtime = createAppRuntime({ initialLocale: 'en' });
+    const bar = new WorkspaceControlsBar({
+      runtime,
+      initialView: 'canvas',
+      initialChatOpen: false,
+      initialTimeClusteringOpen: true,
+      showKanban: true,
+      showTimeClustering: true,
+      showRoutines: true,
+      showChat: true,
+      variant: 'floating',
+    });
+
+    const routinesButton = getButtonByAriaLabel(bar.element, 'Open routines');
+    const chatButton = getButtonByAriaLabel(
+      bar.element,
+      'Toggle AI assistant panel'
+    );
+    const timeButton = getButtonByAriaLabel(
+      bar.element,
+      'Toggle time clustering panel'
+    );
+
+    runtime.setLocale('uk');
+
+    expect(routinesButton?.getAttribute('aria-label')).toBe('Відкрити рутини');
+    expect(chatButton?.getAttribute('aria-label')).toBe(
+      'Перемкнути панель AI асистента'
+    );
+    expect(timeButton?.title).toBe('Кластери часу');
+    expect(
+      bar.element
+        .querySelector('[role="radiogroup"]')
+        ?.getAttribute('aria-label')
+    ).toBe('Режим workspace');
   });
 });

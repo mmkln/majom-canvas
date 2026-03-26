@@ -10,6 +10,8 @@ import {
   createSurface,
   createTextButton,
 } from './primitives/index.ts';
+import { AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
+import type { I18nService } from '../../../i18n/index.ts';
 
 type MiniMapToggleOptions = {
   initialVisible?: boolean;
@@ -17,6 +19,7 @@ type MiniMapToggleOptions = {
 };
 
 type CanvasControlsOptions = {
+  runtime?: AppRuntime;
   embedded?: boolean;
   orientation?: 'vertical' | 'horizontal';
   surface?: boolean;
@@ -27,7 +30,11 @@ type CanvasControlsOptions = {
 };
 
 export class CanvasControls {
+  private readonly runtime: AppRuntime;
+  private readonly i18n: I18nService;
   private readonly container: HTMLDivElement;
+  private readonly zoomOutBtn: HTMLButtonElement;
+  private readonly zoomInBtn: HTMLButtonElement;
   private readonly goToFocusBtn: HTMLButtonElement;
   private readonly miniMapToggleBtn: HTMLButtonElement | null;
   private readonly miniMapToggleHandler: ((visible: boolean) => void) | null;
@@ -37,6 +44,7 @@ export class CanvasControls {
   private readonly zoomMenuPanel: HTMLDivElement | null;
   private focusSubscription: Subscription;
   private unsubscribeZoomChange: (() => void) | null = null;
+  private disposeRuntimeSubscription: (() => void) | null = null;
   private miniMapVisible = true;
 
   constructor(
@@ -44,6 +52,8 @@ export class CanvasControls {
     private scene: Scene,
     options: CanvasControlsOptions = {}
   ) {
+    this.runtime = options.runtime ?? createAppRuntime();
+    this.i18n = this.runtime.i18n;
     const embedded = options.embedded ?? false;
     const useSurface = options.surface ?? true;
     const orientation = options.orientation ?? 'vertical';
@@ -62,17 +72,17 @@ export class CanvasControls {
       this.container.className = className;
     }
 
-    const zoomOutBtn = createIconButton({
+    this.zoomOutBtn = createIconButton({
       icon: 'minus',
-      title: 'Zoom Out',
-      ariaLabel: 'Zoom Out',
+      title: this.i18n.t('canvasControls.zoomOut'),
+      ariaLabel: this.i18n.t('canvasControls.zoomOut'),
       onClick: () => this.canvasManager.zoomOut(),
     });
 
-    const zoomInBtn = createIconButton({
+    this.zoomInBtn = createIconButton({
       icon: 'plus',
-      title: 'Zoom In',
-      ariaLabel: 'Zoom In',
+      title: this.i18n.t('canvasControls.zoomIn'),
+      ariaLabel: this.i18n.t('canvasControls.zoomIn'),
       onClick: () => this.canvasManager.zoomIn(),
     });
 
@@ -128,23 +138,23 @@ export class CanvasControls {
     }
 
     if (isHorizontal) {
-      zoomCluster.appendChild(zoomOutBtn);
+      zoomCluster.appendChild(this.zoomOutBtn);
       if (zoomWrap) {
         zoomCluster.appendChild(zoomWrap);
       }
-      zoomCluster.appendChild(zoomInBtn);
+      zoomCluster.appendChild(this.zoomInBtn);
     } else {
-      zoomCluster.appendChild(zoomInBtn);
+      zoomCluster.appendChild(this.zoomInBtn);
       if (zoomWrap) {
         zoomCluster.appendChild(zoomWrap);
       }
-      zoomCluster.appendChild(zoomOutBtn);
+      zoomCluster.appendChild(this.zoomOutBtn);
     }
 
     this.goToFocusBtn = createIconButton({
       icon: 'map-pin',
-      title: 'Go to Focus',
-      ariaLabel: 'Go to Focus',
+      title: this.i18n.t('canvasControls.goToFocus'),
+      ariaLabel: this.i18n.t('canvasControls.goToFocus'),
       onClick: () => this.canvasManager.goToFocusedElement(),
     });
 
@@ -156,8 +166,8 @@ export class CanvasControls {
           icon: this.miniMapVisible
             ? 'arrows-pointing-in'
             : 'arrows-pointing-out',
-          title: this.miniMapVisible ? 'Hide mini map' : 'Show mini map',
-          ariaLabel: this.miniMapVisible ? 'Hide mini map' : 'Show mini map',
+          title: this.getMiniMapToggleLabel(),
+          ariaLabel: this.getMiniMapToggleLabel(),
           onClick: () => this.handleMiniMapToggle(),
         })
       : null;
@@ -200,6 +210,10 @@ export class CanvasControls {
   public mount(parent: HTMLElement = document.body) {
     parent.appendChild(this.container);
     this.zoomMenuController?.mount();
+    this.disposeRuntimeSubscription = this.runtime.subscribe(
+      () => this.refreshTranslations(),
+      { emitCurrent: true }
+    );
   }
 
   public getElement(): HTMLDivElement {
@@ -210,6 +224,8 @@ export class CanvasControls {
     this.focusSubscription.unsubscribe();
     this.unsubscribeZoomChange?.();
     this.unsubscribeZoomChange = null;
+    this.disposeRuntimeSubscription?.();
+    this.disposeRuntimeSubscription = null;
     this.zoomMenuController?.close();
     this.zoomMenuController?.unmount();
     this.container.remove();
@@ -236,7 +252,7 @@ export class CanvasControls {
     const iconName = this.miniMapVisible
       ? 'arrows-pointing-in'
       : 'arrows-pointing-out';
-    const label = this.miniMapVisible ? 'Hide mini map' : 'Show mini map';
+    const label = this.getMiniMapToggleLabel();
     this.miniMapToggleBtn.title = label;
     this.miniMapToggleBtn.setAttribute('aria-label', label);
     this.miniMapToggleBtn.replaceChildren();
@@ -250,7 +266,7 @@ export class CanvasControls {
     const percent = Math.round(this.canvasManager.panZoom.scale * 100);
     this.zoomValueEl.textContent = `${percent}%`;
     if (this.zoomIndicatorBtn) {
-      const label = `Zoom ${percent} percent. Open zoom options`;
+      const label = this.i18n.t('canvasControls.zoomIndicator', { percent });
       this.zoomIndicatorBtn.title = label;
       this.zoomIndicatorBtn.setAttribute('aria-label', label);
     }
@@ -321,5 +337,25 @@ export class CanvasControls {
     if (this.zoomMenuController?.isOpen()) {
       this.zoomMenuController.reposition();
     }
+  }
+
+  private refreshTranslations(): void {
+    const zoomOut = this.i18n.t('canvasControls.zoomOut');
+    const zoomIn = this.i18n.t('canvasControls.zoomIn');
+    const goToFocus = this.i18n.t('canvasControls.goToFocus');
+    this.zoomOutBtn.title = zoomOut;
+    this.zoomOutBtn.setAttribute('aria-label', zoomOut);
+    this.zoomInBtn.title = zoomIn;
+    this.zoomInBtn.setAttribute('aria-label', zoomIn);
+    this.goToFocusBtn.title = goToFocus;
+    this.goToFocusBtn.setAttribute('aria-label', goToFocus);
+    this.updateMiniMapToggleButton();
+    this.updateZoomIndicator();
+  }
+
+  private getMiniMapToggleLabel(): string {
+    return this.miniMapVisible
+      ? this.i18n.t('canvasControls.hideMiniMap')
+      : this.i18n.t('canvasControls.showMiniMap');
   }
 }

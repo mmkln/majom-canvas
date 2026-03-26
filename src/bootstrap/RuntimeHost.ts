@@ -164,6 +164,7 @@ export class RuntimeHost {
       allowKanban: KANBAN_DEV_ENABLED,
     });
     this.viewSwitcher = new WorkspaceViewSwitcher(this.activeView, {
+      runtime: this.runtime,
       initialTimeClusteringOpen: this.timeClusteringOpen,
       initialTimeClusteringLayoutMode: this.timeClusteringLayoutMode,
       showKanban: KANBAN_DEV_ENABLED,

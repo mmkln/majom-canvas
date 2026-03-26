@@ -5,6 +5,7 @@ import { CanvasControls } from './CanvasControls.ts';
 import { MiniMap } from './MiniMap.ts';
 import { createSurface } from './primitives/index.ts';
 import { applyCanvasHudCornerPosition } from './canvasHudLayout.ts';
+import { AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
 
 /**
  * Groups minimap and navigation controls into one right-bottom dock.
@@ -17,7 +18,11 @@ export class CanvasNavigationDock {
   private miniMapVisible: boolean;
   private miniMapMounted = false;
 
-  constructor(scene: Scene, canvasManager: CanvasManager) {
+  constructor(
+    scene: Scene,
+    canvasManager: CanvasManager,
+    runtime: AppRuntime = createAppRuntime()
+  ) {
     this.miniMapVisible = CanvasClientStorage.getMiniMapVisible(true);
     this.container = createSurface({
       className: 'absolute z-20 flex flex-col overflow-visible p-0',
@@ -32,6 +37,7 @@ export class CanvasNavigationDock {
       className: 'border-none',
     });
     this.canvasControls = new CanvasControls(canvasManager, scene, {
+      runtime,
       embedded: true,
       orientation: 'horizontal',
       surface: false,

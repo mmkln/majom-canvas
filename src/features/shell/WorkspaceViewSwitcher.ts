@@ -1,8 +1,10 @@
 import { WorkspaceControlsBar } from './WorkspaceControlsBar.ts';
 import type { WorkspaceView } from './WorkspaceView.ts';
 import type { TimeClusteringLayoutMode } from '../time-clustering/domain/types.ts';
+import { AppRuntime, createAppRuntime } from '../../app-runtime/index.ts';
 
 type WorkspaceViewSwitcherOptions = {
+  runtime?: AppRuntime;
   showKanban?: boolean;
   showTimeClustering?: boolean;
   showRoutines?: boolean;
@@ -21,6 +23,7 @@ export class WorkspaceViewSwitcher {
     options: WorkspaceViewSwitcherOptions = {}
   ) {
     this.controls = new WorkspaceControlsBar({
+      runtime: options.runtime ?? createAppRuntime(),
       initialView,
       initialTimeClusteringOpen: options.initialTimeClusteringOpen,
       initialTimeClusteringLayoutMode: options.initialTimeClusteringLayoutMode,

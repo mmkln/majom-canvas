@@ -187,9 +187,12 @@ export class GlobalAppHeader {
     const initialWorkspaceView = loadPersistedWorkspaceView({
       allowKanban: KANBAN_DEV_ENABLED,
     });
-    this.routinesModal = ROUTINES_ENABLED ? new HabitsQuickModal() : null;
+    this.routinesModal = ROUTINES_ENABLED
+      ? new HabitsQuickModal(undefined, this.runtime)
+      : null;
 
     this.controls = new WorkspaceControlsBar({
+      runtime: this.runtime,
       initialView: initialWorkspaceView,
       initialChatOpen,
       initialTimeClusteringOpen,
@@ -333,7 +336,7 @@ export class GlobalAppHeader {
       TIME_CLUSTERING_VISIBILITY_CHANGED_EVENT,
       this.timeClusteringVisibilityChangedHandler as EventListener
     );
-    this.routinesModal?.close();
+    this.routinesModal?.destroy();
     this.localeSubmenu?.destroy();
     this.localeSubmenu = null;
     this.controls?.destroy();

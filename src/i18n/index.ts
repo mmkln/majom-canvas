@@ -10,3 +10,7 @@ export {
   resolveAppLocale,
   type AppLocale,
 } from './I18nService.ts';
+export type {
+  AppTranslationKey,
+  AppTranslations,
+} from './locales/en.ts';

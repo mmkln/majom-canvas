@@ -220,7 +220,7 @@ describe('HabitsQuickModal routines management', () => {
     await modal.toggleCell(row, day, false);
 
     expect(row.completionByDateKey.get(yesterdayKey)).toBe(false);
-    expect(modal.error).toBe('Failed to update routine completion.');
+    expect(modal.errorKey).toBe('habits.error.toggleCompletion');
   });
 
   it('ignores repeated toggle calls while the same cell request is pending', async () => {
@@ -310,9 +310,10 @@ describe('HabitsQuickModal routines management', () => {
 
     const tableWrap = table?.parentElement as HTMLDivElement | null;
     expect(tableWrap).not.toBeNull();
-    expect(tableWrap.className).toContain('w-full');
-    expect(tableWrap.className).toContain('rounded-xl');
-    expect(tableWrap.className).toContain('border-slate-200/80');
+    const assuredTableWrap = tableWrap as HTMLDivElement;
+    expect(assuredTableWrap.className).toContain('w-full');
+    expect(assuredTableWrap.className).toContain('rounded-xl');
+    expect(assuredTableWrap.className).toContain('border-slate-200/80');
 
     const headers = Array.from(
       modal.body.querySelectorAll('thead th')
@@ -433,7 +434,7 @@ describe('HabitsQuickModal routines management', () => {
 
     expect(deleteHabit).toHaveBeenCalledWith(11);
     expect(modal.rows).toHaveLength(1);
-    expect(modal.error).toBe('Failed to delete routine.');
+    expect(modal.errorKey).toBe('habits.error.delete');
   });
 
   it('does not delete routine when confirmation is cancelled', async () => {

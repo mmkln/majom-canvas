@@ -79,7 +79,8 @@ export class UIManager {
   ) {
     this.canvasNavigationDock = new CanvasNavigationDock(
       this.scene,
-      this.canvasManager
+      this.canvasManager,
+      this.runtime
     );
     const canvasBoardSelector = new CanvasBoardSelector();
 
@@ -98,7 +99,7 @@ export class UIManager {
       onSmartGuidesToggle: (enabled) =>
         this.canvasManager.setSmartGuidesEnabled(enabled),
     });
-    const saveControls = new SaveControls(canvasMenu);
+    const saveControls = new SaveControls(canvasMenu, this.runtime);
     this.addExistingTaskService = new AddExistingTaskService(
       this.scene,
       this.canvasManager
@@ -220,11 +221,7 @@ export class UIManager {
       const customEvent = event as CustomEvent<ExistingPickerDragStartedDetail>;
       const detail = customEvent.detail;
       if (!detail?.item) return;
-      this.activeExistingPickerDrag = {
-        kind: detail.kind,
-        item: detail.item,
-        title: detail.title,
-      };
+      this.activeExistingPickerDrag = detail;
       this.startExternalGoalDragMode(
         detail.title,
         detail.clientX,
@@ -254,14 +251,7 @@ export class UIManager {
         typeof detail.clientY === 'number' &&
         this.isInsideExternalGoalOverlay(detail.clientX, detail.clientY)
       ) {
-        this.handleCanvasDropPayload(
-          {
-            kind: dragPayload.kind,
-            item: dragPayload.item,
-          },
-          detail.clientX,
-          detail.clientY
-        );
+        this.handleCanvasDropPayload(dragPayload, detail.clientX, detail.clientY);
       }
       this.stopExternalGoalDragMode();
     };

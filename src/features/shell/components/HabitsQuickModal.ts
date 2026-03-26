@@ -14,6 +14,8 @@ import {
   type DateCompletion,
   type Habit,
 } from '../../../majom-wrapper/interfaces/index.ts';
+import type { AppTranslationKey, I18nService } from '../../../i18n/index.ts';
+import { AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
 import { KANBAN_REFRESH_REQUEST_EVENT } from '../../kanban/kanbanEvents.ts';
 import { ShellHabitsService } from '../services/ShellHabitsService.ts';
 import { confirmDeleteRoutineModal } from './ConfirmDeleteRoutineModal.ts';
@@ -74,13 +76,8 @@ function parseToDate(value: string | Date | null | undefined): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function buildRecentDays(size: number): HabitDay[] {
+function buildRecentDays(i18n: I18nService, size: number): HabitDay[] {
   const now = new Date();
-  const formatterDay = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
-  const formatterShort = new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-  });
   const days: HabitDay[] = [];
   for (let offset = 0; offset < size; offset += 1) {
     const date = new Date(
@@ -91,8 +88,11 @@ function buildRecentDays(size: number): HabitDay[] {
     days.push({
       date,
       key: toLocalDateKey(date),
-      dayLabel: formatterDay.format(date),
-      shortLabel: formatterShort.format(date),
+      dayLabel: i18n.formatDate(date, { weekday: 'short' }),
+      shortLabel: i18n.formatDate(date, {
+        month: 'short',
+        day: 'numeric',
+      }),
     });
   }
   return days;
@@ -116,18 +116,22 @@ function emitKanbanRefreshRequest(): void {
 }
 
 export class HabitsQuickModal {
+  private readonly runtime: AppRuntime;
+  private readonly i18n: I18nService;
   private overlay: HTMLDivElement | null = null;
+  private header: HTMLDivElement | null = null;
   private body: HTMLDivElement | null = null;
   private footer: HTMLDivElement | null = null;
   private createOverlay: HTMLDivElement | null = null;
+  private createHeader: HTMLDivElement | null = null;
   private createBody: HTMLDivElement | null = null;
   private createFooter: HTMLDivElement | null = null;
   private readonly service: HabitsQuickModalService;
-  private readonly days = buildRecentDays(DAY_WINDOW_SIZE);
+  private days: HabitDay[];
   private rows: HabitRowState[] = [];
   private loading = false;
-  private error: string | null = null;
-  private createError: string | null = null;
+  private errorKey: AppTranslationKey | null = null;
+  private createErrorKey: AppTranslationKey | null = null;
   private refreshVersion = 0;
   private createTitle = '';
   private createPending = false;
@@ -145,23 +149,38 @@ export class HabitsQuickModal {
   private readonly handleStreakOverlayWindowResize = (): void => {
     this.scheduleStreakOverlayRender();
   };
+  private readonly disposeRuntimeSubscription: () => void;
 
-  constructor(service: HabitsQuickModalService = new ShellHabitsService()) {
+  constructor(
+    service: HabitsQuickModalService = new ShellHabitsService(),
+    runtime: AppRuntime = createAppRuntime()
+  ) {
     this.service = service;
+    this.runtime = runtime;
+    this.i18n = runtime.i18n;
+    this.days = buildRecentDays(this.i18n, DAY_WINDOW_SIZE);
+    this.disposeRuntimeSubscription = this.runtime.subscribe(() => {
+      this.days = buildRecentDays(this.i18n, DAY_WINDOW_SIZE);
+      this.refreshTranslations();
+    });
   }
 
   public open(): void {
     if (this.overlay) return;
-    const { overlay, container, body, footer } = createModalShell('Routines', {
-      subtitle: 'Completion history for the last 10 days',
-      onClose: () => this.close(),
-      intent: 'form',
-      zIndex: 260,
-    });
+    const { overlay, container, header, body, footer } = createModalShell(
+      this.i18n.t('habits.modal.title'),
+      {
+        subtitle: this.i18n.t('habits.modal.subtitle'),
+        onClose: () => this.close(),
+        intent: 'form',
+        zIndex: 260,
+      }
+    );
     container.style.width = 'min(68rem, calc(100vw - 2rem))';
     container.style.maxWidth = 'min(68rem, calc(100vw - 2rem))';
 
     this.overlay = overlay;
+    this.header = header;
     this.body = body;
     this.footer = footer;
 
@@ -176,12 +195,13 @@ export class HabitsQuickModal {
     this.overlay.remove();
     this.closeCreateModal();
     this.overlay = null;
+    this.header = null;
     this.body = null;
     this.footer = null;
     this.rows = [];
     this.loading = false;
-    this.error = null;
-    this.createError = null;
+    this.errorKey = null;
+    this.createErrorKey = null;
     this.createTitle = '';
     this.createPending = false;
     this.focusCreateInputOnRender = false;
@@ -189,6 +209,47 @@ export class HabitsQuickModal {
     this.pendingCellKeys.clear();
     this.pendingHabitIds.clear();
     this.disposeRowMenus();
+  }
+
+  public destroy(): void {
+    this.close();
+    this.disposeRuntimeSubscription();
+  }
+
+  private refreshTranslations(): void {
+    this.updateModalHeader(
+      this.header,
+      this.i18n.t('habits.modal.title'),
+      this.i18n.t('habits.modal.subtitle')
+    );
+    this.updateModalHeader(
+      this.createHeader,
+      this.i18n.t('habits.create.title'),
+      this.i18n.t('habits.create.description')
+    );
+    if (this.overlay) {
+      this.renderFooter();
+      this.renderBody();
+    }
+    if (this.createOverlay) {
+      this.renderCreateModal();
+    }
+  }
+
+  private updateModalHeader(
+    header: HTMLDivElement | null,
+    title: string,
+    subtitle: string
+  ): void {
+    if (!header) return;
+    const titleElement = header.querySelector('h2');
+    if (titleElement) {
+      titleElement.textContent = title;
+    }
+    const subtitleElement = header.querySelector('p');
+    if (subtitleElement) {
+      subtitleElement.textContent = subtitle;
+    }
   }
 
   private buildCompletionMap(habit: Habit): Map<string, boolean> {
@@ -401,7 +462,7 @@ export class HabitsQuickModal {
     closeButton.type = 'button';
     closeButton.className =
       'inline-flex h-11 w-full items-center justify-center rounded-lg px-4 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-800 md:h-9 md:w-auto md:min-w-[104px]';
-    closeButton.textContent = 'Close';
+    closeButton.textContent = this.i18n.t('common.close');
     closeButton.addEventListener('click', () => this.close());
 
     row.append(closeButton);
@@ -413,7 +474,7 @@ export class HabitsQuickModal {
     wrap.className = 'flex items-center justify-end';
 
     const newRoutineButton = createTextButton({
-      text: 'New routine',
+      text: this.i18n.t('habits.newRoutine'),
       tone: 'secondary',
       size: 'sm',
       disabled: this.loading || this.createPending,
@@ -432,11 +493,11 @@ export class HabitsQuickModal {
   private openCreateModal(): void {
     if (this.createOverlay) return;
     this.focusCreateInputOnRender = true;
-    this.createError = null;
-    const { overlay, container, body, footer } = createModalShell(
-      'New routine',
+    this.createErrorKey = null;
+    const { overlay, container, header, body, footer } = createModalShell(
+      this.i18n.t('habits.create.title'),
       {
-        subtitle: 'Add a routine you want to track daily.',
+        subtitle: this.i18n.t('habits.create.description'),
         onClose: () => this.closeCreateModal(),
         intent: 'form',
         zIndex: 280,
@@ -445,6 +506,7 @@ export class HabitsQuickModal {
     container.style.width = 'min(30rem, calc(100vw - 2rem))';
     container.style.maxWidth = 'min(30rem, calc(100vw - 2rem))';
     this.createOverlay = overlay;
+    this.createHeader = header;
     this.createBody = body;
     this.createFooter = footer;
     this.renderCreateModal();
@@ -454,9 +516,10 @@ export class HabitsQuickModal {
     if (!this.createOverlay) return;
     this.createOverlay.remove();
     this.createOverlay = null;
+    this.createHeader = null;
     this.createBody = null;
     this.createFooter = null;
-    this.createError = null;
+    this.createErrorKey = null;
     this.focusCreateInputOnRender = false;
   }
 
@@ -474,23 +537,25 @@ export class HabitsQuickModal {
     const bodyWrap = document.createElement('div');
     bodyWrap.className = 'space-y-3';
 
-    if (this.createError) {
+    if (this.createErrorKey) {
       const errorBox = document.createElement('div');
       errorBox.className =
         'rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700';
-      errorBox.textContent = this.createError;
+      errorBox.textContent = this.i18n.t(this.createErrorKey);
       bodyWrap.appendChild(errorBox);
     }
 
     const input = document.createElement('input');
     input.type = 'text';
-    input.placeholder = 'Routine title';
+    input.placeholder = this.i18n.t('habits.create.placeholder');
     input.value = this.createTitle;
     input.disabled = this.loading || this.createPending;
     input.className =
       'h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition-colors focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-100 disabled:text-slate-500';
     const createButton = createTextButton({
-      text: this.createPending ? 'Creating...' : 'Create',
+      text: this.createPending
+        ? this.i18n.t('habits.createPending')
+        : this.i18n.t('common.create'),
       tone: 'primary',
       size: 'sm',
       disabled: this.isCreateSubmitDisabled(),
@@ -518,7 +583,7 @@ export class HabitsQuickModal {
       'flex flex-col-reverse gap-2 md:flex-row md:justify-end';
 
     const cancelButton = createTextButton({
-      text: 'Cancel',
+      text: this.i18n.t('common.cancel'),
       tone: 'text',
       size: 'sm',
       disabled: this.createPending,
@@ -545,18 +610,18 @@ export class HabitsQuickModal {
     const content = document.createElement('div');
     content.className = 'space-y-3 pb-1';
 
-    if (this.error) {
+    if (this.errorKey) {
       const errorBox = document.createElement('div');
       errorBox.className =
         'rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700';
-      errorBox.textContent = this.error;
+      errorBox.textContent = this.i18n.t(this.errorKey);
       content.appendChild(errorBox);
     }
 
     if (this.loading && this.rows.length === 0) {
       const loading = document.createElement('div');
       loading.className = 'py-6 text-sm text-slate-500';
-      loading.textContent = 'Loading routines...';
+      loading.textContent = this.i18n.t('habits.loading');
       content.appendChild(loading);
       this.body.appendChild(content);
       return;
@@ -569,10 +634,10 @@ export class HabitsQuickModal {
 
       const empty = document.createElement('p');
       empty.className = 'max-w-sm text-sm text-slate-500';
-      empty.textContent = 'No active routines yet.';
+      empty.textContent = this.i18n.t('habits.empty');
 
       const createFirstRoutineButton = createTextButton({
-        text: 'Create first routine',
+        text: this.i18n.t('habits.createFirst'),
         tone: 'primary',
         size: 'sm',
         disabled: this.createPending,
@@ -613,7 +678,7 @@ export class HabitsQuickModal {
     titleHead.className =
       `${headerCellBaseClass} ${stickyLeftHeaderClass}`;
     titleHead.setAttribute('scope', 'col');
-    titleHead.textContent = 'Routine';
+    titleHead.textContent = this.i18n.t('habits.table.routine');
     headRow.appendChild(titleHead);
 
     const todayKey = toLocalDateKey(new Date());
@@ -636,10 +701,10 @@ export class HabitsQuickModal {
     actionsHead.className =
       `${headerCellBaseClass} ${stickyRightHeaderClass} w-14`;
     actionsHead.setAttribute('scope', 'col');
-    actionsHead.setAttribute('aria-label', 'Actions');
+    actionsHead.setAttribute('aria-label', this.i18n.t('common.actions'));
     const actionsLabel = document.createElement('span');
     actionsLabel.className = 'sr-only';
-    actionsLabel.textContent = 'Actions';
+    actionsLabel.textContent = this.i18n.t('common.actions');
     actionsHead.appendChild(actionsLabel);
     headRow.appendChild(actionsHead);
 
@@ -736,8 +801,8 @@ export class HabitsQuickModal {
         icon: 'ellipsis-vertical',
         size: 'sm',
         tone: 'text',
-        title: 'Routine actions',
-        ariaLabel: 'Open routine actions',
+        title: this.i18n.t('habits.rowActions'),
+        ariaLabel: this.i18n.t('habits.openRowActions'),
         disabled: this.loading || this.createPending || habitPending,
       });
       menuButton.classList.add('text-slate-600');
@@ -762,7 +827,7 @@ export class HabitsQuickModal {
       this.rowMenuControllers.add(menuController);
 
       const archiveItem = createDropdownItem({
-        label: 'Archive',
+        label: this.i18n.t('common.archive'),
         onClick: () => {
           menuController.close();
           void this.archiveHabit(row);
@@ -771,7 +836,7 @@ export class HabitsQuickModal {
       archiveItem.setAttribute('role', 'menuitem');
 
       const deleteItem = createDropdownItem({
-        label: 'Delete',
+        label: this.i18n.t('common.delete'),
         variant: 'danger',
         onClick: () => {
           menuController.close();
@@ -825,7 +890,7 @@ export class HabitsQuickModal {
     const refreshVersion = this.refreshVersion + 1;
     this.refreshVersion = refreshVersion;
     this.loading = true;
-    this.error = null;
+    this.errorKey = null;
     this.renderFooter();
     this.renderBody();
 
@@ -839,7 +904,7 @@ export class HabitsQuickModal {
       }
     } catch {
       if (refreshVersion === this.refreshVersion) {
-        this.error = 'Failed to load routines.';
+        this.errorKey = 'habits.error.load';
         this.rows = [];
       }
     } finally {
@@ -855,9 +920,9 @@ export class HabitsQuickModal {
     const title = this.createTitle.trim();
     if (!title || this.loading || this.createPending) return;
 
-    this.error = null;
+    this.errorKey = null;
     this.createPending = true;
-    this.createError = null;
+    this.createErrorKey = null;
     this.renderFooter();
     this.renderBody();
     this.renderCreateModal();
@@ -871,8 +936,8 @@ export class HabitsQuickModal {
       this.closeCreateModal();
       emitKanbanRefreshRequest();
     } catch {
-      this.createError = 'Failed to create routine.';
-      this.error = 'Failed to create routine.';
+      this.createErrorKey = 'habits.error.create';
+      this.errorKey = 'habits.error.create';
     } finally {
       this.createPending = false;
       this.renderFooter();
@@ -893,13 +958,13 @@ export class HabitsQuickModal {
     const previousTitle = row.habit.title;
     const nextTitle = nextTitleRaw.trim();
     if (!nextTitle) {
-      this.error = 'Routine title cannot be empty.';
+      this.errorKey = 'habits.error.emptyTitle';
       this.renderBody();
       return;
     }
     if (nextTitle === previousTitle) return;
 
-    this.error = null;
+    this.errorKey = null;
     this.pendingHabitIds.add(habitId);
     row.habit = {
       ...row.habit,
@@ -920,7 +985,7 @@ export class HabitsQuickModal {
         title: previousTitle,
       };
       this.sortRowsByTitle();
-      this.error = 'Failed to rename routine.';
+      this.errorKey = 'habits.error.rename';
     } finally {
       this.pendingHabitIds.delete(habitId);
       this.renderFooter();
@@ -940,9 +1005,15 @@ export class HabitsQuickModal {
     if (this.loading || this.createPending || this.isHabitPending(habitId)) {
       return;
     }
-    if (!this.confirmAction(`Archive routine "${row.habit.title}"?`)) return;
+    if (
+      !this.confirmAction(
+        this.i18n.t('habits.confirmArchive', { title: row.habit.title })
+      )
+    ) {
+      return;
+    }
 
-    this.error = null;
+    this.errorKey = null;
     this.pendingHabitIds.add(habitId);
     this.renderFooter();
     this.renderBody();
@@ -951,7 +1022,7 @@ export class HabitsQuickModal {
       this.rows = this.rows.filter((item) => item.habit.id !== habitId);
       emitKanbanRefreshRequest();
     } catch {
-      this.error = 'Failed to archive routine.';
+      this.errorKey = 'habits.error.archive';
     } finally {
       this.pendingHabitIds.delete(habitId);
       this.renderFooter();
@@ -966,12 +1037,13 @@ export class HabitsQuickModal {
     }
     const confirmed = await confirmDeleteRoutineModal({
       routineTitle: row.habit.title,
+      i18n: this.i18n,
     });
     if (!confirmed) {
       return;
     }
 
-    this.error = null;
+    this.errorKey = null;
     this.pendingHabitIds.add(habitId);
     this.renderFooter();
     this.renderBody();
@@ -980,7 +1052,7 @@ export class HabitsQuickModal {
       this.rows = this.rows.filter((item) => item.habit.id !== habitId);
       emitKanbanRefreshRequest();
     } catch {
-      this.error = 'Failed to delete routine.';
+      this.errorKey = 'habits.error.delete';
     } finally {
       this.pendingHabitIds.delete(habitId);
       this.renderFooter();
@@ -998,7 +1070,7 @@ export class HabitsQuickModal {
     if (this.pendingCellKeys.has(cellKey) || this.isHabitPending(habitId))
       return;
 
-    this.error = null;
+    this.errorKey = null;
     row.completionByDateKey.set(day.key, !previousChecked);
     this.pendingCellKeys.add(cellKey);
     this.renderFooter();
@@ -1014,7 +1086,7 @@ export class HabitsQuickModal {
       emitKanbanRefreshRequest();
     } catch {
       row.completionByDateKey.set(day.key, previousChecked);
-      this.error = 'Failed to update routine completion.';
+      this.errorKey = 'habits.error.toggleCompletion';
     } finally {
       this.pendingCellKeys.delete(cellKey);
       this.renderFooter();

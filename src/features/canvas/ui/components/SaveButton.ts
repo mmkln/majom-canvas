@@ -16,11 +16,15 @@ import {
 } from '../primitives/index.ts';
 import { authFlowService } from '../auth/authFlowService.ts';
 import { createIcon, type IconName } from '../icons.ts';
+import { AppRuntime, createAppRuntime } from '../../../../app-runtime/index.ts';
+import type { I18nService } from '../../../../i18n/index.ts';
 
 /**
  * Save button with lifecycle-driven loading state.
  */
 export class SaveButton {
+  private readonly runtime: AppRuntime;
+  private readonly i18n: I18nService;
   private readonly container: HTMLElement;
   private readonly button: TextButtonElement;
   private readonly authService = new AuthService();
@@ -28,6 +32,7 @@ export class SaveButton {
   private readonly refreshHandler: () => void;
   private readonly lifecycleHandler: (event: Event) => void;
   private readonly autosaveToggleHandler: (event: Event) => void;
+  private disposeRuntimeSubscription: (() => void) | null = null;
   private autosaveEnabled = CanvasClientStorage.getCanvasAutosaveEnabled(true);
   private autosaveFailed = false;
   private manualSavesInFlight = 0;
@@ -36,16 +41,18 @@ export class SaveButton {
   private hideLoadingTimer: number | null = null;
   private readonly minimumLoadingMs = 700;
 
-  constructor() {
+  constructor(runtime: AppRuntime = createAppRuntime()) {
+    this.runtime = runtime;
+    this.i18n = runtime.i18n;
     this.container = document.createElement('div');
     this.container.className = 'flex items-center';
 
     this.button = createTextButton({
       tone: 'primary',
       size: 'md',
-      text: 'Save',
+      text: this.i18n.t('saveButton.save'),
       className: 'min-w-[96px]',
-      loadingText: 'Saving...',
+      loadingText: this.i18n.t('saveButton.saving'),
       disabled: true,
       onClick: () => this.handleClick(),
     });
@@ -169,7 +176,13 @@ export class SaveButton {
   }
 
   private updateButtonContent(): void {
-    if (this.button.loading) return;
+    if (this.button.loading) {
+      const loadingLabel = this.i18n.t('saveButton.saving');
+      this.button.loadingText = loadingLabel;
+      this.button.setAttribute('aria-label', loadingLabel);
+      this.button.title = loadingLabel;
+      return;
+    }
     const status = this.getAutosaveVisualStatus();
     const label = this.getButtonLabel(status);
 
@@ -177,7 +190,7 @@ export class SaveButton {
     const content = document.createElement('span');
     content.className = 'inline-flex items-center justify-center gap-2';
 
-    if (label === 'Saved') {
+    if (label === this.i18n.t('saveButton.saved')) {
       const indicator = this.createSavedIndicator();
       content.appendChild(indicator);
     }
@@ -197,12 +210,12 @@ export class SaveButton {
   ): string {
     if (!this.autosaveEnabled) {
       if (!historyService.hasUnsavedChanges()) {
-        return 'Saved';
+        return this.i18n.t('saveButton.saved');
       }
-      return 'Save';
+      return this.i18n.t('saveButton.save');
     }
-    if (status === 'saved') return 'Saved';
-    return 'Save';
+    if (status === 'saved') return this.i18n.t('saveButton.saved');
+    return this.i18n.t('saveButton.save');
   }
 
   private updateButtonState(): void {
@@ -231,18 +244,18 @@ export class SaveButton {
     status: ReturnType<SaveButton['getAutosaveVisualStatus']>,
     label: string
   ): string {
-    if (status === null && label === 'Saved') {
-      return 'All changes saved';
+    if (status === null && label === this.i18n.t('saveButton.saved')) {
+      return this.i18n.t('saveButton.allChangesSaved');
     }
     switch (status) {
       case 'saving':
-        return 'Autosave in progress';
+        return this.i18n.t('saveButton.autosaveInProgress');
       case 'error':
-        return 'Autosave failed';
+        return this.i18n.t('saveButton.autosaveFailed');
       case 'dirty':
-        return 'Unsaved changes';
+        return this.i18n.t('saveButton.unsavedChanges');
       case 'saved':
-        return 'All changes saved';
+        return this.i18n.t('saveButton.allChangesSaved');
       default:
         return '';
     }
@@ -268,6 +281,10 @@ export class SaveButton {
 
   mount(parent: HTMLElement = document.body): void {
     parent.appendChild(this.container);
+    this.disposeRuntimeSubscription = this.runtime.subscribe(
+      () => this.updateUiState(),
+      { emitCurrent: true }
+    );
   }
 
   unmount(): void {
@@ -284,6 +301,8 @@ export class SaveButton {
       window.clearTimeout(this.hideLoadingTimer);
       this.hideLoadingTimer = null;
     }
+    this.disposeRuntimeSubscription?.();
+    this.disposeRuntimeSubscription = null;
     this.manualSavesInFlight = 0;
     this.autosaveSavesInFlight = 0;
     this.hideLoadingNow();

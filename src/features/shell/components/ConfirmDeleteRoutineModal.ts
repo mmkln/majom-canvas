@@ -4,9 +4,11 @@ import {
   getModalActionButtonClass,
 } from '../../../ui-lib/src/components/Modal.ts';
 import { createTextButton } from '../../../ui-lib/src/hud/index.ts';
+import type { I18nService } from '../../../i18n/index.ts';
 
 type ConfirmDeleteRoutineModalOptions = {
   routineTitle?: string;
+  i18n?: Pick<I18nService, 't'>;
 };
 
 export function confirmDeleteRoutineModal(
@@ -17,6 +19,28 @@ export function confirmDeleteRoutineModal(
   }
 
   return new Promise((resolve) => {
+    const translate = (
+      key:
+        | 'routineDelete.confirmTitle'
+        | 'routineDelete.confirmMessage'
+        | 'common.cancel'
+        | 'common.delete',
+      params?: Record<string, string>
+    ): string => {
+      if (options.i18n) {
+        return options.i18n.t(key, params);
+      }
+      switch (key) {
+        case 'routineDelete.confirmTitle':
+          return 'Delete routine permanently?';
+        case 'routineDelete.confirmMessage':
+          return `Are you sure you want to delete "${params?.routine ?? 'this routine'}" permanently? This action cannot be undone.`;
+        case 'common.cancel':
+          return 'Cancel';
+        case 'common.delete':
+          return 'Delete';
+      }
+    };
     let settled = false;
     const settle = (value: boolean): void => {
       if (settled) return;
@@ -29,7 +53,7 @@ export function confirmDeleteRoutineModal(
     };
 
     const { overlay, container, body, footer } = createModalShell(
-      'Delete routine permanently?',
+      translate('routineDelete.confirmTitle'),
       {
         onClose: () => {
           settle(false);
@@ -45,13 +69,15 @@ export function confirmDeleteRoutineModal(
     message.className = 'text-sm leading-relaxed text-slate-600';
     message.id = `confirm-delete-routine-message-${Math.random().toString(36).slice(2, 9)}`;
     container.setAttribute('aria-describedby', message.id);
-    message.textContent = `Are you sure you want to delete "${routineLabel}" permanently? This action cannot be undone.`;
+    message.textContent = translate('routineDelete.confirmMessage', {
+      routine: routineLabel,
+    });
     body.appendChild(message);
 
     const row = createModalActionRow({ variant: 'confirm' });
 
     const cancelButton = createTextButton({
-      text: 'Cancel',
+      text: translate('common.cancel'),
       tone: 'text',
       size: 'md',
       className: getModalActionButtonClass('default'),
@@ -63,7 +89,7 @@ export function confirmDeleteRoutineModal(
     row.appendChild(cancelButton);
 
     const deleteButton = createTextButton({
-      text: 'Delete',
+      text: translate('common.delete'),
       tone: 'destructive',
       size: 'md',
       className: getModalActionButtonClass('default'),
