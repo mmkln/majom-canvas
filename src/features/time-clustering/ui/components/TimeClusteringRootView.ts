@@ -2032,14 +2032,10 @@ export class TimeClusteringRootView {
     const content = document.createElement('div');
     content.className = 'flex flex-col gap-4';
 
-    const titleField = document.createElement('label');
-    titleField.className = 'flex flex-col gap-1.5';
-
-    const titleLabel = document.createElement('span');
-    titleLabel.className =
-      'text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500';
-    titleLabel.textContent = this.i18n.t('timeClustering.edit.title');
-
+    const titleField = createField({
+      label: this.i18n.t('timeClustering.edit.title'),
+      className: 'mb-0',
+    });
     const titleInput = createInputBase({
       value: cluster.title,
       autoFocus: true,
@@ -2047,14 +2043,14 @@ export class TimeClusteringRootView {
       className: 'w-full',
     });
     titleInput.dataset.role = 'cluster-edit-title-input';
-
-    titleField.append(titleLabel, titleInput);
+    titleField.setControl(titleInput);
 
     const timeGrid = document.createElement('div');
     timeGrid.className = 'grid gap-3 sm:grid-cols-2';
 
     const startField = createField({
       label: this.i18n.t('timeClustering.edit.start'),
+      className: 'mb-0',
     });
     const startControls = document.createElement('div');
     startControls.className = 'grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem]';
@@ -2081,6 +2077,7 @@ export class TimeClusteringRootView {
 
     const endField = createField({
       label: this.i18n.t('timeClustering.edit.end'),
+      className: 'mb-0',
     });
     const endControls = document.createElement('div');
     endControls.className = 'grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem]';
@@ -2142,6 +2139,7 @@ export class TimeClusteringRootView {
     recurrenceControl.element.dataset.role = 'cluster-edit-recurrence-control';
     const recurrenceField = createField({
       label: this.i18n.t('timeClustering.recurrence'),
+      className: 'mb-0',
       control: recurrenceControl.element,
       hint: formatRecurrenceLabel(this.i18n, cluster.recurrence),
     });
@@ -2152,6 +2150,7 @@ export class TimeClusteringRootView {
 
     const recurrenceEndField = createField({
       label: this.i18n.t('timeClustering.recurrence.endsOn'),
+      className: 'mb-0',
     });
     const recurrenceEndInput = createInputBase({
       type: 'date',
@@ -2166,6 +2165,7 @@ export class TimeClusteringRootView {
 
     const weeklySelectorField = createField({
       label: this.i18n.t('timeClustering.recurrence.weeklyDays'),
+      className: 'mb-0',
     });
     const weeklySelector = document.createElement('div');
     weeklySelector.className = 'grid grid-cols-7 gap-1';
@@ -2223,14 +2223,10 @@ export class TimeClusteringRootView {
     );
     updateRecurrenceOptionsVisibility();
 
-    const colorField = document.createElement('label');
-    colorField.className = 'flex flex-col gap-1.5';
-
-    const colorLabel = document.createElement('span');
-    colorLabel.className =
-      'text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500';
-    colorLabel.textContent = this.i18n.t('timeClustering.edit.color');
-
+    const colorField = createField({
+      label: this.i18n.t('timeClustering.edit.color'),
+      className: 'mb-0',
+    });
     const colorOptions = CLUSTER_COLOR_TOKENS.includes(cluster.colorToken)
       ? CLUSTER_COLOR_TOKENS
       : [cluster.colorToken, ...CLUSTER_COLOR_TOKENS];
@@ -2240,8 +2236,7 @@ export class TimeClusteringRootView {
       ariaLabel: this.i18n.t('timeClustering.clusterColor'),
     });
     colorPicker.element.dataset.role = 'cluster-edit-color-picker';
-
-    colorField.append(colorLabel, colorPicker.element);
+    colorField.setControl(colorPicker.element);
 
     const errorMessage = document.createElement('p');
     errorMessage.className = 'hidden text-sm text-rose-600';
@@ -2393,7 +2388,7 @@ export class TimeClusteringRootView {
       if (modalSubtitle.isConnected) {
         modalSubtitle.textContent = formatClusterDateRange(this.i18n, cluster);
       }
-      titleLabel.textContent = this.i18n.t('timeClustering.edit.title');
+      titleField.label.textContent = this.i18n.t('timeClustering.edit.title');
       startField.label.textContent = this.i18n.t('timeClustering.edit.start');
       endField.label.textContent = this.i18n.t('timeClustering.edit.end');
       recurrenceControl.element.setAttribute(
@@ -2451,7 +2446,7 @@ export class TimeClusteringRootView {
       weeklySelectorField.setState({
         hint: this.i18n.t('timeClustering.recurrence.weeklyDaysHint'),
       });
-      colorLabel.textContent = this.i18n.t('timeClustering.edit.color');
+      colorField.label.textContent = this.i18n.t('timeClustering.edit.color');
       colorPicker.element.setAttribute(
         'aria-label',
         this.i18n.t('timeClustering.clusterColor')
@@ -2473,11 +2468,11 @@ export class TimeClusteringRootView {
     refreshModalTranslations();
 
     content.append(
-      titleField,
+      titleField.element,
       timeGrid,
       recurrenceField.element,
       recurrenceOptions,
-      colorField,
+      colorField.element,
       errorMessage
     );
     body.appendChild(content);
