@@ -7,12 +7,22 @@ import type { AiAssistantCanvasSnapshot } from '../ai-assistant/aiAssistantEvent
 import type { AiAssistantToolHost } from '../ai-assistant/services/AiAssistantToolTypes.ts';
 import { CanvasApp } from './CanvasApp.ts';
 import { LocalStorageDataProvider } from './core/data/LocalStorageDataProvider.ts';
+import { AppRuntime, createAppRuntime } from '../../app-runtime/index.ts';
+
+type CanvasModuleOptions = {
+  runtime?: AppRuntime;
+};
 
 export class CanvasModule implements WorkspaceModule {
   public readonly id = 'canvas' as const;
   private app: CanvasApp | null = null;
   private canvas: HTMLCanvasElement | null = null;
   private starting = false;
+  private readonly runtime: AppRuntime;
+
+  constructor(options: CanvasModuleOptions = {}) {
+    this.runtime = options.runtime ?? createAppRuntime();
+  }
 
   public async mount(parent: HTMLElement): Promise<void> {
     if (this.app || this.starting) return;
@@ -25,7 +35,11 @@ export class CanvasModule implements WorkspaceModule {
       parent.appendChild(canvas);
       this.canvas = canvas;
 
-      const nextApp = new CanvasApp(new LocalStorageDataProvider(), canvas);
+      const nextApp = new CanvasApp(
+        new LocalStorageDataProvider(),
+        canvas,
+        this.runtime
+      );
       try {
         await nextApp.init();
         this.app = nextApp;

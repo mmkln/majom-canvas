@@ -6,10 +6,10 @@ import {
   StubTimeClusteringSuggestionService,
   type TimeClusteringSuggestion,
 } from './services/TimeClusteringSuggestionService.ts';
-import { I18nService, createAppI18nService } from '../../i18n/index.ts';
+import { AppRuntime, createAppRuntime } from '../../app-runtime/index.ts';
 
 type TimeClusteringAppOptions = {
-  i18n?: I18nService;
+  runtime?: AppRuntime;
   initialLayoutMode?: TimeClusteringLayoutMode;
   onLayoutModeChange?: (mode: TimeClusteringLayoutMode) => void;
 };
@@ -24,15 +24,15 @@ export class TimeClusteringApp {
   private readonly suggestionService =
     new StubTimeClusteringSuggestionService();
   private readonly view: TimeClusteringRootView;
-  private readonly i18n: I18nService;
+  private readonly runtime: AppRuntime;
   private layoutMode: TimeClusteringLayoutMode;
 
   constructor(options: TimeClusteringAppOptions = {}) {
-    this.i18n = options.i18n ?? createAppI18nService();
+    this.runtime = options.runtime ?? createAppRuntime();
     this.layoutMode = options.initialLayoutMode ?? 'docked-left';
     this.onLayoutModeChange = options.onLayoutModeChange;
     this.view = new TimeClusteringRootView({
-      i18n: this.i18n,
+      runtime: this.runtime,
       store: this.store,
       layoutMode: this.layoutMode,
       onLayoutModeChange: (mode) => this.setLayoutMode(mode),

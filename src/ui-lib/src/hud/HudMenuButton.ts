@@ -4,7 +4,7 @@ import {
   type HudAnchoredResolvedPlacement,
 } from './HudAnchoredMenu.ts';
 import { createHudDropdownItem } from './HudDropdownItem.ts';
-import { createIcon } from './icons.ts';
+import { createIcon, type IconName } from './icons.ts';
 import { createHudSurface } from './HudSurface.ts';
 import {
   createHudTextButton,
@@ -26,6 +26,9 @@ export type HudMenuButtonOptions = {
   label?: string;
   title?: string;
   ariaLabel?: string;
+  icon?: IconName;
+  iconOnly?: boolean;
+  showChevron?: boolean;
   disabled?: boolean;
   items?: HudMenuButtonItem[];
   size?: HudTextButtonSize;
@@ -70,6 +73,7 @@ export class HudMenuButton {
   public readonly element: HTMLDivElement;
 
   private readonly button: HTMLButtonElement;
+  private readonly iconElement: SVGSVGElement | null;
   private readonly labelElement: HTMLSpanElement;
   private readonly chevron: SVGSVGElement;
   private readonly menuPanel: HTMLDivElement;
@@ -117,6 +121,15 @@ export class HudMenuButton {
     this.button.setAttribute('aria-haspopup', 'menu');
     this.button.setAttribute('aria-expanded', 'false');
 
+    this.iconElement = options.icon
+      ? createIcon(options.icon, {
+          size: 14,
+          strokeWidth: 1.9,
+        })
+      : null;
+    this.iconElement?.classList.add('shrink-0');
+    this.iconElement?.setAttribute('aria-hidden', 'true');
+
     this.labelElement = document.createElement('span');
     this.labelElement.className = 'truncate';
 
@@ -126,7 +139,18 @@ export class HudMenuButton {
     });
     this.chevron.classList.add('shrink-0');
     this.chevron.setAttribute('aria-hidden', 'true');
-    this.button.append(this.labelElement, this.chevron);
+    if (this.iconElement) {
+      this.button.appendChild(this.iconElement);
+    }
+    this.button.appendChild(this.labelElement);
+    this.button.appendChild(this.chevron);
+    if (options.iconOnly) {
+      this.button.classList.add('!h-8', '!w-8', '!px-0', '!gap-0');
+      this.labelElement.classList.add('hidden');
+    }
+    if (options.showChevron === false) {
+      this.chevron.classList.add('hidden');
+    }
 
     this.menuPanel = createHudSurface({
       elevated: true,

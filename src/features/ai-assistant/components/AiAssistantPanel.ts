@@ -156,7 +156,7 @@ export class AiAssistantPanel {
   };
 
   constructor(options: AiAssistantPanelOptions) {
-    this.widthPx = options.widthPx ?? 380;
+    this.widthPx = options.widthPx ?? 390;
     this.executeAction = options.executeAction;
     this.chatController = options.controller;
     this.markdownRenderer = new AiAssistantMarkdownRenderer();

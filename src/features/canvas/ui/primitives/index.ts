@@ -30,6 +30,9 @@ export {
 } from '../../../../ui-lib/src/hud/index.ts';
 export {
   createHudDropdownItem,
+  createHudBadge,
+  type HudBadgeOptions,
+  type HudBadgeTone,
   type HudDropdownItemTone,
   type HudMenuItemVariant,
   createHudMenuControlRow,
@@ -61,6 +64,11 @@ export {
   HudSegmentedControl,
   type HudSegmentedControlOption,
   type HudSegmentedControlSize,
+} from '../../../../ui-lib/src/hud/index.ts';
+export {
+  createHudStepPicker,
+  type HudStepPicker,
+  type HudStepPickerOptions,
 } from '../../../../ui-lib/src/hud/index.ts';
 export {
   createHudToggleSwitch,
@@ -97,6 +105,9 @@ export {
   type FormMessage,
   type FormMessageTone,
   createDropdownItem,
+  createBadge,
+  type BadgeOptions,
+  type BadgeTone,
   type DropdownItemTone,
   type MenuItemVariant,
   createMenuControlRow,
@@ -122,6 +133,9 @@ export {
   SegmentedControl,
   type SegmentedControlOption,
   type SegmentedControlSize,
+  createStepPicker,
+  type StepPicker,
+  type StepPickerOptions,
   createToggleSwitch,
   type ToggleSwitchOptions,
   createSurface,

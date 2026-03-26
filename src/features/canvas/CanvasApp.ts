@@ -63,6 +63,8 @@ import type {
   AiAssistantActionExecutionRequest,
   AiAssistantActionExecutionResult,
 } from '../ai-assistant/aiAssistantActions.ts';
+import type { I18nService } from '../../i18n/index.ts';
+import { AppRuntime, createAppRuntime } from '../../app-runtime/index.ts';
 
 type CanvasListUiItem = {
   id: string;
@@ -90,6 +92,8 @@ export class CanvasApp {
   private readonly uiManager: UIManager;
   private readonly canvasDataService: CanvasDataService;
   private readonly chatCanvasActionExecutor: AiAssistantCanvasActionExecutor;
+  private readonly runtime: AppRuntime;
+  private readonly i18n: I18nService;
   private canvasTitle: string = 'New canvas';
   private autosaveTimer: number | null = null;
   private autosaveEnabled = CanvasClientStorage.getCanvasAutosaveEnabled(true);
@@ -139,8 +143,14 @@ export class CanvasApp {
   private readonly canvasAutosaveToggledHandler = (event: Event): void =>
     this.handleCanvasAutosaveToggled(event);
 
-  constructor(dataProvider: IDataProvider, canvasElement?: HTMLCanvasElement) {
+  constructor(
+    dataProvider: IDataProvider,
+    canvasElement?: HTMLCanvasElement,
+    runtime: AppRuntime = createAppRuntime()
+  ) {
     this.dataProvider = dataProvider;
+    this.runtime = runtime;
+    this.i18n = this.runtime.i18n;
     const resolvedCanvas = canvasElement ?? document.getElementById('myCanvas');
     if (!(resolvedCanvas instanceof HTMLCanvasElement)) {
       throw new Error('Canvas element not found');
@@ -169,7 +179,8 @@ export class CanvasApp {
     this.uiManager = new UIManager(
       this.canvasManager,
       this.scene,
-      this.authService
+      this.authService,
+      this.runtime
     );
     this.chatCanvasActionExecutor = new AiAssistantCanvasActionExecutor({
       scene: this.scene,
@@ -205,7 +216,10 @@ export class CanvasApp {
       'canvasFavoriteToggled',
       this.canvasFavoriteToggledHandler
     );
-    window.addEventListener('canvasGroupUpdated', this.canvasGroupUpdatedHandler);
+    window.addEventListener(
+      'canvasGroupUpdated',
+      this.canvasGroupUpdatedHandler
+    );
     window.addEventListener(
       'canvasRenameRequested',
       this.canvasRenameRequestedHandler
@@ -700,17 +714,22 @@ export class CanvasApp {
   public getAiAssistantSnapshot(): AiAssistantCanvasSnapshot {
     const planningElements = this.scene
       .getElements()
-      .filter(isPlanningElement) as Array<TaskElement | StoryElement | GoalElement>;
+      .filter(isPlanningElement) as Array<
+      TaskElement | StoryElement | GoalElement
+    >;
     const detail: AiAssistantCanvasSnapshot = {
       canvasId: this.canvasDataService.getActiveCanvasId(),
       canvasTitle: this.canvasTitle,
       summary: {
-        goalCount: planningElements.filter((element) => element instanceof GoalElement)
-          .length,
-        storyCount: planningElements.filter((element) => element instanceof StoryElement)
-          .length,
-        taskCount: planningElements.filter((element) => element instanceof TaskElement)
-          .length,
+        goalCount: planningElements.filter(
+          (element) => element instanceof GoalElement
+        ).length,
+        storyCount: planningElements.filter(
+          (element) => element instanceof StoryElement
+        ).length,
+        taskCount: planningElements.filter(
+          (element) => element instanceof TaskElement
+        ).length,
         selectedCount: this.scene
           .getSelectedElements()
           .filter(isPlanningElement).length,
@@ -1217,7 +1236,9 @@ export class CanvasApp {
         return;
       }
 
-      await firstValueFrom(this.canvasDataService.deleteCanvas(targetCanvas.id));
+      await firstValueFrom(
+        this.canvasDataService.deleteCanvas(targetCanvas.id)
+      );
       notify('Canvas deleted.', 'success');
 
       const remainingCanvases = canvases.filter(
@@ -1403,7 +1424,8 @@ export class CanvasApp {
         goalByBackendId.set(goal.backendId, goal);
       }
     });
-    const refToPlanningId = this.buildAiAssistantElementRefMap(planningElements);
+    const refToPlanningId =
+      this.buildAiAssistantElementRefMap(planningElements);
     const goalParentById = new Map<string, string | null>();
     goals.forEach((goal) => {
       goalParentById.set(goal.id, null);
@@ -1418,12 +1440,17 @@ export class CanvasApp {
     });
     this.scene
       .getConnections()
-      .filter((connection) => connection.relationType === ConnectionRelationType.ParentChild)
+      .filter(
+        (connection) =>
+          connection.relationType === ConnectionRelationType.ParentChild
+      )
       .forEach((connection) => {
         const fromId = refToPlanningId.get(connection.fromId);
         const toId = refToPlanningId.get(connection.toId);
         if (!fromId || !toId) return;
-        const fromEl = planningElements.find((element) => element.id === fromId);
+        const fromEl = planningElements.find(
+          (element) => element.id === fromId
+        );
         const toEl = planningElements.find((element) => element.id === toId);
         if (!(fromEl instanceof GoalElement)) return;
         if (toEl instanceof GoalElement) {
@@ -1476,15 +1503,15 @@ export class CanvasApp {
       const base = this.mapAiAssistantSelectionItem(element);
       const parentId =
         element instanceof GoalElement
-          ? goalParentById.get(element.id) ?? null
+          ? (goalParentById.get(element.id) ?? null)
           : element instanceof StoryElement
-            ? storyParentById.get(element.id) ?? null
-            : taskParentById.get(element.id) ?? null;
+            ? (storyParentById.get(element.id) ?? null)
+            : (taskParentById.get(element.id) ?? null);
       const childIds =
         element instanceof GoalElement
-          ? goalChildIds.get(element.id) ?? []
+          ? (goalChildIds.get(element.id) ?? [])
           : element instanceof StoryElement
-            ? storyChildIds.get(element.id) ?? []
+            ? (storyChildIds.get(element.id) ?? [])
             : [];
       return {
         ...base,
@@ -1501,7 +1528,8 @@ export class CanvasApp {
   private buildAiAssistantConnections(
     planningElements: Array<TaskElement | StoryElement | GoalElement>
   ): AiAssistantConnectionEdge[] {
-    const refToPlanningId = this.buildAiAssistantElementRefMap(planningElements);
+    const refToPlanningId =
+      this.buildAiAssistantElementRefMap(planningElements);
     return this.scene
       .getConnections()
       .map((connection): AiAssistantConnectionEdge | null => {
@@ -1512,11 +1540,13 @@ export class CanvasApp {
           id: connection.id,
           fromId,
           toId,
-          relationType: connection.relationType as AiAssistantConnectionEdge['relationType'],
+          relationType:
+            connection.relationType as AiAssistantConnectionEdge['relationType'],
         };
       })
       .filter(
-        (connection): connection is AiAssistantConnectionEdge => connection !== null
+        (connection): connection is AiAssistantConnectionEdge =>
+          connection !== null
       );
   }
 
@@ -1578,8 +1608,10 @@ export class CanvasApp {
   ): AiAssistantRecentActivityItem[] {
     const previous = this.aiAssistantPreviousSnapshot;
     const nextItems = this.createAiAssistantActivityDiff(previous, snapshot);
-    this.aiAssistantRecentActivity = [...nextItems, ...this.aiAssistantRecentActivity]
-      .slice(0, 8);
+    this.aiAssistantRecentActivity = [
+      ...nextItems,
+      ...this.aiAssistantRecentActivity,
+    ].slice(0, 8);
     this.aiAssistantPreviousSnapshot = snapshot;
     return this.aiAssistantRecentActivity;
   }
@@ -1591,7 +1623,9 @@ export class CanvasApp {
     if (!previous) return [];
     const timestamp = Date.now();
     const activity: AiAssistantRecentActivityItem[] = [];
-    const previousById = new Map(previous.elements.map((item) => [item.id, item]));
+    const previousById = new Map(
+      previous.elements.map((item) => [item.id, item])
+    );
     const nextById = new Map(next.elements.map((item) => [item.id, item]));
 
     next.elements.forEach((item) => {

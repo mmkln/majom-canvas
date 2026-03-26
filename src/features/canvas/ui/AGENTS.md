@@ -3,6 +3,7 @@
 ## Scope
 
 - This file stores detailed work scenarios for shared canvas UI behavior under `src/features/canvas/ui`.
+- If the task touches app-level locale/runtime reactivity in mounted canvas UI roots, read `src/app-runtime/AGENTS.md` first.
 
 ## Scenario: Extend Context Menu
 

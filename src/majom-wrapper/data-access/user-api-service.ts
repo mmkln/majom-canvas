@@ -1,6 +1,22 @@
 import { Observable } from 'rxjs';
 import { HttpInterceptorClient } from './http-interceptor.js';
 import { User } from '../interfaces/auth-interfaces.ts';
+import type { AppLocale } from '../../i18n/index.ts';
+
+const USER_PROFILE_LANGUAGE_BY_APP_LOCALE: Record<AppLocale, User['language']> =
+  {
+    en: 'en',
+    uk: 'ua',
+  };
+
+export function toUserProfileLanguageCode(
+  language: User['language'] | AppLocale
+): User['language'] {
+  if (language === 'en' || language === 'uk') {
+    return USER_PROFILE_LANGUAGE_BY_APP_LOCALE[language];
+  }
+  return language;
+}
 
 /**
  * UserApiService provides methods for interacting with user-related API endpoints
@@ -23,7 +39,7 @@ export class UserApiService {
    */
   public setUserProfileLanguage(language: User['language']): Observable<User> {
     return this.http.patch<User>('/user/profile/', {
-      language,
+      language: toUserProfileLanguageCode(language),
     });
   }
 

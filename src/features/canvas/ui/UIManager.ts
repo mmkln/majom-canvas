@@ -35,6 +35,7 @@ import { CanvasMenu } from './components/CanvasMenu.ts';
 import { CanvasPerfHud } from './CanvasPerfHud.ts';
 import { CANVAS_PERF_LOG } from '../../../config/env/index.ts';
 import { CanvasHudLayoutController } from './CanvasHudLayoutController.ts';
+import { AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
 import {
   EXISTING_PICKER_EVENT_NAMES,
   emitExistingPickerDropCompleted,
@@ -73,7 +74,8 @@ export class UIManager {
   constructor(
     private readonly canvasManager: CanvasManager,
     private readonly scene: Scene,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
+    private readonly runtime: AppRuntime = createAppRuntime()
   ) {
     this.canvasNavigationDock = new CanvasNavigationDock(
       this.scene,
@@ -88,6 +90,7 @@ export class UIManager {
     const userApi = new UserApiService(http);
     const canvasMenu = new CanvasMenu(this.authService, userApi, {
       containerClassName: 'relative z-30 flex items-center',
+      runtime: this.runtime,
       initialAnimationsEnabled: this.canvasManager.getAnimationsEnabled(),
       onAnimationsToggle: (enabled) =>
         this.canvasManager.setAnimationsEnabled(enabled),

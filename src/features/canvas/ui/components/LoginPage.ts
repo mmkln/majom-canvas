@@ -5,7 +5,10 @@ import {
   validateLoginCredentialField,
   validateLoginCredentials,
   type LoginCredentialsFieldErrors,
+  type LoginCredentialsValidationMessages,
 } from '../../core/validation/loginCredentialsValidator.ts';
+import { type I18nService } from '../../../../i18n/index.ts';
+import { AppRuntime, createAppRuntime } from '../../../../app-runtime/index.ts';
 import {
   createField,
   createFormMessage,
@@ -18,11 +21,17 @@ import type { LoginSubmitResult } from '../auth/AuthController.ts';
 
 type LoginPageOptions = {
   title?: string;
+  runtime?: AppRuntime;
   onSubmit: (credentials: LoginCredentials) => Promise<LoginSubmitResult>;
 };
 
 export class LoginPage {
+  private readonly runtime: AppRuntime;
+  private readonly i18n: I18nService;
   private readonly root: HTMLDivElement;
+  private readonly shell: HTMLElement;
+  private readonly heading: HTMLHeadingElement;
+  private readonly caption: HTMLParagraphElement;
   private readonly usernameInput: HTMLInputElement;
   private readonly passwordInput: HTMLInputElement;
   private readonly usernameField: ReturnType<typeof createField>;
@@ -30,10 +39,15 @@ export class LoginPage {
   private readonly generalError: FormMessage;
   private readonly submitButton: TextButtonElement;
   private readonly viewportResizeHandler: () => void;
+  private validationMessages: LoginCredentialsValidationMessages;
   private viewportListenersBound = false;
   private usernameCache = '';
+  private disposeRuntimeSubscription: (() => void) | null = null;
 
   constructor(private readonly options: LoginPageOptions) {
+    this.runtime = options.runtime ?? createAppRuntime();
+    this.i18n = this.runtime.i18n;
+    this.validationMessages = this.buildValidationMessages();
     const root = document.createElement('div');
     root.className =
       'fixed inset-0 z-[190] flex items-center justify-center overflow-y-auto bg-[radial-gradient(circle_at_16%_18%,rgba(14,165,233,0.03),transparent_41%),radial-gradient(circle_at_84%_82%,rgba(249,115,22,0.02),transparent_43%),linear-gradient(to_bottom,#ffffff,#f8fafc)] px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]';
@@ -42,7 +56,10 @@ export class LoginPage {
     const shell = document.createElement('section');
     shell.className =
       'w-full max-w-[26rem] rounded-2xl border border-slate-200/90 bg-white/95 px-5 py-6 sm:px-8 sm:py-8';
-    shell.setAttribute('aria-label', this.options.title ?? 'Login');
+    shell.setAttribute(
+      'aria-label',
+      this.options.title ?? this.i18n.t('login.title')
+    );
 
     const header = document.createElement('div');
     header.className = 'mb-8 flex flex-col items-center text-center';
@@ -57,11 +74,11 @@ export class LoginPage {
     const heading = document.createElement('h1');
     heading.className =
       'text-[22px] font-semibold leading-[1.1] tracking-tight text-slate-900 sm:text-[25px]';
-    heading.textContent = this.options.title ?? 'Welcome back';
+    heading.textContent = this.options.title ?? this.i18n.t('login.title');
 
     const caption = document.createElement('p');
     caption.className = 'mt-2 text-sm leading-5 text-slate-600';
-    caption.textContent = 'Sign in to Majom Canvas';
+    caption.textContent = this.i18n.t('login.caption');
 
     header.append(logo, heading, caption);
 
@@ -74,7 +91,7 @@ export class LoginPage {
       id: 'canvas-login-username',
       name: 'username',
       autoComplete: 'username',
-      placeholder: 'Username',
+      placeholder: this.i18n.t('login.username.placeholder'),
       variant: 'default',
       inputClassName: 'text-base md:text-sm',
     });
@@ -84,7 +101,7 @@ export class LoginPage {
     this.usernameInput.setAttribute('autocorrect', 'off');
     this.usernameInput.setAttribute('enterkeyhint', 'next');
     this.usernameField = createField({
-      label: 'Username',
+      label: this.i18n.t('login.username.label'),
       control: usernameControl.element,
       className: 'mb-0',
     });
@@ -94,8 +111,12 @@ export class LoginPage {
       id: 'canvas-login-password',
       name: 'password',
       autoComplete: 'current-password',
-      placeholder: 'Password',
+      placeholder: this.i18n.t('login.password.placeholder'),
       variant: 'default',
+      passwordToggleLabels: {
+        show: this.i18n.t('login.showPassword'),
+        hide: this.i18n.t('login.hidePassword'),
+      },
       inputClassName: 'text-base md:text-sm',
     });
     this.passwordInput = passwordControl.input;
@@ -103,7 +124,7 @@ export class LoginPage {
     this.passwordInput.setAttribute('autocorrect', 'off');
     this.passwordInput.setAttribute('enterkeyhint', 'go');
     this.passwordField = createField({
-      label: 'Password',
+      label: this.i18n.t('login.password.label'),
       control: passwordControl.element,
       className: 'mb-0',
     });
@@ -118,8 +139,8 @@ export class LoginPage {
       tone: 'primary',
       size: 'lg',
       fullWidth: true,
-      text: 'Sign in',
-      loadingText: 'Logging in...',
+      text: this.i18n.t('login.submit'),
+      loadingText: this.i18n.t('login.submitLoading'),
       type: 'submit',
     });
 
@@ -155,6 +176,9 @@ export class LoginPage {
     shell.append(header, form);
     root.appendChild(shell);
     this.root = root;
+    this.shell = shell;
+    this.heading = heading;
+    this.caption = caption;
     this.viewportResizeHandler = () => {
       this.applyVerticalPlacement();
     };
@@ -165,6 +189,13 @@ export class LoginPage {
     if (!this.root.isConnected) {
       parent.appendChild(this.root);
     }
+    if (!this.disposeRuntimeSubscription) {
+      this.disposeRuntimeSubscription = this.runtime.subscribe(() => {
+        this.refreshTranslations();
+      }, { emitCurrent: true });
+    } else {
+      this.refreshTranslations();
+    }
     this.bindViewportListeners();
     this.applyVerticalPlacement();
     this.prefillCachedUsername();
@@ -173,12 +204,30 @@ export class LoginPage {
 
   public hide(): void {
     if (!this.root.isConnected) return;
+    this.disposeRuntimeSubscription?.();
+    this.disposeRuntimeSubscription = null;
     this.unbindViewportListeners();
     this.root.remove();
   }
 
   public isVisible(): boolean {
     return this.root.isConnected;
+  }
+
+  private refreshTranslations(): void {
+    const title = this.options.title ?? this.i18n.t('login.title');
+    this.validationMessages = this.buildValidationMessages();
+    this.shell.setAttribute('aria-label', title);
+    this.heading.textContent = title;
+    this.caption.textContent = this.i18n.t('login.caption');
+    this.usernameInput.placeholder = this.i18n.t('login.username.placeholder');
+    this.passwordInput.placeholder = this.i18n.t('login.password.placeholder');
+    this.usernameField.label.textContent = this.i18n.t('login.username.label');
+    this.passwordField.label.textContent = this.i18n.t('login.password.label');
+    if (!this.submitButton.loading) {
+      this.submitButton.textContent = this.i18n.t('login.submit');
+    }
+    this.submitButton.loadingText = this.i18n.t('login.submitLoading');
   }
 
   public focusPrimaryField(): void {
@@ -198,7 +247,10 @@ export class LoginPage {
     if (this.submitButton.loading) return;
 
     const credentials = this.getCredentialsValues();
-    const validation = validateLoginCredentials(credentials);
+    const validation = validateLoginCredentials(
+      credentials,
+      this.validationMessages
+    );
     this.applyFieldErrors({
       username: validation.fieldErrors.username,
       password: validation.fieldErrors.password,
@@ -233,7 +285,7 @@ export class LoginPage {
       this.showGeneralError(
         error instanceof Error
           ? error.message
-          : 'Login failed. Please try again.'
+          : this.i18n.t('login.errorFallback')
       );
     }
   }
@@ -249,9 +301,20 @@ export class LoginPage {
     });
   }
 
+  private buildValidationMessages(): LoginCredentialsValidationMessages {
+    return {
+      usernameRequired: this.i18n.t('login.usernameRequired'),
+      passwordRequired: this.i18n.t('login.passwordRequired'),
+    };
+  }
+
   private validateField(field: keyof LoginCredentials): void {
     const values = this.getCredentialsValues();
-    const error = validateLoginCredentialField(field, values);
+    const error = validateLoginCredentialField(
+      field,
+      values,
+      this.validationMessages
+    );
     this.applyFieldErrors({
       [field]: error ?? undefined,
     } as LoginCredentialsFieldErrors);

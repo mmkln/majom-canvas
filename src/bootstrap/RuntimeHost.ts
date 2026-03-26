@@ -48,11 +48,12 @@ import { createAiAssistantRuntime } from '../features/ai-assistant/services/AiAs
 import { AiAssistantSessionController } from '../features/ai-assistant/services/AiAssistantSessionController.ts';
 import { buildAiAssistantCapabilityContext } from '../features/ai-assistant/services/AiAssistantCapabilities.ts';
 import type { TimeClusteringLayoutMode } from '../features/time-clustering/domain/types.ts';
+import { AppRuntime, createAppRuntime } from '../app-runtime/index.ts';
 
 const APP_ISLAND_GAP_PX = 0;
 const APP_ISLAND_MARGIN_PX = 0;
 const APP_ISLAND_RADIUS_PX = 0;
-const TIME_CLUSTERING_ISLAND_WIDTH_PX = 380;
+const TIME_CLUSTERING_ISLAND_WIDTH_PX = 430;
 
 type KanbanModuleNamespace = {
   KanbanModule: new () => WorkspaceModule;
@@ -66,6 +67,7 @@ type TimeClusteringIslandModule = {
 
 type TimeClusteringModuleNamespace = {
   TimeClusteringModule: new (options?: {
+    runtime?: AppRuntime;
     initialLayoutMode?: TimeClusteringLayoutMode;
     onLayoutModeChange?: (mode: TimeClusteringLayoutMode) => void;
   }) => TimeClusteringIslandModule;
@@ -106,7 +108,10 @@ export class RuntimeHost {
   private readonly chatIntentHandler: (event: Event) => void;
   private readonly windowResizeHandler: () => void;
 
-  constructor(wallpaperService: WallpaperService) {
+  constructor(
+    wallpaperService: WallpaperService,
+    private readonly runtime: AppRuntime = createAppRuntime()
+  ) {
     this.wallpaperService = wallpaperService;
     this.workspaceRoot = document.createElement('div');
     this.workspaceRoot.id = 'workspace-modules-root';
@@ -361,7 +366,9 @@ export class RuntimeHost {
         this.shell = new WorkspaceShell(this.workspaceRoot);
       }
       if (!this.canvasModule) {
-        this.canvasModule = new CanvasModule();
+        this.canvasModule = new CanvasModule({
+          runtime: this.runtime,
+        });
         this.shell.register(this.canvasModule);
       }
       if (KANBAN_DEV_ENABLED && !this.kanbanModule) {
@@ -372,6 +379,7 @@ export class RuntimeHost {
       if (TIME_CLUSTERING_DEV_ENABLED && !this.timeClusteringModule) {
         const { TimeClusteringModule } = await loadTimeClusteringModule();
         this.timeClusteringModule = new TimeClusteringModule({
+          runtime: this.runtime,
           initialLayoutMode: this.timeClusteringLayoutMode,
           onLayoutModeChange: (mode) =>
             this.handleTimeClusteringLayoutModeChange(mode),
@@ -393,8 +401,7 @@ export class RuntimeHost {
   public async setActiveView(view: WorkspaceView): Promise<void> {
     if (view === 'kanban' && !KANBAN_DEV_ENABLED) return;
     const shouldCloseTimeClustering =
-      this.timeClusteringOpen &&
-      this.timeClusteringLayoutMode === 'fullscreen';
+      this.timeClusteringOpen && this.timeClusteringLayoutMode === 'fullscreen';
     if (shouldCloseTimeClustering) {
       this.syncTimeClusteringOpenState(false);
       this.setTimeClusteringLayoutMode('docked-left');

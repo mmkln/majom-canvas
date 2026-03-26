@@ -34,6 +34,10 @@ export type HudInputOptions = {
   onChange?: (value: string, event: Event) => void;
   onKeyDown?: (event: KeyboardEvent) => void;
   passwordToggle?: boolean;
+  passwordToggleLabels?: {
+    show: string;
+    hide: string;
+  };
 };
 
 type HudInputState = {
@@ -170,6 +174,10 @@ export function createHudInput(options: HudInputOptions = {}): HudInput {
   }
 
   let toggleButton: HTMLButtonElement | null = null;
+  const passwordToggleLabels = {
+    show: options.passwordToggleLabels?.show ?? 'Show password',
+    hide: options.passwordToggleLabels?.hide ?? 'Hide password',
+  };
   const setToggleIcon = (iconName: IconName): void => {
     if (!toggleButton) return;
     toggleButton.innerHTML = '';
@@ -184,13 +192,15 @@ export function createHudInput(options: HudInputOptions = {}): HudInput {
     setToggleIcon(isPasswordVisible ? 'eye-slash' : 'eye');
     toggleButton.setAttribute(
       'aria-label',
-      isPasswordVisible ? 'Hide password' : 'Show password'
+      isPasswordVisible ? passwordToggleLabels.hide : passwordToggleLabels.show
     );
     toggleButton.setAttribute(
       'aria-pressed',
       isPasswordVisible ? 'true' : 'false'
     );
-    toggleButton.title = isPasswordVisible ? 'Hide password' : 'Show password';
+    toggleButton.title = isPasswordVisible
+      ? passwordToggleLabels.hide
+      : passwordToggleLabels.show;
   };
 
   if (shouldRenderPasswordToggle) {
@@ -200,13 +210,13 @@ export function createHudInput(options: HudInputOptions = {}): HudInput {
       size: 'sm',
       iconSize: 14,
       iconStrokeWidth: 1.8,
-      ariaLabel: 'Show password',
+      ariaLabel: passwordToggleLabels.show,
       type: 'button',
       className:
         'absolute right-1 top-1/2 -translate-y-1/2 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700',
     });
     toggleButton.setAttribute('aria-pressed', 'false');
-    toggleButton.title = 'Show password';
+    toggleButton.title = passwordToggleLabels.show;
     toggleButton.addEventListener('click', () => {
       if (input.disabled) return;
       input.type = input.type === 'password' ? 'text' : 'password';

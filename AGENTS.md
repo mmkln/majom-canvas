@@ -62,6 +62,17 @@
 - Use global `window` custom events primarily for cross-module/app-shell integration, not as the default internal module state channel.
 - Avoid duplicate parallel channels for the same state transition; prefer one authoritative reactive path per concern.
 
+### App Runtime And Translations
+
+- `src/app-runtime/AppRuntime.ts` is the authoritative app-level reactive container for locale and future shell-wide runtime preferences.
+- Across bootstrap, module, app, and root-view boundaries, pass `AppRuntime` instead of raw `I18nService` when the dependency represents app-level runtime context.
+- Mounted root views that read app-level runtime state must subscribe in `mount()` and unsubscribe in `unmount()`. Prefer `runtime.subscribe(listener, { emitCurrent: true })`.
+- Keep app-global runtime state out of feature domain stores.
+- Do not add bootstrap-level manual refresh fan-out for locale/runtime changes; mutate runtime and let subscriptions update the mounted roots.
+- If UI copy must stay live across locale changes, keep a translation key or resolver and recompute on refresh instead of passing one-time translated strings through long-lived boundaries.
+- Add translation keys to both `src/i18n/locales/en.ts` and `src/i18n/locales/uk.ts`, keep them semantic and stable, and use `i18n.formatDate(...)` instead of locale-implicit `Intl` calls.
+- Persist user language changes through `UserApiService.setUserProfileLanguage(...)` rather than bypassing the API boundary.
+
 ### Script Conventions
 
 - `npm run start:stable` must remain a built app served through `vite preview`, but using Vite `development` mode config and env loading.
@@ -150,6 +161,13 @@
 - Owner: `docs` + feature modules
 - Read first: `docs/UI-ARCHITECTURE.md`
 - Expected result: preserve separated reactive channels by concern (canvas runtime, module stores, global integration, local control state), while reducing duplicate or ambiguous event pathways.
+
+### Extend App Runtime Or Translations
+
+- Use when the request changes app-wide locale behavior, adds a new app-level runtime preference, or fixes live update inconsistencies across mounted views.
+- Owner: `src/app-runtime` + `src/i18n` + affected root views
+- Read first: `src/app-runtime/AGENTS.md`
+- Expected result: keep `AppRuntime` as the cross-module runtime boundary, keep feature stores free of app-global state, update mounted roots through runtime subscriptions, and keep translations live-safe across locale changes.
 
 ### Refine Workspace Sidebar UX
 

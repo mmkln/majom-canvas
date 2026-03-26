@@ -15,8 +15,11 @@ import type { BootEvent, BootState } from './BootState.ts';
 import { nextBootState } from './BootStateMachine.ts';
 import { GlobalAppHeader } from './GlobalAppHeader.ts';
 import { RuntimeHost } from './RuntimeHost.ts';
+import { createAppRuntime } from '../app-runtime/index.ts';
 
 export class BootOrchestrator {
+  private readonly runtime = createAppRuntime();
+  private readonly i18n = this.runtime.i18n;
   private readonly authService = new AuthService();
   private readonly http = new HttpInterceptorClient(environment.apiUrl);
   private readonly userApi = new UserApiService(this.http);
@@ -35,12 +38,12 @@ export class BootOrchestrator {
   private logoutInProgress = false;
 
   constructor() {
-    this.globalHeader = new GlobalAppHeader();
-    this.runtimeHost = new RuntimeHost(this.wallpaperService);
-    this.loadingScreen = new LoadingScreen();
+    this.globalHeader = new GlobalAppHeader(this.runtime);
+    this.runtimeHost = new RuntimeHost(this.wallpaperService, this.runtime);
+    this.loadingScreen = new LoadingScreen({ runtime: this.runtime });
     this.minLoadingScreenMs = this.resolveMinLoadingScreenDuration();
     this.loginPage = new LoginPage({
-      title: 'Welcome back',
+      runtime: this.runtime,
       onSubmit: async (credentials) => this.handleLoginSubmit(credentials),
     });
   }
@@ -90,7 +93,7 @@ export class BootOrchestrator {
       this.globalHeader.unmount();
       this.runtimeHost.hideCanvas();
       this.loginPage.hide();
-      this.loadingScreen.showLoading('Fetching your data...');
+      this.loadingScreen.showLoading((i18n) => i18n.t('loading.fetchingData'));
       return;
     }
 
@@ -99,7 +102,7 @@ export class BootOrchestrator {
       this.runtimeHost.hideCanvas();
       this.loginPage.hide();
       this.loadingScreen.showError(
-        'Failed to load canvas data. Please try again.',
+        (i18n) => i18n.t('loading.canvasFailed'),
         () => {
           void this.retryBoot();
         }
@@ -129,7 +132,7 @@ export class BootOrchestrator {
         message:
           error instanceof Error
             ? error.message
-            : 'Login failed. Please try again.',
+            : this.i18n.t('login.errorFallback'),
       };
     }
   }
@@ -151,7 +154,7 @@ export class BootOrchestrator {
     this.bootInFlight = true;
     const startedAt = Date.now();
     try {
-      await this.initializeUserWallpaper();
+      await this.initializeUserSessionContext();
       await this.runtimeHost.start();
       this.dispatch('boot_succeeded');
     } catch (error) {
@@ -170,7 +173,7 @@ export class BootOrchestrator {
     }
   }
 
-  private async initializeUserWallpaper(): Promise<void> {
+  private async initializeUserSessionContext(): Promise<void> {
     const profilePromise = firstValueFrom(this.userApi.getUser());
     const wallpaperListPromise = firstValueFrom(
       this.wallpaperService.loadWallpaperList().pipe(
@@ -181,6 +184,7 @@ export class BootOrchestrator {
       )
     );
     const [user] = await Promise.all([profilePromise, wallpaperListPromise]);
+    this.runtime.setLocale(user.language || this.i18n.getLocale());
     this.wallpaperService.applyUserWallpaper(user);
   }
 

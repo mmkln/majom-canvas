@@ -40,6 +40,8 @@ import {
   createColorPicker,
   createField,
   createInputBase,
+  MenuButton,
+  type MenuButtonItem,
   createSelectionChip,
   createSegmentedControl,
   setSelectionChipState,
@@ -47,10 +49,11 @@ import {
   type ColorPickerOption,
   type SegmentedControl,
 } from '../../../../ui-lib/src/hud/index.ts';
-import { I18nService, createAppI18nService } from '../../../../i18n/index.ts';
+import { I18nService } from '../../../../i18n/index.ts';
+import { AppRuntime, createAppRuntime } from '../../../../app-runtime/index.ts';
 
 interface TimeClusteringRootViewOptions {
-  i18n?: I18nService;
+  runtime?: AppRuntime;
   store: TimeClusteringStore;
   layoutMode: TimeClusteringLayoutMode;
   onLayoutModeChange: (mode: TimeClusteringLayoutMode) => void;
@@ -202,6 +205,7 @@ function formatDayNumber(i18n: I18nService, dateKey: string): string {
 
 function createCalendarDayChip(params: {
   selected: boolean;
+  isToday: boolean;
   weekdayLabel: string;
   dayLabel: string;
   onClick: () => void;
@@ -210,23 +214,36 @@ function createCalendarDayChip(params: {
     selected: params.selected,
     size: 'compact',
     className:
-      '!h-auto min-h-[42px] w-full min-w-0 flex-col gap-0 rounded-xl px-2 py-1.5 text-center',
+      '!relative !h-auto min-h-[42px] w-full min-w-0 flex-col gap-0 rounded-xl px-2 py-1.5 text-center',
   });
   chip.onclick = params.onClick;
 
   const weekday = document.createElement('p');
   weekday.className = params.selected
     ? 'text-[9px] font-semibold uppercase leading-none tracking-[0.08em] text-indigo-500'
-    : 'text-[9px] font-semibold uppercase leading-none tracking-[0.08em] text-slate-400';
+    : params.isToday
+      ? 'text-[9px] font-semibold uppercase leading-none tracking-[0.08em] text-indigo-500'
+      : 'text-[9px] font-semibold uppercase leading-none tracking-[0.08em] text-slate-400';
   weekday.textContent = params.weekdayLabel;
 
   const dayNumber = document.createElement('p');
   dayNumber.className = params.selected
     ? 'mt-1 text-[14px] font-semibold leading-none text-indigo-700'
-    : 'mt-1 text-[14px] font-semibold leading-none text-slate-700';
+    : params.isToday
+      ? 'mt-1 text-[14px] font-semibold leading-none text-indigo-700'
+      : 'mt-1 text-[14px] font-semibold leading-none text-slate-700';
   dayNumber.textContent = params.dayLabel;
 
   chip.append(weekday, dayNumber);
+  if (params.isToday) {
+    const marker = document.createElement('span');
+    marker.className = params.selected
+      ? 'pointer-events-none absolute right-2.5 top-2.5 block h-2 w-2 rounded-[3px] bg-indigo-600 ring-1 ring-white/90'
+      : 'pointer-events-none absolute right-2.5 top-2.5 block h-2 w-2 rounded-[3px] bg-indigo-500 ring-1 ring-white/90';
+    marker.dataset.role = 'calendar-day-chip-today-marker';
+    marker.setAttribute('aria-hidden', 'true');
+    chip.appendChild(marker);
+  }
   return chip;
 }
 
@@ -244,7 +261,10 @@ function getAnchorWeekday(iso: string): number | null {
 }
 
 function getWeeklySelection(cluster: TimeCluster): number[] {
-  if (Array.isArray(cluster.recurrenceWeekdays) && cluster.recurrenceWeekdays.length > 0) {
+  if (
+    Array.isArray(cluster.recurrenceWeekdays) &&
+    cluster.recurrenceWeekdays.length > 0
+  ) {
     return [...cluster.recurrenceWeekdays];
   }
   const anchorWeekday = getAnchorWeekday(cluster.startAtIso);
@@ -610,10 +630,12 @@ function mixHexWithWhite(hex: string, ratio: number): string {
 }
 
 export class TimeClusteringRootView {
+  private readonly runtime: AppRuntime;
   private readonly i18n: I18nService;
   private readonly store: TimeClusteringStore;
   private readonly onLayoutModeChange: (mode: TimeClusteringLayoutMode) => void;
   private readonly root: HTMLDivElement;
+  private readonly timeClusteringMenuButton: MenuButton;
   private readonly addClusterButton: HTMLButtonElement;
   private readonly secondaryNav: HTMLDivElement;
   private readonly periodSwitcher: HTMLDivElement;
@@ -631,9 +653,11 @@ export class TimeClusteringRootView {
   private readonly calendarSurface: HTMLDivElement;
   private calendarScrollContainer: HTMLDivElement | null = null;
   private disposeStoreSubscription: (() => void) | null = null;
+  private disposeRuntimeSubscription: (() => void) | null = null;
   private nowIndicatorTimerId: number | null = null;
   private pendingScrollFrameId: number | null = null;
   private clusterEditModalOverlay: HTMLDivElement | null = null;
+  private refreshClusterEditModalTranslations: (() => void) | null = null;
   private editingCluster: SelectedClusterRef | null = null;
   private recentClusterClick: RecentClusterClick | null = null;
   private selectedCluster: SelectedClusterRef | null = null;
@@ -641,7 +665,8 @@ export class TimeClusteringRootView {
   private layoutMode: TimeClusteringLayoutMode;
 
   constructor(options: TimeClusteringRootViewOptions) {
-    this.i18n = options.i18n ?? createAppI18nService();
+    this.runtime = options.runtime ?? createAppRuntime();
+    this.i18n = this.runtime.i18n;
     this.store = options.store;
     this.layoutMode = options.layoutMode;
     this.onLayoutModeChange = options.onLayoutModeChange;
@@ -666,6 +691,26 @@ export class TimeClusteringRootView {
       this.createClusterForSelectedDate();
     };
 
+    this.timeClusteringMenuButton = new MenuButton({
+      label: this.i18n.t('timeClustering.menu.label'),
+      title: this.i18n.t('timeClustering.menu.title'),
+      ariaLabel: this.i18n.t('timeClustering.menu.title'),
+      icon: 'ellipsis-vertical',
+      iconOnly: true,
+      showChevron: false,
+      size: 'sm',
+      variant: 'plain',
+      placement: 'bottom-end',
+      fallbackPlacements: ['bottom-start', 'top-end', 'top-start'],
+      gap: 6,
+      margin: 8,
+      lockPlacementAfterOpen: true,
+    });
+    this.timeClusteringMenuButton.element.dataset.role = 'time-clustering-menu';
+    this.timeClusteringMenuButton
+      .getButtonElement()
+      .setAttribute('data-role', 'time-clustering-menu-button');
+
     this.secondaryNav = document.createElement('div');
     this.secondaryNav.className = 'mt-4 flex flex-col gap-2.5';
 
@@ -684,10 +729,10 @@ export class TimeClusteringRootView {
     this.periodPreviousButton.dataset.role = 'period-previous-button';
     this.periodCurrentSurface = periodPicker.triggerButton;
     this.periodCurrentSurface.dataset.role = 'period-current-surface';
-    this.periodCurrentSurface.style.minWidth = '12rem';
+    this.periodCurrentSurface.style.minWidth = '8rem';
     this.periodCurrentSurface.style.maxWidth = '18rem';
     this.periodLabel = periodPicker.triggerLabel;
-    this.periodLabel.className = 'min-w-0 flex-1 truncate text-left';
+    this.periodLabel.className = 'min-w-0 flex-1 truncate text-center';
     this.periodLabel.dataset.role = 'period-label';
     this.periodNextButton = periodPicker.nextButton;
     this.periodNextButton.dataset.role = 'period-next-button';
@@ -743,7 +788,11 @@ export class TimeClusteringRootView {
     const navigationActions = document.createElement('div');
     navigationActions.className =
       'inline-flex shrink-0 items-center gap-2 self-start';
-    navigationActions.append(this.viewModeSwitcher, this.addClusterButton);
+    navigationActions.append(
+      this.viewModeSwitcher,
+      this.addClusterButton,
+      this.timeClusteringMenuButton.element
+    );
     navigationRow.append(this.periodSwitcher, navigationActions);
 
     this.daySwitcher = document.createElement('div');
@@ -770,10 +819,13 @@ export class TimeClusteringRootView {
 
   public mount(parent: HTMLElement): void {
     parent.appendChild(this.root);
+    this.timeClusteringMenuButton.mount();
     this.disposeStoreSubscription = this.store.subscribe((snapshot) => {
       this.renderSnapshot(snapshot);
     });
-    this.renderSnapshot(this.store.getSnapshot());
+    this.disposeRuntimeSubscription = this.runtime.subscribe(() => {
+      this.refreshRuntimeState();
+    }, { emitCurrent: true });
     this.scheduleNowIndicatorRefresh();
   }
 
@@ -782,8 +834,11 @@ export class TimeClusteringRootView {
     this.closeClusterEditModal();
     this.clearNowIndicatorRefresh();
     this.clearPendingScrollFrame();
+    this.timeClusteringMenuButton.unmount();
     this.disposeStoreSubscription?.();
     this.disposeStoreSubscription = null;
+    this.disposeRuntimeSubscription?.();
+    this.disposeRuntimeSubscription = null;
     this.root.remove();
   }
 
@@ -791,8 +846,39 @@ export class TimeClusteringRootView {
     if (this.layoutMode === layoutMode) return;
     this.layoutMode = layoutMode;
     if (this.root.isConnected) {
-      this.renderSnapshot(this.store.getSnapshot());
+      this.refreshRuntimeState();
     }
+  }
+
+  private refreshRuntimeState(): void {
+    this.addClusterButton.title = this.i18n.t('timeClustering.addCluster');
+    this.addClusterButton.setAttribute(
+      'aria-label',
+      this.i18n.t('timeClustering.addCluster')
+    );
+    this.viewModeSwitcher.setAttribute(
+      'aria-label',
+      this.i18n.t('timeClustering.viewMode')
+    );
+    this.timeClusteringMenuButton.setLabel(
+      this.i18n.t('timeClustering.menu.label')
+    );
+    this.timeClusteringMenuButton.setTitle(
+      this.i18n.t('timeClustering.menu.title')
+    );
+    this.timeClusteringMenuButton.setAriaLabel(
+      this.i18n.t('timeClustering.menu.title')
+    );
+    const dayLabel = this.dayModeButton.querySelector('span');
+    if (dayLabel) {
+      dayLabel.textContent = this.i18n.t('timeClustering.view.day');
+    }
+    const weekLabel = this.weekModeButton.querySelector('span');
+    if (weekLabel) {
+      weekLabel.textContent = this.i18n.t('timeClustering.view.week');
+    }
+    this.renderSnapshot(this.store.getSnapshot());
+    this.refreshClusterEditModalTranslations?.();
   }
 
   private renderSnapshot(snapshot: TimeClusteringStateSnapshot): void {
@@ -802,6 +888,7 @@ export class TimeClusteringRootView {
     );
     const visibleDateKeys =
       this.layoutMode === 'fullscreen' ? weekDateKeys : [selectedDateKey];
+    this.updateHeaderMenu(snapshot);
     const renderedClustersByDate = buildTimeClusterSegmentsByDate(
       visibleDateKeys,
       this.getRenderableClusters(snapshot)
@@ -1033,6 +1120,7 @@ export class TimeClusteringRootView {
       const isSelected = dateKey === snapshot.selectedDateKey;
       const button = createCalendarDayChip({
         selected: isSelected,
+        isToday: dateKey === todayDateKey(),
         weekdayLabel: formatWeekdayInitial(this.i18n, dateKey),
         dayLabel: formatDayNumber(this.i18n, dateKey),
         onClick: () => this.store.setSelectedDate(dateKey),
@@ -1056,6 +1144,36 @@ export class TimeClusteringRootView {
       count === 1
         ? this.i18n.t('timeClustering.overlap.one')
         : this.i18n.t('timeClustering.overlap.many', { count });
+  }
+
+  private updateHeaderMenu(snapshot: TimeClusteringStateSnapshot): void {
+    const isTodaySelected = snapshot.selectedDateKey === todayDateKey();
+    const items: MenuButtonItem[] = [
+      {
+        id: 'add-cluster',
+        label: this.i18n.t('timeClustering.menu.addCluster'),
+        onSelect: () => this.createClusterForSelectedDate(),
+      },
+      {
+        id: 'go-to-today',
+        label: this.i18n.t('timeClustering.menu.goToToday'),
+        active: isTodaySelected,
+        onSelect: () => this.store.setSelectedDate(todayDateKey()),
+      },
+      {
+        id: 'view-day',
+        label: this.i18n.t('timeClustering.menu.viewDay'),
+        active: this.layoutMode === 'docked-left',
+        onSelect: () => this.onLayoutModeChange('docked-left'),
+      },
+      {
+        id: 'view-week',
+        label: this.i18n.t('timeClustering.menu.viewWeek'),
+        active: this.layoutMode === 'fullscreen',
+        onSelect: () => this.onLayoutModeChange('fullscreen'),
+      },
+    ];
+    this.timeClusteringMenuButton.setItems(items);
   }
 
   private renderCalendar(
@@ -1158,12 +1276,12 @@ export class TimeClusteringRootView {
 
     const header = document.createElement('div');
     header.className =
-      'sticky top-0 z-40 flex min-w-0 items-end bg-white px-4 py-1.5 shadow-[0_1px_0_rgba(226,232,240,0.95)]';
+      'sticky top-0 z-40 flex min-w-0 items-end bg-white py-1.5 shadow-[0_1px_0_rgba(226,232,240,0.95)]';
     header.dataset.role = 'week-calendar-header';
     header.style.minWidth = `${TIME_GUTTER_WIDTH_PX + WEEK_VIEW_DAY_WIDTH_PX * 7}px`;
 
     const spacer = document.createElement('div');
-    spacer.style.width = `${TIME_GUTTER_WIDTH_PX}px`;
+    spacer.style.width = `${TIME_GUTTER_WIDTH_PX}px`; // Account for 1.5 padding and 1.5 gap
     spacer.style.flex = '0 0 auto';
 
     const headerGrid = document.createElement('div');
@@ -1467,6 +1585,7 @@ export class TimeClusteringRootView {
       this.clusterEditModalOverlay.remove();
       this.clusterEditModalOverlay = null;
     }
+    this.refreshClusterEditModalTranslations = null;
     this.editingCluster = null;
   }
 
@@ -1504,7 +1623,7 @@ export class TimeClusteringRootView {
     this.editingCluster = { clusterId };
     this.requestRender();
 
-    const { overlay, container, body, footer } = createModalShell(
+    const { overlay, container, header, body, footer } = createModalShell(
       cluster.title.trim() || this.i18n.t('timeClustering.untitledCluster'),
       {
         subtitle: formatClusterDateRange(this.i18n, cluster),
@@ -1701,7 +1820,10 @@ export class TimeClusteringRootView {
       const value = recurrenceControl.getValue() ?? 'none';
       recurrenceOptions.classList.toggle('hidden', value === 'none');
       recurrenceEndField.element.classList.toggle('hidden', value === 'none');
-      weeklySelectorField.element.classList.toggle('hidden', value !== 'weekly');
+      weeklySelectorField.element.classList.toggle(
+        'hidden',
+        value !== 'weekly'
+      );
     };
 
     recurrenceOptions.append(
@@ -1862,6 +1984,103 @@ export class TimeClusteringRootView {
 
     footerActions.append(cancelButton, saveButton);
 
+    const modalTitle =
+      header.querySelector<HTMLHeadingElement>('h2') ??
+      document.createElement('h2');
+    const modalSubtitle =
+      header.querySelector<HTMLParagraphElement>('p') ??
+      document.createElement('p');
+    const recurrenceOptionButtons = Array.from(
+      recurrenceControl.element.querySelectorAll<HTMLButtonElement>('button')
+    );
+    const colorOptionButtons = Array.from(
+      colorPicker.element.querySelectorAll<HTMLButtonElement>('button')
+    );
+    const refreshModalTranslations = (): void => {
+      modalTitle.textContent =
+        cluster.title.trim() || this.i18n.t('timeClustering.untitledCluster');
+      if (modalSubtitle.isConnected) {
+        modalSubtitle.textContent = formatClusterDateRange(this.i18n, cluster);
+      }
+      titleLabel.textContent = this.i18n.t('timeClustering.edit.title');
+      startField.label.textContent = this.i18n.t('timeClustering.edit.start');
+      endField.label.textContent = this.i18n.t('timeClustering.edit.end');
+      recurrenceControl.element.setAttribute(
+        'aria-label',
+        this.i18n.t('timeClustering.recurrence.aria')
+      );
+      const recurrenceOptions = [
+        {
+          label: this.i18n.t('timeClustering.recurrence.none'),
+          title: this.i18n.t('timeClustering.recurrence.noneDescription'),
+        },
+        {
+          label: this.i18n.t('timeClustering.recurrence.daily'),
+          title: this.i18n.t('timeClustering.recurrence.dailyDescription'),
+        },
+        {
+          label: this.i18n.t('timeClustering.recurrence.weekdays'),
+          title: this.i18n.t('timeClustering.recurrence.weekdaysDescription'),
+        },
+        {
+          label: this.i18n.t('timeClustering.recurrence.weekly'),
+          title: this.i18n.t('timeClustering.recurrence.weeklyDescription'),
+        },
+      ];
+      recurrenceOptionButtons.forEach((button, index) => {
+        const option = recurrenceOptions[index];
+        if (!option) return;
+        const label = button.querySelector('span');
+        if (label) {
+          label.textContent = option.label;
+        }
+        button.title = option.title;
+      });
+      recurrenceField.label.textContent = this.i18n.t(
+        'timeClustering.recurrence'
+      );
+      recurrenceField.setState({
+        hint: formatRecurrenceLabel(
+          this.i18n,
+          recurrenceControl.getValue() ?? 'none'
+        ),
+      });
+      recurrenceEndField.label.textContent = this.i18n.t(
+        'timeClustering.recurrence.endsOn'
+      );
+      recurrenceEndField.setState({
+        hint: this.i18n.t('timeClustering.recurrence.endsOnHint'),
+      });
+      weeklySelectorField.label.textContent = this.i18n.t(
+        'timeClustering.recurrence.weeklyDays'
+      );
+      weekdayButtons.forEach((button, weekday) => {
+        button.textContent = formatWeekdayShort(this.i18n, weekday);
+      });
+      weeklySelectorField.setState({
+        hint: this.i18n.t('timeClustering.recurrence.weeklyDaysHint'),
+      });
+      colorLabel.textContent = this.i18n.t('timeClustering.edit.color');
+      colorPicker.element.setAttribute(
+        'aria-label',
+        this.i18n.t('timeClustering.clusterColor')
+      );
+      const colorOptionsLabels = buildClusterColorPickerOptions(
+        this.i18n,
+        colorOptions
+      );
+      colorOptionButtons.forEach((button, index) => {
+        const option = colorOptionsLabels[index];
+        if (!option) return;
+        button.title = option.title ?? option.label;
+        button.setAttribute('aria-label', option.label);
+      });
+      cancelButton.textContent = this.i18n.t('common.cancel');
+      saveButton.textContent = this.i18n.t('common.save');
+    };
+    this.refreshClusterEditModalTranslations = refreshModalTranslations;
+    refreshModalTranslations();
+
     content.append(
       titleField,
       timeGrid,
@@ -2021,15 +2240,19 @@ export class TimeClusteringRootView {
     const isActiveGesture = this.activeClusterGesture?.clusterId === cluster.id;
     const top = (clusterSegment.startMinute / 60) * HOUR_ROW_HEIGHT_PX;
     const isDayMode = calendarMode === 'day';
-    const verticalInsetPx = isDayMode ? 0 : 4;
-    const horizontalInsetPx = isDayMode ? (laneCount > 1 ? 4 : 0) : 8;
+    const verticalInsetPx = isDayMode ? 0 : 1;
+    const horizontalInsetPx = isDayMode ? (laneCount > 1 ? 4 : 0) : 2;
     const baseHeight =
       ((clusterSegment.endMinute - clusterSegment.startMinute) / 60) *
       HOUR_ROW_HEIGHT_PX;
     const height = Math.max(baseHeight - verticalInsetPx * 2, 32);
     const widthPercent = Math.max(
-      laneWidthPercent - 1.5,
-      laneCount > 1 ? laneWidthPercent - 2.5 : 97
+      laneWidthPercent - (isDayMode ? 1.5 : 0.35),
+      laneCount > 1
+        ? laneWidthPercent - (isDayMode ? 2.5 : 0.5)
+        : isDayMode
+          ? 97
+          : 99.25
     );
     const leftPercent = laneCount > 1 ? laneIndex * laneWidthPercent : 0;
 
@@ -2138,18 +2361,13 @@ export class TimeClusteringRootView {
     const { dateKey, isToday, isSelectedDate } = options;
     const cell = document.createElement('div');
     cell.dataset.selected = isSelectedDate ? 'true' : 'false';
-    cell.className =
-      isToday && isSelectedDate
-        ? 'px-2 py-1.5 text-left text-slate-900 rounded-lg bg-sky-50/80 ring-1 ring-sky-100'
-        : isToday
-          ? 'px-2 py-1.5 text-left text-slate-900 rounded-lg bg-sky-50/60'
-          : isSelectedDate
-            ? 'px-2 py-1.5 text-left text-slate-900 rounded-lg bg-slate-100/90 ring-1 ring-slate-200/80'
-            : 'px-2 py-1.5 text-left text-slate-700';
+    cell.className = isSelectedDate
+      ? 'relative rounded-lg px-3 py-1.5 ring-1 ring-slate-200/80'
+      : 'relative px-3 py-1.5';
 
     const weekday = document.createElement('p');
     weekday.className = isToday
-      ? 'text-[11px] font-semibold text-sky-600'
+      ? 'text-[11px] font-semibold text-indigo-500'
       : isSelectedDate
         ? 'text-[11px] font-semibold text-slate-500'
         : 'text-[11px] font-semibold';
@@ -2157,18 +2375,18 @@ export class TimeClusteringRootView {
 
     const date = document.createElement('p');
     date.className = isToday
-      ? 'mt-0.5 text-base font-semibold text-sky-600'
+      ? 'mt-0.5 text-base font-semibold text-indigo-700'
       : 'mt-0.5 text-base font-semibold text-slate-900';
     date.textContent = formatDayNumber(this.i18n, dateKey);
 
     cell.append(weekday, date);
-    if (isSelectedDate) {
-      const marker = document.createElement('span');
-      marker.className =
-        'mt-1 block h-0.5 w-7 rounded-full bg-indigo-300/80';
-      marker.dataset.role = 'week-day-selected-marker';
-      marker.setAttribute('aria-hidden', 'true');
-      cell.appendChild(marker);
+    if (isToday) {
+      const todayMarker = document.createElement('span');
+      todayMarker.className =
+        'pointer-events-none absolute right-2 top-2 block h-2 w-2 rounded-[3px] bg-indigo-500 ring-1 ring-white/90';
+      todayMarker.dataset.role = 'week-day-today-marker';
+      todayMarker.setAttribute('aria-hidden', 'true');
+      cell.appendChild(todayMarker);
     }
     return cell;
   }

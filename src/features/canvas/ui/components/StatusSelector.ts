@@ -1,5 +1,6 @@
 import { ElementStatus } from '../../elements/ElementStatus.ts';
-import { createIcon, type IconName } from '../icons.ts';
+import { createIcon } from '../icons.ts';
+import { createStepPicker } from '../primitives/index.ts';
 import {
   getStatusLabel,
   STATUS_ICON_MAP,
@@ -65,37 +66,18 @@ export class StatusSelector {
   constructor(options: StatusSelectorOptions) {
     this.onStatusChange = options.onStatusChange;
 
-    this.element = document.createElement('div');
-    this.element.className = 'relative inline-flex items-center gap-0.5';
-
-    this.prevBtn = this.createStepButton(
-      'chevron-left',
-      'Previous status',
-      'left',
-      () => this.stepStatus(-1)
-    );
-
-    this.triggerBtn = document.createElement('button');
-    this.triggerBtn.type = 'button';
-    this.triggerBtn.className =
-      'inline-flex h-8 items-center justify-between gap-2 rounded-sm px-3 text-[12px] font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-800 active:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300';
+    const picker = createStepPicker({
+      previousLabel: 'Previous status',
+      nextLabel: 'Next status',
+    });
+    this.element = picker.element;
+    this.prevBtn = picker.previousButton;
+    this.triggerBtn = picker.triggerButton;
+    this.nextBtn = picker.nextButton;
     this.triggerBtn.setAttribute('aria-haspopup', 'menu');
     this.triggerBtn.setAttribute('aria-expanded', 'false');
-
-    const triggerLeft = document.createElement('span');
-    triggerLeft.className = 'inline-flex min-w-0 items-center gap-1.5';
-    this.statusLabel = document.createElement('span');
-    this.statusLabel.className = `truncate ${STATUS_LABEL_MIXED_TONE_CLASS}`;
-    triggerLeft.append(this.statusLabel);
-
-    this.triggerBtn.append(triggerLeft);
-
-    this.nextBtn = this.createStepButton(
-      'chevron-right',
-      'Next status',
-      'right',
-      () => this.stepStatus(1)
-    );
+    this.statusLabel = picker.triggerLabel;
+    this.statusLabel.classList.add(STATUS_LABEL_MIXED_TONE_CLASS);
 
     this.panel = document.createElement('div');
     this.panel.className =
@@ -111,6 +93,14 @@ export class StatusSelector {
     this.triggerBtn.addEventListener('click', (event) => {
       event.stopPropagation();
       this.setOpen(!this.open);
+    });
+    this.prevBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      this.stepStatus(-1);
+    });
+    this.nextBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      this.stepStatus(1);
     });
 
     window.addEventListener('resize', this.onWindowResize);
@@ -161,29 +151,6 @@ export class StatusSelector {
     if (open) {
       this.positionDropdown();
     }
-  }
-
-  private createStepButton(
-    icon: IconName,
-    label: string,
-    side: 'left' | 'right',
-    onClick: () => void
-  ): HTMLButtonElement {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = `inline-flex h-8 w-6 items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:cursor-not-allowed disabled:text-slate-300 disabled:opacity-60`;
-    button.title = label;
-    button.style.borderRadius =
-      side === 'left' ? '16px 4px 4px 16px' : '4px 16px 16px 4px';
-    button.setAttribute('aria-label', label);
-    const iconEl = createIcon(icon, { size: 14, strokeWidth: 1.9 });
-    iconEl.classList.add('shrink-0');
-    button.appendChild(iconEl);
-    button.addEventListener('click', (event) => {
-      event.stopPropagation();
-      onClick();
-    });
-    return button;
   }
 
   private positionDropdown(): void {

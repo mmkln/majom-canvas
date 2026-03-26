@@ -1,16 +1,31 @@
 import type { LoginCredentials } from '../../../../majom-wrapper/interfaces/auth-interfaces.ts';
 import { createFormValidator } from './createFormValidator.ts';
-import { minLength, required } from './rules.ts';
+import { required } from './rules.ts';
 import type { FieldErrors, ValidationResult } from './types.ts';
 
-const validator = createFormValidator<LoginCredentials>({
-  fields: {
-    username: [
-      required<LoginCredentials>('Username is required.', { trim: true }),
-    ],
-    password: [required<LoginCredentials>('Password is required.')],
-  },
-});
+export type LoginCredentialsValidationMessages = {
+  usernameRequired: string;
+  passwordRequired: string;
+};
+
+const DEFAULT_LOGIN_CREDENTIALS_VALIDATION_MESSAGES: LoginCredentialsValidationMessages =
+  {
+    usernameRequired: 'Username is required.',
+    passwordRequired: 'Password is required.',
+  };
+
+function createLoginCredentialsValidator(
+  messages: LoginCredentialsValidationMessages = DEFAULT_LOGIN_CREDENTIALS_VALIDATION_MESSAGES
+) {
+  return createFormValidator<LoginCredentials>({
+    fields: {
+      username: [
+        required<LoginCredentials>(messages.usernameRequired, { trim: true }),
+      ],
+      password: [required<LoginCredentials>(messages.passwordRequired)],
+    },
+  });
+}
 
 export function normalizeLoginCredentials(
   values: LoginCredentials
@@ -22,16 +37,18 @@ export function normalizeLoginCredentials(
 }
 
 export function validateLoginCredentials(
-  values: LoginCredentials
+  values: LoginCredentials,
+  messages?: LoginCredentialsValidationMessages
 ): ValidationResult<LoginCredentials> {
-  return validator.validate(values);
+  return createLoginCredentialsValidator(messages).validate(values);
 }
 
 export function validateLoginCredentialField(
   field: keyof LoginCredentials,
-  values: LoginCredentials
+  values: LoginCredentials,
+  messages?: LoginCredentialsValidationMessages
 ): string | null {
-  return validator.validateField(field, values);
+  return createLoginCredentialsValidator(messages).validateField(field, values);
 }
 
 export type LoginCredentialsFieldErrors = FieldErrors<LoginCredentials>;

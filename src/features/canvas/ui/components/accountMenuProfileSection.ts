@@ -3,12 +3,15 @@ import { createDivider } from '../primitives/index.ts';
 
 export function createAccountMenuProfileSection(
   user: User | null,
-  isUserLoading: boolean
+  isUserLoading: boolean,
+  options: {
+    loadingLabel?: string;
+  } = {}
 ): HTMLElement[] {
   if (isUserLoading) {
     const loadingRow = document.createElement('div');
     loadingRow.className = 'px-4 py-3 text-sm text-slate-500';
-    loadingRow.textContent = 'Loading account...';
+    loadingRow.textContent = options.loadingLabel ?? 'Loading account...';
     return [loadingRow, createDivider()];
   }
 

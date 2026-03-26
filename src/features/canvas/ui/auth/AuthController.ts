@@ -135,6 +135,16 @@ export class AuthController {
     });
   }
 
+  public syncUser(user: User): void {
+    this.userLoadSubscription?.unsubscribe();
+    this.userLoadSubscription = null;
+    this.patchState({
+      user,
+      isUserLoading: false,
+      error: null,
+    });
+  }
+
   public destroy(): void {
     this.userLoadSubscription?.unsubscribe();
     this.userLoadSubscription = null;

@@ -11,7 +11,7 @@ import type {
 import type { TimeClusteringRepository } from '../../data/TimeClusteringRepository.ts';
 import { TimeClusteringStore } from '../../state/TimeClusteringStore.ts';
 import { TimeClusteringRootView } from './TimeClusteringRootView.ts';
-import { createAppI18nService } from '../../../../i18n/index.ts';
+import { createAppRuntime } from '../../../../app-runtime/index.ts';
 
 function createCluster(params: {
   id: string;
@@ -98,7 +98,7 @@ function createView(
     view.setLayoutMode(mode);
   });
   const view = new TimeClusteringRootView({
-    i18n: createAppI18nService({ initialLocale: 'en' }),
+    runtime: createAppRuntime({ initialLocale: 'en' }),
     store,
     layoutMode,
     onLayoutModeChange,
@@ -760,6 +760,9 @@ describe('TimeClusteringRootView', () => {
     const addClusterButton = parent.querySelector<HTMLElement>(
       '[data-role="add-cluster-button"]'
     );
+    const timeClusteringMenu = parent.querySelector<HTMLElement>(
+      '[data-role="time-clustering-menu"]'
+    );
     const navigationRow = periodSwitcher?.parentElement;
     const secondaryNav = daySwitcher?.parentElement;
 
@@ -769,9 +772,11 @@ describe('TimeClusteringRootView', () => {
     expect(navigationRow?.contains(periodSwitcher ?? null)).toBe(true);
     expect(navigationRow?.contains(viewModeSwitcher ?? null)).toBe(true);
     expect(navigationRow?.contains(addClusterButton ?? null)).toBe(true);
+    expect(navigationRow?.contains(timeClusteringMenu ?? null)).toBe(true);
     expect(daySwitcher?.classList.contains('hidden')).toBe(false);
     expect(viewModeSwitcher).not.toBeNull();
     expect(addClusterButton).not.toBeNull();
+    expect(timeClusteringMenu).not.toBeNull();
     expect(
       daySwitcher?.querySelectorAll('[data-role="day-switch-button"]')
     ).toHaveLength(7);
@@ -833,6 +838,38 @@ describe('TimeClusteringRootView', () => {
     );
     expect(selectedButton).not.toBeNull();
     expect(selectedButton?.className).toContain('bg-indigo-50');
+
+    view.unmount();
+    store.destroy();
+  });
+
+  it('jumps to today from the header menu', () => {
+    const store = new TimeClusteringStore(
+      createRepository(
+        createSnapshot({
+          selectedDateKey: '2026-03-27',
+          weekAnchorDateKey: '2026-03-27',
+        })
+      )
+    );
+    const { view } = createView(store);
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    view.mount(parent);
+
+    const menuButton = parent.querySelector<HTMLButtonElement>(
+      '[data-role="time-clustering-menu-button"]'
+    );
+    menuButton?.click();
+
+    const todayAction = Array.from(parent.querySelectorAll<HTMLButtonElement>('button')).find(
+      (button) => button.textContent?.trim() === 'Go to today'
+    );
+    todayAction?.click();
+
+    expect(store.getSnapshot().selectedDateKey).toBe('2026-03-25');
+    expect(store.getSnapshot().weekAnchorDateKey).toBe('2026-03-25');
 
     view.unmount();
     store.destroy();
@@ -902,18 +939,18 @@ describe('TimeClusteringRootView', () => {
     expect(todayHeader).toBeDefined();
     expect(
       Array.from(todayHeader?.querySelectorAll('p') ?? []).every((node) =>
-        node.className.includes('text-sky-600')
+        node.className.includes('text-indigo')
       )
     ).toBe(true);
+    expect(
+      todayHeader?.querySelector('[data-role="week-day-today-marker"]')
+    ).not.toBeNull();
 
     const mondayHeader = Array.from(weekDayHeaders).find((element) =>
       element.textContent?.includes('23')
     );
     expect(mondayHeader).toBeDefined();
     expect(mondayHeader?.getAttribute('data-selected')).toBe('true');
-    expect(
-      mondayHeader?.querySelector('[data-role="week-day-selected-marker"]')
-    ).not.toBeNull();
 
     const todayColumn = parent.querySelector(
       '[data-role="calendar-day-column"][data-date-key="2026-03-25"]'
@@ -952,6 +989,26 @@ describe('TimeClusteringRootView', () => {
 
     expect(previousButton?.style.width).toBe('24px');
     expect(nextButton?.style.width).toBe('24px');
+
+    view.unmount();
+    store.destroy();
+  });
+
+  it('shows a today marker in the day switcher for the current date', () => {
+    const store = new TimeClusteringStore(createRepository(createSnapshot()));
+    const { view } = createView(store);
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    view.mount(parent);
+
+    const todayButton = parent.querySelector<HTMLButtonElement>(
+      '[data-role="day-switch-button"][data-date-key="2026-03-25"]'
+    );
+    expect(todayButton).not.toBeNull();
+    expect(
+      todayButton?.querySelector('[data-role="calendar-day-chip-today-marker"]')
+    ).not.toBeNull();
 
     view.unmount();
     store.destroy();
