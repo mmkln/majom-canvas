@@ -701,7 +701,7 @@ export class TimeClusteringRootView {
 
     this.timeClusteringMenuContainer = document.createElement('div');
     this.timeClusteringMenuContainer.className =
-      'relative z-30 inline-flex items-center';
+      'relative z-50 inline-flex items-center';
     this.timeClusteringMenuContainer.dataset.role = 'time-clustering-menu';
 
     this.timeClusteringMenuButton = createIconButton({
@@ -720,7 +720,7 @@ export class TimeClusteringRootView {
     this.timeClusteringMenuPanel = createSurface({
       elevated: true,
       className:
-        'absolute left-0 top-0 z-30 hidden w-64 overflow-hidden rounded-xl',
+        'absolute left-0 top-0 z-50 hidden w-64 overflow-hidden rounded-xl',
     });
     this.timeClusteringMenuPanel.dataset.role = 'time-clustering-menu-panel';
     this.timeClusteringMenuPanel.setAttribute('role', 'menu');
