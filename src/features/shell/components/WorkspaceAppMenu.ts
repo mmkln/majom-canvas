@@ -135,6 +135,10 @@ export class WorkspaceAppMenu {
     this.controller.close();
   }
 
+  public isOpen(): boolean {
+    return this.controller.isOpen();
+  }
+
   private refreshTranslations(): void {
     this.button.title = this.i18n.t('header.openAppMenu');
     this.button.setAttribute('aria-label', this.i18n.t('header.openAppMenu'));

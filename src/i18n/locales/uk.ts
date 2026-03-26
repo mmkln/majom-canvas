@@ -587,9 +587,11 @@ export const uk = {
   'workspaceControls.energyVeryHigh': 'Погнали',
   'workspaceControls.energyVeryLow': 'Вмер',
   'workspaceControls.kanban': 'Kanban',
+  'workspaceControls.hideControls': 'Сховати керування workspace',
   'workspaceControls.openRoutines': 'Відкрити звички',
   'workspaceControls.routines': 'Звички',
   'workspaceControls.selectEnergy': 'Обрати енергію',
+  'workspaceControls.showControls': 'Показати керування workspace',
   'workspaceControls.timeClustering': 'Кластери часу',
   'workspaceControls.toggleAiAssistantPanel': 'Перемкнути панель AI асистента',
   'workspaceControls.toggleTimeClusteringPanel':

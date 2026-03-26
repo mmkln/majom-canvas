@@ -587,9 +587,11 @@ export const en = {
   'workspaceControls.energyVeryHigh': "Let's go",
   'workspaceControls.energyVeryLow': 'Dead',
   'workspaceControls.kanban': 'Kanban',
+  'workspaceControls.hideControls': 'Hide workspace controls',
   'workspaceControls.openRoutines': 'Open routines',
   'workspaceControls.routines': 'Routines',
   'workspaceControls.selectEnergy': 'Select energy',
+  'workspaceControls.showControls': 'Show workspace controls',
   'workspaceControls.timeClustering': 'Time Clustering',
   'workspaceControls.toggleAiAssistantPanel': 'Toggle AI assistant panel',
   'workspaceControls.toggleTimeClusteringPanel':
