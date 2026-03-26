@@ -41,6 +41,13 @@
   - HTML template helpers: only for mostly static markup blocks with low interaction complexity.
 - For interactive overlays, drag/drop surfaces, context menus, modal flows, and other lifecycle-heavy UI, prefer TypeScript component/controller patterns with explicit mount/unmount or open/close cleanup.
 
+### Dropdown And Anchored Menu Placement
+
+- For dropdowns, popovers, and anchored menus, placement must follow the trigger's visual position inside its control group, not just a generic default.
+- If the trigger is the right-most action in a horizontal control bar or floating bottom switcher, prefer opening upward and right-aligned to that trigger first.
+- If the trigger is integrated into an existing shared control block, keep it inside that same block; do not split it into a neighboring standalone surface unless the user explicitly wants a separate control island.
+- When using `AnchoredMenu` or `openTopbarDropdown`, set explicit placement/fallbacks for edge-mounted triggers instead of relying on ambiguous defaults.
+
 ### Styling Source Of Truth
 
 - Keep repeated or long utility-class compositions in typed UI-layer style maps (`classNames`, variant maps, component option maps), not inline in business logic branches.

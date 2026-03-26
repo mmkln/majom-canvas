@@ -233,7 +233,7 @@ export class EnergySelectorControl {
       control: this.createEnergyMenuHeading(),
       className: '!pb-1 !pt-3',
     });
-    const items = ENERGY_LEVELS.map((level) => {
+    const items = [...ENERGY_LEVELS].reverse().map((level) => {
       const item = createDropdownItem({
         label: this.getEnergyLabel(level),
         variant: energyState.level === level ? 'selected' : 'default',

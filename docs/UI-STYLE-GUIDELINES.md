@@ -418,6 +418,7 @@ When generating or updating UI:
 3. If still missing, create a reusable primitive in `ui-lib` (not feature-local) unless the use-case is truly feature-specific.
 4. Keep repeated styles in typed class/variant maps.
 5. Keep feature modules focused on composition, state, and domain behavior.
+6. For dropdown/menu triggers embedded in shared control bars, keep the trigger inside the same visual block and choose explicit anchored placement based on its visual edge. Right-most triggers in bottom/floating bars should open upward and right-aligned first.
 
 ---
 

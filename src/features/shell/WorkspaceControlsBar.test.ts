@@ -401,6 +401,52 @@ describe('WorkspaceControlsBar floating variant', () => {
     sidebarBar.element.remove();
   });
 
+  it('renders energy options from highest to lowest in the dropdown', async () => {
+    const runtime = createAppRuntime({
+      initialLocale: 'en',
+      energyService: {
+        loadEnergy: async () => null,
+        loadEnergyHistory: async () => [],
+        saveEnergy: async (level) => ({
+          id: 'energy-1',
+          recordedAt: '2026-03-26T09:00:00.000Z',
+          energy: level,
+        }),
+      },
+    });
+    const bar = new WorkspaceControlsBar({
+      runtime,
+      initialView: 'canvas',
+      showKanban: true,
+      showTimeClustering: false,
+      showRoutines: false,
+      showChat: false,
+      variant: 'floating',
+    });
+    document.body.appendChild(bar.element);
+
+    const energyButton = getButtonByAriaLabel(
+      bar.element,
+      'Select energy'
+    ) as HTMLButtonElement;
+    energyButton.click();
+
+    const optionOrder = Array.from(
+      bar.element.querySelectorAll<HTMLButtonElement>('button[data-energy-level]')
+    ).map((button) => button.dataset.energyLevel);
+
+    expect(optionOrder).toEqual([
+      EnergyLevel.VERY_HIGH,
+      EnergyLevel.HIGH,
+      EnergyLevel.NEUTRAL,
+      EnergyLevel.LOW,
+      EnergyLevel.VERY_LOW,
+    ]);
+
+    bar.destroy();
+    bar.element.remove();
+  });
+
   it('shows a stats action at the bottom of the energy dropdown and opens the modal', async () => {
     const runtime = createAppRuntime({
       initialLocale: 'en',
