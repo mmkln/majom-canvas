@@ -142,6 +142,20 @@ export const HUD_SEGMENTED_ITEM_INACTIVE_CLASS =
 export const HUD_SEGMENTED_ITEM_DISABLED_CLASS =
   'cursor-not-allowed text-slate-400 hover:bg-transparent hover:text-slate-400';
 
+export const HUD_SELECTION_CHIP_BASE_CLASS =
+  'inline-flex items-center justify-center rounded-lg transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:text-slate-400';
+
+export const HUD_SELECTION_CHIP_DEFAULT_CLASS = 'h-10 px-3 text-sm font-medium';
+
+export const HUD_SELECTION_CHIP_COMPACT_CLASS =
+  'h-9 px-2 text-[11px] font-semibold';
+
+export const HUD_SELECTION_CHIP_SELECTED_CLASS =
+  'data-[selected=true]:bg-indigo-50 data-[selected=true]:text-indigo-700 data-[selected=true]:hover:bg-indigo-100';
+
+export const HUD_SELECTION_CHIP_UNSELECTED_CLASS =
+  'bg-transparent text-slate-500 hover:bg-slate-100 hover:text-slate-700';
+
 // Backward-compatible aliases.
 export const HUD_SOFT_TEXT_BUTTON_CLASS = HUD_TEXT_BUTTON_SECONDARY_CLASS;
 export const HUD_SOFT_ICON_BUTTON_CLASS = HUD_ICON_BUTTON_SECONDARY_CLASS;
@@ -216,6 +230,12 @@ export const SEGMENTED_ITEM_MD_CLASS = HUD_SEGMENTED_ITEM_MD_CLASS;
 export const SEGMENTED_ITEM_ACTIVE_CLASS = HUD_SEGMENTED_ITEM_ACTIVE_CLASS;
 export const SEGMENTED_ITEM_INACTIVE_CLASS = HUD_SEGMENTED_ITEM_INACTIVE_CLASS;
 export const SEGMENTED_ITEM_DISABLED_CLASS = HUD_SEGMENTED_ITEM_DISABLED_CLASS;
+export const SELECTION_CHIP_BASE_CLASS = HUD_SELECTION_CHIP_BASE_CLASS;
+export const SELECTION_CHIP_DEFAULT_CLASS = HUD_SELECTION_CHIP_DEFAULT_CLASS;
+export const SELECTION_CHIP_COMPACT_CLASS = HUD_SELECTION_CHIP_COMPACT_CLASS;
+export const SELECTION_CHIP_SELECTED_CLASS = HUD_SELECTION_CHIP_SELECTED_CLASS;
+export const SELECTION_CHIP_UNSELECTED_CLASS =
+  HUD_SELECTION_CHIP_UNSELECTED_CLASS;
 export const SOFT_TEXT_BUTTON_CLASS = HUD_SOFT_TEXT_BUTTON_CLASS;
 export const SOFT_ICON_BUTTON_CLASS = HUD_SOFT_ICON_BUTTON_CLASS;
 export const DROPDOWN_ITEM_CLASS = HUD_DROPDOWN_ITEM_CLASS;

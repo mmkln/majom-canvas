@@ -12,6 +12,7 @@ import {
 } from '../domain/time.ts';
 import type {
   TimeCluster,
+  TimeClusterRecurrence,
   TimeClusteringStateSnapshot,
   TimeClusteringSuggestionAction,
 } from '../domain/types.ts';
@@ -47,6 +48,7 @@ function createSeedCluster(params: {
   dateKey: string;
   startMinute: number;
   endMinute: number;
+  recurrence?: TimeClusterRecurrence;
 }): TimeCluster {
   return normalizeCluster({
     id: params.id,
@@ -54,6 +56,7 @@ function createSeedCluster(params: {
     colorToken: params.colorToken,
     startAtIso: isoFromDateKeyMinute(params.dateKey, params.startMinute),
     endAtIso: isoFromDateKeyMinute(params.dateKey, params.endMinute),
+    recurrence: params.recurrence ?? 'none',
   });
 }
 
@@ -218,6 +221,19 @@ function buildClusterFromPayload(
       ? payload.endAtIso
       : isoFromDateKeyMinute(dateKey, Number(payload.endMinute ?? 600));
 
+  const recurrence =
+    payload.recurrence === 'daily' ||
+    payload.recurrence === 'weekdays' ||
+    payload.recurrence === 'weekly'
+      ? payload.recurrence
+      : 'none';
+
+  const recurrenceWeekdays = Array.isArray(payload.recurrenceWeekdays)
+    ? payload.recurrenceWeekdays
+        .map((value) => Number(value))
+        .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6)
+    : undefined;
+
   return normalizeCluster({
     id: typeof payload.id === 'string' && payload.id.length > 0
       ? payload.id
@@ -232,6 +248,12 @@ function buildClusterFromPayload(
         : 'violet',
     startAtIso,
     endAtIso,
+    recurrence,
+    recurrenceEndDateKey:
+      typeof payload.recurrenceEndDateKey === 'string'
+        ? payload.recurrenceEndDateKey
+        : null,
+    recurrenceWeekdays,
   });
 }
 
@@ -250,6 +272,25 @@ function buildClusterPatchFromPayload(
   }
   if (typeof payload.colorToken === 'string') {
     patch.colorToken = payload.colorToken;
+  }
+  if (
+    payload.recurrence === 'none' ||
+    payload.recurrence === 'daily' ||
+    payload.recurrence === 'weekdays' ||
+    payload.recurrence === 'weekly'
+  ) {
+    patch.recurrence = payload.recurrence;
+  }
+  if (
+    typeof payload.recurrenceEndDateKey === 'string' ||
+    payload.recurrenceEndDateKey === null
+  ) {
+    patch.recurrenceEndDateKey = payload.recurrenceEndDateKey;
+  }
+  if (Array.isArray(payload.recurrenceWeekdays)) {
+    patch.recurrenceWeekdays = payload.recurrenceWeekdays
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6);
   }
   if (typeof payload.startAtIso === 'string') {
     patch.startAtIso = payload.startAtIso;

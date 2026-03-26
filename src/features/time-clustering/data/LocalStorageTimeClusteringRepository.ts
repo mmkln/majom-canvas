@@ -16,6 +16,9 @@ type LegacyTimeCluster = {
   colorToken?: unknown;
   startMinute?: unknown;
   endMinute?: unknown;
+  recurrence?: unknown;
+  recurrenceEndDateKey?: unknown;
+  recurrenceWeekdays?: unknown;
 };
 
 type LegacyDayClusterPlan = {
@@ -76,12 +79,30 @@ function normalizeClusterRecord(
     return null;
   }
 
+  const recurrence =
+    value.recurrence === 'daily' ||
+    value.recurrence === 'weekdays' ||
+    value.recurrence === 'weekly'
+      ? value.recurrence
+      : 'none';
+  const recurrenceWeekdays = Array.isArray(value.recurrenceWeekdays)
+    ? value.recurrenceWeekdays
+        .map((entry) => Number(entry))
+        .filter((entry) => Number.isInteger(entry) && entry >= 0 && entry <= 6)
+    : undefined;
+
   return normalizeCluster({
     id: value.id || fallbackId,
     title: value.title,
     colorToken: value.colorToken,
     startAtIso: value.startAtIso,
     endAtIso: value.endAtIso,
+    recurrence,
+    recurrenceEndDateKey:
+      typeof value.recurrenceEndDateKey === 'string'
+        ? value.recurrenceEndDateKey
+        : null,
+    recurrenceWeekdays,
   });
 }
 
@@ -126,6 +147,23 @@ function migrateLegacyPlans(
           colorToken,
           startAtIso: isoFromDateKeyMinute(dateKey, startMinute),
           endAtIso: isoFromDateKeyMinute(endDateKey, endMinute),
+          recurrence:
+            cluster.recurrence === 'daily' ||
+            cluster.recurrence === 'weekdays' ||
+            cluster.recurrence === 'weekly'
+              ? cluster.recurrence
+              : 'none',
+          recurrenceEndDateKey:
+            typeof cluster.recurrenceEndDateKey === 'string'
+              ? cluster.recurrenceEndDateKey
+              : null,
+          recurrenceWeekdays: Array.isArray(cluster.recurrenceWeekdays)
+            ? cluster.recurrenceWeekdays
+                .map((entry) => Number(entry))
+                .filter(
+                  (entry) => Number.isInteger(entry) && entry >= 0 && entry <= 6
+                )
+            : undefined,
         })
       );
     });

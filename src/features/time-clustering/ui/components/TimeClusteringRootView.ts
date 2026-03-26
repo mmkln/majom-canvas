@@ -11,9 +11,9 @@ import {
   dayDifference,
   dayOffsetDateKey,
   differenceInMinutes,
-  formatDateTimeLocalInputValue,
+  getDateKeyForIso,
   isoFromDateKeyMinute,
-  isoFromLocalDateTimeInput,
+  minuteOfDayFromDate,
   parseIsoToMillis,
   shiftIsoByDays,
   shiftIsoByMinutes,
@@ -22,6 +22,7 @@ import {
 } from '../../domain/time.ts';
 import type {
   TimeCluster,
+  TimeClusterRecurrence,
   TimeClusterSegment,
   TimeClusteringLayoutMode,
   TimeClusteringStateSnapshot,
@@ -35,16 +36,21 @@ import {
 } from '../../../../ui-lib/src/components/Modal.ts';
 import {
   createIconButton,
+  createStepPicker,
   createColorPicker,
+  createField,
   createInputBase,
+  createSelectionChip,
+  createSegmentedControl,
+  setSelectionChipState,
   createTextButton,
   type ColorPickerOption,
-  type TextButtonElement,
-  type TextButtonTone,
+  type SegmentedControl,
 } from '../../../../ui-lib/src/hud/index.ts';
-import { createIcon, type IconName } from '../../../../ui-lib/src/hud/icons.ts';
+import { I18nService, createAppI18nService } from '../../../../i18n/index.ts';
 
 interface TimeClusteringRootViewOptions {
+  i18n?: I18nService;
   store: TimeClusteringStore;
   layoutMode: TimeClusteringLayoutMode;
   onLayoutModeChange: (mode: TimeClusteringLayoutMode) => void;
@@ -79,6 +85,7 @@ const CLUSTER_COLOR_TOKENS = [
   'teal',
   'indigo',
 ];
+const WEEKDAY_SELECTION_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
 type SelectedClusterRef = {
   clusterId: string;
@@ -175,70 +182,179 @@ function formatMinute(minute: number): string {
   return `${hours}:${mins}`;
 }
 
-function formatWeekdayLabel(dateKey: string): string {
+function formatWeekdayLabel(i18n: I18nService, dateKey: string): string {
   const date = dateFromKey(dateKey);
   if (!date) return dateKey;
-  return new Intl.DateTimeFormat(undefined, { weekday: 'short' }).format(date);
+  return i18n.formatDate(date, { weekday: 'short' });
 }
 
-function formatWeekdayInitial(dateKey: string): string {
+function formatWeekdayInitial(i18n: I18nService, dateKey: string): string {
   const date = dateFromKey(dateKey);
   if (!date) return dateKey.slice(0, 1);
-  return new Intl.DateTimeFormat(undefined, { weekday: 'narrow' }).format(date);
+  return i18n.formatDate(date, { weekday: 'narrow' });
 }
 
-function formatDayNumber(dateKey: string): string {
+function formatDayNumber(i18n: I18nService, dateKey: string): string {
   const date = dateFromKey(dateKey);
   if (!date) return '--';
-  return new Intl.DateTimeFormat(undefined, { day: 'numeric' }).format(date);
+  return i18n.formatDate(date, { day: 'numeric' });
 }
 
-function formatWeekRange(dateKeys: string[]): string {
+function createCalendarDayChip(params: {
+  selected: boolean;
+  weekdayLabel: string;
+  dayLabel: string;
+  onClick: () => void;
+}): HTMLButtonElement {
+  const chip = createSelectionChip({
+    selected: params.selected,
+    size: 'compact',
+    className:
+      '!h-auto min-h-[42px] w-full min-w-0 flex-col gap-0 rounded-xl px-2 py-1.5 text-center',
+  });
+  chip.onclick = params.onClick;
+
+  const weekday = document.createElement('p');
+  weekday.className = params.selected
+    ? 'text-[9px] font-semibold uppercase leading-none tracking-[0.08em] text-indigo-500'
+    : 'text-[9px] font-semibold uppercase leading-none tracking-[0.08em] text-slate-400';
+  weekday.textContent = params.weekdayLabel;
+
+  const dayNumber = document.createElement('p');
+  dayNumber.className = params.selected
+    ? 'mt-1 text-[14px] font-semibold leading-none text-indigo-700'
+    : 'mt-1 text-[14px] font-semibold leading-none text-slate-700';
+  dayNumber.textContent = params.dayLabel;
+
+  chip.append(weekday, dayNumber);
+  return chip;
+}
+
+function formatWeekdayShort(i18n: I18nService, weekday: number): string {
+  const normalizedWeekday =
+    weekday === 0 ? 6 : Math.max(0, Math.min(6, weekday - 1));
+  const date = new Date(2026, 0, 5 + normalizedWeekday, 12, 0, 0, 0);
+  return i18n.formatDate(date, { weekday: 'short' });
+}
+
+function getAnchorWeekday(iso: string): number | null {
+  const dateKey = getDateKeyForIso(iso);
+  const date = dateKey ? dateFromKey(dateKey) : null;
+  return date ? date.getDay() : null;
+}
+
+function getWeeklySelection(cluster: TimeCluster): number[] {
+  if (Array.isArray(cluster.recurrenceWeekdays) && cluster.recurrenceWeekdays.length > 0) {
+    return [...cluster.recurrenceWeekdays];
+  }
+  const anchorWeekday = getAnchorWeekday(cluster.startAtIso);
+  return anchorWeekday === null ? [1] : [anchorWeekday];
+}
+
+function formatWeekRange(i18n: I18nService, dateKeys: string[]): string {
   const start = dateFromKey(dateKeys[0] ?? '');
   const end = dateFromKey(dateKeys[dateKeys.length - 1] ?? '');
   if (!start || !end) return '';
 
-  const startLabel = new Intl.DateTimeFormat(undefined, {
+  const startLabel = i18n.formatDate(start, {
     month: 'short',
     day: 'numeric',
-  }).format(start);
-  const endLabel = new Intl.DateTimeFormat(undefined, {
+  });
+  const endLabel = i18n.formatDate(end, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
-  }).format(end);
+  });
   return `${startLabel} - ${endLabel}`;
 }
 
-function formatLongDate(dateKey: string): string {
+function formatLongDate(i18n: I18nService, dateKey: string): string {
   const date = dateFromKey(dateKey);
   if (!date) return dateKey;
-  return new Intl.DateTimeFormat(undefined, {
+  return i18n.formatDate(date, {
     weekday: 'long',
     month: 'short',
     day: 'numeric',
     year: 'numeric',
-  }).format(date);
+  });
 }
 
-function formatClusterDateTimeRange(cluster: TimeCluster): string {
-  const start = new Date(cluster.startAtIso);
-  const end = new Date(cluster.endAtIso);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    return 'Select start and end date/time.';
-  }
-  const formatter = new Intl.DateTimeFormat(undefined, {
+function formatPeriodDate(i18n: I18nService, dateKey: string): string {
+  const date = dateFromKey(dateKey);
+  if (!date) return dateKey;
+  return i18n.formatDate(date, {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
+    year: 'numeric',
   });
-  return `${formatter.format(start)} - ${formatter.format(end)}`;
+}
+
+function formatClusterDateRange(
+  i18n: I18nService,
+  cluster: TimeCluster
+): string {
+  const startDateKey = getDateKeyForIso(cluster.startAtIso);
+  const endDateKey = getDateKeyForIso(cluster.endAtIso);
+  if (!startDateKey || !endDateKey) {
+    return i18n.t('timeClustering.selectDate');
+  }
+  if (startDateKey === endDateKey) {
+    return formatLongDate(i18n, startDateKey);
+  }
+  return `${formatLongDate(i18n, startDateKey)} - ${formatLongDate(
+    i18n,
+    endDateKey
+  )}`;
 }
 
 function formatClusterSegmentRange(cluster: TimeClusterSegment): string {
   return `${formatMinute(cluster.startMinute)} - ${formatMinute(cluster.endMinute)}`;
+}
+
+function formatDateInputValue(iso: string): string {
+  return getDateKeyForIso(iso) ?? '';
+}
+
+function minuteOfDayFromIso(iso: string): number | null {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return minuteOfDayFromDate(date);
+}
+
+function parseTimeInputValue(value: string): number | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (
+    Number.isNaN(hours) ||
+    Number.isNaN(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return null;
+  }
+  return hours * 60 + minutes;
+}
+
+function formatRecurrenceLabel(
+  i18n: I18nService,
+  recurrence: TimeClusterRecurrence
+): string {
+  switch (recurrence) {
+    case 'daily':
+      return i18n.t('timeClustering.repeatsDaily');
+    case 'weekdays':
+      return i18n.t('timeClustering.repeatsWeekdays');
+    case 'weekly':
+      return i18n.t('timeClustering.repeatsWeekly');
+    case 'none':
+    default:
+      return i18n.t('timeClustering.recurrence.none');
+  }
 }
 
 function roundUpToStep(minute: number, step: number): number {
@@ -250,7 +366,7 @@ function deltaPixelsToSnappedMinutes(deltaPixels: number): number {
   return Math.round(deltaPixels / pixelsPerStep) * CLUSTER_STEP_MINUTES;
 }
 
-function formatColorTokenLabel(colorToken: string): string {
+function humanizeColorTokenLabel(colorToken: string): string {
   return colorToken
     .split(/[-_\s]+/)
     .filter(Boolean)
@@ -258,7 +374,33 @@ function formatColorTokenLabel(colorToken: string): string {
     .join(' ');
 }
 
+function formatColorTokenLabel(i18n: I18nService, colorToken: string): string {
+  switch (colorToken) {
+    case 'blue':
+      return i18n.t('timeClustering.color.blue');
+    case 'green':
+      return i18n.t('timeClustering.color.green');
+    case 'amber':
+      return i18n.t('timeClustering.color.amber');
+    case 'rose':
+      return i18n.t('timeClustering.color.rose');
+    case 'violet':
+      return i18n.t('timeClustering.color.violet');
+    case 'cyan':
+      return i18n.t('timeClustering.color.cyan');
+    case 'orange':
+      return i18n.t('timeClustering.color.orange');
+    case 'teal':
+      return i18n.t('timeClustering.color.teal');
+    case 'indigo':
+      return i18n.t('timeClustering.color.indigo');
+    default:
+      return humanizeColorTokenLabel(colorToken);
+  }
+}
+
 function buildClusterColorPickerOptions(
+  i18n: I18nService,
   colorTokens: string[]
 ): ColorPickerOption<string>[] {
   return colorTokens.map((colorToken) => {
@@ -266,11 +408,11 @@ function buildClusterColorPickerOptions(
     return {
       id: `cluster-color-${colorToken}`,
       value: colorToken,
-      label: formatColorTokenLabel(colorToken),
+      label: formatColorTokenLabel(i18n, colorToken),
       swatchColor: palette.accent,
       backgroundColor: palette.background,
       borderColor: palette.border,
-      title: formatColorTokenLabel(colorToken),
+      title: formatColorTokenLabel(i18n, colorToken),
     };
   });
 }
@@ -467,57 +609,24 @@ function mixHexWithWhite(hex: string, ratio: number): string {
   return `rgb(${blend(red)}, ${blend(green)}, ${blend(blue)})`;
 }
 
-function createButton(
-  label: string,
-  variant: 'secondary' | 'primary' | 'ghost' | 'accent' = 'secondary',
-  iconName?: IconName
-): TextButtonElement {
-  const tone: TextButtonTone =
-    variant === 'primary' ? 'primary' : variant === 'ghost' ? 'text' : 'soft';
-  const className =
-    variant === 'primary'
-      ? 'rounded-full !bg-slate-900 !text-white hover:!bg-slate-700'
-      : variant === 'accent'
-        ? 'rounded-full bg-indigo-50 !text-indigo-700 hover:!bg-indigo-100 hover:!text-indigo-800'
-        : variant === 'ghost'
-          ? 'rounded-full !text-slate-600 hover:!bg-slate-100 hover:!text-slate-900'
-          : 'rounded-full border border-slate-200 bg-white !text-slate-700 hover:border-slate-300 hover:!bg-white hover:!text-slate-900';
-  const button = createTextButton({
-    text: iconName ? undefined : label,
-    tone,
-    size: 'md',
-    className,
-  });
-  if (iconName) {
-    const content = document.createElement('span');
-    content.className = 'inline-flex items-center gap-2';
-
-    const icon = createIcon(iconName, { size: 14, strokeWidth: 2 });
-    icon.classList.add('shrink-0');
-    icon.setAttribute('aria-hidden', 'true');
-
-    const text = document.createElement('span');
-    text.textContent = label;
-
-    content.append(icon, text);
-    button.replaceChildren(content);
-  }
-
-  return button;
-}
-
 export class TimeClusteringRootView {
+  private readonly i18n: I18nService;
   private readonly store: TimeClusteringStore;
   private readonly onLayoutModeChange: (mode: TimeClusteringLayoutMode) => void;
   private readonly root: HTMLDivElement;
-  private readonly addClusterButton: TextButtonElement;
-  private readonly layoutToggleButton: HTMLButtonElement;
+  private readonly addClusterButton: HTMLButtonElement;
   private readonly secondaryNav: HTMLDivElement;
+  private readonly periodSwitcher: HTMLDivElement;
+  private readonly periodCurrentSurface: HTMLButtonElement;
+  private readonly periodLabel: HTMLSpanElement;
+  private readonly periodDateInput: HTMLInputElement;
+  private readonly periodPreviousButton: HTMLButtonElement;
+  private readonly periodNextButton: HTMLButtonElement;
+  private readonly viewModeSwitcher: HTMLDivElement;
+  private readonly viewModeControl: SegmentedControl<TimeClusteringLayoutMode>;
+  private readonly dayModeButton: HTMLButtonElement;
+  private readonly weekModeButton: HTMLButtonElement;
   private readonly daySwitcher: HTMLDivElement;
-  private readonly weekSwitcher: HTMLDivElement;
-  private readonly weekRangeLabel: HTMLParagraphElement;
-  private readonly weekPreviousButton: HTMLButtonElement;
-  private readonly weekNextButton: HTMLButtonElement;
   private readonly warningBanner: HTMLDivElement;
   private readonly calendarSurface: HTMLDivElement;
   private calendarScrollContainer: HTMLDivElement | null = null;
@@ -532,6 +641,7 @@ export class TimeClusteringRootView {
   private layoutMode: TimeClusteringLayoutMode;
 
   constructor(options: TimeClusteringRootViewOptions) {
+    this.i18n = options.i18n ?? createAppI18nService();
     this.store = options.store;
     this.layoutMode = options.layoutMode;
     this.onLayoutModeChange = options.onLayoutModeChange;
@@ -543,76 +653,103 @@ export class TimeClusteringRootView {
     const header = document.createElement('div');
     header.className = 'border-b border-slate-200 bg-white px-5 py-4';
 
-    const headerRow = document.createElement('div');
-    headerRow.className = 'flex flex-wrap items-center gap-2';
-
-    const actionGroup = document.createElement('div');
-    actionGroup.className =
-      'ml-auto flex flex-wrap items-center justify-end gap-2';
-
-    this.addClusterButton = createButton('Add cluster', 'accent', 'plus');
+    this.addClusterButton = createIconButton({
+      icon: 'plus',
+      size: 'sm',
+      tone: 'secondary',
+      title: this.i18n.t('timeClustering.addCluster'),
+      ariaLabel: this.i18n.t('timeClustering.addCluster'),
+      iconStrokeWidth: 1.9,
+    });
+    this.addClusterButton.dataset.role = 'add-cluster-button';
     this.addClusterButton.onclick = () => {
       this.createClusterForSelectedDate();
     };
 
-    this.layoutToggleButton = createIconButton({
-      icon: 'chevron-right',
-      tone: 'text',
-      title: 'Expand',
-      ariaLabel: 'Expand',
-      iconStrokeWidth: 1.5,
-      className: 'rounded-full',
-    });
-    this.layoutToggleButton.dataset.role = 'layout-toggle-button';
-    this.layoutToggleButton.onclick = () => {
-      this.onLayoutModeChange(
-        this.layoutMode === 'docked-left' ? 'fullscreen' : 'docked-left'
-      );
-    };
-
-    actionGroup.append(this.addClusterButton);
-
-    headerRow.append(this.layoutToggleButton, actionGroup);
-
     this.secondaryNav = document.createElement('div');
-    this.secondaryNav.className = 'mt-4 flex flex-col gap-2 overflow-auto';
+    this.secondaryNav.className = 'mt-4 flex flex-col gap-2.5';
+
+    const navigationRow = document.createElement('div');
+    navigationRow.className =
+      'flex flex-col items-start gap-2 sm:flex-row sm:flex-wrap sm:items-center';
+
+    const periodPicker = createStepPicker({
+      previousLabel: this.i18n.t('timeClustering.period.previous'),
+      nextLabel: this.i18n.t('timeClustering.period.next'),
+      className: 'shrink-0',
+    });
+    this.periodSwitcher = periodPicker.element;
+    this.periodSwitcher.dataset.role = 'period-switcher';
+    this.periodPreviousButton = periodPicker.previousButton;
+    this.periodPreviousButton.dataset.role = 'period-previous-button';
+    this.periodCurrentSurface = periodPicker.triggerButton;
+    this.periodCurrentSurface.dataset.role = 'period-current-surface';
+    this.periodCurrentSurface.style.minWidth = '12rem';
+    this.periodCurrentSurface.style.maxWidth = '18rem';
+    this.periodLabel = periodPicker.triggerLabel;
+    this.periodLabel.className = 'min-w-0 flex-1 truncate text-left';
+    this.periodLabel.dataset.role = 'period-label';
+    this.periodNextButton = periodPicker.nextButton;
+    this.periodNextButton.dataset.role = 'period-next-button';
+
+    this.periodDateInput = document.createElement('input');
+    this.periodDateInput.type = 'date';
+    this.periodDateInput.dataset.role = 'period-date-input';
+    this.periodDateInput.tabIndex = -1;
+    this.periodDateInput.setAttribute('aria-hidden', 'true');
+    this.periodDateInput.style.position = 'absolute';
+    this.periodDateInput.style.opacity = '0';
+    this.periodDateInput.style.pointerEvents = 'none';
+    this.periodDateInput.style.width = '1px';
+    this.periodDateInput.style.height = '1px';
+    this.periodDateInput.style.inset = '0 auto auto 0';
+    this.periodDateInput.addEventListener('change', () => {
+      if (!this.periodDateInput.value) return;
+      this.store.setSelectedDate(this.periodDateInput.value);
+    });
+
+    this.periodSwitcher.append(this.periodDateInput);
+
+    this.viewModeControl = createSegmentedControl<TimeClusteringLayoutMode>({
+      ariaLabel: this.i18n.t('timeClustering.viewMode'),
+      size: 'sm',
+      value: this.layoutMode,
+      options: [
+        {
+          id: 'time-clustering-view-day',
+          value: 'docked-left',
+          label: this.i18n.t('timeClustering.view.day'),
+        },
+        {
+          id: 'time-clustering-view-week',
+          value: 'fullscreen',
+          label: this.i18n.t('timeClustering.view.week'),
+        },
+      ],
+      onChange: (mode) => this.onLayoutModeChange(mode),
+    });
+    this.viewModeSwitcher = this.viewModeControl.element;
+    this.viewModeSwitcher.dataset.role = 'view-mode-switcher';
+    const [dayModeButton, weekModeButton] = Array.from(
+      this.viewModeSwitcher.querySelectorAll<HTMLButtonElement>('button')
+    );
+    this.dayModeButton = dayModeButton ?? document.createElement('button');
+    this.weekModeButton = weekModeButton ?? document.createElement('button');
+    this.dayModeButton.dataset.role = 'view-mode-button';
+    this.dayModeButton.dataset.mode = 'day';
+    this.weekModeButton.dataset.role = 'view-mode-button';
+    this.weekModeButton.dataset.mode = 'week';
+
+    const navigationActions = document.createElement('div');
+    navigationActions.className =
+      'inline-flex shrink-0 items-center gap-2 self-start';
+    navigationActions.append(this.viewModeSwitcher, this.addClusterButton);
+    navigationRow.append(this.periodSwitcher, navigationActions);
 
     this.daySwitcher = document.createElement('div');
     this.daySwitcher.className = 'grid w-full grid-cols-7 gap-0.5';
     this.daySwitcher.dataset.role = 'day-switcher';
-
-    this.weekSwitcher = document.createElement('div');
-    this.weekSwitcher.className =
-      'flex w-full items-center justify-between gap-1.5 px-0 py-0';
-    this.weekSwitcher.dataset.role = 'week-switcher';
-
-    this.weekRangeLabel = document.createElement('p');
-    this.weekRangeLabel.className =
-      'min-w-0 flex-1 text-center text-sm font-medium text-slate-500';
-
-    this.weekPreviousButton = createIconButton({
-      icon: 'chevron-left',
-      tone: 'text',
-      title: 'Previous week',
-      ariaLabel: 'Previous week',
-      iconStrokeWidth: 1.5,
-      className: 'rounded-full',
-    });
-    this.weekNextButton = createIconButton({
-      icon: 'chevron-right',
-      tone: 'text',
-      title: 'Next week',
-      ariaLabel: 'Next week',
-      iconStrokeWidth: 1.5,
-      className: 'rounded-full',
-    });
-
-    this.weekSwitcher.append(
-      this.weekPreviousButton,
-      this.weekRangeLabel,
-      this.weekNextButton
-    );
-    this.secondaryNav.append(this.weekSwitcher, this.daySwitcher);
+    this.secondaryNav.append(navigationRow, this.daySwitcher);
 
     this.warningBanner = document.createElement('div');
     this.warningBanner.className =
@@ -626,7 +763,7 @@ export class TimeClusteringRootView {
     this.calendarSurface.className = 'min-h-0 flex-1';
     this.calendarSurface.dataset.role = 'calendar-surface';
 
-    header.append(headerRow, this.secondaryNav);
+    header.append(this.secondaryNav);
     body.append(this.calendarSurface);
     this.root.append(header, this.warningBanner, body);
   }
@@ -681,13 +818,7 @@ export class TimeClusteringRootView {
 
     this.reconcileTransientState(snapshot, visibleDateKeys);
 
-    this.updateLayoutToggleButton();
-    this.weekRangeLabel.textContent = formatWeekRange(weekDateKeys);
-    this.weekPreviousButton.onclick = () =>
-      this.store.setSelectedDate(dayOffsetDateKey(selectedDateKey, -7));
-    this.weekNextButton.onclick = () =>
-      this.store.setSelectedDate(dayOffsetDateKey(selectedDateKey, 7));
-
+    this.updateViewModeButtons();
     this.renderSecondaryNavigation(snapshot, weekDateKeys);
     this.renderWarnings(snapshot);
     this.renderCalendar(
@@ -825,15 +956,11 @@ export class TimeClusteringRootView {
     }
   }
 
-  private updateLayoutToggleButton(): void {
-    const isDocked = this.layoutMode === 'docked-left';
-    const label = isDocked ? 'Expand' : 'Dock left';
-    const iconName: IconName = isDocked ? 'chevron-right' : 'chevron-left';
-    const icon = createIcon(iconName, { size: 16, strokeWidth: 1.5 });
-    icon.setAttribute('aria-hidden', 'true');
-    this.layoutToggleButton.title = label;
-    this.layoutToggleButton.setAttribute('aria-label', label);
-    this.layoutToggleButton.replaceChildren(icon);
+  private updateViewModeButtons(): void {
+    const isDayMode = this.layoutMode === 'docked-left';
+    this.viewModeControl.setValue(this.layoutMode);
+    this.dayModeButton.dataset.selected = isDayMode ? 'true' : 'false';
+    this.weekModeButton.dataset.selected = isDayMode ? 'false' : 'true';
   }
 
   private renderSecondaryNavigation(
@@ -841,6 +968,59 @@ export class TimeClusteringRootView {
     weekDateKeys: string[]
   ): void {
     const isWeekMode = this.layoutMode === 'fullscreen';
+    const periodOffsetDays = isWeekMode ? 7 : 1;
+
+    this.periodLabel.textContent = isWeekMode
+      ? formatWeekRange(this.i18n, weekDateKeys)
+      : formatPeriodDate(this.i18n, snapshot.selectedDateKey);
+    this.periodDateInput.value = snapshot.selectedDateKey;
+    this.periodCurrentSurface.title = isWeekMode
+      ? this.i18n.t('timeClustering.period.jumpToWeek')
+      : this.i18n.t('timeClustering.period.jumpToDate');
+    this.periodCurrentSurface.setAttribute(
+      'aria-label',
+      isWeekMode
+        ? this.i18n.t('timeClustering.period.jumpToWeek')
+        : this.i18n.t('timeClustering.period.jumpToDate')
+    );
+    this.periodCurrentSurface.onclick = () => {
+      this.periodDateInput.value = snapshot.selectedDateKey;
+      const pickerInput = this.periodDateInput as HTMLInputElement & {
+        showPicker?: () => void;
+      };
+      if (typeof pickerInput.showPicker === 'function') {
+        pickerInput.showPicker();
+        return;
+      }
+      this.periodDateInput.focus();
+      this.periodDateInput.click();
+    };
+    this.periodPreviousButton.title = isWeekMode
+      ? this.i18n.t('timeClustering.previousWeek')
+      : this.i18n.t('timeClustering.previousDay');
+    this.periodPreviousButton.setAttribute(
+      'aria-label',
+      isWeekMode
+        ? this.i18n.t('timeClustering.previousWeek')
+        : this.i18n.t('timeClustering.previousDay')
+    );
+    this.periodPreviousButton.onclick = () =>
+      this.store.setSelectedDate(
+        dayOffsetDateKey(snapshot.selectedDateKey, -periodOffsetDays)
+      );
+    this.periodNextButton.title = isWeekMode
+      ? this.i18n.t('timeClustering.nextWeek')
+      : this.i18n.t('timeClustering.nextDay');
+    this.periodNextButton.setAttribute(
+      'aria-label',
+      isWeekMode
+        ? this.i18n.t('timeClustering.nextWeek')
+        : this.i18n.t('timeClustering.nextDay')
+    );
+    this.periodNextButton.onclick = () =>
+      this.store.setSelectedDate(
+        dayOffsetDateKey(snapshot.selectedDateKey, periodOffsetDays)
+      );
 
     this.daySwitcher.classList.toggle('hidden', isWeekMode);
 
@@ -850,29 +1030,15 @@ export class TimeClusteringRootView {
 
     this.daySwitcher.innerHTML = '';
     weekDateKeys.forEach((dateKey) => {
-      const button = document.createElement('button');
       const isSelected = dateKey === snapshot.selectedDateKey;
-      button.type = 'button';
+      const button = createCalendarDayChip({
+        selected: isSelected,
+        weekdayLabel: formatWeekdayInitial(this.i18n, dateKey),
+        dayLabel: formatDayNumber(this.i18n, dateKey),
+        onClick: () => this.store.setSelectedDate(dateKey),
+      });
       button.dataset.role = 'day-switch-button';
       button.dataset.dateKey = dateKey;
-      button.className = isSelected
-        ? 'rounded-lg bg-indigo-50 px-1 py-1 text-center text-indigo-700 transition'
-        : 'rounded-lg bg-transparent px-1 py-1 text-center text-slate-500 transition hover:bg-slate-100/80 hover:text-slate-900';
-      button.onclick = () => this.store.setSelectedDate(dateKey);
-
-      const weekday = document.createElement('p');
-      weekday.className = isSelected
-        ? 'text-[8px] font-semibold uppercase tracking-[0.06em] text-indigo-500'
-        : 'text-[8px] font-semibold uppercase tracking-[0.06em] text-slate-400';
-      weekday.textContent = formatWeekdayInitial(dateKey);
-
-      const dayNumber = document.createElement('p');
-      dayNumber.className = isSelected
-        ? 'mt-px text-[13px] font-semibold text-indigo-700'
-        : 'mt-px text-[13px] font-semibold text-slate-700';
-      dayNumber.textContent = formatDayNumber(dateKey);
-
-      button.append(weekday, dayNumber);
       this.daySwitcher.appendChild(button);
     });
   }
@@ -888,8 +1054,8 @@ export class TimeClusteringRootView {
     this.warningBanner.classList.remove('hidden');
     this.warningBanner.textContent =
       count === 1
-        ? '1 time overlap was detected. The overlapping blocks were kept visible.'
-        : `${count} time overlaps were detected. The overlapping blocks were kept visible.`;
+        ? this.i18n.t('timeClustering.overlap.one')
+        : this.i18n.t('timeClustering.overlap.many', { count });
   }
 
   private renderCalendar(
@@ -971,7 +1137,11 @@ export class TimeClusteringRootView {
 
     body.append(
       this.renderTimeGutter(),
-      this.renderCalendarColumn(dateKey, clusters, isToday, 'day')
+      this.renderCalendarColumn(dateKey, clusters, {
+        isToday,
+        isSelectedDate: true,
+        calendarMode: 'day',
+      })
     );
     wrapper.append(body);
     return wrapper;
@@ -1005,7 +1175,8 @@ export class TimeClusteringRootView {
     weekDateKeys.forEach((dateKey) => {
       const cell = this.createCalendarHeaderCell({
         dateKey,
-        highlighted: dateKey === todayKey,
+        isToday: dateKey === todayKey,
+        isSelectedDate: dateKey === snapshot.selectedDateKey,
       });
       cell.dataset.role = 'week-day-header';
       cell.dataset.dateKey = dateKey;
@@ -1025,12 +1196,11 @@ export class TimeClusteringRootView {
 
     weekDateKeys.forEach((dateKey) => {
       const clusters = renderedClustersByDate[dateKey] ?? [];
-      const column = this.renderCalendarColumn(
-        dateKey,
-        clusters,
-        dateKey === todayKey,
-        'week'
-      );
+      const column = this.renderCalendarColumn(dateKey, clusters, {
+        isToday: dateKey === todayKey,
+        isSelectedDate: dateKey === snapshot.selectedDateKey,
+        calendarMode: 'week',
+      });
       column.dataset.role = 'calendar-day-column';
       column.dataset.dateKey = dateKey;
       columnsGrid.appendChild(column);
@@ -1059,20 +1229,32 @@ export class TimeClusteringRootView {
     return gutter;
   }
 
-  private clearSelectedCluster(): void {
+  private clearSelectedCluster(shouldRender: boolean = true): void {
     if (!this.selectedCluster) return;
     this.recentClusterClick = null;
     this.selectedCluster = null;
-    this.requestRender();
+    if (shouldRender) {
+      this.requestRender();
+    }
   }
 
-  private handleCalendarBackgroundPointerDown(event: PointerEvent): void {
+  private handleCalendarBackgroundPointerDown(
+    event: PointerEvent,
+    dateKey: string,
+    calendarMode: 'day' | 'week'
+  ): void {
     if (event.button !== 0) return;
     if (this.activeClusterGesture) return;
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
     if (target.closest('[data-role="cluster-block"]')) return;
-    this.clearSelectedCluster();
+    const shouldUpdateDate =
+      calendarMode === 'week' &&
+      this.store.getSnapshot().selectedDateKey !== dateKey;
+    this.clearSelectedCluster(!shouldUpdateDate);
+    if (shouldUpdateDate) {
+      this.store.setSelectedDate(dateKey);
+    }
   }
 
   private beginClusterGesture(params: {
@@ -1323,9 +1505,9 @@ export class TimeClusteringRootView {
     this.requestRender();
 
     const { overlay, container, body, footer } = createModalShell(
-      'Edit cluster',
+      cluster.title.trim() || this.i18n.t('timeClustering.untitledCluster'),
       {
-        subtitle: formatClusterDateTimeRange(cluster),
+        subtitle: formatClusterDateRange(this.i18n, cluster),
         onClose: () => this.closeClusterEditModal(),
         intent: 'form',
         zIndex: 240,
@@ -1346,7 +1528,7 @@ export class TimeClusteringRootView {
     const titleLabel = document.createElement('span');
     titleLabel.className =
       'text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500';
-    titleLabel.textContent = 'Title';
+    titleLabel.textContent = this.i18n.t('timeClustering.edit.title');
 
     const titleInput = createInputBase({
       value: cluster.title,
@@ -1361,42 +1543,172 @@ export class TimeClusteringRootView {
     const timeGrid = document.createElement('div');
     timeGrid.className = 'grid gap-3 sm:grid-cols-2';
 
-    const startField = document.createElement('label');
-    startField.className = 'flex flex-col gap-1.5';
+    const startField = createField({
+      label: this.i18n.t('timeClustering.edit.start'),
+    });
+    const startControls = document.createElement('div');
+    startControls.className = 'grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem]';
 
-    const startLabel = document.createElement('span');
-    startLabel.className =
-      'text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500';
-    startLabel.textContent = 'Start';
+    const startDateInput = createInputBase({
+      type: 'date',
+      value: formatDateInputValue(cluster.startAtIso),
+      className: 'w-full',
+    });
+    startDateInput.dataset.role = 'cluster-edit-start-date-input';
 
-    const startInput = createInputBase({
-      type: 'datetime-local',
-      value: formatDateTimeLocalInputValue(cluster.startAtIso),
+    const startTimeInput = createInputBase({
+      type: 'time',
+      value: formatMinute(
+        minuteOfDayFromIso(cluster.startAtIso) ?? DEFAULT_VISIBLE_START_MINUTE
+      ),
       className: 'w-full font-mono',
     });
-    startInput.step = String(CLUSTER_STEP_MINUTES * 60);
-    startInput.dataset.role = 'cluster-edit-start-input';
+    startTimeInput.step = String(CLUSTER_STEP_MINUTES * 60);
+    startTimeInput.dataset.role = 'cluster-edit-start-time-input';
 
-    startField.append(startLabel, startInput);
+    startControls.append(startDateInput, startTimeInput);
+    startField.setControl(startControls);
 
-    const endField = document.createElement('label');
-    endField.className = 'flex flex-col gap-1.5';
+    const endField = createField({
+      label: this.i18n.t('timeClustering.edit.end'),
+    });
+    const endControls = document.createElement('div');
+    endControls.className = 'grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem]';
 
-    const endLabel = document.createElement('span');
-    endLabel.className =
-      'text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500';
-    endLabel.textContent = 'End';
+    const endDateInput = createInputBase({
+      type: 'date',
+      value: formatDateInputValue(cluster.endAtIso),
+      className: 'w-full',
+    });
+    endDateInput.dataset.role = 'cluster-edit-end-date-input';
 
-    const endInput = createInputBase({
-      type: 'datetime-local',
-      value: formatDateTimeLocalInputValue(cluster.endAtIso),
+    const endTimeInput = createInputBase({
+      type: 'time',
+      value: formatMinute(
+        minuteOfDayFromIso(cluster.endAtIso) ??
+          DEFAULT_VISIBLE_START_MINUTE + DEFAULT_CLUSTER_DURATION_MINUTES
+      ),
       className: 'w-full font-mono',
     });
-    endInput.step = String(CLUSTER_STEP_MINUTES * 60);
-    endInput.dataset.role = 'cluster-edit-end-input';
+    endTimeInput.step = String(CLUSTER_STEP_MINUTES * 60);
+    endTimeInput.dataset.role = 'cluster-edit-end-time-input';
 
-    endField.append(endLabel, endInput);
-    timeGrid.append(startField, endField);
+    endControls.append(endDateInput, endTimeInput);
+    endField.setControl(endControls);
+    timeGrid.append(startField.element, endField.element);
+
+    const recurrenceControl = createSegmentedControl<TimeClusterRecurrence>({
+      size: 'md',
+      fullWidth: true,
+      ariaLabel: this.i18n.t('timeClustering.recurrence.aria'),
+      value: cluster.recurrence,
+      options: [
+        {
+          id: 'cluster-recurrence-none',
+          value: 'none',
+          label: this.i18n.t('timeClustering.recurrence.none'),
+          title: this.i18n.t('timeClustering.recurrence.noneDescription'),
+        },
+        {
+          id: 'cluster-recurrence-daily',
+          value: 'daily',
+          label: this.i18n.t('timeClustering.recurrence.daily'),
+          title: this.i18n.t('timeClustering.recurrence.dailyDescription'),
+        },
+        {
+          id: 'cluster-recurrence-weekdays',
+          value: 'weekdays',
+          label: this.i18n.t('timeClustering.recurrence.weekdays'),
+          title: this.i18n.t('timeClustering.recurrence.weekdaysDescription'),
+        },
+        {
+          id: 'cluster-recurrence-weekly',
+          value: 'weekly',
+          label: this.i18n.t('timeClustering.recurrence.weekly'),
+          title: this.i18n.t('timeClustering.recurrence.weeklyDescription'),
+        },
+      ],
+    });
+    recurrenceControl.element.dataset.role = 'cluster-edit-recurrence-control';
+    const recurrenceField = createField({
+      label: this.i18n.t('timeClustering.recurrence'),
+      control: recurrenceControl.element,
+      hint: formatRecurrenceLabel(this.i18n, cluster.recurrence),
+    });
+
+    const recurrenceOptions = document.createElement('div');
+    recurrenceOptions.className = 'flex flex-col gap-3';
+    recurrenceOptions.dataset.role = 'cluster-edit-recurrence-options';
+
+    const recurrenceEndField = createField({
+      label: this.i18n.t('timeClustering.recurrence.endsOn'),
+    });
+    const recurrenceEndInput = createInputBase({
+      type: 'date',
+      value: cluster.recurrenceEndDateKey ?? '',
+      className: 'w-full',
+    });
+    recurrenceEndInput.dataset.role = 'cluster-edit-recurrence-end-date-input';
+    recurrenceEndField.setControl(recurrenceEndInput);
+    recurrenceEndField.setState({
+      hint: this.i18n.t('timeClustering.recurrence.endsOnHint'),
+    });
+
+    const weeklySelectorField = createField({
+      label: this.i18n.t('timeClustering.recurrence.weeklyDays'),
+    });
+    const weeklySelector = document.createElement('div');
+    weeklySelector.className = 'grid grid-cols-7 gap-1';
+    weeklySelector.dataset.role = 'cluster-edit-weekday-selector';
+
+    const selectedWeeklyDays = new Set<number>(getWeeklySelection(cluster));
+    const weekdayButtons = new Map<number, HTMLButtonElement>();
+    const updateWeekdayButtonState = (): void => {
+      weekdayButtons.forEach((button, weekday) => {
+        setSelectionChipState(button, {
+          selected: selectedWeeklyDays.has(weekday),
+        });
+      });
+    };
+
+    WEEKDAY_SELECTION_ORDER.forEach((weekday) => {
+      const button = createSelectionChip({
+        selected: selectedWeeklyDays.has(weekday),
+        size: 'compact',
+      });
+      button.dataset.role = 'cluster-edit-weekday-button';
+      button.dataset.weekday = String(weekday);
+      button.textContent = formatWeekdayShort(this.i18n, weekday);
+      button.onclick = () => {
+        if (selectedWeeklyDays.has(weekday)) {
+          selectedWeeklyDays.delete(weekday);
+        } else {
+          selectedWeeklyDays.add(weekday);
+        }
+        updateWeekdayButtonState();
+        setError(null);
+      };
+      weekdayButtons.set(weekday, button);
+      weeklySelector.appendChild(button);
+    });
+    updateWeekdayButtonState();
+    weeklySelectorField.setControl(weeklySelector);
+    weeklySelectorField.setState({
+      hint: this.i18n.t('timeClustering.recurrence.weeklyDaysHint'),
+    });
+
+    const updateRecurrenceOptionsVisibility = (): void => {
+      const value = recurrenceControl.getValue() ?? 'none';
+      recurrenceOptions.classList.toggle('hidden', value === 'none');
+      recurrenceEndField.element.classList.toggle('hidden', value === 'none');
+      weeklySelectorField.element.classList.toggle('hidden', value !== 'weekly');
+    };
+
+    recurrenceOptions.append(
+      recurrenceEndField.element,
+      weeklySelectorField.element
+    );
+    updateRecurrenceOptionsVisibility();
 
     const colorField = document.createElement('label');
     colorField.className = 'flex flex-col gap-1.5';
@@ -1404,23 +1716,19 @@ export class TimeClusteringRootView {
     const colorLabel = document.createElement('span');
     colorLabel.className =
       'text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500';
-    colorLabel.textContent = 'Color';
+    colorLabel.textContent = this.i18n.t('timeClustering.edit.color');
 
     const colorOptions = CLUSTER_COLOR_TOKENS.includes(cluster.colorToken)
       ? CLUSTER_COLOR_TOKENS
       : [cluster.colorToken, ...CLUSTER_COLOR_TOKENS];
     const colorPicker = createColorPicker({
-      options: buildClusterColorPickerOptions(colorOptions),
+      options: buildClusterColorPickerOptions(this.i18n, colorOptions),
       value: cluster.colorToken,
-      ariaLabel: 'Cluster color',
+      ariaLabel: this.i18n.t('timeClustering.clusterColor'),
     });
     colorPicker.element.dataset.role = 'cluster-edit-color-picker';
 
     colorField.append(colorLabel, colorPicker.element);
-
-    const helperText = document.createElement('p');
-    helperText.className = 'text-xs text-slate-500';
-    helperText.textContent = `Use local date/time values and ${CLUSTER_STEP_MINUTES}-minute steps.`;
 
     const errorMessage = document.createElement('p');
     errorMessage.className = 'hidden text-sm text-rose-600';
@@ -1439,23 +1747,50 @@ export class TimeClusteringRootView {
     const submit = (): void => {
       const nextTitle = titleInput.value.trim();
       if (!nextTitle) {
-        setError('Title is required.');
+        setError(this.i18n.t('timeClustering.error.titleRequired'));
         return;
       }
 
-      const nextStartAtIso = isoFromLocalDateTimeInput(startInput.value);
-      const nextEndAtIso = isoFromLocalDateTimeInput(endInput.value);
-      if (!nextStartAtIso || !nextEndAtIso) {
-        setError('Select both start and end date/time values.');
+      const nextStartDateKey = startDateInput.value;
+      const nextEndDateKey = endDateInput.value;
+      const nextStartMinute = parseTimeInputValue(startTimeInput.value);
+      const nextEndMinute = parseTimeInputValue(endTimeInput.value);
+      if (
+        !nextStartDateKey ||
+        !nextEndDateKey ||
+        nextStartMinute === null ||
+        nextEndMinute === null
+      ) {
+        setError(this.i18n.t('timeClustering.error.invalidDateRange'));
         return;
       }
+      const nextStartAtIso = isoFromDateKeyMinute(
+        nextStartDateKey,
+        nextStartMinute
+      );
+      const nextEndAtIso = isoFromDateKeyMinute(nextEndDateKey, nextEndMinute);
+      const nextRecurrence = recurrenceControl.getValue() ?? 'none';
       if (
         differenceInMinutes(nextStartAtIso, nextEndAtIso) <
         MIN_CLUSTER_DURATION_MINUTES
       ) {
         setError(
-          `End time must be at least ${MIN_CLUSTER_DURATION_MINUTES} minutes after start time.`
+          this.i18n.t('timeClustering.error.minDuration', {
+            minutes: MIN_CLUSTER_DURATION_MINUTES,
+          })
         );
+        return;
+      }
+      if (
+        nextRecurrence !== 'none' &&
+        recurrenceEndInput.value &&
+        dayDifference(nextStartDateKey, recurrenceEndInput.value) < 0
+      ) {
+        setError(this.i18n.t('timeClustering.error.invalidRecurrenceEnd'));
+        return;
+      }
+      if (nextRecurrence === 'weekly' && selectedWeeklyDays.size === 0) {
+        setError(this.i18n.t('timeClustering.error.recurrenceWeekdayRequired'));
         return;
       }
 
@@ -1465,6 +1800,13 @@ export class TimeClusteringRootView {
         colorToken: colorPicker.getValue() ?? cluster.colorToken,
         startAtIso: nextStartAtIso,
         endAtIso: nextEndAtIso,
+        recurrence: nextRecurrence,
+        recurrenceEndDateKey:
+          nextRecurrence === 'none' ? null : recurrenceEndInput.value || null,
+        recurrenceWeekdays:
+          nextRecurrence === 'weekly'
+            ? [...selectedWeeklyDays].sort((a, b) => a - b)
+            : undefined,
       });
       this.closeClusterEditModal();
     };
@@ -1477,14 +1819,31 @@ export class TimeClusteringRootView {
 
     titleInput.addEventListener('keydown', handleInputKeyDown);
     titleInput.addEventListener('input', () => setError(null));
-    startInput.addEventListener('change', () => setError(null));
-    endInput.addEventListener('change', () => setError(null));
+    startDateInput.addEventListener('keydown', handleInputKeyDown);
+    startTimeInput.addEventListener('keydown', handleInputKeyDown);
+    endDateInput.addEventListener('keydown', handleInputKeyDown);
+    endTimeInput.addEventListener('keydown', handleInputKeyDown);
+    startDateInput.addEventListener('change', () => setError(null));
+    startTimeInput.addEventListener('change', () => setError(null));
+    endDateInput.addEventListener('change', () => setError(null));
+    endTimeInput.addEventListener('change', () => setError(null));
+    recurrenceEndInput.addEventListener('change', () => setError(null));
+    recurrenceControl.element.addEventListener('click', () => {
+      recurrenceField.setState({
+        hint: formatRecurrenceLabel(
+          this.i18n,
+          recurrenceControl.getValue() ?? 'none'
+        ),
+      });
+      updateRecurrenceOptionsVisibility();
+      setError(null);
+    });
     colorPicker.element.addEventListener('click', () => setError(null));
 
     const footerActions = createModalActionRow({ variant: 'form' });
 
     const cancelButton = createTextButton({
-      text: 'Cancel',
+      text: this.i18n.t('common.cancel'),
       tone: 'text',
       size: 'md',
       className: getModalActionButtonClass('default'),
@@ -1493,7 +1852,7 @@ export class TimeClusteringRootView {
     cancelButton.onclick = () => this.closeClusterEditModal();
 
     const saveButton = createTextButton({
-      text: 'Save',
+      text: this.i18n.t('common.save'),
       tone: 'primary',
       size: 'md',
       className: getModalActionButtonClass('default'),
@@ -1503,7 +1862,14 @@ export class TimeClusteringRootView {
 
     footerActions.append(cancelButton, saveButton);
 
-    content.append(titleField, timeGrid, colorField, helperText, errorMessage);
+    content.append(
+      titleField,
+      timeGrid,
+      recurrenceField.element,
+      recurrenceOptions,
+      colorField,
+      errorMessage
+    );
     body.appendChild(content);
     footer.appendChild(footerActions);
   }
@@ -1518,23 +1884,39 @@ export class TimeClusteringRootView {
     const handle = document.createElement('button');
     handle.type = 'button';
     handle.className =
-      'absolute left-1/2 z-20 flex h-3 w-10 -translate-x-1/2 items-center justify-center rounded-full bg-white/95 shadow-sm transition hover:bg-white';
+      'absolute left-1/2 z-20 flex h-4 min-w-[2.75rem] -translate-x-1/2 items-center justify-center rounded-full border px-1.5 transition-colors duration-150 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70';
     handle.dataset.role = 'cluster-resize-handle';
     handle.dataset.edge = edge;
-    handle.style.top = edge === 'start' ? '0px' : '';
-    handle.style.bottom = edge === 'end' ? '0px' : '';
+    handle.style.top = edge === 'start' ? '-6px' : '';
+    handle.style.bottom = edge === 'end' ? '-6px' : '';
     handle.style.touchAction = 'none';
+    handle.style.background = mixHexWithWhite(palette.accent, 0.97);
+    handle.style.borderColor = mixHexWithWhite(palette.accent, 0.82);
+    handle.style.boxShadow = '0 6px 14px rgba(15, 23, 42, 0.12)';
     handle.setAttribute(
       'aria-label',
       edge === 'start'
-        ? `Resize start for ${cluster.title}`
-        : `Resize end for ${cluster.title}`
+        ? this.i18n.t('timeClustering.resizeStart', {
+            title: cluster.title,
+          })
+        : this.i18n.t('timeClustering.resizeEnd', {
+            title: cluster.title,
+          })
     );
 
     const grip = document.createElement('span');
-    grip.className = 'pointer-events-none block h-[3px] w-5 rounded-full';
-    grip.style.background = palette.accent;
+    grip.className =
+      'pointer-events-none flex flex-col items-center justify-center gap-[2px]';
 
+    const topBar = document.createElement('span');
+    topBar.className = 'block h-px w-3 rounded-full';
+    topBar.style.background = mixHexWithWhite(palette.accent, 0.2);
+
+    const bottomBar = document.createElement('span');
+    bottomBar.className = 'block h-px w-2 rounded-full';
+    bottomBar.style.background = palette.accent;
+
+    grip.append(topBar, bottomBar);
     handle.appendChild(grip);
     handle.onpointerdown = (event) =>
       this.beginClusterGesture({
@@ -1550,17 +1932,28 @@ export class TimeClusteringRootView {
   private renderCalendarColumn(
     dateKey: string,
     clusters: TimeClusterSegment[],
-    highlighted: boolean,
-    calendarMode: 'day' | 'week'
+    options: {
+      isToday: boolean;
+      isSelectedDate: boolean;
+      calendarMode: 'day' | 'week';
+    }
   ): HTMLDivElement {
+    const { isToday, isSelectedDate, calendarMode } = options;
     const column = document.createElement('div');
-    column.className = highlighted ? 'relative bg-sky-50/40' : 'relative';
+    const columnClassNames = ['relative'];
+    if (isToday) {
+      columnClassNames.push('bg-sky-50/40');
+    } else if (calendarMode === 'week' && isSelectedDate) {
+      columnClassNames.push('bg-slate-50/80');
+    }
+    column.className = columnClassNames.join(' ');
     column.style.height = `${HOUR_ROW_HEIGHT_PX * 24}px`;
     column.style.width = '100%';
     column.dataset.role = 'calendar-column';
     column.dataset.dateKey = dateKey;
+    column.dataset.selectedDate = isSelectedDate ? 'true' : 'false';
     column.onpointerdown = (event) =>
-      this.handleCalendarBackgroundPointerDown(event);
+      this.handleCalendarBackgroundPointerDown(event, dateKey, calendarMode);
 
     for (let hour = 0; hour < 24; hour += 1) {
       const hourSlot = document.createElement('div');
@@ -1642,7 +2035,7 @@ export class TimeClusteringRootView {
 
     const block = document.createElement('div');
     block.className =
-      'absolute box-border overflow-hidden rounded-md px-3 py-2 transition-shadow';
+      'absolute box-border overflow-visible rounded-md px-3 py-2 transition-shadow';
     block.dataset.role = 'cluster-block';
     block.dataset.clusterId = cluster.id;
     block.dataset.dateKey = dateKey;
@@ -1663,11 +2056,11 @@ export class TimeClusteringRootView {
           : `calc(100% - ${horizontalInsetPx * 2}px)`;
     }
     block.style.background = isSelected
-      ? palette.background
-      : mixHexWithWhite(palette.accent, 0.92);
+      ? mixHexWithWhite(palette.accent, 0.3)
+      : palette.background;
     block.style.boxShadow = isSelected
-      ? '0 16px 24px rgba(15, 23, 42, 0.16)'
-      : '0 10px 18px rgba(15, 23, 42, 0.08)';
+      ? '0 10px 18px rgba(15, 23, 42, 0.08)'
+      : 'none';
     block.style.cursor =
       isActiveGesture && this.activeClusterGesture?.kind === 'move'
         ? 'grabbing'
@@ -1698,11 +2091,15 @@ export class TimeClusteringRootView {
     content.className = 'min-w-0 flex-1';
 
     const title = document.createElement('p');
-    title.className = 'truncate text-[13px] font-medium text-slate-900';
+    title.className = isSelected
+      ? 'truncate text-[13px] font-medium text-white'
+      : 'truncate text-[13px] font-medium text-slate-900';
     title.textContent = cluster.title;
 
     const details = document.createElement('p');
-    details.className = 'mt-0.5 truncate text-[11px] text-slate-500';
+    details.className = isSelected
+      ? 'mt-0.5 truncate text-[11px] text-white'
+      : 'mt-0.5 truncate text-[11px] text-slate-500';
     details.textContent = formatClusterSegmentRange(clusterSegment);
 
     content.append(title, details);
@@ -1735,27 +2132,44 @@ export class TimeClusteringRootView {
 
   private createCalendarHeaderCell(options: {
     dateKey: string;
-    highlighted: boolean;
+    isToday: boolean;
+    isSelectedDate: boolean;
   }): HTMLDivElement {
-    const { dateKey, highlighted } = options;
+    const { dateKey, isToday, isSelectedDate } = options;
     const cell = document.createElement('div');
-    cell.className = highlighted
-      ? 'px-2 py-1 text-left text-slate-900'
-      : 'px-2 py-1 text-left text-slate-700';
+    cell.dataset.selected = isSelectedDate ? 'true' : 'false';
+    cell.className =
+      isToday && isSelectedDate
+        ? 'px-2 py-1.5 text-left text-slate-900 rounded-lg bg-sky-50/80 ring-1 ring-sky-100'
+        : isToday
+          ? 'px-2 py-1.5 text-left text-slate-900 rounded-lg bg-sky-50/60'
+          : isSelectedDate
+            ? 'px-2 py-1.5 text-left text-slate-900 rounded-lg bg-slate-100/90 ring-1 ring-slate-200/80'
+            : 'px-2 py-1.5 text-left text-slate-700';
 
     const weekday = document.createElement('p');
-    weekday.className = highlighted
+    weekday.className = isToday
       ? 'text-[11px] font-semibold text-sky-600'
-      : 'text-[11px] font-semibold';
-    weekday.textContent = formatWeekdayLabel(dateKey);
+      : isSelectedDate
+        ? 'text-[11px] font-semibold text-slate-500'
+        : 'text-[11px] font-semibold';
+    weekday.textContent = formatWeekdayLabel(this.i18n, dateKey);
 
     const date = document.createElement('p');
-    date.className = highlighted
+    date.className = isToday
       ? 'mt-0.5 text-base font-semibold text-sky-600'
       : 'mt-0.5 text-base font-semibold text-slate-900';
-    date.textContent = formatDayNumber(dateKey);
+    date.textContent = formatDayNumber(this.i18n, dateKey);
 
     cell.append(weekday, date);
+    if (isSelectedDate) {
+      const marker = document.createElement('span');
+      marker.className =
+        'mt-1 block h-0.5 w-7 rounded-full bg-indigo-300/80';
+      marker.dataset.role = 'week-day-selected-marker';
+      marker.setAttribute('aria-hidden', 'true');
+      cell.appendChild(marker);
+    }
     return cell;
   }
 
@@ -1799,6 +2213,7 @@ export class TimeClusteringRootView {
       colorToken: tokens[existingClusters.length % tokens.length] ?? 'blue',
       startAtIso: isoFromDateKeyMinute(selectedDateKey, startMinute),
       endAtIso: isoFromDateKeyMinute(selectedDateKey, endMinute),
+      recurrence: 'none',
     });
   }
 }

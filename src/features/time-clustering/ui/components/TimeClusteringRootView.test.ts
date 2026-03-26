@@ -4,12 +4,14 @@ import { buildTimeClusterSegmentsForDate } from '../../domain/projection.ts';
 import { isoFromDateKeyMinute } from '../../domain/time.ts';
 import type {
   TimeCluster,
+  TimeClusterRecurrence,
   TimeClusteringLayoutMode,
   TimeClusteringStateSnapshot,
 } from '../../domain/types.ts';
 import type { TimeClusteringRepository } from '../../data/TimeClusteringRepository.ts';
 import { TimeClusteringStore } from '../../state/TimeClusteringStore.ts';
 import { TimeClusteringRootView } from './TimeClusteringRootView.ts';
+import { createAppI18nService } from '../../../../i18n/index.ts';
 
 function createCluster(params: {
   id: string;
@@ -19,6 +21,9 @@ function createCluster(params: {
   startMinute: number;
   endDateKey?: string;
   endMinute: number;
+  recurrence?: TimeClusterRecurrence;
+  recurrenceEndDateKey?: string | null;
+  recurrenceWeekdays?: number[];
 }): TimeCluster {
   return {
     id: params.id,
@@ -29,6 +34,9 @@ function createCluster(params: {
       params.endDateKey ?? params.startDateKey,
       params.endMinute
     ),
+    recurrence: params.recurrence ?? 'none',
+    recurrenceEndDateKey: params.recurrenceEndDateKey ?? null,
+    recurrenceWeekdays: params.recurrenceWeekdays,
   };
 }
 
@@ -90,6 +98,7 @@ function createView(
     view.setLayoutMode(mode);
   });
   const view = new TimeClusteringRootView({
+    i18n: createAppI18nService({ initialLocale: 'en' }),
     store,
     layoutMode,
     onLayoutModeChange,
@@ -131,7 +140,10 @@ function dispatchPointerEvent(
   target.dispatchEvent(event);
 }
 
-function getCluster(store: TimeClusteringStore, clusterId: string): TimeCluster {
+function getCluster(
+  store: TimeClusteringStore,
+  clusterId: string
+): TimeCluster {
   const cluster = store
     .getSnapshot()
     .clusters.find((entry) => entry.id === clusterId);
@@ -387,11 +399,32 @@ describe('TimeClusteringRootView', () => {
     const titleInput = document.body.querySelector<HTMLInputElement>(
       '[data-role="cluster-edit-title-input"]'
     );
-    const startInput = document.body.querySelector<HTMLInputElement>(
-      '[data-role="cluster-edit-start-input"]'
+    const startDateInput = document.body.querySelector<HTMLInputElement>(
+      '[data-role="cluster-edit-start-date-input"]'
     );
-    const endInput = document.body.querySelector<HTMLInputElement>(
-      '[data-role="cluster-edit-end-input"]'
+    const startTimeInput = document.body.querySelector<HTMLInputElement>(
+      '[data-role="cluster-edit-start-time-input"]'
+    );
+    const endDateInput = document.body.querySelector<HTMLInputElement>(
+      '[data-role="cluster-edit-end-date-input"]'
+    );
+    const endTimeInput = document.body.querySelector<HTMLInputElement>(
+      '[data-role="cluster-edit-end-time-input"]'
+    );
+    const recurrenceWeeklyOption =
+      document.body.querySelector<HTMLButtonElement>(
+        '[data-role="cluster-edit-recurrence-control"] button[title="Repeat this cluster every week on the same day and time."]'
+      );
+    const recurrenceDailyOption =
+      document.body.querySelector<HTMLButtonElement>(
+        '[data-role="cluster-edit-recurrence-control"] button[title="Repeat this cluster every day at the same time."]'
+      );
+    const recurrenceWeekdaysOption =
+      document.body.querySelector<HTMLButtonElement>(
+        '[data-role="cluster-edit-recurrence-control"] button[title="Repeat this cluster every weekday at the same time."]'
+      );
+    const recurrenceEndInput = document.body.querySelector<HTMLInputElement>(
+      '[data-role="cluster-edit-recurrence-end-date-input"]'
     );
     const colorPicker = document.body.querySelector<HTMLElement>(
       '[data-role="cluster-edit-color-picker"]'
@@ -405,8 +438,13 @@ describe('TimeClusteringRootView', () => {
 
     expect(modal).not.toBeNull();
     expect(titleInput?.value).toBe('Deep work');
-    expect(startInput?.value).toBe('2026-03-25T09:00');
-    expect(endInput?.value).toBe('2026-03-25T10:30');
+    expect(startDateInput?.value).toBe('2026-03-25');
+    expect(startTimeInput?.value).toBe('09:00');
+    expect(endDateInput?.value).toBe('2026-03-25');
+    expect(endTimeInput?.value).toBe('10:30');
+    expect(recurrenceDailyOption).not.toBeNull();
+    expect(recurrenceWeekdaysOption).not.toBeNull();
+    expect(recurrenceEndInput?.value).toBe('');
     expect(colorPicker).not.toBeNull();
     expect(
       document.body.querySelector(
@@ -418,13 +456,30 @@ describe('TimeClusteringRootView', () => {
       titleInput.value = 'Updated cluster';
       titleInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
-    if (startInput) {
-      startInput.value = '2026-03-25T10:15';
-      startInput.dispatchEvent(new Event('change', { bubbles: true }));
+    if (startDateInput) {
+      startDateInput.value = '2026-03-25';
+      startDateInput.dispatchEvent(new Event('change', { bubbles: true }));
     }
-    if (endInput) {
-      endInput.value = '2026-03-25T11:45';
-      endInput.dispatchEvent(new Event('change', { bubbles: true }));
+    if (startTimeInput) {
+      startTimeInput.value = '10:15';
+      startTimeInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (endDateInput) {
+      endDateInput.value = '2026-03-25';
+      endDateInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (endTimeInput) {
+      endTimeInput.value = '11:45';
+      endTimeInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    recurrenceWeeklyOption?.click();
+    const weeklyThursdayButton = document.body.querySelector<HTMLButtonElement>(
+      '[data-role="cluster-edit-weekday-button"][data-weekday="4"]'
+    );
+    weeklyThursdayButton?.click();
+    if (recurrenceEndInput) {
+      recurrenceEndInput.value = '2026-04-30';
+      recurrenceEndInput.dispatchEvent(new Event('change', { bubbles: true }));
     }
     roseColorOption?.click();
     saveButton?.click();
@@ -432,9 +487,12 @@ describe('TimeClusteringRootView', () => {
     const cluster = getCluster(store, 'cluster-1');
     expect(cluster.title).toBe('Updated cluster');
     expect(cluster.colorToken).toBe('rose');
-    expect(getClusterSegment(store, '2026-03-25', 'cluster-1').startMinute).toBe(
-      10 * 60 + 15
-    );
+    expect(cluster.recurrence).toBe('weekly');
+    expect(cluster.recurrenceEndDateKey).toBe('2026-04-30');
+    expect(cluster.recurrenceWeekdays).toEqual([3, 4]);
+    expect(
+      getClusterSegment(store, '2026-03-25', 'cluster-1').startMinute
+    ).toBe(10 * 60 + 15);
     expect(getClusterSegment(store, '2026-03-25', 'cluster-1').endMinute).toBe(
       11 * 60 + 45
     );
@@ -531,11 +589,13 @@ describe('TimeClusteringRootView', () => {
     });
 
     expect(
-      buildTimeClusterSegmentsForDate('2026-03-25', [getCluster(store, 'cluster-1')])
+      buildTimeClusterSegmentsForDate('2026-03-25', [
+        getCluster(store, 'cluster-1'),
+      ])
     ).toHaveLength(0);
-    expect(getClusterSegment(store, '2026-03-26', 'cluster-1').startMinute).toBe(
-      9 * 60
-    );
+    expect(
+      getClusterSegment(store, '2026-03-26', 'cluster-1').startMinute
+    ).toBe(9 * 60);
     expect(getClusterSegment(store, '2026-03-26', 'cluster-1').endMinute).toBe(
       10 * 60 + 30
     );
@@ -650,7 +710,9 @@ describe('TimeClusteringRootView', () => {
     dispatchPointerEvent(window, 'pointerup', { clientY: 1260, buttons: 0 });
 
     let handles = Array.from(
-      parent.querySelectorAll<HTMLButtonElement>('[data-role="cluster-resize-handle"]')
+      parent.querySelectorAll<HTMLButtonElement>(
+        '[data-role="cluster-resize-handle"]'
+      )
     );
     expect(handles).toHaveLength(1);
     expect(handles[0]?.dataset.edge).toBe('start');
@@ -667,7 +729,9 @@ describe('TimeClusteringRootView', () => {
     expect(block?.style.height).toBe('378px');
 
     handles = Array.from(
-      parent.querySelectorAll<HTMLButtonElement>('[data-role="cluster-resize-handle"]')
+      parent.querySelectorAll<HTMLButtonElement>(
+        '[data-role="cluster-resize-handle"]'
+      )
     );
     expect(handles).toHaveLength(1);
     expect(handles[0]?.dataset.edge).toBe('end');
@@ -676,7 +740,7 @@ describe('TimeClusteringRootView', () => {
     store.destroy();
   });
 
-  it('renders the week switcher above the day switcher in docked day mode', () => {
+  it('renders the period switcher above the day switcher in docked day mode', () => {
     const store = new TimeClusteringStore(createRepository(createSnapshot()));
     const { view } = createView(store);
     const parent = document.createElement('div');
@@ -684,18 +748,30 @@ describe('TimeClusteringRootView', () => {
 
     view.mount(parent);
 
-    const weekSwitcher = parent.querySelector<HTMLElement>(
-      '[data-role="week-switcher"]'
+    const periodSwitcher = parent.querySelector<HTMLElement>(
+      '[data-role="period-switcher"]'
     );
     const daySwitcher = parent.querySelector<HTMLElement>(
       '[data-role="day-switcher"]'
     );
-    const secondaryNav = weekSwitcher?.parentElement;
+    const viewModeSwitcher = parent.querySelector<HTMLElement>(
+      '[data-role="view-mode-switcher"]'
+    );
+    const addClusterButton = parent.querySelector<HTMLElement>(
+      '[data-role="add-cluster-button"]'
+    );
+    const navigationRow = periodSwitcher?.parentElement;
+    const secondaryNav = daySwitcher?.parentElement;
 
-    expect(secondaryNav?.firstElementChild).toBe(weekSwitcher);
+    expect(secondaryNav?.firstElementChild).toBe(navigationRow);
     expect(secondaryNav?.lastElementChild).toBe(daySwitcher);
-    expect(weekSwitcher?.classList.contains('hidden')).toBe(false);
+    expect(periodSwitcher).not.toBeNull();
+    expect(navigationRow?.contains(periodSwitcher ?? null)).toBe(true);
+    expect(navigationRow?.contains(viewModeSwitcher ?? null)).toBe(true);
+    expect(navigationRow?.contains(addClusterButton ?? null)).toBe(true);
     expect(daySwitcher?.classList.contains('hidden')).toBe(false);
+    expect(viewModeSwitcher).not.toBeNull();
+    expect(addClusterButton).not.toBeNull();
     expect(
       daySwitcher?.querySelectorAll('[data-role="day-switch-button"]')
     ).toHaveLength(7);
@@ -704,7 +780,7 @@ describe('TimeClusteringRootView', () => {
     store.destroy();
   });
 
-  it('renders the layout toggle to the left of the header actions', () => {
+  it('renders a day-week segmented switcher and marks the active view', () => {
     const store = new TimeClusteringStore(createRepository(createSnapshot()));
     const { view } = createView(store);
     const parent = document.createElement('div');
@@ -712,26 +788,25 @@ describe('TimeClusteringRootView', () => {
 
     view.mount(parent);
 
-    const toggleButton = parent.querySelector<HTMLButtonElement>(
-      '[data-role="layout-toggle-button"]'
+    const dayButton = parent.querySelector<HTMLButtonElement>(
+      '[data-role="view-mode-button"][data-mode="day"]'
     );
-    const addClusterButton = Array.from(
-      parent.querySelectorAll<HTMLButtonElement>('button')
-    ).find((button) => button.textContent?.includes('Add cluster'));
-    const headerRow = toggleButton?.parentElement;
+    const weekButton = parent.querySelector<HTMLButtonElement>(
+      '[data-role="view-mode-button"][data-mode="week"]'
+    );
 
-    expect(toggleButton).not.toBeNull();
-    expect(addClusterButton).not.toBeNull();
-    expect(headerRow?.firstElementChild).toBe(toggleButton);
-    expect(
-      headerRow?.lastElementChild?.contains(addClusterButton ?? null)
-    ).toBe(true);
+    expect(dayButton).not.toBeNull();
+    expect(weekButton).not.toBeNull();
+    expect(dayButton?.dataset.selected).toBe('true');
+    expect(dayButton?.getAttribute('aria-checked')).toBe('true');
+    expect(weekButton?.dataset.selected).toBe('false');
+    expect(weekButton?.getAttribute('aria-checked')).toBe('false');
 
     view.unmount();
     store.destroy();
   });
 
-  it('moves the selected day by one week from the docked week navigation', () => {
+  it('moves the selected day by one day from the docked period navigation', () => {
     const store = new TimeClusteringStore(createRepository(createSnapshot()));
     const { view } = createView(store);
     const parent = document.createElement('div');
@@ -739,22 +814,22 @@ describe('TimeClusteringRootView', () => {
 
     view.mount(parent);
 
-    const weekLabel = parent.querySelector<HTMLElement>(
-      '[data-role="week-switcher"] p'
+    const periodLabel = parent.querySelector<HTMLElement>(
+      '[data-role="period-label"]'
     );
-    const initialWeekLabel = weekLabel?.textContent;
-    const nextWeekButton = parent.querySelector<HTMLButtonElement>(
-      '[data-role="week-switcher"] button[aria-label="Next week"]'
+    const initialPeriodLabel = periodLabel?.textContent;
+    const nextDayButton = parent.querySelector<HTMLButtonElement>(
+      '[data-role="period-next-button"]'
     );
 
-    nextWeekButton?.click();
+    nextDayButton?.click();
 
-    expect(store.getSnapshot().selectedDateKey).toBe('2026-04-01');
-    expect(store.getSnapshot().weekAnchorDateKey).toBe('2026-04-01');
-    expect(weekLabel?.textContent).not.toBe(initialWeekLabel);
+    expect(store.getSnapshot().selectedDateKey).toBe('2026-03-26');
+    expect(store.getSnapshot().weekAnchorDateKey).toBe('2026-03-26');
+    expect(periodLabel?.textContent).not.toBe(initialPeriodLabel);
 
     const selectedButton = parent.querySelector<HTMLButtonElement>(
-      '[data-role="day-switch-button"][data-date-key="2026-04-01"]'
+      '[data-role="day-switch-button"][data-date-key="2026-03-26"]'
     );
     expect(selectedButton).not.toBeNull();
     expect(selectedButton?.className).toContain('bg-indigo-50');
@@ -763,7 +838,7 @@ describe('TimeClusteringRootView', () => {
     store.destroy();
   });
 
-  it('renders seven day columns in week mode and keeps week navigation visible', () => {
+  it('renders seven day columns in week mode and keeps the new navigation visible', () => {
     const store = new TimeClusteringStore(
       createRepository(
         createSnapshot({
@@ -778,17 +853,20 @@ describe('TimeClusteringRootView', () => {
 
     view.mount(parent);
 
-    const buttonLabels = Array.from(parent.querySelectorAll('button')).map(
-      (button) => button.textContent?.trim() ?? ''
+    const dayButton = parent.querySelector<HTMLButtonElement>(
+      '[data-role="view-mode-button"][data-mode="day"]'
     );
-    expect(buttonLabels).not.toContain('Day');
-    expect(buttonLabels).not.toContain('Week');
-
-    const weekSwitcher = parent.querySelector<HTMLDivElement>(
-      '[data-role="week-switcher"]'
+    const weekButton = parent.querySelector<HTMLButtonElement>(
+      '[data-role="view-mode-button"][data-mode="week"]'
     );
-    expect(weekSwitcher).not.toBeNull();
-    expect(weekSwitcher?.className).not.toContain('hidden');
+    const periodSwitcher = parent.querySelector<HTMLDivElement>(
+      '[data-role="period-switcher"]'
+    );
+    expect(dayButton).not.toBeNull();
+    expect(weekButton).not.toBeNull();
+    expect(dayButton?.dataset.selected).toBe('false');
+    expect(weekButton?.dataset.selected).toBe('true');
+    expect(periodSwitcher).not.toBeNull();
 
     const weekCalendarHeader = parent.querySelector<HTMLDivElement>(
       '[data-role="week-calendar-header"]'
@@ -806,11 +884,10 @@ describe('TimeClusteringRootView', () => {
     );
     expect(weekDayHeaders).toHaveLength(7);
     expect(
-      Array.from(weekDayHeaders).every((element) => element.tagName === 'DIV')
+      Array.from(weekDayHeaders).every(
+        (element) => element.tagName === 'DIV'
+      )
     ).toBe(true);
-    expect(
-      parent.querySelectorAll('button[data-role="week-day-header"]')
-    ).toHaveLength(0);
     expect(
       Array.from(weekDayHeaders).every(
         (element) =>
@@ -833,11 +910,10 @@ describe('TimeClusteringRootView', () => {
       element.textContent?.includes('23')
     );
     expect(mondayHeader).toBeDefined();
+    expect(mondayHeader?.getAttribute('data-selected')).toBe('true');
     expect(
-      Array.from(mondayHeader?.querySelectorAll('p') ?? []).some((node) =>
-        node.className.includes('text-sky-600')
-      )
-    ).toBe(false);
+      mondayHeader?.querySelector('[data-role="week-day-selected-marker"]')
+    ).not.toBeNull();
 
     const todayColumn = parent.querySelector(
       '[data-role="calendar-day-column"][data-date-key="2026-03-25"]'
@@ -846,13 +922,79 @@ describe('TimeClusteringRootView', () => {
       '[data-role="calendar-day-column"][data-date-key="2026-03-23"]'
     ) as HTMLDivElement | null;
     expect(todayColumn?.className).toContain('bg-sky-50/40');
-    expect(mondayColumn?.className).not.toContain('bg-sky-50/40');
+    expect(mondayColumn?.className).toContain('bg-slate-50/80');
 
     view.unmount();
     store.destroy();
   });
 
-  it('switches between docked day view and fullscreen week view from the layout toggle', () => {
+  it('keeps week navigation step buttons compact so the controls stay close together', () => {
+    const store = new TimeClusteringStore(
+      createRepository(
+        createSnapshot({
+          selectedDateKey: '2026-03-23',
+          weekAnchorDateKey: '2026-03-23',
+        })
+      )
+    );
+    const { view } = createView(store, 'fullscreen');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    view.mount(parent);
+
+    const previousButton = parent.querySelector<HTMLButtonElement>(
+      '[data-role="period-previous-button"]'
+    );
+    const nextButton = parent.querySelector<HTMLButtonElement>(
+      '[data-role="period-next-button"]'
+    );
+
+    expect(previousButton?.style.width).toBe('24px');
+    expect(nextButton?.style.width).toBe('24px');
+
+    view.unmount();
+    store.destroy();
+  });
+
+  it('uses the inline period date input instead of opening a jump modal', () => {
+    const store = new TimeClusteringStore(
+      createRepository(
+        createSnapshot({
+          selectedDateKey: '2026-03-23',
+          weekAnchorDateKey: '2026-03-23',
+        })
+      )
+    );
+    const { view } = createView(store, 'fullscreen');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    view.mount(parent);
+
+    const trigger = parent.querySelector<HTMLButtonElement>(
+      '[data-role="period-current-surface"]'
+    );
+    const dateInput = parent.querySelector<HTMLInputElement>(
+      '[data-role="period-date-input"]'
+    );
+
+    expect(trigger).not.toBeNull();
+    expect(dateInput?.value).toBe('2026-03-23');
+
+    if (dateInput) {
+      dateInput.value = '2026-06-17';
+      dateInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    expect(store.getSnapshot().selectedDateKey).toBe('2026-06-17');
+    expect(store.getSnapshot().weekAnchorDateKey).toBe('2026-06-17');
+
+    view.unmount();
+    store.destroy();
+  });
+
+  it('switches between day and week from the segmented view switcher', () => {
     const store = new TimeClusteringStore(createRepository(createSnapshot()));
     const { view, onLayoutModeChange } = createView(store);
     const parent = document.createElement('div');
@@ -866,31 +1008,50 @@ describe('TimeClusteringRootView', () => {
     expect(initialWeekColumns).toHaveLength(0);
     expect(parent.querySelector('[data-role="day-calendar"]')).not.toBeNull();
 
-    const toggleButton = parent.querySelector<HTMLButtonElement>(
-      '[data-role="layout-toggle-button"]'
+    const weekButton = parent.querySelector<HTMLButtonElement>(
+      '[data-role="view-mode-button"][data-mode="week"]'
     );
-    expect(toggleButton?.getAttribute('aria-label')).toBe('Expand');
-    expect(
-      toggleButton?.querySelector('svg')?.getAttribute('data-icon-name')
-    ).toBe('chevron-right');
-    toggleButton?.click();
+    weekButton?.click();
 
     expect(onLayoutModeChange).toHaveBeenCalledWith('fullscreen');
     expect(
       parent.querySelectorAll('[data-role="calendar-day-column"]')
     ).toHaveLength(7);
 
-    const dockButton = parent.querySelector<HTMLButtonElement>(
-      '[data-role="layout-toggle-button"]'
+    const dayButton = parent.querySelector<HTMLButtonElement>(
+      '[data-role="view-mode-button"][data-mode="day"]'
     );
-    expect(dockButton?.getAttribute('aria-label')).toBe('Dock left');
-    expect(
-      dockButton?.querySelector('svg')?.getAttribute('data-icon-name')
-    ).toBe('chevron-left');
-    dockButton?.click();
+    dayButton?.click();
 
     expect(onLayoutModeChange).toHaveBeenLastCalledWith('docked-left');
     expect(parent.querySelector('[data-role="day-calendar"]')).not.toBeNull();
+
+    view.unmount();
+    store.destroy();
+  });
+
+  it('keeps week headers informational and does not switch layouts on click', () => {
+    const store = new TimeClusteringStore(
+      createRepository(
+        createSnapshot({
+          selectedDateKey: '2026-03-23',
+          weekAnchorDateKey: '2026-03-23',
+        })
+      )
+    );
+    const { view, onLayoutModeChange } = createView(store, 'fullscreen');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    view.mount(parent);
+
+    const thursdayHeader = parent.querySelector<HTMLDivElement>(
+      '[data-role="week-day-header"][data-date-key="2026-03-26"]'
+    );
+
+    expect(thursdayHeader?.tagName).toBe('DIV');
+    expect(onLayoutModeChange).not.toHaveBeenCalled();
+    expect(parent.querySelector('[data-role="week-calendar"]')).not.toBeNull();
 
     view.unmount();
     store.destroy();

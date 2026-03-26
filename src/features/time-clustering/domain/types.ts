@@ -1,11 +1,20 @@
 export type TimeClusteringLayoutMode = 'docked-left' | 'fullscreen';
 
+export type TimeClusterRecurrence =
+  | 'none'
+  | 'daily'
+  | 'weekdays'
+  | 'weekly';
+
 export interface TimeCluster {
   id: string;
   title: string;
   colorToken: string;
   startAtIso: string;
   endAtIso: string;
+  recurrence: TimeClusterRecurrence;
+  recurrenceEndDateKey?: string | null;
+  recurrenceWeekdays?: number[];
 }
 
 export interface TimeClusterSegment {

@@ -23,6 +23,11 @@ export {
   setHudIconButtonLoading as setIconButtonLoading,
   type HudIconButtonTone as IconButtonTone,
 } from './HudIconButton.ts';
+export {
+  createHudStepPicker,
+  type HudStepPicker,
+  type HudStepPickerOptions,
+} from './HudStepPicker.ts';
 
 export { HudDropdown as Dropdown } from './HudDropdown.ts';
 export { HudAnchoredMenu as AnchoredMenu } from './HudAnchoredMenu.ts';
@@ -40,6 +45,11 @@ export {
   type HudDropdownItemTone as DropdownItemTone,
   type HudMenuItemVariant as MenuItemVariant,
 } from './HudDropdownItem.ts';
+export {
+  createHudBadge as createBadge,
+  type HudBadgeOptions as BadgeOptions,
+  type HudBadgeTone as BadgeTone,
+} from './HudBadge.ts';
 export {
   createHudMenuControlRow as createMenuControlRow,
   type HudMenuControlRowOptions as MenuControlRowOptions,
@@ -91,6 +101,18 @@ export {
   type HudSegmentedControlOption as SegmentedControlOption,
   type HudSegmentedControlSize as SegmentedControlSize,
 } from './HudSegmentedControl.ts';
+export {
+  createHudStepPicker as createStepPicker,
+  type HudStepPicker as StepPicker,
+  type HudStepPickerOptions as StepPickerOptions,
+} from './HudStepPicker.ts';
+export {
+  createHudSelectionChip as createSelectionChip,
+  setHudSelectionChipState as setSelectionChipState,
+  type HudSelectionChipOptions as SelectionChipOptions,
+  type HudSelectionChipSize as SelectionChipSize,
+  type HudSelectionChipState as SelectionChipState,
+} from './HudSelectionChip.ts';
 
 export {
   createHudToggleSwitch as createToggleSwitch,
@@ -150,6 +172,11 @@ export {
   type HudMenuItemVariant,
 } from './HudDropdownItem.ts';
 export {
+  createHudBadge,
+  type HudBadgeOptions,
+  type HudBadgeTone,
+} from './HudBadge.ts';
+export {
   createHudMenuControlRow,
   type HudMenuControlRowOptions,
 } from './HudMenuControlRow.ts';
@@ -197,6 +224,13 @@ export {
   type HudSegmentedControlOption,
   type HudSegmentedControlSize,
 } from './HudSegmentedControl.ts';
+export {
+  createHudSelectionChip,
+  setHudSelectionChipState,
+  type HudSelectionChipOptions,
+  type HudSelectionChipSize,
+  type HudSelectionChipState,
+} from './HudSelectionChip.ts';
 export {
   createHudToggleSwitch,
   type HudToggleSwitchOptions,

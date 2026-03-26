@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { buildTimeClusterSegmentsForDate } from '../domain/projection.ts';
+import { isoFromDateKeyMinute } from '../domain/time.ts';
 import {
   LocalStorageTimeClusteringRepository,
   TIME_CLUSTERS_STORAGE_KEY,
@@ -162,6 +163,7 @@ describe('LocalStorageTimeClusteringRepository', () => {
           colorToken: 'blue',
           startAtIso: '2026-03-25T08:00:00.000Z',
           endAtIso: '2026-03-25T09:00:00.000Z',
+          recurrence: 'none',
         },
       ],
     });
@@ -170,5 +172,103 @@ describe('LocalStorageTimeClusteringRepository', () => {
       TIME_CLUSTERS_STORAGE_KEY,
       expect.any(String)
     );
+  });
+
+  it('preserves weekly recurrence when loading v2 snapshots', () => {
+    const storage = createStorageMock();
+    storage.setItem(
+      TIME_CLUSTERS_STORAGE_KEY,
+      JSON.stringify({
+        selectedDateKey: '2026-03-25',
+        weekAnchorDateKey: '2026-03-25',
+        lastWarnings: [],
+        clusters: [
+          {
+            id: 'cluster-weekly',
+            title: 'Weekly review',
+            colorToken: 'violet',
+            startAtIso: isoFromDateKeyMinute('2026-03-18', 8 * 60),
+            endAtIso: isoFromDateKeyMinute('2026-03-18', 9 * 60),
+            recurrence: 'weekly',
+          },
+        ],
+      })
+    );
+
+    const repository = new LocalStorageTimeClusteringRepository(
+      storage as unknown as Storage
+    );
+
+    const snapshot = repository.load();
+
+    expect(snapshot?.clusters[0]?.recurrence).toBe('weekly');
+    expect(
+      buildTimeClusterSegmentsForDate('2026-03-25', snapshot?.clusters ?? [])
+    ).toEqual([
+      expect.objectContaining({
+        dateKey: '2026-03-25',
+        startMinute: 8 * 60,
+        endMinute: 9 * 60,
+      }),
+    ]);
+  });
+
+  it('preserves daily and weekday recurrence when loading v2 snapshots', () => {
+    const storage = createStorageMock();
+    storage.setItem(
+      TIME_CLUSTERS_STORAGE_KEY,
+      JSON.stringify({
+        selectedDateKey: '2026-03-27',
+        weekAnchorDateKey: '2026-03-23',
+        lastWarnings: [],
+        clusters: [
+          {
+            id: 'cluster-daily',
+            title: 'Daily review',
+            colorToken: 'blue',
+            startAtIso: isoFromDateKeyMinute('2026-03-24', 8 * 60),
+            endAtIso: isoFromDateKeyMinute('2026-03-24', 9 * 60),
+            recurrence: 'daily',
+            recurrenceEndDateKey: '2026-04-15',
+          },
+          {
+            id: 'cluster-weekdays',
+            title: 'Weekday sync',
+            colorToken: 'teal',
+            startAtIso: isoFromDateKeyMinute('2026-03-23', 10 * 60),
+            endAtIso: isoFromDateKeyMinute('2026-03-23', 11 * 60),
+            recurrence: 'weekly',
+            recurrenceWeekdays: [1, 3, 5],
+          },
+        ],
+      })
+    );
+
+    const repository = new LocalStorageTimeClusteringRepository(
+      storage as unknown as Storage
+    );
+
+    const snapshot = repository.load();
+
+    expect(snapshot?.clusters[0]?.recurrence).toBe('daily');
+    expect(snapshot?.clusters[0]?.recurrenceEndDateKey).toBe('2026-04-15');
+    expect(snapshot?.clusters[1]?.recurrence).toBe('weekly');
+    expect(snapshot?.clusters[1]?.recurrenceWeekdays).toEqual([1, 3, 5]);
+    expect(
+      buildTimeClusterSegmentsForDate('2026-03-27', snapshot?.clusters ?? [])
+    ).toEqual([
+      expect.objectContaining({
+        cluster: expect.objectContaining({ id: 'cluster-daily' }),
+        dateKey: '2026-03-27',
+        startMinute: 8 * 60,
+        endMinute: 9 * 60,
+      }),
+      expect.objectContaining({
+        cluster: expect.objectContaining({ id: 'cluster-weekdays' }),
+        dateKey: '2026-03-27',
+        startMinute: 10 * 60,
+        endMinute: 11 * 60,
+      }),
+    ]);
   });
 });
