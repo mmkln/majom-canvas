@@ -14,12 +14,16 @@ import type { ExistingGoalPicker } from './components/ExistingGoalPicker.ts';
 import type { ExistingStoryPicker } from './components/ExistingStoryPicker.ts';
 import type { ExistingTaskPicker } from './components/ExistingTaskPicker.ts';
 import { ContextMenu } from './ContextMenu.ts';
+import { createAppRuntime, type AppRuntime } from '../../../app-runtime/index.ts';
 
 afterEach(() => {
   document.body.innerHTML = '';
 });
 
-function createContextMenu(scene: Scene): ContextMenu {
+function createContextMenu(
+  scene: Scene,
+  runtime: AppRuntime = createAppRuntime({ initialLocale: 'en' })
+): ContextMenu {
   type PanZoomLike = ReturnType<CanvasManager['getPanZoomManager']>;
 
   const pickerStub = {
@@ -49,12 +53,17 @@ function createContextMenu(scene: Scene): ContextMenu {
     pickerStub as unknown as ExistingStoryPicker,
     {} as unknown as AddExistingTaskService,
     {} as unknown as AddExistingGoalService,
-    {} as unknown as AddExistingStoryService
+    {} as unknown as AddExistingStoryService,
+    runtime
   );
 }
 
-function renderMenuLabels(scene: Scene, element: StoryElement): string[] {
-  const contextMenu = createContextMenu(scene);
+function renderMenuLabels(
+  scene: Scene,
+  element: StoryElement | null,
+  runtime: AppRuntime = createAppRuntime({ initialLocale: 'en' })
+): string[] {
+  const contextMenu = createContextMenu(scene, runtime);
   const container = document.createElement('div');
   document.body.appendChild(container);
   contextMenu.mount(container);
@@ -109,5 +118,42 @@ describe('ContextMenu selection connection actions', () => {
     scene.setSelected([goal]);
 
     expect(renderMenuLabels(scene, story)).toContain('Connect to Goal');
+  });
+
+  it('renders localized add-item labels for Ukrainian locale', () => {
+    const scene = new Scene();
+    const runtime = createAppRuntime({ initialLocale: 'uk' });
+
+    expect(renderMenuLabels(scene, null, runtime)).toContain('Ціль');
+  });
+
+  it('re-renders an open menu when locale changes at runtime', () => {
+    const scene = new Scene();
+    const runtime = createAppRuntime({ initialLocale: 'en' });
+    const contextMenu = createContextMenu(scene, runtime);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    contextMenu.mount(container);
+
+    try {
+      window.dispatchEvent(
+        new CustomEvent('contextMenuRequested', {
+          detail: {
+            element: null,
+            sceneX: 0,
+            sceneY: 0,
+          },
+        })
+      );
+
+      expect(container.textContent).toContain('Goal');
+
+      runtime.setLocale('uk');
+
+      expect(container.textContent).toContain('Ціль');
+    } finally {
+      contextMenu.unmount();
+      container.remove();
+    }
   });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getAiAssistantQuickActions } from './AiAssistantQuickActions.ts';
 import { createAiAssistantTestSnapshot } from './AiAssistantTestUtils.ts';
+import { createAppRuntime } from '../../../app-runtime/index.ts';
 
 describe('AiAssistantQuickActions', () => {
   it('returns the new canvas-level quick actions when nothing is selected', () => {
@@ -9,6 +10,9 @@ describe('AiAssistantQuickActions', () => {
         selectionIds: [],
         focusId: null,
         summary: {
+          goalCount: 1,
+          storyCount: 2,
+          taskCount: 3,
           selectedCount: 0,
         },
         elements: createAiAssistantTestSnapshot().elements.map((element) => ({
@@ -65,5 +69,18 @@ describe('AiAssistantQuickActions', () => {
     expect(actions.some((action) => action.label === 'Review selection')).toBe(true);
     expect(actions.some((action) => action.label === 'Find duplicates')).toBe(true);
     expect(actions.some((action) => action.label === 'Review recent changes')).toBe(true);
+  });
+
+  it('returns localized quick action labels when i18n is provided', () => {
+    const runtime = createAppRuntime({ initialLocale: 'uk' });
+    const actions = getAiAssistantQuickActions(
+      createAiAssistantTestSnapshot(),
+      runtime.i18n
+    );
+
+    expect(actions[0]?.label).toBe('Розбити на задачі');
+    expect(
+      actions.some((action) => action.label === 'Проаналізувати вибране')
+    ).toBe(true);
   });
 });

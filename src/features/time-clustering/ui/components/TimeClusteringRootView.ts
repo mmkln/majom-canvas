@@ -666,7 +666,6 @@ export class TimeClusteringRootView {
   private readonly clusterActionDeleteButton: HTMLButtonElement;
   private readonly calendarContextMenu: HTMLDivElement;
   private readonly calendarContextMenuCreateButton: HTMLButtonElement;
-  private readonly addClusterButton: HTMLButtonElement;
   private readonly secondaryNav: HTMLDivElement;
   private readonly periodSwitcher: HTMLDivElement;
   private readonly periodCurrentSurface: HTMLButtonElement;
@@ -723,19 +722,6 @@ export class TimeClusteringRootView {
 
     const header = document.createElement('div');
     header.className = 'border-b border-slate-200 bg-white px-5 py-3';
-
-    this.addClusterButton = createIconButton({
-      icon: 'plus',
-      size: 'sm',
-      tone: 'secondary',
-      title: this.i18n.t('timeClustering.addCluster'),
-      ariaLabel: this.i18n.t('timeClustering.addCluster'),
-      iconStrokeWidth: 1.9,
-    });
-    this.addClusterButton.dataset.role = 'add-cluster-button';
-    this.addClusterButton.onclick = () => {
-      this.createClusterForSelectedDate();
-    };
 
     this.timeClusteringMenuContainer = document.createElement('div');
     this.timeClusteringMenuContainer.className =
@@ -938,10 +924,7 @@ export class TimeClusteringRootView {
     const navigationActions = document.createElement('div');
     navigationActions.className =
       'inline-flex shrink-0 items-center justify-self-end gap-1.5';
-    navigationActions.append(
-      this.addClusterButton,
-      this.timeClusteringMenuContainer
-    );
+    navigationActions.append(this.timeClusteringMenuContainer);
     this.periodSwitcher.classList.add('justify-self-center');
     navigationRow.append(navigationStart, this.periodSwitcher, navigationActions);
 
@@ -1022,11 +1005,6 @@ export class TimeClusteringRootView {
   }
 
   private refreshRuntimeState(): void {
-    this.addClusterButton.title = this.i18n.t('timeClustering.addCluster');
-    this.addClusterButton.setAttribute(
-      'aria-label',
-      this.i18n.t('timeClustering.addCluster')
-    );
     this.viewModeSwitcher.setAttribute(
       'aria-label',
       this.i18n.t('timeClustering.viewMode')
@@ -2218,8 +2196,8 @@ export class TimeClusteringRootView {
     };
 
     recurrenceOptions.append(
-      recurrenceEndField.element,
-      weeklySelectorField.element
+      weeklySelectorField.element,
+      recurrenceEndField.element
     );
     updateRecurrenceOptionsVisibility();
 

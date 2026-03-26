@@ -16,6 +16,8 @@ export type AiActionsDropdownItem = {
 
 type AiActionsDropdownOptions = {
   triggerLabel?: string;
+  openLabel?: string;
+  unavailableLabel?: string;
 };
 
 export class AiActionsDropdown {
@@ -23,12 +25,19 @@ export class AiActionsDropdown {
 
   private readonly triggerBtn: HTMLButtonElement;
   private readonly panel: HTMLDivElement;
+  private readonly triggerLabel: string;
+  private readonly openLabel: string;
+  private readonly unavailableLabel: string;
   private items: AiActionsDropdownItem[] = [];
   private open = false;
 
   constructor(options: AiActionsDropdownOptions = {}) {
     this.element = document.createElement('div');
     this.element.className = 'inline-flex items-center';
+    this.triggerLabel = options.triggerLabel?.trim() || 'AI';
+    this.openLabel = options.openLabel?.trim() || 'Open AI actions';
+    this.unavailableLabel =
+      options.unavailableLabel?.trim() || 'AI actions unavailable';
 
     this.triggerBtn = createTextButton({
       tone: 'text',
@@ -43,7 +52,7 @@ export class AiActionsDropdown {
     triggerLeft.className = 'inline-flex min-w-0 items-center gap-1.5';
     const label = document.createElement('span');
     label.className = 'truncate';
-    label.textContent = options.triggerLabel?.trim() || 'AI';
+    label.textContent = this.triggerLabel;
     const leading = createIcon('chat-bubble-left', {
       size: 14,
       strokeWidth: 1.8,
@@ -160,7 +169,7 @@ export class AiActionsDropdown {
       disabled: this.items.length === 0,
     });
     const label =
-      this.items.length > 0 ? 'Open AI actions' : 'AI actions unavailable';
+      this.items.length > 0 ? this.openLabel : this.unavailableLabel;
     this.triggerBtn.title = label;
     this.triggerBtn.setAttribute('aria-label', label);
   }

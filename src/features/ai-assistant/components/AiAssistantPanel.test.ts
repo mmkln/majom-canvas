@@ -9,6 +9,7 @@ import type {
 import { createAiAssistantTestSnapshot } from '../services/AiAssistantTestUtils.ts';
 import type { AiAssistantMessage } from '../services/AiAssistantTypes.ts';
 import { AiAssistantPanel } from './AiAssistantPanel.ts';
+import { createAppRuntime } from '../../../app-runtime/index.ts';
 
 function createMessage(
   id: string,
@@ -270,12 +271,14 @@ describe('AiAssistantPanel auto-scroll', () => {
     panel.mount();
     const { messagesList, sendButton } = getPanelInternals(panel);
 
-    expect(messagesList.textContent).toContain('Checking context');
+    expect(messagesList.textContent).toContain('Running tools');
     expect(messagesList.textContent).toContain(
-      'Inspecting the focus item and nearby structure.'
+      'Running tools and collecting grounded data.'
     );
     expect(messagesList.textContent).toContain('1/3');
-    expect(sendButton.textContent).toBe('Working...');
+    expect(sendButton.disabled).toBe(true);
+    expect(sendButton.getAttribute('aria-label')).toBe('Working');
+    expect(sendButton.getAttribute('aria-busy')).toBe('true');
     panel.unmount();
   });
 
@@ -291,7 +294,7 @@ describe('AiAssistantPanel auto-scroll', () => {
 
     const copyButtons = Array.from(
       messagesList.querySelectorAll<HTMLButtonElement>(
-        'button[aria-label="Copy message to clipboard"]'
+        'button[aria-label="Copy reply"]'
       )
     );
 
@@ -328,7 +331,7 @@ describe('AiAssistantPanel auto-scroll', () => {
 
     const copyButtons = Array.from(
       messagesList.querySelectorAll<HTMLButtonElement>(
-        'button[aria-label="Copy message to clipboard"]'
+        'button[aria-label="Copy reply"]'
       )
     );
     const copyButton =
@@ -374,7 +377,7 @@ describe('AiAssistantPanel auto-scroll', () => {
     };
 
     const copyButton = messagesList.querySelector<HTMLButtonElement>(
-      'button[aria-label="Copy message to clipboard"]'
+      'button[aria-label="Copy reply"]'
     );
 
     expect(copyButton).not.toBeNull();
@@ -450,6 +453,31 @@ describe('AiAssistantPanel auto-scroll', () => {
     expect(roleLabel.style.color).toBe('rgb(100, 116, 139)');
     expect(messageBubble.style.border).toBe('');
     expect(typingBubble.style.border).toBe('');
+    panel.unmount();
+  });
+
+  it('updates AI chat chrome when the runtime locale changes', () => {
+    const runtime = createAppRuntime({ initialLocale: 'en' });
+    const { controller } = createController(
+      createState([createMessage('assistant-1', 'assistant', 'First reply')])
+    );
+    const panel = new AiAssistantPanel({ controller, runtime });
+    panel.mount();
+    const { sendButton } = getPanelInternals(panel);
+
+    expect(sendButton.getAttribute('aria-label')).toBe('Send message');
+    expect(sendButton.querySelector('svg')?.getAttribute('data-icon-name')).toBe(
+      'arrow-up'
+    );
+
+    runtime.setLocale('uk');
+
+    expect(sendButton.getAttribute('aria-label')).toBe(
+      'Надіслати повідомлення'
+    );
+    expect(sendButton.querySelector('svg')?.getAttribute('data-icon-name')).toBe(
+      'arrow-up'
+    );
     panel.unmount();
   });
 });

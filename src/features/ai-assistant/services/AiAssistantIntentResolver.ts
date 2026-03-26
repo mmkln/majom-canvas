@@ -10,10 +10,14 @@ import type { AiAssistantIntentContext } from './AiAssistantIntentContext.ts';
 import type { AiAssistantPreparedSubmission } from './AiAssistantPreparedSubmission.ts';
 import { resolveAiAssistantScenarioFromSubmission } from './AiAssistantScenarioResolver.ts';
 import { buildAiAssistantIntentPrompt } from '../aiAssistantPrompts.ts';
+import type { I18nService } from '../../../i18n/index.ts';
+
+type AiAssistantIntentI18n = Pick<I18nService, 't'>;
 
 export function resolveAiAssistantIntentSubmission(
   detail: AiAssistantIntentRequestDetail,
-  snapshot: AiAssistantCanvasSnapshot | null
+  snapshot: AiAssistantCanvasSnapshot | null,
+  i18n?: AiAssistantIntentI18n
 ): AiAssistantPreparedSubmission {
   const scope = detail.scope ?? (detail.targetIds?.length ? 'selection' : 'canvas');
   const resolvedSnapshot =
@@ -40,7 +44,7 @@ export function resolveAiAssistantIntentSubmission(
       contextMode: scope === 'selection' ? 'selection' : 'canvas',
     }),
     profile: getAiAssistantIntentProfile(detail.intent),
-    requestLabel: getAiAssistantIntentRequestLabel(detail.intent, selection),
+    requestLabel: getAiAssistantIntentRequestLabel(detail.intent, selection, i18n),
     requestMessageKind: 'command',
   };
 }
@@ -89,59 +93,79 @@ function getAiAssistantIntentProfile(
       return 'breakdown';
     case 'fill_details':
       return 'readiness-check';
+    case 'next_steps':
+    case 'recent_changes':
+    case 'duplicates':
+    case 'capability_help':
+    case 'general_question':
+    default:
+      return 'review-selection';
   }
 }
 
 function getAiAssistantIntentRequestLabel(
   intent: AiAssistantIntentKind,
-  selection: AiAssistantSelectionItem[]
+  selection: AiAssistantSelectionItem[],
+  i18n?: AiAssistantIntentI18n
 ): string {
   const item = selection[0];
-  const selectionTargetLabel = getAiAssistantSelectionTargetLabel(selection);
+  const selectionTargetLabel = getAiAssistantSelectionTargetLabel(selection, i18n);
   switch (intent) {
     case 'breakdown':
       if (item?.kind === 'goal') {
         return selectionTargetLabel
-          ? `Break into stories · ${selectionTargetLabel}`
-          : 'Break into stories';
+          ? `${i18n?.t('aiChat.quickAction.breakIntoStories') ?? 'Break into stories'} · ${selectionTargetLabel}`
+          : i18n?.t('aiChat.quickAction.breakIntoStories') ?? 'Break into stories';
       }
       if (item?.kind === 'story') {
         return selectionTargetLabel
-          ? `Break into tasks · ${selectionTargetLabel}`
-          : 'Break into tasks';
+          ? `${i18n?.t('aiChat.quickAction.breakIntoTasks') ?? 'Break into tasks'} · ${selectionTargetLabel}`
+          : i18n?.t('aiChat.quickAction.breakIntoTasks') ?? 'Break into tasks';
       }
       return selectionTargetLabel
-        ? `Break down · ${selectionTargetLabel}`
-        : 'Break down';
+        ? `${i18n?.t('aiChat.quickAction.breakDown') ?? 'Break down'} · ${selectionTargetLabel}`
+        : i18n?.t('aiChat.quickAction.breakDown') ?? 'Break down';
     case 'strategic_plan':
-      return 'Generate strategic plan';
+      return (
+        i18n?.t('aiChat.quickAction.generateStrategicPlan') ??
+        'Generate strategic plan'
+      );
     case 'dependencies':
-      return selection.length > 1 ? 'Connect selected' : 'Link blockers';
+      return selection.length > 1
+        ? i18n?.t('aiChat.quickAction.connectSelected') ?? 'Connect selected'
+        : i18n?.t('aiChat.quickAction.linkBlockers') ?? 'Link blockers';
     case 'missing':
-      return 'What is missing?';
+      return i18n?.t('aiChat.quickAction.missing') ?? 'What is missing?';
     case 'clarify':
       return selectionTargetLabel
-        ? `Clarify · ${selectionTargetLabel}`
-        : 'Clarify';
+        ? `${i18n?.t('aiChat.quickAction.clarify') ?? 'Clarify'} · ${selectionTargetLabel}`
+        : i18n?.t('aiChat.quickAction.clarify') ?? 'Clarify';
     case 'fill_details':
       return selectionTargetLabel
-        ? `Fill missing details · ${selectionTargetLabel}`
-        : 'Fill missing details';
+        ? `${i18n?.t('aiChat.quickAction.fillMissingDetails') ?? 'Fill missing details'} · ${selectionTargetLabel}`
+        : i18n?.t('aiChat.quickAction.fillMissingDetails') ??
+            'Fill missing details';
     case 'review':
     default:
-      return selection.length > 0 ? 'Review selection' : 'Review plan';
+      return selection.length > 0
+        ? i18n?.t('aiChat.quickAction.reviewSelection') ?? 'Review selection'
+        : i18n?.t('aiChat.quickAction.reviewPlan') ?? 'Review plan';
   }
 }
 
 function getAiAssistantSelectionTargetLabel(
-  selection: AiAssistantSelectionItem[]
+  selection: AiAssistantSelectionItem[],
+  i18n?: AiAssistantIntentI18n
 ): string | null {
   if (selection.length === 0) {
     return null;
   }
 
   if (selection.length > 1) {
-    return `${selection.length} selected items`;
+    return (
+      i18n?.t('aiChat.context.selectedItemsCount', { count: selection.length }) ??
+      `${selection.length} selected items`
+    );
   }
 
   const item = selection[0];
@@ -149,20 +173,21 @@ function getAiAssistantSelectionTargetLabel(
     return null;
   }
 
-  return `${formatAiAssistantSelectionKindLabel(item.kind)}: ${item.title}`;
+  return `${formatAiAssistantSelectionKindLabel(item.kind, i18n)}: ${item.title}`;
 }
 
 function formatAiAssistantSelectionKindLabel(
-  kind: AiAssistantSelectionItem['kind']
+  kind: AiAssistantSelectionItem['kind'],
+  i18n?: AiAssistantIntentI18n
 ): string {
   switch (kind) {
     case 'goal':
-      return 'Goal';
+      return i18n?.t('aiChat.kind.goal') ?? 'Goal';
     case 'story':
-      return 'Story';
+      return i18n?.t('aiChat.kind.story') ?? 'Story';
     case 'task':
     default:
-      return 'Task';
+      return i18n?.t('aiChat.kind.task') ?? 'Task';
   }
 }
 

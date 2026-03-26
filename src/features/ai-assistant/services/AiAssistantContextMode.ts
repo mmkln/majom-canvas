@@ -2,6 +2,7 @@ import type {
   AiAssistantCanvasElement,
   AiAssistantCanvasSnapshot,
 } from '../aiAssistantEvents.ts';
+import type { I18nService } from '../../../i18n/index.ts';
 
 export type AiAssistantContextMode =
   | 'none'
@@ -9,20 +10,48 @@ export type AiAssistantContextMode =
   | 'viewport'
   | 'selection';
 
-export const AI_ASSISTANT_CONTEXT_MODE_OPTIONS: Array<{
+type AiAssistantContextModeI18n = Pick<I18nService, 't'>;
+
+const AI_ASSISTANT_CONTEXT_MODE_VALUES: AiAssistantContextMode[] = [
+  'none',
+  'canvas',
+  'viewport',
+  'selection',
+];
+
+export function getAiAssistantContextModeLabel(
+  mode: AiAssistantContextMode,
+  i18n?: AiAssistantContextModeI18n
+): string {
+  switch (mode) {
+    case 'none':
+      return i18n?.t('aiChat.contextMode.none') ?? 'No context';
+    case 'viewport':
+      return i18n?.t('aiChat.contextMode.viewport') ?? 'Visible area';
+    case 'selection':
+      return i18n?.t('aiChat.contextMode.selection') ?? 'Selected items';
+    case 'canvas':
+    default:
+      return i18n?.t('aiChat.contextMode.canvas') ?? 'Whole canvas';
+  }
+}
+
+export function getAiAssistantContextModeOptions(
+  i18n?: AiAssistantContextModeI18n
+): Array<{
   value: AiAssistantContextMode;
   label: string;
-}> = [
-  { value: 'none', label: 'No context' },
-  { value: 'canvas', label: 'Whole canvas' },
-  { value: 'viewport', label: 'Visible area' },
-  { value: 'selection', label: 'Selected items' },
-];
+}> {
+  return AI_ASSISTANT_CONTEXT_MODE_VALUES.map((value) => ({
+    value,
+    label: getAiAssistantContextModeLabel(value, i18n),
+  }));
+}
 
 export function isAiAssistantContextMode(
   value: string
 ): value is AiAssistantContextMode {
-  return AI_ASSISTANT_CONTEXT_MODE_OPTIONS.some((option) => option.value === value);
+  return AI_ASSISTANT_CONTEXT_MODE_VALUES.includes(value as AiAssistantContextMode);
 }
 
 export function scopeAiAssistantContext(

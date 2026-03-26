@@ -124,7 +124,9 @@ export class UIManager {
             items: res.results || [],
             hasMore: Boolean(res.next),
           }))
-        )
+        ),
+      30,
+      this.runtime
     );
     const existingGoalPicker = new ExistingGoalPicker((term, page, pageSize) =>
       goalsApi
@@ -138,7 +140,9 @@ export class UIManager {
             items: res.results || [],
             hasMore: Boolean(res.next),
           }))
-        )
+        ),
+      30,
+      this.runtime
     );
     const existingStoryPicker = new ExistingStoryPicker(
       (term, page, pageSize) =>
@@ -153,7 +157,9 @@ export class UIManager {
               items: res.results || [],
               hasMore: Boolean(res.next),
             }))
-          )
+          ),
+      30,
+      this.runtime
     );
     const contextMenu = new ContextMenu(
       this.scene,
@@ -163,17 +169,20 @@ export class UIManager {
       existingStoryPicker,
       this.addExistingTaskService,
       this.addExistingGoalService,
-      this.addExistingStoryService
+      this.addExistingStoryService,
+      this.runtime
     );
     const bulkActions = new BulkActionsController(this.scene);
     const selectionActions = new SelectionActionMenu(
       this.scene,
       this.canvasManager,
-      bulkActions
+      bulkActions,
+      this.runtime
     );
     const relatedItemsPicker = new RelatedItemsPicker(
       this.scene,
-      this.canvasManager
+      this.canvasManager,
+      this.runtime
     );
     const statusPicker = new StatusPicker(
       this.scene,

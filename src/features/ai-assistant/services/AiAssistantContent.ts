@@ -4,9 +4,12 @@ import type {
   AiAssistantConnectionEdge,
   AiAssistantSelectionItem,
 } from '../aiAssistantEvents.ts';
+import type { I18nService } from '../../../i18n/index.ts';
 
 const MAX_CANONICAL_HIERARCHY_ITEMS = 24;
 const MAX_CANONICAL_RELATIONS = 16;
+
+type AiAssistantContentI18n = Pick<I18nService, 't'>;
 
 export function summarizeAiAssistantCanvas(
   context: Pick<AiAssistantCanvasSnapshot, 'canvasTitle' | 'summary'>
@@ -47,21 +50,23 @@ export function getAiAssistantSelectedItems(
 }
 
 export function describeAiAssistantSelectionInline(
-  selection: AiAssistantSelectionItem[]
+  selection: AiAssistantSelectionItem[],
+  i18n?: AiAssistantContentI18n
 ): string {
   return selection
     .map(
       (item) =>
-        `${capitalizeAiAssistantValue(item.kind)} "${item.title || 'Untitled'}"`
+        `${formatAiAssistantSelectionKindLabel(item.kind, i18n)} "${item.title || (i18n?.t('aiChat.context.untitledItem') ?? 'Untitled')}"`
     )
     .join(', ');
 }
 
 export function describeAiAssistantSelectionItem(
-  item: AiAssistantSelectionItem
+  item: AiAssistantSelectionItem,
+  i18n?: AiAssistantContentI18n
 ): string {
   const parts = [
-    `- ${capitalizeAiAssistantValue(item.kind)} "${item.title || 'Untitled'}"`,
+    `- ${formatAiAssistantSelectionKindLabel(item.kind, i18n)} "${item.title || (i18n?.t('aiChat.context.untitledItem') ?? 'Untitled')}"`,
   ];
   if (item.status) {
     parts.push(`status: ${item.status}`);
@@ -80,6 +85,21 @@ export function describeAiAssistantSelectionItem(
 
 export function capitalizeAiAssistantValue(value: string): string {
   return value.length > 0 ? value[0].toUpperCase() + value.slice(1) : value;
+}
+
+function formatAiAssistantSelectionKindLabel(
+  kind: AiAssistantSelectionItem['kind'],
+  i18n?: AiAssistantContentI18n
+): string {
+  switch (kind) {
+    case 'goal':
+      return i18n?.t('aiChat.kind.goal') ?? capitalizeAiAssistantValue(kind);
+    case 'story':
+      return i18n?.t('aiChat.kind.story') ?? capitalizeAiAssistantValue(kind);
+    case 'task':
+    default:
+      return i18n?.t('aiChat.kind.task') ?? capitalizeAiAssistantValue(kind);
+  }
 }
 
 function buildCanonicalHierarchyLines(

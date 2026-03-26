@@ -5,6 +5,7 @@ import {
   type ExistingEntityPickerOpenOptions,
   type ExistingPickerPage,
 } from './ExistingEntityPicker.ts';
+import { AppRuntime, createAppRuntime } from '../../../../app-runtime/index.ts';
 
 export class ExistingStoryPicker {
   private readonly picker: ExistingEntityPicker<'existing-story', Story>;
@@ -15,23 +16,22 @@ export class ExistingStoryPicker {
       page: number,
       pageSize: number
     ) => Observable<ExistingPickerPage<Story>>,
-    pageSize: number = 30
+    pageSize: number = 30,
+    runtime: AppRuntime = createAppRuntime()
   ) {
     this.picker = new ExistingEntityPicker<'existing-story', Story>(
       loadStoriesPage,
       {
-        drawerTitle: 'Add existing story',
-        searchPlaceholder: 'Search stories...',
-        itemLabel: 'Story',
         dragKind: 'existing-story',
-        getTitle: (story) => story.title || 'Untitled story',
+        getTitle: (story) => story.title || '',
         getDescription: (story) => story.description,
         getStatus: (story) => story.status,
         getPriority: (story) => story.priority,
         getUpdatedAt: (story) =>
           (story as Story & { updated_at?: unknown }).updated_at,
       },
-      pageSize
+      pageSize,
+      runtime
     );
   }
 

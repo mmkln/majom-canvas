@@ -57,7 +57,7 @@ import { AppRuntime, createAppRuntime } from '../app-runtime/index.ts';
 const APP_ISLAND_GAP_PX = 0;
 const APP_ISLAND_MARGIN_PX = 0;
 const APP_ISLAND_RADIUS_PX = 0;
-const TIME_CLUSTERING_ISLAND_WIDTH_PX = 430;
+const TIME_CLUSTERING_ISLAND_WIDTH_PX = 360;
 
 type KanbanModuleNamespace = {
   KanbanModule: new () => WorkspaceModule;
@@ -185,6 +185,7 @@ export class RuntimeHost {
     });
     const chatRuntime = createAiAssistantRuntime({
       resolveLiveHost: () => this.createAiAssistantToolHost(),
+      runtime: this.runtime,
     });
     this.chatController = chatRuntime.controller;
     const executeChatAction: AiAssistantActionExecutionHandler = Object.assign(
@@ -198,6 +199,7 @@ export class RuntimeHost {
     this.chatPanel = new AiAssistantPanel({
       controller: this.chatController,
       executeAction: executeChatAction,
+      runtime: this.runtime,
     });
     this.chatOpen = loadPersistedAiAssistantOpen();
     this.chatPanel.setVisible(false);
@@ -243,7 +245,11 @@ export class RuntimeHost {
       const snapshot =
         this.shell?.getActiveModule()?.getAiAssistantSnapshot() ?? null;
       void this.chatPanel.submitPreparedSubmission(
-        resolveAiAssistantIntentSubmission(customEvent.detail, snapshot)
+        resolveAiAssistantIntentSubmission(
+          customEvent.detail,
+          snapshot,
+          this.runtime.i18n
+        )
       );
     };
     this.windowResizeHandler = () => {

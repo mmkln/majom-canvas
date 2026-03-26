@@ -1,5 +1,6 @@
 import { ElementStatus } from '../elements/ElementStatus.ts';
 import type { IconName } from './icons.ts';
+import type { I18nService } from '../../../i18n/index.ts';
 
 export const STATUS_ORDER: readonly ElementStatus[] = [
   ElementStatus.Done,
@@ -22,16 +23,25 @@ export const STATUS_ICON_TONE_CLASS: Readonly<Record<ElementStatus, string>> = {
   [ElementStatus.Defined]: 'text-slate-500',
 };
 
-export function getStatusLabel(status: ElementStatus): string {
+type StatusTranslationApi = Pick<I18nService, 't'>;
+
+export function getStatusLabel(
+  status: ElementStatus,
+  i18n?: StatusTranslationApi
+): string {
   switch (status) {
     case ElementStatus.InProgress:
-      return 'In progress';
+      return i18n?.t('status.inProgress') ?? 'In progress';
     case ElementStatus.Pending:
-      return 'Pending';
+      return i18n?.t('status.pending') ?? 'Pending';
     case ElementStatus.Done:
-      return 'Done';
+      return i18n?.t('status.done') ?? 'Done';
     case ElementStatus.Defined:
     default:
-      return 'Defined';
+      return i18n?.t('status.defined') ?? 'Defined';
   }
+}
+
+export function getMixedStatusLabel(i18n?: StatusTranslationApi): string {
+  return i18n?.t('status.mixed') ?? 'Mixed';
 }

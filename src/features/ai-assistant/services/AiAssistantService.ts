@@ -29,6 +29,7 @@ import type { AiAssistantContextMode } from './AiAssistantContextMode.ts';
 import type { AiAssistantIntentContext } from './AiAssistantIntentContext.ts';
 import type { AiAssistantScenarioDescriptor } from './AiAssistantScenarioTypes.ts';
 import type { AiAssistantToolHost } from './AiAssistantToolTypes.ts';
+import type { I18nService } from '../../../i18n/index.ts';
 
 export type AiAssistantReplyRequest = {
   prompt: string;
@@ -74,14 +75,17 @@ type AiAssistantServiceOptions = {
   apiClient?: AiAssistantApiClient;
   orchestrator?: AiAssistantOrchestrator;
   telemetry?: AiAssistantTelemetryCollector;
+  i18n?: I18nService;
 };
 
 export class AiAssistantService implements AiAssistantServiceLike {
   private readonly apiClient: AiAssistantApiClient;
   private readonly orchestrator: AiAssistantOrchestrator;
+  private readonly i18n?: I18nService;
 
   constructor(options: AiAssistantServiceOptions = {}) {
     this.apiClient = options.apiClient ?? new AiAssistantApiClient();
+    this.i18n = options.i18n;
     this.orchestrator =
       options.orchestrator ??
       new AiAssistantOrchestrator({
@@ -126,13 +130,15 @@ export class AiAssistantService implements AiAssistantServiceLike {
   public createWelcomeMessage(
     context: AiAssistantCanvasSnapshot | null
   ): AiAssistantMessage {
-    return this.createSystemMessage(buildAiAssistantWelcomeContent(context));
+    return this.createSystemMessage(
+      buildAiAssistantWelcomeContent(context, this.i18n)
+    );
   }
 
   public getQuickActions(
     context: AiAssistantCanvasSnapshot | null
   ): AiAssistantQuickAction[] {
-    return getAiAssistantQuickActions(context);
+    return getAiAssistantQuickActions(context, this.i18n);
   }
 
   public async reply(

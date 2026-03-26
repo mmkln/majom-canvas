@@ -4,10 +4,12 @@ import { AiAssistantPersistence } from './AiAssistantPersistence.ts';
 import { AiAssistantService } from './AiAssistantService.ts';
 import { AiAssistantSessionController } from './AiAssistantSessionController.ts';
 import type { AiAssistantToolHost } from './AiAssistantToolTypes.ts';
+import type { AppRuntime } from '../../../app-runtime/index.ts';
 
 type AiAssistantRuntimeOptions = {
   resolveLiveHost?: () => AiAssistantToolHost | null;
   persistence?: AiAssistantPersistence;
+  runtime?: AppRuntime;
 };
 
 export type AiAssistantRuntime = {
@@ -27,11 +29,13 @@ export function createAiAssistantRuntime(
   const service = new AiAssistantService({
     apiClient,
     orchestrator,
+    i18n: options.runtime?.i18n,
   });
   const controller = new AiAssistantSessionController({
     persistence: options.persistence,
     service,
     resolveLiveHost: options.resolveLiveHost,
+    runtime: options.runtime,
   });
 
   return {

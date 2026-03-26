@@ -26,6 +26,7 @@ import {
   getAiAssistantFillDetailsHint,
   getAiAssistantLinkBlockersHint,
 } from '../../ai-assistant/aiAssistantHints.ts';
+import { AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
 
 type ActionContext = {
   elements: PlanningElement[];
@@ -66,6 +67,7 @@ export class SelectionActionMenu {
   private aiActionsDropdown: AiActionsDropdown | null = null;
   private statusSelector: StatusSelector | null = null;
   private subscriptions: Subscription[] = [];
+  private disposeRuntimeSubscription: (() => void) | null = null;
   private suspendUpdates = false;
   private activeInteractions = new Set<'drag' | 'resize' | 'select'>();
   private deleteConfirmState: { key: string; expiresAt: number } | null = null;
@@ -100,7 +102,8 @@ export class SelectionActionMenu {
   constructor(
     private readonly scene: Scene,
     private readonly canvasManager: CanvasManager,
-    private readonly bulkActions: BulkActionsController
+    private readonly bulkActions: BulkActionsController,
+    private readonly runtime: AppRuntime = createAppRuntime()
   ) {
     this.container = createSurface({
       className:
@@ -127,6 +130,9 @@ export class SelectionActionMenu {
       this.interactionStartHandler
     );
     window.addEventListener('canvasInteractionEnd', this.interactionEndHandler);
+    this.disposeRuntimeSubscription = this.runtime.subscribe(() => {
+      this.refreshRuntimeUi();
+    }, { emitCurrent: true });
     this.requestUpdate();
   }
 
@@ -146,6 +152,8 @@ export class SelectionActionMenu {
       'canvasInteractionEnd',
       this.interactionEndHandler
     );
+    this.disposeRuntimeSubscription?.();
+    this.disposeRuntimeSubscription = null;
     this.container.remove();
   }
 
@@ -233,6 +241,7 @@ export class SelectionActionMenu {
       }
       if (node.variant === 'status') {
         const selector = new StatusSelector({
+          i18n: this.runtime.i18n,
           onStatusChange: (status) => this.applyStatus(status),
         });
         this.statusSelector = selector;
@@ -241,7 +250,13 @@ export class SelectionActionMenu {
         return;
       }
       if (node.variant === 'ai') {
-        const dropdown = new AiActionsDropdown({ triggerLabel: 'AI' });
+        const dropdown = new AiActionsDropdown({
+          triggerLabel: this.runtime.i18n.t('selectionMenu.aiTrigger'),
+          openLabel: this.runtime.i18n.t('selectionMenu.openAiActions'),
+          unavailableLabel: this.runtime.i18n.t(
+            'selectionMenu.aiActionsUnavailable'
+          ),
+        });
         this.aiActionsDropdown = dropdown;
         this.actionElements.set(node.id, dropdown.element);
         this.container.appendChild(dropdown.element);
@@ -286,7 +301,7 @@ export class SelectionActionMenu {
       {
         kind: 'action',
         id: 'status',
-        title: 'Change status',
+        title: this.runtime.i18n.t('selectionMenu.changeStatus'),
         variant: 'status',
         onClick: () => {},
       },
@@ -303,7 +318,7 @@ export class SelectionActionMenu {
       {
         kind: 'action',
         id: 'ai-menu',
-        title: 'AI actions',
+        title: this.runtime.i18n.t('selectionMenu.aiActions'),
         variant: 'ai',
         isVisible: (context) => isSingle(context) || isMulti(context),
       },
@@ -315,7 +330,7 @@ export class SelectionActionMenu {
       {
         kind: 'action',
         id: 'copy-bulk',
-        title: 'Copy',
+        title: this.runtime.i18n.t('selectionMenu.copy'),
         icon: 'square-2-stack',
         isVisible: isMulti,
         onClick: () => this.handleCopy(),
@@ -323,7 +338,7 @@ export class SelectionActionMenu {
       {
         kind: 'action',
         id: 'remove-connections-bulk',
-        title: 'Remove connections',
+        title: this.runtime.i18n.t('selectionMenu.removeConnections'),
         icon: 'link-slash',
         isVisible: (context) => isMulti(context) && hasConnections(context),
         onClick: () => this.handleRemoveConnections(),
@@ -331,7 +346,7 @@ export class SelectionActionMenu {
       {
         kind: 'action',
         id: 'delete-bulk',
-        title: 'Remove from Canvas',
+        title: this.runtime.i18n.t('selectionMenu.removeFromCanvas'),
         icon: 'minus',
         isVisible: isMulti,
         onClick: () => this.handleRemove(),
@@ -340,7 +355,7 @@ export class SelectionActionMenu {
       {
         kind: 'action',
         id: 'delete-bulk-danger',
-        title: 'Delete permanently',
+        title: this.runtime.i18n.t('selectionMenu.deletePermanently'),
         icon: 'trash',
         isDanger: true,
         isVisible: isMulti,
@@ -351,7 +366,7 @@ export class SelectionActionMenu {
       {
         kind: 'action',
         id: 'create-task',
-        title: 'Create Task',
+        title: this.runtime.i18n.t('selectionMenu.createTask'),
         icon: 'plus',
         isVisible: (context) => isSingle(context) && isStory(context),
         onClick: () => {
@@ -361,7 +376,7 @@ export class SelectionActionMenu {
       {
         kind: 'action',
         id: 'add-related',
-        title: 'Add related',
+        title: this.runtime.i18n.t('selectionMenu.addRelated'),
         icon: 'magnifying-glass',
         isVisible: (context) => isSingle(context) && isStoryOrGoal(context),
         onClick: () => this.handleAddRelated(),
@@ -374,7 +389,7 @@ export class SelectionActionMenu {
       {
         kind: 'action',
         id: 'edit',
-        title: 'Edit',
+        title: this.runtime.i18n.t('selectionMenu.edit'),
         icon: 'pencil',
         isVisible: isSingle,
         onClick: () => this.handleEdit(),
@@ -382,7 +397,7 @@ export class SelectionActionMenu {
       {
         kind: 'action',
         id: 'copy',
-        title: 'Copy',
+        title: this.runtime.i18n.t('selectionMenu.copy'),
         icon: 'square-2-stack',
         isVisible: isSingle,
         onClick: () => this.handleCopy(),
@@ -390,7 +405,7 @@ export class SelectionActionMenu {
       {
         kind: 'action',
         id: 'remove-connections',
-        title: 'Remove connections',
+        title: this.runtime.i18n.t('selectionMenu.removeConnections'),
         icon: 'link-slash',
         isVisible: (context) => isSingle(context) && hasConnections(context),
         onClick: () => this.handleRemoveConnections(),
@@ -398,7 +413,7 @@ export class SelectionActionMenu {
       {
         kind: 'action',
         id: 'delete',
-        title: 'Remove from Canvas',
+        title: this.runtime.i18n.t('selectionMenu.removeFromCanvas'),
         icon: 'minus',
         isVisible: isSingle,
         onClick: () => this.handleRemove(),
@@ -411,7 +426,7 @@ export class SelectionActionMenu {
       {
         kind: 'action',
         id: 'delete-danger',
-        title: 'Delete permanently',
+        title: this.runtime.i18n.t('selectionMenu.deletePermanently'),
         icon: 'trash',
         isDanger: true,
         isVisible: isSingle,
@@ -531,27 +546,27 @@ export class SelectionActionMenu {
         items.push({
           label: this.getAiBreakdownLabel(),
           icon: 'slash',
-          hint: getAiAssistantBreakdownHint(primaryKind),
+          hint: getAiAssistantBreakdownHint(primaryKind, this.runtime.i18n),
           onClick: () => this.handleAiBreakdown(),
         });
       }
       items.push(
         {
-          label: 'Clarify',
+          label: this.runtime.i18n.t('selectionMenu.clarify'),
           icon: 'light-bulb',
-          hint: getAiAssistantClarifyHint(primaryKind),
+          hint: getAiAssistantClarifyHint(primaryKind, this.runtime.i18n),
           onClick: () => this.handleAiClarify(),
         },
         {
-          label: 'Fill missing details',
+          label: this.runtime.i18n.t('selectionMenu.fillMissingDetails'),
           icon: 'puzzle-piece',
-          hint: getAiAssistantFillDetailsHint(),
+          hint: getAiAssistantFillDetailsHint(this.runtime.i18n),
           onClick: () => this.handleAiFillDetails(),
         },
         {
-          label: 'Link blockers',
+          label: this.runtime.i18n.t('selectionMenu.linkBlockers'),
           icon: 'arrow-path',
-          hint: getAiAssistantLinkBlockersHint(),
+          hint: getAiAssistantLinkBlockersHint(this.runtime.i18n),
           onClick: () => this.handleAiDependencies(),
         }
       );
@@ -560,15 +575,15 @@ export class SelectionActionMenu {
 
     items.push(
       {
-        label: 'Connect selected',
+        label: this.runtime.i18n.t('selectionMenu.connectSelected'),
         icon: 'arrow-path',
-        hint: getAiAssistantConnectSelectedHint(),
+        hint: getAiAssistantConnectSelectedHint(this.runtime.i18n),
         onClick: () => this.handleAiDependencies(),
       },
       {
-        label: 'Fill missing details',
+        label: this.runtime.i18n.t('selectionMenu.fillMissingDetails'),
         icon: 'puzzle-piece',
-        hint: getAiAssistantFillDetailsHint(),
+        hint: getAiAssistantFillDetailsHint(this.runtime.i18n),
         onClick: () => this.handleAiFillDetails(),
       }
     );
@@ -578,12 +593,12 @@ export class SelectionActionMenu {
   private getAiBreakdownLabel(): string {
     const primary = this.selectedElements[0];
     if (primary instanceof GoalElement) {
-      return 'Break into stories';
+      return this.runtime.i18n.t('selectionMenu.breakIntoStories');
     }
     if (primary instanceof StoryElement) {
-      return 'Break into tasks';
+      return this.runtime.i18n.t('selectionMenu.breakIntoTasks');
     }
-    return 'Break down';
+    return this.runtime.i18n.t('selectionMenu.breakDown');
   }
 
   private applyStatus(status: ElementStatus): void {
@@ -705,7 +720,9 @@ export class SelectionActionMenu {
   }
 
   private updateDeleteButtonLabels(confirming: boolean): void {
-    const title = confirming ? 'Confirm delete' : 'Delete permanently';
+    const title = confirming
+      ? this.runtime.i18n.t('selectionMenu.confirmDelete')
+      : this.runtime.i18n.t('selectionMenu.deletePermanently');
     const icon = confirming ? 'x-mark' : 'trash';
     const variant = confirming ? 'warning' : 'danger';
     ['delete-danger', 'delete-bulk-danger'].forEach((id) => {
@@ -789,5 +806,11 @@ export class SelectionActionMenu {
 
   private getSelectedTargetIds(): string[] {
     return this.selectedElements.map((element) => element.id);
+  }
+
+  private refreshRuntimeUi(): void {
+    this.actionNodes = this.buildActionNodes();
+    this.renderActions();
+    this.requestUpdate();
   }
 }

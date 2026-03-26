@@ -44,6 +44,7 @@ export type IconName =
   | 'trash'
   | 'arrow-path'
   | 'arrow-down'
+  | 'arrow-up'
   | 'arrow-left'
   | 'arrow-right'
   | 'arrow-ultum-left'
@@ -462,6 +463,11 @@ export function createIcon(
 
   if (name === 'arrow-down') {
     svg.appendChild(makePath('M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3'));
+    return svg;
+  }
+
+  if (name === 'arrow-up') {
+    svg.appendChild(makePath('M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18'));
     return svg;
   }
 

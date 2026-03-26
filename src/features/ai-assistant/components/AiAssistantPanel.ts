@@ -3,6 +3,7 @@ import {
   MenuButton,
   createSurface,
   createTextButton,
+  setIconButtonLoading,
   setTextButtonState,
 } from '../../../ui-lib/src/hud/index.ts';
 import { createIcon, type IconName } from '../../../ui-lib/src/hud/icons.ts';
@@ -43,7 +44,8 @@ import {
 } from './AiAssistantActionUiBlocks.ts';
 import { AI_ASSISTANT_ACTION_TOKENS } from './AiAssistantActionUiTokens.ts';
 import {
-  AI_ASSISTANT_CONTEXT_MODE_OPTIONS,
+  getAiAssistantContextModeLabel,
+  getAiAssistantContextModeOptions,
   type AiAssistantContextMode,
 } from '../services/AiAssistantContextMode.ts';
 import { AiAssistantSessionController } from '../services/AiAssistantSessionController.ts';
@@ -67,13 +69,15 @@ import {
   type AiAssistantCanvasElement,
 } from '../aiAssistantEvents.ts';
 import {
-  capitalizeAiAssistantValue,
   getAiAssistantSelectedItems,
 } from '../services/AiAssistantContent.ts';
 import type { AiAssistantPreparedSubmission } from '../services/AiAssistantPreparedSubmission.ts';
+import { type AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
+import type { I18nService } from '../../../i18n/index.ts';
 
 type AiAssistantPanelOptions = {
   controller: AiAssistantSessionController;
+  runtime?: AppRuntime;
   widthPx?: number;
   executeAction?: AiAssistantActionExecutionHandler;
 };
@@ -97,6 +101,8 @@ const CHAT_TEXT_MUTED = '#64748b';
 const CHAT_TEXT_SUBTLE = '#94a3b8';
 
 export class AiAssistantPanel {
+  private readonly runtime: AppRuntime;
+  private readonly i18n: I18nService;
   private readonly container: HTMLElement;
   private readonly panel: HTMLDivElement;
   private readonly widthPx: number;
@@ -112,6 +118,7 @@ export class AiAssistantPanel {
   private readonly messagesToolsRow: HTMLDivElement;
   private readonly messagesList: HTMLDivElement;
   private readonly composerInput: HTMLTextAreaElement;
+  private readonly composerHint: HTMLButtonElement;
   private readonly pendingConfirmationBar: HTMLDivElement;
   private readonly pendingConfirmationMeta: HTMLParagraphElement;
   private readonly pendingConfirmationTitle: HTMLParagraphElement;
@@ -126,6 +133,7 @@ export class AiAssistantPanel {
     | AiAssistantActionExecutionHandler
     | undefined;
   private unsubscribeController: (() => void) | null = null;
+  private disposeRuntimeSubscription: (() => void) | null = null;
   private copyFeedback: {
     messageId: string;
     status: 'copied' | 'failed';
@@ -156,6 +164,8 @@ export class AiAssistantPanel {
   };
 
   constructor(options: AiAssistantPanelOptions) {
+    this.runtime = options.runtime ?? createAppRuntime();
+    this.i18n = this.runtime.i18n;
     this.widthPx = options.widthPx ?? 390;
     this.executeAction = options.executeAction;
     this.chatController = options.controller;
@@ -214,7 +224,7 @@ export class AiAssistantPanel {
     this.contextTitle.style.whiteSpace = 'nowrap';
     this.contextTitle.style.overflow = 'hidden';
     this.contextTitle.style.textOverflow = 'ellipsis';
-    this.contextTitle.textContent = 'Chat';
+    this.contextTitle.textContent = this.i18n.t('aiChat.title');
     brand.append(brandIcon, this.contextTitle);
 
     this.contextMeta = document.createElement('p');
@@ -270,8 +280,8 @@ export class AiAssistantPanel {
 
     this.scrollToBottomButton = this.createQuietIconButton({
       icon: 'arrow-down',
-      title: 'Scroll to latest message',
-      ariaLabel: 'Scroll to latest message',
+      title: this.i18n.t('aiChat.scrollToLatest'),
+      ariaLabel: this.i18n.t('aiChat.scrollToLatest'),
       className:
         '!h-[34px] !w-[34px] !border-slate-200 !bg-white/95 shadow-none',
       onClick: () => {
@@ -337,9 +347,9 @@ export class AiAssistantPanel {
     );
 
     this.pendingConfirmationButton = this.createPrimaryPillButton({
-      text: 'Confirm',
-      title: 'Confirm pending actions',
-      ariaLabel: 'Confirm pending actions',
+      text: this.i18n.t('aiChat.actionButton.confirm'),
+      title: this.i18n.t('aiChat.confirmPendingActions'),
+      ariaLabel: this.i18n.t('aiChat.confirmPendingActions'),
       onClick: () => {
         void this.confirmPendingSuggestion();
       },
@@ -352,7 +362,7 @@ export class AiAssistantPanel {
 
     const composerInput = ComponentFactory.createTextarea({
       rows: 3,
-      placeholder: 'Ask about the current canvas',
+      placeholder: this.i18n.t('aiChat.placeholder.canvas'),
     });
     this.composerInput = composerInput.getElement() as HTMLTextAreaElement;
     this.composerInput.style.resize = 'none';
@@ -373,17 +383,33 @@ export class AiAssistantPanel {
     composerControls.style.alignItems = 'center';
     composerControls.style.gap = '12px';
 
-    const composerHint = document.createElement('span');
-    composerHint.textContent = 'Enter to send, Shift+Enter for a new line';
-    composerHint.style.fontSize = CHAT_FONT_SIZE_LABEL;
-    composerHint.style.lineHeight = '1.4';
-    composerHint.style.letterSpacing = '0.01em';
-    composerHint.style.color = CHAT_TEXT_SUBTLE;
+    const composerPrimaryActions = document.createElement('div');
+    composerPrimaryActions.style.display = 'flex';
+    composerPrimaryActions.style.alignItems = 'center';
+    composerPrimaryActions.style.justifyContent = 'flex-end';
+    composerPrimaryActions.style.gap = '8px';
+
+    this.composerHint = this.createQuietIconButton({
+      icon: 'exclamation-circle',
+      title: this.i18n.t('aiChat.composerHint'),
+      ariaLabel: this.i18n.t('aiChat.composerHint'),
+      surface: 'plain',
+      className: '!h-7 !w-7 !text-slate-400',
+      onClick: (event) => {
+        event.preventDefault();
+      },
+    });
+    this.composerHint.style.flexShrink = '0';
+    this.composerHint.style.cursor = 'help';
 
     this.contextModeMenuButton = new MenuButton({
-      label: 'Whole canvas',
-      title: 'Context: Whole canvas',
-      ariaLabel: 'Context: Whole canvas. Change context scope',
+      label: this.i18n.t('aiChat.contextMode.canvas'),
+      title: this.i18n.t('aiChat.context.buttonTitle', {
+        label: this.i18n.t('aiChat.contextMode.canvas'),
+      }),
+      ariaLabel: this.i18n.t('aiChat.context.buttonAria', {
+        label: this.i18n.t('aiChat.contextMode.canvas'),
+      }),
       size: 'xs',
       variant: 'plain',
       buttonClassName: '!min-w-[122px] !justify-between',
@@ -396,12 +422,12 @@ export class AiAssistantPanel {
     this.contextModeControl = this.contextModeMenuButton.element;
     this.contextModeControl.style.flexShrink = '0';
 
-    this.clearButton = createTextButton({
-      text: 'Clear chat',
-      tone: 'text',
-      size: 'xs',
-      title: 'Clear chat',
-      ariaLabel: 'Clear chat',
+    this.clearButton = this.createQuietIconButton({
+      icon: 'trash',
+      title: this.i18n.t('aiChat.clearChat'),
+      ariaLabel: this.i18n.t('aiChat.clearChat'),
+      surface: 'plain',
+      className: '!h-7 !w-7 !text-slate-400',
       onClick: () => {
         this.pinMessagesToBottom();
         this.chatController.clearConversation();
@@ -412,17 +438,18 @@ export class AiAssistantPanel {
     headerTopRow.append(brand, this.messagesToolsRow);
     this.header.append(headerTopRow, this.contextCard);
 
-    this.sendButton = this.createPrimaryPillButton({
-      text: 'Send',
-      title: 'Send prompt',
-      ariaLabel: 'Send prompt',
+    this.sendButton = this.createPrimaryIconButton({
+      icon: 'arrow-up',
+      title: this.i18n.t('aiChat.sendPrompt'),
+      ariaLabel: this.i18n.t('aiChat.sendPrompt'),
       onClick: () => {
         void this.submitCurrentPrompt();
       },
     });
 
-    composerControls.append(this.contextModeControl, composerHint);
-    composerFooter.append(composerControls, this.sendButton);
+    composerControls.append(this.contextModeControl);
+    composerPrimaryActions.append(this.composerHint, this.sendButton);
+    composerFooter.append(composerControls, composerPrimaryActions);
     composer.append(
       this.pendingConfirmationBar,
       this.composerInput,
@@ -457,6 +484,9 @@ export class AiAssistantPanel {
       AI_ASSISTANT_CONTEXT_CHANGED_EVENT,
       this.chatContextChangedHandler
     );
+    this.disposeRuntimeSubscription = this.runtime.subscribe(() => {
+      this.render();
+    }, { emitCurrent: true });
     this.unsubscribeController = this.chatController.subscribe(() => {
       this.render();
     });
@@ -481,6 +511,8 @@ export class AiAssistantPanel {
     );
     this.unsubscribeController?.();
     this.unsubscribeController = null;
+    this.disposeRuntimeSubscription?.();
+    this.disposeRuntimeSubscription = null;
     if (this.copyFeedbackTimer !== null) {
       window.clearTimeout(this.copyFeedbackTimer);
       this.copyFeedbackTimer = null;
@@ -568,11 +600,19 @@ export class AiAssistantPanel {
     this.pendingConfirmationBar.style.display = 'flex';
     this.pendingConfirmationMeta.textContent =
       pendingConfirmation.actionCount > 1
-        ? `Pending confirmation · ${pendingConfirmation.actionCount} actions`
-        : 'Pending confirmation';
+        ? this.i18n.t('aiChat.pendingConfirmation.multiple', {
+            count: pendingConfirmation.actionCount,
+          })
+        : this.i18n.t('aiChat.pendingConfirmation.single');
     this.pendingConfirmationTitle.textContent = pendingConfirmation.actionTitle;
     this.pendingConfirmationButton.textContent =
       pendingConfirmation.actionLabel;
+    this.pendingConfirmationButton.title =
+      this.i18n.t('aiChat.confirmPendingActions');
+    this.pendingConfirmationButton.setAttribute(
+      'aria-label',
+      this.i18n.t('aiChat.confirmPendingActions')
+    );
     setTextButtonState(this.pendingConfirmationButton, {
       disabled: replying,
     });
@@ -582,7 +622,7 @@ export class AiAssistantPanel {
     context: ReturnType<AiAssistantSessionController['getState']>['context'],
     contextMode: AiAssistantContextMode
   ): void {
-    this.contextTitle.textContent = 'Chat';
+    this.contextTitle.textContent = this.i18n.t('aiChat.title');
 
     if (contextMode === 'none') {
       this.contextCard.style.display = 'none';
@@ -595,10 +635,19 @@ export class AiAssistantPanel {
       this.setContextMeta(
         this.joinContextMetaParts(
           contextMode === 'selection'
-            ? ['Selection', 'Select items to ground the chat']
+            ? [
+                this.i18n.t('aiChat.context.selection'),
+                this.i18n.t('aiChat.context.selectItemsToGround'),
+              ]
             : contextMode === 'viewport'
-              ? ['Visible area', 'Open a canvas to use the visible area']
-              : ['Canvas', 'Open a canvas to ground the chat']
+              ? [
+                  this.i18n.t('aiChat.context.visibleArea'),
+                  this.i18n.t('aiChat.context.openCanvasForVisibleArea'),
+                ]
+              : [
+                  this.i18n.t('aiChat.context.canvas'),
+                  this.i18n.t('aiChat.context.openCanvasToGround'),
+                ]
         )
       );
       return;
@@ -628,29 +677,32 @@ export class AiAssistantPanel {
     selection: AiAssistantCanvasElement[]
   ): string | null {
     const totalItems = this.getContextItemCount(context);
-    const canvasTitle = context.canvasTitle || 'Untitled canvas';
+    const canvasTitle =
+      context.canvasTitle || this.i18n.t('aiChat.context.untitledCanvas');
 
     if (contextMode === 'selection') {
       if (selection.length === 0) {
         return this.joinContextMetaParts([
           canvasTitle,
-          'Selection',
-          'Select items to ground the chat',
+          this.i18n.t('aiChat.context.selection'),
+          this.i18n.t('aiChat.context.selectItemsToGround'),
         ]);
       }
       if (selection.length === 1) {
         return this.joinContextMetaParts([
           canvasTitle,
-          'Selection',
-          capitalizeAiAssistantValue(selection[0].kind),
-          selection[0].title || 'Untitled',
+          this.i18n.t('aiChat.context.selection'),
+          this.getKindLabel(selection[0].kind),
+          selection[0].title || this.i18n.t('aiChat.context.untitledItem'),
           this.getSelectionChildCountLabel(selection[0]),
         ]);
       }
       return this.joinContextMetaParts([
         canvasTitle,
-        'Selection',
-        `${selection.length} selected`,
+        this.i18n.t('aiChat.context.selection'),
+        this.i18n.t('aiChat.context.selectedCount', {
+          count: selection.length,
+        }),
         this.formatSelectionKindSummary(selection),
       ]);
     }
@@ -658,40 +710,54 @@ export class AiAssistantPanel {
     if (contextMode === 'viewport') {
       return this.joinContextMetaParts([
         canvasTitle,
-        'Visible area',
-        totalItems === 0 ? 'Empty' : this.formatCountLabel(totalItems, 'item'),
+        this.i18n.t('aiChat.context.visibleArea'),
+        totalItems === 0
+          ? this.i18n.t('aiChat.context.empty')
+          : this.formatCountLabel(totalItems, 'item'),
         selection.length === 1
-          ? `${capitalizeAiAssistantValue(selection[0].kind)}: ${selection[0].title || 'Untitled'}`
+          ? `${this.getKindLabel(selection[0].kind)}: ${
+              selection[0].title || this.i18n.t('aiChat.context.untitledItem')
+            }`
           : selection.length > 1
-            ? `${selection.length} selected`
+            ? this.i18n.t('aiChat.context.selectedCount', {
+                count: selection.length,
+              })
             : null,
       ]);
     }
 
     if (totalItems === 0) {
-      return this.joinContextMetaParts([canvasTitle, 'Canvas', 'Empty']);
+      return this.joinContextMetaParts([
+        canvasTitle,
+        this.i18n.t('aiChat.context.canvas'),
+        this.i18n.t('aiChat.context.empty'),
+      ]);
     }
 
     if (selection.length === 1) {
       return this.joinContextMetaParts([
         canvasTitle,
-        'Canvas',
-        `${capitalizeAiAssistantValue(selection[0].kind)} selected`,
-        selection[0].title || 'Untitled',
+        this.i18n.t('aiChat.context.canvas'),
+        this.i18n.t('aiChat.context.kindSelected', {
+          kind: this.getKindLabel(selection[0].kind),
+        }),
+        selection[0].title || this.i18n.t('aiChat.context.untitledItem'),
       ]);
     }
 
     if (selection.length > 1) {
       return this.joinContextMetaParts([
         canvasTitle,
-        'Canvas',
-        `${selection.length} selected`,
+        this.i18n.t('aiChat.context.canvas'),
+        this.i18n.t('aiChat.context.selectedCount', {
+          count: selection.length,
+        }),
       ]);
     }
 
     return this.joinContextMetaParts([
       canvasTitle,
-      'Canvas',
+      this.i18n.t('aiChat.context.canvas'),
       this.formatCanvasSummary(context),
     ]);
   }
@@ -708,7 +774,7 @@ export class AiAssistantPanel {
     }
 
     if (item.kind === 'goal') {
-      return this.formatCountLabel(item.childCount, 'child item');
+      return this.formatCountLabel(item.childCount, 'childItem');
     }
 
     return null;
@@ -724,7 +790,21 @@ export class AiAssistantPanel {
   }
 
   private formatCountLabel(count: number, label: string): string {
-    return `${count} ${label}${count === 1 ? '' : 's'}`;
+    switch (label) {
+      case 'goal':
+        return this.i18n.t('aiChat.count.goals', { count });
+      case 'story':
+        return this.i18n.t('aiChat.count.stories', { count });
+      case 'task':
+        return this.i18n.t('aiChat.count.tasks', { count });
+      case 'childItem':
+        return this.i18n.t('aiChat.count.childItems', { count });
+      case 'action':
+        return this.i18n.t('aiChat.count.actions', { count });
+      case 'item':
+      default:
+        return this.i18n.t('aiChat.count.items', { count });
+    }
   }
 
   private formatCanvasSummary(
@@ -879,12 +959,12 @@ export class AiAssistantPanel {
     meta.style.color = CHAT_TEXT_SUBTLE;
 
     const roleLabel = document.createElement('span');
-    roleLabel.textContent = 'System';
+    roleLabel.textContent = this.i18n.t('aiChat.message.system');
     roleLabel.style.fontWeight = '700';
     roleLabel.style.color = CHAT_TEXT_MUTED;
 
     const stateLabel = document.createElement('span');
-    stateLabel.textContent = 'Start here';
+    stateLabel.textContent = this.i18n.t('aiChat.empty.startHere');
     stateLabel.style.fontWeight = '500';
     stateLabel.style.color = CHAT_TEXT_SUBTLE;
 
@@ -911,7 +991,7 @@ export class AiAssistantPanel {
     description.style.color = CHAT_TEXT_SECONDARY;
 
     const examplesLabel = document.createElement('p');
-    examplesLabel.textContent = 'Try';
+    examplesLabel.textContent = this.i18n.t('aiChat.empty.try');
     examplesLabel.style.margin = '2px 0 0';
     examplesLabel.style.fontSize = CHAT_FONT_SIZE_LABEL;
     examplesLabel.style.fontWeight = '700';
@@ -932,7 +1012,7 @@ export class AiAssistantPanel {
     exampleLines.forEach((line) => {
       const item = this.createSuggestionButton({
         text: line,
-        title: 'Insert into message',
+        title: this.i18n.t('aiChat.empty.insertIntoMessage'),
         onClick: () => {
           this.insertComposerDraft(line);
         },
@@ -961,37 +1041,32 @@ export class AiAssistantPanel {
   } {
     if (currentView !== 'canvas') {
       return {
-        title: 'Start with a simple question',
-        description:
-          'This chat works without canvas context here. Ask directly, or switch back to canvas when you want grounded planning help.',
+        title: this.i18n.t('aiChat.empty.offCanvas.title'),
+        description: this.i18n.t('aiChat.empty.offCanvas.description'),
       };
     }
 
     switch (contextMode) {
       case 'none':
         return {
-          title: 'Start without canvas context',
-          description:
-            'Ask anything directly, or switch the context mode when you want the chat to use the canvas, visible area, or selected items.',
+          title: this.i18n.t('aiChat.empty.noContext.title'),
+          description: this.i18n.t('aiChat.empty.noContext.description'),
         };
       case 'selection':
         return {
-          title: 'Select items, then ask',
-          description:
-            'Use this mode when you want feedback on specific goals, stories, or tasks instead of the whole board.',
+          title: this.i18n.t('aiChat.empty.selection.title'),
+          description: this.i18n.t('aiChat.empty.selection.description'),
         };
       case 'viewport':
         return {
-          title: 'Ask about what is on screen',
-          description:
-            'This mode follows the visible area of the canvas, so it works best when you are focused on one part of the board.',
+          title: this.i18n.t('aiChat.empty.viewport.title'),
+          description: this.i18n.t('aiChat.empty.viewport.description'),
         };
       case 'canvas':
       default:
         return {
-          title: 'Use chat as a planning copilot',
-          description:
-            'Ask for review, breakdown, gaps, or dependency suggestions across the current canvas.',
+          title: this.i18n.t('aiChat.empty.canvas.title'),
+          description: this.i18n.t('aiChat.empty.canvas.description'),
         };
     }
   }
@@ -1003,38 +1078,38 @@ export class AiAssistantPanel {
   ): string[] {
     if (currentView !== 'canvas') {
       return [
-        'Review this idea and point out what is unclear.',
-        'Turn this rough plan into 3 concrete next steps.',
+        this.i18n.t('aiChat.emptyExample.offCanvas.review'),
+        this.i18n.t('aiChat.emptyExample.offCanvas.nextSteps'),
       ];
     }
 
     switch (contextMode) {
       case 'none':
         return [
-          'Turn this rough idea into a clear goal: ...',
-          'Draft a task title and description from this idea: ...',
+          this.i18n.t('aiChat.emptyExample.noContext.goal'),
+          this.i18n.t('aiChat.emptyExample.noContext.task'),
         ];
       case 'selection':
         if (!context || context.selectionIds.length === 0) {
           return [
-            'What is missing in the selected items?',
-            'Break the selected story into tasks.',
+            this.i18n.t('aiChat.emptyExample.selection.missing'),
+            this.i18n.t('aiChat.emptyExample.selection.breakStory'),
           ];
         }
         return [
-          'Review the selected items and tell me what is missing.',
-          'Break this story into tasks.',
+          this.i18n.t('aiChat.emptyExample.selection.review'),
+          this.i18n.t('aiChat.emptyExample.selection.breakThisStory'),
         ];
       case 'viewport':
         return [
-          'Summarize this area of the canvas.',
-          'What dependencies are missing in this part of the plan?',
+          this.i18n.t('aiChat.emptyExample.viewport.summarize'),
+          this.i18n.t('aiChat.emptyExample.viewport.dependencies'),
         ];
       case 'canvas':
       default:
         return [
-          'Review the canvas and find structural gaps.',
-          'Suggest missing dependencies and next tasks.',
+          this.i18n.t('aiChat.emptyExample.canvas.review'),
+          this.i18n.t('aiChat.emptyExample.canvas.dependencies'),
         ];
     }
   }
@@ -1054,7 +1129,7 @@ export class AiAssistantPanel {
     contextMode: AiAssistantContextMode
   ): void {
     const noContext =
-      placeholder === 'Canvas context is unavailable in this view';
+      placeholder === this.i18n.t('aiChat.placeholder.unavailableInView');
     this.composerInput.placeholder = placeholder;
     this.composerInput.disabled = replying;
     this.composerInput.style.opacity = replying ? '0.8' : '1';
@@ -1067,11 +1142,30 @@ export class AiAssistantPanel {
       : '';
     this.updateContextModeButton(contextMode, replying);
     this.contextModeControl.style.opacity = replying ? '0.55' : '1';
-    setTextButtonState(this.clearButton, { disabled: replying });
+    this.clearButton.disabled = replying;
+    this.clearButton.title = this.i18n.t('aiChat.clearChat');
+    this.clearButton.setAttribute('aria-label', this.i18n.t('aiChat.clearChat'));
+    this.clearButton.style.opacity = replying ? '0.55' : '1';
+    this.clearButton.style.cursor = replying ? 'default' : 'pointer';
+    this.composerHint.title = this.i18n.t('aiChat.composerHint');
+    this.composerHint.setAttribute(
+      'aria-label',
+      this.i18n.t('aiChat.composerHint')
+    );
     this.sendButton.disabled = replying;
-    this.sendButton.textContent = replying
+    this.sendButton.title = replying
       ? this.getReplyButtonLabel(replyProgress)
-      : 'Send';
+      : this.i18n.t('aiChat.sendPrompt');
+    this.sendButton.setAttribute(
+      'aria-label',
+      replying
+        ? this.getReplyButtonLabel(replyProgress)
+        : this.i18n.t('aiChat.sendPrompt')
+    );
+    setIconButtonLoading(this.sendButton, replying, {
+      size: 14,
+      strokeWidth: 2,
+    });
     this.sendButton.style.opacity = replying ? '0.7' : '1';
     this.sendButton.style.cursor = replying ? 'default' : 'pointer';
     if (!noContext || currentView === 'canvas') {
@@ -1086,13 +1180,15 @@ export class AiAssistantPanel {
   ): void {
     const label = this.getContextModeOptionLabel(contextMode);
     this.contextModeMenuButton.setLabel(label);
-    this.contextModeMenuButton.setTitle(`Context: ${label}`);
+    this.contextModeMenuButton.setTitle(
+      this.i18n.t('aiChat.context.buttonTitle', { label })
+    );
     this.contextModeMenuButton.setAriaLabel(
-      `Context: ${label}. Change context scope`
+      this.i18n.t('aiChat.context.buttonAria', { label })
     );
     this.contextModeMenuButton.setDisabled(replying);
     this.contextModeMenuButton.setItems(
-      AI_ASSISTANT_CONTEXT_MODE_OPTIONS.map((option) => ({
+      getAiAssistantContextModeOptions(this.i18n).map((option) => ({
         id: option.value,
         label: option.label,
         active: option.value === contextMode,
@@ -1108,11 +1204,7 @@ export class AiAssistantPanel {
   private getContextModeOptionLabel(
     contextMode: AiAssistantContextMode
   ): string {
-    return (
-      AI_ASSISTANT_CONTEXT_MODE_OPTIONS.find(
-        (option) => option.value === contextMode
-      )?.label ?? 'Whole canvas'
-    );
+    return getAiAssistantContextModeLabel(contextMode, this.i18n);
   }
 
   private createQuickActionButton(action: {
@@ -1179,12 +1271,12 @@ export class AiAssistantPanel {
 
     const roleLabel = document.createElement('span');
     roleLabel.textContent = isUserMessage
-      ? 'You'
+      ? this.i18n.t('aiChat.message.you')
       : isCommandMessage
-        ? 'Action'
+        ? this.i18n.t('aiChat.message.action')
         : isSystemMessage
-          ? 'System'
-          : 'Assistant';
+          ? this.i18n.t('aiChat.message.system')
+          : this.i18n.t('aiChat.message.assistant');
     roleLabel.style.fontWeight = '700';
     roleLabel.style.color = roleColor;
 
@@ -1305,8 +1397,10 @@ export class AiAssistantPanel {
         const regenerateButton = this.createQuietIconButton({
           icon: 'arrow-path',
           size: 'sm',
-          title: replying ? 'Regenerating response' : 'Regenerate response',
-          ariaLabel: 'Regenerate response',
+          title: replying
+            ? this.i18n.t('aiChat.regenerate.inProgress')
+            : this.i18n.t('aiChat.regenerate.action'),
+          ariaLabel: this.i18n.t('aiChat.regenerate.action'),
           surface: 'plain',
           className: '!h-6 !w-6 !text-slate-400',
           onClick: () => {
@@ -1405,7 +1499,7 @@ export class AiAssistantPanel {
     const firstAction = actions[0];
     if (!firstAction) {
       return {
-        title: 'Creation actions',
+        title: this.i18n.t('aiChat.creation.actions'),
         detail: null,
       };
     }
@@ -1420,7 +1514,9 @@ export class AiAssistantPanel {
 
       if (firstAction.kind === 'create_goal_blueprint') {
         return {
-          title: `Plan with ${this.formatCountLabel(firstAction.goals.length, 'goal')}`,
+          title: this.i18n.t('aiChat.creation.planWithGoals', {
+            count: firstAction.goals.length,
+          }),
           detail: firstAction.title || firstAction.summary || null,
         };
       }
@@ -1428,21 +1524,21 @@ export class AiAssistantPanel {
       if (firstAction.kind === 'create_task') {
         return {
           title: firstAction.title,
-          detail: 'Task proposal',
+          detail: this.i18n.t('aiChat.creation.taskProposal'),
         };
       }
 
       if (firstAction.kind === 'create_story') {
         return {
           title: firstAction.title,
-          detail: 'Story proposal',
+          detail: this.i18n.t('aiChat.creation.storyProposal'),
         };
       }
 
       if (firstAction.kind === 'create_goal') {
         return {
           title: firstAction.title,
-          detail: 'Goal proposal',
+          detail: this.i18n.t('aiChat.creation.goalProposal'),
         };
       }
     }
@@ -1492,8 +1588,12 @@ export class AiAssistantPanel {
     const button = createTextButton({
       tone: 'text',
       size: 'xs',
-      title: collapsed ? 'Show actions' : 'Hide actions',
-      ariaLabel: collapsed ? 'Show actions' : 'Hide actions',
+      title: collapsed
+        ? this.i18n.t('aiChat.actionToggle.show')
+        : this.i18n.t('aiChat.actionToggle.hide'),
+      ariaLabel: collapsed
+        ? this.i18n.t('aiChat.actionToggle.show')
+        : this.i18n.t('aiChat.actionToggle.hide'),
       className:
         '!h-auto !w-full !justify-start !items-start !rounded-lg !px-1 !py-2 !text-left !shadow-none',
       onClick: () => {
@@ -1539,7 +1639,10 @@ export class AiAssistantPanel {
     title.style.overflow = 'hidden';
     title.style.textOverflow = 'ellipsis';
 
-    const detailText = [isResolved ? 'Resolved' : null, summary.detail]
+    const detailText = [
+      isResolved ? this.i18n.t('aiChat.actionToggle.resolved') : null,
+      summary.detail,
+    ]
       .filter((value): value is string => Boolean(value))
       .join(' · ');
     textWrap.appendChild(title);
@@ -1582,11 +1685,11 @@ export class AiAssistantPanel {
     meta.style.color = CHAT_TEXT_SUBTLE;
 
     const roleLabel = document.createElement('span');
-    roleLabel.textContent = 'Assistant';
+    roleLabel.textContent = this.i18n.t('aiChat.message.assistant');
     roleLabel.style.fontWeight = '700';
     roleLabel.style.color = CHAT_TEXT_MUTED;
     const stateLabel = document.createElement('span');
-    stateLabel.textContent = replyProgress?.label ?? 'Thinking';
+    stateLabel.textContent = this.getReplyProgressLabel(replyProgress);
     stateLabel.style.fontWeight = '500';
     stateLabel.style.color = CHAT_TEXT_SUBTLE;
     meta.append(roleLabel, stateLabel);
@@ -1605,7 +1708,7 @@ export class AiAssistantPanel {
     bubble.style.gap = '8px';
 
     const detail = document.createElement('p');
-    detail.textContent = replyProgress?.detail ?? 'Working on your request.';
+    detail.textContent = this.getReplyProgressDetail(replyProgress);
     detail.style.margin = '0';
     detail.style.fontSize = CHAT_FONT_SIZE_BODY;
     detail.style.lineHeight = '1.6';
@@ -1719,6 +1822,11 @@ export class AiAssistantPanel {
     this.scrollToBottomButton.style.display = shouldShow
       ? 'inline-flex'
       : 'none';
+    this.scrollToBottomButton.title = this.i18n.t('aiChat.scrollToLatest');
+    this.scrollToBottomButton.setAttribute(
+      'aria-label',
+      this.i18n.t('aiChat.scrollToLatest')
+    );
     this.scrollToBottomButton.style.opacity = shouldShow ? '1' : '0';
     this.scrollToBottomButton.style.transform = shouldShow
       ? 'translate(-50%, 0)'
@@ -1804,7 +1912,8 @@ export class AiAssistantPanel {
     const groupModel = buildAiAssistantGroupedActionCardModel(
       actions,
       context,
-      contextEnabled
+      contextEnabled,
+      this.i18n
     );
     const card = createActionCardSurface({
       kind: 'group',
@@ -1858,7 +1967,8 @@ export class AiAssistantPanel {
     const entryModel = buildAiAssistantActionEntryModel(
       action,
       context,
-      contextEnabled
+      contextEnabled,
+      this.i18n
     );
     const card = createActionCardSurface({
       kind: 'single',
@@ -2138,8 +2248,9 @@ export class AiAssistantPanel {
       AI_ASSISTANT_ACTION_TOKENS.layout.secondaryTextSectionGap;
     section.style.paddingLeft =
       AI_ASSISTANT_ACTION_TOKENS.layout.secondaryTextPaddingLeft;
+    const heading = createActionSectionHeading(title);
     section.append(
-      createActionSectionHeading(title),
+      heading,
       createActionTextParagraphElement(
         text,
         AI_ASSISTANT_ACTION_TOKENS.typography.secondaryText
@@ -2204,9 +2315,13 @@ export class AiAssistantPanel {
     cardModel: AiAssistantBlueprintCardModel
   ): HTMLParagraphElement {
     const parts = [
-      `${cardModel.goals.length} ${cardModel.goals.length === 1 ? 'goal' : 'goals'}`,
+      this.i18n.t('aiChat.creation.goalsCount', {
+        count: cardModel.goals.length,
+      }),
       cardModel.sequence.length > 0
-        ? `${cardModel.sequence.length} ${cardModel.sequence.length === 1 ? 'sequence link' : 'sequence links'}`
+        ? this.i18n.t('aiChat.creation.sequenceLinksCount', {
+            count: cardModel.sequence.length,
+          })
         : null,
     ].filter((part): part is string => Boolean(part));
 
@@ -2401,7 +2516,9 @@ export class AiAssistantPanel {
     if (cardModel.changes.length > 0) {
       container.appendChild(
         createActionAccentedSection(
-          cardModel.changes.length === 1 ? 'Change' : 'Changes',
+          cardModel.changes.length === 1
+            ? this.i18n.t('aiChat.section.change')
+            : this.i18n.t('aiChat.section.changes'),
           this.createUpdateChangesContent(cardModel.changes)
         )
       );
@@ -2443,8 +2560,8 @@ export class AiAssistantPanel {
       const value = createActionInlineValue(entry.value);
 
       const isLongField =
-        entry.label === 'Title' ||
-        entry.label === 'Description' ||
+        entry.label === this.i18n.t('aiChat.field.title') ||
+        entry.label === this.i18n.t('aiChat.field.description') ||
         entry.value.length > 72 ||
         entry.value.includes('\n');
 
@@ -2476,7 +2593,7 @@ export class AiAssistantPanel {
     section.style.paddingTop = '1px';
     setAiActionComponentName(section, 'update-why-section');
 
-    const heading = createActionSectionHeading('Why');
+    const heading = createActionSectionHeading(this.i18n.t('aiChat.section.why'));
     const body = createActionTextParagraphElement(
       text,
       AI_ASSISTANT_ACTION_TOKENS.typography.secondaryText
@@ -2494,7 +2611,9 @@ export class AiAssistantPanel {
     if (cardModel.items.length > 0) {
       container.appendChild(
         createActionSurfaceSection(
-          cardModel.items.length === 1 ? 'Goal' : 'Goals',
+          cardModel.items.length === 1
+            ? this.i18n.t('aiChat.section.goal')
+            : this.i18n.t('aiChat.section.goals'),
           this.createActionEntityList(cardModel.items)
         )
       );
@@ -2512,7 +2631,9 @@ export class AiAssistantPanel {
     container.appendChild(this.createBlueprintPlanSummary(cardModel));
     if (cardModel.goals.length > 0) {
       const goalsSection = createActionInlineSection(
-        cardModel.goals.length === 1 ? 'Goal' : 'Goals',
+        cardModel.goals.length === 1
+          ? this.i18n.t('aiChat.section.goal')
+          : this.i18n.t('aiChat.section.goals'),
         this.createActionHierarchyList(cardModel.goals)
       );
       goalsSection.style.margin = '8px 0';
@@ -2521,7 +2642,7 @@ export class AiAssistantPanel {
     if (cardModel.sequence.length > 0) {
       container.appendChild(
         createActionInlineSection(
-          'Sequence',
+          this.i18n.t('aiChat.section.sequence'),
           this.createActionSequenceList(cardModel.sequence)
         )
       );
@@ -2529,7 +2650,9 @@ export class AiAssistantPanel {
     if (cardModel.assumptions.length > 0) {
       container.appendChild(
         createActionInlineSection(
-          cardModel.assumptions.length === 1 ? 'Assumption' : 'Assumptions',
+          cardModel.assumptions.length === 1
+            ? this.i18n.t('aiChat.section.assumption')
+            : this.i18n.t('aiChat.section.assumptions'),
           this.createActionTextList(cardModel.assumptions)
         )
       );
@@ -2594,7 +2717,10 @@ export class AiAssistantPanel {
   ): void {
     if (cardModel.rationale) {
       container.appendChild(
-        this.createActionSecondaryTextSection('Why', cardModel.rationale)
+        this.createActionSecondaryTextSection(
+          this.i18n.t('aiChat.section.why'),
+          cardModel.rationale
+        )
       );
     }
     if (cardModel.provenance) {
@@ -2685,6 +2811,24 @@ export class AiAssistantPanel {
       onClick: options.onClick,
       className:
         '!h-8 !rounded-full !px-3.5 !text-xs !font-semibold tracking-[0.01em] shadow-none',
+    });
+  }
+
+  private createPrimaryIconButton(options: {
+    icon: IconName;
+    title: string;
+    ariaLabel: string;
+    onClick: (event: MouseEvent) => void;
+  }): HTMLButtonElement {
+    return createIconButton({
+      icon: options.icon,
+      title: options.title,
+      ariaLabel: options.ariaLabel,
+      onClick: options.onClick,
+      size: 'sm',
+      tone: 'soft',
+      className:
+        '!h-8 !w-8 !rounded-full !border-transparent !bg-indigo-600 !text-white shadow-none hover:!bg-indigo-500 disabled:!border-slate-200 disabled:!bg-slate-100 disabled:!text-slate-400',
     });
   }
 
@@ -2782,11 +2926,16 @@ export class AiAssistantPanel {
           review.readinessScore
         );
         readiness.appendChild(
-          createActionTagElement(`Readiness ${review.readinessScore}`, {
-            background: readinessTone.background,
-            color: readinessTone.color,
-            border: readinessTone.border,
-          })
+          createActionTagElement(
+            this.i18n.t('aiChat.review.readiness', {
+              score: review.readinessScore,
+            }),
+            {
+              background: readinessTone.background,
+              color: readinessTone.color,
+              border: readinessTone.border,
+            }
+          )
         );
       }
 
@@ -2872,10 +3021,10 @@ export class AiAssistantPanel {
 
   private formatMessageTime(timestamp: number): string {
     try {
-      return new Intl.DateTimeFormat(undefined, {
+      return this.i18n.formatDate(timestamp, {
         hour: '2-digit',
         minute: '2-digit',
-      }).format(timestamp);
+      });
     } catch {
       return '';
     }
@@ -2930,10 +3079,10 @@ export class AiAssistantPanel {
       tone: feedbackForMessage?.status === 'failed' ? 'danger' : 'text',
       title: feedbackForMessage
         ? feedbackForMessage.status === 'copied'
-          ? 'Copied to clipboard'
-          : 'Copy to clipboard failed'
-        : 'Copy message to clipboard',
-      ariaLabel: 'Copy message to clipboard',
+          ? this.i18n.t('aiChat.copy.copied')
+          : this.i18n.t('aiChat.copy.failed')
+        : this.i18n.t('aiChat.copy.action'),
+      ariaLabel: this.i18n.t('aiChat.copy.action'),
       surface: 'plain',
       className:
         feedbackForMessage?.status === 'copied'
@@ -2967,14 +3116,64 @@ export class AiAssistantPanel {
   ): string {
     switch (replyProgress?.phase) {
       case 'drafting':
-        return 'Drafting...';
+        return this.i18n.t('aiChat.progress.draftingShort');
       case 'repairing':
-        return 'Repairing...';
+        return this.i18n.t('aiChat.progress.repairingShort');
       case 'instructions':
       case 'routing':
       case 'tools':
       default:
-        return 'Working...';
+        return this.i18n.t('aiChat.progress.workingShort');
+    }
+  }
+
+  private getReplyProgressLabel(
+    replyProgress: AiAssistantReplyProgress | null
+  ): string {
+    switch (replyProgress?.phase) {
+      case 'drafting':
+        return this.i18n.t('aiChat.progress.draftingLabel');
+      case 'repairing':
+        return this.i18n.t('aiChat.progress.repairingLabel');
+      case 'instructions':
+        return this.i18n.t('aiChat.progress.instructionsLabel');
+      case 'tools':
+        return this.i18n.t('aiChat.progress.toolsLabel');
+      case 'routing':
+        return this.i18n.t('aiChat.progress.routingLabel');
+      default:
+        return this.i18n.t('aiChat.progress.thinking');
+    }
+  }
+
+  private getReplyProgressDetail(
+    replyProgress: AiAssistantReplyProgress | null
+  ): string {
+    switch (replyProgress?.phase) {
+      case 'drafting':
+        return this.i18n.t('aiChat.progress.draftingDetail');
+      case 'repairing':
+        return this.i18n.t('aiChat.progress.repairingDetail');
+      case 'instructions':
+        return this.i18n.t('aiChat.progress.instructionsDetail');
+      case 'tools':
+        return this.i18n.t('aiChat.progress.toolsDetail');
+      case 'routing':
+        return this.i18n.t('aiChat.progress.routingDetail');
+      default:
+        return this.i18n.t('aiChat.progress.defaultDetail');
+    }
+  }
+
+  private getKindLabel(kind: AiAssistantCanvasElement['kind']): string {
+    switch (kind) {
+      case 'goal':
+        return this.i18n.t('aiChat.kind.goal');
+      case 'story':
+        return this.i18n.t('aiChat.kind.story');
+      case 'task':
+      default:
+        return this.i18n.t('aiChat.kind.task');
     }
   }
 }

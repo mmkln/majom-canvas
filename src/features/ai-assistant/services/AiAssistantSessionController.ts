@@ -5,6 +5,7 @@ import type {
 } from '../aiAssistantEvents.ts';
 import {
   getAiAssistantActionGroupButtonLabel,
+  getAiAssistantActionLabel,
   type AiAssistantAction,
   type AiAssistantActionExecutionHandler,
   type AiAssistantActionExecutionRequest,
@@ -46,6 +47,8 @@ import type { AiAssistantPreparedSubmission } from './AiAssistantPreparedSubmiss
 import type { AiAssistantToolHost } from './AiAssistantToolTypes.ts';
 import { resolveAiAssistantIntentProfile } from './AiAssistantIntentPlanFactory.ts';
 import { buildAiAssistantConversationScenario } from './AiAssistantScenarioTypes.ts';
+import { type AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
+import type { I18nService } from '../../../i18n/index.ts';
 
 type AiAssistantSessionState = {
   conversationKey: string;
@@ -105,11 +108,28 @@ const FALLBACK_INITIAL_REPLY_PROGRESS = {
 };
 
 function buildInitialReplyProgress(
-  scenario: AiAssistantScenarioDescriptor
+  scenario: AiAssistantScenarioDescriptor,
+  i18n?: Pick<I18nService, 't'>
 ): AiAssistantReplyProgress {
   return scenario.variant === 'typed'
-    ? { ...TYPED_INITIAL_REPLY_PROGRESS }
-    : { ...FALLBACK_INITIAL_REPLY_PROGRESS };
+    ? {
+        ...TYPED_INITIAL_REPLY_PROGRESS,
+        label:
+          i18n?.t('aiChat.progress.preparingWorkflowLabel') ??
+          TYPED_INITIAL_REPLY_PROGRESS.label,
+        detail:
+          i18n?.t('aiChat.progress.preparingWorkflowDetail') ??
+          TYPED_INITIAL_REPLY_PROGRESS.detail,
+      }
+    : {
+        ...FALLBACK_INITIAL_REPLY_PROGRESS,
+        label:
+          i18n?.t('aiChat.progress.analyzingRequestLabel') ??
+          FALLBACK_INITIAL_REPLY_PROGRESS.label,
+        detail:
+          i18n?.t('aiChat.progress.analyzingRequestDetail') ??
+          FALLBACK_INITIAL_REPLY_PROGRESS.detail,
+      };
 }
 
 type AiAssistantSessionControllerOptions = {
@@ -117,6 +137,7 @@ type AiAssistantSessionControllerOptions = {
   service?: AiAssistantServiceLike;
   resolveLiveHost?: () => AiAssistantToolHost | null;
   telemetry?: AiAssistantTelemetryCollector;
+  runtime?: AppRuntime;
 };
 
 export class AiAssistantSessionController {
@@ -127,21 +148,31 @@ export class AiAssistantSessionController {
   private readonly listeners = new Set<() => void>();
   private readonly resolveLiveHost?: (() => AiAssistantToolHost | null) | undefined;
   private readonly telemetry: AiAssistantTelemetryCollector;
+  private readonly runtime: AppRuntime;
+  private readonly i18n: I18nService;
+  private disposeRuntimeSubscription: (() => void) | null = null;
   private currentView: WorkspaceView = 'canvas';
   private context: AiAssistantCanvasSnapshot | null = null;
   private activeConversationKey = 'canvas:draft';
 
   constructor(options: AiAssistantSessionControllerOptions = {}) {
     this.persistence = options.persistence ?? new AiAssistantPersistence();
+    this.runtime = options.runtime ?? createAppRuntime();
+    this.i18n = this.runtime.i18n;
     this.telemetry =
       options.telemetry ?? getSharedAiAssistantTelemetryCollector();
     this.service =
       options.service ??
       new AiAssistantService({
         telemetry: this.telemetry,
+        i18n: this.i18n,
       });
     this.resolveLiveHost = options.resolveLiveHost;
     this.switchConversationScope();
+    this.disposeRuntimeSubscription = this.runtime.subscribe(() => {
+      this.refreshSeedMessageIfNeeded();
+      this.emitChange();
+    });
   }
 
   public subscribe(listener: () => void): () => void {
@@ -160,6 +191,8 @@ export class AiAssistantSessionController {
       session.replyProgress = null;
     }
     this.listeners.clear();
+    this.disposeRuntimeSubscription?.();
+    this.disposeRuntimeSubscription = null;
   }
 
   public setView(view: WorkspaceView): void {
@@ -195,16 +228,16 @@ export class AiAssistantSessionController {
       contextMode: session.contextMode,
       composerPlaceholder:
         session.contextMode === 'none'
-          ? 'Ask without canvas context'
+          ? this.i18n.t('aiChat.placeholder.noContext')
           : !scopedContext && this.currentView !== 'canvas'
-          ? 'Canvas context is unavailable in this view'
+          ? this.i18n.t('aiChat.placeholder.unavailableInView')
           : !scopedContext && session.contextMode === 'selection'
-          ? 'Select items to use selection context'
+          ? this.i18n.t('aiChat.placeholder.selectItems')
           : session.contextMode === 'viewport'
-          ? 'Ask about the visible area'
+          ? this.i18n.t('aiChat.placeholder.viewport')
           : session.contextMode === 'selection'
-          ? 'Ask about selected items'
-          : 'Ask about the current canvas',
+          ? this.i18n.t('aiChat.placeholder.selection')
+          : this.i18n.t('aiChat.placeholder.canvas'),
     };
   }
 
@@ -347,7 +380,7 @@ export class AiAssistantSessionController {
     const abortController =
       typeof AbortController === 'undefined' ? null : new AbortController();
     session.replying = true;
-    session.replyProgress = buildInitialReplyProgress(resolvedScenario);
+    session.replyProgress = buildInitialReplyProgress(resolvedScenario, this.i18n);
     session.pendingRequestId = requestId;
     session.abortController = abortController;
     this.emitChange();
@@ -464,7 +497,7 @@ export class AiAssistantSessionController {
 
     session.messages = session.messages.slice(0, messageIndex);
     session.replying = true;
-    session.replyProgress = buildInitialReplyProgress(scenario);
+    session.replyProgress = buildInitialReplyProgress(scenario, this.i18n);
     session.pendingRequestId = requestId;
     session.abortController = abortController;
     this.persistence.saveConversation(conversationKey, session.messages);
@@ -835,7 +868,7 @@ export class AiAssistantSessionController {
       action: {
         id: `${action.id}-goal-${index + 1}`,
         kind: 'create_goal',
-        label: 'Create goal',
+        label: getAiAssistantActionLabel('create_goal', this.i18n),
         title: item.title,
         status: 'idle',
         description: item.description,
@@ -1166,12 +1199,12 @@ export class AiAssistantSessionController {
       return null;
     }
 
-      return {
+    return {
       messageId: lastMessage.id,
       actionIds: idleActions.map((action) => action.id),
       actionLabel: getAiAssistantActionGroupButtonLabel(idleActions, {
         singleActionMode: 'action-label',
-      }),
+      }, this.i18n),
       actionTitle: this.describePendingConfirmationTitle(idleActions),
       actionCount: idleActions.length,
     };
@@ -1198,32 +1231,60 @@ export class AiAssistantSessionController {
   private describeActionTarget(action: AiAssistantAction): string {
     switch (action.kind) {
       case 'create_task':
-        return `task "${action.title}"`;
+        return this.i18n.t('aiChat.applied.target.task', {
+          title: action.title,
+        });
       case 'create_story':
-        return `story "${action.title}"`;
+        return this.i18n.t('aiChat.applied.target.story', {
+          title: action.title,
+        });
       case 'create_goal':
-        return `goal "${action.title}"`;
+        return this.i18n.t('aiChat.applied.target.goal', {
+          title: action.title,
+        });
       case 'create_goals':
-        return `${action.items.length} strategic goal${action.items.length === 1 ? '' : 's'}`;
+        return this.i18n.t('aiChat.applied.target.strategicGoals', {
+          count: action.items.length,
+        });
       case 'create_goal_blueprint':
-        return `strategic plan "${action.title}"`;
+        return this.i18n.t('aiChat.applied.target.plan', {
+          title: action.title,
+        });
       case 'suggest_relation': {
         const from = action.fromLabel || action.fromId;
         const to = action.toLabel || action.toId;
-        return `${action.relationType} relation between "${from}" and "${to}"`;
+        return this.i18n.t('aiChat.applied.target.relation', {
+          relation: this.formatRelationTypeLabel(action.relationType),
+          from,
+          to,
+        });
       }
       case 'remove_relation': {
         const from = action.fromLabel || action.fromId;
         const to = action.toLabel || action.toId;
-        return `${action.relationType} relation between "${from}" and "${to}"`;
+        return this.i18n.t('aiChat.applied.target.relation', {
+          relation: this.formatRelationTypeLabel(action.relationType),
+          from,
+          to,
+        });
       }
       case 'update_relation': {
         const from = action.fromLabel || action.fromId;
         const to = action.toLabel || action.toId;
-        return `${action.currentRelationType} relation between "${from}" and "${to}" to ${action.nextRelationType}`;
+        return this.i18n.t('aiChat.applied.target.updatedRelation', {
+          currentRelation: this.formatRelationTypeLabel(
+            action.currentRelationType
+          ),
+          from,
+          to,
+          nextRelation: this.formatRelationTypeLabel(action.nextRelationType),
+        });
       }
       case 'suggest_update':
-        return `update for ${action.elementKind} "${action.targetTitle || action.elementId}"`;
+        return this.i18n.t('aiChat.applied.target.update', {
+          kind: this.formatElementKindLabel(action.elementKind),
+          title: action.targetTitle || action.elementId,
+        });
     }
   }
 
@@ -1233,12 +1294,14 @@ export class AiAssistantSessionController {
     if (actions.length === 1) {
       const action = actions[0];
       if (!action) {
-        return 'Pending action';
+        return this.i18n.t('aiChat.pending.singleFallback');
       }
       if (action.kind === 'create_goals') {
-        return `${action.title || 'Strategic goals'} (${action.items.length})`;
+        return `${
+          action.title || this.i18n.t('aiChat.pending.strategicGoals')
+        } (${action.items.length})`;
       }
-      return action.title ?? 'Pending action';
+      return action.title ?? this.i18n.t('aiChat.pending.singleFallback');
     }
 
     const firstAction = actions[0];
@@ -1258,126 +1321,131 @@ export class AiAssistantSessionController {
     if (kinds.size === 1) {
       switch (actions[0]?.kind) {
         case 'create_task':
-          return `Tasks to create (${actions.length})`;
+          return this.i18n.t('aiChat.pending.tasksToCreate', {
+            count: actions.length,
+          });
         case 'create_story':
-          return `Stories to create (${actions.length})`;
+          return this.i18n.t('aiChat.pending.storiesToCreate', {
+            count: actions.length,
+          });
         case 'create_goal':
-          return `Goals to create (${actions.length})`;
+          return this.i18n.t('aiChat.pending.goalsToCreate', {
+            count: actions.length,
+          });
         case 'create_goals':
-          return `Goals to create (${
-            firstAction?.kind === 'create_goals'
-              ? firstAction.items.length
-              : actions.length
-          })`;
+          return this.i18n.t('aiChat.pending.goalsToCreate', {
+            count:
+              firstAction?.kind === 'create_goals'
+                ? firstAction.items.length
+                : actions.length,
+          });
         case 'suggest_relation':
-          return `Suggested relations (${actions.length})`;
+          return this.i18n.t('aiChat.pending.suggestedRelations', {
+            count: actions.length,
+          });
         case 'remove_relation':
-          return `Relations to remove (${actions.length})`;
+          return this.i18n.t('aiChat.pending.relationsToRemove', {
+            count: actions.length,
+          });
         case 'update_relation':
-          return `Relation updates (${actions.length})`;
+          return this.i18n.t('aiChat.pending.relationUpdates', {
+            count: actions.length,
+          });
         case 'suggest_update':
-          return `Suggested updates (${actions.length})`;
+          return this.i18n.t('aiChat.pending.suggestedUpdates', {
+            count: actions.length,
+          });
         default:
           break;
       }
     }
 
-    return `Pending actions (${actions.length})`;
+    return this.i18n.t('aiChat.pending.multiple', {
+      count: actions.length,
+    });
   }
 
   private describeAppliedActions(actions: AiAssistantAction[]): string {
     if (actions.length === 1) {
       const action = actions[0];
       if (!action) {
-        return 'Applied 0 actions.';
+        return this.i18n.t('aiChat.applied.none');
       }
       const verb =
         action.kind === 'suggest_relation' ||
         action.kind === 'suggest_update'
-          ? 'Applied'
+          ? this.i18n.t('aiChat.applied.verb.applied')
           : action.kind === 'update_relation'
-            ? 'Updated'
+            ? this.i18n.t('aiChat.applied.verb.updated')
           : action.kind === 'remove_relation'
-            ? 'Removed'
+            ? this.i18n.t('aiChat.applied.verb.removed')
           : action.kind === 'create_goal_blueprint'
-            ? 'Created'
+            ? this.i18n.t('aiChat.applied.verb.created')
             : action.kind === 'create_goals'
-              ? 'Created'
-          : 'Created';
+              ? this.i18n.t('aiChat.applied.verb.created')
+          : this.i18n.t('aiChat.applied.verb.created');
       return `${verb} ${this.describeActionTarget(action)}.`;
     }
 
     const summaries = [
-      this.describeAppliedActionKind(actions, 'create_task', 'Created', 'task'),
-      this.describeAppliedActionKind(actions, 'create_story', 'Created', 'story'),
-      this.describeAppliedActionKind(actions, 'create_goal', 'Created', 'goal'),
+      this.describeAppliedActionKind(actions, 'create_task', 'createdTasks'),
+      this.describeAppliedActionKind(actions, 'create_story', 'createdStories'),
+      this.describeAppliedActionKind(actions, 'create_goal', 'createdGoals'),
       this.describeAppliedActionKind(
         actions,
         'create_goals',
-        'Created',
-        'goal',
+        'createdStrategicGoals',
         (action) => action.items.length
       ),
       this.describeAppliedActionKind(
         actions,
         'create_goal_blueprint',
-        'Created',
-        'plan'
+        'createdPlans'
       ),
       this.describeAppliedActionKind(
         actions,
         'suggest_relation',
-        'Applied',
-        'relation'
+        'appliedRelations'
       ),
       this.describeAppliedActionKind(
         actions,
         'remove_relation',
-        'Removed',
-        'relation'
+        'removedRelations'
       ),
       this.describeAppliedActionKind(
         actions,
         'update_relation',
-        'Updated',
-        'relation'
+        'updatedRelations'
       ),
       this.describeAppliedActionKind(
         actions,
         'suggest_update',
-        'Applied',
-        'update'
+        'appliedUpdates'
       ),
     ].filter((entry): entry is string => entry !== null);
 
     if (summaries.length === 0) {
-      return `Applied ${actions.length} actions.`;
+      return this.i18n.t('aiChat.applied.actions', {
+        count: actions.length,
+      });
     }
-    if (summaries.length === 1) {
-      return `${summaries[0]}.`;
-    }
-    if (summaries.length === 2) {
-      return `${summaries[0]} and ${this.lowercaseFirstCharacter(summaries[1])}.`;
-    }
-    const leading = summaries
-      .slice(0, -1)
-      .map((summary, index) =>
-        index === 0 ? summary : this.lowercaseFirstCharacter(summary)
-      )
-      .join(', ');
-    const trailingSummary = summaries[summaries.length - 1];
-    if (!trailingSummary) {
-      return `${leading}.`;
-    }
-    const trailing = this.lowercaseFirstCharacter(trailingSummary);
-    return `${leading}, and ${trailing}.`;
+
+    return `${summaries.join('; ')}.`;
   }
 
   private describeAppliedActionKind<K extends AiAssistantAction['kind']>(
     actions: AiAssistantAction[],
     kind: K,
-    verb: 'Applied' | 'Created' | 'Removed' | 'Updated',
-    noun: string,
+    summaryKey:
+      | 'createdTasks'
+      | 'createdStories'
+      | 'createdGoals'
+      | 'createdStrategicGoals'
+      | 'createdPlans'
+      | 'appliedRelations'
+      | 'removedRelations'
+      | 'updatedRelations'
+      | 'appliedUpdates',
     countSelector?: (action: Extract<AiAssistantAction, { kind: K }>) => number
   ): string | null {
     const count = actions.reduce((total, action) => {
@@ -1389,7 +1457,26 @@ export class AiAssistantSessionController {
     if (count === 0) {
       return null;
     }
-    return `${verb} ${count} ${this.pluralizeAppliedActionNoun(noun, count)}`;
+    switch (summaryKey) {
+      case 'createdTasks':
+        return this.i18n.t('aiChat.applied.createdTasks', { count });
+      case 'createdStories':
+        return this.i18n.t('aiChat.applied.createdStories', { count });
+      case 'createdGoals':
+        return this.i18n.t('aiChat.applied.createdGoals', { count });
+      case 'createdStrategicGoals':
+        return this.i18n.t('aiChat.applied.createdStrategicGoals', { count });
+      case 'createdPlans':
+        return this.i18n.t('aiChat.applied.createdPlans', { count });
+      case 'appliedRelations':
+        return this.i18n.t('aiChat.applied.appliedRelations', { count });
+      case 'removedRelations':
+        return this.i18n.t('aiChat.applied.removedRelations', { count });
+      case 'updatedRelations':
+        return this.i18n.t('aiChat.applied.updatedRelations', { count });
+      case 'appliedUpdates':
+        return this.i18n.t('aiChat.applied.appliedUpdates', { count });
+    }
   }
 
   private toExecutionRequest(
@@ -1401,21 +1488,32 @@ export class AiAssistantSessionController {
     };
   }
 
-  private pluralizeAppliedActionNoun(noun: string, count: number): string {
-    if (count === 1) {
-      return noun;
+  private formatRelationTypeLabel(
+    relationType: 'blocks' | 'leads_to' | 'relates_to'
+  ): string {
+    switch (relationType) {
+      case 'blocks':
+        return this.i18n.t('aiChat.relation.blocks');
+      case 'leads_to':
+        return this.i18n.t('aiChat.relation.leadsTo');
+      case 'relates_to':
+      default:
+        return this.i18n.t('aiChat.relation.relatesTo');
     }
-    if (noun.endsWith('y')) {
-      return `${noun.slice(0, -1)}ies`;
-    }
-    return `${noun}s`;
   }
 
-  private lowercaseFirstCharacter(value: string): string {
-    if (value.length === 0) {
-      return value;
+  private formatElementKindLabel(
+    kind: 'goal' | 'story' | 'task'
+  ): string {
+    switch (kind) {
+      case 'goal':
+        return this.i18n.t('aiChat.kind.goal');
+      case 'story':
+        return this.i18n.t('aiChat.kind.story');
+      case 'task':
+      default:
+        return this.i18n.t('aiChat.kind.task');
     }
-    return `${value.charAt(0).toLowerCase()}${value.slice(1)}`;
   }
 
   private createRequestId(): string {

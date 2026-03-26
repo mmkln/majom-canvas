@@ -52,6 +52,7 @@ import {
   SelectionContext,
   type PlanningElement,
 } from '../core/services/SelectionContext.ts';
+import { AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
 
 type ContextMenuDetail = {
   element: ICanvasElement | null;
@@ -115,6 +116,7 @@ export class ContextMenu {
   private handler: ((event: Event) => void) | null = null;
   private outsideHandler: ((event: MouseEvent) => void) | null = null;
   private viewSubscription: Subscription | null = null;
+  private disposeRuntimeSubscription: (() => void) | null = null;
   private confirmState: { key: string; expiresAt: number } | null = null;
   private lastDetail: ContextMenuDetail | null = null;
   private submenuTrigger: HTMLButtonElement | null = null;
@@ -132,7 +134,8 @@ export class ContextMenu {
     private existingStoryPicker: ExistingStoryPicker,
     private addExistingTaskService: AddExistingTaskService,
     private addExistingGoalService: AddExistingGoalService,
-    private addExistingStoryService: AddExistingStoryService
+    private addExistingStoryService: AddExistingStoryService,
+    private readonly runtime: AppRuntime = createAppRuntime()
   ) {
     this.bulkActions = new BulkActionsController(scene);
     this.menu = createSurface({
@@ -170,6 +173,11 @@ export class ContextMenu {
     this.viewSubscription = this.canvasManager
       .getPanZoomManager()
       .viewChanges.subscribe(() => this.onViewportChange());
+    this.disposeRuntimeSubscription = this.runtime.subscribe(() => {
+      if (this.visible) {
+        this.render();
+      }
+    });
   }
 
   unmount(): void {
@@ -181,6 +189,8 @@ export class ContextMenu {
       this.viewSubscription.unsubscribe();
       this.viewSubscription = null;
     }
+    this.disposeRuntimeSubscription?.();
+    this.disposeRuntimeSubscription = null;
     this.hide();
     this.existingTaskPicker.close();
     this.existingGoalPicker.close();
@@ -254,10 +264,10 @@ export class ContextMenu {
       const sections: ContextMenuSection[] = [];
       if (clipboardService.getItems().length > 0) {
         sections.push({
-          title: 'Clipboard',
+          title: this.runtime.i18n.t('canvasContextMenu.clipboard'),
           items: [
             {
-              label: 'Paste',
+              label: this.runtime.i18n.t('canvasContextMenu.paste'),
               action: () =>
                 historyService.execute(
                   new PasteCommand(this.scene, this.canvasManager)
@@ -267,28 +277,34 @@ export class ContextMenu {
         });
       }
       sections.push({
-        title: 'Add item',
+        title: this.runtime.i18n.t('canvasContextMenu.addItem'),
         items: [
           {
-            label: 'Goal',
+            label: this.getPlanningElementLabel('goal', { capitalize: true }),
             action: () => this.createGoalAt(sceneX, sceneY),
             secondaryAction: () => this.openExistingGoalPicker(sceneX, sceneY),
             secondaryIcon: 'magnifying-glass',
-            secondaryLabel: 'Find existing goal',
+            secondaryLabel: this.runtime.i18n.t(
+              'canvasContextMenu.findExistingGoal'
+            ),
           },
           {
-            label: 'Story',
+            label: this.getPlanningElementLabel('story', { capitalize: true }),
             action: () => this.createStoryAt(sceneX, sceneY),
             secondaryAction: () => this.openExistingStoryPicker(sceneX, sceneY),
             secondaryIcon: 'magnifying-glass',
-            secondaryLabel: 'Find existing story',
+            secondaryLabel: this.runtime.i18n.t(
+              'canvasContextMenu.findExistingStory'
+            ),
           },
           {
-            label: 'Task',
+            label: this.getPlanningElementLabel('task', { capitalize: true }),
             action: () => this.createTaskAt(sceneX, sceneY),
             secondaryAction: () => this.openExistingTaskPicker(sceneX, sceneY),
             secondaryIcon: 'magnifying-glass',
-            secondaryLabel: 'Find existing task',
+            secondaryLabel: this.runtime.i18n.t(
+              'canvasContextMenu.findExistingTask'
+            ),
           },
         ],
       });
@@ -303,8 +319,10 @@ export class ContextMenu {
     const isConfirming = this.isConfirmingDelete(confirmKey);
     const elementLabel = this.getElementLabel(element);
     const deleteLabel = isConfirming
-      ? 'Confirm delete'
-      : `Delete ${elementLabel}`;
+      ? this.runtime.i18n.t('canvasContextMenu.confirmDelete')
+      : this.runtime.i18n.t('canvasContextMenu.deleteElement', {
+          element: elementLabel,
+        });
 
     const sections: ContextMenuSection[] = [];
     const actionItems: ContextMenuItem[] = [];
@@ -321,7 +339,7 @@ export class ContextMenu {
 
     if (selectionConnectionItems.length > 0) {
       sections.push({
-        title: 'Selection',
+        title: this.runtime.i18n.t('canvasContextMenu.selection'),
         items: selectionConnectionItems,
       });
     }
@@ -332,7 +350,7 @@ export class ContextMenu {
         : [];
     if (connectionItems.length > 0) {
       sections.push({
-        title: 'Connections',
+        title: this.runtime.i18n.t('canvasContextMenu.connections'),
         items: connectionItems,
       });
     }
@@ -340,15 +358,21 @@ export class ContextMenu {
     actionItems.push(this.buildElementActionRow(element, planningElement));
     if (planningElement) {
       actionItems.push({
-        label: 'AI assist',
+        label: this.runtime.i18n.t('canvasContextMenu.aiAssist'),
         submenu: this.buildPlanningElementAiItems(planningElement),
       });
     }
 
     const getTitleByElement = (el: ICanvasElement): string | undefined => {
-      if (el instanceof TaskElement) return 'Task';
-      if (el instanceof StoryElement) return 'Story';
-      if (el instanceof GoalElement) return 'Goal';
+      if (el instanceof TaskElement) {
+        return this.getPlanningElementLabel('task', { capitalize: true });
+      }
+      if (el instanceof StoryElement) {
+        return this.getPlanningElementLabel('story', { capitalize: true });
+      }
+      if (el instanceof GoalElement) {
+        return this.getPlanningElementLabel('goal', { capitalize: true });
+      }
       return undefined;
     };
 
@@ -359,16 +383,18 @@ export class ContextMenu {
 
     if (element instanceof StoryElement) {
       sections.push({
-        title: 'Add Item',
+        title: this.runtime.i18n.t('canvasContextMenu.addItemToStory'),
         items: [
           {
-            label: 'Task',
+            label: this.getPlanningElementLabel('task', { capitalize: true }),
             action: () => this.createTaskInStory(element),
             secondaryAction: () => {
               this.openRelatedItemsPicker(element);
             },
             secondaryIcon: 'magnifying-glass',
-            secondaryLabel: 'Add related tasks',
+            secondaryLabel: this.runtime.i18n.t(
+              'canvasContextMenu.addRelatedTasks'
+            ),
           },
         ],
       });
@@ -380,7 +406,7 @@ export class ContextMenu {
       sections.push({
         items: [
           {
-            label: 'Focus',
+            label: this.runtime.i18n.t('canvasContextMenu.focus'),
             action: () =>
               historyService.execute(
                 new SetFocusCommand(
@@ -392,7 +418,7 @@ export class ContextMenu {
             leading: createMenuBadge('focus'),
           },
           {
-            label: 'Highlight',
+            label: this.runtime.i18n.t('canvasContextMenu.highlight'),
             action: () =>
               historyService.execute(
                 new SetHighlightCommand(
@@ -410,11 +436,11 @@ export class ContextMenu {
 
     if (planningElement) {
       sections.push({
-        title: 'Set status',
+        title: this.runtime.i18n.t('canvasContextMenu.setStatus'),
         items: STATUS_ORDER.map((status) => {
           const isCurrent = planningElement.status === status;
           return {
-            label: getStatusLabel(status),
+            label: getStatusLabel(status, this.runtime.i18n),
             leading: this.createStatusIcon(status),
             trailing: isCurrent ? this.createActiveStatusCheck() : null,
             variant: isCurrent ? 'selected' : 'default',
@@ -566,7 +592,7 @@ export class ContextMenu {
       this.bulkActions.hasConnectionsBetweenElementAndTargets(target, selected)
     ) {
       items.push({
-        label: 'Remove connections',
+        label: this.runtime.i18n.t('canvasContextMenu.removeConnections'),
         leading: this.createLeadingIcon('link-slash'),
         action: () => {
           this.bulkActions.removeConnectionsBetweenElementAndTargets(
@@ -618,7 +644,9 @@ export class ContextMenu {
   }
 
   private getConnectToTargetLabel(target: PlanningElement): string {
-    return `Connect to ${this.describePlanningElements([target])}`;
+    return this.runtime.i18n.t('canvasContextMenu.connectTo', {
+      target: this.describePlanningElements([target], { capitalize: true }),
+    });
   }
 
   private getConnectFromTargetLabel(
@@ -626,18 +654,30 @@ export class ContextMenu {
     targets: PlanningElement[],
     existingConnectToLabel: string
   ): string {
-    const connectToTargetsLabel = `Connect to ${this.describePlanningElements(targets)}`;
+    const connectToTargetsLabel = this.runtime.i18n.t(
+      'canvasContextMenu.connectTo',
+      {
+        target: this.describePlanningElements(targets, { capitalize: true }),
+      }
+    );
     if (connectToTargetsLabel !== existingConnectToLabel) {
       return connectToTargetsLabel;
     }
-    return `Connect from ${this.describePlanningElements([source])}`;
+    return this.runtime.i18n.t('canvasContextMenu.connectFrom', {
+      target: this.describePlanningElements([source], { capitalize: true }),
+    });
   }
 
   private getRedirectConnectionLabel(count: number): string {
-    return count === 1 ? 'Redirect connection' : 'Redirect connections';
+    return count === 1
+      ? this.runtime.i18n.t('canvasContextMenu.redirectConnection')
+      : this.runtime.i18n.t('canvasContextMenu.redirectConnections');
   }
 
-  private describePlanningElements(elements: PlanningElement[]): string {
+  private describePlanningElements(
+    elements: PlanningElement[],
+    options: { capitalize?: boolean } = {}
+  ): string {
     const goalCount = elements.filter((element) => element instanceof GoalElement).length;
     const storyCount = elements.filter((element) => element instanceof StoryElement).length;
     const taskCount = elements.filter((element) => element instanceof TaskElement).length;
@@ -648,13 +688,30 @@ export class ContextMenu {
     ].filter(Boolean);
 
     if (kinds.length !== 1) {
-      return elements.length === 1 ? 'item' : 'selection';
+      return this.getGenericLabel(
+        elements.length === 1 ? 'item' : 'selection',
+        options
+      );
     }
 
-    if (goalCount > 0) return goalCount === 1 ? 'Goal' : 'Goals';
-    if (storyCount > 0) return storyCount === 1 ? 'Story' : 'Stories';
-    return taskCount === 1 ? 'Task' : 'Tasks';
+    if (goalCount > 0) {
+      return this.getPlanningElementLabel('goal', {
+        capitalize: options.capitalize,
+        plural: goalCount > 1,
+      });
+    }
+    if (storyCount > 0) {
+      return this.getPlanningElementLabel('story', {
+        capitalize: options.capitalize,
+        plural: storyCount > 1,
+      });
+    }
+    return this.getPlanningElementLabel('task', {
+      capitalize: options.capitalize,
+      plural: taskCount > 1,
+    });
   }
+
   private buildConnectionItems(
     target: PlanningElement
   ): ContextMenuActionItem[] {
@@ -664,7 +721,7 @@ export class ContextMenu {
 
     return [
       {
-        label: 'Remove connections',
+        label: this.runtime.i18n.t('canvasContextMenu.removeConnections'),
         leading: this.createLeadingIcon('link-slash'),
         action: () => {
           this.bulkActions.removeConnectionsForElement(target);
@@ -797,8 +854,11 @@ export class ContextMenu {
 
     if (kind !== 'task') {
       items.push({
-        label: kind === 'goal' ? 'Break into stories' : 'Break into tasks',
-        hint: getAiAssistantBreakdownHint(kind),
+        label:
+          kind === 'goal'
+            ? this.runtime.i18n.t('canvasContextMenu.breakIntoStories')
+            : this.runtime.i18n.t('canvasContextMenu.breakIntoTasks'),
+        hint: getAiAssistantBreakdownHint(kind, this.runtime.i18n),
         action: () =>
           emitAiAssistantIntentRequested('breakdown', {
             scope: 'selection',
@@ -809,8 +869,8 @@ export class ContextMenu {
 
     items.push(
       {
-        label: 'Clarify',
-        hint: getAiAssistantClarifyHint(kind),
+        label: this.runtime.i18n.t('canvasContextMenu.clarify'),
+        hint: getAiAssistantClarifyHint(kind, this.runtime.i18n),
         action: () =>
           emitAiAssistantIntentRequested('clarify', {
             scope: 'selection',
@@ -818,8 +878,8 @@ export class ContextMenu {
           }),
       },
       {
-        label: 'Fill missing details',
-        hint: getAiAssistantFillDetailsHint(),
+        label: this.runtime.i18n.t('canvasContextMenu.fillMissingDetails'),
+        hint: getAiAssistantFillDetailsHint(this.runtime.i18n),
         action: () =>
           emitAiAssistantIntentRequested('fill_details', {
             scope: 'selection',
@@ -827,8 +887,8 @@ export class ContextMenu {
           }),
       },
       {
-        label: 'Link blockers',
-        hint: getAiAssistantLinkBlockersHint(),
+        label: this.runtime.i18n.t('canvasContextMenu.linkBlockers'),
+        hint: getAiAssistantLinkBlockersHint(this.runtime.i18n),
         action: () =>
           emitAiAssistantIntentRequested('dependencies', {
             scope: 'selection',
@@ -848,7 +908,7 @@ export class ContextMenu {
     if (planningElement) {
       row.push({
         icon: 'pencil',
-        label: 'Edit',
+        label: this.runtime.i18n.t('canvasContextMenu.edit'),
         action: () => {
           planningElement.onDoubleClick?.();
         },
@@ -857,13 +917,13 @@ export class ContextMenu {
     row.push(
       {
         icon: 'square-2-stack',
-        label: 'Copy',
+        label: this.runtime.i18n.t('canvasContextMenu.copy'),
         action: () =>
           historyService.execute(new CopyCommand(this.scene, [element])),
       },
       {
         icon: 'minus',
-        label: 'Remove from Canvas',
+        label: this.runtime.i18n.t('canvasContextMenu.removeFromCanvas'),
         action: () =>
           historyService.execute(new DeleteCommand(this.scene, [element])),
       }
@@ -1169,10 +1229,53 @@ export class ContextMenu {
   }
 
   private getElementLabel(element: ICanvasElement): string {
-    if (element instanceof TaskElement) return 'Task';
-    if (element instanceof StoryElement) return 'Story';
-    if (element instanceof GoalElement) return 'Goal';
-    return 'element';
+    if (element instanceof TaskElement) {
+      return this.getPlanningElementLabel('task');
+    }
+    if (element instanceof StoryElement) {
+      return this.getPlanningElementLabel('story');
+    }
+    if (element instanceof GoalElement) {
+      return this.getPlanningElementLabel('goal');
+    }
+    return this.getGenericLabel('item');
+  }
+
+  private getPlanningElementLabel(
+    kind: 'goal' | 'story' | 'task',
+    options: { plural?: boolean; capitalize?: boolean } = {}
+  ): string {
+    const key =
+      kind === 'goal'
+        ? options.plural
+          ? 'canvasContextMenu.goals'
+          : 'canvasContextMenu.goal'
+        : kind === 'story'
+          ? options.plural
+            ? 'canvasContextMenu.stories'
+            : 'canvasContextMenu.story'
+          : options.plural
+            ? 'canvasContextMenu.tasks'
+            : 'canvasContextMenu.task';
+    return this.formatLabelCase(this.runtime.i18n.t(key), options.capitalize);
+  }
+
+  private getGenericLabel(
+    kind: 'item' | 'selection',
+    options: { capitalize?: boolean } = {}
+  ): string {
+    const key =
+      kind === 'selection'
+        ? 'canvasContextMenu.selectionTarget'
+        : 'canvasContextMenu.item';
+    return this.formatLabelCase(this.runtime.i18n.t(key), options.capitalize);
+  }
+
+  private formatLabelCase(label: string, capitalize = false): string {
+    if (!capitalize || label.length === 0) {
+      return label;
+    }
+    return label.charAt(0).toUpperCase() + label.slice(1);
   }
 
   private createTaskAt(sceneX: number, sceneY: number): void {

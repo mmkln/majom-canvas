@@ -972,15 +972,12 @@ describe('TimeClusteringRootView', () => {
     const viewModeSwitcher = parent.querySelector<HTMLElement>(
       '[data-role="view-mode-switcher"]'
     );
-    const addClusterButton = parent.querySelector<HTMLElement>(
-      '[data-role="add-cluster-button"]'
-    );
     const timeClusteringMenu = parent.querySelector<HTMLElement>(
       '[data-role="time-clustering-menu"]'
     );
     const navigationRow = periodSwitcher?.parentElement;
     const navigationStart = viewModeSwitcher?.parentElement;
-    const navigationActions = addClusterButton?.parentElement;
+    const navigationActions = timeClusteringMenu?.parentElement;
     const secondaryNav = daySwitcher?.parentElement;
 
     expect(secondaryNav?.firstElementChild).toBe(navigationRow);
@@ -988,11 +985,9 @@ describe('TimeClusteringRootView', () => {
     expect(periodSwitcher).not.toBeNull();
     expect(navigationRow?.contains(periodSwitcher ?? null)).toBe(true);
     expect(navigationRow?.contains(viewModeSwitcher ?? null)).toBe(true);
-    expect(navigationRow?.contains(addClusterButton ?? null)).toBe(true);
     expect(navigationRow?.contains(timeClusteringMenu ?? null)).toBe(true);
     expect(daySwitcher?.classList.contains('hidden')).toBe(false);
     expect(viewModeSwitcher).not.toBeNull();
-    expect(addClusterButton).not.toBeNull();
     expect(timeClusteringMenu).not.toBeNull();
     expect(navigationRow?.className).toContain('grid-cols-[auto_1fr_auto]');
     expect(navigationStart?.contains(viewModeSwitcher ?? null)).toBe(true);

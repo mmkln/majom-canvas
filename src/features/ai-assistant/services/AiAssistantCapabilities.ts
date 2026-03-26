@@ -8,7 +8,7 @@ import {
   getAiAssistantSelectedItems,
 } from './AiAssistantContent.ts';
 import {
-  AI_ASSISTANT_CONTEXT_MODE_OPTIONS,
+  getAiAssistantContextModeOptions,
   type AiAssistantContextMode,
 } from './AiAssistantContextMode.ts';
 import { getAiAssistantQuickActions } from './AiAssistantQuickActions.ts';
@@ -49,7 +49,7 @@ export function buildAiAssistantCapabilityContext(params: {
       count: selection.length,
       summary: describeSelectionSummary(selection),
     },
-    contextModes: AI_ASSISTANT_CONTEXT_MODE_OPTIONS.map((option) => ({
+    contextModes: getAiAssistantContextModeOptions().map((option) => ({
       mode: option.value,
       label: option.label,
       description: getContextModeDescription(option.value),

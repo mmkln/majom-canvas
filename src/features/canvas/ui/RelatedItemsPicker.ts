@@ -31,6 +31,7 @@ import {
   createTextButton,
   type SegmentedControl,
 } from './primitives/index.ts';
+import { AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
 
 type RelatedItem =
   | { kind: 'task'; value: PlatformTask }
@@ -61,6 +62,7 @@ export class RelatedItemsPicker {
   private subscriptions: Subscription[] = [];
   private outsideHandler: ((event: MouseEvent) => void) | null = null;
   private eventHandler: ((event: Event) => void) | null = null;
+  private disposeRuntimeSubscription: (() => void) | null = null;
   private layoutService = new StoryLayoutService();
 
   private readonly storiesApi: StoriesApiService;
@@ -68,7 +70,8 @@ export class RelatedItemsPicker {
 
   constructor(
     private readonly scene: Scene,
-    private readonly canvasManager: CanvasManager
+    private readonly canvasManager: CanvasManager,
+    private readonly runtime: AppRuntime = createAppRuntime()
   ) {
     const http = new HttpInterceptorClient(environment.apiUrl);
     this.storiesApi = new StoriesApiService(http);
@@ -87,15 +90,15 @@ export class RelatedItemsPicker {
     this.header.className = 'mb-2 flex items-center justify-between';
 
     this.titleEl = document.createElement('span');
-    this.titleEl.textContent = 'Add related';
+    this.titleEl.textContent = this.runtime.i18n.t('relatedItems.title.default');
     this.titleEl.className = 'text-sm font-semibold text-slate-900';
 
     this.closeBtn = createIconButton({
       icon: 'x-mark',
       size: 'sm',
       tone: 'text',
-      title: 'Close',
-      ariaLabel: 'Close',
+      title: this.runtime.i18n.t('relatedItems.close'),
+      ariaLabel: this.runtime.i18n.t('relatedItems.close'),
       onClick: () => this.hide(),
     });
 
@@ -105,7 +108,7 @@ export class RelatedItemsPicker {
 
     this.searchInput = createInputBase({
       type: 'search',
-      placeholder: 'Search...',
+      placeholder: this.runtime.i18n.t('relatedItems.searchPlaceholder'),
       className: 'mb-2 h-9',
     });
     this.searchInput.addEventListener('input', () => this.applyFilter());
@@ -118,10 +121,18 @@ export class RelatedItemsPicker {
     this.goalTabControl = createSegmentedControl<GoalTab>({
       size: 'sm',
       fullWidth: true,
-      ariaLabel: 'Related item type',
+      ariaLabel: this.runtime.i18n.t('relatedItems.itemType'),
       options: [
-        { id: 'related-tab-tasks', value: 'tasks', label: 'Tasks' },
-        { id: 'related-tab-stories', value: 'stories', label: 'Stories' },
+        {
+          id: 'related-tab-tasks',
+          value: 'tasks',
+          label: this.runtime.i18n.t('relatedItems.tab.tasks'),
+        },
+        {
+          id: 'related-tab-stories',
+          value: 'stories',
+          label: this.runtime.i18n.t('relatedItems.tab.stories'),
+        },
       ],
       value: this.activeGoalTab,
       onChange: (tab) => this.setGoalTab(tab),
@@ -133,7 +144,7 @@ export class RelatedItemsPicker {
     this.actionsRow.className = 'mb-2 mt-1 flex justify-end';
 
     this.addAllBtn = createTextButton({
-      text: 'Add all',
+      text: this.runtime.i18n.t('relatedItems.addAll'),
       tone: 'text',
       className: 'px-2 py-1 text-xs font-medium',
       onClick: () => this.handleAddAllClick(),
@@ -149,6 +160,9 @@ export class RelatedItemsPicker {
 
   public mount(parent: HTMLElement = document.body): void {
     parent.appendChild(this.container);
+    this.disposeRuntimeSubscription = this.runtime.subscribe(() => {
+      this.refreshTranslations();
+    }, { emitCurrent: true });
     this.subscriptions.push(
       this.scene.changes.subscribe(() => this.onSceneChange())
     );
@@ -173,6 +187,8 @@ export class RelatedItemsPicker {
   public unmount(): void {
     this.subscriptions.forEach((sub) => sub.unsubscribe());
     this.subscriptions = [];
+    this.disposeRuntimeSubscription?.();
+    this.disposeRuntimeSubscription = null;
     if (this.eventHandler) {
       window.removeEventListener(
         'relatedItemsPickerRequested',
@@ -211,7 +227,7 @@ export class RelatedItemsPicker {
     this.visible = false;
     this.container.style.display = 'none';
     this.loading = false;
-    this.titleEl.textContent = 'Add related';
+    this.titleEl.textContent = this.runtime.i18n.t('relatedItems.title.default');
     this.activeElement = null;
     this.allItems = [];
     this.filteredItems = [];
@@ -276,13 +292,13 @@ export class RelatedItemsPicker {
     const ref = this.getBackendRef(this.activeElement);
     if (!ref) {
       this.loading = false;
-      this.renderEmpty('No related items');
+      this.renderEmpty(this.runtime.i18n.t('relatedItems.empty.noRelatedItems'));
       this.updateAddAllButton();
       return;
     }
 
     if (this.activeElement instanceof StoryElement) {
-      this.titleEl.textContent = 'Add story tasks';
+      this.titleEl.textContent = this.runtime.i18n.t('relatedItems.title.storyTasks');
       this.storiesApi.getStory(ref).subscribe({
         next: (story: Story) => {
           this.loading = false;
@@ -292,7 +308,7 @@ export class RelatedItemsPicker {
         },
         error: () => {
           this.loading = false;
-          this.renderEmpty('Failed to load tasks');
+          this.renderEmpty(this.runtime.i18n.t('relatedItems.error.loadTasks'));
           this.updateAddAllButton();
         },
       });
@@ -300,7 +316,7 @@ export class RelatedItemsPicker {
     }
 
     if (this.activeElement instanceof GoalElement) {
-      this.titleEl.textContent = 'Add goal related';
+      this.titleEl.textContent = this.runtime.i18n.t('relatedItems.title.goalRelated');
       this.goalsApi.getGoal(ref).subscribe({
         next: (goal: Goal) => {
           const goalTasks = this.getGoalTasks(goal);
@@ -339,7 +355,7 @@ export class RelatedItemsPicker {
         },
         error: () => {
           this.loading = false;
-          this.renderEmpty('Failed to load related items');
+          this.renderEmpty(this.runtime.i18n.t('relatedItems.error.loadRelatedItems'));
           this.updateAddAllButton();
         },
       });
@@ -347,7 +363,7 @@ export class RelatedItemsPicker {
     }
 
     this.loading = false;
-    this.renderEmpty('No related items');
+    this.renderEmpty(this.runtime.i18n.t('relatedItems.empty.noRelatedItems'));
     this.updateAddAllButton();
   }
 
@@ -505,13 +521,13 @@ export class RelatedItemsPicker {
     this.list.innerHTML = '';
     if (loading) {
       const row = document.createElement('div');
-      row.textContent = 'Loading...';
+      row.textContent = this.runtime.i18n.t('relatedItems.loading');
       row.className = 'px-2 py-2 text-sm text-slate-500';
       this.list.appendChild(row);
       return;
     }
     if (this.filteredItems.length === 0) {
-      this.renderEmpty('No items found');
+      this.renderEmpty(this.runtime.i18n.t('relatedItems.empty.noItemsFound'));
       return;
     }
     this.filteredItems.forEach((item, idx) => {
@@ -528,14 +544,14 @@ export class RelatedItemsPicker {
       meta.textContent = item.value.description
         ? item.value.description
         : item.kind === 'task'
-          ? `Task #${item.value.id}`
-          : `Story #${item.value.id}`;
+          ? this.runtime.i18n.t('relatedItems.meta.task', { id: item.value.id })
+          : this.runtime.i18n.t('relatedItems.meta.story', { id: item.value.id });
       meta.className = 'truncate text-[11px] text-slate-500';
       label.appendChild(title);
       label.appendChild(meta);
 
       const addBtn = createTextButton({
-        text: 'Add',
+        text: this.runtime.i18n.t('relatedItems.add'),
         tone: 'soft',
         className: 'px-2 py-1 text-xs font-semibold',
         onClick: () => {
@@ -779,10 +795,53 @@ export class RelatedItemsPicker {
         : this.goalStoryItems.length;
     this.addAllBtn.textContent = isGoal
       ? this.activeGoalTab === 'tasks'
-        ? `Add all missing tasks (${count})`
-        : `Add all missing stories (${count})`
-      : `Add all missing tasks (${count})`;
+        ? this.runtime.i18n.t('relatedItems.addAllMissingTasks', { count })
+        : this.runtime.i18n.t('relatedItems.addAllMissingStories', { count })
+      : this.runtime.i18n.t('relatedItems.addAllMissingTasks', { count });
     this.addAllBtn.disabled = this.loading || count === 0;
+  }
+
+  private refreshTranslations(): void {
+    this.titleEl.textContent = this.getCurrentTitle();
+    this.closeBtn.title = this.runtime.i18n.t('relatedItems.close');
+    this.closeBtn.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('relatedItems.close')
+    );
+    this.searchInput.placeholder = this.runtime.i18n.t(
+      'relatedItems.searchPlaceholder'
+    );
+    this.goalTabControl.element.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('relatedItems.itemType')
+    );
+    this.updateGoalTabLabels();
+    if (this.visible) {
+      this.renderList(this.loading);
+      this.updateAddAllButton();
+    }
+  }
+
+  private updateGoalTabLabels(): void {
+    const buttons = this.goalTabControl.element.querySelectorAll('button');
+    const tasksButton = buttons[0];
+    const storiesButton = buttons[1];
+    if (tasksButton) {
+      tasksButton.textContent = this.runtime.i18n.t('relatedItems.tab.tasks');
+    }
+    if (storiesButton) {
+      storiesButton.textContent = this.runtime.i18n.t('relatedItems.tab.stories');
+    }
+  }
+
+  private getCurrentTitle(): string {
+    if (this.activeElement instanceof StoryElement) {
+      return this.runtime.i18n.t('relatedItems.title.storyTasks');
+    }
+    if (this.activeElement instanceof GoalElement) {
+      return this.runtime.i18n.t('relatedItems.title.goalRelated');
+    }
+    return this.runtime.i18n.t('relatedItems.title.default');
   }
 
   private getInsertPosition(index: number): { x: number; y: number } {

@@ -3,10 +3,12 @@ import { createIcon } from '../icons.ts';
 import { createStepPicker } from '../primitives/index.ts';
 import {
   getStatusLabel,
+  getMixedStatusLabel,
   STATUS_ICON_MAP,
   STATUS_ICON_TONE_CLASS,
   STATUS_ORDER,
 } from '../statusPresentation.ts';
+import type { I18nService } from '../../../../i18n/index.ts';
 
 const STATUS_LABEL_TONE_CLASS: Record<ElementStatus, string> = {
   [ElementStatus.Done]: 'text-emerald-700',
@@ -48,12 +50,14 @@ const STATUS_STEP_ORDER: readonly ElementStatus[] = [
 ];
 
 type StatusSelectorOptions = {
+  i18n?: Pick<I18nService, 't'>;
   onStatusChange: (status: ElementStatus) => void;
 };
 
 export class StatusSelector {
   public readonly element: HTMLDivElement;
 
+  private readonly i18n: Pick<I18nService, 't'> | undefined;
   private readonly onStatusChange: (status: ElementStatus) => void;
   private readonly triggerBtn: HTMLButtonElement;
   private readonly prevBtn: HTMLButtonElement;
@@ -64,11 +68,12 @@ export class StatusSelector {
   private open = false;
 
   constructor(options: StatusSelectorOptions) {
+    this.i18n = options.i18n;
     this.onStatusChange = options.onStatusChange;
 
     const picker = createStepPicker({
-      previousLabel: 'Previous status',
-      nextLabel: 'Next status',
+      previousLabel: this.i18n?.t('status.previous') ?? 'Previous status',
+      nextLabel: this.i18n?.t('status.next') ?? 'Next status',
     });
     this.element = picker.element;
     this.prevBtn = picker.previousButton;
@@ -221,7 +226,7 @@ export class StatusSelector {
       content.className = 'inline-flex min-w-0 items-center gap-2';
       const label = document.createElement('span');
       label.className = 'truncate';
-      label.textContent = getStatusLabel(status);
+      label.textContent = getStatusLabel(status, this.i18n);
       content.append(leading, label);
       option.appendChild(content);
       if (trailing) {
@@ -249,14 +254,17 @@ export class StatusSelector {
     this.setStepButtonsStatusTone(null);
 
     if (this.currentStatus === null) {
-      this.statusLabel.textContent = 'Mixed';
+      this.statusLabel.textContent = getMixedStatusLabel(this.i18n);
       this.setStatusLabelTone(null);
       this.setTriggerStatusBackground(null);
       this.setStepButtonsStatusTone(null);
       this.prevBtn.disabled = true;
       this.nextBtn.disabled = true;
     } else {
-      this.statusLabel.textContent = getStatusLabel(this.currentStatus);
+      this.statusLabel.textContent = getStatusLabel(
+        this.currentStatus,
+        this.i18n
+      );
       this.setStatusLabelTone(this.currentStatus);
       this.setTriggerStatusBackground(this.currentStatus);
       this.setStepButtonsStatusTone(this.currentStatus);
@@ -268,10 +276,13 @@ export class StatusSelector {
 
     const triggerText =
       this.currentStatus !== null
-        ? getStatusLabel(this.currentStatus)
-        : 'Mixed status';
-    this.triggerBtn.title = `Status: ${triggerText}`;
-    this.triggerBtn.setAttribute('aria-label', `Status: ${triggerText}`);
+        ? getStatusLabel(this.currentStatus, this.i18n)
+        : this.i18n?.t('status.mixedSelection') ?? 'Mixed status';
+    const triggerLabel =
+      this.i18n?.t('status.trigger', { status: triggerText }) ??
+      `Status: ${triggerText}`;
+    this.triggerBtn.title = triggerLabel;
+    this.triggerBtn.setAttribute('aria-label', triggerLabel);
     this.renderOptions();
     if (this.open) {
       this.positionDropdown();

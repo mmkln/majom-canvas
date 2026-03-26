@@ -75,7 +75,7 @@ export class AiAssistantPersistence {
   ): AiAssistantContextMode {
     try {
       const raw = window.localStorage.getItem(this.buildContextModeStorageKey(key));
-      return isAiAssistantContextMode(raw ?? '') ? raw : fallback;
+      return raw !== null && isAiAssistantContextMode(raw) ? raw : fallback;
     } catch {
       return fallback;
     }

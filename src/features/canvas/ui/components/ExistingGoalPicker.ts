@@ -5,6 +5,7 @@ import {
   type ExistingEntityPickerOpenOptions,
   type ExistingPickerPage,
 } from './ExistingEntityPicker.ts';
+import { AppRuntime, createAppRuntime } from '../../../../app-runtime/index.ts';
 
 export class ExistingGoalPicker {
   private readonly picker: ExistingEntityPicker<'existing-goal', Goal>;
@@ -15,23 +16,22 @@ export class ExistingGoalPicker {
       page: number,
       pageSize: number
     ) => Observable<ExistingPickerPage<Goal>>,
-    pageSize: number = 30
+    pageSize: number = 30,
+    runtime: AppRuntime = createAppRuntime()
   ) {
     this.picker = new ExistingEntityPicker<'existing-goal', Goal>(
       loadGoalsPage,
       {
-        drawerTitle: 'Add existing goal',
-        searchPlaceholder: 'Search goals...',
-        itemLabel: 'Goal',
         dragKind: 'existing-goal',
-        getTitle: (goal) => goal.title || 'Untitled goal',
+        getTitle: (goal) => goal.title || '',
         getDescription: (goal) => goal.description,
         getStatus: (goal) => goal.status,
         getPriority: (goal) => goal.priority,
         getUpdatedAt: (goal) =>
           (goal as Goal & { updated_at?: unknown }).updated_at,
       },
-      pageSize
+      pageSize,
+      runtime
     );
   }
 

@@ -17,6 +17,7 @@ import {
 } from '../primitives/index.ts';
 import { createIcon, type IconName } from '../icons.ts';
 import { OverlayController } from '../../../../ui-lib/src/services/OverlayController.ts';
+import { AppRuntime, createAppRuntime } from '../../../../app-runtime/index.ts';
 
 export type ExistingPickerPage<TItem> = {
   items: TItem[];
@@ -32,9 +33,6 @@ export type ExistingEntityPickerOpenOptions<TItem> = {
 };
 
 type ExistingEntityPickerConfig<TItem, TKind extends ExistingPickerKind> = {
-  drawerTitle: string;
-  searchPlaceholder: string;
-  itemLabel: string;
   dragKind: TKind;
   getTitle: (item: TItem) => string;
   getDescription?: (item: TItem) => string | null | undefined;
@@ -53,6 +51,9 @@ export class ExistingEntityPicker<
   private backdrop: HTMLDivElement | null = null;
   private container: HTMLDivElement | null = null;
   private header: HTMLDivElement | null = null;
+  private titleEl: HTMLDivElement | null = null;
+  private subtitleEl: HTMLDivElement | null = null;
+  private closeBtn: HTMLButtonElement | null = null;
   private searchField: HTMLElement | null = null;
   private searchInput: HTMLInputElement | null = null;
   private list: HTMLDivElement | null = null;
@@ -65,6 +66,7 @@ export class ExistingEntityPicker<
   private searchDebounce: number | null = null;
   private loadSubscription: Subscription | null = null;
   private canvasChangesSubscription: Subscription | null = null;
+  private disposeRuntimeSubscription: (() => void) | null = null;
   private requestToken = 0;
   private isLoading = false;
   private loadMoreError = false;
@@ -93,6 +95,10 @@ export class ExistingEntityPicker<
     intent: 'picker',
     source: 'ExistingEntityPicker',
   });
+  private compactTitleEl: HTMLDivElement | null = null;
+  private compactHintEl: HTMLDivElement | null = null;
+  private compactExpandBtn: HTMLButtonElement | null = null;
+  private compactCloseBtn: HTMLButtonElement | null = null;
 
   constructor(
     private readonly loadItemsPage: (
@@ -101,7 +107,8 @@ export class ExistingEntityPicker<
       pageSize: number
     ) => Observable<ExistingPickerPage<TItem>>,
     private readonly config: ExistingEntityPickerConfig<TItem, TKind>,
-    private readonly pageSize: number = 30
+    private readonly pageSize: number = 30,
+    private readonly runtime: AppRuntime = createAppRuntime()
   ) {}
 
   public open(options: ExistingEntityPickerOpenOptions<TItem>): void {
@@ -142,7 +149,7 @@ export class ExistingEntityPicker<
     container.style.zIndex = '60';
     container.style.pointerEvents = 'auto';
     container.style.transition = 'width 140ms ease, padding 140ms ease';
-    container.setAttribute('aria-label', this.config.drawerTitle);
+    container.setAttribute('aria-label', this.getDialogTitle());
     if (this.mobilePresentation) {
       container.setAttribute('role', 'dialog');
       container.setAttribute('aria-modal', 'true');
@@ -169,15 +176,15 @@ export class ExistingEntityPicker<
       icon: 'x-mark',
       size: 'sm',
       tone: 'text',
-      title: 'Close',
-      ariaLabel: 'Close picker',
+      title: this.runtime.i18n.t('existingPicker.close'),
+      ariaLabel: this.runtime.i18n.t('existingPicker.closePicker'),
     });
     closeBtn.addEventListener('click', () => this.close());
     header.append(titleWrap, closeBtn);
 
     const searchControl = createInput({
       type: 'search',
-      placeholder: this.config.searchPlaceholder,
+      placeholder: this.getSearchPlaceholder(),
       leadingIcon: 'magnifying-glass',
       className: 'mb-2',
       inputClassName:
@@ -201,22 +208,24 @@ export class ExistingEntityPicker<
     const compactTitle = document.createElement('div');
     compactTitle.className =
       'text-[11px] font-medium tracking-[0.01em] text-slate-600';
-    compactTitle.textContent = 'Placing on canvas';
+    compactTitle.textContent = this.runtime.i18n.t(
+      'existingPicker.compactTitle'
+    );
     const compactHint = document.createElement('div');
     compactHint.className =
       'max-w-[12rem] text-[11px] leading-4 text-slate-500';
-    compactHint.textContent = `Drop the ${this.config.itemLabel.toLowerCase()} where you want it to appear.`;
+    compactHint.textContent = this.getCompactHint();
     const expandBtn = createTextButton({
-      text: 'Back to list',
+      text: this.runtime.i18n.t('existingPicker.backToList'),
       tone: 'soft',
       className: 'px-3 py-1.5 text-[11px] font-medium',
     });
     expandBtn.addEventListener('click', () => this.setViewMode('full'));
     const compactCloseBtn = createTextButton({
-      text: 'Close',
+      text: this.runtime.i18n.t('existingPicker.close'),
       tone: 'text',
       className: 'px-3 py-1 text-[11px] font-medium',
-      ariaLabel: 'Close picker',
+      ariaLabel: this.runtime.i18n.t('existingPicker.closePicker'),
     });
     compactCloseBtn.addEventListener('click', () => this.close());
     const compactActions = document.createElement('div');
@@ -247,16 +256,26 @@ export class ExistingEntityPicker<
     this.backdrop = backdrop;
     this.container = container;
     this.header = header;
+    this.titleEl = title;
+    this.subtitleEl = subtitle;
+    this.closeBtn = closeBtn;
     this.searchField = searchField;
     this.searchInput = searchInput;
     this.list = list;
     this.footerDivider = footerDivider;
     this.footer = footer;
     this.compactPanel = compactPanel;
+    this.compactTitleEl = compactTitle;
+    this.compactHintEl = compactHint;
+    this.compactExpandBtn = expandBtn;
+    this.compactCloseBtn = compactCloseBtn;
     this.listScrollHandler = () => this.maybeAutoLoadMore();
     this.list.addEventListener('scroll', this.listScrollHandler);
     this.pendingDropCompleted = false;
     this.setViewMode('full');
+    this.disposeRuntimeSubscription = this.runtime.subscribe(() => {
+      this.refreshTranslations();
+    }, { emitCurrent: true });
     this.canvasChangesSubscription =
       options.canvasChanges?.subscribe(() => {
         this.refreshRenderedItems();
@@ -305,6 +324,8 @@ export class ExistingEntityPicker<
     this.loadSubscription = null;
     this.canvasChangesSubscription?.unsubscribe();
     this.canvasChangesSubscription = null;
+    this.disposeRuntimeSubscription?.();
+    this.disposeRuntimeSubscription = null;
     if (this.dropCompletedHandler) {
       window.removeEventListener(
         EXISTING_PICKER_EVENT_NAMES.dropCompleted,
@@ -334,12 +355,19 @@ export class ExistingEntityPicker<
       this.list.removeEventListener('scroll', this.listScrollHandler);
     }
     this.header = null;
+    this.titleEl = null;
+    this.subtitleEl = null;
+    this.closeBtn = null;
     this.searchField = null;
     this.searchInput = null;
     this.list = null;
     this.footerDivider = null;
     this.footer = null;
     this.compactPanel = null;
+    this.compactTitleEl = null;
+    this.compactHintEl = null;
+    this.compactExpandBtn = null;
+    this.compactCloseBtn = null;
     this.listScrollHandler = null;
     this.activeOptions = null;
     this.items = [];
@@ -358,7 +386,7 @@ export class ExistingEntityPicker<
     this.hasMore = false;
     this.items = [];
     this.loadMoreError = false;
-    this.renderMessage('Loading...');
+    this.renderMessage(this.runtime.i18n.t('existingPicker.loading'));
     this.renderFooter();
     this.fetchPage(1, false);
   }
@@ -369,7 +397,7 @@ export class ExistingEntityPicker<
     this.isLoading = true;
     this.loadMoreError = false;
     if (!append) {
-      this.renderMessage('Loading...');
+      this.renderMessage(this.runtime.i18n.t('existingPicker.loading'));
     }
     this.renderFooter();
     this.loadSubscription?.unsubscribe();
@@ -393,7 +421,9 @@ export class ExistingEntityPicker<
         this.isLoading = false;
         this.loadMoreError = true;
         if (!append) {
-          this.renderMessage('Failed to load items');
+          this.renderMessage(
+            this.runtime.i18n.t('existingPicker.failedToLoadItems')
+          );
         }
         this.renderFooter();
       },
@@ -468,13 +498,13 @@ export class ExistingEntityPicker<
         'truncate text-[15px] font-semibold leading-5 text-slate-950';
       title.textContent =
         this.config.getTitle(item) ||
-        `Untitled ${this.config.itemLabel.toLowerCase()}`;
+        this.getUntitledItemLabel();
       textWrap.appendChild(title);
 
       const actionBtn = createTextButton({
         text: onCanvas
-          ? (this.config.findLabel ?? 'Find')
-          : (this.config.addLabel ?? 'Add'),
+          ? (this.config.findLabel ?? this.runtime.i18n.t('existingPicker.find'))
+          : (this.config.addLabel ?? this.runtime.i18n.t('existingPicker.add')),
         tone: onCanvas ? 'text' : 'soft',
         className:
           'h-8 shrink-0 rounded-full px-3 py-1 text-[11px] font-medium',
@@ -508,7 +538,9 @@ export class ExistingEntityPicker<
       if (updatedAt) {
         const updated = document.createElement('span');
         updated.className = 'truncate text-[11px] text-slate-500';
-        updated.textContent = `Updated ${updatedAt}`;
+        updated.textContent = this.runtime.i18n.t('existingPicker.updated', {
+          date: updatedAt,
+        });
         meta.appendChild(updated);
       }
 
@@ -541,10 +573,12 @@ export class ExistingEntityPicker<
           'flex items-center justify-between gap-3 px-1 text-[11px] text-slate-400';
         const label = document.createElement('span');
         label.textContent = this.isLoading
-          ? 'Loading more results...'
-          : 'Scroll for more';
+          ? this.runtime.i18n.t('existingPicker.loadingMore')
+          : this.runtime.i18n.t('existingPicker.scrollForMore');
         const meta = document.createElement('span');
-        meta.textContent = `${this.items.length} shown`;
+        meta.textContent = this.runtime.i18n.t('existingPicker.shownCount', {
+          count: this.items.length,
+        });
         hint.append(label, meta);
         this.footer.appendChild(hint);
         if (this.footerDivider) {
@@ -553,7 +587,9 @@ export class ExistingEntityPicker<
         return;
       }
       const retryBtn = createTextButton({
-        text: this.loadMoreError ? 'Retry load more' : 'Load more',
+        text: this.loadMoreError
+          ? this.runtime.i18n.t('existingPicker.retryLoadMore')
+          : this.runtime.i18n.t('existingPicker.loadMore'),
         tone: 'soft',
         disabled: this.isLoading,
         className: 'w-full justify-center px-2 py-1 text-xs',
@@ -570,13 +606,19 @@ export class ExistingEntityPicker<
     summary.className =
       'flex items-center justify-between gap-3 px-1 text-[11px] text-slate-400';
     const loaded = document.createElement('span');
-    loaded.textContent = `${this.items.length} results`;
+    loaded.textContent = this.runtime.i18n.t('existingPicker.resultsCount', {
+      count: this.items.length,
+    });
     const onCanvasCount = this.items.filter((item) =>
       this.activeOptions?.isOnCanvas(item)
     ).length;
     const state = document.createElement('span');
     state.textContent =
-      onCanvasCount > 0 ? `${onCanvasCount} on canvas` : 'Ready to place';
+      onCanvasCount > 0
+        ? this.runtime.i18n.t('existingPicker.onCanvasCount', {
+            count: onCanvasCount,
+          })
+        : this.runtime.i18n.t('existingPicker.readyToPlace');
     summary.append(loaded, state);
     this.footer.appendChild(summary);
     if (this.footerDivider) {
@@ -614,13 +656,13 @@ export class ExistingEntityPicker<
     const title = document.createElement('div');
     title.className = 'text-[14px] font-medium text-slate-700';
     title.textContent = this.currentTerm
-      ? `No ${this.config.itemLabel.toLowerCase()}s found`
-      : `No ${this.config.itemLabel.toLowerCase()}s to show`;
+      ? this.getEmptyStateTitle('withTerm')
+      : this.getEmptyStateTitle('withoutTerm');
     const subtitle = document.createElement('div');
     subtitle.className = 'mt-2 text-[12px] leading-5 text-slate-500';
     subtitle.textContent = this.currentTerm
-      ? `Try a different keyword or drag another ${this.config.itemLabel.toLowerCase()} onto the canvas.`
-      : `Search existing ${this.config.itemLabel.toLowerCase()}s or add one directly from the canvas.`;
+      ? this.getEmptyStateSubtitle('withTerm')
+      : this.getEmptyStateSubtitle('withoutTerm');
     card.append(title, subtitle);
     this.list.appendChild(card);
   }
@@ -635,10 +677,11 @@ export class ExistingEntityPicker<
     if (event.button !== 0 || event.pointerType === 'touch') return;
     if (this.activePointerDrag) return;
 
-    const title = this.config.getTitle(item) || this.config.itemLabel;
+    const fallbackTitle =
+      this.config.getTitle(item) || this.getSingularItemLabel(true);
     const dragState = {
       item,
-      title,
+      title: fallbackTitle,
       pointerId: event.pointerId,
       started: false,
       lastClientX: event.clientX,
@@ -895,7 +938,49 @@ export class ExistingEntityPicker<
 
   private formatEnum(value: unknown): string {
     if (typeof value !== 'string' || value.trim().length === 0) {
-      return 'Unknown';
+      return this.runtime.i18n.t('existingPicker.unknown');
+    }
+    const normalized = this.normalizeChipValue(value);
+    if (
+      normalized === 'defined' ||
+      normalized === 'draft'
+    ) {
+      return this.runtime.i18n.t('status.defined');
+    }
+    if (
+      normalized === 'pending' ||
+      normalized === 'described'
+    ) {
+      return this.runtime.i18n.t('status.pending');
+    }
+    if (
+      normalized === 'in progress' ||
+      normalized === 'progress' ||
+      normalized === 'active'
+    ) {
+      return this.runtime.i18n.t('status.inProgress');
+    }
+    if (
+      normalized === 'done' ||
+      normalized === 'completed' ||
+      normalized === 'archived'
+    ) {
+      return this.runtime.i18n.t('status.done');
+    }
+    if (normalized === 'highest') {
+      return this.runtime.i18n.t('priority.highest');
+    }
+    if (normalized === 'high') {
+      return this.runtime.i18n.t('priority.high');
+    }
+    if (normalized === 'medium') {
+      return this.runtime.i18n.t('priority.medium');
+    }
+    if (normalized === 'low') {
+      return this.runtime.i18n.t('priority.low');
+    }
+    if (normalized === 'lowest') {
+      return this.runtime.i18n.t('priority.lowest');
     }
     return value
       .replace(/_/g, ' ')
@@ -914,11 +999,11 @@ export class ExistingEntityPicker<
             typeof raw === 'string' || typeof raw === 'number' ? raw : ''
           );
     if (Number.isNaN(date.getTime())) return null;
-    return new Intl.DateTimeFormat(undefined, {
+    return this.runtime.i18n.formatDate(date, {
       year: 'numeric',
       month: 'short',
       day: '2-digit',
-    }).format(date);
+    });
   }
 
   private emitDragMove(clientX: number, clientY: number): void {
@@ -926,21 +1011,19 @@ export class ExistingEntityPicker<
   }
 
   private getDrawerSubtitle(): string {
-    return `Search existing ${this.config.itemLabel.toLowerCase()}s and place them where you need.`;
+    return this.runtime.i18n.t(
+      `existingPicker.drawerSubtitle.${this.getItemKind()}`
+    );
   }
 
   private getDrawerTitle(): string {
-    return this.pluralizeItemLabel(this.config.itemLabel);
+    return this.getPluralItemLabel(true);
   }
 
-  private pluralizeItemLabel(label: string): string {
-    if (label.endsWith('y') && !/[aeiou]y$/i.test(label)) {
-      return `${label.slice(0, -1)}ies`;
-    }
-    if (label.endsWith('s')) {
-      return label;
-    }
-    return `${label}s`;
+  private getDialogTitle(): string {
+    return this.runtime.i18n.t(
+      `existingPicker.dialogTitle.${this.getItemKind()}`
+    );
   }
 
   private shouldSuppressPick(): boolean {
@@ -955,6 +1038,136 @@ export class ExistingEntityPicker<
     }
     const canvasUiRoot = document.getElementById('canvas-ui-root');
     return canvasUiRoot instanceof HTMLElement ? canvasUiRoot : document.body;
+  }
+
+  private refreshTranslations(): void {
+    if (!this.container) return;
+    this.container.setAttribute('aria-label', this.getDialogTitle());
+    if (this.titleEl) {
+      this.titleEl.textContent = this.getDrawerTitle();
+    }
+    if (this.subtitleEl) {
+      this.subtitleEl.textContent = this.getDrawerSubtitle();
+    }
+    if (this.closeBtn) {
+      const closeLabel = this.runtime.i18n.t('existingPicker.close');
+      const closePickerLabel = this.runtime.i18n.t('existingPicker.closePicker');
+      this.closeBtn.title = closeLabel;
+      this.closeBtn.setAttribute('aria-label', closePickerLabel);
+    }
+    if (this.searchInput) {
+      this.searchInput.placeholder = this.getSearchPlaceholder();
+    }
+    if (this.compactTitleEl) {
+      this.compactTitleEl.textContent = this.runtime.i18n.t(
+        'existingPicker.compactTitle'
+      );
+    }
+    if (this.compactHintEl) {
+      this.compactHintEl.textContent = this.getCompactHint();
+    }
+    if (this.compactExpandBtn) {
+      this.compactExpandBtn.textContent = this.runtime.i18n.t(
+        'existingPicker.backToList'
+      );
+    }
+    if (this.compactCloseBtn) {
+      const closeLabel = this.runtime.i18n.t('existingPicker.close');
+      this.compactCloseBtn.textContent = closeLabel;
+      this.compactCloseBtn.setAttribute(
+        'aria-label',
+        this.runtime.i18n.t('existingPicker.closePicker')
+      );
+    }
+    this.refreshContent();
+  }
+
+  private refreshContent(): void {
+    if (!this.list) return;
+    if (this.isLoading && this.items.length === 0) {
+      this.renderMessage(this.runtime.i18n.t('existingPicker.loading'));
+      this.renderFooter();
+      return;
+    }
+    if (this.items.length === 0) {
+      if (this.loadMoreError) {
+        this.renderMessage(this.runtime.i18n.t('existingPicker.failedToLoadItems'));
+      } else {
+        this.renderEmptyState();
+      }
+      this.renderFooter();
+      return;
+    }
+    this.renderItems();
+    this.renderFooter();
+  }
+
+  private getItemKind(): 'goal' | 'story' | 'task' {
+    if (this.config.dragKind === 'existing-goal') {
+      return 'goal';
+    }
+    if (this.config.dragKind === 'existing-story') {
+      return 'story';
+    }
+    return 'task';
+  }
+
+  private getSearchPlaceholder(): string {
+    return this.runtime.i18n.t(
+      `existingPicker.searchPlaceholder.${this.getItemKind()}`
+    );
+  }
+
+  private getCompactHint(): string {
+    return this.runtime.i18n.t(
+      `existingPicker.compactHint.${this.getItemKind()}`
+    );
+  }
+
+  private getUntitledItemLabel(): string {
+    return this.runtime.i18n.t(
+      `existingPicker.untitled.${this.getItemKind()}`
+    );
+  }
+
+  private getEmptyStateTitle(mode: 'withTerm' | 'withoutTerm'): string {
+    return this.runtime.i18n.t(
+      mode === 'withTerm'
+        ? `existingPicker.empty.notFound.${this.getItemKind()}`
+        : `existingPicker.empty.none.${this.getItemKind()}`
+    );
+  }
+
+  private getEmptyStateSubtitle(mode: 'withTerm' | 'withoutTerm'): string {
+    return this.runtime.i18n.t(
+      mode === 'withTerm'
+        ? `existingPicker.emptySubtitle.withTerm.${this.getItemKind()}`
+        : `existingPicker.emptySubtitle.noTerm.${this.getItemKind()}`
+    );
+  }
+
+  private getSingularItemLabel(capitalize = false): string {
+    return this.formatItemLabel(
+      this.runtime.i18n.t(`canvasContextMenu.${this.getItemKind()}`),
+      capitalize
+    );
+  }
+
+  private getPluralItemLabel(capitalize = false): string {
+    const pluralKey =
+      this.getItemKind() === 'goal'
+        ? 'canvasContextMenu.goals'
+        : this.getItemKind() === 'story'
+          ? 'canvasContextMenu.stories'
+          : 'canvasContextMenu.tasks';
+    return this.formatItemLabel(this.runtime.i18n.t(pluralKey), capitalize);
+  }
+
+  private formatItemLabel(label: string, capitalize = false): string {
+    if (!capitalize || label.length === 0) {
+      return label;
+    }
+    return label.charAt(0).toUpperCase() + label.slice(1);
   }
 
   private setViewMode(mode: 'full' | 'mini'): void {

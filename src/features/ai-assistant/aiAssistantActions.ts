@@ -3,6 +3,7 @@ import type {
   AiAssistantConnectionRelationType,
   AiAssistantElementKind,
 } from './aiAssistantEvents.ts';
+import type { I18nService } from '../../i18n/index.ts';
 
 export type AiAssistantCreateActionKind =
   | 'create_task'
@@ -225,28 +226,31 @@ export type AiAssistantActionExecutionHandler = AiAssistantActionExecutor & {
   ) => Promise<AiAssistantActionExecutionResult[]>;
 };
 
+type AiAssistantActionI18n = Pick<I18nService, 't'>;
+
 export function getAiAssistantActionLabel(
-  kind: AiAssistantActionKind
+  kind: AiAssistantActionKind,
+  i18n?: AiAssistantActionI18n
 ): string {
   switch (kind) {
     case 'create_task':
-      return 'Create task';
+      return i18n?.t('aiChat.actionLabel.createTask') ?? 'Create task';
     case 'create_story':
-      return 'Create story';
+      return i18n?.t('aiChat.actionLabel.createStory') ?? 'Create story';
     case 'create_goal':
-      return 'Create goal';
+      return i18n?.t('aiChat.actionLabel.createGoal') ?? 'Create goal';
     case 'create_goals':
-      return 'Create goals';
+      return i18n?.t('aiChat.actionLabel.createGoals') ?? 'Create goals';
     case 'create_goal_blueprint':
-      return 'Create plan';
+      return i18n?.t('aiChat.actionLabel.createPlan') ?? 'Create plan';
     case 'suggest_relation':
-      return 'Add relation';
+      return i18n?.t('aiChat.actionLabel.addRelation') ?? 'Add relation';
     case 'remove_relation':
-      return 'Remove relation';
+      return i18n?.t('aiChat.actionLabel.removeRelation') ?? 'Remove relation';
     case 'update_relation':
-      return 'Update relation';
+      return i18n?.t('aiChat.actionLabel.updateRelation') ?? 'Update relation';
     case 'suggest_update':
-      return 'Apply update';
+      return i18n?.t('aiChat.actionLabel.applyUpdate') ?? 'Apply update';
   }
 }
 
@@ -256,7 +260,8 @@ type AiAssistantActionGroupButtonLabelOptions = {
 
 export function getAiAssistantActionGroupButtonLabel(
   actions: AiAssistantAction[],
-  options: AiAssistantActionGroupButtonLabelOptions = {}
+  options: AiAssistantActionGroupButtonLabelOptions = {},
+  i18n?: AiAssistantActionI18n
 ): string {
   const actionableActions = actions.filter(
     (action) => action.status !== 'applied' && action.status !== 'applying'
@@ -265,50 +270,52 @@ export function getAiAssistantActionGroupButtonLabel(
     actionableActions.length > 0 ? actionableActions : actions;
 
   if (candidateActions.length === 0) {
-    return 'Confirm';
+    return i18n?.t('aiChat.actionButton.confirm') ?? 'Confirm';
   }
 
   if (candidateActions.length === 1) {
     const action = candidateActions[0];
     if (!action) {
-      return 'Confirm';
+      return i18n?.t('aiChat.actionButton.confirm') ?? 'Confirm';
     }
 
     if (options.singleActionMode === 'action-label') {
       return action.kind === 'create_goals'
-        ? 'Create all'
-        : action.label || 'Confirm';
+        ? i18n?.t('aiChat.actionButton.createAll') ?? 'Create all'
+        : getAiAssistantActionLabel(action.kind, i18n) ||
+            i18n?.t('aiChat.actionButton.confirm') ||
+            'Confirm';
     }
 
     if (action.status === 'failed') {
-      return 'Retry';
+      return i18n?.t('common.retry') ?? 'Retry';
     }
 
     switch (action.kind) {
       case 'create_goal_blueprint':
-        return 'Create plan';
+        return i18n?.t('aiChat.actionLabel.createPlan') ?? 'Create plan';
       case 'create_goals':
-        return 'Create all';
+        return i18n?.t('aiChat.actionButton.createAll') ?? 'Create all';
       case 'create_task':
       case 'create_story':
       case 'create_goal':
-        return 'Create';
+        return i18n?.t('common.create') ?? 'Create';
       case 'suggest_relation':
       case 'remove_relation':
       case 'update_relation':
       case 'suggest_update':
       default:
-        return 'Apply';
+        return i18n?.t('aiChat.actionButton.apply') ?? 'Apply';
     }
   }
 
   if (candidateActions.every((action) => action.status === 'failed')) {
-    return 'Retry all';
+    return i18n?.t('aiChat.actionButton.retryAll') ?? 'Retry all';
   }
 
   const kinds = new Set(candidateActions.map((action) => action.kind));
   if (kinds.size !== 1) {
-    return 'Confirm all';
+    return i18n?.t('aiChat.actionButton.confirmAll') ?? 'Confirm all';
   }
 
   switch (candidateActions[0]?.kind) {
@@ -316,15 +323,15 @@ export function getAiAssistantActionGroupButtonLabel(
     case 'create_story':
     case 'create_goal':
     case 'create_goals':
-      return 'Create all';
+      return i18n?.t('aiChat.actionButton.createAll') ?? 'Create all';
     case 'suggest_relation':
     case 'remove_relation':
     case 'update_relation':
     case 'suggest_update':
-      return 'Apply all';
+      return i18n?.t('aiChat.actionButton.applyAll') ?? 'Apply all';
     case 'create_goal_blueprint':
     default:
-      return 'Confirm all';
+      return i18n?.t('aiChat.actionButton.confirmAll') ?? 'Confirm all';
   }
 }
 

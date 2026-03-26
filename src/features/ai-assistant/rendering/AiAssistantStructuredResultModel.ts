@@ -1,5 +1,6 @@
 import type { UiPriority } from '../../../majom-wrapper/utils/priorityMapping.ts';
 import type { IconName } from '../../../ui-lib/src/hud/icons.ts';
+import type { I18nService } from '../../../i18n/index.ts';
 import { getAiAssistantSelectedItems } from '../services/AiAssistantContent.ts';
 import type {
   AiAssistantCanvasSnapshot,
@@ -8,11 +9,16 @@ import type {
 import type {
   AiAssistantAction,
   AiAssistantCreateElementStatus,
+  AiAssistantGoalBlueprintPattern,
+  AiAssistantRelationSuggestionType,
   AiAssistantReviewFindings,
   AiAssistantReviewFindingSeverity,
   AiAssistantActionStatus,
 } from '../aiAssistantActions.ts';
-import { getAiAssistantActionGroupButtonLabel } from '../aiAssistantActions.ts';
+import {
+  getAiAssistantActionGroupButtonLabel,
+  getAiAssistantActionLabel,
+} from '../aiAssistantActions.ts';
 
 export type AiAssistantBadgeTone = {
   background: string;
@@ -125,6 +131,8 @@ export type AiAssistantGroupedActionCardModel = {
   footer: AiAssistantActionGroupFooterModel | null;
 };
 
+type AiAssistantRenderI18n = Pick<I18nService, 't'>;
+
 export function groupAiAssistantActionsForRender(
   actions: AiAssistantAction[]
 ): AiAssistantActionRenderGroup[] {
@@ -145,31 +153,32 @@ export function groupAiAssistantActionsForRender(
 }
 
 export function getAiAssistantActionButtonLabel(
-  action: AiAssistantAction
+  action: AiAssistantAction,
+  i18n?: AiAssistantRenderI18n
 ): string {
   if (action.kind === 'create_goal_blueprint') {
     if (action.status === 'applied') {
-      return 'Created';
+      return i18n?.t('aiChat.actionButton.created') ?? 'Created';
     }
     if (action.status === 'applying') {
-      return 'Creating...';
+      return i18n?.t('aiChat.actionButton.creating') ?? 'Creating...';
     }
     if (action.status === 'failed') {
-      return 'Retry';
+      return i18n?.t('common.retry') ?? 'Retry';
     }
-    return 'Create plan';
+    return i18n?.t('aiChat.actionLabel.createPlan') ?? 'Create plan';
   }
   if (action.kind === 'create_goals') {
     if (action.status === 'applied') {
-      return 'Created';
+      return i18n?.t('aiChat.actionButton.created') ?? 'Created';
     }
     if (action.status === 'applying') {
-      return 'Creating...';
+      return i18n?.t('aiChat.actionButton.creating') ?? 'Creating...';
     }
     if (action.status === 'failed') {
-      return 'Retry';
+      return i18n?.t('common.retry') ?? 'Retry';
     }
-    return 'Create all';
+    return i18n?.t('aiChat.actionButton.createAll') ?? 'Create all';
   }
 
   const isApplyAction =
@@ -178,24 +187,31 @@ export function getAiAssistantActionButtonLabel(
     action.kind === 'update_relation' ||
     action.kind === 'suggest_update';
   if (action.status === 'applied') {
-    return isApplyAction ? 'Applied' : 'Created';
+    return isApplyAction
+      ? i18n?.t('aiChat.actionButton.applied') ?? 'Applied'
+      : i18n?.t('aiChat.actionButton.created') ?? 'Created';
   }
   if (action.status === 'applying') {
-    return isApplyAction ? 'Applying...' : 'Creating...';
+    return isApplyAction
+      ? i18n?.t('aiChat.actionButton.applying') ?? 'Applying...'
+      : i18n?.t('aiChat.actionButton.creating') ?? 'Creating...';
   }
   if (action.status === 'failed') {
-    return 'Retry';
+    return i18n?.t('common.retry') ?? 'Retry';
   }
-  return isApplyAction ? 'Apply' : 'Create';
+  return isApplyAction
+    ? i18n?.t('aiChat.actionButton.apply') ?? 'Apply'
+    : i18n?.t('common.create') ?? 'Create';
 }
 
 export function buildAiAssistantActionButtonModel(
-  action: AiAssistantAction
+  action: AiAssistantAction,
+  i18n?: AiAssistantRenderI18n
 ): AiAssistantActionButtonModel {
   const disabled =
     action.status === 'applied' || action.status === 'applying';
   return {
-    label: getAiAssistantActionButtonLabel(action),
+    label: getAiAssistantActionButtonLabel(action, i18n),
     tone: disabled ? 'quiet' : 'primary',
     disabled,
     dimmed: action.status === 'applying',
@@ -205,12 +221,14 @@ export function buildAiAssistantActionButtonModel(
 export function buildAiAssistantActionCardModel(
   action: AiAssistantAction,
   context: AiAssistantCanvasSnapshot | null,
-  contextEnabled: boolean
+  contextEnabled: boolean,
+  i18n?: AiAssistantRenderI18n
 ): AiAssistantActionCardModel {
   const base = buildAiAssistantActionCardBaseModel(
     action,
     context,
-    contextEnabled
+    contextEnabled,
+    i18n
   );
 
   switch (action.kind) {
@@ -218,19 +236,19 @@ export function buildAiAssistantActionCardModel(
       return {
         ...base,
         family: 'update',
-        changes: buildAiAssistantUpdateChanges(action),
+        changes: buildAiAssistantUpdateChanges(action, i18n),
       };
     case 'create_goals':
       return {
         ...base,
         family: 'create-goals',
-        items: buildAiAssistantCreateGoalsItems(action),
+        items: buildAiAssistantCreateGoalsItems(action, i18n),
       };
     case 'create_goal_blueprint':
       return {
         ...base,
         family: 'blueprint',
-        goals: buildGoalBlueprintHierarchyItems(action),
+        goals: buildGoalBlueprintHierarchyItems(action, i18n),
         sequence: buildAiAssistantBlueprintSequence(action),
         assumptions: Array.isArray(action.assumptions) ? action.assumptions : [],
       };
@@ -255,16 +273,17 @@ export function buildAiAssistantActionCardModel(
 function buildAiAssistantActionCardBaseModel(
   action: AiAssistantAction,
   context: AiAssistantCanvasSnapshot | null,
-  contextEnabled: boolean
+  contextEnabled: boolean,
+  i18n?: AiAssistantRenderI18n
 ): AiAssistantActionCardBaseModel {
   return {
-    eyebrow: action.label,
+    eyebrow: getAiAssistantActionLabel(action.kind, i18n),
     title: action.title,
-    meta: getAiAssistantActionMeta(action, context, contextEnabled),
-    chips: buildAiAssistantActionTagModels(action),
+    meta: getAiAssistantActionMeta(action, context, contextEnabled, i18n),
+    chips: buildAiAssistantActionTagModels(action, i18n),
     summary: getAiAssistantActionSummary(action),
     rationale: getAiAssistantActionReason(action),
-    provenance: getAiAssistantActionProvenance(action),
+    provenance: getAiAssistantActionProvenance(action, i18n),
     error: action.status === 'failed' ? action.errorMessage ?? null : null,
   };
 }
@@ -272,20 +291,22 @@ function buildAiAssistantActionCardBaseModel(
 export function buildAiAssistantActionEntryModel(
   action: AiAssistantAction,
   context: AiAssistantCanvasSnapshot | null,
-  contextEnabled: boolean
+  contextEnabled: boolean,
+  i18n?: AiAssistantRenderI18n
 ): AiAssistantActionEntryModel {
   return {
     actionId: action.id,
     status: action.status,
-    card: buildAiAssistantActionCardModel(action, context, contextEnabled),
-    button: buildAiAssistantActionButtonModel(action),
+    card: buildAiAssistantActionCardModel(action, context, contextEnabled, i18n),
+    button: buildAiAssistantActionButtonModel(action, i18n),
   };
 }
 
 export function buildAiAssistantGroupedActionCardModel(
   actions: AiAssistantAction[],
   context: AiAssistantCanvasSnapshot | null,
-  contextEnabled: boolean
+  contextEnabled: boolean,
+  i18n?: AiAssistantRenderI18n
 ): AiAssistantGroupedActionCardModel {
   const group = actions[0];
   if (!group) {
@@ -300,18 +321,18 @@ export function buildAiAssistantGroupedActionCardModel(
 
   return {
     header: {
-      eyebrow: group.groupTitle || group.label,
+      eyebrow: getAiAssistantGroupedActionEyebrow(actions, i18n),
       summary: group.groupSummary ?? null,
     },
     entries: actions.map((action) =>
-      buildAiAssistantActionEntryModel(action, context, contextEnabled)
+      buildAiAssistantActionEntryModel(action, context, contextEnabled, i18n)
     ),
     footer:
       actionableActionIds.length > 1
         ? {
             actionIds: actionableActionIds,
             button: {
-              label: getAiAssistantActionGroupButtonLabel(actions),
+              label: getAiAssistantActionGroupButtonLabel(actions, {}, i18n),
               tone: 'primary',
               disabled: false,
               dimmed: false,
@@ -322,7 +343,8 @@ export function buildAiAssistantGroupedActionCardModel(
 }
 
 export function buildAiAssistantActionTagModels(
-  action: AiAssistantAction
+  action: AiAssistantAction,
+  i18n?: AiAssistantRenderI18n
 ): AiAssistantActionTagModel[] {
   const tags: AiAssistantActionTagModel[] = [];
 
@@ -330,14 +352,16 @@ export function buildAiAssistantActionTagModels(
     'priority' in action &&
     action.priority
   ) {
-    const priorityLabel = formatAiAssistantPriorityLabel(action.priority);
+    const priorityLabel = formatAiAssistantPriorityLabel(action.priority, i18n);
     tags.push({
       text: priorityLabel,
       tone: getAiAssistantPriorityBadgeTone(action.priority),
       icon: getAiAssistantPriorityIcon(action.priority),
       iconColor: getAiAssistantPriorityIconColor(action.priority),
       iconOnly: true,
-      title: `${priorityLabel} priority`,
+      title:
+        i18n?.t('aiChat.priorityBadgeTitle', { label: priorityLabel }) ??
+        `${priorityLabel} priority`,
     });
   }
 
@@ -347,7 +371,7 @@ export function buildAiAssistantActionTagModels(
     shouldDisplayAiAssistantElementStatus(action.elementStatus)
   ) {
     tags.push({
-      text: formatAiAssistantElementStatus(action.elementStatus),
+      text: formatAiAssistantElementStatus(action.elementStatus, i18n),
       tone: getAiAssistantNeutralBadgeTone(),
     });
   }
@@ -357,7 +381,7 @@ export function buildAiAssistantActionTagModels(
     action.kind === 'remove_relation'
   ) {
     tags.push({
-      text: formatAiAssistantRelationTypeLabel(action.relationType),
+      text: formatAiAssistantRelationTypeLabel(action.relationType, i18n),
       tone: {
         background:
           action.kind === 'remove_relation'
@@ -374,7 +398,7 @@ export function buildAiAssistantActionTagModels(
 
   if (action.kind === 'update_relation') {
     tags.push({
-      text: `${formatAiAssistantRelationTypeLabel(action.currentRelationType)} → ${formatAiAssistantRelationTypeLabel(action.nextRelationType)}`,
+      text: `${formatAiAssistantRelationTypeLabel(action.currentRelationType, i18n)} → ${formatAiAssistantRelationTypeLabel(action.nextRelationType, i18n)}`,
       tone: {
         background: 'rgba(255, 247, 237, 0.52)',
         color: '#a36c2f',
@@ -385,7 +409,7 @@ export function buildAiAssistantActionTagModels(
 
   if (action.kind === 'create_goal_blueprint') {
     tags.push({
-      text: formatAiAssistantGoalBlueprintPatternLabel(action.pattern),
+      text: formatAiAssistantGoalBlueprintPatternLabel(action.pattern, i18n),
       tone: {
         background: 'rgba(238, 242, 255, 0.48)',
         color: '#646bb8',
@@ -400,7 +424,8 @@ export function buildAiAssistantActionTagModels(
 export function getAiAssistantActionSecondaryText(
   action: AiAssistantAction,
   context: AiAssistantCanvasSnapshot | null,
-  contextEnabled: boolean
+  contextEnabled: boolean,
+  i18n?: AiAssistantRenderI18n
 ): string {
   if (
     action.kind === 'suggest_relation' ||
@@ -412,31 +437,37 @@ export function getAiAssistantActionSecondaryText(
     return `${from} → ${to}`;
   }
   if (action.kind === 'suggest_update') {
-    return `${formatAiAssistantElementKindLabel(action.elementKind)}: ${action.targetTitle || action.elementId}`;
+    return `${formatAiAssistantElementKindLabel(action.elementKind, i18n)}: ${action.targetTitle || action.elementId}`;
   }
-  return getAiAssistantActionTargetPreview(action, context, contextEnabled);
+  return getAiAssistantActionTargetPreview(action, context, contextEnabled, i18n);
 }
 
 function getAiAssistantActionMeta(
   action: AiAssistantAction,
   context: AiAssistantCanvasSnapshot | null,
-  contextEnabled: boolean
+  contextEnabled: boolean,
+  i18n?: AiAssistantRenderI18n
 ): string | null {
   if (action.kind === 'create_task' || action.kind === 'create_story') {
     return null;
   }
-  const meta = getAiAssistantActionSecondaryText(action, context, contextEnabled);
+  const meta = getAiAssistantActionSecondaryText(
+    action,
+    context,
+    contextEnabled,
+    i18n
+  );
+  const onCanvas = i18n?.t('aiChat.target.onCanvas') ?? 'On canvas';
+  const goal = i18n?.t('aiChat.kind.goal') ?? 'Goal';
   if (
-    meta === 'On canvas' &&
-    (action.kind === 'create_task' ||
-      action.kind === 'create_story' ||
-      action.kind === 'create_goal' ||
+    meta === onCanvas &&
+    (action.kind === 'create_goal' ||
       action.kind === 'create_goals' ||
       action.kind === 'create_goal_blueprint')
   ) {
     return null;
   }
-  if (action.kind === 'create_goal_blueprint' && meta === 'Goal') {
+  if (action.kind === 'create_goal_blueprint' && meta === goal) {
     return null;
   }
   return meta;
@@ -445,7 +476,8 @@ function getAiAssistantActionMeta(
 export function getAiAssistantActionTargetPreview(
   action: AiAssistantAction,
   context: AiAssistantCanvasSnapshot | null,
-  contextEnabled: boolean
+  contextEnabled: boolean,
+  i18n?: AiAssistantRenderI18n
 ): string {
   const target = 'target' in action ? action.target : undefined;
 
@@ -453,13 +485,15 @@ export function getAiAssistantActionTargetPreview(
     const targetElement = context?.elements.find(
       (item) => item.id === target.id
     );
-    return targetElement?.title ? `Story: ${targetElement.title}` : 'Story';
+    const label = i18n?.t('aiChat.kind.story') ?? 'Story';
+    return targetElement?.title ? `${label}: ${targetElement.title}` : label;
   }
   if (target?.kind === 'goal') {
     const targetElement = context?.elements.find(
       (item) => item.id === target.id
     );
-    return targetElement?.title ? `Goal: ${targetElement.title}` : 'Goal';
+    const label = i18n?.t('aiChat.kind.goal') ?? 'Goal';
+    return targetElement?.title ? `${label}: ${targetElement.title}` : label;
   }
   if (contextEnabled && context) {
     const selection = getAiAssistantSelectedItems(context);
@@ -468,17 +502,17 @@ export function getAiAssistantActionTargetPreview(
       selection.length === 1 &&
       selection[0]?.kind === 'story'
     ) {
-      return 'Selected story';
+      return i18n?.t('aiChat.target.selectedStory') ?? 'Selected story';
     }
     if (
       action.kind === 'create_story' &&
       selection.length === 1 &&
       selection[0]?.kind === 'goal'
     ) {
-      return 'Selected goal';
+      return i18n?.t('aiChat.target.selectedGoal') ?? 'Selected goal';
     }
   }
-  return 'On canvas';
+  return i18n?.t('aiChat.target.onCanvas') ?? 'On canvas';
 }
 
 export function getAiAssistantActionReason(
@@ -498,7 +532,8 @@ export function getAiAssistantActionReason(
 }
 
 function buildAiAssistantUpdateChanges(
-  action: Extract<AiAssistantAction, { kind: 'suggest_update' }>
+  action: Extract<AiAssistantAction, { kind: 'suggest_update' }>,
+  i18n?: AiAssistantRenderI18n
 ): AiAssistantActionChangeEntry[] {
   return Object.entries(action.patch)
     .map(([key, value]) => {
@@ -508,19 +543,26 @@ function buildAiAssistantUpdateChanges(
 
       switch (key) {
         case 'title':
-          return { label: 'Title', value: String(value) };
+          return {
+            label: i18n?.t('aiChat.field.title') ?? 'Title',
+            value: String(value),
+          };
         case 'description':
-          return { label: 'Description', value: String(value) };
+          return {
+            label: i18n?.t('aiChat.field.description') ?? 'Description',
+            value: String(value),
+          };
         case 'priority':
           return {
-            label: 'Priority',
-            value: formatAiAssistantPriorityLabel(value as UiPriority),
+            label: i18n?.t('aiChat.field.priority') ?? 'Priority',
+            value: formatAiAssistantPriorityLabel(value as UiPriority, i18n),
           };
         case 'elementStatus':
           return {
-            label: 'Status',
+            label: i18n?.t('aiChat.field.status') ?? 'Status',
             value: formatAiAssistantElementStatus(
-              value as AiAssistantCreateElementStatus
+              value as AiAssistantCreateElementStatus,
+              i18n
             ),
           };
         default:
@@ -531,7 +573,8 @@ function buildAiAssistantUpdateChanges(
 }
 
 function buildAiAssistantCreateGoalsItems(
-  action: Extract<AiAssistantAction, { kind: 'create_goals' }>
+  action: Extract<AiAssistantAction, { kind: 'create_goals' }>,
+  i18n?: AiAssistantRenderI18n
 ): AiAssistantActionEntityItem[] {
   return action.items.map((item) => ({
     title: item.title,
@@ -539,12 +582,12 @@ function buildAiAssistantCreateGoalsItems(
     meta: [
       item.priority
         ? shouldDisplayAiAssistantPriority(item.priority)
-          ? formatAiAssistantPriorityLabel(item.priority)
+          ? formatAiAssistantPriorityLabel(item.priority, i18n)
           : null
         : null,
       item.elementStatus
         ? shouldDisplayAiAssistantElementStatus(item.elementStatus)
-          ? formatAiAssistantElementStatus(item.elementStatus)
+          ? formatAiAssistantElementStatus(item.elementStatus, i18n)
           : null
         : null,
     ].filter((part): part is string => part !== null),
@@ -577,19 +620,26 @@ function getAiAssistantActionSummary(action: AiAssistantAction): string | null {
 }
 
 function getAiAssistantActionProvenance(
-  action: AiAssistantAction
+  action: AiAssistantAction,
+  i18n?: AiAssistantRenderI18n
 ): string | null {
   const parts: string[] = [];
 
   if (action.supportedBy && action.supportedBy.length > 0) {
     parts.push(
-      `${action.supportedBy.length} supporting item${action.supportedBy.length === 1 ? '' : 's'}`
+      i18n?.t('aiChat.provenance.supportingItems', {
+        count: action.supportedBy.length,
+      }) ??
+        `${action.supportedBy.length} supporting item${action.supportedBy.length === 1 ? '' : 's'}`
     );
   }
 
   if (action.evidenceIds && action.evidenceIds.length > 0) {
     parts.push(
-      `${action.evidenceIds.length} evidence item${action.evidenceIds.length === 1 ? '' : 's'}`
+      i18n?.t('aiChat.provenance.evidenceItems', {
+        count: action.evidenceIds.length,
+      }) ??
+        `${action.evidenceIds.length} evidence item${action.evidenceIds.length === 1 ? '' : 's'}`
     );
   }
 
@@ -597,7 +647,8 @@ function getAiAssistantActionProvenance(
 }
 
 function buildGoalBlueprintHierarchyItems(
-  action: Extract<AiAssistantAction, { kind: 'create_goal_blueprint' }>
+  action: Extract<AiAssistantAction, { kind: 'create_goal_blueprint' }>,
+  i18n?: AiAssistantRenderI18n
 ): Array<{
   title: string;
   description?: string;
@@ -610,12 +661,12 @@ function buildGoalBlueprintHierarchyItems(
       [
         goal.priority
           ? shouldDisplayAiAssistantPriority(goal.priority)
-            ? formatAiAssistantPriorityLabel(goal.priority)
+            ? formatAiAssistantPriorityLabel(goal.priority, i18n)
             : null
           : null,
         goal.elementStatus
           ? shouldDisplayAiAssistantElementStatus(goal.elementStatus)
-            ? formatAiAssistantElementStatus(goal.elementStatus)
+            ? formatAiAssistantElementStatus(goal.elementStatus, i18n)
             : null
           : null,
       ].filter((part): part is string => part !== null),
@@ -743,18 +794,19 @@ export function getAiAssistantReviewAccentColor(
 }
 
 export function formatAiAssistantElementStatus(
-  value: AiAssistantCreateElementStatus
+  value: AiAssistantCreateElementStatus,
+  i18n?: AiAssistantRenderI18n
 ): string {
   switch (value) {
     case 'in-progress':
-      return 'In progress';
+      return i18n?.t('status.inProgress') ?? 'In progress';
     case 'pending':
-      return 'Pending';
+      return i18n?.t('status.pending') ?? 'Pending';
     case 'done':
-      return 'Done';
+      return i18n?.t('status.done') ?? 'Done';
     case 'defined':
     default:
-      return 'Defined';
+      return i18n?.t('status.defined') ?? 'Defined';
   }
 }
 
@@ -768,18 +820,21 @@ function shouldDisplayAiAssistantPriority(priority: UiPriority): boolean {
   return true;
 }
 
-function formatAiAssistantPriorityLabel(priority: UiPriority): string {
+function formatAiAssistantPriorityLabel(
+  priority: UiPriority,
+  i18n?: AiAssistantRenderI18n
+): string {
   switch (priority) {
     case 'lowest':
-      return 'Lowest';
+      return i18n?.t('priority.lowest') ?? 'Lowest';
     case 'low':
-      return 'Low';
+      return i18n?.t('priority.low') ?? 'Low';
     case 'medium':
-      return 'Medium';
+      return i18n?.t('priority.medium') ?? 'Medium';
     case 'high':
-      return 'High';
+      return i18n?.t('priority.high') ?? 'High';
     case 'highest':
-      return 'Highest';
+      return i18n?.t('priority.highest') ?? 'Highest';
     default:
       return priority;
   }
@@ -849,41 +904,92 @@ function getAiAssistantNeutralBadgeTone(): AiAssistantBadgeTone {
 }
 
 function formatAiAssistantRelationTypeLabel(
-  relationType: AiAssistantRelationSuggestionType
+  relationType: AiAssistantRelationSuggestionType,
+  i18n?: AiAssistantRenderI18n
 ): string {
-  return relationType
-    .split('_')
-    .map((part, index) =>
-      index === 0 ? `${part.charAt(0).toUpperCase()}${part.slice(1)}` : part
-    )
-    .join(' ');
+  switch (relationType) {
+    case 'blocks':
+      return i18n?.t('aiChat.relation.blocks') ?? 'Blocks';
+    case 'leads_to':
+      return i18n?.t('aiChat.relation.leadsTo') ?? 'Leads to';
+    case 'relates_to':
+    default:
+      return i18n?.t('aiChat.relation.relatesTo') ?? 'Relates to';
+  }
 }
 
 function formatAiAssistantElementKindLabel(
-  elementKind: AiAssistantElementKind
+  elementKind: AiAssistantElementKind,
+  i18n?: AiAssistantRenderI18n
 ): string {
   switch (elementKind) {
     case 'goal':
-      return 'Goal';
+      return i18n?.t('aiChat.kind.goal') ?? 'Goal';
     case 'story':
-      return 'Story';
+      return i18n?.t('aiChat.kind.story') ?? 'Story';
     case 'task':
     default:
-      return 'Task';
+      return i18n?.t('aiChat.kind.task') ?? 'Task';
   }
 }
 
 function formatAiAssistantGoalBlueprintPatternLabel(
-  pattern: AiAssistantGoalBlueprintPattern
+  pattern: AiAssistantGoalBlueprintPattern,
+  i18n?: AiAssistantRenderI18n
 ): string {
   switch (pattern) {
     case 'goal_tree':
-      return 'Goal plan';
+      return i18n?.t('aiChat.blueprint.goalPlan') ?? 'Goal plan';
     case 'goal_tree_with_sequence':
-      return 'Sequenced plan';
+      return i18n?.t('aiChat.blueprint.sequencedPlan') ?? 'Sequenced plan';
     case 'goal_graph':
-      return 'Goal map';
+      return i18n?.t('aiChat.blueprint.goalMap') ?? 'Goal map';
+  }
+}
+
+function getAiAssistantGroupedActionEyebrow(
+  actions: AiAssistantAction[],
+  i18n?: AiAssistantRenderI18n
+): string {
+  const firstAction = actions[0];
+  if (!firstAction) {
+    return i18n?.t('common.actions') ?? 'Actions';
+  }
+
+  if (actions.length <= 1) {
+    return getAiAssistantActionLabel(firstAction.kind, i18n);
+  }
+
+  switch (firstAction.kind) {
+    case 'create_task':
+      return i18n?.t('aiChat.actionGroup.createTasks') ?? 'Create tasks';
+    case 'create_story':
+      return i18n?.t('aiChat.actionGroup.createStories') ?? 'Create stories';
+    case 'create_goal':
+    case 'create_goals':
+      return i18n?.t('aiChat.actionGroup.createGoals') ?? 'Create goals';
+    case 'create_goal_blueprint':
+      return i18n?.t('aiChat.actionGroup.createPlan') ?? 'Create plan';
+    case 'suggest_relation':
+      return (
+        i18n?.t('aiChat.actionGroup.suggestedRelations') ??
+        'Suggested relations'
+      );
+    case 'remove_relation':
+      return (
+        i18n?.t('aiChat.actionGroup.relationsToRemove') ??
+        'Relations to remove'
+      );
+    case 'update_relation':
+      return (
+        i18n?.t('aiChat.actionGroup.relationTypeChanges') ??
+        'Relation type changes'
+      );
+    case 'suggest_update':
     default:
-      return pattern.replace(/_/g, ' ');
+      return (
+        i18n?.t('aiChat.actionGroup.suggestedUpdates') ??
+        'Suggested updates'
+      );
   }
 }

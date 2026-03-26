@@ -4,6 +4,7 @@ import type {
   AiAssistantSelectionItem,
 } from '../aiAssistantEvents.ts';
 import { resolveAiAssistantIntentSubmission } from './AiAssistantIntentResolver.ts';
+import { createAppRuntime } from '../../../app-runtime/index.ts';
 
 function makeSelectionItem(
   id: string,
@@ -155,7 +156,7 @@ describe('resolveAiAssistantIntentSubmission', () => {
     expect(submission.intent).toBe('clarify');
     expect(submission.intentContext).toBeUndefined();
     expect(submission.profile).toBe('breakdown');
-    expect(submission.requestLabel).toBe('Clarify');
+    expect(submission.requestLabel).toBe('Clarify · Story: Outbound sequence');
     expect(submission.snapshot?.selectionIds).toEqual(['story-1']);
     expect(submission.prompt).toContain('Clarify the selected story "Outbound sequence"');
   });
@@ -181,5 +182,26 @@ describe('resolveAiAssistantIntentSubmission', () => {
     expect(submission.requestMessageKind).toBe('command');
     expect(submission.prompt).toContain('create_goals');
     expect(submission.prompt).toContain('create_goal_blueprint');
+  });
+
+  it('localizes request labels when i18n is provided', () => {
+    const runtime = createAppRuntime({ initialLocale: 'uk' });
+    const story = makeSelectionItem('story-1', 'story', 'Outbound sequence');
+    const snapshot = makeSnapshot([story], {
+      selectionIds: [],
+      focusId: null,
+    });
+
+    const submission = resolveAiAssistantIntentSubmission(
+      {
+        intent: 'clarify',
+        scope: 'selection',
+        targetIds: ['story-1'],
+      },
+      snapshot,
+      runtime.i18n
+    );
+
+    expect(submission.requestLabel).toBe('Уточнити · Історія: Outbound sequence');
   });
 });
