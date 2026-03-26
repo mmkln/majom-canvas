@@ -242,6 +242,8 @@ function buildClusterFromPayload(
       typeof payload.title === 'string' && payload.title.trim().length > 0
         ? payload.title
         : 'Suggested cluster',
+    description:
+      typeof payload.description === 'string' ? payload.description : '',
     colorToken:
       typeof payload.colorToken === 'string' && payload.colorToken.length > 0
         ? payload.colorToken
@@ -269,6 +271,9 @@ function buildClusterPatchFromPayload(
 
   if (typeof payload.title === 'string') {
     patch.title = payload.title;
+  }
+  if (typeof payload.description === 'string') {
+    patch.description = payload.description;
   }
   if (typeof payload.colorToken === 'string') {
     patch.colorToken = payload.colorToken;

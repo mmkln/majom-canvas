@@ -13,6 +13,7 @@ export const TIME_CLUSTERS_STORAGE_KEY = 'time_clusters_v2';
 type LegacyTimeCluster = {
   id?: unknown;
   title?: unknown;
+  description?: unknown;
   colorToken?: unknown;
   startMinute?: unknown;
   endMinute?: unknown;
@@ -94,6 +95,7 @@ function normalizeClusterRecord(
   return normalizeCluster({
     id: value.id || fallbackId,
     title: value.title,
+    description: typeof value.description === 'string' ? value.description : '',
     colorToken: value.colorToken,
     startAtIso: value.startAtIso,
     endAtIso: value.endAtIso,
@@ -144,6 +146,8 @@ function migrateLegacyPlans(
         normalizeCluster({
           id: uniqueId,
           title,
+          description:
+            typeof cluster.description === 'string' ? cluster.description : '',
           colorToken,
           startAtIso: isoFromDateKeyMinute(dateKey, startMinute),
           endAtIso: isoFromDateKeyMinute(endDateKey, endMinute),

@@ -492,6 +492,7 @@ export const uk = {
   'timeClustering.color.violet': 'Фіолетовий',
   'timeClustering.dockLeft': 'Закріпити ліворуч',
   'timeClustering.edit.color': 'Колір',
+  'timeClustering.edit.description': 'Опис',
   'timeClustering.edit.end': 'Кінець',
   'timeClustering.edit.helper':
     'Використовуйте локальні дату й час та крок у {minutes} хвилин.',

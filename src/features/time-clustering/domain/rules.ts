@@ -145,6 +145,8 @@ export function normalizeCluster(cluster: TimeCluster): TimeCluster {
   const normalizedRange = normalizeIsoRange(cluster);
   return {
     ...cluster,
+    description:
+      typeof cluster.description === 'string' ? cluster.description : '',
     ...normalizedRange,
     recurrence: normalizeRecurrence(cluster.recurrence),
     recurrenceEndDateKey: normalizeRecurrenceEndDateKey({

@@ -614,6 +614,9 @@ describe('TimeClusteringRootView', () => {
     const titleInput = document.body.querySelector<HTMLInputElement>(
       '[data-role="cluster-edit-title-input"]'
     );
+    const descriptionInput = document.body.querySelector<HTMLTextAreaElement>(
+      '[data-role="cluster-edit-description-input"]'
+    );
     const startDateInput = document.body.querySelector<HTMLInputElement>(
       '[data-role="cluster-edit-start-date-input"]'
     );
@@ -653,6 +656,7 @@ describe('TimeClusteringRootView', () => {
 
     expect(modal).not.toBeNull();
     expect(titleInput?.value).toBe('Deep work');
+    expect(descriptionInput?.value).toBe('');
     expect(startDateInput?.value).toBe('2026-03-25');
     expect(startTimeInput?.value).toBe('09:00');
     expect(endDateInput?.value).toBe('2026-03-25');
@@ -670,6 +674,10 @@ describe('TimeClusteringRootView', () => {
     if (titleInput) {
       titleInput.value = 'Updated cluster';
       titleInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    if (descriptionInput) {
+      descriptionInput.value = 'A longer note that should stay inside the edit modal only.';
+      descriptionInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
     if (startDateInput) {
       startDateInput.value = '2026-03-25';
@@ -701,6 +709,9 @@ describe('TimeClusteringRootView', () => {
 
     const cluster = getCluster(store, 'cluster-1');
     expect(cluster.title).toBe('Updated cluster');
+    expect(cluster.description).toBe(
+      'A longer note that should stay inside the edit modal only.'
+    );
     expect(cluster.colorToken).toBe('rose');
     expect(cluster.recurrence).toBe('weekly');
     expect(cluster.recurrenceEndDateKey).toBe('2026-04-30');
@@ -714,6 +725,12 @@ describe('TimeClusteringRootView', () => {
     expect(
       document.body.querySelector('[data-role="cluster-edit-modal"]')
     ).toBeNull();
+    const updatedBlock = parent.querySelector<HTMLElement>(
+      '[data-role="cluster-block"][data-cluster-id="cluster-1"]'
+    );
+    expect(updatedBlock?.textContent).not.toContain(
+      'A longer note that should stay inside the edit modal only.'
+    );
 
     view.unmount();
     store.destroy();

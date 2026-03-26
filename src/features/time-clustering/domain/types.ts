@@ -9,6 +9,7 @@ export type TimeClusterRecurrence =
 export interface TimeCluster {
   id: string;
   title: string;
+  description?: string;
   colorToken: string;
   startAtIso: string;
   endAtIso: string;

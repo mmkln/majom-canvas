@@ -490,6 +490,7 @@ export const en = {
   'timeClustering.color.violet': 'Violet',
   'timeClustering.dockLeft': 'Dock left',
   'timeClustering.edit.color': 'Color',
+  'timeClustering.edit.description': 'Description',
   'timeClustering.edit.end': 'End',
   'timeClustering.edit.helper':
     'Use local date/time values and {minutes}-minute steps.',

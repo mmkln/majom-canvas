@@ -2023,6 +2023,18 @@ export class TimeClusteringRootView {
     titleInput.dataset.role = 'cluster-edit-title-input';
     titleField.setControl(titleInput);
 
+    const descriptionField = createField({
+      label: this.i18n.t('timeClustering.edit.description'),
+      className: 'mb-0',
+    });
+    const descriptionInput = document.createElement('textarea');
+    descriptionInput.value = cluster.description ?? '';
+    descriptionInput.rows = 4;
+    descriptionInput.dataset.role = 'cluster-edit-description-input';
+    descriptionInput.className =
+      'min-h-[6.5rem] w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-900 shadow-sm transition focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-200/70';
+    descriptionField.setControl(descriptionInput);
+
     const timeGrid = document.createElement('div');
     timeGrid.className = 'grid gap-3 sm:grid-cols-2';
 
@@ -2283,6 +2295,7 @@ export class TimeClusteringRootView {
       setError(null);
       this.store.updateCluster(clusterId, {
         title: nextTitle,
+        description: descriptionInput.value.trim(),
         colorToken: colorPicker.getValue() ?? cluster.colorToken,
         startAtIso: nextStartAtIso,
         endAtIso: nextEndAtIso,
@@ -2305,6 +2318,7 @@ export class TimeClusteringRootView {
 
     titleInput.addEventListener('keydown', handleInputKeyDown);
     titleInput.addEventListener('input', () => setError(null));
+    descriptionInput.addEventListener('input', () => setError(null));
     startDateInput.addEventListener('keydown', handleInputKeyDown);
     startTimeInput.addEventListener('keydown', handleInputKeyDown);
     endDateInput.addEventListener('keydown', handleInputKeyDown);
@@ -2447,6 +2461,7 @@ export class TimeClusteringRootView {
 
     content.append(
       titleField.element,
+      descriptionField.element,
       timeGrid,
       recurrenceField.element,
       recurrenceOptions,
