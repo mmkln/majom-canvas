@@ -875,6 +875,49 @@ describe('TimeClusteringRootView', () => {
     store.destroy();
   });
 
+  it('shows and hides overlap warnings from the header menu toggle', () => {
+    const store = new TimeClusteringStore(
+      createRepository(
+        createSnapshot({
+          lastWarnings: [
+            {
+              type: 'time-collision',
+              sourceClusterId: 'cluster-1',
+              targetClusterId: 'cluster-2',
+            },
+          ],
+        })
+      )
+    );
+    const { view } = createView(store);
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    view.mount(parent);
+
+    const warningBanner = parent.querySelector<HTMLElement>(
+      '[data-role="warning-banner"]'
+    );
+    expect(warningBanner?.classList.contains('hidden')).toBe(false);
+
+    const menuButton = parent.querySelector<HTMLButtonElement>(
+      '[data-role="time-clustering-menu-button"]'
+    );
+    menuButton?.click();
+
+    const overlapToggle = parent.querySelector<HTMLInputElement>(
+      '[role="switch"][aria-label="Overlap warnings"]'
+    );
+    overlapToggle?.click();
+    expect(warningBanner?.classList.contains('hidden')).toBe(true);
+
+    overlapToggle?.click();
+    expect(warningBanner?.classList.contains('hidden')).toBe(false);
+
+    view.unmount();
+    store.destroy();
+  });
+
   it('renders seven day columns in week mode and keeps the new navigation visible', () => {
     const store = new TimeClusteringStore(
       createRepository(

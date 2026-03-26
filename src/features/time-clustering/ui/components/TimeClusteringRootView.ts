@@ -35,17 +35,21 @@ import {
   getModalActionButtonClass,
 } from '../../../../ui-lib/src/components/Modal.ts';
 import {
+  AnchoredMenu,
+  createDivider,
+  createDropdownItem,
   createIconButton,
-  createStepPicker,
   createColorPicker,
   createField,
   createInputBase,
-  MenuButton,
-  type MenuButtonItem,
+  createMenuControlRow,
   createSelectionChip,
   createSegmentedControl,
+  createStepPicker,
+  createSurface,
   setSelectionChipState,
   createTextButton,
+  createToggleSwitch,
   type ColorPickerOption,
   type SegmentedControl,
 } from '../../../../ui-lib/src/hud/index.ts';
@@ -635,7 +639,10 @@ export class TimeClusteringRootView {
   private readonly store: TimeClusteringStore;
   private readonly onLayoutModeChange: (mode: TimeClusteringLayoutMode) => void;
   private readonly root: HTMLDivElement;
-  private readonly timeClusteringMenuButton: MenuButton;
+  private readonly timeClusteringMenuContainer: HTMLDivElement;
+  private readonly timeClusteringMenuButton: HTMLButtonElement;
+  private readonly timeClusteringMenuPanel: HTMLDivElement;
+  private readonly timeClusteringMenuController: AnchoredMenu;
   private readonly addClusterButton: HTMLButtonElement;
   private readonly secondaryNav: HTMLDivElement;
   private readonly periodSwitcher: HTMLDivElement;
@@ -663,6 +670,7 @@ export class TimeClusteringRootView {
   private selectedCluster: SelectedClusterRef | null = null;
   private activeClusterGesture: ActiveClusterGesture | null = null;
   private layoutMode: TimeClusteringLayoutMode;
+  private showOverlapWarnings = true;
 
   constructor(options: TimeClusteringRootViewOptions) {
     this.runtime = options.runtime ?? createAppRuntime();
@@ -691,25 +699,47 @@ export class TimeClusteringRootView {
       this.createClusterForSelectedDate();
     };
 
-    this.timeClusteringMenuButton = new MenuButton({
-      label: this.i18n.t('timeClustering.menu.label'),
+    this.timeClusteringMenuContainer = document.createElement('div');
+    this.timeClusteringMenuContainer.className =
+      'relative z-30 inline-flex items-center';
+    this.timeClusteringMenuContainer.dataset.role = 'time-clustering-menu';
+
+    this.timeClusteringMenuButton = createIconButton({
+      icon: 'ellipsis-vertical',
+      size: 'sm',
+      tone: 'text',
       title: this.i18n.t('timeClustering.menu.title'),
       ariaLabel: this.i18n.t('timeClustering.menu.title'),
-      icon: 'ellipsis-vertical',
-      iconOnly: true,
-      showChevron: false,
-      size: 'sm',
-      variant: 'plain',
-      placement: 'bottom-end',
-      fallbackPlacements: ['bottom-start', 'top-end', 'top-start'],
-      gap: 6,
-      margin: 8,
-      lockPlacementAfterOpen: true,
+      onClick: (event) => {
+        event.stopPropagation();
+        this.toggleTimeClusteringMenu();
+      },
     });
-    this.timeClusteringMenuButton.element.dataset.role = 'time-clustering-menu';
-    this.timeClusteringMenuButton
-      .getButtonElement()
-      .setAttribute('data-role', 'time-clustering-menu-button');
+    this.timeClusteringMenuButton.dataset.role = 'time-clustering-menu-button';
+
+    this.timeClusteringMenuPanel = createSurface({
+      elevated: true,
+      className:
+        'absolute left-0 top-0 z-30 hidden w-64 overflow-hidden rounded-xl',
+    });
+    this.timeClusteringMenuPanel.dataset.role = 'time-clustering-menu-panel';
+    this.timeClusteringMenuPanel.setAttribute('role', 'menu');
+
+    this.timeClusteringMenuController = new AnchoredMenu({
+      container: this.timeClusteringMenuContainer,
+      panel: this.timeClusteringMenuPanel,
+      onOpenChange: (open) => {
+        this.timeClusteringMenuButton.classList.toggle('bg-indigo-50', open);
+        this.timeClusteringMenuButton.classList.toggle('text-indigo-700', open);
+        if (open) {
+          this.renderTimeClusteringMenu(this.store.getSnapshot());
+        }
+      },
+    });
+    this.timeClusteringMenuContainer.append(
+      this.timeClusteringMenuButton,
+      this.timeClusteringMenuPanel
+    );
 
     this.secondaryNav = document.createElement('div');
     this.secondaryNav.className = 'mt-4 flex flex-col gap-2.5';
@@ -791,7 +821,7 @@ export class TimeClusteringRootView {
     navigationActions.append(
       this.viewModeSwitcher,
       this.addClusterButton,
-      this.timeClusteringMenuButton.element
+      this.timeClusteringMenuContainer
     );
     navigationRow.append(this.periodSwitcher, navigationActions);
 
@@ -819,7 +849,7 @@ export class TimeClusteringRootView {
 
   public mount(parent: HTMLElement): void {
     parent.appendChild(this.root);
-    this.timeClusteringMenuButton.mount();
+    this.timeClusteringMenuController.mount();
     this.disposeStoreSubscription = this.store.subscribe((snapshot) => {
       this.renderSnapshot(snapshot);
     });
@@ -834,7 +864,8 @@ export class TimeClusteringRootView {
     this.closeClusterEditModal();
     this.clearNowIndicatorRefresh();
     this.clearPendingScrollFrame();
-    this.timeClusteringMenuButton.unmount();
+    this.timeClusteringMenuController.close();
+    this.timeClusteringMenuController.unmount();
     this.disposeStoreSubscription?.();
     this.disposeStoreSubscription = null;
     this.disposeRuntimeSubscription?.();
@@ -860,13 +891,11 @@ export class TimeClusteringRootView {
       'aria-label',
       this.i18n.t('timeClustering.viewMode')
     );
-    this.timeClusteringMenuButton.setLabel(
-      this.i18n.t('timeClustering.menu.label')
+    this.timeClusteringMenuButton.title = this.i18n.t(
+      'timeClustering.menu.title'
     );
-    this.timeClusteringMenuButton.setTitle(
-      this.i18n.t('timeClustering.menu.title')
-    );
-    this.timeClusteringMenuButton.setAriaLabel(
+    this.timeClusteringMenuButton.setAttribute(
+      'aria-label',
       this.i18n.t('timeClustering.menu.title')
     );
     const dayLabel = this.dayModeButton.querySelector('span');
@@ -888,7 +917,7 @@ export class TimeClusteringRootView {
     );
     const visibleDateKeys =
       this.layoutMode === 'fullscreen' ? weekDateKeys : [selectedDateKey];
-    this.updateHeaderMenu(snapshot);
+    this.renderTimeClusteringMenu(snapshot);
     const renderedClustersByDate = buildTimeClusterSegmentsByDate(
       visibleDateKeys,
       this.getRenderableClusters(snapshot)
@@ -1132,7 +1161,7 @@ export class TimeClusteringRootView {
   }
 
   private renderWarnings(snapshot: TimeClusteringStateSnapshot): void {
-    if (snapshot.lastWarnings.length === 0) {
+    if (!this.showOverlapWarnings || snapshot.lastWarnings.length === 0) {
       this.warningBanner.classList.add('hidden');
       this.warningBanner.textContent = '';
       return;
@@ -1146,34 +1175,94 @@ export class TimeClusteringRootView {
         : this.i18n.t('timeClustering.overlap.many', { count });
   }
 
-  private updateHeaderMenu(snapshot: TimeClusteringStateSnapshot): void {
+  private renderTimeClusteringMenu(snapshot: TimeClusteringStateSnapshot): void {
     const isTodaySelected = snapshot.selectedDateKey === todayDateKey();
-    const items: MenuButtonItem[] = [
-      {
-        id: 'add-cluster',
-        label: this.i18n.t('timeClustering.menu.addCluster'),
-        onSelect: () => this.createClusterForSelectedDate(),
+    const actions = document.createElement('div');
+
+    const addClusterItem = createDropdownItem({
+      label: this.i18n.t('timeClustering.menu.addCluster'),
+      variant: 'default',
+      onClick: () => {
+        this.closeTimeClusteringMenu();
+        this.createClusterForSelectedDate();
       },
-      {
-        id: 'go-to-today',
-        label: this.i18n.t('timeClustering.menu.goToToday'),
-        active: isTodaySelected,
-        onSelect: () => this.store.setSelectedDate(todayDateKey()),
+    });
+
+    const goToTodayItem = createDropdownItem({
+      label: this.i18n.t('timeClustering.menu.goToToday'),
+      variant: isTodaySelected ? 'selected' : 'default',
+      onClick: () => {
+        this.closeTimeClusteringMenu();
+        this.store.setSelectedDate(todayDateKey());
       },
-      {
-        id: 'view-day',
-        label: this.i18n.t('timeClustering.menu.viewDay'),
-        active: this.layoutMode === 'docked-left',
-        onSelect: () => this.onLayoutModeChange('docked-left'),
+    });
+
+    const dayViewItem = createDropdownItem({
+      label: this.i18n.t('timeClustering.menu.viewDay'),
+      variant: this.layoutMode === 'docked-left' ? 'selected' : 'default',
+      onClick: () => {
+        this.closeTimeClusteringMenu();
+        this.onLayoutModeChange('docked-left');
       },
-      {
-        id: 'view-week',
-        label: this.i18n.t('timeClustering.menu.viewWeek'),
-        active: this.layoutMode === 'fullscreen',
-        onSelect: () => this.onLayoutModeChange('fullscreen'),
+    });
+
+    const weekViewItem = createDropdownItem({
+      label: this.i18n.t('timeClustering.menu.viewWeek'),
+      variant: this.layoutMode === 'fullscreen' ? 'selected' : 'default',
+      onClick: () => {
+        this.closeTimeClusteringMenu();
+        this.onLayoutModeChange('fullscreen');
       },
-    ];
-    this.timeClusteringMenuButton.setItems(items);
+    });
+
+    const overlapWarningsToggle = createMenuControlRow({
+      control: createToggleSwitch({
+        label: this.i18n.t('timeClustering.menu.overlapWarnings'),
+        labelClassName: '!font-normal',
+        togglePosition: 'right',
+        checked: this.showOverlapWarnings,
+        onChange: (checked) => {
+          this.showOverlapWarnings = checked;
+          this.renderWarnings(this.store.getSnapshot());
+        },
+      }),
+    });
+    overlapWarningsToggle.dataset.role = 'time-clustering-overlap-toggle-row';
+
+    actions.append(
+      addClusterItem,
+      createDivider(),
+      dayViewItem,
+      weekViewItem,
+      goToTodayItem,
+      createDivider(),
+      overlapWarningsToggle
+    );
+
+    this.timeClusteringMenuPanel.replaceChildren(actions);
+    if (this.timeClusteringMenuController.isOpen()) {
+      this.timeClusteringMenuController.reposition();
+    }
+  }
+
+  private toggleTimeClusteringMenu(): void {
+    if (this.timeClusteringMenuController.isOpen()) {
+      this.timeClusteringMenuController.close();
+      return;
+    }
+    this.renderTimeClusteringMenu(this.store.getSnapshot());
+    this.timeClusteringMenuController.openAt({
+      anchor: this.timeClusteringMenuButton,
+      placement: 'bottom-end',
+      fallbackPlacements: ['bottom-start', 'top-end', 'top-start'],
+      gap: 6,
+      margin: 8,
+      lockPlacementAfterOpen: true,
+    });
+  }
+
+  private closeTimeClusteringMenu(): void {
+    this.timeClusteringMenuController.close();
   }
 
   private renderCalendar(
@@ -2240,16 +2329,23 @@ export class TimeClusteringRootView {
     const isActiveGesture = this.activeClusterGesture?.clusterId === cluster.id;
     const top = (clusterSegment.startMinute / 60) * HOUR_ROW_HEIGHT_PX;
     const isDayMode = calendarMode === 'day';
+    const isWeekOverlap = !isDayMode && laneCount > 1;
     const verticalInsetPx = isDayMode ? 0 : 1;
-    const horizontalInsetPx = isDayMode ? (laneCount > 1 ? 4 : 0) : 2;
+    const horizontalInsetPx = isDayMode
+      ? laneCount > 1
+        ? 4
+        : 0
+      : isWeekOverlap
+        ? 1
+        : 2;
     const baseHeight =
       ((clusterSegment.endMinute - clusterSegment.startMinute) / 60) *
       HOUR_ROW_HEIGHT_PX;
     const height = Math.max(baseHeight - verticalInsetPx * 2, 32);
     const widthPercent = Math.max(
-      laneWidthPercent - (isDayMode ? 1.5 : 0.35),
+      laneWidthPercent - (isDayMode ? 1.5 : isWeekOverlap ? 0.1 : 0.35),
       laneCount > 1
-        ? laneWidthPercent - (isDayMode ? 2.5 : 0.5)
+        ? laneWidthPercent - (isDayMode ? 2.5 : isWeekOverlap ? 0.15 : 0.5)
         : isDayMode
           ? 97
           : 99.25
@@ -2271,7 +2367,7 @@ export class TimeClusteringRootView {
         ? `calc(${leftPercent}% + ${horizontalInsetPx}px)`
         : `${horizontalInsetPx}px`;
     if (laneCount > 1) {
-      block.style.width = `calc(${widthPercent}% - ${isDayMode ? 6 : 12}px)`;
+      block.style.width = `calc(${widthPercent}% - ${isDayMode ? 6 : isWeekOverlap ? 2 : 4}px)`;
     } else {
       block.style.width =
         horizontalInsetPx === 0

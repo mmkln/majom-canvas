@@ -44,6 +44,7 @@ export const uk = {
   'timeClustering.menu.addCluster': 'Додати кластер',
   'timeClustering.menu.goToToday': 'До сьогодні',
   'timeClustering.menu.label': 'Меню',
+  'timeClustering.menu.overlapWarnings': 'Попередження про перетини',
   'timeClustering.menu.title': 'Меню кластерів часу',
   'timeClustering.menu.viewDay': 'Денний вигляд',
   'timeClustering.menu.viewWeek': 'Тижневий вигляд',

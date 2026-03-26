@@ -41,6 +41,7 @@ export const en = {
   'timeClustering.menu.addCluster': 'Add cluster',
   'timeClustering.menu.goToToday': 'Go to today',
   'timeClustering.menu.label': 'Menu',
+  'timeClustering.menu.overlapWarnings': 'Overlap warnings',
   'timeClustering.menu.title': 'Time clustering menu',
   'timeClustering.menu.viewDay': 'Day view',
   'timeClustering.menu.viewWeek': 'Week view',
