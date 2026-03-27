@@ -59,12 +59,19 @@ type ProfileSettingsModalOptions = {
 };
 
 type ProfileSettingsDraft = {
+  firstName: string;
+  lastName: string;
   username: string;
+  email: string;
   locale: AppLocale;
   wallpaperId: string | null;
 };
 
-type ProfileSettingsAccountField = 'username';
+type ProfileSettingsAccountField =
+  | 'firstName'
+  | 'lastName'
+  | 'username'
+  | 'email';
 
 type AccountFieldErrors = Partial<Record<ProfileSettingsAccountField, string>>;
 
@@ -103,7 +110,10 @@ type RenderedPasswordField = {
 const SECTION_ACTION_BUTTON_CLASS =
   'w-full justify-center sm:w-auto sm:min-w-[5.5rem]';
 const ACCOUNT_INPUT_ROLE_BY_FIELD: Record<ProfileSettingsAccountField, string> = {
+  firstName: 'profile-settings-account-first-name-input',
+  lastName: 'profile-settings-account-last-name-input',
   username: 'profile-settings-account-username-input',
+  email: 'profile-settings-account-email-input',
 };
 const SECURITY_INPUT_ROLE_BY_FIELD: Record<
   ProfileSettingsPasswordField,
@@ -150,10 +160,21 @@ function normalizeWallpaperId(
 
 function toDraft(user: User, fallbackLocale: AppLocale): ProfileSettingsDraft {
   return {
+    firstName: user.first_name ?? '',
+    lastName: user.last_name ?? '',
     username: user.username ?? '',
+    email: user.email ?? '',
     locale: normalizeAppLocale(user.language) ?? fallbackLocale,
     wallpaperId: normalizeWallpaperId(user.wallpaper?.id ?? user.wallpaper_id),
   };
+}
+
+function getAccountFullName(user: User | null): string {
+  if (!user) return '';
+  return [user.first_name?.trim() ?? '', user.last_name?.trim() ?? '']
+    .filter(Boolean)
+    .join(' ')
+    .trim();
 }
 
 function createSectionLayout(
@@ -201,17 +222,24 @@ function createSectionLayout(
 
 function getAccountDisplayName(user: User | null): string {
   if (!user) return '';
-  return user.username?.trim() || user.email?.trim() || '';
+  return (
+    getAccountFullName(user) ||
+    user.username?.trim() ||
+    user.email?.trim() ||
+    ''
+  );
 }
 
 function getAccountSecondaryText(user: User | null): string {
   if (!user) return '';
   const displayName = getAccountDisplayName(user);
+  const username = user.username?.trim() ?? '';
   const email = user.email?.trim() ?? '';
-  if (email.length > 0 && email !== displayName) {
-    return email;
-  }
-  return '';
+  const parts = [username, email].filter(
+    (value, index, source) =>
+      value.length > 0 && value !== displayName && source.indexOf(value) === index
+  );
+  return parts.join(' · ');
 }
 
 function getAccountInitials(user: User | null): string {
@@ -470,7 +498,7 @@ export class ProfileSettingsModal {
     content.appendChild(identityCard);
 
     const toggleButton = createDisclosureRow({
-      label: this.i18n.t('profileSettings.account.username'),
+      label: this.i18n.t('profileSettings.account.details'),
       description: this.getAccountDisclosureDescription(),
       expanded: this.accountExpanded,
       onClick: () => {
@@ -496,13 +524,74 @@ export class ProfileSettingsModal {
       panel.appendChild(intro);
 
       let syncAccountForm = (): void => {};
-      let usernameFieldController: ReturnType<typeof createField> | null = null;
 
       const errorMessage = createFormMessage({
         tone: 'error',
         className: 'block',
       });
       errorMessage.setState({ message: this.accountState.error });
+
+      const fields = document.createElement('div');
+      fields.className = 'grid gap-4 md:grid-cols-2';
+
+      const firstNameControl = createInput({
+        name: 'first_name',
+        value: this.draft?.firstName ?? '',
+        placeholder: this.i18n.t('profileSettings.account.firstName'),
+        inputClassName: 'text-base md:text-sm',
+        disabled: this.accountState.saving,
+        invalid: Boolean(this.accountState.fieldErrors.firstName),
+        onInput: (value) => {
+          if (!this.draft) return;
+          this.draft.firstName = value;
+          this.handleAccountInput('firstName');
+          syncAccountForm();
+        },
+        onKeyDown: (event) => {
+          this.handleAccountFieldKeyDown(event);
+        },
+      });
+      firstNameControl.input.dataset.role =
+        ACCOUNT_INPUT_ROLE_BY_FIELD.firstName;
+      firstNameControl.input.autocapitalize = 'words';
+
+      const firstNameField = createField({
+        label: this.i18n.t('profileSettings.account.firstName'),
+        control: firstNameControl.element,
+        className: 'mb-0',
+        error: this.accountState.fieldErrors.firstName,
+        disabled: this.accountState.saving,
+      });
+      fields.appendChild(firstNameField.element);
+
+      const lastNameControl = createInput({
+        name: 'last_name',
+        value: this.draft?.lastName ?? '',
+        placeholder: this.i18n.t('profileSettings.account.lastName'),
+        inputClassName: 'text-base md:text-sm',
+        disabled: this.accountState.saving,
+        invalid: Boolean(this.accountState.fieldErrors.lastName),
+        onInput: (value) => {
+          if (!this.draft) return;
+          this.draft.lastName = value;
+          this.handleAccountInput('lastName');
+          syncAccountForm();
+        },
+        onKeyDown: (event) => {
+          this.handleAccountFieldKeyDown(event);
+        },
+      });
+      lastNameControl.input.dataset.role = ACCOUNT_INPUT_ROLE_BY_FIELD.lastName;
+      lastNameControl.input.autocapitalize = 'words';
+
+      const lastNameField = createField({
+        label: this.i18n.t('profileSettings.account.lastName'),
+        control: lastNameControl.element,
+        className: 'mb-0',
+        error: this.accountState.fieldErrors.lastName,
+        disabled: this.accountState.saving,
+      });
+      fields.appendChild(lastNameField.element);
 
       const usernameControl = createInput({
         name: 'username',
@@ -514,13 +603,7 @@ export class ProfileSettingsModal {
         onInput: (value) => {
           if (!this.draft) return;
           this.draft.username = value;
-          if (this.accountState.error) {
-            this.accountState.error = null;
-          }
-          if (this.accountState.fieldErrors.username) {
-            this.accountState.fieldErrors = {};
-            usernameFieldController?.setState({ error: undefined });
-          }
+          this.handleAccountInput('username');
           syncAccountForm();
         },
         onKeyDown: (event) => {
@@ -538,8 +621,41 @@ export class ProfileSettingsModal {
         error: this.accountState.fieldErrors.username,
         disabled: this.accountState.saving,
       });
-      usernameFieldController = usernameField;
-      panel.appendChild(usernameField.element);
+      fields.appendChild(usernameField.element);
+
+      const emailControl = createInput({
+        kind: 'email',
+        name: 'email',
+        value: this.draft?.email ?? '',
+        placeholder: this.i18n.t('profileSettings.account.email'),
+        required: true,
+        inputClassName: 'text-base md:text-sm',
+        disabled: this.accountState.saving,
+        invalid: Boolean(this.accountState.fieldErrors.email),
+        onInput: (value) => {
+          if (!this.draft) return;
+          this.draft.email = value;
+          this.handleAccountInput('email');
+          syncAccountForm();
+        },
+        onKeyDown: (event) => {
+          this.handleAccountFieldKeyDown(event);
+        },
+      });
+      emailControl.input.dataset.role = ACCOUNT_INPUT_ROLE_BY_FIELD.email;
+      emailControl.input.autocapitalize = 'none';
+      emailControl.input.setAttribute('autocorrect', 'off');
+
+      const emailField = createField({
+        label: this.i18n.t('profileSettings.account.email'),
+        control: emailControl.element,
+        className: 'mb-0',
+        error: this.accountState.fieldErrors.email,
+        disabled: this.accountState.saving,
+      });
+      fields.appendChild(emailField.element);
+
+      panel.appendChild(fields);
       panel.appendChild(errorMessage.element);
 
       const actionRow = document.createElement('div');
@@ -577,13 +693,42 @@ export class ProfileSettingsModal {
       content.appendChild(panel);
 
       syncAccountForm = () => {
+        const firstNameError = this.getAccountFieldError('firstName');
+        const lastNameError = this.getAccountFieldError('lastName');
+        const usernameError = this.getAccountFieldError('username');
+        const emailError = this.getAccountFieldError('email');
+
+        firstNameField.setState({
+          disabled: this.accountState.saving,
+          error: firstNameError,
+        });
+        firstNameControl.setState({
+          disabled: this.accountState.saving,
+          invalid: Boolean(firstNameError),
+        });
+        lastNameField.setState({
+          disabled: this.accountState.saving,
+          error: lastNameError,
+        });
+        lastNameControl.setState({
+          disabled: this.accountState.saving,
+          invalid: Boolean(lastNameError),
+        });
         usernameField.setState({
           disabled: this.accountState.saving,
-          error: this.accountState.fieldErrors.username,
+          error: usernameError,
         });
         usernameControl.setState({
           disabled: this.accountState.saving,
-          invalid: Boolean(this.accountState.fieldErrors.username),
+          invalid: Boolean(usernameError),
+        });
+        emailField.setState({
+          disabled: this.accountState.saving,
+          error: emailError,
+        });
+        emailControl.setState({
+          disabled: this.accountState.saving,
+          invalid: Boolean(emailError),
         });
         saveButton.disabled =
           this.accountState.saving || !this.isAccountReadyToSubmit();
@@ -616,6 +761,11 @@ export class ProfileSettingsModal {
       );
     }
 
+    const emailValidationError = this.getNativeAccountEmailValidationError();
+    if (emailValidationError) {
+      fieldErrors.email = emailValidationError;
+    }
+
     return fieldErrors;
   }
 
@@ -623,9 +773,21 @@ export class ProfileSettingsModal {
     if (this.accountState.success) {
       return this.i18n.t('profileSettings.account.updatedDescription');
     }
-    return this.i18n.t('profileSettings.account.currentUsernameDescription', {
-      username: this.serverSnapshot?.username ?? '',
-    });
+    const displayName = getAccountDisplayName(this.serverSnapshot);
+    const secondary = getAccountSecondaryText(this.serverSnapshot);
+    return [displayName, secondary].filter(Boolean).join(' · ');
+  }
+
+  private getFirstAccountErrorField(
+    fieldErrors: AccountFieldErrors
+  ): ProfileSettingsAccountField | null {
+    const orderedFields: ProfileSettingsAccountField[] = [
+      'firstName',
+      'lastName',
+      'username',
+      'email',
+    ];
+    return orderedFields.find((field) => Boolean(fieldErrors[field])) ?? null;
   }
 
   private focusAccountField(field: ProfileSettingsAccountField): void {
@@ -637,6 +799,58 @@ export class ProfileSettingsModal {
     });
   }
 
+  private getAccountEmailInput(): HTMLInputElement | null {
+    return (
+      this.overlay?.querySelector<HTMLInputElement>(
+        `input[data-role="${ACCOUNT_INPUT_ROLE_BY_FIELD.email}"]`
+      ) ?? null
+    );
+  }
+
+  private getNativeAccountEmailValidationError(): string | null {
+    const input = this.getAccountEmailInput();
+    if (!input) {
+      const email = this.draft?.email.trim() ?? '';
+      if (email.length === 0) {
+        return this.i18n.t('profileSettings.account.emailRequired');
+      }
+      return null;
+    }
+
+    if (input.validity.valueMissing) {
+      return this.i18n.t('profileSettings.account.emailRequired');
+    }
+
+    if (input.validity.typeMismatch) {
+      return this.i18n.t('profileSettings.account.emailInvalid');
+    }
+
+    return null;
+  }
+
+  private getAccountFieldError(
+    field: ProfileSettingsAccountField
+  ): string | undefined {
+    const savedError = this.accountState.fieldErrors[field];
+    if (savedError) {
+      return savedError;
+    }
+
+    if (field === 'username') {
+      const username = this.draft?.username.trim() ?? '';
+      if (username.length === 0) {
+        return this.i18n.t('profileSettings.account.usernameRequired');
+      }
+      return undefined;
+    }
+
+    if (field === 'email') {
+      return this.getNativeAccountEmailValidationError() ?? undefined;
+    }
+
+    return undefined;
+  }
+
   private parseAccountErrorData(data: Record<string, unknown> | null): {
     fieldErrors: AccountFieldErrors;
     error: string | null;
@@ -644,12 +858,24 @@ export class ProfileSettingsModal {
     if (!data) return null;
 
     const fieldErrors: AccountFieldErrors = {};
+    const firstNameMessage = firstErrorMessage(data.first_name);
+    const lastNameMessage = firstErrorMessage(data.last_name);
     const usernameMessage = firstErrorMessage(data.username);
+    const emailMessage = firstErrorMessage(data.email);
     const detailMessage =
       firstErrorMessage(data.detail) ?? firstErrorMessage(data.non_field_errors);
 
+    if (firstNameMessage) {
+      fieldErrors.firstName = firstNameMessage;
+    }
+    if (lastNameMessage) {
+      fieldErrors.lastName = lastNameMessage;
+    }
     if (usernameMessage) {
       fieldErrors.username = usernameMessage;
+    }
+    if (emailMessage) {
+      fieldErrors.email = emailMessage;
     }
 
     if (Object.keys(fieldErrors).length === 0 && !detailMessage) {
@@ -713,17 +939,25 @@ export class ProfileSettingsModal {
 
   private isAccountDirty(): boolean {
     if (!this.serverSnapshot || !this.draft) return false;
-    return this.serverSnapshot.username !== this.draft.username.trim();
+    return (
+      (this.serverSnapshot.first_name ?? '') !== this.draft.firstName.trim() ||
+      (this.serverSnapshot.last_name ?? '') !== this.draft.lastName.trim() ||
+      this.serverSnapshot.username !== this.draft.username.trim() ||
+      this.serverSnapshot.email !== this.draft.email.trim()
+    );
   }
 
   private isAccountReadyToSubmit(): boolean {
-    if (!this.draft) return false;
-    return this.draft.username.trim().length > 0 && this.isAccountDirty();
+    if (!this.draft || !this.isAccountDirty()) return false;
+    return Object.keys(this.validateAccountDraft()).length === 0;
   }
 
   private resetAccountDraft(): void {
     if (!this.draft || !this.serverSnapshot) return;
+    this.draft.firstName = this.serverSnapshot.first_name ?? '';
+    this.draft.lastName = this.serverSnapshot.last_name ?? '';
     this.draft.username = this.serverSnapshot.username ?? '';
+    this.draft.email = this.serverSnapshot.email ?? '';
   }
 
   private expandAccountSection(): void {
@@ -732,7 +966,7 @@ export class ProfileSettingsModal {
     this.resetAccountDraft();
     this.accountExpanded = true;
     this.renderBody();
-    this.focusAccountField('username');
+    this.focusAccountField('firstName');
   }
 
   private collapseAccountSection(): void {
@@ -751,11 +985,41 @@ export class ProfileSettingsModal {
     void this.saveAccount();
   }
 
+  private handleAccountInput(field: ProfileSettingsAccountField): void {
+    const nextFieldErrors = { ...this.accountState.fieldErrors };
+
+    if (field === 'username') {
+      const username = this.draft?.username.trim() ?? '';
+      if (username.length === 0) {
+        nextFieldErrors.username = this.i18n.t(
+          'profileSettings.account.usernameRequired'
+        );
+      } else {
+        delete nextFieldErrors.username;
+      }
+    } else if (field === 'email') {
+      const emailError = this.getNativeAccountEmailValidationError();
+      if (emailError) {
+        nextFieldErrors.email = emailError;
+      } else {
+        delete nextFieldErrors.email;
+      }
+    } else {
+      delete nextFieldErrors[field];
+    }
+
+    this.accountState.fieldErrors = nextFieldErrors;
+    if (this.accountState.error) {
+      this.accountState.error = null;
+    }
+  }
+
   private async saveAccount(): Promise<void> {
     if (this.accountState.saving || !this.draft) return;
 
     const fieldErrors = this.validateAccountDraft();
-    if (fieldErrors.username) {
+    const firstInvalidField = this.getFirstAccountErrorField(fieldErrors);
+    if (firstInvalidField) {
       this.accountState = {
         saving: false,
         error: null,
@@ -764,7 +1028,7 @@ export class ProfileSettingsModal {
       };
       this.accountExpanded = true;
       this.renderBody();
-      this.focusAccountField('username');
+      this.focusAccountField(firstInvalidField);
       return;
     }
 
@@ -784,14 +1048,17 @@ export class ProfileSettingsModal {
     try {
       const updatedUser = await firstValueFrom(
         this.userApiService.updateUserProfile({
+          first_name: this.draft.firstName.trim(),
+          last_name: this.draft.lastName.trim(),
           username: this.draft.username.trim(),
+          email: this.draft.email.trim(),
         })
       );
       this.serverSnapshot = updatedUser;
       this.draft = toDraft(updatedUser, this.runtime.i18n.getLocale());
       this.onUserUpdated?.(updatedUser);
     } catch (error) {
-      console.warn('Failed to persist account username.', error);
+      console.warn('Failed to persist account details.', error);
       const resolvedError = await this.resolveAccountSaveError(error);
       this.accountState = {
         saving: false,
@@ -801,8 +1068,11 @@ export class ProfileSettingsModal {
       };
       this.accountExpanded = true;
       this.renderBody();
-      if (resolvedError.fieldErrors.username) {
-        this.focusAccountField('username');
+      const firstErrorField = this.getFirstAccountErrorField(
+        resolvedError.fieldErrors
+      );
+      if (firstErrorField) {
+        this.focusAccountField(firstErrorField);
       }
       return;
     }

@@ -6,6 +6,11 @@
 - Updated: 2026-03-27
 - Audience: AI implementation agents + human reviewers
 - Goal: provide enough context for an AI agent to start implementation with minimal ambiguity
+- UX authority for creator flow: `docs/LEARNING-STUDIO-AUTHOR-UX-SPEC.md`
+- Publication/access/versioning authority: `docs/LEARNING-STUDIO-PUBLICATION-ACCESS-VERSIONING-SPEC.md`
+- Progress/assessment authority: `docs/LEARNING-STUDIO-PROGRESS-ASSESSMENT-SPEC.md`
+- Preview/runtime authority: `docs/LEARNING-STUDIO-PREVIEW-LEARNER-RUNTIME-SPEC.md`
+- Build interaction authority: `docs/LEARNING-STUDIO-BUILD-INTERACTION-SPEC.md`
 
 ---
 
@@ -34,12 +39,23 @@ It is **not** an isolated LMS clone.
 - Keep learning integrated with planning and task execution.
 - Use modular boundaries so learning can evolve independently.
 - Start with a local-first prototype (browser storage only) for fast iteration.
+- Use dedicated learning entities as the canonical course model from the start of the module work.
+- Treat `Goal`, `Story`, and `Task` as visual precedents or projection targets, not as the stored course-domain entities.
 
 ### 2.3 UX direction
 
 - **Canvas-first**, but **not canvas-only**.
 - Provide dedicated learner-focused views where dense canvas editing is not ideal.
 - Keep a shared visual language with current workspace UI.
+- Reuse current canvas interaction patterns without collapsing the learning domain into planning entities.
+
+Implementation rule:
+
+- `Home` is a non-canvas entry view.
+- `Authoring` is a canvas-centered view with inspector panels, drawers, sheets, or modals for editing.
+- `Learner` keeps the course map visible but uses a larger lesson focus panel or split view for consumption.
+- access, publishing, enrollment, and settings flows should remain non-canvas.
+- on mobile, large side panels may become full-screen sheets.
 
 ### 2.4 Authoring direction
 
@@ -139,6 +155,10 @@ Long-term option:
 
 ## 5) UX blueprint
 
+Important constraint:
+
+- use `docs/LEARNING-STUDIO-AUTHOR-UX-SPEC.md` as the canonical reference for creator-facing screen hierarchy, CTA placement, and the `Learn` vs `Preview` decision.
+
 ## 5.1 Workspace navigation
 
 Learning Studio should be accessible from the same workspace switcher area as canvas/kanban (shared ecosystem entry).
@@ -152,6 +172,7 @@ But it should remain a separate module view, not merged into canvas-board list s
 - tabs/segments: `Created by me`, `Enrolled`, `Drafts`, `Published`
 - actions: `Create with AI`, `Create manually`
 - quick stats: in progress, completed, overdue review
+- non-canvas list/grid presentation
 
 ### B. Course Authoring View
 
@@ -160,19 +181,28 @@ But it should remain a separate module view, not merged into canvas-board list s
   - center: canvas map of module → lesson → exercise
   - right: metadata + AI helper panel
 - author actions: add, reorder, duplicate, delete, publish
+- editing should happen through drawers, sheets, inspectors, or modals over the canvas rather than separate route-heavy page flows
 
-### C. Learner Focus View
+### C. Preview / Learner Focus View
 
+- course map remains available for orientation
 - current step
 - next recommended action
 - lesson content + exercise instructions
 - minimal distraction mode compared to authoring canvas
+- lesson consumption should use a large focus panel or split view, not a narrow drawer
+
+Creator-facing clarification:
+
+- in the author IA, this screen should be labeled `Preview`
+- internal route names may temporarily remain `learn` during transition
 
 ### D. Access & Enrollment Panel
 
 - local learner references
 - grant/revoke actions
 - course visibility state (private / shared / published placeholder)
+- non-canvas administrative flow
 
 ### E. Progress Panel
 
@@ -189,6 +219,12 @@ But it should remain a separate module view, not merged into canvas-board list s
 ---
 
 ## 6) Domain model blueprint
+
+Important clarification:
+
+- `Course`, `CourseModule`, `Lesson`, `Exercise`, and related learning types are the source of truth inside `learning-studio`.
+- References to `Goal`, `Story`, and `Task` elsewhere in the docs should be read as visual analogies, implementation precedents, or optional projections into planning/execution flows.
+- They should not be used as the canonical stored model for course authoring on the learning canvas.
 
 ## 6.1 Canonical entities (target)
 
@@ -382,6 +418,7 @@ No backend data-access services should be added in local prototype phase.
 1. First target segment: self-learners, creator-led courses, or mentor-led cohorts?
 2. Progress semantics: what exactly marks "started" and "completed"?
 3. Publication/versioning policy after learner progression has started?
+   Current v1 recommendation lives in `docs/LEARNING-STUDIO-PUBLICATION-ACCESS-VERSIONING-SPEC.md`
 4. Sync policy with planning tasks: all lessons vs active next steps only?
 5. AI trust policy: review-before-publish mandatory or optional?
 6. Minimum assessment model in local prototype: checkbox-only or lightweight scoring?

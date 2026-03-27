@@ -13,6 +13,7 @@ vi.mock('../config/env/index.ts', () => ({
   GROK_API_KEY: '',
   IS_DEVELOPMENT_MODE: true,
   KANBAN_DEV_ENABLED: true,
+  LEARNING_STUDIO_DEV_ENABLED: true,
   ROUTINES_ENABLED: false,
   TIME_CLUSTERING_DEV_ENABLED: true,
 }));
@@ -73,7 +74,7 @@ type RuntimeHostInternalAccess = {
   workspaceRoot: HTMLDivElement;
   timeClusteringIslandRoot: HTMLDivElement;
   hostVisible: boolean;
-  activeView: 'canvas' | 'kanban';
+  activeView: 'canvas' | 'kanban' | 'learning-studio';
   timeClusteringOpen: boolean;
   timeClusteringLayoutMode: 'docked-left' | 'fullscreen';
   timeClusteringShowOverlapWarnings: boolean;
@@ -95,7 +96,9 @@ type RuntimeHostInternalAccess = {
     mode: 'docked-left' | 'fullscreen'
   ) => void;
   handleTimeClusteringOverlapWarningsChange: (show: boolean) => void;
-  setActiveView: (view: 'canvas' | 'kanban') => Promise<void>;
+  setActiveView: (
+    view: 'canvas' | 'kanban' | 'learning-studio'
+  ) => Promise<void>;
   dispose: () => void;
 };
 
@@ -189,7 +192,7 @@ describe('RuntimeHost time clustering island layout', () => {
     vi.runOnlyPendingTimers();
     vi.useRealTimers();
     vi.restoreAllMocks();
-    delete testGlobal.ResizeObserver;
+    Reflect.deleteProperty(testGlobal, 'ResizeObserver');
     document.body.innerHTML = '';
   });
 
@@ -237,7 +240,9 @@ describe('RuntimeHost time clustering island layout', () => {
 
   it('opens time clustering in docked-left mode without changing the base view', () => {
     const host = getRuntimeHostInternals(createRuntimeHost());
-    const show = vi.fn<[string], Promise<void>>().mockResolvedValue();
+    const show = vi.fn<(view: string) => Promise<void>>().mockResolvedValue(
+      undefined
+    );
     host.shell = {
       show,
       getActiveModule: () => null,
@@ -304,7 +309,9 @@ describe('RuntimeHost time clustering island layout', () => {
 
   it('keeps docked-left time clustering open when switching the base view', async () => {
     const host = getRuntimeHostInternals(createRuntimeHost());
-    const show = vi.fn<[string], Promise<void>>().mockResolvedValue();
+    const show = vi.fn<(view: string) => Promise<void>>().mockResolvedValue(
+      undefined
+    );
     host.shell = {
       show,
       getActiveModule: () => null,
@@ -326,7 +333,9 @@ describe('RuntimeHost time clustering island layout', () => {
 
   it('closes fullscreen time clustering when switching the base view', async () => {
     const host = getRuntimeHostInternals(createRuntimeHost());
-    const show = vi.fn<[string], Promise<void>>().mockResolvedValue();
+    const show = vi.fn<(view: string) => Promise<void>>().mockResolvedValue(
+      undefined
+    );
     host.shell = {
       show,
       getActiveModule: () => null,

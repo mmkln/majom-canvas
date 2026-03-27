@@ -419,17 +419,23 @@ export const en = {
     'Manage account details, language, wallpaper, and account actions.',
   'profileSettings.account.title': 'Account',
   'profileSettings.account.description':
-    'Review your account identity, update your username, and sign out when needed.',
+    'Review your account identity, update your name, username, and email, and sign out when needed.',
+  'profileSettings.account.details': 'Account details',
+  'profileSettings.account.firstName': 'First name',
+  'profileSettings.account.lastName': 'Last name',
   'profileSettings.account.username': 'Username',
   'profileSettings.account.email': 'Email',
   'profileSettings.account.currentUsernameDescription': 'Current: {username}',
+  'profileSettings.account.currentDetailsDescription': '{username} · {email}',
   'profileSettings.account.panelDescription':
-    'Update the username shown across your workspace.',
-  'profileSettings.account.saved': 'Username updated.',
-  'profileSettings.account.saveError': 'Could not update username.',
+    'Update the name, username, and email used for this account.',
+  'profileSettings.account.saved': 'Account details updated.',
+  'profileSettings.account.saveError': 'Could not update account details.',
   'profileSettings.account.updatedDescription':
-    'Your username was updated for this account.',
+    'Your account details were updated for this account.',
   'profileSettings.account.usernameRequired': 'Username is required.',
+  'profileSettings.account.emailRequired': 'Email is required.',
+  'profileSettings.account.emailInvalid': 'Enter a valid email address.',
   'profileSettings.account.logout': 'Logout',
   'profileSettings.security.title': 'Security',
   'profileSettings.security.description':
@@ -685,6 +691,7 @@ export const en = {
   'workspaceControls.energyVeryHigh': "Let's go",
   'workspaceControls.energyVeryLow': 'Dead',
   'workspaceControls.kanban': 'Kanban',
+  'workspaceControls.learningStudio': 'Learning Studio',
   'workspaceControls.hideControls': 'Hide workspace controls',
   'workspaceControls.openRoutines': 'Open routines',
   'workspaceControls.routines': 'Routines',
@@ -705,6 +712,277 @@ export const en = {
   'energyStats.periodSelector': 'Energy stats period',
   'energyStats.subtitle': 'Last {days} days',
   'energyStats.title': 'Energy stats',
+  'learningStudio.actions.createAi': 'Create with AI',
+  'learningStudio.actions.createManual': 'Create manually',
+  'learningStudio.actions.addExercise': 'Add exercise',
+  'learningStudio.actions.addLesson': 'Add lesson',
+  'learningStudio.actions.addModule': 'Add module',
+  'learningStudio.actions.markAvailable': 'Mark available',
+  'learningStudio.actions.markCompleted': 'Mark completed',
+  'learningStudio.actions.markInProgress': 'Start lesson',
+  'learningStudio.actions.markReview': 'Mark for review',
+  'learningStudio.actions.nudgeDown': 'Move down',
+  'learningStudio.actions.nudgeLeft': 'Move left',
+  'learningStudio.actions.nudgeRight': 'Move right',
+  'learningStudio.actions.nudgeUp': 'Move up',
+  'learningStudio.actions.openAccess': 'Open access',
+  'learningStudio.actions.openAuthoring': 'Edit details',
+  'learningStudio.actions.openLearner': 'Preview lesson',
+  'learningStudio.actions.openSettings': 'Open settings',
+  'learningStudio.authoring.canvasBody':
+    'Shape the course as structured modules and lesson blocks, then edit the details in the inspector.',
+  'learningStudio.authoring.canvasEmpty':
+    'Add the first module to start shaping the course workspace.',
+  'learningStudio.authoring.canvasTitle': 'Course workspace',
+  'learningStudio.authoring.addModuleBody':
+    'Add another module when you are ready for the next section of the course.',
+  'learningStudio.authoring.addModuleTitle': 'Keep building the structure',
+  'learningStudio.authoring.audienceHint':
+    'Keep the target learner visible while shaping the structure.',
+  'learningStudio.authoring.emptyBody':
+    'Select a course from the library or create a draft to keep building.',
+  'learningStudio.authoring.emptyAudience': 'Audience not defined yet',
+  'learningStudio.authoring.emptyTitle': 'No course selected for build',
+  'learningStudio.authoring.inspectorSubtitle':
+    'Edit whichever course element is selected in the outline or workspace.',
+  'learningStudio.authoring.inspectorTitle': 'Inspector',
+  'learningStudio.authoring.layoutTitle': 'Canvas placement',
+  'learningStudio.authoring.prerequisiteCount': '{count} prerequisites',
+  'learningStudio.authoring.prerequisiteToggleAria':
+    'Toggle prerequisite {title}',
+  'learningStudio.authoring.lessonCount': '{count} lesson cards',
+  'learningStudio.authoring.lessonsEmpty':
+    'No lesson cards yet. Add a lesson or exercise.',
+  'learningStudio.authoring.outlineEmpty':
+    'No modules yet. Create the first module to begin the course structure.',
+  'learningStudio.authoring.outlineSubtitle':
+    'Navigate the course hierarchy and add new learning units quickly.',
+  'learningStudio.authoring.outlineTitle': 'Structure outline',
+  'learningStudio.authoring.prerequisitesClear': 'Clear prerequisites',
+  'learningStudio.authoring.prerequisitesEmpty':
+    'No other lessons are available for prerequisite selection.',
+  'learningStudio.authoring.prerequisitesHelp':
+    'Select the lessons that should be finished before this one becomes available.',
+  'learningStudio.authoring.prerequisitesLockedNote':
+    'This lesson stays locked until all selected prerequisites are completed.',
+  'learningStudio.authoring.prerequisitesSubtitle':
+    'Pick the lessons that must be completed first to shape course sequencing.',
+  'learningStudio.authoring.prerequisitesTitle': 'Prerequisites',
+  'learningStudio.course.aiDescription':
+    'AI-seeded draft. Refine the outline, audience, and lesson structure before publishing.',
+  'learningStudio.course.aiPrefix': 'AI course draft',
+  'learningStudio.course.manualPrefix': 'Course draft',
+  'learningStudio.eyebrow': 'Local prototype',
+  'learningStudio.fields.audience': 'Audience',
+  'learningStudio.fields.description': 'Description',
+  'learningStudio.fields.lessonDescription': 'Lesson description',
+  'learningStudio.fields.lessonTitle': 'Lesson title',
+  'learningStudio.fields.lessonType': 'Lesson type',
+  'learningStudio.fields.moduleTitle': 'Module title',
+  'learningStudio.fields.title': 'Course title',
+  'learningStudio.manageTitle': 'Manage',
+  'learningStudio.home.courseDescriptionFallback':
+    'No description yet. Open Build to shape this course draft.',
+  'learningStudio.home.courseStats': '{modules} modules · {lessons} lessons',
+  'learningStudio.home.emptyBody':
+    'Create the first local course draft to unlock overview, build, and learner preview. No backend or enrollment API is required in this prototype phase.',
+  'learningStudio.home.emptyTitle': 'No courses yet',
+  'learningStudio.home.openCourseCta': 'Open overview',
+  'learningStudio.home.subtitle':
+    'Browse local draft courses here, then open an overview before moving into build or learner preview.',
+  'learningStudio.home.title': 'Course library',
+  'learningStudio.home.viewAll': 'All courses',
+  'learningStudio.inspector.course': 'Course',
+  'learningStudio.inspector.lesson': 'Lesson',
+  'learningStudio.inspector.module': 'Module',
+  'learningStudio.learner.emptyBody':
+    'Open a draft course from Home to preview how learner-focused screens will attach to the same underlying course model.',
+  'learningStudio.learner.emptyTitle': 'No course selected for learner preview',
+  'learningStudio.learner.availableBody': 'Ready to open right now.',
+  'learningStudio.learner.availableTitle': 'Available now',
+  'learningStudio.learner.completionBody':
+    '{completed} of {total} lessons completed',
+  'learningStudio.learner.completionTitle': 'Completion',
+  'learningStudio.learner.courseCompleted':
+    'This learner has completed the full course.',
+  'learningStudio.learner.focusEmptyBody':
+    'Choose a lesson from the course roadmap to open it in the focus panel.',
+  'learningStudio.learner.focusEmptyTitle': 'No lesson selected',
+  'learningStudio.learner.inProgressBody':
+    'Lessons already in motion or marked for review.',
+  'learningStudio.learner.inProgressTitle': 'In motion',
+  'learningStudio.learner.jumpToPrerequisite': 'Jump to prerequisite',
+  'learningStudio.learner.mapSubtitle':
+    'See the structure of modules and lessons while moving through focused lesson work.',
+  'learningStudio.learner.mapTitle': 'Course roadmap',
+  'learningStudio.learner.lessonAvailable': 'Available',
+  'learningStudio.learner.lessonCompleted': 'Completed',
+  'learningStudio.learner.lessonInProgress': 'In progress',
+  'learningStudio.learner.lessonLocked': 'Locked',
+  'learningStudio.learner.lessonReview': 'Review',
+  'learningStudio.learner.lockedBodyShort':
+    'These lessons unlock after prerequisites are completed.',
+  'learningStudio.learner.lockedTitle': 'Locked',
+  'learningStudio.learner.nextStepEmpty':
+    'There is no recommended next lesson yet.',
+  'learningStudio.learner.nextStepFallbackBody':
+    'Open this lesson to continue the learner flow.',
+  'learningStudio.learner.nextStepTitle': 'Recommended next step',
+  'learningStudio.learner.noLessonDescription':
+    'This lesson does not have learner-facing notes yet.',
+  'learningStudio.learner.openNextStep': 'Open next step',
+  'learningStudio.learner.progressLabel': 'Progress',
+  'learningStudio.learner.prerequisitesNone': 'No prerequisites',
+  'learningStudio.learner.prerequisitesTitle': 'Prerequisites',
+  'learningStudio.learner.readyBody':
+    'All prerequisite lessons are complete. This lesson is ready to open.',
+  'learningStudio.learner.lockedBody':
+    'Complete the prerequisite lessons first: {lessons}.',
+  'learningStudio.learner.subtitle':
+    'Stay oriented in the course roadmap while opening the active lesson in a larger focus panel.',
+  'learningStudio.learner.title': 'Learner preview',
+  'learningStudio.overview.buildCta': 'Build course',
+  'learningStudio.overview.emptyBody':
+    'Open a course from the library to review its structure, status, and next steps.',
+  'learningStudio.overview.emptyTitle': 'No course selected for overview',
+  'learningStudio.overview.learnCta': 'Preview learner',
+  'learningStudio.overview.learnerHint':
+    'Learners currently invited or enrolled locally.',
+  'learningStudio.overview.manageCta': 'Open settings',
+  'learningStudio.overview.moduleLessons': '{count} lessons',
+  'learningStudio.overview.nextBuildBody':
+    'Add modules, lessons, exercises, and sequencing details.',
+  'learningStudio.overview.nextBuildTitle': 'Continue building',
+  'learningStudio.overview.nextLearnBody':
+    'Check how the course feels for a student before sharing it.',
+  'learningStudio.overview.nextLearnTitle': 'Preview the learner journey',
+  'learningStudio.overview.nextManageBody':
+    'Review access, publishing state, and other secondary controls.',
+  'learningStudio.overview.nextManageTitle': 'Prepare access and settings',
+  'learningStudio.overview.nextSubtitle':
+    'Use the overview as the handoff between structure work, learner preview, and course management.',
+  'learningStudio.overview.nextTitle': 'What should happen next?',
+  'learningStudio.overview.openModuleCta': 'Edit module',
+  'learningStudio.overview.shareCta': 'Manage access',
+  'learningStudio.overview.structureEmptyBody':
+    'Move into Build to add the first module and shape the learner path.',
+  'learningStudio.overview.structureEmptyTitle': 'No modules yet',
+  'learningStudio.overview.structureSubtitle':
+    'Review the modules and lesson density before jumping into editing.',
+  'learningStudio.overview.structureTitle': 'Course structure',
+  'learningStudio.overview.subtitle':
+    'Start with a clear course overview, then move into build, learner preview, or management.',
+  'learningStudio.access.archiveCta': 'Archive access',
+  'learningStudio.access.caveatBody':
+    'This access surface is local-only for now. The buttons are placeholders for future enrollment and sharing APIs.',
+  'learningStudio.access.caveatTitle': 'Implementation note',
+  'learningStudio.access.copyLinkCta': 'Copy share link',
+  'learningStudio.access.emptyBody':
+    'Choose a course first to manage local access and enrollment records.',
+  'learningStudio.access.emptyTitle': 'No course selected for access',
+  'learningStudio.access.inviteCta': 'Invite learner',
+  'learningStudio.access.localPrototypeNotice':
+    'Enrollment and access grants are still local-prototype concepts here.',
+  'learningStudio.access.participantsCount': '{count} people',
+  'learningStudio.access.participantsEmpty':
+    'No learners or collaborators have been granted access yet.',
+  'learningStudio.access.participantsTitle': 'Access list',
+  'learningStudio.access.revokeCta': 'Revoke',
+  'learningStudio.access.role.editor': 'Editor',
+  'learningStudio.access.role.learner': 'Learner',
+  'learningStudio.access.role.viewer': 'Viewer',
+  'learningStudio.access.shareLinkFallback':
+    'Share link will be connected when the backend access flow exists.',
+  'learningStudio.access.shareLinkLabel': 'Share link',
+  'learningStudio.access.status.active': 'Active',
+  'learningStudio.access.status.pending': 'Pending',
+  'learningStudio.access.status.revoked': 'Revoked',
+  'learningStudio.access.subtitle':
+    'Review who can open {courseTitle}, then wire in invite and revoke flows later.',
+  'learningStudio.access.title': 'Access and enrollment',
+  'learningStudio.settings.archiveCta': 'Archive course',
+  'learningStudio.settings.caveatBody':
+    'Settings in this view are intentionally presentational. Publish, versioning, and real enrollment rules should come from backend contracts later.',
+  'learningStudio.settings.caveatTitle': 'Prototype boundary',
+  'learningStudio.settings.courseStatus': 'Course status',
+  'learningStudio.settings.courseTitle': 'Course title',
+  'learningStudio.settings.duplicateCta': 'Duplicate draft',
+  'learningStudio.settings.duplicateSuffix': 'Copy',
+  'learningStudio.settings.emptyBody':
+    'Choose a course first to review publish-oriented settings.',
+  'learningStudio.settings.emptyTitle': 'No course selected for settings',
+  'learningStudio.settings.learnerCount': 'Learners',
+  'learningStudio.settings.lessonCount': 'Lessons',
+  'learningStudio.settings.localPrototypeNotice':
+    'This screen is a local-only settings scaffold. It keeps the publication story visible without implying a backend contract yet.',
+  'learningStudio.settings.moduleCount': 'Modules',
+  'learningStudio.settings.publishedAt': 'Published at',
+  'learningStudio.settings.publishCta': 'Publish course',
+  'learningStudio.settings.subtitle':
+    'Keep publish-related metadata visible while the actual storage and access rules stay local-only.',
+  'learningStudio.settings.title': 'Course settings',
+  'learningStudio.settings.updatedAt': 'Last updated',
+  'learningStudio.lesson.defaultCheckpointTitle': 'Checkpoint',
+  'learningStudio.lesson.defaultExerciseTitle': 'Exercise',
+  'learningStudio.lesson.defaultLessonTitle': 'Lesson',
+  'learningStudio.module.defaultTitle': 'Module',
+  'learningStudio.nav.access': 'Access',
+  'learningStudio.nav.authoring': 'Authoring',
+  'learningStudio.nav.build': 'Build',
+  'learningStudio.nav.home': 'Home',
+  'learningStudio.nav.learn': 'Learn',
+  'learningStudio.nav.learner': 'Learner',
+  'learningStudio.nav.overview': 'Overview',
+  'learningStudio.nav.settings': 'Settings',
+  'learningStudio.navigationLabel': 'Course workflow',
+  'learningStudio.placeholders.courseAudience':
+    'Who is this course for?',
+  'learningStudio.placeholders.courseDescription':
+    'Describe the promise, scope, and tone of the course.',
+  'learningStudio.placeholders.courseTitle':
+    'Name the course draft',
+  'learningStudio.placeholders.lessonDescription':
+    'Add learner-facing notes, exercise instructions, or checkpoint criteria.',
+  'learningStudio.placeholders.lessonTitle':
+    'Name the lesson card',
+  'learningStudio.placeholders.moduleTitle':
+    'Name the module container',
+  'learningStudio.progress.available': 'Available',
+  'learningStudio.progress.completed': 'Completed',
+  'learningStudio.progress.inProgress': 'In progress',
+  'learningStudio.progress.locked': 'Locked',
+  'learningStudio.progress.review': 'Review',
+  'learningStudio.redesign.badge': 'Redesign in progress',
+  'learningStudio.redesign.title': 'Learning Studio is temporarily hidden while the experience is being redesigned.',
+  'learningStudio.redesign.body':
+    'The current prototype has been removed from the page so a stronger end-to-end course experience can be designed before implementation resumes.',
+  'learningStudio.redesign.noteJourney':
+    'The creator journey is being redesigned from scratch instead of patched incrementally.',
+  'learningStudio.redesign.noteAuthoring':
+    'Course authoring, structure editing, and course readiness will return in a more mature workflow.',
+  'learningStudio.redesign.notePreview':
+    'Preview, learner experience, access, and publication will be reintroduced after the product rules are clarified.',
+  'learningStudio.redesign.noteCanvas':
+    'Canvas integration is being reconsidered at the architecture level rather than imitated with temporary UI blocks.',
+  'learningStudio.redesign.footer':
+    'Use the documentation specs as the current source of truth until the next implementation pass begins.',
+  'learningStudio.status.archived': 'Archived',
+  'learningStudio.status.draft': 'Draft',
+  'learningStudio.status.published': 'Published',
+  'learningStudio.subtitle':
+    'A structured local prototype for course design and learner flows inside the workspace shell.',
+  'learningStudio.summary.courses': 'Courses',
+  'learningStudio.summary.coursesHint': 'Draft and published local course records.',
+  'learningStudio.summary.lessons': 'Lessons',
+  'learningStudio.summary.lessonsHint':
+    'Lesson, exercise, and checkpoint cards stored in the local prototype.',
+  'learningStudio.summary.modules': 'Modules',
+  'learningStudio.summary.modulesHint':
+    'Course containers currently arranged in the workspace.',
+  'learningStudio.title': 'Learning Studio',
+  'learningStudio.type.checkpoint': 'Checkpoint',
+  'learningStudio.type.exercise': 'Exercise',
+  'learningStudio.type.lesson': 'Lesson',
   'workspaceControls.workspaceView': 'Workspace view',
 } as const;
 

@@ -43,18 +43,24 @@ export const rue: AppTranslations = {
     'Керуйте данными рахунку, языком, тлом workspace-у і діями над рахунком.',
   'profileSettings.account.title': 'Рахунок',
   'profileSettings.account.description':
-    'Перегляньте даны рахунку, зміньте юзернейм і, як треба, выйдьте із системы.',
+    'Перегляньте даны рахунку, зміньте имя, призвище, юзернейм і email і, як треба, выйдьте із системы.',
+  'profileSettings.account.details': 'Детайлы рахунку',
+  'profileSettings.account.firstName': 'Имя',
+  'profileSettings.account.lastName': 'Призвище',
   'profileSettings.account.username': 'Юзернейм',
   'profileSettings.account.email': 'Email',
   'profileSettings.account.currentUsernameDescription':
     'Теперішнє: {username}',
+  'profileSettings.account.currentDetailsDescription': '{username} · {email}',
   'profileSettings.account.panelDescription':
-    'Зміньте юзернейм, котрый ся указує у workspace.',
-  'profileSettings.account.saved': 'Юзернейм зміненый.',
-  'profileSettings.account.saveError': 'Не удало ся змінити юзернейм.',
+    'Зміньте имя, призвище, юзернейм і email, котры ся ужывають на тім рахунку.',
+  'profileSettings.account.saved': 'Даны рахунку змінены.',
+  'profileSettings.account.saveError': 'Не удало ся змінити даны рахунку.',
   'profileSettings.account.updatedDescription':
-    'Юзернейм того рахунку ся якраз змінив.',
+    'Даны того рахунку ся якраз змінили.',
   'profileSettings.account.usernameRequired': 'Юзернейм є обовязковый.',
+  'profileSettings.account.emailRequired': 'Email є обовязковый.',
+  'profileSettings.account.emailInvalid': 'Введьте валідну email-адресу.',
   'profileSettings.account.logout': 'Выйти',
   'profileSettings.security.title': 'Безпечность',
   'profileSettings.security.description':

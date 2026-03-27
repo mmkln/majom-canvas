@@ -32,7 +32,11 @@ export type TimeClusteringLayoutModeChangedDetail = {
 };
 
 export function isWorkspaceView(value: unknown): value is WorkspaceView {
-  return value === 'canvas' || value === 'kanban';
+  return (
+    value === 'canvas' ||
+    value === 'kanban' ||
+    value === 'learning-studio'
+  );
 }
 
 export function isWorkspaceViewChangeRequestDetail(

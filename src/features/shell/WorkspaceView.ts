@@ -1,1 +1,1 @@
-export type WorkspaceView = 'canvas' | 'kanban';
+export type WorkspaceView = 'canvas' | 'kanban' | 'learning-studio';

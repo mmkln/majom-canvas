@@ -6,6 +6,11 @@
 - Started: 2026-03-23
 - Document type: living product and architecture notes
 - Implementation planning companion: `docs/LEARNING-STUDIO-IMPLEMENTATION-BLUEPRINT.md`
+- Author UX decision spec: `docs/LEARNING-STUDIO-AUTHOR-UX-SPEC.md`
+- Publication/access/versioning spec: `docs/LEARNING-STUDIO-PUBLICATION-ACCESS-VERSIONING-SPEC.md`
+- Progress/assessment spec: `docs/LEARNING-STUDIO-PROGRESS-ASSESSMENT-SPEC.md`
+- Preview/runtime spec: `docs/LEARNING-STUDIO-PREVIEW-LEARNER-RUNTIME-SPEC.md`
+- Build interaction spec: `docs/LEARNING-STUDIO-BUILD-INTERACTION-SPEC.md`
 
 This document tracks the current understanding of the planned learning module.
 It should be updated as discussions continue and requirements become more concrete.
@@ -15,6 +20,14 @@ It should be updated as discussions continue and requirements become more concre
 - Product-facing name: `Learning Studio`
 - Technical module id: `learning-studio`
 - Planned module class: `LearningStudioModule`
+
+## Decision Summary
+
+- `Learning Studio` is canvas-first.
+- The course canvas should use dedicated learning entities such as `Course`, `CourseModule`, `Lesson`, and `Exercise`.
+- `Goal`, `Story`, and `Task` are not the canonical course model.
+- Existing planning entities may be used as design references, visual precedents, or projection targets into the broader planning and execution system.
+- Reusing canvas interaction patterns does not mean reusing planning entities as the source of truth for course data.
 
 ## Vision
 
@@ -32,6 +45,7 @@ The broader product is a personal development workspace with two primary pillars
 This matters for the module design.
 Learning items should connect to the user's broader execution system instead of living in an isolated course player.
 A lesson, exercise, or checkpoint should be able to exist as concrete work inside the same ecosystem as goals, stories, and tasks.
+That does not mean courses themselves should be stored as `Goal`, `Story`, and `Task`.
 
 ## Product Intent
 
@@ -167,8 +181,8 @@ Given the current codebase, the realistic near-term version should be smaller an
 
 The most realistic first deliverable is:
 
-- represent a course as a structured planning artifact on the existing canvas
-- map course hierarchy onto existing planning levels where possible
+- represent a course on the existing canvas infrastructure using dedicated learning entities
+- borrow interaction patterns and visual references from existing planning elements where they already fit
 - let AI generate the initial course or learning plan
 - let the user edit that structure manually
 - let lessons and exercises appear as actionable items that can be tracked through existing progress mechanics
@@ -176,9 +190,10 @@ The most realistic first deliverable is:
 
 In practice, that suggests a first increment closer to:
 
-- `goal` = learning outcome or course objective
-- `story` = module, chapter, or lesson group
-- `task` = lesson, exercise, quiz, or concrete study action
+- `Goal` visual patterns can inform how a course objective or broader course entry might appear
+- `Story` visual patterns can inform how module-like containers behave on the canvas
+- `Task` visual patterns can inform how lesson, exercise, or checkpoint cards behave on the canvas
+- learning entities remain distinct from planning entities even when they reuse these visual precedents
 
 This would immediately test the core thesis that learning should feed into execution.
 
@@ -283,6 +298,35 @@ Learner mode should emphasize:
 - reduced visual noise
 
 This suggests one shared domain model with two UI presentations rather than two unrelated canvas systems.
+
+## UI Architecture Decision
+
+Author-flow specificity is defined in:
+
+- `docs/LEARNING-STUDIO-AUTHOR-UX-SPEC.md`
+
+The recommended UI architecture is hybrid:
+
+- `Home` should be a non-canvas course list and entry screen.
+- `Authoring` should be canvas-first, with editing done through inspector panels, drawers, sheets, or modals layered over the canvas.
+- `Learner` should keep the course map visible, but open lesson consumption in a larger focus panel or split view instead of tiny drawers.
+- access, publishing, enrollment, and course settings should stay in non-canvas forms or panels.
+
+This means the product should not be implemented as only full pages and should not be implemented as only small overlays on top of the canvas either.
+
+The intended balance is:
+
+- canvas for structure, sequencing, prerequisites, and spatial navigation
+- panels or sheets for metadata editing and focused lesson work
+- non-canvas screens for administrative flows
+
+On smaller screens, large side panels may collapse into full-screen sheets instead of narrow drawers.
+
+Additional author-flow decisions now fixed:
+
+- the creator-facing primary flow is `Home -> Course Overview -> Build -> Preview`
+- `Access`, `Settings`, and `Publish` are secondary management surfaces
+- creator-facing `Learn` should be treated as `Preview` in the IA
 
 ## Recommended Learning Elements On Canvas
 
@@ -452,6 +496,10 @@ This changes the access model, authoring flow, and AI role significantly.
 
 ### 2. Course Ownership And Versioning
 
+Focused v1 draft spec:
+
+- `docs/LEARNING-STUDIO-PUBLICATION-ACCESS-VERSIONING-SPEC.md`
+
 - who owns a course
 - can a creator edit a course after learners already started it
 - do learners stay on the old version or move to the new one
@@ -460,6 +508,10 @@ This changes the access model, authoring flow, and AI role significantly.
 Without this, learning progress becomes fragile very quickly.
 
 ### 3. Publication And Visibility Model
+
+Focused v1 draft spec:
+
+- `docs/LEARNING-STUDIO-PUBLICATION-ACCESS-VERSIONING-SPEC.md`
 
 - what is private
 - what is shared by link
@@ -560,12 +612,12 @@ If `goal`, `story`, and `task` become the canonical course model, the planning d
 ### Why Existing Planning Entities Still Matter
 
 The current app architecture already has strong support for `goal`, `story`, and `task` across canvas rendering, persistence, API integration, and AI-assisted workflows.
-Because of that, they are a good short-term execution surface for v1.
+Because of that, they are a good short-term reference surface for interaction patterns and a good execution projection target for v1.
 
 The practical recommendation is:
 
 - keep learning entities as the future canonical model
-- use planning entities as a temporary bootstrap model or a derived execution projection
+- use planning entities as a visual reference, temporary bootstrap aid where absolutely necessary, or a derived execution projection
 
 ### Recommended Layering
 
@@ -598,9 +650,9 @@ This gives the product the integration it wants without permanently binding cour
 
 ### Stage 1: Learning As Structured Planning
 
-- AI generates a course outline or learning plan into the existing canvas model.
-- Users refine the generated structure manually.
-- Lessons and exercises are tracked through existing task-like completion states.
+- AI generates a course outline or learning plan into a canvas-first learning experience.
+- Users refine the generated structure manually on the canvas.
+- Early iterations may still project lesson or exercise work into task-like execution states where useful.
 - No dedicated learner runtime is required yet.
 
 ### Stage 2: Dedicated Learning View
@@ -706,6 +758,7 @@ That is another reason to avoid treating planning entities as the permanent cour
 - The recommended first-step visual model is module-as-container and lesson/exercise-as-card, with type and learning state carried by badges and overlays rather than many brand-new shapes.
 - Course context should usually be the canvas itself, while course appearance inside the broader planning space can be represented by a higher-level goal-like node.
 - The same learning entities should support an author-facing canvas mode and a learner-facing canvas mode with different information density.
+- `Goal`, `Story`, and `Task` should be treated as visual and behavioral references for learning elements, not as the course-domain entities themselves.
 - The overall concept is valid; the main product risk is trying to ship too many layers of it at once.
 - Several easy-to-miss areas now identified as important: audience focus, publication/versioning, progress semantics, planning-learning sync, assessment, AI trust, structured content format, and success metrics.
 
@@ -724,6 +777,7 @@ That is another reason to avoid treating planning entities as the permanent cour
 - A lesson should be able to appear as a concrete task to complete alongside the rest of a user's work.
 - A key design question is whether courses should reuse planning entities directly or introduce separate learning entities.
 - Current conclusion: separate learning entities are the better long-term model, but reuse of planning entities is realistic for early delivery and execution integration.
+- Clarification: "reuse" should usually mean reuse of visual families, interaction patterns, and execution projections, not reuse of planning entities as the canonical stored course model.
 - The first concrete capability should be course creation plus the ability to give students access to learn it.
 - The ideal version is a strong AI experience where a learner describes what they want to master and the AI builds the most suitable learning plan.
 - That ideal requires a genuinely strong AI, a well-designed interaction architecture, and structured learning-plan and material formats.

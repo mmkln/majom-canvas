@@ -1,6 +1,7 @@
 import {
   IS_DEVELOPMENT_MODE,
   KANBAN_DEV_ENABLED,
+  LEARNING_STUDIO_DEV_ENABLED,
   ROUTINES_ENABLED,
   TIME_CLUSTERING_DEV_ENABLED,
 } from '../config/env/index.ts';
@@ -144,6 +145,7 @@ export class GlobalAppHeader {
     );
     const initialWorkspaceView = loadPersistedWorkspaceView({
       allowKanban: KANBAN_DEV_ENABLED,
+      allowLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
     });
     this.routinesModal = ROUTINES_ENABLED
       ? new HabitsQuickModal(undefined, this.runtime)
@@ -156,6 +158,7 @@ export class GlobalAppHeader {
       initialTimeClusteringOpen,
       initialTimeClusteringLayoutMode: 'docked-left',
       showKanban: KANBAN_DEV_ENABLED,
+      showLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
       showTimeClustering: false,
       showRoutines: false,
       showChat: false,

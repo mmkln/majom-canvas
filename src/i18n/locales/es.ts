@@ -211,19 +211,27 @@ export const es: AppTranslations = {
     'Gestiona los datos de la cuenta, el idioma, el fondo y las acciones de la cuenta.',
   'profileSettings.account.title': 'Cuenta',
   'profileSettings.account.description':
-    'Revisa la identidad de tu cuenta, actualiza tu nombre de usuario y cierra sesión si hace falta.',
+    'Revisa la identidad de tu cuenta, actualiza tu nombre, apellido, nombre de usuario y correo, y cierra sesión si hace falta.',
+  'profileSettings.account.details': 'Datos de la cuenta',
+  'profileSettings.account.firstName': 'Nombre',
+  'profileSettings.account.lastName': 'Apellido',
   'profileSettings.account.username': 'Nombre de usuario',
   'profileSettings.account.email': 'Correo electrónico',
   'profileSettings.account.currentUsernameDescription': 'Actual: {username}',
+  'profileSettings.account.currentDetailsDescription': '{username} · {email}',
   'profileSettings.account.panelDescription':
-    'Actualiza el nombre de usuario que se muestra en tu workspace.',
-  'profileSettings.account.saved': 'Nombre de usuario actualizado.',
+    'Actualiza el nombre, apellido, nombre de usuario y correo usados por esta cuenta.',
+  'profileSettings.account.saved': 'Datos de la cuenta actualizados.',
   'profileSettings.account.saveError':
-    'No se pudo actualizar el nombre de usuario.',
+    'No se pudieron actualizar los datos de la cuenta.',
   'profileSettings.account.updatedDescription':
-    'El nombre de usuario de esta cuenta se actualizó.',
+    'Los datos de esta cuenta se actualizaron.',
   'profileSettings.account.usernameRequired':
     'El nombre de usuario es obligatorio.',
+  'profileSettings.account.emailRequired':
+    'El correo electrónico es obligatorio.',
+  'profileSettings.account.emailInvalid':
+    'Introduce una dirección de correo válida.',
   'profileSettings.account.logout': 'Cerrar sesión',
   'profileSettings.security.title': 'Seguridad',
   'profileSettings.security.description':

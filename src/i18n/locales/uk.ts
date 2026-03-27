@@ -420,20 +420,27 @@ export const uk = {
     'Керуйте даними акаунта, мовою, шпалерами та діями над акаунтом.',
   'profileSettings.account.title': 'Акаунт',
   'profileSettings.account.description':
-    "Перегляньте дані акаунта, оновіть ім'я користувача та вийдіть за потреби.",
+    "Перегляньте дані акаунта, оновіть ім'я, прізвище, ім'я користувача та email і вийдіть за потреби.",
+  'profileSettings.account.details': 'Дані акаунта',
+  'profileSettings.account.firstName': "Ім'я",
+  'profileSettings.account.lastName': 'Прізвище',
   'profileSettings.account.username': "Ім'я користувача",
   'profileSettings.account.email': 'Email',
   'profileSettings.account.currentUsernameDescription':
     'Поточне: {username}',
+  'profileSettings.account.currentDetailsDescription':
+    '{username} · {email}',
   'profileSettings.account.panelDescription':
-    "Оновіть ім'я користувача, яке відображається у workspace.",
-  'profileSettings.account.saved': "Ім'я користувача оновлено.",
+    "Оновіть ім'я, прізвище, ім'я користувача та email для цього акаунта.",
+  'profileSettings.account.saved': 'Дані акаунта оновлено.',
   'profileSettings.account.saveError':
-    "Не вдалося оновити ім'я користувача.",
+    'Не вдалося оновити дані акаунта.',
   'profileSettings.account.updatedDescription':
-    "Ім'я користувача для цього акаунта щойно оновлено.",
+    'Дані цього акаунта щойно оновлено.',
   'profileSettings.account.usernameRequired':
     "Ім'я користувача обов'язкове.",
+  'profileSettings.account.emailRequired': "Email обов'язковий.",
+  'profileSettings.account.emailInvalid': 'Введіть коректну email-адресу.',
   'profileSettings.account.logout': 'Вийти',
   'profileSettings.security.title': 'Безпека',
   'profileSettings.security.description':
@@ -690,6 +697,7 @@ export const uk = {
   'workspaceControls.energyVeryHigh': 'Погнали',
   'workspaceControls.energyVeryLow': 'Вмер',
   'workspaceControls.kanban': 'Kanban',
+  'workspaceControls.learningStudio': 'Learning Studio',
   'workspaceControls.hideControls': 'Сховати керування workspace',
   'workspaceControls.openRoutines': 'Відкрити звички',
   'workspaceControls.routines': 'Звички',
@@ -710,5 +718,277 @@ export const uk = {
   'energyStats.periodSelector': 'Період статистики енергії',
   'energyStats.subtitle': 'Останні {days} днів',
   'energyStats.title': 'Статистика енергії',
+  'learningStudio.actions.createAi': 'Створити з AI',
+  'learningStudio.actions.createManual': 'Створити вручну',
+  'learningStudio.actions.addExercise': 'Додати вправу',
+  'learningStudio.actions.addLesson': 'Додати урок',
+  'learningStudio.actions.addModule': 'Додати модуль',
+  'learningStudio.actions.markAvailable': 'Позначити доступним',
+  'learningStudio.actions.markCompleted': 'Позначити завершеним',
+  'learningStudio.actions.markInProgress': 'Почати урок',
+  'learningStudio.actions.markReview': 'Позначити для повторення',
+  'learningStudio.actions.nudgeDown': 'Посунути вниз',
+  'learningStudio.actions.nudgeLeft': 'Посунути вліво',
+  'learningStudio.actions.nudgeRight': 'Посунути вправо',
+  'learningStudio.actions.nudgeUp': 'Посунути вгору',
+  'learningStudio.actions.openAccess': 'Відкрити доступ',
+  'learningStudio.actions.openAuthoring': 'Редагувати деталі',
+  'learningStudio.actions.openLearner': 'Переглянути урок',
+  'learningStudio.actions.openSettings': 'Відкрити налаштування',
+  'learningStudio.authoring.canvasBody':
+    'Збирай курс як структуровані модулі й блоки уроків, а деталі редагуй в інспекторі.',
+  'learningStudio.authoring.canvasEmpty':
+    'Додай перший модуль, щоб почати формувати робочий простір курсу.',
+  'learningStudio.authoring.canvasTitle': 'Робоча область курсу',
+  'learningStudio.authoring.addModuleBody':
+    'Додай ще один модуль, коли будеш готовий переходити до наступної частини курсу.',
+  'learningStudio.authoring.addModuleTitle': 'Продовжуй будувати структуру',
+  'learningStudio.authoring.audienceHint':
+    'Тримай у фокусі цільового студента, поки будуєш структуру.',
+  'learningStudio.authoring.emptyBody':
+    'Вибери курс у бібліотеці або створи чернетку, щоб продовжити побудову.',
+  'learningStudio.authoring.emptyAudience': 'Аудиторію ще не визначено',
+  'learningStudio.authoring.emptyTitle': 'Для побудови не вибрано курс',
+  'learningStudio.authoring.inspectorSubtitle':
+    'Редагуй елемент курсу, який зараз вибраний у структурі або робочій області.',
+  'learningStudio.authoring.inspectorTitle': 'Інспектор',
+  'learningStudio.authoring.layoutTitle': 'Розкладка на canvas',
+  'learningStudio.authoring.prerequisiteCount': '{count} передумов',
+  'learningStudio.authoring.prerequisiteToggleAria':
+    'Перемкнути передумову {title}',
+  'learningStudio.authoring.lessonCount': '{count} карток уроків',
+  'learningStudio.authoring.lessonsEmpty':
+    'Карток уроків ще немає. Додай урок або вправу.',
+  'learningStudio.authoring.outlineEmpty':
+    'Модулів ще немає. Створи перший модуль, щоб почати структуру курсу.',
+  'learningStudio.authoring.outlineSubtitle':
+    'Навігуй ієрархією курсу та швидко додавай нові навчальні блоки.',
+  'learningStudio.authoring.outlineTitle': 'Структура курсу',
+  'learningStudio.authoring.prerequisitesClear': 'Очистити передумови',
+  'learningStudio.authoring.prerequisitesEmpty':
+    'Немає інших уроків, які можна додати як передумови.',
+  'learningStudio.authoring.prerequisitesHelp':
+    'Вибери уроки, які треба завершити до цього уроку, щоб задати послідовність.',
+  'learningStudio.authoring.prerequisitesLockedNote':
+    'Цей урок залишатиметься заблокованим, доки не завершиш усі вибрані передумови.',
+  'learningStudio.authoring.prerequisitesSubtitle':
+    'Познач уроки, які мають бути завершені спершу, щоб вибудувати послідовність.',
+  'learningStudio.authoring.prerequisitesTitle': 'Передумови',
+  'learningStudio.course.aiDescription':
+    'AI-seeded draft. Уточни outline, аудиторію та lesson structure перед publish.',
+  'learningStudio.course.aiPrefix': 'AI-чернетка курсу',
+  'learningStudio.course.manualPrefix': 'Чернетка курсу',
+  'learningStudio.eyebrow': 'Локальний прототип',
+  'learningStudio.fields.audience': 'Аудиторія',
+  'learningStudio.fields.description': 'Опис',
+  'learningStudio.fields.lessonDescription': 'Опис уроку',
+  'learningStudio.fields.lessonTitle': 'Назва уроку',
+  'learningStudio.fields.lessonType': 'Тип уроку',
+  'learningStudio.fields.moduleTitle': 'Назва модуля',
+  'learningStudio.fields.title': 'Назва курсу',
+  'learningStudio.manageTitle': 'Керування',
+  'learningStudio.home.courseDescriptionFallback':
+    'Опису ще немає. Відкрий побудову, щоб оформити чернетку курсу.',
+  'learningStudio.home.courseStats': '{modules} модулів · {lessons} уроків',
+  'learningStudio.home.emptyBody':
+    'Створи першу локальну чернетку курсу, щоб відкрити огляд, побудову та preview для студента. На цьому етапі backend та enrollment API не потрібні.',
+  'learningStudio.home.emptyTitle': 'Курсів ще немає',
+  'learningStudio.home.openCourseCta': 'Відкрити огляд',
+  'learningStudio.home.subtitle':
+    'Тут живуть локальні чернетки курсів: відкрий огляд, а тоді переходь до побудови або preview.',
+  'learningStudio.home.title': 'Бібліотека курсів',
+  'learningStudio.home.viewAll': 'Усі курси',
+  'learningStudio.inspector.course': 'Курс',
+  'learningStudio.inspector.lesson': 'Урок',
+  'learningStudio.inspector.module': 'Модуль',
+  'learningStudio.learner.emptyBody':
+    'Відкрий чернетку курсу з бібліотеки, щоб побачити, як student preview підв’язується до тієї ж course model.',
+  'learningStudio.learner.emptyTitle': 'Для preview студента не вибрано курс',
+  'learningStudio.learner.availableBody': 'Можна відкривати вже зараз.',
+  'learningStudio.learner.availableTitle': 'Доступно зараз',
+  'learningStudio.learner.completionBody':
+    '{completed} із {total} уроків завершено',
+  'learningStudio.learner.completionTitle': 'Завершення',
+  'learningStudio.learner.courseCompleted':
+    'Цей learner уже завершив увесь курс.',
+  'learningStudio.learner.focusEmptyBody':
+    'Вибери урок у roadmap курсу, щоб відкрити його у focus panel.',
+  'learningStudio.learner.focusEmptyTitle': 'Урок не вибрано',
+  'learningStudio.learner.inProgressBody':
+    'Уроки, які вже в роботі або позначені на повторення.',
+  'learningStudio.learner.inProgressTitle': 'У русі',
+  'learningStudio.learner.jumpToPrerequisite': 'Перейти до передумови',
+  'learningStudio.learner.mapSubtitle':
+    'Бач структуру модулів і уроків, рухаючись між сфокусованими кроками курсу.',
+  'learningStudio.learner.mapTitle': 'Roadmap курсу',
+  'learningStudio.learner.lessonAvailable': 'Доступний',
+  'learningStudio.learner.lessonCompleted': 'Завершено',
+  'learningStudio.learner.lessonInProgress': 'У процесі',
+  'learningStudio.learner.lessonLocked': 'Заблоковано',
+  'learningStudio.learner.lessonReview': 'На повторення',
+  'learningStudio.learner.lockedBodyShort':
+    'Ці уроки відкриються після завершення передумов.',
+  'learningStudio.learner.lockedTitle': 'Заблоковано',
+  'learningStudio.learner.nextStepEmpty':
+    'Поки що немає рекомендованого наступного уроку.',
+  'learningStudio.learner.nextStepFallbackBody':
+    'Відкрий цей урок, щоб продовжити learner flow.',
+  'learningStudio.learner.nextStepTitle': 'Рекомендований наступний крок',
+  'learningStudio.learner.noLessonDescription':
+    'У цього уроку ще немає learner-facing нотаток.',
+  'learningStudio.learner.openNextStep': 'Відкрити наступний крок',
+  'learningStudio.learner.progressLabel': 'Прогрес',
+  'learningStudio.learner.prerequisitesNone': 'Без передумов',
+  'learningStudio.learner.prerequisitesTitle': 'Передумови',
+  'learningStudio.learner.readyBody':
+    'Усі уроки-передумови завершено. Цей урок готовий до відкриття.',
+  'learningStudio.learner.lockedBody':
+    'Спершу заверши уроки-передумови: {lessons}.',
+  'learningStudio.learner.subtitle':
+    'Тримай орієнтир у roadmap курсу, відкриваючи активний урок у більшій focus panel.',
+  'learningStudio.learner.title': 'Режим студента',
+  'learningStudio.overview.buildCta': 'Перейти до побудови',
+  'learningStudio.overview.emptyBody':
+    'Відкрий курс із бібліотеки, щоб побачити його структуру, статус і наступні кроки.',
+  'learningStudio.overview.emptyTitle': 'Для огляду не вибрано курс',
+  'learningStudio.overview.learnCta': 'Preview як студент',
+  'learningStudio.overview.learnerHint':
+    'Студенти, яких локально запросили або зарахували.',
+  'learningStudio.overview.manageCta': 'Відкрити налаштування',
+  'learningStudio.overview.moduleLessons': '{count} уроків',
+  'learningStudio.overview.nextBuildBody':
+    'Додай модулі, уроки, вправи та послідовність проходження.',
+  'learningStudio.overview.nextBuildTitle': 'Продовжити побудову',
+  'learningStudio.overview.nextLearnBody':
+    'Подивись, як курс відчувається для студента, перш ніж ділитися ним.',
+  'learningStudio.overview.nextLearnTitle': 'Перевірити шлях студента',
+  'learningStudio.overview.nextManageBody':
+    'Перевір доступ, стан публікації та другорядні керуючі дії.',
+  'learningStudio.overview.nextManageTitle': 'Підготувати доступ і налаштування',
+  'learningStudio.overview.nextSubtitle':
+    'Огляд пов’язує побудову, preview для студента й керування курсом.',
+  'learningStudio.overview.nextTitle': 'Що робити далі?',
+  'learningStudio.overview.openModuleCta': 'Редагувати модуль',
+  'learningStudio.overview.shareCta': 'Керувати доступом',
+  'learningStudio.overview.structureEmptyBody':
+    'Перейди до побудови, щоб додати перший модуль і сформувати шлях студента.',
+  'learningStudio.overview.structureEmptyTitle': 'Модулів ще немає',
+  'learningStudio.overview.structureSubtitle':
+    'Переглянь модулі й щільність уроків перед редагуванням.',
+  'learningStudio.overview.structureTitle': 'Структура курсу',
+  'learningStudio.overview.subtitle':
+    'Почни з огляду курсу, а далі переходь до побудови, preview і керування.',
+  'learningStudio.access.archiveCta': 'Архівувати доступ',
+  'learningStudio.access.caveatBody':
+    'Цей доступ поки що локальний. Кнопки тут є заглушками для майбутніх enrollment та sharing API.',
+  'learningStudio.access.caveatTitle': 'Примітка про імплементацію',
+  'learningStudio.access.copyLinkCta': 'Скопіювати share link',
+  'learningStudio.access.emptyBody':
+    'Спочатку вибери курс, щоб керувати локальними записами доступу й enrollment.',
+  'learningStudio.access.emptyTitle': 'Для доступу не вибрано курс',
+  'learningStudio.access.inviteCta': 'Запросити learner',
+  'learningStudio.access.localPrototypeNotice':
+    'Enrollment і access grants тут поки що лише локальні поняття прототипу.',
+  'learningStudio.access.participantsCount': '{count} людей',
+  'learningStudio.access.participantsEmpty':
+    'Ще немає learner або collaborator з наданим доступом.',
+  'learningStudio.access.participantsTitle': 'Список доступу',
+  'learningStudio.access.revokeCta': 'Відкликати',
+  'learningStudio.access.role.editor': 'Редактор',
+  'learningStudio.access.role.learner': 'Learner',
+  'learningStudio.access.role.viewer': 'Переглядач',
+  'learningStudio.access.shareLinkFallback':
+    'Share link буде підключено, коли з’явиться backend access flow.',
+  'learningStudio.access.shareLinkLabel': 'Share link',
+  'learningStudio.access.status.active': 'Активний',
+  'learningStudio.access.status.pending': 'Очікує',
+  'learningStudio.access.status.revoked': 'Відкликано',
+  'learningStudio.access.subtitle':
+    'Перевір, хто може відкрити {courseTitle}, а потім підключиш invite і revoke flows пізніше.',
+  'learningStudio.access.title': 'Доступ і enrollment',
+  'learningStudio.settings.archiveCta': 'Архівувати курс',
+  'learningStudio.settings.caveatBody':
+    'Налаштування в цьому view навмисно presentational. Publish, versioning і правила enrollment мають прийти з backend contract пізніше.',
+  'learningStudio.settings.caveatTitle': 'Межа прототипу',
+  'learningStudio.settings.courseStatus': 'Статус курсу',
+  'learningStudio.settings.courseTitle': 'Назва курсу',
+  'learningStudio.settings.duplicateCta': 'Дублювати чернетку',
+  'learningStudio.settings.duplicateSuffix': 'Копія',
+  'learningStudio.settings.emptyBody':
+    'Спочатку вибери курс, щоб переглянути publish-oriented налаштування.',
+  'learningStudio.settings.emptyTitle': 'Для налаштувань не вибрано курс',
+  'learningStudio.settings.learnerCount': 'Learners',
+  'learningStudio.settings.lessonCount': 'Уроки',
+  'learningStudio.settings.localPrototypeNotice':
+    'Цей екран є локальною settings-заготовкою. Він показує story публікації без backend contract.',
+  'learningStudio.settings.moduleCount': 'Модулі',
+  'learningStudio.settings.publishedAt': 'Опубліковано',
+  'learningStudio.settings.publishCta': 'Опублікувати курс',
+  'learningStudio.settings.subtitle':
+    'Тримай publish-related metadata видимими, поки реальні storage і access rules лишаються локальними.',
+  'learningStudio.settings.title': 'Налаштування курсу',
+  'learningStudio.settings.updatedAt': 'Останнє оновлення',
+  'learningStudio.lesson.defaultCheckpointTitle': 'Checkpoint',
+  'learningStudio.lesson.defaultExerciseTitle': 'Вправа',
+  'learningStudio.lesson.defaultLessonTitle': 'Урок',
+  'learningStudio.module.defaultTitle': 'Модуль',
+  'learningStudio.nav.access': 'Доступ',
+  'learningStudio.nav.authoring': 'Authoring',
+  'learningStudio.nav.build': 'Побудова',
+  'learningStudio.nav.home': 'Головна',
+  'learningStudio.nav.learn': 'Навчання',
+  'learningStudio.nav.learner': 'Learner',
+  'learningStudio.nav.overview': 'Огляд',
+  'learningStudio.nav.settings': 'Налаштування',
+  'learningStudio.navigationLabel': 'Шлях курсу',
+  'learningStudio.placeholders.courseAudience':
+    'Для кого цей курс?',
+  'learningStudio.placeholders.courseDescription':
+    'Опиши обіцянку, scope і тон курсу.',
+  'learningStudio.placeholders.courseTitle':
+    'Назви чернетку курсу',
+  'learningStudio.placeholders.lessonDescription':
+    'Додай learner-facing нотатки, інструкції до вправи або критерії checkpoint.',
+  'learningStudio.placeholders.lessonTitle':
+    'Назви картку уроку',
+  'learningStudio.placeholders.moduleTitle':
+    'Назви контейнер модуля',
+  'learningStudio.progress.available': 'Доступний',
+  'learningStudio.progress.completed': 'Завершений',
+  'learningStudio.progress.inProgress': 'У процесі',
+  'learningStudio.progress.locked': 'Заблокований',
+  'learningStudio.progress.review': 'Повторити',
+  'learningStudio.redesign.badge': 'Триває redesign',
+  'learningStudio.redesign.title': 'Learning Studio тимчасово приховано, поки досвід користувача повністю перепроєктовується.',
+  'learningStudio.redesign.body':
+    'Поточний прототип прибрано зі сторінки, щоб далі не нарощувати слабкий інтерфейс і спочатку спроєктувати сильніший end-to-end досвід створення курсу.',
+  'learningStudio.redesign.noteJourney':
+    'Creator journey зараз перепроєктовується з нуля, а не латками поверх поточного стану.',
+  'learningStudio.redesign.noteAuthoring':
+    'Authoring, редагування структури і readiness курсу повернуться вже в значно зрілішому workflow.',
+  'learningStudio.redesign.notePreview':
+    'Preview, learner experience, access і publication будуть повернуті після уточнення продуктових правил.',
+  'learningStudio.redesign.noteCanvas':
+    'Інтеграція з canvas переосмислюється на рівні архітектури, а не імітується тимчасовими блоками.',
+  'learningStudio.redesign.footer':
+    'До наступного проходу імплементації головним джерелом правди лишається документація.',
+  'learningStudio.status.archived': 'Архівний',
+  'learningStudio.status.draft': 'Чернетка',
+  'learningStudio.status.published': 'Опублікований',
+  'learningStudio.subtitle':
+    'Структурований локальний прототип для дизайну курсів і студентських сценаріїв усередині workspace shell.',
+  'learningStudio.summary.courses': 'Курси',
+  'learningStudio.summary.coursesHint':
+    'Локальні записи чернеток і опублікованих курсів.',
+  'learningStudio.summary.lessons': 'Уроки',
+  'learningStudio.summary.lessonsHint':
+    'Картки уроків, вправ і checkpoint у локальному прототипі.',
+  'learningStudio.summary.modules': 'Модулі',
+  'learningStudio.summary.modulesHint':
+    'Контейнери курсу, які зараз зібрані в робочій області.',
+  'learningStudio.title': 'Learning Studio',
+  'learningStudio.type.checkpoint': 'Checkpoint',
+  'learningStudio.type.exercise': 'Вправа',
+  'learningStudio.type.lesson': 'Урок',
   'workspaceControls.workspaceView': 'Режим workspace',
 } satisfies AppTranslations;

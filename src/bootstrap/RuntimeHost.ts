@@ -2,6 +2,7 @@ import { Subscription } from 'rxjs';
 import { GLOBAL_APP_SIDEBAR_WIDTH_PX } from './GlobalAppHeader.ts';
 import {
   KANBAN_DEV_ENABLED,
+  LEARNING_STUDIO_DEV_ENABLED,
   ROUTINES_ENABLED,
   TIME_CLUSTERING_DEV_ENABLED,
 } from '../config/env/index.ts';
@@ -63,6 +64,12 @@ type KanbanModuleNamespace = {
   KanbanModule: new () => WorkspaceModule;
 };
 
+type LearningStudioModuleNamespace = {
+  LearningStudioModule: new (options?: {
+    runtime?: AppRuntime;
+  }) => WorkspaceModule;
+};
+
 type TimeClusteringIslandModule = {
   mount(parent: HTMLElement): void;
   unmount(): void;
@@ -83,6 +90,9 @@ type TimeClusteringModuleNamespace = {
 const loadKanbanModule = (): Promise<KanbanModuleNamespace> =>
   import('../features/kanban/KanbanModule.ts');
 
+const loadLearningStudioModule = (): Promise<LearningStudioModuleNamespace> =>
+  import('../features/learning-studio/LearningStudioModule.ts');
+
 const loadTimeClusteringModule = (): Promise<TimeClusteringModuleNamespace> =>
   import('../features/time-clustering/TimeClusteringModule.ts');
 
@@ -90,6 +100,7 @@ export class RuntimeHost {
   private shell: WorkspaceShell | null = null;
   private canvasModule: CanvasModule | null = null;
   private kanbanModule: WorkspaceModule | null = null;
+  private learningStudioModule: WorkspaceModule | null = null;
   private timeClusteringModule: TimeClusteringIslandModule | null = null;
   private readonly workspaceRoot: HTMLDivElement;
   private readonly wallpaperService: WallpaperService;
@@ -174,6 +185,7 @@ export class RuntimeHost {
       loadPersistedTimeClusteringOverlapWarningsVisible(true);
     this.activeView = loadPersistedWorkspaceView({
       allowKanban: KANBAN_DEV_ENABLED,
+      allowLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
     });
     this.viewSwitcher = new WorkspaceViewSwitcher(this.activeView, {
       runtime: this.runtime,
@@ -181,6 +193,7 @@ export class RuntimeHost {
       initialTimeClusteringOpen: this.timeClusteringOpen,
       initialTimeClusteringLayoutMode: this.timeClusteringLayoutMode,
       showKanban: KANBAN_DEV_ENABLED,
+      showLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
       showTimeClustering: TIME_CLUSTERING_DEV_ENABLED,
       showRoutines: ROUTINES_ENABLED,
     });
@@ -288,9 +301,17 @@ export class RuntimeHost {
   private syncWorkspaceWallpaper(): void {
     const isCanvasVisible = this.hostVisible && this.activeView === 'canvas';
     const isKanbanVisible = this.hostVisible && this.activeView === 'kanban';
+    const isLearningStudioVisible =
+      this.hostVisible && this.activeView === 'learning-studio';
     if (isCanvasVisible) {
       this.workspaceRoot.style.backgroundImage = '';
       this.workspaceRoot.style.backgroundColor = '#ffffff';
+      return;
+    }
+
+    if (isLearningStudioVisible) {
+      this.workspaceRoot.style.backgroundImage = '';
+      this.workspaceRoot.style.backgroundColor = '#f8fafc';
       return;
     }
 
@@ -347,6 +368,7 @@ export class RuntimeHost {
     this.shell = null;
     this.canvasModule = null;
     this.kanbanModule = null;
+    this.learningStudioModule = null;
     this.timeClusteringModule?.unmount();
     this.timeClusteringModule = null;
     this.timeClusteringIslandRoot.remove();
@@ -396,6 +418,13 @@ export class RuntimeHost {
         this.kanbanModule = new KanbanModule();
         this.shell.register(this.kanbanModule);
       }
+      if (LEARNING_STUDIO_DEV_ENABLED && !this.learningStudioModule) {
+        const { LearningStudioModule } = await loadLearningStudioModule();
+        this.learningStudioModule = new LearningStudioModule({
+          runtime: this.runtime,
+        });
+        this.shell.register(this.learningStudioModule);
+      }
       if (TIME_CLUSTERING_DEV_ENABLED && !this.timeClusteringModule) {
         const { TimeClusteringModule } = await loadTimeClusteringModule();
         this.timeClusteringModule = new TimeClusteringModule({
@@ -423,6 +452,7 @@ export class RuntimeHost {
 
   public async setActiveView(view: WorkspaceView): Promise<void> {
     if (view === 'kanban' && !KANBAN_DEV_ENABLED) return;
+    if (view === 'learning-studio' && !LEARNING_STUDIO_DEV_ENABLED) return;
     const shouldCloseTimeClustering =
       this.timeClusteringOpen && this.timeClusteringLayoutMode === 'fullscreen';
     if (shouldCloseTimeClustering) {

@@ -150,8 +150,13 @@ describe('ProfileSettingsModal', () => {
     modal.destroy();
   });
 
-  it('keeps account editing collapsed until requested and persists the username update', async () => {
-    const updatedUser = createUser({ username: 'mila-updated' });
+  it('keeps account editing collapsed until requested and persists full account detail updates', async () => {
+    const updatedUser = createUser({
+      first_name: 'Mila',
+      last_name: 'Stone',
+      username: 'mila-updated',
+      email: 'updated@example.com',
+    });
     const updateUserProfile = vi.fn(() => of(updatedUser));
     const modal = new ProfileSettingsModal({
       runtime: createAppRuntime({ initialLocale: 'en', energyService: null }),
@@ -175,8 +180,20 @@ describe('ProfileSettingsModal', () => {
     expect(saveButton()?.disabled).toBe(true);
 
     setInputValue(
+      'input[data-role="profile-settings-account-first-name-input"]',
+      'Mila'
+    );
+    setInputValue(
+      'input[data-role="profile-settings-account-last-name-input"]',
+      'Stone'
+    );
+    setInputValue(
       'input[data-role="profile-settings-account-username-input"]',
       'mila-updated'
+    );
+    setInputValue(
+      'input[data-role="profile-settings-account-email-input"]',
+      'updated@example.com'
     );
     expect(saveButton()?.disabled).toBe(false);
 
@@ -184,10 +201,15 @@ describe('ProfileSettingsModal', () => {
     await flushPromises();
 
     expect(updateUserProfile).toHaveBeenCalledWith({
+      first_name: 'Mila',
+      last_name: 'Stone',
       username: 'mila-updated',
+      email: 'updated@example.com',
     });
-    expect(document.body.textContent).toContain('Username updated.');
+    expect(document.body.textContent).toContain('Account details updated.');
+    expect(document.body.textContent).toContain('Mila Stone');
     expect(document.body.textContent).toContain('mila-updated');
+    expect(document.body.textContent).toContain('updated@example.com');
 
     expect(
       document.querySelector('div[data-role="profile-settings-account-panel"]')
@@ -197,19 +219,37 @@ describe('ProfileSettingsModal', () => {
 
     expect(
       document.querySelector<HTMLInputElement>(
+        'input[data-role="profile-settings-account-first-name-input"]'
+      )?.value
+    ).toBe('Mila');
+    expect(
+      document.querySelector<HTMLInputElement>(
+        'input[data-role="profile-settings-account-last-name-input"]'
+      )?.value
+    ).toBe('Stone');
+    expect(
+      document.querySelector<HTMLInputElement>(
         'input[data-role="profile-settings-account-username-input"]'
       )?.value
     ).toBe('mila-updated');
+    expect(
+      document.querySelector<HTMLInputElement>(
+        'input[data-role="profile-settings-account-email-input"]'
+      )?.value
+    ).toBe('updated@example.com');
     expect(saveButton()?.disabled).toBe(true);
 
     modal.destroy();
   });
 
-  it('maps backend username field errors into the account form', async () => {
+  it('maps backend account field errors into the account form', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const updateUserProfile = vi.fn(() =>
       throwError(() => ({
+        first_name: ['First name cannot be blank.'],
+        last_name: ['Last name cannot be blank.'],
         username: ['A user with that username already exists.'],
+        email: ['A user with that email already exists.'],
       }))
     );
     const modal = new ProfileSettingsModal({
@@ -222,8 +262,20 @@ describe('ProfileSettingsModal', () => {
     openAccountSection();
 
     setInputValue(
+      'input[data-role="profile-settings-account-first-name-input"]',
+      'Mila'
+    );
+    setInputValue(
+      'input[data-role="profile-settings-account-last-name-input"]',
+      'Stone'
+    );
+    setInputValue(
       'input[data-role="profile-settings-account-username-input"]',
       'taken-name'
+    );
+    setInputValue(
+      'input[data-role="profile-settings-account-email-input"]',
+      'taken@example.com'
     );
 
     document
@@ -236,16 +288,24 @@ describe('ProfileSettingsModal', () => {
     await flushPromises();
 
     expect(updateUserProfile).toHaveBeenCalledWith({
+      first_name: 'Mila',
+      last_name: 'Stone',
       username: 'taken-name',
+      email: 'taken@example.com',
     });
+    expect(document.body.textContent).toContain('First name cannot be blank.');
+    expect(document.body.textContent).toContain('Last name cannot be blank.');
     expect(document.body.textContent).toContain(
       'A user with that username already exists.'
+    );
+    expect(document.body.textContent).toContain(
+      'A user with that email already exists.'
     );
 
     modal.destroy();
   });
 
-  it('resets the username draft when account editing is cancelled', () => {
+  it('disables account save for invalid email and resets all account drafts when editing is cancelled', () => {
     const modal = new ProfileSettingsModal({
       runtime: createAppRuntime({ initialLocale: 'en', energyService: null }),
       userApiService: createUserApiService(),
@@ -256,9 +316,28 @@ describe('ProfileSettingsModal', () => {
     openAccountSection();
 
     setInputValue(
+      'input[data-role="profile-settings-account-first-name-input"]',
+      'Mila'
+    );
+    setInputValue(
+      'input[data-role="profile-settings-account-last-name-input"]',
+      'Stone'
+    );
+    setInputValue(
       'input[data-role="profile-settings-account-username-input"]',
       'draft-username'
     );
+    setInputValue(
+      'input[data-role="profile-settings-account-email-input"]',
+      'invalid-email'
+    );
+
+    expect(
+      document.querySelector<HTMLButtonElement>(
+        'button[data-role="profile-settings-account-save"]'
+      )?.disabled
+    ).toBe(true);
+    expect(document.body.textContent).toContain('Enter a valid email address.');
 
     document
       .querySelector<HTMLButtonElement>(
@@ -274,9 +353,24 @@ describe('ProfileSettingsModal', () => {
 
     expect(
       document.querySelector<HTMLInputElement>(
+        'input[data-role="profile-settings-account-first-name-input"]'
+      )?.value
+    ).toBe('');
+    expect(
+      document.querySelector<HTMLInputElement>(
+        'input[data-role="profile-settings-account-last-name-input"]'
+      )?.value
+    ).toBe('');
+    expect(
+      document.querySelector<HTMLInputElement>(
         'input[data-role="profile-settings-account-username-input"]'
       )?.value
     ).toBe('mila');
+    expect(
+      document.querySelector<HTMLInputElement>(
+        'input[data-role="profile-settings-account-email-input"]'
+      )?.value
+    ).toBe('user@example.com');
 
     modal.destroy();
   });

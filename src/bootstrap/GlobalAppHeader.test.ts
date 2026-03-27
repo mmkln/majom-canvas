@@ -10,6 +10,7 @@ vi.mock('../config/environment.ts', () => ({
 vi.mock('../config/env/index.ts', () => ({
   IS_DEVELOPMENT_MODE: true,
   KANBAN_DEV_ENABLED: true,
+  LEARNING_STUDIO_DEV_ENABLED: true,
   ROUTINES_ENABLED: true,
   TIME_CLUSTERING_DEV_ENABLED: false,
 }));

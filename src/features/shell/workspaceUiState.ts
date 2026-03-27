@@ -12,15 +12,20 @@ const LEGACY_WORKSPACE_CHAT_OPEN_STORAGE_KEY = 'workspace-chat-open';
 
 type LoadPersistedWorkspaceViewOptions = {
   allowKanban?: boolean;
+  allowLearningStudio?: boolean;
 };
 
 export function loadPersistedWorkspaceView(
   options: LoadPersistedWorkspaceViewOptions = {}
 ): WorkspaceView {
   const allowKanban = options.allowKanban ?? true;
+  const allowLearningStudio = options.allowLearningStudio ?? true;
   try {
     const value = localStorage.getItem(WORKSPACE_ACTIVE_VIEW_STORAGE_KEY);
     if (value === 'kanban' && allowKanban) return 'kanban';
+    if (value === 'learning-studio' && allowLearningStudio) {
+      return 'learning-studio';
+    }
     if (value === 'time-clustering') {
       return 'canvas';
     }
@@ -32,10 +37,7 @@ export function loadPersistedWorkspaceView(
 
 export function persistWorkspaceView(view: WorkspaceView): void {
   try {
-    localStorage.setItem(
-      WORKSPACE_ACTIVE_VIEW_STORAGE_KEY,
-      view === 'kanban' ? 'kanban' : 'canvas'
-    );
+    localStorage.setItem(WORKSPACE_ACTIVE_VIEW_STORAGE_KEY, view);
   } catch {
     // no-op
   }

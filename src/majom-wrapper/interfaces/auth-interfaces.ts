@@ -25,6 +25,8 @@ export interface ChangePasswordResponse {
 }
 
 export interface UserProfileUpdate {
+  first_name?: string;
+  last_name?: string;
   username?: string;
   email?: string;
   language?: string;

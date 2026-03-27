@@ -15,6 +15,7 @@ type WorkspaceViewSwitcherOptions = {
   runtime?: AppRuntime;
   wallpaperService?: WallpaperService;
   showKanban?: boolean;
+  showLearningStudio?: boolean;
   showTimeClustering?: boolean;
   showRoutines?: boolean;
   showChat?: boolean;
@@ -64,6 +65,7 @@ export class WorkspaceViewSwitcher {
       initialTimeClusteringOpen: options.initialTimeClusteringOpen,
       initialTimeClusteringLayoutMode: options.initialTimeClusteringLayoutMode,
       showKanban: options.showKanban,
+      showLearningStudio: options.showLearningStudio,
       showTimeClustering: options.showTimeClustering,
       showRoutines: options.showRoutines,
       showChat: options.showChat,
@@ -357,6 +359,8 @@ export class WorkspaceViewSwitcher {
   }
 
   private getHandleViewIconName(view: WorkspaceView): IconName {
-    return view === 'kanban' ? 'view-columns' : 'map';
+    if (view === 'kanban') return 'view-columns';
+    if (view === 'learning-studio') return 'academic-cap';
+    return 'map';
   }
 }

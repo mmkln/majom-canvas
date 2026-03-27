@@ -33,6 +33,7 @@ type WorkspaceControlsBarOptions = {
   initialTimeClusteringOpen?: boolean;
   initialTimeClusteringLayoutMode?: TimeClusteringLayoutMode;
   showKanban?: boolean;
+  showLearningStudio?: boolean;
   showTimeClustering?: boolean;
   showRoutines?: boolean;
   showChat?: boolean;
@@ -65,6 +66,7 @@ type VariantMetrics = {
 const VIEW_OPTIONS: ViewOption[] = [
   { view: 'canvas', icon: 'map' },
   { view: 'kanban', icon: 'view-columns' },
+  { view: 'learning-studio', icon: 'academic-cap' },
 ];
 
 const VARIANT_METRICS: Record<WorkspaceControlsBarVariant, VariantMetrics> = {
@@ -163,12 +165,14 @@ export class WorkspaceControlsBar {
       options.initialTimeClusteringLayoutMode ?? 'docked-left';
 
     const showKanban = options.showKanban ?? true;
+    const showLearningStudio = options.showLearningStudio ?? false;
     const showTimeClustering = options.showTimeClustering ?? true;
     const showRoutines = options.showRoutines ?? true;
     const showChat = options.showChat ?? true;
     const showEnergy = options.showEnergy ?? true;
     const viewOptions = VIEW_OPTIONS.filter((option) => {
       if (option.view === 'kanban') return showKanban;
+      if (option.view === 'learning-studio') return showLearningStudio;
       return true;
     });
     const shouldRenderViewGroup = viewOptions.length > 1;
@@ -492,9 +496,13 @@ export class WorkspaceControlsBar {
   }
 
   private getViewLabel(view: WorkspaceView): string {
-    return view === 'kanban'
-      ? this.i18n.t('workspaceControls.kanban')
-      : this.i18n.t('workspaceControls.canvas');
+    if (view === 'kanban') {
+      return this.i18n.t('workspaceControls.kanban');
+    }
+    if (view === 'learning-studio') {
+      return this.i18n.t('workspaceControls.learningStudio');
+    }
+    return this.i18n.t('workspaceControls.canvas');
   }
 
   private createDivider(): HTMLSpanElement {
