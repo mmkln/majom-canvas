@@ -47,6 +47,32 @@ export const rue: AppTranslations = {
   'profileSettings.account.username': 'Юзернейм',
   'profileSettings.account.email': 'Email',
   'profileSettings.account.logout': 'Выйти',
+  'profileSettings.security.title': 'Безпечность',
+  'profileSettings.security.description':
+    'Тримайте рахунок безпечный, змінюючы гесло, коли треба.',
+  'profileSettings.security.changePassword': 'Змінити гесло',
+  'profileSettings.security.changePasswordDescription':
+    'Отворьте безпечну форму, жебы змінити гесло.',
+  'profileSettings.security.currentPassword': 'Теперішнє гесло',
+  'profileSettings.security.newPassword': 'Нове гесло',
+  'profileSettings.security.confirmPassword': 'Потверьдити нове гесло',
+  'profileSettings.security.panelDescription':
+    'Введьте теперішнє гесло, а пак выберіть нове.',
+  'profileSettings.security.saved': 'Гесло змінене.',
+  'profileSettings.security.updatedDescription':
+    'Гесло того рахунку ся якраз змінїло.',
+  'profileSettings.security.saveError': 'Не удало ся змінити гесло.',
+  'profileSettings.security.oldPasswordRequired':
+    'Теперішнє гесло є обовязкове.',
+  'profileSettings.security.newPasswordRequired':
+    'Нове гесло є обовязкове.',
+  'profileSettings.security.confirmPasswordRequired':
+    'Потвердьте нове гесло.',
+  'profileSettings.security.passwordMinLength':
+    'Нове гесло мусить мати найменше 8 знаків.',
+  'profileSettings.security.passwordHint': 'Ужыйте найменше 8 знаків.',
+  'profileSettings.security.passwordMatch': 'Гесла ся сходять.',
+  'profileSettings.security.passwordMismatch': 'Гесла ся не сходять.',
   'profileSettings.language.title': 'Язык і регіон',
   'profileSettings.language.description':
     'Выбери язык, котрый буде ужывати ся в цїлій аплікації.',

@@ -423,6 +423,32 @@ export const en = {
   'profileSettings.account.username': 'Username',
   'profileSettings.account.email': 'Email',
   'profileSettings.account.logout': 'Logout',
+  'profileSettings.security.title': 'Security',
+  'profileSettings.security.description':
+    'Keep your account secure by updating your password when needed.',
+  'profileSettings.security.changePassword': 'Change password',
+  'profileSettings.security.changePasswordDescription':
+    'Open a secure form to update your password.',
+  'profileSettings.security.currentPassword': 'Current password',
+  'profileSettings.security.newPassword': 'New password',
+  'profileSettings.security.confirmPassword': 'Confirm new password',
+  'profileSettings.security.panelDescription':
+    'Enter your current password, then choose a new one.',
+  'profileSettings.security.saved': 'Password updated.',
+  'profileSettings.security.updatedDescription':
+    'Your password was updated for this account.',
+  'profileSettings.security.saveError': 'Could not update password.',
+  'profileSettings.security.oldPasswordRequired':
+    'Current password is required.',
+  'profileSettings.security.newPasswordRequired':
+    'New password is required.',
+  'profileSettings.security.confirmPasswordRequired':
+    'Please confirm the new password.',
+  'profileSettings.security.passwordMinLength':
+    'New password must be at least 8 characters long.',
+  'profileSettings.security.passwordHint': 'Use at least 8 characters.',
+  'profileSettings.security.passwordMatch': 'Passwords match.',
+  'profileSettings.security.passwordMismatch': 'Passwords do not match.',
   'profileSettings.language.title': 'Language & region',
   'profileSettings.language.description':
     'Choose the language used across the app interface.',

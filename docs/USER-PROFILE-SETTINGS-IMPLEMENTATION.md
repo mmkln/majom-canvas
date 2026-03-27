@@ -28,7 +28,7 @@ Implement one surface named **Profile Settings** with these sections:
 3. **Workspace Appearance**
    - Wallpaper selection
 4. **Security**
-   - Change password (Phase 2, when API contract is available)
+   - Change password
    - Session actions (future)
 5. **Danger Zone**
    - Request account deletion
@@ -46,6 +46,7 @@ Implement one surface named **Profile Settings** with these sections:
 - `UserApiService.getUser()`
 - `UserApiService.setUserProfileLanguage(...)`
 - `UserApiService.setUserWallpaper(...)`
+- `UserApiService.changePassword(...)`
 - `UserApiService.deleteUser()`
 - `UserApiService.restoreUser()`
 
@@ -152,15 +153,15 @@ Save operations should be section-scoped (not one global Save button).
 
 ## Out Of Scope For MVP
 
-1. Password change implementation without backend contract.
+1. Advanced password/session management beyond the available change-password flow.
 2. Email/username editing if backend does not support it.
 3. Full settings route migration (modal-first approach for MVP).
 
 ## Backend Contract Notes
 
-Before Phase 2 security implementation, backend should define:
+Current security/backend contract status:
 
-1. Change password endpoint + validation errors contract.
+1. Change password endpoint is available at `POST /change-password/`.
 2. Session list/revoke endpoints (if required).
 3. 2FA enrollment/verify endpoints (optional later).
 
@@ -182,4 +183,3 @@ Use this checklist during implementation:
 4. User can change wallpaper and value persists.
 5. Account deletion action requires explicit confirmation.
 6. Errors show at section level and do not wipe unsaved draft.
-

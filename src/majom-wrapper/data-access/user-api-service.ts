@@ -1,6 +1,10 @@
 import { Observable } from 'rxjs';
 import { HttpInterceptorClient } from './http-interceptor.js';
-import { User } from '../interfaces/auth-interfaces.ts';
+import type {
+  ChangePassword,
+  ChangePasswordResponse,
+  User,
+} from '../interfaces/auth-interfaces.ts';
 import type { AppLocale } from '../../i18n/index.ts';
 
 const USER_PROFILE_LANGUAGE_BY_APP_LOCALE: Record<AppLocale, User['language']> =
@@ -57,6 +61,15 @@ export class UserApiService {
     return this.http.patch<User>('/user/profile/', {
       wallpaper_id: wallpaperId,
     });
+  }
+
+  /**
+   * Change the authenticated user's password.
+   */
+  public changePassword(
+    payload: ChangePassword
+  ): Observable<ChangePasswordResponse> {
+    return this.http.post<ChangePasswordResponse>('/change-password/', payload);
   }
 
   /**

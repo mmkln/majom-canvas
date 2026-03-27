@@ -14,6 +14,16 @@ export interface AuthResponse {
   refresh: string;
 }
 
+export interface ChangePassword {
+  old_password: string;
+  new_password: string;
+  confirm_password: string;
+}
+
+export interface ChangePasswordResponse {
+  detail: string;
+}
+
 /**
  * User defines the structure for user data returned from the backend.
  */
@@ -21,6 +31,10 @@ export interface User {
   id: number;
   email: string;
   username: string;
+  first_name?: string;
+  last_name?: string;
+  age?: number | null;
+  bio?: string | null;
   language: string;
   readonly wallpaper: Wallpaper | null;
   wallpaper_id: string | null;

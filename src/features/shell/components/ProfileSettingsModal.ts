@@ -1,13 +1,16 @@
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, type Observable } from 'rxjs';
 import { createModalShell } from '../../../ui-lib/src/components/Modal.ts';
 import {
+  createField,
   createDisclosureRow,
   createFormMessage,
+  createInput,
   createTextButton,
 } from '../../../ui-lib/src/hud/index.ts';
 import { Select } from '../../../ui-lib/src/components/Select.ts';
 import { notify } from '../../canvas/core/services/NotificationService.ts';
 import type {
+  ChangePassword,
   User,
   Wallpaper,
 } from '../../../majom-wrapper/interfaces/auth-interfaces.ts';
@@ -29,7 +32,7 @@ import { openWallpaperPickerModal } from './WallpaperPickerModal.ts';
 
 type ProfileSettingsUserApi = Pick<
   UserApiService,
-  'setUserProfileLanguage' | 'setUserWallpaper' | 'deleteUser'
+  'setUserProfileLanguage' | 'setUserWallpaper' | 'changePassword' | 'deleteUser'
 >;
 
 type ProfileSettingsWallpaperService = Pick<
@@ -56,14 +59,61 @@ type ProfileSettingsDraft = {
   wallpaperId: string | null;
 };
 
+type ProfileSettingsPasswordField =
+  | 'oldPassword'
+  | 'newPassword'
+  | 'confirmPassword';
+
+type ProfileSettingsPasswordDraft = Record<ProfileSettingsPasswordField, string>;
+
+type SecurityFieldErrors = Partial<
+  Record<ProfileSettingsPasswordField, string>
+>;
+
 type SectionState = {
   saving: boolean;
   error: string | null;
   success: boolean;
 };
 
+type SecurityState = SectionState & {
+  fieldErrors: SecurityFieldErrors;
+};
+
+type RenderedPasswordField = {
+  element: HTMLElement;
+  input: HTMLInputElement;
+  control: ReturnType<typeof createInput>;
+  field: ReturnType<typeof createField>;
+};
+
 const SECTION_ACTION_BUTTON_CLASS =
   'w-full justify-center sm:w-auto sm:min-w-[5.5rem]';
+const SECURITY_INPUT_ROLE_BY_FIELD: Record<
+  ProfileSettingsPasswordField,
+  string
+> = {
+  oldPassword: 'profile-settings-old-password-input',
+  newPassword: 'profile-settings-new-password-input',
+  confirmPassword: 'profile-settings-confirm-password-input',
+};
+
+function createEmptyPasswordDraft(): ProfileSettingsPasswordDraft {
+  return {
+    oldPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  };
+}
+
+function createInitialSecurityState(): SecurityState {
+  return {
+    saving: false,
+    error: null,
+    success: false,
+    fieldErrors: {},
+  };
+}
 
 function normalizeWallpaperId(
   value: string | number | null | undefined
@@ -152,6 +202,20 @@ function getAccountInitials(user: User | null): string {
   return base.slice(0, 2).toUpperCase();
 }
 
+function firstErrorMessage(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const normalized = value.trim();
+    return normalized.length > 0 ? normalized : null;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const message = firstErrorMessage(item);
+      if (message) return message;
+    }
+  }
+  return null;
+}
+
 export class ProfileSettingsModal {
   private readonly runtime: AppRuntime;
   private readonly i18n: I18nService;
@@ -170,6 +234,7 @@ export class ProfileSettingsModal {
   private footer: HTMLDivElement | null = null;
   private serverSnapshot: User | null = null;
   private draft: ProfileSettingsDraft | null = null;
+  private passwordDraft: ProfileSettingsPasswordDraft = createEmptyPasswordDraft();
   private languageState: SectionState = {
     saving: false,
     error: null,
@@ -180,14 +245,17 @@ export class ProfileSettingsModal {
     error: null,
     success: false,
   };
+  private securityState: SecurityState = createInitialSecurityState();
   private dangerState: SectionState = {
     saving: false,
     error: null,
     success: false,
   };
+  private securityExpanded = false;
   private dangerExpanded = false;
   private languageSuccessTimeoutId: number | null = null;
   private wallpaperSuccessTimeoutId: number | null = null;
+  private securitySuccessTimeoutId: number | null = null;
 
   constructor(options: ProfileSettingsModalOptions) {
     this.runtime = options.runtime ?? createAppRuntime();
@@ -212,12 +280,16 @@ export class ProfileSettingsModal {
   public open(user: User): void {
     this.serverSnapshot = { ...user };
     this.draft = toDraft(user, this.runtime.i18n.getLocale());
+    this.passwordDraft = createEmptyPasswordDraft();
     this.languageState = { saving: false, error: null, success: false };
     this.wallpaperState = { saving: false, error: null, success: false };
+    this.securityState = createInitialSecurityState();
     this.dangerState = { saving: false, error: null, success: false };
+    this.securityExpanded = false;
     this.dangerExpanded = Boolean(user.deletion_requested_at);
     this.clearSuccessTimeout('language');
     this.clearSuccessTimeout('wallpaper');
+    this.clearSuccessTimeout('security');
 
     if (!this.overlay) {
       const { overlay, container, header, body, footer } = createModalShell(
@@ -253,12 +325,16 @@ export class ProfileSettingsModal {
     this.footer = null;
     this.serverSnapshot = null;
     this.draft = null;
+    this.passwordDraft = createEmptyPasswordDraft();
     this.languageState = { saving: false, error: null, success: false };
     this.wallpaperState = { saving: false, error: null, success: false };
+    this.securityState = createInitialSecurityState();
     this.dangerState = { saving: false, error: null, success: false };
+    this.securityExpanded = false;
     this.dangerExpanded = false;
     this.clearSuccessTimeout('language');
     this.clearSuccessTimeout('wallpaper');
+    this.clearSuccessTimeout('security');
   }
 
   public destroy(): void {
@@ -299,6 +375,7 @@ export class ProfileSettingsModal {
       this.renderAccountSection(),
       this.renderLanguageSection(),
       this.renderWallpaperSection(),
+      this.renderSecuritySection(),
       this.renderDangerSection()
     );
     this.body.replaceChildren(stack);
@@ -512,6 +589,146 @@ export class ProfileSettingsModal {
     return element;
   }
 
+  private renderSecuritySection(): HTMLElement {
+    const { element, content, actions } = createSectionLayout(
+      this.i18n.t('profileSettings.security.title'),
+      this.i18n.t('profileSettings.security.description')
+    );
+    element.dataset.role = 'profile-settings-security-section';
+
+    const toggleButton = createDisclosureRow({
+      label: this.i18n.t('profileSettings.security.changePassword'),
+      description: this.getSecurityDisclosureDescription(),
+      expanded: this.securityExpanded,
+      onClick: () => {
+        if (this.securityExpanded) {
+          this.collapseSecuritySection();
+          return;
+        }
+        this.expandSecuritySection();
+      },
+    });
+    toggleButton.dataset.role = 'profile-settings-security-toggle';
+    content.appendChild(toggleButton);
+
+    if (this.securityExpanded) {
+      const panel = document.createElement('div');
+      panel.className =
+        'grid gap-4 rounded-2xl bg-slate-50/80 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_1px_3px_rgba(15,23,42,0.04)]';
+      panel.dataset.role = 'profile-settings-security-panel';
+
+      const intro = document.createElement('p');
+      intro.className = 'text-sm leading-5 text-slate-500';
+      intro.textContent = this.i18n.t('profileSettings.security.panelDescription');
+      panel.appendChild(intro);
+
+      let syncSecurityForm = (): void => {};
+      const onSecurityInput =
+        (field: ProfileSettingsPasswordField) =>
+        (): void => {
+          this.handleSecurityInput(field);
+          syncSecurityForm();
+        };
+      const onSecurityKeyDown = (event: KeyboardEvent): void => {
+        this.handleSecurityFieldKeyDown(event);
+      };
+
+      const passwordFields: Record<
+        ProfileSettingsPasswordField,
+        RenderedPasswordField
+      > = {
+        oldPassword: this.createPasswordField({
+          field: 'oldPassword',
+          label: this.i18n.t('profileSettings.security.currentPassword'),
+          autoComplete: 'current-password',
+          onInput: onSecurityInput('oldPassword'),
+          onKeyDown: onSecurityKeyDown,
+        }),
+        newPassword: this.createPasswordField({
+          field: 'newPassword',
+          label: this.i18n.t('profileSettings.security.newPassword'),
+          autoComplete: 'new-password',
+          onInput: onSecurityInput('newPassword'),
+          onKeyDown: onSecurityKeyDown,
+        }),
+        confirmPassword: this.createPasswordField({
+          field: 'confirmPassword',
+          label: this.i18n.t('profileSettings.security.confirmPassword'),
+          autoComplete: 'new-password',
+          onInput: onSecurityInput('confirmPassword'),
+          onKeyDown: onSecurityKeyDown,
+        }),
+      };
+
+      passwordFields.oldPassword.element.classList.add('md:col-span-2');
+
+      const fields = document.createElement('div');
+      fields.className = 'grid gap-4 md:grid-cols-2';
+      fields.append(
+        passwordFields.oldPassword.element,
+        passwordFields.newPassword.element,
+        passwordFields.confirmPassword.element
+      );
+      panel.appendChild(fields);
+
+      const errorMessage = createFormMessage({
+        tone: 'error',
+        className: 'block',
+      });
+      errorMessage.setState({ message: this.securityState.error });
+      panel.appendChild(errorMessage.element);
+
+      const actionRow = document.createElement('div');
+      actionRow.className =
+        'flex flex-col items-stretch gap-2 pt-1 sm:flex-row sm:items-center';
+
+      const cancelButton = createTextButton({
+        text: this.i18n.t('common.cancel'),
+        tone: 'secondary',
+        size: 'sm',
+        className: SECTION_ACTION_BUTTON_CLASS,
+        disabled: this.securityState.saving,
+        onClick: () => {
+          this.collapseSecuritySection();
+        },
+      });
+      cancelButton.dataset.role = 'profile-settings-security-cancel';
+
+      const saveButton = createTextButton({
+        text: this.i18n.t('common.save'),
+        tone: 'primary',
+        size: 'sm',
+        className: SECTION_ACTION_BUTTON_CLASS,
+        loading: this.securityState.saving,
+        loadingText: this.i18n.t('common.save'),
+        disabled: !this.isSecurityReadyToSubmit(),
+        onClick: () => {
+          void this.savePassword();
+        },
+      });
+      saveButton.dataset.role = 'profile-settings-security-save';
+
+      actionRow.append(cancelButton, saveButton);
+      panel.appendChild(actionRow);
+      content.appendChild(panel);
+
+      syncSecurityForm = () => {
+        this.syncSecurityFormState(passwordFields, saveButton, errorMessage);
+      };
+      syncSecurityForm();
+    }
+
+    if (this.securityState.success && !this.securityExpanded) {
+      const success = createFormMessage({ tone: 'success', className: 'block' });
+      success.show(this.i18n.t('profileSettings.security.saved'), 'success');
+      content.appendChild(success.element);
+    }
+
+    actions.remove();
+
+    return element;
+  }
+
   private renderDangerSection(): HTMLElement {
     const { element, content, actions } = createSectionLayout(
       this.i18n.t('profileSettings.danger.title'),
@@ -586,11 +803,62 @@ export class ProfileSettingsModal {
     return element;
   }
 
-  private clearSuccessTimeout(section: 'language' | 'wallpaper'): void {
+  private createPasswordField(options: {
+    field: ProfileSettingsPasswordField;
+    label: string;
+    autoComplete: string;
+    onInput: () => void;
+    onKeyDown: (event: KeyboardEvent) => void;
+  }): RenderedPasswordField {
+    const presentation = this.getSecurityFieldPresentation(options.field);
+    const control = createInput({
+      kind: 'password',
+      name: options.field,
+      value: this.passwordDraft[options.field],
+      autoComplete: options.autoComplete,
+      placeholder: options.label,
+      inputClassName: 'text-base md:text-sm',
+      passwordToggleLabels: {
+        show: this.i18n.t('login.showPassword'),
+        hide: this.i18n.t('login.hidePassword'),
+      },
+      disabled: this.securityState.saving,
+      invalid: Boolean(presentation.error),
+      onInput: (value) => {
+        this.passwordDraft[options.field] = value;
+        options.onInput();
+      },
+      onKeyDown: options.onKeyDown,
+    });
+    control.input.dataset.role = SECURITY_INPUT_ROLE_BY_FIELD[options.field];
+    control.input.autocapitalize = 'none';
+    control.input.setAttribute('autocorrect', 'off');
+
+    const field = createField({
+      label: options.label,
+      control: control.element,
+      className: 'mb-0',
+      error: presentation.error,
+      hint: presentation.hint,
+      disabled: this.securityState.saving,
+    });
+    return {
+      element: field.element,
+      input: control.input,
+      control,
+      field,
+    };
+  }
+
+  private clearSuccessTimeout(
+    section: 'language' | 'wallpaper' | 'security'
+  ): void {
     const timeoutId =
       section === 'language'
         ? this.languageSuccessTimeoutId
-        : this.wallpaperSuccessTimeoutId;
+        : section === 'wallpaper'
+          ? this.wallpaperSuccessTimeoutId
+          : this.securitySuccessTimeoutId;
     if (timeoutId !== null) {
       window.clearTimeout(timeoutId);
     }
@@ -598,10 +866,16 @@ export class ProfileSettingsModal {
       this.languageSuccessTimeoutId = null;
       return;
     }
-    this.wallpaperSuccessTimeoutId = null;
+    if (section === 'wallpaper') {
+      this.wallpaperSuccessTimeoutId = null;
+      return;
+    }
+    this.securitySuccessTimeoutId = null;
   }
 
-  private showSectionSuccess(section: 'language' | 'wallpaper'): void {
+  private showSectionSuccess(
+    section: 'language' | 'wallpaper' | 'security'
+  ): void {
     this.clearSuccessTimeout(section);
     if (section === 'language') {
       this.languageState.success = true;
@@ -612,12 +886,359 @@ export class ProfileSettingsModal {
       }, 2400);
       return;
     }
-    this.wallpaperState.success = true;
-    this.wallpaperSuccessTimeoutId = window.setTimeout(() => {
-      this.wallpaperSuccessTimeoutId = null;
-      this.wallpaperState.success = false;
+    if (section === 'wallpaper') {
+      this.wallpaperState.success = true;
+      this.wallpaperSuccessTimeoutId = window.setTimeout(() => {
+        this.wallpaperSuccessTimeoutId = null;
+        this.wallpaperState.success = false;
+        if (this.overlay) this.renderBody();
+      }, 2400);
+      return;
+    }
+    this.securityState.success = true;
+    this.securitySuccessTimeoutId = window.setTimeout(() => {
+      this.securitySuccessTimeoutId = null;
+      this.securityState.success = false;
       if (this.overlay) this.renderBody();
     }, 2400);
+  }
+
+  private validatePasswordDraft(): SecurityFieldErrors {
+    const fieldErrors: SecurityFieldErrors = {};
+
+    if (this.passwordDraft.oldPassword.trim().length === 0) {
+      fieldErrors.oldPassword = this.i18n.t(
+        'profileSettings.security.oldPasswordRequired'
+      );
+    }
+
+    if (this.passwordDraft.newPassword.length === 0) {
+      fieldErrors.newPassword = this.i18n.t(
+        'profileSettings.security.newPasswordRequired'
+      );
+    } else if (this.passwordDraft.newPassword.length < 8) {
+      fieldErrors.newPassword = this.i18n.t(
+        'profileSettings.security.passwordMinLength'
+      );
+    }
+
+    if (this.passwordDraft.confirmPassword.length === 0) {
+      fieldErrors.confirmPassword = this.i18n.t(
+        'profileSettings.security.confirmPasswordRequired'
+      );
+    } else if (
+      this.passwordDraft.newPassword.length > 0 &&
+      this.passwordDraft.newPassword !== this.passwordDraft.confirmPassword
+    ) {
+      fieldErrors.confirmPassword = this.i18n.t(
+        'profileSettings.security.passwordMismatch'
+      );
+    }
+
+    return fieldErrors;
+  }
+
+  private getSecurityDisclosureDescription(): string {
+    if (this.securityState.success) {
+      return this.i18n.t('profileSettings.security.updatedDescription');
+    }
+    return this.i18n.t('profileSettings.security.changePasswordDescription');
+  }
+
+  private getSecurityFieldPresentation(
+    field: ProfileSettingsPasswordField
+  ): { error?: string; hint?: string } {
+    const savedError = this.securityState.fieldErrors[field];
+    if (savedError) {
+      return { error: savedError };
+    }
+
+    if (field === 'newPassword') {
+      return {
+        hint: this.i18n.t('profileSettings.security.passwordHint'),
+      };
+    }
+
+    if (
+      field === 'confirmPassword' &&
+      this.passwordDraft.confirmPassword.length > 0
+    ) {
+      if (this.passwordDraft.newPassword !== this.passwordDraft.confirmPassword) {
+        return {
+          error: this.i18n.t('profileSettings.security.passwordMismatch'),
+        };
+      }
+      if (this.passwordDraft.newPassword.length >= 8) {
+        return {
+          hint: this.i18n.t('profileSettings.security.passwordMatch'),
+        };
+      }
+    }
+
+    return {};
+  }
+
+  private getFirstSecurityErrorField(
+    fieldErrors: SecurityFieldErrors
+  ): ProfileSettingsPasswordField | null {
+    const orderedFields: ProfileSettingsPasswordField[] = [
+      'oldPassword',
+      'newPassword',
+      'confirmPassword',
+    ];
+    return orderedFields.find((field) => Boolean(fieldErrors[field])) ?? null;
+  }
+
+  private focusSecurityField(field: ProfileSettingsPasswordField): void {
+    window.requestAnimationFrame(() => {
+      const input = this.overlay?.querySelector<HTMLInputElement>(
+        `input[data-role="${SECURITY_INPUT_ROLE_BY_FIELD[field]}"]`
+      );
+      input?.focus();
+    });
+  }
+
+  private clearSecurityFieldErrors(
+    ...fields: ProfileSettingsPasswordField[]
+  ): void {
+    if (fields.length === 0) return;
+
+    const nextFieldErrors = { ...this.securityState.fieldErrors };
+    let changed = false;
+    for (const field of fields) {
+      if (!Object.prototype.hasOwnProperty.call(nextFieldErrors, field)) {
+        continue;
+      }
+      delete nextFieldErrors[field];
+      changed = true;
+    }
+
+    if (changed) {
+      this.securityState.fieldErrors = nextFieldErrors;
+    }
+  }
+
+  private handleSecurityInput(field: ProfileSettingsPasswordField): void {
+    if (field === 'newPassword') {
+      this.clearSecurityFieldErrors('newPassword', 'confirmPassword');
+    } else {
+      this.clearSecurityFieldErrors(field);
+    }
+    if (this.securityState.error) {
+      this.securityState.error = null;
+    }
+  }
+
+  private syncSecurityFormState(
+    passwordFields: Record<ProfileSettingsPasswordField, RenderedPasswordField>,
+    saveButton: HTMLButtonElement,
+    errorMessage: ReturnType<typeof createFormMessage>
+  ): void {
+    (
+      Object.keys(passwordFields) as ProfileSettingsPasswordField[]
+    ).forEach((fieldName) => {
+      const presentation = this.getSecurityFieldPresentation(fieldName);
+      passwordFields[fieldName].field.setState({
+        disabled: this.securityState.saving,
+        error: presentation.error,
+        hint: presentation.hint,
+      });
+      passwordFields[fieldName].control.setState({
+        disabled: this.securityState.saving,
+        invalid: Boolean(presentation.error),
+      });
+    });
+
+    saveButton.disabled =
+      this.securityState.saving || !this.isSecurityReadyToSubmit();
+
+    if (this.securityState.error) {
+      errorMessage.show(this.securityState.error, 'error');
+    } else {
+      errorMessage.clear();
+    }
+  }
+
+  private isSecurityReadyToSubmit(): boolean {
+    return (
+      this.passwordDraft.oldPassword.trim().length > 0 &&
+      this.passwordDraft.newPassword.length >= 8 &&
+      this.passwordDraft.confirmPassword.length > 0 &&
+      this.passwordDraft.newPassword === this.passwordDraft.confirmPassword
+    );
+  }
+
+  private expandSecuritySection(): void {
+    this.clearSuccessTimeout('security');
+    this.passwordDraft = createEmptyPasswordDraft();
+    this.securityState = createInitialSecurityState();
+    this.securityExpanded = true;
+    this.renderBody();
+    this.focusSecurityField('oldPassword');
+  }
+
+  private collapseSecuritySection(): void {
+    if (this.securityState.saving) return;
+    this.clearSuccessTimeout('security');
+    this.passwordDraft = createEmptyPasswordDraft();
+    this.securityState = createInitialSecurityState();
+    this.securityExpanded = false;
+    this.renderBody();
+  }
+
+  private handleSecurityFieldKeyDown(event: KeyboardEvent): void {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    if (this.securityState.saving) return;
+    void this.savePassword();
+  }
+
+  private parseChangePasswordErrorData(data: Record<string, unknown> | null): {
+    fieldErrors: SecurityFieldErrors;
+    error: string | null;
+  } | null {
+    if (!data) return null;
+
+    const fieldErrors: SecurityFieldErrors = {};
+    const oldPasswordMessage = firstErrorMessage(data.old_password);
+    const newPasswordMessage = firstErrorMessage(data.new_password);
+    const confirmPasswordMessage = firstErrorMessage(data.confirm_password);
+    const detailMessage = firstErrorMessage(data.detail);
+
+    if (oldPasswordMessage) {
+      fieldErrors.oldPassword = oldPasswordMessage;
+    }
+    if (newPasswordMessage) {
+      fieldErrors.newPassword = newPasswordMessage;
+    }
+    if (confirmPasswordMessage) {
+      fieldErrors.confirmPassword = confirmPasswordMessage;
+    }
+
+    if (Object.keys(fieldErrors).length === 0 && !detailMessage) {
+      return null;
+    }
+
+    return {
+      fieldErrors,
+      error: detailMessage ?? null,
+    };
+  }
+
+  private async resolveChangePasswordError(error: unknown): Promise<{
+    fieldErrors: SecurityFieldErrors;
+    error: string | null;
+  }> {
+    const fallbackError = this.i18n.t('profileSettings.security.saveError');
+    const directResolution = this.parseChangePasswordErrorData(
+      error && typeof error === 'object'
+        ? (error as Record<string, unknown>)
+        : null
+    );
+    if (directResolution) {
+      return directResolution;
+    }
+
+    const httpError = error as
+      | {
+          status?: number;
+          json?: () => Observable<unknown>;
+        }
+      | undefined;
+
+    if (!httpError || typeof httpError.json !== 'function') {
+      return {
+        fieldErrors: {},
+        error: fallbackError,
+      };
+    }
+
+    try {
+      const payload = await firstValueFrom(httpError.json());
+      const data =
+        payload && typeof payload === 'object'
+          ? (payload as Record<string, unknown>)
+          : null;
+      const parsedResolution = this.parseChangePasswordErrorData(data);
+      if (parsedResolution) {
+        return parsedResolution;
+      }
+      return {
+        fieldErrors: {},
+        error: fallbackError,
+      };
+    } catch {
+      return {
+        fieldErrors: {},
+        error: fallbackError,
+      };
+    }
+  }
+
+  private buildChangePasswordPayload(): ChangePassword {
+    return {
+      old_password: this.passwordDraft.oldPassword,
+      new_password: this.passwordDraft.newPassword,
+      confirm_password: this.passwordDraft.confirmPassword,
+    };
+  }
+
+  private async savePassword(): Promise<void> {
+    if (this.securityState.saving) return;
+
+    const fieldErrors = this.validatePasswordDraft();
+    const firstInvalidField = this.getFirstSecurityErrorField(fieldErrors);
+    if (firstInvalidField) {
+      this.securityState = {
+        saving: false,
+        error: null,
+        success: false,
+        fieldErrors,
+      };
+      this.securityExpanded = true;
+      this.renderBody();
+      this.focusSecurityField(firstInvalidField);
+      return;
+    }
+
+    this.securityState = {
+      saving: true,
+      error: null,
+      success: false,
+      fieldErrors: {},
+    };
+    this.securityExpanded = true;
+    this.renderBody();
+
+    try {
+      await firstValueFrom(
+        this.userApiService.changePassword(this.buildChangePasswordPayload())
+      );
+    } catch (error) {
+      console.warn('Failed to update account password.', error);
+      const resolvedError = await this.resolveChangePasswordError(error);
+      this.securityState = {
+        saving: false,
+        error: resolvedError.error,
+        success: false,
+        fieldErrors: resolvedError.fieldErrors,
+      };
+      this.securityExpanded = true;
+      this.renderBody();
+      const firstErrorField = this.getFirstSecurityErrorField(
+        resolvedError.fieldErrors
+      );
+      if (firstErrorField) {
+        this.focusSecurityField(firstErrorField);
+      }
+      return;
+    }
+
+    this.passwordDraft = createEmptyPasswordDraft();
+    this.securityState = createInitialSecurityState();
+    this.securityExpanded = false;
+    this.showSectionSuccess('security');
+    this.renderBody();
   }
 
   private isLanguageDirty(): boolean {

@@ -424,6 +424,33 @@ export const uk = {
   'profileSettings.account.username': "Ім'я користувача",
   'profileSettings.account.email': 'Email',
   'profileSettings.account.logout': 'Вийти',
+  'profileSettings.security.title': 'Безпека',
+  'profileSettings.security.description':
+    'Підтримуйте безпеку облікового запису, оновлюючи пароль за потреби.',
+  'profileSettings.security.changePassword': 'Змінити пароль',
+  'profileSettings.security.changePasswordDescription':
+    'Відкрийте захищену форму, щоб оновити пароль.',
+  'profileSettings.security.currentPassword': 'Поточний пароль',
+  'profileSettings.security.newPassword': 'Новий пароль',
+  'profileSettings.security.confirmPassword': 'Підтвердіть новий пароль',
+  'profileSettings.security.panelDescription':
+    'Введіть поточний пароль, а потім задайте новий.',
+  'profileSettings.security.saved': 'Пароль оновлено.',
+  'profileSettings.security.updatedDescription':
+    'Пароль для цього облікового запису щойно оновлено.',
+  'profileSettings.security.saveError': 'Не вдалося оновити пароль.',
+  'profileSettings.security.oldPasswordRequired':
+    "Поточний пароль обов'язковий.",
+  'profileSettings.security.newPasswordRequired':
+    "Новий пароль обов'язковий.",
+  'profileSettings.security.confirmPasswordRequired':
+    'Підтвердьте новий пароль.',
+  'profileSettings.security.passwordMinLength':
+    'Новий пароль має містити щонайменше 8 символів.',
+  'profileSettings.security.passwordHint':
+    'Використайте щонайменше 8 символів.',
+  'profileSettings.security.passwordMatch': 'Паролі збігаються.',
+  'profileSettings.security.passwordMismatch': 'Паролі не збігаються.',
   'profileSettings.language.title': 'Мова та регіон',
   'profileSettings.language.description':
     'Оберіть мову, яка використовується в інтерфейсі застосунку.',

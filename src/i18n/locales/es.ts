@@ -215,6 +215,34 @@ export const es: AppTranslations = {
   'profileSettings.account.username': 'Nombre de usuario',
   'profileSettings.account.email': 'Correo electrónico',
   'profileSettings.account.logout': 'Cerrar sesión',
+  'profileSettings.security.title': 'Seguridad',
+  'profileSettings.security.description':
+    'Mantén tu cuenta segura actualizando la contraseña cuando lo necesites.',
+  'profileSettings.security.changePassword': 'Cambiar contraseña',
+  'profileSettings.security.changePasswordDescription':
+    'Abre un formulario seguro para actualizar tu contraseña.',
+  'profileSettings.security.currentPassword': 'Contraseña actual',
+  'profileSettings.security.newPassword': 'Nueva contraseña',
+  'profileSettings.security.confirmPassword': 'Confirmar nueva contraseña',
+  'profileSettings.security.panelDescription':
+    'Ingresa tu contraseña actual y luego elige una nueva.',
+  'profileSettings.security.saved': 'Contraseña actualizada.',
+  'profileSettings.security.updatedDescription':
+    'La contraseña de esta cuenta se actualizó.',
+  'profileSettings.security.saveError':
+    'No se pudo actualizar la contraseña.',
+  'profileSettings.security.oldPasswordRequired':
+    'La contraseña actual es obligatoria.',
+  'profileSettings.security.newPasswordRequired':
+    'La nueva contraseña es obligatoria.',
+  'profileSettings.security.confirmPasswordRequired':
+    'Confirma la nueva contraseña.',
+  'profileSettings.security.passwordMinLength':
+    'La nueva contraseña debe tener al menos 8 caracteres.',
+  'profileSettings.security.passwordHint': 'Usa al menos 8 caracteres.',
+  'profileSettings.security.passwordMatch': 'Las contraseñas coinciden.',
+  'profileSettings.security.passwordMismatch':
+    'Las contraseñas no coinciden.',
   'profileSettings.language.title': 'Idioma y región',
   'profileSettings.language.description':
     'Elige el idioma que se usa en toda la interfaz.',
