@@ -339,6 +339,20 @@ describe('ProfileSettingsModal', () => {
     ).toBe(true);
     expect(document.body.textContent).toContain('Enter a valid email address.');
 
+    setInputValue(
+      'input[data-role="profile-settings-account-email-input"]',
+      'valid@example.com'
+    );
+
+    expect(document.body.textContent).not.toContain(
+      'Enter a valid email address.'
+    );
+    expect(
+      document.querySelector<HTMLButtonElement>(
+        'button[data-role="profile-settings-account-save"]'
+      )?.disabled
+    ).toBe(false);
+
     document
       .querySelector<HTMLButtonElement>(
         'button[data-role="profile-settings-account-cancel"]'

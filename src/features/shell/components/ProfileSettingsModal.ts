@@ -9,6 +9,12 @@ import {
 } from '../../../ui-lib/src/hud/index.ts';
 import { Select } from '../../../ui-lib/src/components/Select.ts';
 import { notify } from '../../canvas/core/services/NotificationService.ts';
+import {
+  normalizeAccountDetails,
+  validateAccountDetails,
+  validateAccountDetailsField,
+  type AccountDetailsValidationMessages,
+} from '../../canvas/core/validation/accountDetailsValidator.ts';
 import type {
   ChangePassword,
   User,
@@ -628,7 +634,6 @@ export class ProfileSettingsModal {
         name: 'email',
         value: this.draft?.email ?? '',
         placeholder: this.i18n.t('profileSettings.account.email'),
-        required: true,
         inputClassName: 'text-base md:text-sm',
         disabled: this.accountState.saving,
         invalid: Boolean(this.accountState.fieldErrors.email),
@@ -693,42 +698,37 @@ export class ProfileSettingsModal {
       content.appendChild(panel);
 
       syncAccountForm = () => {
-        const firstNameError = this.getAccountFieldError('firstName');
-        const lastNameError = this.getAccountFieldError('lastName');
-        const usernameError = this.getAccountFieldError('username');
-        const emailError = this.getAccountFieldError('email');
-
         firstNameField.setState({
           disabled: this.accountState.saving,
-          error: firstNameError,
+          error: this.accountState.fieldErrors.firstName,
         });
         firstNameControl.setState({
           disabled: this.accountState.saving,
-          invalid: Boolean(firstNameError),
+          invalid: Boolean(this.accountState.fieldErrors.firstName),
         });
         lastNameField.setState({
           disabled: this.accountState.saving,
-          error: lastNameError,
+          error: this.accountState.fieldErrors.lastName,
         });
         lastNameControl.setState({
           disabled: this.accountState.saving,
-          invalid: Boolean(lastNameError),
+          invalid: Boolean(this.accountState.fieldErrors.lastName),
         });
         usernameField.setState({
           disabled: this.accountState.saving,
-          error: usernameError,
+          error: this.accountState.fieldErrors.username,
         });
         usernameControl.setState({
           disabled: this.accountState.saving,
-          invalid: Boolean(usernameError),
+          invalid: Boolean(this.accountState.fieldErrors.username),
         });
         emailField.setState({
           disabled: this.accountState.saving,
-          error: emailError,
+          error: this.accountState.fieldErrors.email,
         });
         emailControl.setState({
           disabled: this.accountState.saving,
-          invalid: Boolean(emailError),
+          invalid: Boolean(this.accountState.fieldErrors.email),
         });
         saveButton.disabled =
           this.accountState.saving || !this.isAccountReadyToSubmit();
@@ -753,20 +753,10 @@ export class ProfileSettingsModal {
   }
 
   private validateAccountDraft(): AccountFieldErrors {
-    const fieldErrors: AccountFieldErrors = {};
-
-    if (!this.draft || this.draft.username.trim().length === 0) {
-      fieldErrors.username = this.i18n.t(
-        'profileSettings.account.usernameRequired'
-      );
-    }
-
-    const emailValidationError = this.getNativeAccountEmailValidationError();
-    if (emailValidationError) {
-      fieldErrors.email = emailValidationError;
-    }
-
-    return fieldErrors;
+    return validateAccountDetails(
+      this.getAccountValidationValues(),
+      this.buildAccountValidationMessages()
+    ).fieldErrors;
   }
 
   private getAccountDisclosureDescription(): string {
@@ -799,56 +789,21 @@ export class ProfileSettingsModal {
     });
   }
 
-  private getAccountEmailInput(): HTMLInputElement | null {
-    return (
-      this.overlay?.querySelector<HTMLInputElement>(
-        `input[data-role="${ACCOUNT_INPUT_ROLE_BY_FIELD.email}"]`
-      ) ?? null
-    );
+  private buildAccountValidationMessages(): AccountDetailsValidationMessages {
+    return {
+      usernameRequired: this.i18n.t('profileSettings.account.usernameRequired'),
+      emailRequired: this.i18n.t('profileSettings.account.emailRequired'),
+      emailInvalid: this.i18n.t('profileSettings.account.emailInvalid'),
+    };
   }
 
-  private getNativeAccountEmailValidationError(): string | null {
-    const input = this.getAccountEmailInput();
-    if (!input) {
-      const email = this.draft?.email.trim() ?? '';
-      if (email.length === 0) {
-        return this.i18n.t('profileSettings.account.emailRequired');
-      }
-      return null;
-    }
-
-    if (input.validity.valueMissing) {
-      return this.i18n.t('profileSettings.account.emailRequired');
-    }
-
-    if (input.validity.typeMismatch) {
-      return this.i18n.t('profileSettings.account.emailInvalid');
-    }
-
-    return null;
-  }
-
-  private getAccountFieldError(
-    field: ProfileSettingsAccountField
-  ): string | undefined {
-    const savedError = this.accountState.fieldErrors[field];
-    if (savedError) {
-      return savedError;
-    }
-
-    if (field === 'username') {
-      const username = this.draft?.username.trim() ?? '';
-      if (username.length === 0) {
-        return this.i18n.t('profileSettings.account.usernameRequired');
-      }
-      return undefined;
-    }
-
-    if (field === 'email') {
-      return this.getNativeAccountEmailValidationError() ?? undefined;
-    }
-
-    return undefined;
+  private getAccountValidationValues() {
+    return normalizeAccountDetails({
+      firstName: this.draft?.firstName ?? '',
+      lastName: this.draft?.lastName ?? '',
+      username: this.draft?.username ?? '',
+      email: this.draft?.email ?? '',
+    });
   }
 
   private parseAccountErrorData(data: Record<string, unknown> | null): {
@@ -987,23 +942,14 @@ export class ProfileSettingsModal {
 
   private handleAccountInput(field: ProfileSettingsAccountField): void {
     const nextFieldErrors = { ...this.accountState.fieldErrors };
+    const validationError = validateAccountDetailsField(
+      field,
+      this.getAccountValidationValues(),
+      this.buildAccountValidationMessages()
+    );
 
-    if (field === 'username') {
-      const username = this.draft?.username.trim() ?? '';
-      if (username.length === 0) {
-        nextFieldErrors.username = this.i18n.t(
-          'profileSettings.account.usernameRequired'
-        );
-      } else {
-        delete nextFieldErrors.username;
-      }
-    } else if (field === 'email') {
-      const emailError = this.getNativeAccountEmailValidationError();
-      if (emailError) {
-        nextFieldErrors.email = emailError;
-      } else {
-        delete nextFieldErrors.email;
-      }
+    if (validationError) {
+      nextFieldErrors[field] = validationError;
     } else {
       delete nextFieldErrors[field];
     }
