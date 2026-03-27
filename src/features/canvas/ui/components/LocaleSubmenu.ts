@@ -6,6 +6,7 @@ import {
 import { positionFixedElement } from '../overlayPosition.ts';
 import { createIcon } from '../../../../ui-lib/src/hud/icons.ts';
 import {
+  getAppLocaleLabel,
   SUPPORTED_APP_LOCALES,
   type AppLocale,
   I18nService,
@@ -28,12 +29,6 @@ type LocaleSubmenuOptions = {
   onSelect: (locale: AppLocale) => void;
 };
 
-function getLocaleLabel(i18n: I18nService, locale: AppLocale): string {
-  return locale === 'uk'
-    ? i18n.t('common.languageUkrainian')
-    : i18n.t('common.languageEnglish');
-}
-
 function createLocaleCodeBadge(
   i18n: I18nService,
   locale: AppLocale,
@@ -43,7 +38,7 @@ function createLocaleCodeBadge(
     label: locale.toUpperCase(),
     tone: tone === 'selected' ? 'accent' : 'neutral',
     className: 'min-w-[2rem]',
-    title: getLocaleLabel(i18n, locale),
+    title: getAppLocaleLabel(i18n, locale),
   });
 }
 
@@ -141,7 +136,7 @@ export function createLocaleSubmenu(
     SUPPORTED_APP_LOCALES.forEach((locale) => {
       const selected = locale === options.currentLocale;
       const item = createDropdownItem({
-        label: getLocaleLabel(options.i18n, locale),
+        label: getAppLocaleLabel(options.i18n, locale),
         variant: selected ? 'selected' : 'default',
         trailing: createLocaleCodeBadge(
           options.i18n,

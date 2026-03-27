@@ -53,6 +53,64 @@ describe('ProfileSettingsModal', () => {
     vi.restoreAllMocks();
   });
 
+  it('renders spanish as an available app language option', () => {
+    const modal = new ProfileSettingsModal({
+      runtime: createAppRuntime({ initialLocale: 'en', energyService: null }),
+      userApiService: {
+        setUserProfileLanguage: vi.fn(() => of(createUser())),
+        setUserWallpaper: vi.fn(() => of(createUser())),
+        deleteUser: vi.fn(() => of(void 0)),
+      },
+      wallpaperService: createWallpaperService([]),
+    });
+
+    modal.open(createUser());
+
+    const languageControl = document.body.querySelector<HTMLSelectElement>(
+      'select[data-role="profile-settings-language-control"]'
+    );
+    const optionValues = Array.from(languageControl?.options ?? []).map(
+      (option) => option.value
+    );
+    const spanishOption = Array.from(languageControl?.options ?? []).find(
+      (option) => option.value === 'es'
+    );
+
+    expect(optionValues).toContain('es');
+    expect(spanishOption?.textContent).toBe('Spanish');
+
+    modal.destroy();
+  });
+
+  it('renders rusyn as an available app language option', () => {
+    const modal = new ProfileSettingsModal({
+      runtime: createAppRuntime({ initialLocale: 'en', energyService: null }),
+      userApiService: {
+        setUserProfileLanguage: vi.fn(() => of(createUser())),
+        setUserWallpaper: vi.fn(() => of(createUser())),
+        deleteUser: vi.fn(() => of(void 0)),
+      },
+      wallpaperService: createWallpaperService([]),
+    });
+
+    modal.open(createUser());
+
+    const languageControl = document.body.querySelector<HTMLSelectElement>(
+      'select[data-role="profile-settings-language-control"]'
+    );
+    const optionValues = Array.from(languageControl?.options ?? []).map(
+      (option) => option.value
+    );
+    const rusynOption = Array.from(languageControl?.options ?? []).find(
+      (option) => option.value === 'rue'
+    );
+
+    expect(optionValues).toContain('rue');
+    expect(rusynOption?.textContent).toBe('Rusyn');
+
+    modal.destroy();
+  });
+
   it('rolls back locale when language save fails', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const user = createUser({ language: 'en' });

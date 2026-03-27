@@ -405,6 +405,8 @@ export const en = {
   'common.delete': 'Delete',
   'common.language': 'Language',
   'common.languageEnglish': 'English',
+  'common.languageRusyn': 'Rusyn',
+  'common.languageSpanish': 'Spanish',
   'common.languageSelection': 'Language selection',
   'common.languageUkrainian': 'Ukrainian',
   'common.redo': 'Redo',

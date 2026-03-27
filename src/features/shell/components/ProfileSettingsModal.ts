@@ -13,8 +13,10 @@ import type {
 } from '../../../majom-wrapper/interfaces/auth-interfaces.ts';
 import {
   type AppLocale,
+  getAppLocaleLabel,
   type I18nService,
   normalizeAppLocale,
+  SUPPORTED_APP_LOCALES,
 } from '../../../i18n/index.ts';
 import { AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
 import { UserApiService } from '../../../majom-wrapper/data-access/user-api-service.ts';
@@ -383,16 +385,10 @@ export class ProfileSettingsModal {
     const controlWrap = document.createElement('div');
     controlWrap.className = 'w-full sm:max-w-[16.5rem]';
     const control = new Select({
-      items: [
-        {
-          value: 'en',
-          label: this.i18n.t('common.languageEnglish'),
-        },
-        {
-          value: 'uk',
-          label: this.i18n.t('common.languageUkrainian'),
-        },
-      ],
+      items: SUPPORTED_APP_LOCALES.map((locale) => ({
+        value: locale,
+        label: getAppLocaleLabel(this.i18n, locale),
+      })),
       selectedValue: this.draft?.locale ?? this.runtime.i18n.getLocale(),
       disabled: this.languageState.saving,
       className: 'w-full',

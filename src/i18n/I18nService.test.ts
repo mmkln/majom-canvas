@@ -18,11 +18,15 @@ describe('I18nService', () => {
   it('normalizes locale aliases and region variants', () => {
     expect(normalizeAppLocale('uk-UA')).toBe('uk');
     expect(normalizeAppLocale('en_US')).toBe('en');
+    expect(normalizeAppLocale('es-ES')).toBe('es');
+    expect(normalizeAppLocale('rue-UA')).toBe('rue');
     expect(normalizeAppLocale('ua')).toBe('uk');
     expect(normalizeAppLocale('de')).toBeNull();
   });
 
   it('resolves the first supported locale from a preference list', () => {
+    expect(resolveAppLocale(['de-DE', 'rue-UA', 'es-ES'])).toBe('rue');
+    expect(resolveAppLocale(['de-DE', 'es-ES', 'uk-UA'])).toBe('es');
     expect(resolveAppLocale(['de-DE', 'uk-UA', 'en-US'])).toBe('uk');
     expect(resolveAppLocale(['de-DE'], 'en')).toBe('en');
   });
@@ -40,6 +44,22 @@ describe('I18nService', () => {
     );
     expect(document.documentElement.lang).toBe('uk');
     expect(loadPersistedAppLocale()).toBe('uk');
+  });
+
+  it('supports the spanish locale', () => {
+    const i18n = new I18nService({ initialLocale: 'es' });
+
+    expect(i18n.getLocale()).toBe('es');
+    expect(i18n.t('common.language')).toBe('Idioma');
+    expect(document.documentElement.lang).toBe('es');
+  });
+
+  it('supports the rusyn locale', () => {
+    const i18n = new I18nService({ initialLocale: 'rue' });
+
+    expect(i18n.getLocale()).toBe('rue');
+    expect(i18n.t('common.language')).toBe('Язык');
+    expect(document.documentElement.lang).toBe('rue');
   });
 
   it('notifies subscribers when the locale changes', () => {

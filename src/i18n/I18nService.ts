@@ -3,10 +3,12 @@ import {
   type AppTranslationKey,
   type AppTranslations,
 } from './locales/en.ts';
+import { es } from './locales/es.ts';
+import { rue } from './locales/rue.ts';
 import { uk } from './locales/uk.ts';
 
 export const APP_LOCALE_STORAGE_KEY = 'app-locale';
-export const SUPPORTED_APP_LOCALES = ['en', 'uk'] as const;
+export const SUPPORTED_APP_LOCALES = ['en', 'uk', 'es', 'rue'] as const;
 
 export type AppLocale = (typeof SUPPORTED_APP_LOCALES)[number];
 
@@ -24,10 +26,22 @@ type I18nServiceOptions = {
 
 const APP_TRANSLATIONS: TranslationCatalog = {
   en,
+  es,
+  rue,
   uk,
 };
 const APP_LOCALE_ALIASES: Record<string, AppLocale> = {
   ua: 'uk',
+};
+const APP_LOCALE_LABEL_KEYS: Record<AppLocale, AppTranslationKey> = {
+  en: 'common.languageEnglish',
+  es: 'common.languageSpanish',
+  rue: 'common.languageRusyn',
+  uk: 'common.languageUkrainian',
+};
+
+type TranslationReader = {
+  t: (key: AppTranslationKey) => string;
 };
 
 function interpolate(template: string, params?: TranslationParams): string {
@@ -79,6 +93,17 @@ export function getBrowserLocalePreferences(): string[] {
     return navigator.languages;
   }
   return navigator.language ? [navigator.language] : [];
+}
+
+export function getAppLocaleLabelKey(locale: AppLocale): AppTranslationKey {
+  return APP_LOCALE_LABEL_KEYS[locale];
+}
+
+export function getAppLocaleLabel(
+  i18n: TranslationReader,
+  locale: AppLocale
+): string {
+  return i18n.t(getAppLocaleLabelKey(locale));
 }
 
 export function loadPersistedAppLocale(): AppLocale | null {

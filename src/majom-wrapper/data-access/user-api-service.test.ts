@@ -12,6 +12,14 @@ describe('UserApiService language adapter', () => {
     expect(toUserProfileLanguageCode('en')).toBe('en');
   });
 
+  it('keeps spanish unchanged', () => {
+    expect(toUserProfileLanguageCode('es')).toBe('es');
+  });
+
+  it('keeps rusyn unchanged', () => {
+    expect(toUserProfileLanguageCode('rue')).toBe('rue');
+  });
+
   it('passes through already normalized backend language codes', () => {
     expect(toUserProfileLanguageCode('ua')).toBe('ua');
   });

@@ -1,6 +1,8 @@
 export {
   APP_LOCALE_STORAGE_KEY,
   SUPPORTED_APP_LOCALES,
+  getAppLocaleLabel,
+  getAppLocaleLabelKey,
   I18nService,
   createAppI18nService,
   getBrowserLocalePreferences,

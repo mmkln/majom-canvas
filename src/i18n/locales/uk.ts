@@ -406,6 +406,8 @@ export const uk = {
   'common.delete': 'Видалити',
   'common.language': 'Мова',
   'common.languageEnglish': 'English',
+  'common.languageRusyn': 'Русинська',
+  'common.languageSpanish': 'Іспанська',
   'common.languageSelection': 'Вибір мови',
   'common.languageUkrainian': 'Українська',
   'common.redo': 'Повторити',

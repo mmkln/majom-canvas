@@ -6,13 +6,20 @@ import type { AppLocale } from '../../i18n/index.ts';
 const USER_PROFILE_LANGUAGE_BY_APP_LOCALE: Record<AppLocale, User['language']> =
   {
     en: 'en',
+    es: 'es',
+    rue: 'rue',
     uk: 'ua',
   };
 
 export function toUserProfileLanguageCode(
   language: User['language'] | AppLocale
 ): User['language'] {
-  if (language === 'en' || language === 'uk') {
+  if (
+    language === 'en' ||
+    language === 'es' ||
+    language === 'rue' ||
+    language === 'uk'
+  ) {
     return USER_PROFILE_LANGUAGE_BY_APP_LOCALE[language];
   }
   return language;
