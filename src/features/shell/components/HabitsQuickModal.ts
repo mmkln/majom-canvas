@@ -42,6 +42,19 @@ type StreakRowOverlayMeta = {
   checkedStates: boolean[];
 };
 
+export type HabitsQuickStatusSnapshot = {
+  openCount: number;
+  completedCount: number;
+  totalDue: number;
+  archivedCount: number;
+  activeCount: number;
+};
+
+type HabitsQuickModalOptions = {
+  onOpenChange?: (open: boolean) => void;
+  onStatusChange?: (snapshot: HabitsQuickStatusSnapshot) => void;
+};
+
 export type HabitsQuickModalService = Pick<
   ShellHabitsService,
   | 'loadHabits'
@@ -127,6 +140,10 @@ export class HabitsQuickModal {
   private createBody: HTMLDivElement | null = null;
   private createFooter: HTMLDivElement | null = null;
   private readonly service: HabitsQuickModalService;
+  private readonly onOpenChange?: (open: boolean) => void;
+  private readonly onStatusChange?: (
+    snapshot: HabitsQuickStatusSnapshot
+  ) => void;
   private days: HabitDay[];
   private rows: HabitRowState[] = [];
   private loading = false;
@@ -153,16 +170,27 @@ export class HabitsQuickModal {
 
   constructor(
     service: HabitsQuickModalService = new ShellHabitsService(),
-    runtime: AppRuntime = createAppRuntime()
+    runtime: AppRuntime = createAppRuntime(),
+    options: HabitsQuickModalOptions = {}
   ) {
     this.service = service;
     this.runtime = runtime;
     this.i18n = runtime.i18n;
+    this.onOpenChange = options.onOpenChange;
+    this.onStatusChange = options.onStatusChange;
     this.days = buildRecentDays(this.i18n, DAY_WINDOW_SIZE);
     this.disposeRuntimeSubscription = this.runtime.subscribe(() => {
       this.days = buildRecentDays(this.i18n, DAY_WINDOW_SIZE);
       this.refreshTranslations();
     });
+  }
+
+  public isOpen(): boolean {
+    return this.overlay !== null;
+  }
+
+  public prime(): void {
+    void this.refresh();
   }
 
   public open(): void {
@@ -186,6 +214,7 @@ export class HabitsQuickModal {
 
     this.renderFooter();
     this.renderBody();
+    this.onOpenChange?.(true);
     void this.refresh();
   }
 
@@ -209,6 +238,7 @@ export class HabitsQuickModal {
     this.pendingCellKeys.clear();
     this.pendingHabitIds.clear();
     this.disposeRowMenus();
+    this.onOpenChange?.(false);
   }
 
   public destroy(): void {
@@ -281,6 +311,46 @@ export class HabitsQuickModal {
       habit,
       completionByDateKey: this.buildCompletionMap(habit),
     };
+  }
+
+  private getTodayDay(): HabitDay {
+    return this.days[0];
+  }
+
+  private isRowCompletedOnDay(row: HabitRowState, day: HabitDay): boolean {
+    return row.completionByDateKey.get(day.key) === true;
+  }
+
+  private getTodaySummary(rows: HabitRowState[]): {
+    completed: number;
+    open: number;
+    total: number;
+  } {
+    const today = this.getTodayDay();
+    const dueToday = rows.filter((row) => row.habit.is_due_today);
+    const completed = dueToday.filter((row) =>
+      this.isRowCompletedOnDay(row, today)
+    ).length;
+    return {
+      completed,
+      open: Math.max(dueToday.length - completed, 0),
+      total: dueToday.length,
+    };
+  }
+
+  private getStatusSnapshot(): HabitsQuickStatusSnapshot {
+    const summary = this.getTodaySummary(this.rows);
+    return {
+      openCount: summary.open,
+      completedCount: summary.completed,
+      totalDue: summary.total,
+      archivedCount: 0,
+      activeCount: this.rows.length,
+    };
+  }
+
+  private emitStatusChange(): void {
+    this.onStatusChange?.(this.getStatusSnapshot());
   }
 
   private sortRowsByTitle(): void {
@@ -910,6 +980,7 @@ export class HabitsQuickModal {
     } finally {
       if (refreshVersion === this.refreshVersion) {
         this.loading = false;
+        this.emitStatusChange();
         this.renderFooter();
         this.renderBody();
       }
@@ -935,6 +1006,7 @@ export class HabitsQuickModal {
       this.createTitle = '';
       this.closeCreateModal();
       emitKanbanRefreshRequest();
+      this.emitStatusChange();
     } catch {
       this.createErrorKey = 'habits.error.create';
       this.errorKey = 'habits.error.create';
@@ -1021,6 +1093,7 @@ export class HabitsQuickModal {
       await this.service.archiveHabit(habitId);
       this.rows = this.rows.filter((item) => item.habit.id !== habitId);
       emitKanbanRefreshRequest();
+      this.emitStatusChange();
     } catch {
       this.errorKey = 'habits.error.archive';
     } finally {
@@ -1051,6 +1124,7 @@ export class HabitsQuickModal {
       await this.service.deleteHabit(habitId);
       this.rows = this.rows.filter((item) => item.habit.id !== habitId);
       emitKanbanRefreshRequest();
+      this.emitStatusChange();
     } catch {
       this.errorKey = 'habits.error.delete';
     } finally {
@@ -1084,6 +1158,7 @@ export class HabitsQuickModal {
       row.habit = updated;
       row.completionByDateKey = this.buildCompletionMap(updated);
       emitKanbanRefreshRequest();
+      this.emitStatusChange();
     } catch {
       row.completionByDateKey.set(day.key, previousChecked);
       this.errorKey = 'habits.error.toggleCompletion';

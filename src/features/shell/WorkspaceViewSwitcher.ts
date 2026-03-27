@@ -172,6 +172,7 @@ export class WorkspaceViewSwitcher {
     if (this.container.parentElement) return;
     parent.appendChild(this.container);
     this.appMenu.mount();
+    this.controls.prime();
     this.disposeRuntimeSubscription = this.runtime.subscribe(
       () => this.syncHandleVisuals(),
       { emitCurrent: true }

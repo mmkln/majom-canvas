@@ -128,9 +128,14 @@ export {
 export { createHudSurface as createSurface } from './HudSurface.ts';
 export {
   createHudSidebarRailButton as createSidebarRailButton,
+  createHudSidebarRailButtonBadge as createSidebarRailButtonBadge,
   setHudSidebarRailButtonActive as setSidebarRailButtonActive,
+  setHudSidebarRailButtonBadge as setSidebarRailButtonBadge,
   createHudSidebarDivider as createSidebarDivider,
   HUD_SIDEBAR_TOKENS as SIDEBAR_TOKENS,
+  type HudSidebarRailButtonBadgeOptions as SidebarRailButtonBadgeOptions,
+  type HudSidebarRailButtonBadgeTone as SidebarRailButtonBadgeTone,
+  type HudSidebarRailButtonBadgeVariant as SidebarRailButtonBadgeVariant,
 } from './HudSidebar.ts';
 export {
   HudMenuButton as MenuButton,
@@ -187,6 +192,17 @@ export {
   type HudBadgeOptions,
   type HudBadgeTone,
 } from './HudBadge.ts';
+export {
+  createHudSidebarRailButton,
+  createHudSidebarRailButtonBadge,
+  setHudSidebarRailButtonActive,
+  setHudSidebarRailButtonBadge,
+  createHudSidebarDivider,
+  HUD_SIDEBAR_TOKENS,
+  type HudSidebarRailButtonBadgeOptions,
+  type HudSidebarRailButtonBadgeTone,
+  type HudSidebarRailButtonBadgeVariant,
+} from './HudSidebar.ts';
 export {
   createHudMenuControlRow,
   type HudMenuControlRowOptions,
@@ -248,12 +264,6 @@ export {
   type HudToggleSwitchOptions,
 } from './HudToggleSwitch.ts';
 export { createHudSurface } from './HudSurface.ts';
-export {
-  createHudSidebarRailButton,
-  setHudSidebarRailButtonActive,
-  createHudSidebarDivider,
-  HUD_SIDEBAR_TOKENS,
-} from './HudSidebar.ts';
 export {
   HudMenuButton,
   type HudMenuButtonItem,

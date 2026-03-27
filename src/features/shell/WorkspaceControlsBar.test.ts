@@ -289,6 +289,36 @@ describe('WorkspaceControlsBar floating variant', () => {
     expect(bar.element.children[1]?.getAttribute('aria-hidden')).toBe('true');
   });
 
+  it('renders a routines badge when today still has open habits', () => {
+    const bar = new WorkspaceControlsBar({
+      initialView: 'canvas',
+      showKanban: true,
+      showTimeClustering: false,
+      showRoutines: true,
+      showChat: false,
+      showEnergy: false,
+      variant: 'floating',
+    }) as any;
+
+    bar.syncRoutinesStatus({
+      openCount: 3,
+      completedCount: 5,
+      totalDue: 8,
+      archivedCount: 1,
+      activeCount: 8,
+    });
+
+    const routinesButton = getButtonByAriaLabel(bar.element, 'Open routines');
+    const badge = routinesButton?.querySelector<HTMLSpanElement>(
+      '[data-role="workspace-controls-routines-badge"]'
+    );
+
+    expect(badge).not.toBeNull();
+    expect(badge?.dataset.variant).toBe('count');
+    expect(badge?.dataset.tone).toBe('success');
+    expect(badge?.textContent).toBe('3');
+  });
+
   it('refreshes control labels when locale changes', () => {
     const runtime = createAppRuntime({ initialLocale: 'en' });
     const bar = new WorkspaceControlsBar({

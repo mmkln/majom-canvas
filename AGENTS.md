@@ -55,6 +55,12 @@
 - Add new colors/spacing/scales to `tailwind.config.js` when they represent reusable design tokens; do not hardcode repeated design values in feature code.
 - Prefer extending `src/ui-lib/src` primitives and HUD variants over creating feature-local style dialects.
 - Border usage should stay rare: prefer spacing/contrast/elevation first, and add borders only when affordance or contrast explicitly requires them.
+- Do not use hover "lift" motion as a default affordance for cards, list rows, buttons, or other standard controls. Avoid hover-time `translateY`, jump, float, or similar vertical movement to indicate interactivity.
+- Prefer stable hover signals such as background, border, shadow, underline, or text/icon color changes instead of moving the element itself.
+- Do not generate nested “bubble UI” by default. Treat the following as an anti-pattern unless there is a clear functional reason: page shell with border/shadow, containing a bordered workspace card, containing bordered section cards, containing bordered sub-cards, containing pill/bubble wrappers for routine content.
+- For product/workspace screens, assume one dominant structural surface is enough. If the screen already has a workspace shell or page region, inner sections should usually be organized by spacing, typography, dividers, or subtle background shifts instead of repeated rounded bordered cards.
+- When reviewing or generating UI, explicitly ask: `Can I remove one whole layer of card/border/shadow wrapping without losing meaning or affordance?` If yes, remove it.
+- Nested card/chrome is allowed only when each layer has a different job that the user can perceive immediately, for example: modal over page, floating inspector over workspace, or selected sub-surface with clearly different interaction semantics.
 - In chat UIs, message bubbles must not use border outlines; if a divider is needed, keep it at container/subsection level.
 - On mobile/touch viewports, keep computed `font-size` for text-entry controls (`input`, `textarea`, editable select/search fields) at `16px` or larger to prevent browser auto-zoom on focus.
 - If desktop needs smaller visual input text, apply that only from `md`/desktop breakpoints while preserving `16px` on mobile.
@@ -95,6 +101,8 @@
 - Prefer tests that protect meaningful regressions: user interactions, state transitions, data flow, command execution, accessibility-critical behavior, conditional rendering with product meaning, and bug fixes that could realistically recur.
 - When a change is purely presentational and does not alter behavior, do not create a new test just to prove the component still renders.
 - Before adding a test, ask whether it would catch a costly regression or document important behavior. If not, skip it.
+- The assistant may create temporary self-check tests or short-lived verification harnesses while implementing a change, but they must be deleted after verification unless they clearly protect meaningful product behavior under the rules above.
+- Do not leave behind ad hoc tests, throwaway fixtures, or one-off verification files that exist only to validate the assistant's current implementation pass.
 
 ### Learning From Corrections
 

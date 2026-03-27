@@ -1,5 +1,6 @@
 import { createIcon, type IconName } from '../canvas/ui/icons.ts';
 import { HabitsQuickModal } from './components/HabitsQuickModal.ts';
+import type { HabitsQuickStatusSnapshot } from './components/HabitsQuickModal.ts';
 import type { WorkspaceView } from './WorkspaceView.ts';
 import type { TimeClusteringLayoutMode } from '../time-clustering/domain/types.ts';
 import { emitAiAssistantToggleRequested } from '../ai-assistant/aiAssistantEvents.ts';
@@ -11,6 +12,7 @@ import {
   createSidebarDivider,
   createSidebarRailButton,
   setSidebarRailButtonActive,
+  setSidebarRailButtonBadge,
   SIDEBAR_TOKENS,
 } from '../../ui-lib/src/hud/index.ts';
 import { AppRuntime, createAppRuntime } from '../../app-runtime/index.ts';
@@ -149,6 +151,14 @@ export class WorkspaceControlsBar {
   private routinesLabel: HTMLSpanElement | null = null;
   private activeView: WorkspaceView;
   private chatOpen: boolean;
+  private routinesOpen = false;
+  private routinesStatus: HabitsQuickStatusSnapshot = {
+    openCount: 0,
+    completedCount: 0,
+    totalDue: 0,
+    archivedCount: 0,
+    activeCount: 0,
+  };
   private timeClusteringOpen: boolean;
   private timeClusteringLayoutMode: TimeClusteringLayoutMode;
   private disposeRuntimeSubscription: (() => void) | null = null;
@@ -242,12 +252,17 @@ export class WorkspaceControlsBar {
     }
 
     this.routinesModal = showRoutines
-      ? new HabitsQuickModal(undefined, this.runtime)
+      ? new HabitsQuickModal(undefined, this.runtime, {
+          onOpenChange: (open) => this.syncRoutinesButtonState(open),
+          onStatusChange: (snapshot) => this.syncRoutinesStatus(snapshot),
+        })
       : null;
     if (showRoutines) {
       this.routinesButton = this.createRoutinesButton(() =>
         this.routinesModal?.open()
       );
+      this.syncRoutinesButtonState(false);
+      this.syncRoutinesStatus(this.routinesStatus);
       appendSection(this.routinesButton);
     }
 
@@ -305,6 +320,10 @@ export class WorkspaceControlsBar {
   public setChatOpen(open: boolean): void {
     this.chatOpen = open;
     this.syncButtons();
+  }
+
+  public prime(): void {
+    this.routinesModal?.prime();
   }
 
   public setTimeClusteringOpen(open: boolean): void {
@@ -568,6 +587,46 @@ export class WorkspaceControlsBar {
           ? this.metrics.activeColor
           : this.metrics.inactiveIconColor;
       }
+    }
+
+    this.syncRoutinesButtonState(this.routinesOpen);
+  }
+
+  private syncRoutinesButtonState(open: boolean): void {
+    this.routinesOpen = open;
+    if (!this.routinesButton) return;
+    if (this.variant === 'sidebar') {
+      setSidebarRailButtonActive(this.routinesButton, open);
+      return;
+    }
+    this.routinesButton.dataset.active = open ? 'true' : 'false';
+    this.routinesButton.style.background = open
+      ? this.metrics.activeBackground
+      : 'transparent';
+    this.routinesButton.style.color = open
+      ? this.metrics.activeColor
+      : this.metrics.inactiveTextColor;
+  }
+
+  private syncRoutinesStatus(snapshot: HabitsQuickStatusSnapshot): void {
+    this.routinesStatus = snapshot;
+    if (!this.routinesButton) return;
+    const badge = setSidebarRailButtonBadge(
+      this.routinesButton,
+      snapshot.openCount > 0
+        ? {
+            variant: 'count',
+            tone: 'success',
+            value: snapshot.openCount,
+            max: 9,
+          }
+        : null
+    );
+    if (badge) {
+      badge.dataset.role =
+        this.variant === 'sidebar'
+          ? 'workspace-sidebar-routines-badge'
+          : 'workspace-controls-routines-badge';
     }
   }
 }

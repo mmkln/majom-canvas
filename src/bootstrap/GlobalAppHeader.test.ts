@@ -76,4 +76,31 @@ describe('GlobalAppHeader sidebar energy placement', () => {
 
     header.unmount();
   });
+
+  it('renders a count badge on the routines sidebar button when routines are still open', () => {
+    const runtime = createAppRuntime({ initialLocale: 'en' });
+    const header = new GlobalAppHeader(runtime) as any;
+
+    header.syncRoutinesStatus({
+      openCount: 4,
+      completedCount: 2,
+      totalDue: 6,
+      archivedCount: 1,
+      activeCount: 6,
+    });
+
+    const routinesButton = (header as GlobalAppHeaderAccess).menuContainer?.querySelector<HTMLButtonElement>(
+      'button[aria-label="Open routines"]'
+    );
+    const badge = routinesButton?.querySelector<HTMLSpanElement>(
+      '[data-role="global-routines-button-badge"]'
+    );
+
+    expect(badge).not.toBeNull();
+    expect(badge?.dataset.variant).toBe('count');
+    expect(badge?.dataset.tone).toBe('success');
+    expect(badge?.textContent).toBe('4');
+
+    header.unmount();
+  });
 });

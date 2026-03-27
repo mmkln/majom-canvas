@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createSidebarDivider,
   createSidebarRailButton,
+  setSidebarRailButtonBadge,
   setSidebarRailButtonActive,
   SIDEBAR_TOKENS,
 } from './index.ts';
@@ -42,5 +43,51 @@ describe('HudSidebar', () => {
     expect(SIDEBAR_TOKENS.compactWidthPx).toBe(64);
     expect(SIDEBAR_TOKENS.comfortWidthPx).toBe(72);
     expect(SIDEBAR_TOKENS.railButtonSizePx).toBe(36);
+  });
+
+  it('supports reusable sidebar rail badges with count, dot, and pill variants', () => {
+    const button = createSidebarRailButton({
+      icon: 'check-circle',
+      title: 'Routines',
+      ariaLabel: 'Routines',
+      badge: {
+        variant: 'count',
+        tone: 'success',
+        value: 12,
+        max: 9,
+      },
+    });
+
+    const badge = button.querySelector<HTMLSpanElement>(
+      '[data-sidebar-rail-badge="true"]'
+    );
+    expect(badge).not.toBeNull();
+    expect(badge?.getAttribute('data-component')).toBe('HudSidebarRailBadge');
+    expect(badge?.dataset.variant).toBe('count');
+    expect(badge?.dataset.tone).toBe('success');
+    expect(badge?.textContent).toBe('9+');
+    expect(badge?.className).toContain('bg-emerald-500');
+    expect(button.className).toContain('relative');
+
+    setSidebarRailButtonBadge(button, {
+      variant: 'dot',
+      tone: 'warning',
+    });
+    expect(badge?.dataset.variant).toBe('dot');
+    expect(badge?.textContent).toBe('');
+    expect(badge?.className).toContain('h-2.5');
+    expect(badge?.className).toContain('bg-amber-500');
+
+    setSidebarRailButtonBadge(button, {
+      variant: 'pill',
+      tone: 'danger',
+      value: 'new',
+    });
+    expect(badge?.dataset.variant).toBe('pill');
+    expect(badge?.textContent).toBe('new');
+    expect(badge?.className).toContain('bg-rose-500');
+
+    setSidebarRailButtonBadge(button, null);
+    expect(badge?.style.display).toBe('none');
   });
 });

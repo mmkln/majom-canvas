@@ -6,9 +6,11 @@ import {
   TIME_CLUSTERING_DEV_ENABLED,
 } from '../config/env/index.ts';
 import { HabitsQuickModal } from '../features/shell/components/HabitsQuickModal.ts';
+import type { HabitsQuickStatusSnapshot } from '../features/shell/components/HabitsQuickModal.ts';
 import {
   createSidebarRailButton,
   setSidebarRailButtonActive,
+  setSidebarRailButtonBadge,
   SIDEBAR_TOKENS,
 } from '../features/canvas/ui/primitives/index.ts';
 import { WorkspaceControlsBar } from '../features/shell/WorkspaceControlsBar.ts';
@@ -71,6 +73,13 @@ export class GlobalAppHeader {
   private readonly chatButton: HTMLButtonElement | null;
   private readonly energyControl: EnergySelectorControl | null;
   private readonly menuContainer: HTMLDivElement | null;
+  private routinesStatus: HabitsQuickStatusSnapshot = {
+    openCount: 0,
+    completedCount: 0,
+    totalDue: 0,
+    archivedCount: 0,
+    activeCount: 0,
+  };
   private readonly viewChangedHandler: (event: Event) => void;
   private readonly chatVisibilityChangedHandler: (event: Event) => void;
   private readonly timeClusteringLayoutModeChangedHandler: (
@@ -148,7 +157,10 @@ export class GlobalAppHeader {
       allowLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
     });
     this.routinesModal = ROUTINES_ENABLED
-      ? new HabitsQuickModal(undefined, this.runtime)
+      ? new HabitsQuickModal(undefined, this.runtime, {
+          onOpenChange: (open) => this.syncRoutinesButtonState(open),
+          onStatusChange: (snapshot) => this.syncRoutinesStatus(snapshot),
+        })
       : null;
 
     this.controls = new WorkspaceControlsBar({
@@ -180,6 +192,8 @@ export class GlobalAppHeader {
           },
         })
       : null;
+    this.syncRoutinesButtonState(false);
+    this.syncRoutinesStatus(this.routinesStatus);
 
     this.timeClusteringButton = TIME_CLUSTERING_DEV_ENABLED
       ? this.createSidebarActionButton({
@@ -223,6 +237,7 @@ export class GlobalAppHeader {
     if (!this.element || this.element.isConnected) return;
     parent.appendChild(this.element);
     setGlobalAppSidebarOffset(GLOBAL_APP_SIDEBAR_WIDTH_PX);
+    this.routinesModal?.prime();
     this.disposeRuntimeSubscription = this.runtime.subscribe(() => {
       this.refreshTranslations();
     }, { emitCurrent: true });
@@ -315,6 +330,30 @@ export class GlobalAppHeader {
   private syncChatButtonState(open: boolean): void {
     if (!this.chatButton) return;
     setSidebarRailButtonActive(this.chatButton, open);
+  }
+
+  private syncRoutinesButtonState(open: boolean): void {
+    if (!this.routinesButton) return;
+    setSidebarRailButtonActive(this.routinesButton, open);
+  }
+
+  private syncRoutinesStatus(snapshot: HabitsQuickStatusSnapshot): void {
+    this.routinesStatus = snapshot;
+    if (!this.routinesButton) return;
+    const badge = setSidebarRailButtonBadge(
+      this.routinesButton,
+      snapshot.openCount > 0
+        ? {
+            variant: 'count',
+            tone: 'success',
+            value: snapshot.openCount,
+            max: 9,
+          }
+        : null
+    );
+    if (badge) {
+      badge.dataset.role = 'global-routines-button-badge';
+    }
   }
 
   private syncTimeClusteringButtonState(open: boolean): void {
