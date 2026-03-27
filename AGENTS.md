@@ -118,6 +118,17 @@
 - Keep feature-specific docs focused on that feature's own product scope, domain model, UX, and architecture.
 - Document cross-cutting platform strategy in `docs/PROJECT.md` or a dedicated top-level doc under `docs/`, not inside a feature-specific doc, unless the integration or rule is genuinely unique to that feature.
 
+### AI-Native Incremental Refactoring
+
+- For all implementation tasks (new features, bug fixes, and edits to existing functionality), apply at least one small AI-native refactor in the touched area unless a valid waiver applies.
+- The default objective is to leave touched code more machine-checkable and less ambiguous without broad rewrites.
+- Follow `docs/AI-NATIVE-INCREMENTAL-REFACTORING.md` for policy, measurable outcomes, waiver categories, and required reporting format.
+- Keep refactors local and safe:
+  - target approximately 5-15% extra diff in touched modules or 1-3 focused micro-refactors;
+  - preserve behavior unless the task explicitly requests behavior change.
+- Final summaries for code changes must include the AI-native reporting block (applied/skipped, type, what changed, boundary improved, or waiver reason with next safe opportunity).
+- Prefer refactors that strengthen invariants, reduce duplicate reactive pathways, tighten boundary typing, and increase reuse of `src/ui-lib/src` primitives.
+
 ### Canvas Connection Invariant
 
 - For canvas planning elements, treat connections as unique per unordered pair of elements: at most one connection may exist between any two elements, regardless of direction.
@@ -205,3 +216,10 @@
 - Owner: `docs` + `src/features/kanban` + `src/majom-wrapper/interfaces`
 - Read first: `docs/KANBAN-TACTICAL-EXECUTION-DESIGN.md`
 - Expected result: a clear split between strategy (canvas), tactics (flows/capacity), and execution (Kanban), with an explicit roadmap for replacing temporary distribution logic.
+
+### Apply AI-Native Incremental Refactoring
+
+- Use when implementing any code change, especially modifications to existing functionality that should gradually become easier for AI agents to evolve safely.
+- Owner: `docs` + all feature modules
+- Read first: `docs/AI-NATIVE-INCREMENTAL-REFACTORING.md`
+- Expected result: requested behavior is delivered, touched areas include at least one small measurable AI-native refactor (or explicit waiver), and final reporting includes the required AI-native block.
