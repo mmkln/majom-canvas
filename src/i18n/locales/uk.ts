@@ -420,9 +420,20 @@ export const uk = {
     'Керуйте даними акаунта, мовою, шпалерами та діями над акаунтом.',
   'profileSettings.account.title': 'Акаунт',
   'profileSettings.account.description':
-    'Перегляньте поточні дані акаунта та вийдіть за потреби.',
+    "Перегляньте дані акаунта, оновіть ім'я користувача та вийдіть за потреби.",
   'profileSettings.account.username': "Ім'я користувача",
   'profileSettings.account.email': 'Email',
+  'profileSettings.account.currentUsernameDescription':
+    'Поточне: {username}',
+  'profileSettings.account.panelDescription':
+    "Оновіть ім'я користувача, яке відображається у workspace.",
+  'profileSettings.account.saved': "Ім'я користувача оновлено.",
+  'profileSettings.account.saveError':
+    "Не вдалося оновити ім'я користувача.",
+  'profileSettings.account.updatedDescription':
+    "Ім'я користувача для цього акаунта щойно оновлено.",
+  'profileSettings.account.usernameRequired':
+    "Ім'я користувача обов'язкове.",
   'profileSettings.account.logout': 'Вийти',
   'profileSettings.security.title': 'Безпека',
   'profileSettings.security.description':

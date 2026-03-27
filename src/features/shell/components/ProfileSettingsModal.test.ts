@@ -44,6 +44,7 @@ function createWallpaperService(wallpapers: Wallpaper[]) {
 
 function createUserApiService(
   overrides: Partial<{
+    updateUserProfile: ReturnType<typeof vi.fn>;
     setUserProfileLanguage: ReturnType<typeof vi.fn>;
     setUserWallpaper: ReturnType<typeof vi.fn>;
     changePassword: ReturnType<typeof vi.fn>;
@@ -51,6 +52,9 @@ function createUserApiService(
   }> = {}
 ) {
   return {
+    updateUserProfile: vi.fn((payload?: Partial<User>) =>
+      of(createUser(payload))
+    ),
     setUserProfileLanguage: vi.fn(() => of(createUser())),
     setUserWallpaper: vi.fn(() => of(createUser())),
     changePassword: vi.fn(() =>
@@ -63,6 +67,14 @@ function createUserApiService(
 
 function flushPromises(): Promise<void> {
   return Promise.resolve();
+}
+
+function openAccountSection(): void {
+  document
+    .querySelector<HTMLButtonElement>(
+      'button[data-role="profile-settings-account-toggle"]'
+    )
+    ?.click();
 }
 
 function openSecuritySection(): void {
@@ -134,6 +146,137 @@ describe('ProfileSettingsModal', () => {
 
     expect(optionValues).toContain('rue');
     expect(rusynOption?.textContent).toBe('Rusyn');
+
+    modal.destroy();
+  });
+
+  it('keeps account editing collapsed until requested and persists the username update', async () => {
+    const updatedUser = createUser({ username: 'mila-updated' });
+    const updateUserProfile = vi.fn(() => of(updatedUser));
+    const modal = new ProfileSettingsModal({
+      runtime: createAppRuntime({ initialLocale: 'en', energyService: null }),
+      userApiService: createUserApiService({ updateUserProfile }),
+      wallpaperService: createWallpaperService([]),
+    });
+
+    modal.open(createUser());
+
+    expect(
+      document.querySelector('div[data-role="profile-settings-account-panel"]')
+    ).toBeNull();
+
+    openAccountSection();
+
+    const saveButton = () =>
+      document.querySelector<HTMLButtonElement>(
+        'button[data-role="profile-settings-account-save"]'
+      );
+
+    expect(saveButton()?.disabled).toBe(true);
+
+    setInputValue(
+      'input[data-role="profile-settings-account-username-input"]',
+      'mila-updated'
+    );
+    expect(saveButton()?.disabled).toBe(false);
+
+    saveButton()?.click();
+    await flushPromises();
+
+    expect(updateUserProfile).toHaveBeenCalledWith({
+      username: 'mila-updated',
+    });
+    expect(document.body.textContent).toContain('Username updated.');
+    expect(document.body.textContent).toContain('mila-updated');
+
+    expect(
+      document.querySelector('div[data-role="profile-settings-account-panel"]')
+    ).toBeNull();
+
+    openAccountSection();
+
+    expect(
+      document.querySelector<HTMLInputElement>(
+        'input[data-role="profile-settings-account-username-input"]'
+      )?.value
+    ).toBe('mila-updated');
+    expect(saveButton()?.disabled).toBe(true);
+
+    modal.destroy();
+  });
+
+  it('maps backend username field errors into the account form', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const updateUserProfile = vi.fn(() =>
+      throwError(() => ({
+        username: ['A user with that username already exists.'],
+      }))
+    );
+    const modal = new ProfileSettingsModal({
+      runtime: createAppRuntime({ initialLocale: 'en', energyService: null }),
+      userApiService: createUserApiService({ updateUserProfile }),
+      wallpaperService: createWallpaperService([]),
+    });
+
+    modal.open(createUser());
+    openAccountSection();
+
+    setInputValue(
+      'input[data-role="profile-settings-account-username-input"]',
+      'taken-name'
+    );
+
+    document
+      .querySelector<HTMLButtonElement>(
+        'button[data-role="profile-settings-account-save"]'
+      )
+      ?.click();
+
+    await flushPromises();
+    await flushPromises();
+
+    expect(updateUserProfile).toHaveBeenCalledWith({
+      username: 'taken-name',
+    });
+    expect(document.body.textContent).toContain(
+      'A user with that username already exists.'
+    );
+
+    modal.destroy();
+  });
+
+  it('resets the username draft when account editing is cancelled', () => {
+    const modal = new ProfileSettingsModal({
+      runtime: createAppRuntime({ initialLocale: 'en', energyService: null }),
+      userApiService: createUserApiService(),
+      wallpaperService: createWallpaperService([]),
+    });
+
+    modal.open(createUser());
+    openAccountSection();
+
+    setInputValue(
+      'input[data-role="profile-settings-account-username-input"]',
+      'draft-username'
+    );
+
+    document
+      .querySelector<HTMLButtonElement>(
+        'button[data-role="profile-settings-account-cancel"]'
+      )
+      ?.click();
+
+    expect(
+      document.querySelector('div[data-role="profile-settings-account-panel"]')
+    ).toBeNull();
+
+    openAccountSection();
+
+    expect(
+      document.querySelector<HTMLInputElement>(
+        'input[data-role="profile-settings-account-username-input"]'
+      )?.value
+    ).toBe('mila');
 
     modal.destroy();
   });

@@ -419,9 +419,17 @@ export const en = {
     'Manage account details, language, wallpaper, and account actions.',
   'profileSettings.account.title': 'Account',
   'profileSettings.account.description':
-    'Review your current account identity and sign out when needed.',
+    'Review your account identity, update your username, and sign out when needed.',
   'profileSettings.account.username': 'Username',
   'profileSettings.account.email': 'Email',
+  'profileSettings.account.currentUsernameDescription': 'Current: {username}',
+  'profileSettings.account.panelDescription':
+    'Update the username shown across your workspace.',
+  'profileSettings.account.saved': 'Username updated.',
+  'profileSettings.account.saveError': 'Could not update username.',
+  'profileSettings.account.updatedDescription':
+    'Your username was updated for this account.',
+  'profileSettings.account.usernameRequired': 'Username is required.',
   'profileSettings.account.logout': 'Logout',
   'profileSettings.security.title': 'Security',
   'profileSettings.security.description':

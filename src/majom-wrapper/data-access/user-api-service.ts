@@ -3,6 +3,7 @@ import { HttpInterceptorClient } from './http-interceptor.js';
 import type {
   ChangePassword,
   ChangePasswordResponse,
+  UserProfileUpdate,
   User,
 } from '../interfaces/auth-interfaces.ts';
 import type { AppLocale } from '../../i18n/index.ts';
@@ -44,12 +45,19 @@ export class UserApiService {
   }
 
   /**
+   * Partially update the current user's profile.
+   */
+  public updateUserProfile(payload: UserProfileUpdate): Observable<User> {
+    return this.http.patch<User>('/user/profile/', payload);
+  }
+
+  /**
    * Update user's profile language
    * @param language The new language code for the user
    * @returns Observable of updated User data
    */
   public setUserProfileLanguage(language: User['language']): Observable<User> {
-    return this.http.patch<User>('/user/profile/', {
+    return this.updateUserProfile({
       language: toUserProfileLanguageCode(language),
     });
   }
@@ -58,7 +66,7 @@ export class UserApiService {
    * Update user's selected wallpaper.
    */
   public setUserWallpaper(wallpaperId: User['wallpaper_id']): Observable<User> {
-    return this.http.patch<User>('/user/profile/', {
+    return this.updateUserProfile({
       wallpaper_id: wallpaperId,
     });
   }

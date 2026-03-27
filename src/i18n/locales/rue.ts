@@ -43,9 +43,18 @@ export const rue: AppTranslations = {
     'Керуйте данными рахунку, языком, тлом workspace-у і діями над рахунком.',
   'profileSettings.account.title': 'Рахунок',
   'profileSettings.account.description':
-    'Перегляньте свой профіль і, як треба, выйдьте із системы.',
+    'Перегляньте даны рахунку, зміньте юзернейм і, як треба, выйдьте із системы.',
   'profileSettings.account.username': 'Юзернейм',
   'profileSettings.account.email': 'Email',
+  'profileSettings.account.currentUsernameDescription':
+    'Теперішнє: {username}',
+  'profileSettings.account.panelDescription':
+    'Зміньте юзернейм, котрый ся указує у workspace.',
+  'profileSettings.account.saved': 'Юзернейм зміненый.',
+  'profileSettings.account.saveError': 'Не удало ся змінити юзернейм.',
+  'profileSettings.account.updatedDescription':
+    'Юзернейм того рахунку ся якраз змінив.',
+  'profileSettings.account.usernameRequired': 'Юзернейм є обовязковый.',
   'profileSettings.account.logout': 'Выйти',
   'profileSettings.security.title': 'Безпечность',
   'profileSettings.security.description':

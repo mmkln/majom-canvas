@@ -32,7 +32,11 @@ import { openWallpaperPickerModal } from './WallpaperPickerModal.ts';
 
 type ProfileSettingsUserApi = Pick<
   UserApiService,
-  'setUserProfileLanguage' | 'setUserWallpaper' | 'changePassword' | 'deleteUser'
+  | 'updateUserProfile'
+  | 'setUserProfileLanguage'
+  | 'setUserWallpaper'
+  | 'changePassword'
+  | 'deleteUser'
 >;
 
 type ProfileSettingsWallpaperService = Pick<
@@ -55,9 +59,14 @@ type ProfileSettingsModalOptions = {
 };
 
 type ProfileSettingsDraft = {
+  username: string;
   locale: AppLocale;
   wallpaperId: string | null;
 };
+
+type ProfileSettingsAccountField = 'username';
+
+type AccountFieldErrors = Partial<Record<ProfileSettingsAccountField, string>>;
 
 type ProfileSettingsPasswordField =
   | 'oldPassword'
@@ -76,6 +85,10 @@ type SectionState = {
   success: boolean;
 };
 
+type AccountState = SectionState & {
+  fieldErrors: AccountFieldErrors;
+};
+
 type SecurityState = SectionState & {
   fieldErrors: SecurityFieldErrors;
 };
@@ -89,6 +102,9 @@ type RenderedPasswordField = {
 
 const SECTION_ACTION_BUTTON_CLASS =
   'w-full justify-center sm:w-auto sm:min-w-[5.5rem]';
+const ACCOUNT_INPUT_ROLE_BY_FIELD: Record<ProfileSettingsAccountField, string> = {
+  username: 'profile-settings-account-username-input',
+};
 const SECURITY_INPUT_ROLE_BY_FIELD: Record<
   ProfileSettingsPasswordField,
   string
@@ -115,6 +131,15 @@ function createInitialSecurityState(): SecurityState {
   };
 }
 
+function createInitialAccountState(): AccountState {
+  return {
+    saving: false,
+    error: null,
+    success: false,
+    fieldErrors: {},
+  };
+}
+
 function normalizeWallpaperId(
   value: string | number | null | undefined
 ): string | null {
@@ -125,6 +150,7 @@ function normalizeWallpaperId(
 
 function toDraft(user: User, fallbackLocale: AppLocale): ProfileSettingsDraft {
   return {
+    username: user.username ?? '',
     locale: normalizeAppLocale(user.language) ?? fallbackLocale,
     wallpaperId: normalizeWallpaperId(user.wallpaper?.id ?? user.wallpaper_id),
   };
@@ -235,6 +261,7 @@ export class ProfileSettingsModal {
   private serverSnapshot: User | null = null;
   private draft: ProfileSettingsDraft | null = null;
   private passwordDraft: ProfileSettingsPasswordDraft = createEmptyPasswordDraft();
+  private accountState: AccountState = createInitialAccountState();
   private languageState: SectionState = {
     saving: false,
     error: null,
@@ -252,7 +279,9 @@ export class ProfileSettingsModal {
     success: false,
   };
   private securityExpanded = false;
+  private accountExpanded = false;
   private dangerExpanded = false;
+  private accountSuccessTimeoutId: number | null = null;
   private languageSuccessTimeoutId: number | null = null;
   private wallpaperSuccessTimeoutId: number | null = null;
   private securitySuccessTimeoutId: number | null = null;
@@ -281,12 +310,15 @@ export class ProfileSettingsModal {
     this.serverSnapshot = { ...user };
     this.draft = toDraft(user, this.runtime.i18n.getLocale());
     this.passwordDraft = createEmptyPasswordDraft();
+    this.accountState = createInitialAccountState();
     this.languageState = { saving: false, error: null, success: false };
     this.wallpaperState = { saving: false, error: null, success: false };
     this.securityState = createInitialSecurityState();
     this.dangerState = { saving: false, error: null, success: false };
+    this.accountExpanded = false;
     this.securityExpanded = false;
     this.dangerExpanded = Boolean(user.deletion_requested_at);
+    this.clearSuccessTimeout('account');
     this.clearSuccessTimeout('language');
     this.clearSuccessTimeout('wallpaper');
     this.clearSuccessTimeout('security');
@@ -326,12 +358,15 @@ export class ProfileSettingsModal {
     this.serverSnapshot = null;
     this.draft = null;
     this.passwordDraft = createEmptyPasswordDraft();
+    this.accountState = createInitialAccountState();
     this.languageState = { saving: false, error: null, success: false };
     this.wallpaperState = { saving: false, error: null, success: false };
     this.securityState = createInitialSecurityState();
     this.dangerState = { saving: false, error: null, success: false };
+    this.accountExpanded = false;
     this.securityExpanded = false;
     this.dangerExpanded = false;
+    this.clearSuccessTimeout('account');
     this.clearSuccessTimeout('language');
     this.clearSuccessTimeout('wallpaper');
     this.clearSuccessTimeout('security');
@@ -434,8 +469,353 @@ export class ProfileSettingsModal {
     identityCard.append(identityMain, logoutButton);
     content.appendChild(identityCard);
 
+    const toggleButton = createDisclosureRow({
+      label: this.i18n.t('profileSettings.account.username'),
+      description: this.getAccountDisclosureDescription(),
+      expanded: this.accountExpanded,
+      onClick: () => {
+        if (this.accountExpanded) {
+          this.collapseAccountSection();
+          return;
+        }
+        this.expandAccountSection();
+      },
+    });
+    toggleButton.dataset.role = 'profile-settings-account-toggle';
+    content.appendChild(toggleButton);
+
+    if (this.accountExpanded) {
+      const panel = document.createElement('div');
+      panel.className =
+        'grid gap-4 rounded-2xl bg-slate-50/80 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_1px_3px_rgba(15,23,42,0.04)]';
+      panel.dataset.role = 'profile-settings-account-panel';
+
+      const intro = document.createElement('p');
+      intro.className = 'text-sm leading-5 text-slate-500';
+      intro.textContent = this.i18n.t('profileSettings.account.panelDescription');
+      panel.appendChild(intro);
+
+      let syncAccountForm = (): void => {};
+      let usernameFieldController: ReturnType<typeof createField> | null = null;
+
+      const errorMessage = createFormMessage({
+        tone: 'error',
+        className: 'block',
+      });
+      errorMessage.setState({ message: this.accountState.error });
+
+      const usernameControl = createInput({
+        name: 'username',
+        value: this.draft?.username ?? '',
+        placeholder: this.i18n.t('profileSettings.account.username'),
+        inputClassName: 'text-base md:text-sm',
+        disabled: this.accountState.saving,
+        invalid: Boolean(this.accountState.fieldErrors.username),
+        onInput: (value) => {
+          if (!this.draft) return;
+          this.draft.username = value;
+          if (this.accountState.error) {
+            this.accountState.error = null;
+          }
+          if (this.accountState.fieldErrors.username) {
+            this.accountState.fieldErrors = {};
+            usernameFieldController?.setState({ error: undefined });
+          }
+          syncAccountForm();
+        },
+        onKeyDown: (event) => {
+          this.handleAccountFieldKeyDown(event);
+        },
+      });
+      usernameControl.input.dataset.role = ACCOUNT_INPUT_ROLE_BY_FIELD.username;
+      usernameControl.input.autocapitalize = 'none';
+      usernameControl.input.setAttribute('autocorrect', 'off');
+
+      const usernameField = createField({
+        label: this.i18n.t('profileSettings.account.username'),
+        control: usernameControl.element,
+        className: 'mb-0',
+        error: this.accountState.fieldErrors.username,
+        disabled: this.accountState.saving,
+      });
+      usernameFieldController = usernameField;
+      panel.appendChild(usernameField.element);
+      panel.appendChild(errorMessage.element);
+
+      const actionRow = document.createElement('div');
+      actionRow.className =
+        'flex flex-col items-stretch gap-2 pt-1 sm:flex-row sm:items-center';
+
+      const cancelButton = createTextButton({
+        text: this.i18n.t('common.cancel'),
+        tone: 'secondary',
+        size: 'sm',
+        className: SECTION_ACTION_BUTTON_CLASS,
+        disabled: this.accountState.saving,
+        onClick: () => {
+          this.collapseAccountSection();
+        },
+      });
+      cancelButton.dataset.role = 'profile-settings-account-cancel';
+
+      const saveButton = createTextButton({
+        text: this.i18n.t('common.save'),
+        tone: 'primary',
+        size: 'sm',
+        className: SECTION_ACTION_BUTTON_CLASS,
+        loading: this.accountState.saving,
+        loadingText: this.i18n.t('common.save'),
+        disabled: !this.isAccountReadyToSubmit(),
+        onClick: () => {
+          void this.saveAccount();
+        },
+      });
+      saveButton.dataset.role = 'profile-settings-account-save';
+
+      actionRow.append(cancelButton, saveButton);
+      panel.appendChild(actionRow);
+      content.appendChild(panel);
+
+      syncAccountForm = () => {
+        usernameField.setState({
+          disabled: this.accountState.saving,
+          error: this.accountState.fieldErrors.username,
+        });
+        usernameControl.setState({
+          disabled: this.accountState.saving,
+          invalid: Boolean(this.accountState.fieldErrors.username),
+        });
+        saveButton.disabled =
+          this.accountState.saving || !this.isAccountReadyToSubmit();
+        if (this.accountState.error) {
+          errorMessage.show(this.accountState.error, 'error');
+        } else {
+          errorMessage.clear();
+        }
+      };
+      syncAccountForm();
+    }
+
+    if (this.accountState.success && !this.accountExpanded) {
+      const success = createFormMessage({ tone: 'success', className: 'block' });
+      success.show(this.i18n.t('profileSettings.account.saved'), 'success');
+      content.appendChild(success.element);
+    }
+
     actions.remove();
+
     return element;
+  }
+
+  private validateAccountDraft(): AccountFieldErrors {
+    const fieldErrors: AccountFieldErrors = {};
+
+    if (!this.draft || this.draft.username.trim().length === 0) {
+      fieldErrors.username = this.i18n.t(
+        'profileSettings.account.usernameRequired'
+      );
+    }
+
+    return fieldErrors;
+  }
+
+  private getAccountDisclosureDescription(): string {
+    if (this.accountState.success) {
+      return this.i18n.t('profileSettings.account.updatedDescription');
+    }
+    return this.i18n.t('profileSettings.account.currentUsernameDescription', {
+      username: this.serverSnapshot?.username ?? '',
+    });
+  }
+
+  private focusAccountField(field: ProfileSettingsAccountField): void {
+    window.requestAnimationFrame(() => {
+      const input = this.overlay?.querySelector<HTMLInputElement>(
+        `input[data-role="${ACCOUNT_INPUT_ROLE_BY_FIELD[field]}"]`
+      );
+      input?.focus();
+    });
+  }
+
+  private parseAccountErrorData(data: Record<string, unknown> | null): {
+    fieldErrors: AccountFieldErrors;
+    error: string | null;
+  } | null {
+    if (!data) return null;
+
+    const fieldErrors: AccountFieldErrors = {};
+    const usernameMessage = firstErrorMessage(data.username);
+    const detailMessage =
+      firstErrorMessage(data.detail) ?? firstErrorMessage(data.non_field_errors);
+
+    if (usernameMessage) {
+      fieldErrors.username = usernameMessage;
+    }
+
+    if (Object.keys(fieldErrors).length === 0 && !detailMessage) {
+      return null;
+    }
+
+    return {
+      fieldErrors,
+      error: detailMessage ?? null,
+    };
+  }
+
+  private async resolveAccountSaveError(error: unknown): Promise<{
+    fieldErrors: AccountFieldErrors;
+    error: string | null;
+  }> {
+    const fallbackError = this.i18n.t('profileSettings.account.saveError');
+    const directResolution = this.parseAccountErrorData(
+      error && typeof error === 'object'
+        ? (error as Record<string, unknown>)
+        : null
+    );
+    if (directResolution) {
+      return directResolution;
+    }
+
+    const httpError = error as
+      | {
+          json?: () => Observable<unknown>;
+        }
+      | undefined;
+
+    if (!httpError || typeof httpError.json !== 'function') {
+      return {
+        fieldErrors: {},
+        error: fallbackError,
+      };
+    }
+
+    try {
+      const payload = await firstValueFrom(httpError.json());
+      const data =
+        payload && typeof payload === 'object'
+          ? (payload as Record<string, unknown>)
+          : null;
+      const parsedResolution = this.parseAccountErrorData(data);
+      if (parsedResolution) {
+        return parsedResolution;
+      }
+      return {
+        fieldErrors: {},
+        error: fallbackError,
+      };
+    } catch {
+      return {
+        fieldErrors: {},
+        error: fallbackError,
+      };
+    }
+  }
+
+  private isAccountDirty(): boolean {
+    if (!this.serverSnapshot || !this.draft) return false;
+    return this.serverSnapshot.username !== this.draft.username.trim();
+  }
+
+  private isAccountReadyToSubmit(): boolean {
+    if (!this.draft) return false;
+    return this.draft.username.trim().length > 0 && this.isAccountDirty();
+  }
+
+  private resetAccountDraft(): void {
+    if (!this.draft || !this.serverSnapshot) return;
+    this.draft.username = this.serverSnapshot.username ?? '';
+  }
+
+  private expandAccountSection(): void {
+    this.clearSuccessTimeout('account');
+    this.accountState = createInitialAccountState();
+    this.resetAccountDraft();
+    this.accountExpanded = true;
+    this.renderBody();
+    this.focusAccountField('username');
+  }
+
+  private collapseAccountSection(): void {
+    if (this.accountState.saving) return;
+    this.clearSuccessTimeout('account');
+    this.accountState = createInitialAccountState();
+    this.resetAccountDraft();
+    this.accountExpanded = false;
+    this.renderBody();
+  }
+
+  private handleAccountFieldKeyDown(event: KeyboardEvent): void {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    if (this.accountState.saving) return;
+    void this.saveAccount();
+  }
+
+  private async saveAccount(): Promise<void> {
+    if (this.accountState.saving || !this.draft) return;
+
+    const fieldErrors = this.validateAccountDraft();
+    if (fieldErrors.username) {
+      this.accountState = {
+        saving: false,
+        error: null,
+        success: false,
+        fieldErrors,
+      };
+      this.accountExpanded = true;
+      this.renderBody();
+      this.focusAccountField('username');
+      return;
+    }
+
+    if (!this.isAccountDirty()) {
+      return;
+    }
+
+    this.accountState = {
+      saving: true,
+      error: null,
+      success: false,
+      fieldErrors: {},
+    };
+    this.accountExpanded = true;
+    this.renderBody();
+
+    try {
+      const updatedUser = await firstValueFrom(
+        this.userApiService.updateUserProfile({
+          username: this.draft.username.trim(),
+        })
+      );
+      this.serverSnapshot = updatedUser;
+      this.draft = toDraft(updatedUser, this.runtime.i18n.getLocale());
+      this.onUserUpdated?.(updatedUser);
+    } catch (error) {
+      console.warn('Failed to persist account username.', error);
+      const resolvedError = await this.resolveAccountSaveError(error);
+      this.accountState = {
+        saving: false,
+        error: resolvedError.error,
+        success: false,
+        fieldErrors: resolvedError.fieldErrors,
+      };
+      this.accountExpanded = true;
+      this.renderBody();
+      if (resolvedError.fieldErrors.username) {
+        this.focusAccountField('username');
+      }
+      return;
+    }
+
+    this.accountState = {
+      saving: false,
+      error: null,
+      success: false,
+      fieldErrors: {},
+    };
+    this.accountExpanded = false;
+    this.showSectionSuccess('account');
+    this.renderBody();
   }
 
   private renderLanguageSection(): HTMLElement {
@@ -851,16 +1231,22 @@ export class ProfileSettingsModal {
   }
 
   private clearSuccessTimeout(
-    section: 'language' | 'wallpaper' | 'security'
+    section: 'account' | 'language' | 'wallpaper' | 'security'
   ): void {
     const timeoutId =
-      section === 'language'
+      section === 'account'
+        ? this.accountSuccessTimeoutId
+        : section === 'language'
         ? this.languageSuccessTimeoutId
         : section === 'wallpaper'
           ? this.wallpaperSuccessTimeoutId
           : this.securitySuccessTimeoutId;
     if (timeoutId !== null) {
       window.clearTimeout(timeoutId);
+    }
+    if (section === 'account') {
+      this.accountSuccessTimeoutId = null;
+      return;
     }
     if (section === 'language') {
       this.languageSuccessTimeoutId = null;
@@ -874,9 +1260,18 @@ export class ProfileSettingsModal {
   }
 
   private showSectionSuccess(
-    section: 'language' | 'wallpaper' | 'security'
+    section: 'account' | 'language' | 'wallpaper' | 'security'
   ): void {
     this.clearSuccessTimeout(section);
+    if (section === 'account') {
+      this.accountState.success = true;
+      this.accountSuccessTimeoutId = window.setTimeout(() => {
+        this.accountSuccessTimeoutId = null;
+        this.accountState.success = false;
+        if (this.overlay) this.renderBody();
+      }, 2400);
+      return;
+    }
     if (section === 'language') {
       this.languageState.success = true;
       this.languageSuccessTimeoutId = window.setTimeout(() => {

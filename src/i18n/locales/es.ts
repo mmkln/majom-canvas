@@ -211,9 +211,19 @@ export const es: AppTranslations = {
     'Gestiona los datos de la cuenta, el idioma, el fondo y las acciones de la cuenta.',
   'profileSettings.account.title': 'Cuenta',
   'profileSettings.account.description':
-    'Revisa la identidad actual de tu cuenta y cierra sesión si hace falta.',
+    'Revisa la identidad de tu cuenta, actualiza tu nombre de usuario y cierra sesión si hace falta.',
   'profileSettings.account.username': 'Nombre de usuario',
   'profileSettings.account.email': 'Correo electrónico',
+  'profileSettings.account.currentUsernameDescription': 'Actual: {username}',
+  'profileSettings.account.panelDescription':
+    'Actualiza el nombre de usuario que se muestra en tu workspace.',
+  'profileSettings.account.saved': 'Nombre de usuario actualizado.',
+  'profileSettings.account.saveError':
+    'No se pudo actualizar el nombre de usuario.',
+  'profileSettings.account.updatedDescription':
+    'El nombre de usuario de esta cuenta se actualizó.',
+  'profileSettings.account.usernameRequired':
+    'El nombre de usuario es obligatorio.',
   'profileSettings.account.logout': 'Cerrar sesión',
   'profileSettings.security.title': 'Seguridad',
   'profileSettings.security.description':

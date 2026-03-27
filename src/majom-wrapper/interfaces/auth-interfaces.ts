@@ -24,6 +24,13 @@ export interface ChangePasswordResponse {
   detail: string;
 }
 
+export interface UserProfileUpdate {
+  username?: string;
+  email?: string;
+  language?: string;
+  wallpaper_id?: string | null;
+}
+
 /**
  * User defines the structure for user data returned from the backend.
  */
