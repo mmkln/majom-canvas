@@ -46,6 +46,11 @@ export {
   type HudMenuItemVariant as MenuItemVariant,
 } from './HudDropdownItem.ts';
 export {
+  createHudDisclosureRow as createDisclosureRow,
+  type HudDisclosureRowOptions as DisclosureRowOptions,
+  type HudDisclosureRowTone as DisclosureRowTone,
+} from './HudDisclosureRow.ts';
+export {
   createHudBadge as createBadge,
   type HudBadgeOptions as BadgeOptions,
   type HudBadgeTone as BadgeTone,
@@ -172,6 +177,11 @@ export {
   type HudDropdownItemTone,
   type HudMenuItemVariant,
 } from './HudDropdownItem.ts';
+export {
+  createHudDisclosureRow,
+  type HudDisclosureRowOptions,
+  type HudDisclosureRowTone,
+} from './HudDisclosureRow.ts';
 export {
   createHudBadge,
   type HudBadgeOptions,

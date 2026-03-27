@@ -19,7 +19,9 @@ function parseWallpaperId(
   return null;
 }
 
-function resolveWallpaperUrl(imageFile: string | null | undefined): string {
+export function resolveWallpaperUrl(
+  imageFile: string | null | undefined
+): string {
   const value = (imageFile ?? '').trim();
   if (!value) return '';
   if (/^(https?:|data:|blob:)/i.test(value)) return value;

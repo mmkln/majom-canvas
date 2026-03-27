@@ -4,6 +4,7 @@ import type { WorkspaceView } from './WorkspaceView.ts';
 import type { TimeClusteringLayoutMode } from '../time-clustering/domain/types.ts';
 import { AppRuntime, createAppRuntime } from '../../app-runtime/index.ts';
 import { WorkspaceAppMenu } from './components/WorkspaceAppMenu.ts';
+import type { WallpaperService } from './services/WallpaperService.ts';
 
 const WORKSPACE_VIEW_SWITCHER_COLLAPSE_DELAY_MS = 220;
 const WORKSPACE_VIEW_SWITCHER_COLLAPSED_EXTRA_OFFSET_PX = 22;
@@ -12,6 +13,7 @@ const WORKSPACE_VIEW_SWITCHER_FALLBACK_HEIGHT_PX = 44;
 
 type WorkspaceViewSwitcherOptions = {
   runtime?: AppRuntime;
+  wallpaperService?: WallpaperService;
   showKanban?: boolean;
   showTimeClustering?: boolean;
   showRoutines?: boolean;
@@ -53,7 +55,9 @@ export class WorkspaceViewSwitcher {
     const runtime = options.runtime ?? createAppRuntime();
     this.runtime = runtime;
     this.activeView = initialView;
-    this.appMenu = new WorkspaceAppMenu(runtime);
+    this.appMenu = new WorkspaceAppMenu(runtime, {
+      wallpaperService: options.wallpaperService,
+    });
     this.controls = new WorkspaceControlsBar({
       runtime,
       initialView,

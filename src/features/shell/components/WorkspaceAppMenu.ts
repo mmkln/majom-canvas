@@ -24,16 +24,32 @@ import {
 import { AuthService } from '../../../majom-wrapper/data-access/auth-service.ts';
 import { HttpInterceptorClient } from '../../../majom-wrapper/data-access/http-interceptor.ts';
 import { UserApiService } from '../../../majom-wrapper/data-access/user-api-service.ts';
+import type { Wallpaper } from '../../../majom-wrapper/interfaces/auth-interfaces.ts';
 import { type AppLocale, type I18nService } from '../../../i18n/index.ts';
 import { AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
+import { WallpaperService } from '../services/WallpaperService.ts';
+import { ProfileSettingsModal } from './ProfileSettingsModal.ts';
+import { authFlowService } from '../../canvas/ui/auth/authFlowService.ts';
 
 const WORKSPACE_APP_MENU_Z_INDEX = 46;
+
+type ProfileSettingsWallpaperService = Pick<
+  WallpaperService,
+  'findWallpaperById' | 'setDefaultWallpaper'
+> & {
+  readonly wallpaperList: Wallpaper[];
+};
+
+type WorkspaceAppMenuOptions = {
+  wallpaperService?: ProfileSettingsWallpaperService;
+};
 
 export class WorkspaceAppMenu {
   public readonly element: HTMLDivElement;
   private readonly runtime: AppRuntime;
   private readonly i18n: I18nService;
   private readonly userApiService: UserApiService;
+  private readonly profileSettingsModal: ProfileSettingsModal;
   private readonly button: HTMLButtonElement;
   private readonly panel: HTMLDivElement;
   private readonly controller: AnchoredMenu;
@@ -52,7 +68,10 @@ export class WorkspaceAppMenu {
   private localePersistInFlight = false;
   private mounted = false;
 
-  constructor(runtime: AppRuntime = createAppRuntime()) {
+  constructor(
+    runtime: AppRuntime = createAppRuntime(),
+    options: WorkspaceAppMenuOptions = {}
+  ) {
     this.runtime = runtime;
     this.i18n = runtime.i18n;
     this.userApiService = new UserApiService(
@@ -62,6 +81,25 @@ export class WorkspaceAppMenu {
       new AuthService(),
       this.userApiService
     );
+    this.profileSettingsModal = new ProfileSettingsModal({
+      runtime: this.runtime,
+      userApiService: this.userApiService,
+      wallpaperService:
+        options.wallpaperService ??
+        ({
+          wallpaperList: [],
+          findWallpaperById: () => null,
+          setDefaultWallpaper: () => {},
+        } satisfies ProfileSettingsWallpaperService),
+      onUserUpdated: (user) => {
+        this.authController.syncUser(user);
+      },
+      onLogout: () => this.handleLogout(),
+      onAccountDeleted: () => {
+        this.authController.logout();
+        authFlowService.requestLogout('manual');
+      },
+    });
 
     this.element = document.createElement('div');
     this.element.className = 'relative flex items-center shrink-0';
@@ -125,6 +163,7 @@ export class WorkspaceAppMenu {
     this.stateSubscription = null;
     this.localeSubmenu?.destroy();
     this.localeSubmenu = null;
+    this.profileSettingsModal.destroy();
     this.authController.destroy();
     this.controller.unmount();
     this.mounted = false;
@@ -184,6 +223,19 @@ export class WorkspaceAppMenu {
       disabled: !this.authState.isAuthenticated,
       onClick: () => this.handleLogout(),
     });
+    const profileSettingsButton = createDropdownItem({
+      label: this.i18n.t('profileSettings.open'),
+      disabled:
+        !this.authState.isAuthenticated ||
+        this.authState.isUserLoading ||
+        !this.authState.user,
+      onClick: () => {
+        if (!this.authState.user) return;
+        this.close();
+        this.profileSettingsModal.open(this.authState.user);
+      },
+    });
+    profileSettingsButton.dataset.role = 'profile-settings-open-button';
 
     this.panel.replaceChildren(
       ...createAccountMenuProfileSection(
@@ -193,6 +245,7 @@ export class WorkspaceAppMenu {
           loadingLabel: this.i18n.t('common.accountLoading'),
         }
       ),
+      profileSettingsButton,
       this.localeSubmenu.trigger,
       createDivider(),
       logoutButton

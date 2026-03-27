@@ -177,6 +177,7 @@ export class RuntimeHost {
     });
     this.viewSwitcher = new WorkspaceViewSwitcher(this.activeView, {
       runtime: this.runtime,
+      wallpaperService: this.wallpaperService,
       initialTimeClusteringOpen: this.timeClusteringOpen,
       initialTimeClusteringLayoutMode: this.timeClusteringLayoutMode,
       showKanban: KANBAN_DEV_ENABLED,

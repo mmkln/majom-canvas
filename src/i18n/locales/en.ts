@@ -398,6 +398,7 @@ export const en = {
   'common.accountLoading': 'Loading account...',
   'common.actions': 'Actions',
   'common.archive': 'Archive',
+  'common.apply': 'Apply',
   'common.cancel': 'Cancel',
   'common.close': 'Close',
   'common.create': 'Create',
@@ -410,6 +411,59 @@ export const en = {
   'common.retry': 'Retry',
   'common.save': 'Save',
   'common.undo': 'Undo',
+  'profileSettings.open': 'Profile settings',
+  'profileSettings.title': 'Profile settings',
+  'profileSettings.subtitle':
+    'Manage account details, language, wallpaper, and account actions.',
+  'profileSettings.account.title': 'Account',
+  'profileSettings.account.description':
+    'Review your current account identity and sign out when needed.',
+  'profileSettings.account.username': 'Username',
+  'profileSettings.account.email': 'Email',
+  'profileSettings.account.logout': 'Logout',
+  'profileSettings.language.title': 'Language & region',
+  'profileSettings.language.description':
+    'Choose the language used across the app interface.',
+  'profileSettings.language.appLanguage': 'App language',
+  'profileSettings.language.saved': 'Language updated.',
+  'profileSettings.language.saveError': 'Could not save language changes.',
+  'profileSettings.appearance.title': 'Workspace appearance',
+  'profileSettings.appearance.description':
+    'Pick the wallpaper used as the workspace background.',
+  'profileSettings.appearance.wallpaper': 'Wallpaper',
+  'profileSettings.appearance.preview': 'Preview',
+  'profileSettings.appearance.currentWallpaper': 'Current wallpaper',
+  'profileSettings.appearance.wallpaperLabel': 'Wallpaper {id}',
+  'profileSettings.appearance.wallpaperCount': '{count} wallpapers available',
+  'profileSettings.appearance.change': 'Change wallpaper',
+  'profileSettings.appearance.pickerTitle': 'Choose wallpaper',
+  'profileSettings.appearance.pickerSubtitle':
+    'Browse the available wallpapers and preview the selected one before applying it to the workspace.',
+  'profileSettings.appearance.searchPlaceholder': 'Search wallpapers',
+  'profileSettings.appearance.searchResults': 'Showing {visible} of {total}',
+  'profileSettings.appearance.searchEmpty':
+    'No wallpapers match the current search.',
+  'profileSettings.appearance.current': 'Current',
+  'profileSettings.appearance.empty': 'No wallpapers available yet.',
+  'profileSettings.appearance.selected': 'Selected',
+  'profileSettings.appearance.selectWallpaper': 'Select wallpaper {id}',
+  'profileSettings.appearance.saved': 'Wallpaper updated.',
+  'profileSettings.appearance.saveError': 'Could not save wallpaper changes.',
+  'profileSettings.danger.title': 'Danger zone',
+  'profileSettings.danger.description':
+    'Destructive account actions live here and require explicit confirmation.',
+  'profileSettings.danger.accountActionsTitle': 'Account deletion',
+  'profileSettings.danger.accountActionsDescription':
+    'Review the destructive action available for this account.',
+  'profileSettings.danger.delete': 'Request account deletion',
+  'profileSettings.danger.deleteRequested':
+    'Account deletion was already requested on {date}.',
+  'profileSettings.danger.deleteError':
+    'Could not request account deletion.',
+  'profileSettings.delete.confirmTitle': 'Request account deletion?',
+  'profileSettings.delete.confirmMessage':
+    'Are you sure you want to request deletion for "{account}"? This action affects the whole account.',
+  'profileSettings.delete.success': 'Account deletion requested.',
   'header.aiAssistant': 'AI Assistant',
   'header.logout': 'Logout',
   'header.openAppMenu': 'Open app menu',

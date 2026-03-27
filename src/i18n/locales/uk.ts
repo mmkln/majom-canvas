@@ -399,6 +399,7 @@ export const uk = {
   'common.accountLoading': 'Завантажуємо акаунт...',
   'common.actions': 'Дії',
   'common.archive': 'Архівувати',
+  'common.apply': 'Застосувати',
   'common.cancel': 'Скасувати',
   'common.close': 'Закрити',
   'common.create': 'Створити',
@@ -411,6 +412,60 @@ export const uk = {
   'common.retry': 'Повторити',
   'common.save': 'Зберегти',
   'common.undo': 'Скасувати дію',
+  'profileSettings.open': 'Налаштування профілю',
+  'profileSettings.title': 'Налаштування профілю',
+  'profileSettings.subtitle':
+    'Керуйте даними акаунта, мовою, шпалерами та діями над акаунтом.',
+  'profileSettings.account.title': 'Акаунт',
+  'profileSettings.account.description':
+    'Перегляньте поточні дані акаунта та вийдіть за потреби.',
+  'profileSettings.account.username': "Ім'я користувача",
+  'profileSettings.account.email': 'Email',
+  'profileSettings.account.logout': 'Вийти',
+  'profileSettings.language.title': 'Мова та регіон',
+  'profileSettings.language.description':
+    'Оберіть мову, яка використовується в інтерфейсі застосунку.',
+  'profileSettings.language.appLanguage': 'Мова застосунку',
+  'profileSettings.language.saved': 'Мову оновлено.',
+  'profileSettings.language.saveError': 'Не вдалося зберегти зміну мови.',
+  'profileSettings.appearance.title': 'Вигляд workspace',
+  'profileSettings.appearance.description':
+    'Оберіть шпалери, які будуть фоном workspace.',
+  'profileSettings.appearance.wallpaper': 'Шпалери',
+  'profileSettings.appearance.preview': 'Попередній перегляд',
+  'profileSettings.appearance.currentWallpaper': 'Поточні шпалери',
+  'profileSettings.appearance.wallpaperLabel': 'Шпалери {id}',
+  'profileSettings.appearance.wallpaperCount': 'Доступно {count} шпалер',
+  'profileSettings.appearance.change': 'Змінити шпалери',
+  'profileSettings.appearance.pickerTitle': 'Оберіть шпалери',
+  'profileSettings.appearance.pickerSubtitle':
+    'Перегляньте доступні шпалери та попередньо оцініть вибраний варіант перед застосуванням до workspace.',
+  'profileSettings.appearance.searchPlaceholder': 'Шукати шпалери',
+  'profileSettings.appearance.searchResults': 'Показано {visible} із {total}',
+  'profileSettings.appearance.searchEmpty':
+    'За поточним запитом шпалери не знайдено.',
+  'profileSettings.appearance.current': 'Поточні',
+  'profileSettings.appearance.empty': 'Шпалери ще недоступні.',
+  'profileSettings.appearance.selected': 'Обрано',
+  'profileSettings.appearance.selectWallpaper': 'Обрати шпалери {id}',
+  'profileSettings.appearance.saved': 'Шпалери оновлено.',
+  'profileSettings.appearance.saveError':
+    'Не вдалося зберегти зміну шпалер.',
+  'profileSettings.danger.title': 'Небезпечна зона',
+  'profileSettings.danger.description':
+    'Тут зібрані деструктивні дії над акаунтом, які потребують явного підтвердження.',
+  'profileSettings.danger.accountActionsTitle': 'Видалення акаунта',
+  'profileSettings.danger.accountActionsDescription':
+    'Перегляньте доступну деструктивну дію для цього акаунта.',
+  'profileSettings.danger.delete': 'Запросити видалення акаунта',
+  'profileSettings.danger.deleteRequested':
+    'Запит на видалення акаунта вже створено {date}.',
+  'profileSettings.danger.deleteError':
+    'Не вдалося запросити видалення акаунта.',
+  'profileSettings.delete.confirmTitle': 'Запросити видалення акаунта?',
+  'profileSettings.delete.confirmMessage':
+    'Ви впевнені, що хочете запросити видалення для "{account}"? Це вплине на весь акаунт.',
+  'profileSettings.delete.success': 'Запит на видалення акаунта створено.',
   'header.aiAssistant': 'AI асистент',
   'header.logout': 'Вийти',
   'header.openAppMenu': 'Відкрити меню застосунку',

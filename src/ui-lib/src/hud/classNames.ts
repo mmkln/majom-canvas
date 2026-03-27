@@ -65,6 +65,16 @@ export const HUD_MENU_ITEM_DISABLED_CLASS =
   'cursor-not-allowed text-slate-400 hover:bg-transparent hover:text-slate-400';
 export const HUD_MENU_ITEM_HINT_TRIGGER_CLASS =
   'inline-flex shrink-0 cursor-help items-center justify-center text-slate-400 transition-colors hover:text-slate-500';
+export const HUD_DISCLOSURE_ROW_BASE_CLASS =
+  'flex w-full items-center justify-between gap-3 rounded-xl px-4 py-3.5 text-left transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-inset disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none';
+export const HUD_DISCLOSURE_ROW_DEFAULT_CLASS =
+  'bg-slate-50/80 text-slate-700 hover:bg-slate-100 hover:text-slate-900 active:bg-slate-100';
+export const HUD_DISCLOSURE_ROW_DEFAULT_EXPANDED_CLASS =
+  'bg-indigo-50/75 text-slate-900';
+export const HUD_DISCLOSURE_ROW_DANGER_CLASS =
+  'bg-rose-50/72 text-rose-700 hover:bg-rose-50 hover:text-rose-800 active:bg-rose-100';
+export const HUD_DISCLOSURE_ROW_DANGER_EXPANDED_CLASS =
+  'bg-rose-50/88 text-rose-800';
 export const HUD_MENU_ICON_ROW_CLASS =
   'flex w-full items-stretch';
 export const HUD_MENU_CONTROL_ROW_CLASS = 'w-full px-4 py-3';
