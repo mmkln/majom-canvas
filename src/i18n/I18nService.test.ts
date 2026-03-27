@@ -51,6 +51,8 @@ describe('I18nService', () => {
 
     expect(i18n.getLocale()).toBe('es');
     expect(i18n.t('common.language')).toBe('Idioma');
+    expect(i18n.t('existingPicker.add')).toBe('Añadir');
+    expect(i18n.t('timeClustering.addCluster')).toBe('Añadir bloque');
     expect(document.documentElement.lang).toBe('es');
   });
 

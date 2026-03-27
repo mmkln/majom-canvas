@@ -49,6 +49,8 @@
 
 - Use `createAppRuntime({ initialLocale: 'en' })` in runtime-aware behavior tests.
 - Add focused tests when a mounted view or open overlay must update live after runtime changes.
+- Do not add tests that only prove a new locale exists or that a translation key resolves to a specific copy string.
+- Small locale tests are acceptable only when they guard actual behavior such as normalization, persistence, backend mapping, or language-selector wiring.
 - Do not add tests for purely presentational translation wiring with no meaningful behavior behind it.
 
 ## Smells To Avoid

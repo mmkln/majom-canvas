@@ -90,6 +90,8 @@
 - Do not add tests that exist only to increase coverage or to confirm static implementation details.
 - Avoid low-value UI tests that only verify markup shape, CSS classes, spacing, icon presence, visual composition, or other presentation details with no user-facing behavior behind them.
 - Do not add tests for the visual appearance of UI components unless the task explicitly asks for it or the visual state encodes important behavior that cannot be protected better at another level.
+- Do not add standalone tests just because a locale was added, a translation catalog grew, or copy changed in one language.
+- Small locale-related tests may stay when they protect real behavior such as locale normalization, runtime switching, persistence, or shared language-selector wiring.
 - Prefer tests that protect meaningful regressions: user interactions, state transitions, data flow, command execution, accessibility-critical behavior, conditional rendering with product meaning, and bug fixes that could realistically recur.
 - When a change is purely presentational and does not alter behavior, do not create a new test just to prove the component still renders.
 - Before adding a test, ask whether it would catch a costly regression or document important behavior. If not, skip it.
