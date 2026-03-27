@@ -5,6 +5,7 @@
 - State: discovery
 - Started: 2026-03-23
 - Document type: living product and architecture notes
+- Implementation planning companion: `docs/LEARNING-STUDIO-IMPLEMENTATION-BLUEPRINT.md`
 
 This document tracks the current understanding of the planned learning module.
 It should be updated as discussions continue and requirements become more concrete.
