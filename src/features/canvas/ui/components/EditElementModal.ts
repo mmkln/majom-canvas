@@ -33,6 +33,10 @@ type DescriptionMode = 'view' | 'edit';
 
 type TitleFieldMode = 'view' | 'edit';
 
+type EditElementModalShowOptions = {
+  initialTitleMode?: TitleFieldMode;
+};
+
 type TitleFieldOptions = {
   getValue: () => string;
   setValue: (value: string) => void;
@@ -68,8 +72,9 @@ export class EditElementModal {
     private scene: Scene
   ) {}
 
-  public show(): void {
+  public show(options: EditElementModalShowOptions = {}): void {
     this.destroyControls();
+    const initialTitleMode = options.initialTitleMode ?? 'view';
 
     const typeLabel =
       this.element instanceof TaskElement
@@ -183,7 +188,7 @@ export class EditElementModal {
         tempTitle = value;
       },
     });
-    titleField.setMode('view', { focus: false });
+    titleField.setMode(initialTitleMode, { focus: false });
     formContent.appendChild(titleField.field.element);
 
     const descriptionField = this.buildDescriptionField({
@@ -409,8 +414,12 @@ export class EditElementModal {
     btnRow.append(cancelBtn, saveBtn);
     footer.appendChild(btnRow);
 
-    // Keep initial focus on title preview; click/Enter starts inline edit.
-    titleField.focusPreview();
+    if (initialTitleMode === 'edit') {
+      titleField.focusInput({ select: true });
+    } else {
+      // Keep initial focus on title preview; click/Enter starts inline edit.
+      titleField.focusPreview();
+    }
 
     // Keyboard: handle modal shortcuts
     container.addEventListener('keydown', (e) => {

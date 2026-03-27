@@ -11,6 +11,7 @@ import { ContextMenu } from './ContextMenu.ts';
 import { SelectionActionMenu } from './SelectionActionMenu.ts';
 import { RelatedItemsPicker } from './RelatedItemsPicker.ts';
 import { StatusPicker } from './StatusPicker.ts';
+import { StoryQuickCreateAction } from './StoryQuickCreateAction.ts';
 import { BulkActionsController } from '../core/services/BulkActionsController.ts';
 import { ExistingTaskPicker } from './components/ExistingTaskPicker.ts';
 import { ExistingGoalPicker } from './components/ExistingGoalPicker.ts';
@@ -189,6 +190,11 @@ export class UIManager {
       this.canvasManager,
       bulkActions
     );
+    const storyQuickCreateAction = new StoryQuickCreateAction(
+      this.scene,
+      this.canvasManager,
+      this.runtime
+    );
 
     // Add controls to components list
     this.components.push(
@@ -196,6 +202,7 @@ export class UIManager {
       this.canvasNavigationDock,
       contextMenu,
       selectionActions,
+      storyQuickCreateAction,
       relatedItemsPicker,
       statusPicker,
       saveControls
