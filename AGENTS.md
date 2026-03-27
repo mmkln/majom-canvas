@@ -189,3 +189,10 @@
 - Owner: `src/features/shell` + `src/app-runtime` + `src/majom-wrapper/data-access`
 - Read first: `docs/USER-PROFILE-SETTINGS-IMPLEMENTATION.md`
 - Expected result: a reusable profile settings surface integrated from app menu, with phased delivery (MVP account/language/wallpaper/delete, then security and personalization).
+
+### Design Tactical Layer For Kanban Execution
+
+- Use when the request is to evolve Kanban beyond temporary date/status distribution rules, introduce tactical planning, or define flow/capacity-based handoff into execution.
+- Owner: `docs` + `src/features/kanban` + `src/majom-wrapper/interfaces`
+- Read first: `docs/KANBAN-TACTICAL-EXECUTION-DESIGN.md`
+- Expected result: a clear split between strategy (canvas), tactics (flows/capacity), and execution (Kanban), with an explicit roadmap for replacing temporary distribution logic.
