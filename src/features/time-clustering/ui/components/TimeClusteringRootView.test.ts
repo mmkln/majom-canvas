@@ -12,6 +12,7 @@ import type { TimeClusteringRepository } from '../../data/TimeClusteringReposito
 import { TimeClusteringStore } from '../../state/TimeClusteringStore.ts';
 import { TimeClusteringRootView } from './TimeClusteringRootView.ts';
 import { createAppRuntime } from '../../../../app-runtime/index.ts';
+import { TIME_CLUSTERING_TOGGLE_REQUEST_EVENT } from '../../../shell/workspaceEvents.ts';
 
 function createCluster(params: {
   id: string;
@@ -1021,7 +1022,7 @@ describe('TimeClusteringRootView', () => {
     store.destroy();
   });
 
-  it('renders a day-week segmented switcher and marks the active view', () => {
+  it('renders close and layout toggle buttons in the header switcher', () => {
     const store = new TimeClusteringStore(createRepository(createSnapshot()));
     const { view } = createView(store);
     const parent = document.createElement('div');
@@ -1029,25 +1030,23 @@ describe('TimeClusteringRootView', () => {
 
     view.mount(parent);
 
-    const dayButton = parent.querySelector<HTMLButtonElement>(
-      '[data-role="view-mode-button"][data-mode="day"]'
+    const closeButton = parent.querySelector<HTMLButtonElement>(
+      '[data-role="view-mode-button"][data-mode="close"]'
     );
-    const weekButton = parent.querySelector<HTMLButtonElement>(
-      '[data-role="view-mode-button"][data-mode="week"]'
+    const layoutToggleButton = parent.querySelector<HTMLButtonElement>(
+      '[data-role="view-mode-button"][data-mode="layout-toggle"]'
     );
 
-    expect(dayButton).not.toBeNull();
-    expect(weekButton).not.toBeNull();
-    expect(dayButton?.dataset.selected).toBe('true');
-    expect(dayButton?.getAttribute('aria-checked')).toBe('true');
-    expect(weekButton?.dataset.selected).toBe('false');
-    expect(weekButton?.getAttribute('aria-checked')).toBe('false');
-    expect(dayButton?.querySelector('[data-icon-name="rectangle-stack"]')).not.toBeNull();
-    expect(
-      weekButton?.querySelector('[data-icon-name="calendar-date-range"]')
-    ).not.toBeNull();
-    expect(dayButton?.querySelector('span')?.className).toContain('sr-only');
-    expect(weekButton?.querySelector('span')?.className).toContain('sr-only');
+    expect(closeButton).not.toBeNull();
+    expect(layoutToggleButton).not.toBeNull();
+    expect(closeButton?.dataset.selected).toBe('true');
+    expect(closeButton?.getAttribute('aria-pressed')).toBe('true');
+    expect(layoutToggleButton?.dataset.selected).toBe('false');
+    expect(layoutToggleButton?.getAttribute('aria-pressed')).toBe('false');
+    expect(closeButton?.querySelector('span')?.className).toContain('sr-only');
+    expect(layoutToggleButton?.querySelector('span')?.className).toContain(
+      'sr-only'
+    );
 
     view.unmount();
     store.destroy();
@@ -1207,19 +1206,20 @@ describe('TimeClusteringRootView', () => {
 
     view.mount(parent);
 
-    const dayButton = parent.querySelector<HTMLButtonElement>(
-      '[data-role="view-mode-button"][data-mode="day"]'
+    const closeButton = parent.querySelector<HTMLButtonElement>(
+      '[data-role="view-mode-button"][data-mode="close"]'
     );
-    const weekButton = parent.querySelector<HTMLButtonElement>(
-      '[data-role="view-mode-button"][data-mode="week"]'
+    const layoutToggleButton = parent.querySelector<HTMLButtonElement>(
+      '[data-role="view-mode-button"][data-mode="layout-toggle"]'
     );
     const periodSwitcher = parent.querySelector<HTMLDivElement>(
       '[data-role="period-switcher"]'
     );
-    expect(dayButton).not.toBeNull();
-    expect(weekButton).not.toBeNull();
-    expect(dayButton?.dataset.selected).toBe('false');
-    expect(weekButton?.dataset.selected).toBe('true');
+    expect(closeButton).not.toBeNull();
+    expect(layoutToggleButton).not.toBeNull();
+    expect(closeButton?.dataset.selected).toBe('true');
+    expect(layoutToggleButton?.dataset.selected).toBe('false');
+    expect(layoutToggleButton?.getAttribute('aria-pressed')).toBe('true');
     expect(periodSwitcher).not.toBeNull();
 
     const weekCalendarHeader = parent.querySelector<HTMLDivElement>(
@@ -1368,40 +1368,56 @@ describe('TimeClusteringRootView', () => {
     store.destroy();
   });
 
-  it('switches between day and week from the segmented view switcher', () => {
+  it('closes from the left button and toggles layout from the right button', () => {
     const store = new TimeClusteringStore(createRepository(createSnapshot()));
     const { view, onLayoutModeChange } = createView(store);
     const parent = document.createElement('div');
     document.body.appendChild(parent);
+    const toggleEvents: CustomEvent[] = [];
+    const handleToggle = (event: Event) => {
+      toggleEvents.push(event as CustomEvent);
+    };
+    window.addEventListener(TIME_CLUSTERING_TOGGLE_REQUEST_EVENT, handleToggle);
 
-    view.mount(parent);
+    try {
+      view.mount(parent);
 
-    const initialWeekColumns = parent.querySelectorAll(
-      '[data-role="calendar-day-column"]'
-    );
-    expect(initialWeekColumns).toHaveLength(0);
-    expect(parent.querySelector('[data-role="day-calendar"]')).not.toBeNull();
+      const initialWeekColumns = parent.querySelectorAll(
+        '[data-role="calendar-day-column"]'
+      );
+      expect(initialWeekColumns).toHaveLength(0);
+      expect(parent.querySelector('[data-role="day-calendar"]')).not.toBeNull();
 
-    const weekButton = parent.querySelector<HTMLButtonElement>(
-      '[data-role="view-mode-button"][data-mode="week"]'
-    );
-    weekButton?.click();
+      const layoutToggleButton = parent.querySelector<HTMLButtonElement>(
+        '[data-role="view-mode-button"][data-mode="layout-toggle"]'
+      );
+      layoutToggleButton?.click();
 
-    expect(onLayoutModeChange).toHaveBeenCalledWith('fullscreen');
-    expect(
-      parent.querySelectorAll('[data-role="calendar-day-column"]')
-    ).toHaveLength(7);
+      expect(onLayoutModeChange).toHaveBeenCalledWith('fullscreen');
+      expect(
+        parent.querySelectorAll('[data-role="calendar-day-column"]')
+      ).toHaveLength(7);
 
-    const dayButton = parent.querySelector<HTMLButtonElement>(
-      '[data-role="view-mode-button"][data-mode="day"]'
-    );
-    dayButton?.click();
+      layoutToggleButton?.click();
 
-    expect(onLayoutModeChange).toHaveBeenLastCalledWith('docked-left');
-    expect(parent.querySelector('[data-role="day-calendar"]')).not.toBeNull();
+      expect(onLayoutModeChange).toHaveBeenLastCalledWith('docked-left');
+      expect(parent.querySelector('[data-role="day-calendar"]')).not.toBeNull();
 
-    view.unmount();
-    store.destroy();
+      const closeButton = parent.querySelector<HTMLButtonElement>(
+        '[data-role="view-mode-button"][data-mode="close"]'
+      );
+      closeButton?.click();
+
+      expect(toggleEvents).toHaveLength(1);
+      expect(toggleEvents[0]?.detail).toEqual({ open: false });
+    } finally {
+      window.removeEventListener(
+        TIME_CLUSTERING_TOGGLE_REQUEST_EVENT,
+        handleToggle
+      );
+      view.unmount();
+      store.destroy();
+    }
   });
 
   it('switches the selected day when clicking a week header without changing layout', () => {
