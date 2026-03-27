@@ -49,6 +49,7 @@ It also unifies API interactions with automatic JWT authentication, global error
 - The current product thesis is that planning and learning belong together because both serve personal development.
 - This shared thesis is more important than forcing the app into a single traditional category such as planner, LMS, or canvas tool.
 - Possible long-term strategic paths are tracked separately in `docs/STRATEGIC-DIRECTIONS.md`.
+- Personalization architecture and phased delivery for the Personal Development OS direction are documented in `docs/PERSONAL-DEVELOPMENT-OS-PERSONALIZATION.md`.
 
 ## Architecture & Tech Stack
 
