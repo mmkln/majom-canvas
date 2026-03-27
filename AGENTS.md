@@ -182,3 +182,10 @@
 - Owner: `src/bootstrap` + `src/features/shell` + `docs`
 - Read first: `docs/UI-SIDEBAR-GUIDELINES.md`
 - Expected result: keep sidebar geometry and state styles aligned with shared UI standards, move repeated sidebar style recipes toward shared primitives/style maps, and preserve clear keyboard/focus semantics for icon-rail actions.
+
+### Implement User Profile Settings
+
+- Use when the request is to implement or extend profile/account settings UI and flows.
+- Owner: `src/features/shell` + `src/app-runtime` + `src/majom-wrapper/data-access`
+- Read first: `docs/USER-PROFILE-SETTINGS-IMPLEMENTATION.md`
+- Expected result: a reusable profile settings surface integrated from app menu, with phased delivery (MVP account/language/wallpaper/delete, then security and personalization).
