@@ -19,10 +19,15 @@ import {
   type SegmentedControl,
 } from '../primitives/index.ts';
 import {
-  ELEMENT_STATUS_OPTIONS,
+  ELEMENT_STATUS_VALUES,
   ElementStatus,
 } from '../../elements/ElementStatus.ts';
 import type { UiPriority } from '../../../../majom-wrapper/utils/priorityMapping.ts';
+import {
+  getStatusLabel,
+  STATUS_ICON_MAP,
+  STATUS_ICON_TONE_CLASS,
+} from '../statusPresentation.ts';
 
 type DescriptionMode = 'view' | 'edit';
 
@@ -54,6 +59,7 @@ type DescriptionFieldController = {
 // Modal for editing title, status, and priority of an element
 export class EditElementModal {
   private modal: HTMLDivElement | null = null;
+  private statusControl: SegmentedControl<ElementStatus> | null = null;
   private priorityControl: SegmentedControl<UiPriority> | null = null;
   private scaleControl: SegmentedControl<GoalScale> | null = null;
 
@@ -189,19 +195,27 @@ export class EditElementModal {
     descriptionField.setMode('view', { focus: false });
     formContent.appendChild(descriptionField.field.element);
 
-    // Status dropdown with label
-    const statusField = createField({ label: 'Status' });
-    const statusSelect = ComponentFactory.createSelect({
-      variant: 'default',
-      items: ELEMENT_STATUS_OPTIONS,
-      selectedValue: tempStatus,
-      onChange: (v: string) => {
-        tempStatus = v as ElementStatus;
+    this.statusControl = createSegmentedControl({
+      size: 'sm',
+      fullWidth: true,
+      ariaLabel: 'Status',
+      options: ELEMENT_STATUS_VALUES.map((status) => ({
+        id: `status-${status}`,
+        value: status,
+        label: getStatusLabel(status),
+        icon: STATUS_ICON_MAP[status],
+        iconColorClassName: STATUS_ICON_TONE_CLASS[status],
+        title: getStatusLabel(status),
+      })),
+      value: tempStatus,
+      onChange: (value) => {
+        tempStatus = value;
       },
-      className: 'w-full',
     });
-    statusSelect.render(statusField.controlContainer);
-    statusField.setControl(statusSelect.getElement());
+    const statusField = createField({
+      label: 'Status',
+      control: this.statusControl.element,
+    });
     formContent.appendChild(statusField.element);
 
     // Priority segmented control with label
@@ -701,6 +715,8 @@ export class EditElementModal {
   }
 
   private destroyControls(): void {
+    this.statusControl?.destroy();
+    this.statusControl = null;
     this.priorityControl?.destroy();
     this.priorityControl = null;
     this.scaleControl?.destroy();
