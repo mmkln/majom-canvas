@@ -87,6 +87,13 @@ Main risk:
 
 - it is conceptually strong but harder to communicate unless one wedge becomes clearly dominant first
 
+Execution principle for this direction:
+
+- **wide strategy, narrow execution**.
+- At weekly/monthly horizon, users can maintain multiple life-development domains.
+- At moment-of-work horizon, the product should reduce active focus to a small number of concrete next actions instead of encouraging parallel cognitive overload.
+- Success should be framed as **sustainable high effectiveness without burnout**, not "maximum output at all times."
+
 ## Direction 4: External Work Orchestration Layer
 
 Positioning:

@@ -208,6 +208,22 @@ Time Clustering and Resource Planner are complementary, not overlapping:
 
 Stage 1 preserves this boundary by excluding task assignment and planner execution while still shaping contracts to be integration-ready.
 
+## Flow And Daily Optimization Expectations
+
+Time Clustering should be positioned as a **structure amplifier**, not a complete autonomous scheduler in Stage 1.
+
+- It helps users reduce overload by making time boundaries explicit.
+- It helps preserve day-level balance across domains.
+- It can improve focus transitions when paired with clear cluster intent.
+
+However, Stage 1 does **not** yet provide:
+
+- automatic task/habit assignment into clusters,
+- guaranteed optimal intra-day sequencing,
+- autonomous optimization for sustained multi-day flow states.
+
+Until later integration stages, claims should focus on improved planning structure and reduced overload risk rather than deterministic productivity outcomes.
+
 ## Views (Stage 1)
 
 ### Day View (compact)
