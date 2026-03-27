@@ -189,3 +189,5 @@ Detailed instructions live in packets and are loaded only when needed. This make
 - There are no mutation tools yet.
 - Instruction categories exist as optional metadata only; there is no category-level loader yet.
 - Only `fill_details` currently uses the dedicated action-command spec path. Other AI actions still use the generic final-answer path and should be migrated incrementally.
+- Because of these constraints, the current runtime should be treated as a guided planning copilot, not a fully autonomous day optimizer.
+- Product messaging should avoid promising perfect full-day optimization or guaranteed long-horizon "flow state" outcomes until orchestration depth, mutation safety, and evaluation infrastructure mature.
