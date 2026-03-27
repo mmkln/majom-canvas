@@ -10,6 +10,7 @@ import { createAiAssistantTestSnapshot } from '../services/AiAssistantTestUtils.
 import type { AiAssistantMessage } from '../services/AiAssistantTypes.ts';
 import { AiAssistantPanel } from './AiAssistantPanel.ts';
 import { createAppRuntime } from '../../../app-runtime/index.ts';
+import { AI_ASSISTANT_TOGGLE_REQUEST_EVENT } from '../aiAssistantEvents.ts';
 
 function createMessage(
   id: string,
@@ -479,5 +480,38 @@ describe('AiAssistantPanel auto-scroll', () => {
       'arrow-up'
     );
     panel.unmount();
+  });
+
+  it('closes the panel when the header icon button is clicked', () => {
+    const { controller } = createController(
+      createState([createMessage('assistant-1', 'assistant', 'First reply')])
+    );
+    const panel = new AiAssistantPanel({ controller });
+    const toggleEvents: CustomEvent[] = [];
+    const handleToggle = (event: Event) => {
+      toggleEvents.push(event as CustomEvent);
+    };
+    window.addEventListener(AI_ASSISTANT_TOGGLE_REQUEST_EVENT, handleToggle);
+
+    try {
+      panel.mount();
+      const toggleButton = document.querySelector<HTMLButtonElement>(
+        '[data-role="ai-assistant-panel-toggle-button"]'
+      );
+
+      expect(toggleButton).not.toBeNull();
+      expect(toggleButton?.className).toContain('bg-indigo-50');
+      expect(toggleButton?.dataset.selected).toBe('true');
+      toggleButton?.click();
+
+      expect(toggleEvents).toHaveLength(1);
+      expect(toggleEvents[0]?.detail).toEqual({ open: false });
+    } finally {
+      window.removeEventListener(
+        AI_ASSISTANT_TOGGLE_REQUEST_EVENT,
+        handleToggle
+      );
+      panel.unmount();
+    }
   });
 });

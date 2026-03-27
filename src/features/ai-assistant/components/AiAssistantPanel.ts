@@ -64,6 +64,7 @@ import {
   isWorkspaceViewChangedDetail,
 } from '../../shell/workspaceEvents.ts';
 import {
+  emitAiAssistantToggleRequested,
   AI_ASSISTANT_CONTEXT_CHANGED_EVENT,
   isAiAssistantContextDetail,
   type AiAssistantCanvasElement,
@@ -107,6 +108,7 @@ export class AiAssistantPanel {
   private readonly panel: HTMLDivElement;
   private readonly widthPx: number;
   private readonly header: HTMLDivElement;
+  private readonly panelToggleButton: HTMLButtonElement;
   private readonly contextCard: HTMLDivElement;
   private readonly contextTitle: HTMLParagraphElement;
   private readonly contextMeta: HTMLParagraphElement;
@@ -206,12 +208,20 @@ export class AiAssistantPanel {
     brand.style.gap = '8px';
     brand.style.minWidth = '0';
 
-    const brandIcon = createIcon('chat-bubble-left', {
-      size: 16,
-      strokeWidth: 1.9,
+    this.panelToggleButton = createIconButton({
+      icon: 'chat-bubble-left',
+      size: 'sm',
+      tone: 'text',
+      className: 'bg-indigo-50 text-indigo-800 hover:bg-indigo-50 hover:text-indigo-800',
+      title: this.i18n.t('header.toggleAiAssistantPanel'),
+      ariaLabel: this.i18n.t('header.toggleAiAssistantPanel'),
+      onClick: () => emitAiAssistantToggleRequested(false),
     });
-    brandIcon.setAttribute('aria-hidden', 'true');
-    brandIcon.style.color = CHAT_TEXT_SUBTLE;
+    this.panelToggleButton.dataset.role = 'ai-assistant-panel-toggle-button';
+    this.panelToggleButton.dataset.selected = 'true';
+    this.panelToggleButton.setAttribute('aria-pressed', 'true');
+    this.panelToggleButton.setAttribute('aria-current', 'true');
+    this.panelToggleButton.style.flex = '0 0 auto';
 
     this.contextTitle = document.createElement('p');
     this.contextTitle.style.margin = '0';
@@ -225,7 +235,7 @@ export class AiAssistantPanel {
     this.contextTitle.style.overflow = 'hidden';
     this.contextTitle.style.textOverflow = 'ellipsis';
     this.contextTitle.textContent = this.i18n.t('aiChat.title');
-    brand.append(brandIcon, this.contextTitle);
+    brand.append(this.panelToggleButton, this.contextTitle);
 
     this.contextMeta = document.createElement('p');
     this.contextMeta.style.margin = '0';
@@ -622,6 +632,9 @@ export class AiAssistantPanel {
     context: ReturnType<AiAssistantSessionController['getState']>['context'],
     contextMode: AiAssistantContextMode
   ): void {
+    const panelToggleLabel = this.i18n.t('header.toggleAiAssistantPanel');
+    this.panelToggleButton.title = panelToggleLabel;
+    this.panelToggleButton.setAttribute('aria-label', panelToggleLabel);
     this.contextTitle.textContent = this.i18n.t('aiChat.title');
 
     if (contextMode === 'none') {
