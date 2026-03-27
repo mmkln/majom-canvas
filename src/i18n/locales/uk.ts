@@ -388,6 +388,8 @@ export const uk = {
   'canvasMenu.canvasAnimations': 'Анімації',
   'canvasMenu.deleteCanvas': 'Видалити дошку',
   'canvasMenu.openCanvasMenu': 'Відкрити меню дошки',
+  'canvas.titleTooLong': 'Назва canvas має бути не довшою за {limit} символів.',
+  'canvas.updateTitleFailed': 'Не вдалося оновити назву canvas.',
   'common.accountLoading': 'Завантажуємо акаунт...',
   'common.actions': 'Дії',
   'common.archive': 'Архівувати',

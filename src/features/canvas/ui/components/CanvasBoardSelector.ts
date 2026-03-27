@@ -31,6 +31,7 @@ export class CanvasBoardSelector {
   private readonly header: HTMLDivElement;
   private readonly titleWrap: HTMLDivElement;
   private readonly titleText: HTMLButtonElement;
+  private readonly titleLabel: HTMLSpanElement;
   private titleInput: HTMLInputElement | null = null;
   private readonly toggleBtn: HTMLButtonElement;
   private readonly dropdown: HTMLDivElement;
@@ -67,7 +68,8 @@ export class CanvasBoardSelector {
     });
 
     this.titleWrap = document.createElement('div');
-    this.titleWrap.className = 'inline-flex items-center gap-1';
+    this.titleWrap.className = 'inline-flex min-w-0 items-center gap-1';
+    this.titleWrap.style.maxWidth = 'min(44vw, 360px)';
 
     const titleIconWrap = document.createElement('span');
     titleIconWrap.className =
@@ -79,12 +81,19 @@ export class CanvasBoardSelector {
     this.titleText = createTextButton({
       tone: 'soft',
       text: this.currentTitle,
-      title: 'Click to edit title',
+      title: this.currentTitle,
       onClick: (event) => {
         event.stopPropagation();
         this.startTitleEdit();
       },
     });
+    this.titleText.classList.add('min-w-0', 'max-w-full', 'flex-1');
+    this.titleText.style.flex = '1 1 auto';
+    this.titleText.style.justifyContent = 'flex-start';
+    this.titleLabel = document.createElement('span');
+    this.titleLabel.className = 'block min-w-0 truncate';
+    this.titleText.replaceChildren(this.titleLabel);
+    this.syncTitleText(this.currentTitle);
     this.titleWrap.append(titleIconWrap, this.titleText);
 
     this.toggleBtn = createIconButton({
@@ -173,7 +182,7 @@ export class CanvasBoardSelector {
       if (this.titleInput) {
         this.titleInput.value = title;
       }
-      this.titleText.textContent = title;
+      this.syncTitleText(title);
     };
     window.addEventListener('canvasTitleChanged', this.canvasTitleHandler);
 
@@ -319,7 +328,7 @@ export class CanvasBoardSelector {
         ? this.titleInput.value.trim() || 'New canvas'
         : this.currentTitle;
       this.currentTitle = nextTitle;
-      this.titleText.textContent = nextTitle;
+      this.syncTitleText(nextTitle);
       this.titleWrap.replaceChild(this.titleText, this.titleInput);
       this.titleInput = null;
       this.isEditingTitle = false;
@@ -340,6 +349,12 @@ export class CanvasBoardSelector {
         finishEdit(false);
       }
     });
+  }
+
+  private syncTitleText(title: string): void {
+    this.titleLabel.textContent = title;
+    this.titleText.title = title;
+    this.titleText.setAttribute('aria-label', title);
   }
 
   private renderCanvasList(): void {

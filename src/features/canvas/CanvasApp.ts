@@ -81,6 +81,7 @@ type CanvasListCacheItem = {
 };
 
 const APP_DOCUMENT_TITLE = 'Majom Canvas';
+const CANVAS_TITLE_MAX_LENGTH = 100;
 
 export class CanvasApp {
   private readonly dataProvider: IDataProvider;
@@ -345,14 +346,25 @@ export class CanvasApp {
       return;
     }
     const previousTitle = this.canvasTitle;
-    this.canvasDataService.updateCanvasName(title).subscribe({
+    const normalizedTitle = title.trim() || 'New canvas';
+    if (normalizedTitle.length > CANVAS_TITLE_MAX_LENGTH) {
+      notify(
+        this.i18n.t('canvas.titleTooLong', {
+          limit: String(CANVAS_TITLE_MAX_LENGTH),
+        }),
+        'error'
+      );
+      this.setCanvasTitle(previousTitle);
+      return;
+    }
+    this.canvasDataService.updateCanvasName(normalizedTitle).subscribe({
       next: (canvas) => {
         this.setCanvasTitle(canvas.name);
         this.refreshCanvasList(canvas.id);
       },
       error: (err) => {
         console.error('Failed to update canvas title', err);
-        notify('Failed to update canvas title', 'error');
+        notify(this.getCanvasTitleUpdateErrorMessage(err), 'error');
         this.setCanvasTitle(previousTitle);
       },
     });
@@ -1332,6 +1344,58 @@ export class CanvasApp {
       new CustomEvent('canvasTitleChanged', { detail: { title } })
     );
     this.emitAiAssistantContext();
+  }
+
+  private getCanvasTitleUpdateErrorMessage(error: unknown): string {
+    const response = this.getErrorResponseBody(error);
+    const fieldMessage = this.getFirstErrorMessage(response?.name);
+    if (fieldMessage) {
+      const limit = this.extractMaxLengthLimit(fieldMessage);
+      if (limit !== null) {
+        return this.i18n.t('canvas.titleTooLong', {
+          limit: String(limit),
+        });
+      }
+      return fieldMessage;
+    }
+    const detailMessage = this.getFirstErrorMessage(response?.detail);
+    if (detailMessage) {
+      return detailMessage;
+    }
+    return this.i18n.t('canvas.updateTitleFailed');
+  }
+
+  private getErrorResponseBody(error: unknown): Record<string, unknown> | null {
+    if (!error || typeof error !== 'object') {
+      return null;
+    }
+    const response = (error as { response?: unknown }).response;
+    if (response && typeof response === 'object' && !Array.isArray(response)) {
+      return response as Record<string, unknown>;
+    }
+    return null;
+  }
+
+  private getFirstErrorMessage(value: unknown): string | null {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
+    }
+    if (Array.isArray(value)) {
+      const firstString = value.find(
+        (entry): entry is string =>
+          typeof entry === 'string' && entry.trim().length > 0
+      );
+      return firstString?.trim() ?? null;
+    }
+    return null;
+  }
+
+  private extractMaxLengthLimit(message: string): number | null {
+    const match = message.match(/no more than (\d+) characters/i);
+    if (!match) {
+      return null;
+    }
+    return Number.parseInt(match[1] ?? '', 10) || null;
   }
 
   private emitAiAssistantContext(): void {

@@ -387,6 +387,8 @@ export const en = {
   'canvasMenu.canvasAnimations': 'Canvas animations',
   'canvasMenu.deleteCanvas': 'Delete canvas',
   'canvasMenu.openCanvasMenu': 'Open canvas menu',
+  'canvas.titleTooLong': 'Canvas title must be {limit} characters or less.',
+  'canvas.updateTitleFailed': 'Failed to update canvas title.',
   'common.accountLoading': 'Loading account...',
   'common.actions': 'Actions',
   'common.archive': 'Archive',
