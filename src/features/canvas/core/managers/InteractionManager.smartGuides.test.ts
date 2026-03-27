@@ -107,6 +107,39 @@ describe('InteractionManager smart guides integration', () => {
     expect(movingTask.x).toBe(456);
   });
 
+  it('drops all selected tasks into a story when group drag targets it', () => {
+    const { scene, manager, movingTask } = createHarness();
+    const siblingTask = new TaskElement({ id: 'sibling', x: 430, y: 100 });
+    const story = new StoryElement({
+      id: 'story',
+      x: 600,
+      y: 50,
+      width: 344,
+      height: 240,
+    });
+    scene.addElement(siblingTask);
+    scene.addElement(story);
+    scene.setSelected([movingTask, siblingTask]);
+
+    beginDrag(manager, siblingTask);
+    manager.handleMouseMove(620, 110);
+
+    expect(manager.getTaskDropPlaceholders()).toHaveLength(2);
+    expect(
+      manager
+        .getTaskDropPlaceholders()
+        .map((placeholder) => placeholder.taskId)
+        .sort()
+    ).toEqual(['moving', 'sibling']);
+
+    manager.handleMouseUp();
+
+    expect(story.tasks.map((task) => task.id).sort()).toEqual([
+      'moving',
+      'sibling',
+    ]);
+  });
+
   it('keeps smart guide coordinates in scene space with zoom and scroll', () => {
     const { scene, manager, movingTask, panZoom } = createHarness();
     panZoom.scale = 2;

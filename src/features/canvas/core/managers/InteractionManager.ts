@@ -145,15 +145,32 @@ export class InteractionManager {
     );
   }
 
-  private updateTaskStoryAssignments(tasks: TaskElement[]): void {
+  private updateTaskStoryAssignments(
+    tasks: TaskElement[],
+    dropPlans: Map<string, StoryDropPlan> = new Map()
+  ): void {
     if (tasks.length === 0) return;
     const stories = this.scene
       .getElements()
       .filter(isPlanningElement)
       .filter((el): el is StoryElement => el instanceof StoryElement);
     const prevStoryMap = this.getTaskStoryMap(stories);
+    const draggedTaskIds = new Set(tasks.map((task) => task.id));
+    const plannedStoryByTaskId = new Map<string, string>();
+    dropPlans.forEach((plan, storyId) => {
+      plan.orderedTasks.forEach((task) => {
+        if (!draggedTaskIds.has(task.id)) return;
+        plannedStoryByTaskId.set(task.id, storyId);
+      });
+    });
     stories.forEach((story) => {
       tasks.forEach((task) => {
+        const plannedStoryId = plannedStoryByTaskId.get(task.id);
+        if (plannedStoryId) {
+          if (story.id === plannedStoryId) story.addTask(task);
+          else story.removeTask(task.id);
+          return;
+        }
         const anchor = this.getTaskAnchor(task);
         if (story.contains(anchor.x, anchor.y)) story.addTask(task);
         else story.removeTask(task.id);
@@ -767,7 +784,7 @@ export class InteractionManager {
         .filter(isPlanningElement)
         .filter((el): el is StoryElement => el instanceof StoryElement);
       const prevStoryMap = this.getTaskStoryMap(stories);
-      this.updateTaskStoryAssignments(tasks);
+      this.updateTaskStoryAssignments(tasks, this.storyDropPlans);
       const affectedStories = this.getAffectedStoriesForTasks(
         tasks,
         stories,
@@ -837,7 +854,7 @@ export class InteractionManager {
           .filter(isPlanningElement)
           .filter((el): el is StoryElement => el instanceof StoryElement);
         const prevStoryMap = this.getTaskStoryMap(stories);
-        this.updateTaskStoryAssignments(tasks);
+        this.updateTaskStoryAssignments(tasks, this.storyDropPlans);
         const affectedStories = this.getAffectedStoriesForTasks(
           tasks,
           stories,

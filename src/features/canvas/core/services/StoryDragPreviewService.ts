@@ -69,16 +69,25 @@ export class StoryDragPreviewService {
       return a.y - b.y;
     });
     const draggedByStory = new Map<string, TaskElement[]>();
-    draggedOrder.forEach((task) => {
-      const anchor = this.getTaskAnchor(task);
-      const story = stories.find((candidate) =>
-        candidate.contains(anchor.x, anchor.y)
-      );
-      if (!story) return;
-      const list = draggedByStory.get(story.id) ?? [];
-      list.push(task);
-      draggedByStory.set(story.id, list);
-    });
+    const pointerStory =
+      draggedOrder.length > 1
+        ? (stories.find((story) => story.contains(pointer.x, pointer.y)) ??
+          null)
+        : null;
+    if (pointerStory) {
+      draggedByStory.set(pointerStory.id, draggedOrder);
+    } else {
+      draggedOrder.forEach((task) => {
+        const anchor = this.getTaskAnchor(task);
+        const story = stories.find((candidate) =>
+          candidate.contains(anchor.x, anchor.y)
+        );
+        if (!story) return;
+        const list = draggedByStory.get(story.id) ?? [];
+        list.push(task);
+        draggedByStory.set(story.id, list);
+      });
+    }
 
     const placeholderByTaskId = new Map<string, TaskDropPlaceholder>();
     const nextDropPlans = new Map<string, StoryDropPlan>();
