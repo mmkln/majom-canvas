@@ -124,6 +124,9 @@ export class CanvasApp {
     this.handleCanvasSelected(event);
   private readonly canvasCreateRequestedHandler = (): void =>
     this.handleCanvasCreateRequested();
+  private readonly canvasDuplicateRequestedHandler = (): void => {
+    void this.handleCanvasDuplicateRequested();
+  };
   private readonly canvasFavoriteToggledHandler = (event: Event): void =>
     this.handleCanvasFavoriteToggled(event);
   private readonly canvasGroupUpdatedHandler = (event: Event): void =>
@@ -214,6 +217,10 @@ export class CanvasApp {
       this.canvasCreateRequestedHandler
     );
     window.addEventListener(
+      'canvasDuplicateRequested',
+      this.canvasDuplicateRequestedHandler
+    );
+    window.addEventListener(
       'canvasFavoriteToggled',
       this.canvasFavoriteToggledHandler
     );
@@ -268,6 +275,10 @@ export class CanvasApp {
     window.removeEventListener(
       'canvasCreateRequested',
       this.canvasCreateRequestedHandler
+    );
+    window.removeEventListener(
+      'canvasDuplicateRequested',
+      this.canvasDuplicateRequestedHandler
     );
     window.removeEventListener(
       'canvasFavoriteToggled',
@@ -429,6 +440,53 @@ export class CanvasApp {
         notify('Failed to create canvas', 'error');
       },
     });
+  }
+
+  private async handleCanvasDuplicateRequested(): Promise<void> {
+    if (this.isLinkDecisionPending()) {
+      notify(this.i18n.t('canvas.finishRelationConfirmationFirst'), 'info');
+      return;
+    }
+    if (!this.authService.isLoggedIn()) {
+      authFlowService.requestLogin('canvas-access');
+      return;
+    }
+
+    const elements = this.scene
+      .getElements()
+      .filter(isPlanningElement) as Array<
+      TaskElement | StoryElement | GoalElement
+    >;
+    const duplicateTitle = this.buildDuplicateCanvasTitle(this.canvasTitle);
+    const currentViewState = this.getCurrentViewState();
+
+    try {
+      const duplicatedCanvas = await firstValueFrom(
+        this.canvasDataService.createCanvas(duplicateTitle)
+      );
+      this.setCanvasTitle(duplicatedCanvas.name);
+      this.refreshCanvasList(duplicatedCanvas.id);
+
+      await firstValueFrom(
+        this.canvasDataService.ensureElementsPersisted(elements)
+      );
+      const saved = await firstValueFrom(
+        this.saveLayoutPositions(elements, false)
+      );
+      if (!saved) {
+        throw new Error('Canvas duplication skipped layout persistence.');
+      }
+
+      await this.dataProvider.saveViewState(
+        currentViewState,
+        duplicatedCanvas.id
+      );
+      historyService.reset();
+      notify(this.i18n.t('canvas.duplicateSuccess'), 'success');
+    } catch (err) {
+      console.error('Failed to duplicate canvas', err);
+      notify(this.i18n.t('canvas.duplicateFailed'), 'error');
+    }
   }
 
   private handleCanvasFavoriteToggled(event: Event): void {
@@ -1344,6 +1402,29 @@ export class CanvasApp {
       new CustomEvent('canvasTitleChanged', { detail: { title } })
     );
     this.emitAiAssistantContext();
+  }
+
+  private getCurrentViewState(): IViewState {
+    const panZoom = this.canvasManager.getPanZoomManager();
+    return {
+      scrollX: panZoom.scrollX,
+      scrollY: panZoom.scrollY,
+      scale: panZoom.scale,
+    };
+  }
+
+  private buildDuplicateCanvasTitle(title: string): string {
+    const prefix = this.i18n.t('canvas.duplicatePrefix');
+    const normalizedTitle = title.trim() || 'New canvas';
+    const availableTitleLength = Math.max(
+      0,
+      CANVAS_TITLE_MAX_LENGTH - prefix.length
+    );
+    const baseTitle =
+      normalizedTitle.length > availableTitleLength
+        ? normalizedTitle.slice(0, availableTitleLength).trimEnd()
+        : normalizedTitle;
+    return `${prefix}${baseTitle}`;
   }
 
   private getCanvasTitleUpdateErrorMessage(error: unknown): string {

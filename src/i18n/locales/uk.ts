@@ -387,7 +387,13 @@ export const uk = {
   'canvasMenu.autosave': 'Автозбереження',
   'canvasMenu.canvasAnimations': 'Анімації',
   'canvasMenu.deleteCanvas': 'Видалити дошку',
+  'canvasMenu.duplicateCanvas': 'Зробити копію',
   'canvasMenu.openCanvasMenu': 'Відкрити меню дошки',
+  'canvas.duplicateFailed': 'Не вдалося створити копію canvas.',
+  'canvas.duplicatePrefix': 'Копія - ',
+  'canvas.duplicateSuccess': 'Копію canvas створено.',
+  'canvas.finishRelationConfirmationFirst':
+    'Спершу завершіть підтвердження звʼязку.',
   'canvas.titleTooLong': 'Назва canvas має бути не довшою за {limit} символів.',
   'canvas.updateTitleFailed': 'Не вдалося оновити назву canvas.',
   'common.accountLoading': 'Завантажуємо акаунт...',

@@ -4,6 +4,7 @@ import { CanvasClientStorage } from '../../core/services/CanvasClientStorage.ts'
 import { emitCanvasAutosaveToggled } from '../../core/canvasAutosaveLifecycle.ts';
 import {
   AnchoredMenu,
+  createDivider,
   createDropdownItem,
   createIconButton,
   createMenuControlRow,
@@ -139,16 +140,27 @@ export class CanvasMenu {
     });
     const deleteCanvasButton = createDropdownItem({
       label: this.i18n.t('canvasMenu.deleteCanvas'),
-      variant: 'default',
+      variant: 'danger',
       onClick: () => {
         this.setDropdownOpen(false);
         window.dispatchEvent(new CustomEvent('canvasDeleteRequested'));
+      },
+    });
+    const duplicateCanvasButton = createDropdownItem({
+      label: this.i18n.t('canvasMenu.duplicateCanvas'),
+      variant: 'default',
+      onClick: () => {
+        this.setDropdownOpen(false);
+        window.dispatchEvent(new CustomEvent('canvasDuplicateRequested'));
       },
     });
     actions.append(
       animationsToggle,
       smartGuidesToggle,
       autosaveToggle,
+      createDivider({ tone: 'soft' }),
+      duplicateCanvasButton,
+      createDivider({ tone: 'soft' }),
       deleteCanvasButton
     );
     this.dropdownMenu.appendChild(actions);

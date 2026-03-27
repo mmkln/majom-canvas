@@ -386,7 +386,13 @@ export const en = {
   'canvasMenu.autosave': 'Autosave',
   'canvasMenu.canvasAnimations': 'Canvas animations',
   'canvasMenu.deleteCanvas': 'Delete canvas',
+  'canvasMenu.duplicateCanvas': 'Duplicate canvas',
   'canvasMenu.openCanvasMenu': 'Open canvas menu',
+  'canvas.duplicateFailed': 'Failed to duplicate canvas.',
+  'canvas.duplicatePrefix': 'Copy - ',
+  'canvas.duplicateSuccess': 'Canvas duplicated.',
+  'canvas.finishRelationConfirmationFirst':
+    'Please finish relation confirmation first.',
   'canvas.titleTooLong': 'Canvas title must be {limit} characters or less.',
   'canvas.updateTitleFailed': 'Failed to update canvas title.',
   'common.accountLoading': 'Loading account...',
