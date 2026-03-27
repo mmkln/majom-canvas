@@ -155,6 +155,13 @@
 - Read first: `docs/UI-ARCHITECTURE.md`
 - Expected result: keep a stable split between Tailwind tokens, TypeScript component recipes/behavior, and limited template usage for static fragments; avoid large-scale rewrites unless explicitly requested.
 
+### Define Theme Vs UI Mode Personalization
+
+- Use when the request is to introduce platform-wide theme packs/skins, separate visual theme from density/focus modes, or plan runtime-backed UI personalization settings.
+- Owner: `docs` + `src/app-runtime` + `src/ui-lib` + `src/features/shell`
+- Read first: `docs/UI-THEMES-AND-UI-MODES-STRATEGY.md`
+- Expected result: keep `theme` and `uiMode` as separate app-level preferences, roll out incrementally through ui-lib tokens/recipes, and avoid full rewrite style overhauls.
+
 ### Audit And Enforce UI Style Guidelines
 
 - Use when the request is to define concrete style rules (colors, spacing, radii, borders, shadows, typography, control sizing), audit current non-canvas UI consistency, or prepare migration priorities.
