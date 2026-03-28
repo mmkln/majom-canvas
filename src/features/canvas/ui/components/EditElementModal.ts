@@ -1,6 +1,7 @@
 import { TaskElement } from '../../elements/TaskElement.ts';
 import { StoryElement } from '../../elements/StoryElement.ts';
 import { GoalElement, GoalScale } from '../../elements/GoalElement.ts';
+import { HabitElement } from '../../elements/HabitElement.ts';
 import { Scene } from '../../core/scene/Scene.ts';
 import { ComponentFactory } from '../../../../ui-lib/src/core/ComponentFactory.ts';
 import {
@@ -23,11 +24,19 @@ import {
   ElementStatus,
 } from '../../elements/ElementStatus.ts';
 import type { UiPriority } from '../../../../majom-wrapper/utils/priorityMapping.ts';
+import { Status } from '../../../../majom-wrapper/interfaces/index.ts';
 import {
   getStatusLabel,
   STATUS_ICON_MAP,
   STATUS_ICON_TONE_CLASS,
 } from '../statusPresentation.ts';
+import {
+  getRoutineStatusLabel,
+  ROUTINE_STATUS_ICON_MAP,
+  ROUTINE_STATUS_ICON_TONE_CLASS,
+  ROUTINE_STATUS_ORDER,
+} from '../routineStatusPresentation.ts';
+import { Checkbox } from '../../../../ui-lib/src/components/Checkbox.ts';
 
 type DescriptionMode = 'view' | 'edit';
 
@@ -68,11 +77,15 @@ export class EditElementModal {
   private scaleControl: SegmentedControl<GoalScale> | null = null;
 
   constructor(
-    private element: TaskElement | StoryElement | GoalElement,
+    private element: TaskElement | StoryElement | GoalElement | HabitElement,
     private scene: Scene
   ) {}
 
   public show(options: EditElementModalShowOptions = {}): void {
+    if (this.element instanceof HabitElement) {
+      this.showHabitModal(options);
+      return;
+    }
     this.destroyControls();
     const initialTitleMode = options.initialTitleMode ?? 'view';
 
@@ -224,57 +237,12 @@ export class EditElementModal {
     formContent.appendChild(statusField.element);
 
     // Priority segmented control with label
-    this.priorityControl = createSegmentedControl({
-      size: 'md',
-      fullWidth: true,
-      ariaLabel: 'Priority',
-      options: [
-        {
-          id: 'priority-lowest',
-          value: 'lowest',
-          label: 'Lowest',
-          icon: 'chevron-double-down',
-          iconColorClassName: 'text-sky-500',
-          title: 'Lowest priority. Can be ignored for now.',
-        },
-        {
-          id: 'priority-low',
-          value: 'low',
-          label: 'Low',
-          icon: 'chevron-down',
-          iconColorClassName: 'text-sky-500',
-          title: 'Low urgency. Important, but not time-sensitive.',
-        },
-        {
-          id: 'priority-medium',
-          value: 'medium',
-          label: 'Medium',
-          icon: 'bars-2',
-          iconColorClassName: 'text-orange-500',
-          title: 'Balanced priority for regular planning and execution.',
-        },
-        {
-          id: 'priority-high',
-          value: 'high',
-          label: 'High',
-          icon: 'chevron-up',
-          iconColorClassName: 'text-red-500',
-          title: 'High urgency. Should be scheduled and completed soon.',
-        },
-        {
-          id: 'priority-highest',
-          value: 'highest',
-          label: 'Highest',
-          icon: 'chevron-double-up',
-          iconColorClassName: 'text-red-500',
-          title: 'Highest priority. Super urgent and should be handled immediately.',
-        },
-      ],
-      value: tempPriority,
-      onChange: (value) => {
+    this.priorityControl = this.createPriorityControl(
+      tempPriority,
+      (value) => {
         tempPriority = value;
-      },
-    });
+      }
+    );
     const priorityField = createField({
       label: 'Priority',
       control: this.priorityControl.element,
@@ -447,6 +415,388 @@ export class EditElementModal {
         e.preventDefault();
         void requestClose();
       }
+    });
+  }
+
+  private showHabitModal(options: EditElementModalShowOptions = {}): void {
+    this.destroyControls();
+    if (!(this.element instanceof HabitElement)) {
+      return;
+    }
+    const initialTitleMode = options.initialTitleMode ?? 'view';
+    const routine = this.element;
+    const originalTitle = routine.title;
+    const originalDescription = routine.description;
+    const originalStatus = routine.habitStatus;
+    const originalPriority = routine.priority;
+    const initialHistory = this.getRoutineHistoryDraft(routine);
+    let tempTitle = originalTitle;
+    let tempDescription = originalDescription;
+    let tempStatus: Status.Active | Status.Archived = originalStatus;
+    let tempPriority = originalPriority;
+    const completionDraft = new Map(initialHistory);
+    let closeGuardOpen = false;
+    let saveAndClose: (() => void) | null = null;
+
+    const hasUnsavedChanges = (): boolean => {
+      if (tempTitle.trim() !== originalTitle) return true;
+      if (tempDescription !== originalDescription) return true;
+      if (tempStatus !== originalStatus) return true;
+      if (tempPriority !== originalPriority) return true;
+      for (const [date, checked] of initialHistory) {
+        if ((completionDraft.get(date) ?? false) !== checked) return true;
+      }
+      return false;
+    };
+
+    const withCloseGuard = async (work: () => Promise<void>): Promise<void> => {
+      if (closeGuardOpen) return;
+      closeGuardOpen = true;
+      try {
+        await work();
+      } finally {
+        closeGuardOpen = false;
+      }
+    };
+
+    const requestClose = async (): Promise<void> => {
+      if (!this.modal) return;
+      if (!hasUnsavedChanges()) {
+        this.close();
+        return;
+      }
+      await withCloseGuard(async () => {
+        const action = await confirmUnsavedChangesModal();
+        if (action === 'keep-editing') return;
+        if (action === 'discard') {
+          this.close();
+          return;
+        }
+        saveAndClose?.();
+      });
+    };
+
+    const { overlay, container, body, footer } = createModalShell(
+      'Edit routine',
+      {
+        onClose: () => {
+          void requestClose();
+        },
+        intent: 'form',
+      }
+    );
+    this.modal = overlay;
+
+    const formContent = document.createElement('div');
+    formContent.className = 'space-y-4 pb-2';
+    body.appendChild(formContent);
+
+    const titleField = this.buildTitleField({
+      getValue: () => tempTitle,
+      setValue: (value) => {
+        tempTitle = value;
+      },
+    });
+    titleField.setMode(initialTitleMode, { focus: false });
+    formContent.appendChild(titleField.field.element);
+
+    const descriptionField = this.buildDescriptionField({
+      getValue: () => tempDescription,
+      setValue: (value) => {
+        tempDescription = value;
+      },
+    });
+    descriptionField.setMode('view', { focus: false });
+    formContent.appendChild(descriptionField.field.element);
+
+    this.priorityControl = this.createPriorityControl(
+      tempPriority,
+      (value) => {
+        tempPriority = value;
+      }
+    );
+    const priorityField = createField({
+      label: 'Priority',
+      control: this.priorityControl.element,
+    });
+    formContent.appendChild(priorityField.element);
+
+    const historyGrid = document.createElement('div');
+    historyGrid.className = 'grid grid-cols-2 gap-2 sm:grid-cols-5';
+    this.getRoutineHistoryDraft(routine).forEach(([date, checked]) => {
+      const checkbox = new Checkbox({
+        checked,
+        ariaLabel: date,
+        stopPropagation: true,
+        onChange: (nextChecked) => {
+          completionDraft.set(date, nextChecked);
+        },
+      });
+      checkbox.getElement().classList.add('shrink-0');
+
+      const dateObj = new Date(`${date}T12:00:00`);
+      const dayLabel = document.createElement('div');
+      dayLabel.className = 'text-[11px] font-medium leading-4 text-slate-600';
+      dayLabel.textContent = this.formatRoutineHistoryWeekday(dateObj);
+
+      const metaLabel = document.createElement('div');
+      metaLabel.className = 'text-[11px] leading-4 text-slate-400';
+      metaLabel.textContent = this.formatRoutineHistoryDate(dateObj);
+
+      const label = document.createElement('label');
+      label.className =
+        'flex items-center justify-between gap-3 rounded-xl bg-slate-50/80 px-3 py-2.5';
+      const textWrap = document.createElement('div');
+      textWrap.className = 'min-w-0';
+      textWrap.append(dayLabel, metaLabel);
+      label.append(textWrap, checkbox.getElement());
+      historyGrid.appendChild(label);
+    });
+    const historyField = createField({
+      label: 'Last 10 days',
+      control: historyGrid,
+    });
+    formContent.appendChild(historyField.element);
+
+    const statusControl = createSegmentedControl<
+      Status.Active | Status.Archived
+    >({
+      size: 'sm',
+      fullWidth: true,
+      ariaLabel: 'Routine status',
+      options: ROUTINE_STATUS_ORDER.map((status) => ({
+        id: `routine-status-${status}`,
+        value: status,
+        label: getRoutineStatusLabel(status),
+        icon: ROUTINE_STATUS_ICON_MAP[status],
+        iconColorClassName: ROUTINE_STATUS_ICON_TONE_CLASS[status],
+        title: getRoutineStatusLabel(status),
+      })),
+      value: tempStatus,
+      onChange: (value) => {
+        tempStatus = value;
+      },
+    });
+    const statusField = createField({
+      label: 'Status',
+      control: statusControl.element,
+    });
+    formContent.appendChild(statusField.element);
+
+    const commitDraft = (): boolean => {
+      const normalizedTitle = tempTitle.trim();
+      if (normalizedTitle.length === 0) {
+        titleField.setRequiredError('Title is required');
+        titleField.setMode('edit', { focus: true });
+        titleField.focusInput({ select: true });
+        return false;
+      }
+      const patch: Partial<{
+        title: string;
+        description: string;
+        priority: UiPriority;
+      }> = {};
+      if (normalizedTitle !== originalTitle) patch.title = normalizedTitle;
+      if (tempDescription !== originalDescription) {
+        patch.description = tempDescription;
+      }
+      if (tempPriority !== originalPriority) {
+        patch.priority = tempPriority;
+      }
+      routine.title = normalizedTitle;
+      routine.description = tempDescription;
+      routine.priority = tempPriority;
+      if (Object.keys(patch).length > 0) {
+        window.dispatchEvent(
+          new CustomEvent('elementDetailsEdited', {
+            detail: { element: routine, patch },
+          })
+        );
+      }
+      if (tempStatus !== originalStatus) {
+        window.dispatchEvent(
+          new CustomEvent('habitCanvasMutationRequested', {
+            detail: {
+              element: routine,
+              action: tempStatus === Status.Archived ? 'archive' : 'restore',
+            },
+          })
+        );
+      }
+      this.getRoutineHistoryDraft(routine).forEach(([date, originalChecked]) => {
+        const nextChecked = completionDraft.get(date) ?? false;
+        if (nextChecked === originalChecked) return;
+        window.dispatchEvent(
+          new CustomEvent('habitCanvasMutationRequested', {
+            detail: {
+              element: routine,
+              action: 'set-completion-date',
+              date,
+              completed: nextChecked,
+            },
+          })
+        );
+      });
+      routine.habitStatus = tempStatus;
+      routine.completionHistory = this.getRoutineHistoryDraft(routine).map(
+        ([date]) => [date, completionDraft.get(date) ?? false]
+      );
+      routine.completedToday =
+        completionDraft.get(this.getTodayKey()) ?? routine.completedToday;
+      this.scene.changes.next();
+      return true;
+    };
+
+    saveAndClose = () => {
+      if (!commitDraft()) return;
+      this.close();
+    };
+
+    const btnRow = createModalActionRow({ variant: 'form' });
+    const cancelBtn = createTextButton({
+      text: 'Cancel',
+      tone: 'text',
+      size: 'md',
+      className: getModalActionButtonClass('default'),
+      onClick: () => {
+        void requestClose();
+      },
+    });
+    const saveBtn = createTextButton({
+      text: 'Save',
+      tone: 'primary',
+      size: 'md',
+      className: getModalActionButtonClass('default'),
+      onClick: () => {
+        saveAndClose?.();
+      },
+    });
+    btnRow.append(cancelBtn, saveBtn);
+    footer.appendChild(btnRow);
+
+    if (initialTitleMode === 'edit') {
+      titleField.focusInput({ select: true });
+    } else {
+      titleField.focusPreview();
+    }
+
+    container.addEventListener('keydown', (event) => {
+      event.stopPropagation();
+      if (event.key === 'Enter') {
+        const target = event.target;
+        const targetEl = target instanceof HTMLElement ? target : null;
+        const isTextarea = target instanceof HTMLTextAreaElement;
+        const isInlineTitleInput =
+          targetEl?.closest('[data-inline-title-input="true"]') !== null;
+        const isButton = target instanceof HTMLButtonElement;
+        if (isInlineTitleInput || isTextarea || isButton) {
+          return;
+        }
+        event.preventDefault();
+        saveAndClose?.();
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        void requestClose();
+      }
+    });
+  }
+
+  private getRoutineHistoryDraft(habit: HabitElement): Array<[string, boolean]> {
+    const completionByDate = new Map<string, boolean>(
+      (habit.completionHistory ?? []).map(([date, checked]) => [date, checked])
+    );
+    if (habit.lastChecked) {
+      completionByDate.set(this.toDateKey(habit.lastChecked), true);
+    }
+    const entries: Array<[string, boolean]> = [];
+    const today = new Date();
+    for (let offset = 9; offset >= 0; offset -= 1) {
+      const date = new Date(today);
+      date.setDate(today.getDate() - offset);
+      const dateKey = this.toDateKey(date);
+      entries.push([dateKey, completionByDate.get(dateKey) ?? false]);
+    }
+    return entries;
+  }
+
+  private formatRoutineHistoryWeekday(date: Date): string {
+    return new Intl.DateTimeFormat(undefined, {
+      weekday: 'short',
+    }).format(date);
+  }
+
+  private formatRoutineHistoryDate(date: Date): string {
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+    }).format(date);
+  }
+
+  private getTodayKey(): string {
+    return this.toDateKey(new Date());
+  }
+
+  private toDateKey(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  private createPriorityControl(
+    value: UiPriority,
+    onChange: (value: UiPriority) => void
+  ): SegmentedControl<UiPriority> {
+    return createSegmentedControl({
+      size: 'md',
+      fullWidth: true,
+      ariaLabel: 'Priority',
+      options: [
+        {
+          id: 'priority-lowest',
+          value: 'lowest',
+          label: 'Lowest',
+          icon: 'chevron-double-down',
+          iconColorClassName: 'text-sky-500',
+          title: 'Lowest priority. Can be ignored for now.',
+        },
+        {
+          id: 'priority-low',
+          value: 'low',
+          label: 'Low',
+          icon: 'chevron-down',
+          iconColorClassName: 'text-sky-500',
+          title: 'Low urgency. Important, but not time-sensitive.',
+        },
+        {
+          id: 'priority-medium',
+          value: 'medium',
+          label: 'Medium',
+          icon: 'bars-2',
+          iconColorClassName: 'text-orange-500',
+          title: 'Balanced priority for regular planning and execution.',
+        },
+        {
+          id: 'priority-high',
+          value: 'high',
+          label: 'High',
+          icon: 'chevron-up',
+          iconColorClassName: 'text-red-500',
+          title: 'High urgency. Should be scheduled and completed soon.',
+        },
+        {
+          id: 'priority-highest',
+          value: 'highest',
+          label: 'Highest',
+          icon: 'chevron-double-up',
+          iconColorClassName: 'text-red-500',
+          title:
+            'Highest priority. Super urgent and should be handled immediately.',
+        },
+      ],
+      value,
+      onChange,
     });
   }
 

@@ -78,6 +78,8 @@ export const HUD_DISCLOSURE_ROW_DANGER_EXPANDED_CLASS =
 export const HUD_MENU_ICON_ROW_CLASS =
   'flex w-full items-stretch';
 export const HUD_MENU_CONTROL_ROW_CLASS = 'w-full px-4 py-3';
+export const HUD_MENU_CONTROL_ITEM_CLASS =
+  'flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm leading-5 transition-[background-color,color,box-shadow] duration-150 ease-out';
 export const HUD_MENU_ICON_BUTTON_BASE_CLASS =
   'flex min-w-0 flex-1 items-center justify-center px-0 py-3 text-sm transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-inset disabled:cursor-not-allowed';
 export const HUD_MENU_ICON_BUTTON_DEFAULT_CLASS =
@@ -209,6 +211,7 @@ export const MENU_ITEM_DISABLED_CLASS = HUD_MENU_ITEM_DISABLED_CLASS;
 export const MENU_ITEM_HINT_TRIGGER_CLASS = HUD_MENU_ITEM_HINT_TRIGGER_CLASS;
 export const MENU_ICON_ROW_CLASS = HUD_MENU_ICON_ROW_CLASS;
 export const MENU_CONTROL_ROW_CLASS = HUD_MENU_CONTROL_ROW_CLASS;
+export const MENU_CONTROL_ITEM_CLASS = HUD_MENU_CONTROL_ITEM_CLASS;
 export const MENU_ICON_BUTTON_BASE_CLASS = HUD_MENU_ICON_BUTTON_BASE_CLASS;
 export const MENU_ICON_BUTTON_DEFAULT_CLASS =
   HUD_MENU_ICON_BUTTON_DEFAULT_CLASS;

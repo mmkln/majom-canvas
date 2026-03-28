@@ -29,3 +29,9 @@ export const GOAL_STATUS_PENDING_FILL = '#F4D58D';
 export const GOAL_STATUS_PENDING_BORDER = '#D8A441';
 export const GOAL_STATUS_DEFINED_FILL = '#DDE7F0';
 export const GOAL_STATUS_DEFINED_BORDER = '#8FA3B8';
+
+// Habit state colors
+export const HABIT_ACTIVE_FILL = '#3B82F6';
+export const HABIT_ACTIVE_BORDER = 'transparent';
+export const HABIT_ARCHIVED_FILL = '#CBD5E1';
+export const HABIT_ARCHIVED_BORDER = 'transparent';

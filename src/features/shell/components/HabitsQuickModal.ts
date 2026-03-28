@@ -1,15 +1,11 @@
 import { createModalShell } from '../../../ui-lib/src/components/Modal.ts';
-import { Checkbox } from '../../../ui-lib/src/components/Checkbox.ts';
 import {
-  AnchoredMenu,
-  createDropdownItem,
   createIconButton,
-  createInputBase,
-  createSurface,
   createTextButton,
 } from '../../../ui-lib/src/hud/index.ts';
 import { createIcon } from '../../canvas/ui/icons.ts';
 import {
+  Priority,
   Status,
   type DateCompletion,
   type Habit,
@@ -19,28 +15,26 @@ import { AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
 import { KANBAN_REFRESH_REQUEST_EVENT } from '../../kanban/kanbanEvents.ts';
 import { ShellHabitsService } from '../services/ShellHabitsService.ts';
 import { confirmDeleteRoutineModal } from './ConfirmDeleteRoutineModal.ts';
+import {
+  HabitTrackerTable,
+  type HabitDay,
+  type HabitPrioritySortDirection,
+  type HabitRowState,
+  type HabitSortMode,
+} from './HabitTrackerTable.ts';
+import {
+  normalizeUiPriority,
+  type UiPriority,
+} from '../../../majom-wrapper/utils/priorityMapping.ts';
 
 const DAY_WINDOW_SIZE = 10;
-// Keep streak visuals aligned with Checkbox checked indicator (indigo-600, 20px).
-const STREAK_LINE_COLOR = '#EEF2FF';
-const STREAK_LINE_THICKNESS = 14;
-
-type HabitDay = {
-  date: Date;
-  key: string;
-  dayLabel: string;
-  shortLabel: string;
-};
-
-type HabitRowState = {
-  habit: Habit;
-  completionByDateKey: Map<string, boolean>;
-};
-
-type StreakRowOverlayMeta = {
-  dayAnchors: Array<{ xAnchor: HTMLElement; yAnchor: HTMLElement }>;
-  checkedStates: boolean[];
-};
+const HABIT_PRIORITY_ORDER: readonly UiPriority[] = [
+  'lowest',
+  'low',
+  'medium',
+  'high',
+  'highest',
+];
 
 export type HabitsQuickStatusSnapshot = {
   openCount: number;
@@ -61,6 +55,7 @@ export type HabitsQuickModalService = Pick<
   | 'toggleHabitCompletion'
   | 'createHabit'
   | 'patchHabitTitle'
+  | 'patchHabitPriority'
   | 'archiveHabit'
   | 'restoreHabit'
   | 'deleteHabit'
@@ -136,6 +131,14 @@ export class HabitsQuickModal {
   private header: HTMLDivElement | null = null;
   private body: HTMLDivElement | null = null;
   private footer: HTMLDivElement | null = null;
+  private contentRoot: HTMLDivElement | null = null;
+  private errorHost: HTMLDivElement | null = null;
+  private stateHost: HTMLDivElement | null = null;
+  private toolbarHost: HTMLDivElement | null = null;
+  private noActiveHost: HTMLDivElement | null = null;
+  private tableHost: HTMLDivElement | null = null;
+  private archivedHost: HTMLDivElement | null = null;
+  private tableComponent: HabitTrackerTable | null = null;
   private createOverlay: HTMLDivElement | null = null;
   private createHeader: HTMLDivElement | null = null;
   private createBody: HTMLDivElement | null = null;
@@ -158,17 +161,8 @@ export class HabitsQuickModal {
   private focusCreateInputOnRender = false;
   private readonly pendingCellKeys = new Set<string>();
   private readonly pendingHabitIds = new Set<string>();
-  private readonly rowMenuControllers = new Set<AnchoredMenu>();
-  private streakOverlayWrap: HTMLDivElement | null = null;
-  private streakOverlayRows: StreakRowOverlayMeta[] = [];
-  private streakOverlayRafId: number | null = null;
-  private streakOverlayObserver: ResizeObserver | null = null;
-  private readonly handleStreakOverlayScroll = (): void => {
-    this.scheduleStreakOverlayRender();
-  };
-  private readonly handleStreakOverlayWindowResize = (): void => {
-    this.scheduleStreakOverlayRender();
-  };
+  private sortMode: HabitSortMode = 'title';
+  private prioritySortDirection: HabitPrioritySortDirection = 'desc';
   private readonly disposeRuntimeSubscription: () => void;
 
   constructor(
@@ -223,13 +217,21 @@ export class HabitsQuickModal {
 
   public close(): void {
     if (!this.overlay) return;
-    this.detachStreakOverlay();
     this.overlay.remove();
     this.closeCreateModal();
     this.overlay = null;
     this.header = null;
     this.body = null;
     this.footer = null;
+    this.contentRoot = null;
+    this.errorHost = null;
+    this.stateHost = null;
+    this.toolbarHost = null;
+    this.noActiveHost = null;
+    this.tableHost = null;
+    this.archivedHost = null;
+    this.tableComponent?.destroy();
+    this.tableComponent = null;
     this.rows = [];
     this.archivedRows = [];
     this.showArchived = false;
@@ -242,7 +244,6 @@ export class HabitsQuickModal {
     this.refreshVersion += 1;
     this.pendingCellKeys.clear();
     this.pendingHabitIds.clear();
-    this.disposeRowMenus();
     this.onOpenChange?.(false);
   }
 
@@ -285,6 +286,42 @@ export class HabitsQuickModal {
     if (subtitleElement) {
       subtitleElement.textContent = subtitle;
     }
+  }
+
+  private ensureBodyShell(): void {
+    if (!this.body) return;
+    if (
+      this.contentRoot &&
+      this.errorHost &&
+      this.stateHost &&
+      this.toolbarHost &&
+      this.noActiveHost &&
+      this.tableHost &&
+      this.archivedHost
+    ) {
+      return;
+    }
+
+    this.body.replaceChildren();
+
+    this.contentRoot = document.createElement('div');
+    this.contentRoot.className = 'space-y-3 pb-1';
+    this.errorHost = document.createElement('div');
+    this.stateHost = document.createElement('div');
+    this.toolbarHost = document.createElement('div');
+    this.noActiveHost = document.createElement('div');
+    this.tableHost = document.createElement('div');
+    this.archivedHost = document.createElement('div');
+
+    this.contentRoot.append(
+      this.errorHost,
+      this.stateHost,
+      this.toolbarHost,
+      this.noActiveHost,
+      this.tableHost,
+      this.archivedHost
+    );
+    this.body.appendChild(this.contentRoot);
   }
 
   private buildCompletionMap(habit: Habit): Map<string, boolean> {
@@ -368,173 +405,45 @@ export class HabitsQuickModal {
     );
   }
 
-  private sortRowsByTitle(): void {
-    this.sortRowListByTitle(this.rows);
+  private getPriorityRank(priority: UiPriority): number {
+    return HABIT_PRIORITY_ORDER.indexOf(priority);
+  }
+
+  private compareRows(left: HabitRowState, right: HabitRowState): number {
+    if (this.sortMode === 'priority') {
+      const leftRank = this.getPriorityRank(this.getHabitPriority(left.habit));
+      const rightRank = this.getPriorityRank(this.getHabitPriority(right.habit));
+      const rankDiff =
+        this.prioritySortDirection === 'desc'
+          ? rightRank - leftRank
+          : leftRank - rightRank;
+      if (rankDiff !== 0) return rankDiff;
+    }
+    return left.habit.title.localeCompare(right.habit.title);
+  }
+
+  private sortRows(): void {
+    this.rows.sort((left, right) => this.compareRows(left, right));
   }
 
   private sortArchivedRowsByTitle(): void {
     this.sortRowListByTitle(this.archivedRows);
   }
 
-  private disposeRowMenus(): void {
-    this.rowMenuControllers.forEach((controller) => controller.unmount());
-    this.rowMenuControllers.clear();
-  }
-
-  private closeOtherRowMenus(activeController: AnchoredMenu): void {
-    this.rowMenuControllers.forEach((controller) => {
-      if (controller === activeController) return;
-      controller.close();
-    });
-  }
-
-  private renderStreakOverlay(
-    tableWrap: HTMLDivElement,
-    rows: StreakRowOverlayMeta[]
-  ): void {
-    const existing = tableWrap.querySelector<SVGSVGElement>(
-      '[data-routine-streak-overlay="true"]'
-    );
-    existing?.remove();
-    if (!rows.length) return;
-
-    const width = Math.max(tableWrap.scrollWidth, tableWrap.clientWidth);
-    const height = Math.max(tableWrap.scrollHeight, tableWrap.clientHeight);
-    if (width <= 0 || height <= 0) return;
-
-    const ns = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(ns, 'svg');
-    svg.setAttribute('data-routine-streak-overlay', 'true');
-    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-    svg.setAttribute('width', String(width));
-    svg.setAttribute('height', String(height));
-    svg.style.position = 'absolute';
-    svg.style.left = '0';
-    svg.style.top = '0';
-    svg.style.pointerEvents = 'none';
-    svg.style.zIndex = '0';
-
-    const wrapRect = tableWrap.getBoundingClientRect();
-    rows.forEach((row) => {
-      if (row.dayAnchors.length !== row.checkedStates.length) return;
-      const centers = row.dayAnchors.map((anchor) => {
-        const xRect = anchor.xAnchor.getBoundingClientRect();
-        const yRect = anchor.yAnchor.getBoundingClientRect();
-        return {
-          x:
-            xRect.left -
-            wrapRect.left +
-            tableWrap.scrollLeft -
-            tableWrap.clientLeft +
-            xRect.width / 2,
-          y:
-            yRect.top -
-            wrapRect.top +
-            tableWrap.scrollTop -
-            tableWrap.clientTop +
-            yRect.height / 2,
-        };
-      });
-
-      let runStart: number | null = null;
-      for (let index = 0; index <= row.checkedStates.length; index += 1) {
-        const checked =
-          index < row.checkedStates.length && row.checkedStates[index];
-        if (checked && runStart === null) {
-          runStart = index;
-          continue;
-        }
-        if (checked || runStart === null) continue;
-
-        const runEnd = index - 1;
-        const runLength = runEnd - runStart + 1;
-        if (runLength >= 2) {
-          const x1 = centers[runStart].x;
-          const x2 = centers[runEnd].x;
-          const y = (centers[runStart].y + centers[runEnd].y) / 2;
-
-          const line = document.createElementNS(ns, 'line');
-          line.setAttribute('x1', String(x1));
-          line.setAttribute('y1', String(y));
-          line.setAttribute('x2', String(x2));
-          line.setAttribute('y2', String(y));
-          line.setAttribute('stroke', STREAK_LINE_COLOR);
-          line.setAttribute('stroke-width', String(STREAK_LINE_THICKNESS));
-          line.setAttribute('stroke-linecap', 'round');
-          svg.appendChild(line);
-        }
-        runStart = null;
-      }
-    });
-
-    if (svg.childNodes.length === 0) return;
-    tableWrap.appendChild(svg);
-  }
-
-  private scheduleStreakOverlayRender(): void {
-    if (!this.streakOverlayWrap) return;
-    if (typeof window === 'undefined') {
-      this.renderStreakOverlay(this.streakOverlayWrap, this.streakOverlayRows);
-      return;
+  private togglePrioritySort(): void {
+    if (this.sortMode === 'priority') {
+      this.prioritySortDirection =
+        this.prioritySortDirection === 'desc' ? 'asc' : 'desc';
+    } else {
+      this.sortMode = 'priority';
+      this.prioritySortDirection = 'desc';
     }
-    if (this.streakOverlayRafId !== null) return;
-    this.streakOverlayRafId = window.requestAnimationFrame(() => {
-      this.streakOverlayRafId = null;
-      if (!this.streakOverlayWrap || !this.streakOverlayWrap.isConnected)
-        return;
-      this.renderStreakOverlay(this.streakOverlayWrap, this.streakOverlayRows);
-    });
+    this.sortRows();
+    this.renderBody();
   }
 
-  private detachStreakOverlay(): void {
-    if (typeof window !== 'undefined') {
-      window.removeEventListener(
-        'resize',
-        this.handleStreakOverlayWindowResize
-      );
-      if (this.streakOverlayRafId !== null) {
-        window.cancelAnimationFrame(this.streakOverlayRafId);
-      }
-    }
-    this.streakOverlayRafId = null;
-    this.streakOverlayObserver?.disconnect();
-    this.streakOverlayObserver = null;
-    this.streakOverlayWrap?.removeEventListener(
-      'scroll',
-      this.handleStreakOverlayScroll
-    );
-    this.streakOverlayWrap = null;
-    this.streakOverlayRows = [];
-  }
-
-  private bindStreakOverlay(
-    tableWrap: HTMLDivElement,
-    table: HTMLTableElement,
-    rows: StreakRowOverlayMeta[]
-  ): void {
-    this.detachStreakOverlay();
-    this.streakOverlayWrap = tableWrap;
-    this.streakOverlayRows = rows;
-    tableWrap.addEventListener('scroll', this.handleStreakOverlayScroll, {
-      passive: true,
-    });
-    if (typeof window !== 'undefined') {
-      window.addEventListener('resize', this.handleStreakOverlayWindowResize, {
-        passive: true,
-      });
-    }
-    if (typeof ResizeObserver !== 'undefined') {
-      this.streakOverlayObserver = new ResizeObserver(() => {
-        this.scheduleStreakOverlayRender();
-      });
-      this.streakOverlayObserver.observe(tableWrap);
-      this.streakOverlayObserver.observe(table);
-      const tbody = table.tBodies.item(0);
-      if (tbody) {
-        this.streakOverlayObserver.observe(tbody);
-      }
-    }
-    this.scheduleStreakOverlayRender();
+  private getHabitPriority(habit: Habit): UiPriority {
+    return normalizeUiPriority(habit.priority, 'low');
   }
 
   private renderFooter(): void {
@@ -782,31 +691,52 @@ export class HabitsQuickModal {
 
   private renderBody(): void {
     if (!this.body) return;
-    this.disposeRowMenus();
-    this.detachStreakOverlay();
-    this.body.replaceChildren();
+    this.ensureBodyShell();
+    if (
+      !this.errorHost ||
+      !this.stateHost ||
+      !this.toolbarHost ||
+      !this.noActiveHost ||
+      !this.tableHost ||
+      !this.archivedHost
+    ) {
+      return;
+    }
 
-    const content = document.createElement('div');
-    content.className = 'space-y-3 pb-1';
+    this.errorHost.replaceChildren();
+    this.stateHost.replaceChildren();
+    this.toolbarHost.replaceChildren();
+    this.noActiveHost.replaceChildren();
+    this.archivedHost.replaceChildren();
 
     if (this.errorKey) {
       const errorBox = document.createElement('div');
       errorBox.className =
         'rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700';
       errorBox.textContent = this.i18n.t(this.errorKey);
-      content.appendChild(errorBox);
+      this.errorHost.appendChild(errorBox);
     }
 
-    if (this.loading && this.rows.length === 0 && this.archivedRows.length === 0) {
+    if (
+      this.loading &&
+      this.rows.length === 0 &&
+      this.archivedRows.length === 0
+    ) {
       const loading = document.createElement('div');
       loading.className = 'py-6 text-sm text-slate-500';
       loading.textContent = this.i18n.t('habits.loading');
-      content.appendChild(loading);
-      this.body.appendChild(content);
+      this.stateHost.appendChild(loading);
+      this.tableComponent?.destroy();
+      this.tableComponent = null;
+      this.tableHost.replaceChildren();
       return;
     }
 
-    if (!this.loading && this.rows.length === 0 && this.archivedRows.length === 0) {
+    if (
+      !this.loading &&
+      this.rows.length === 0 &&
+      this.archivedRows.length === 0
+    ) {
       const emptyState = document.createElement('div');
       emptyState.className =
         'flex min-h-[16rem] flex-col items-center justify-center gap-3 text-center';
@@ -826,260 +756,65 @@ export class HabitsQuickModal {
       });
 
       emptyState.append(empty, createFirstRoutineButton);
-      content.appendChild(emptyState);
-      this.body.appendChild(content);
+      this.stateHost.appendChild(emptyState);
+      this.tableComponent?.destroy();
+      this.tableComponent = null;
+      this.tableHost.replaceChildren();
       return;
     }
 
-    content.appendChild(this.renderQuickAddToolbar());
+    this.toolbarHost.appendChild(this.renderQuickAddToolbar());
 
     if (this.rows.length === 0 && this.archivedRows.length > 0) {
       const noActive = document.createElement('p');
       noActive.className = 'text-sm text-slate-500';
       noActive.textContent = this.i18n.t('habits.noActive');
-      content.appendChild(noActive);
+      this.noActiveHost.appendChild(noActive);
     }
 
     if (this.rows.length > 0) {
-      const tableWrap = document.createElement('div');
-      tableWrap.className =
-        'w-full overflow-auto rounded-xl border border-slate-200/80 bg-white';
-      tableWrap.style.position = 'relative';
-      tableWrap.style.maxHeight = 'min(56vh, 34rem)';
-      tableWrap.style.overscrollBehavior = 'contain';
-
-      const table = document.createElement('table');
-      table.className = 'min-w-[860px] w-full border-separate border-spacing-0';
-      table.style.position = 'relative';
-      table.style.zIndex = '1';
-
-      const thead = document.createElement('thead');
-      const headRow = document.createElement('tr');
-      const headerCellBaseClass =
-        'h-11 border-b border-slate-200/80 px-3 py-1.5 align-middle text-[12px] font-semibold leading-[1.35] text-slate-600';
-      const stickyLeftHeaderClass = 'sticky left-0 top-0 z-20 bg-slate-50 text-left';
-      const stickyLeftCellClass = 'sticky left-0 z-10 bg-white';
-      const stickyRightHeaderClass =
-        'sticky right-0 top-0 z-20 bg-slate-50 text-center';
-      const stickyRightCellClass =
-        'sticky right-0 z-10 bg-white';
-      const titleHead = document.createElement('th');
-      titleHead.className =
-        `${headerCellBaseClass} ${stickyLeftHeaderClass}`;
-      titleHead.setAttribute('scope', 'col');
-      titleHead.textContent = this.i18n.t('habits.table.routine');
-      headRow.appendChild(titleHead);
-
-      const todayKey = toLocalDateKey(new Date());
-      this.days.forEach((day) => {
-        const th = document.createElement('th');
-        th.setAttribute('scope', 'col');
-        th.className =
-          `${headerCellBaseClass} sticky top-0 z-20 text-center ${day.key === todayKey ? 'bg-indigo-50' : 'bg-slate-50'}`;
-        const dayLabel = document.createElement('div');
-        dayLabel.className = 'text-[12px] font-semibold text-slate-600';
-        dayLabel.textContent = day.dayLabel;
-        const shortLabel = document.createElement('div');
-        shortLabel.className = 'text-[12px] font-normal text-slate-500';
-        shortLabel.textContent = day.shortLabel;
-        th.append(dayLabel, shortLabel);
-        headRow.appendChild(th);
-      });
-
-      const actionsHead = document.createElement('th');
-      actionsHead.className =
-        `${headerCellBaseClass} ${stickyRightHeaderClass} w-14`;
-      actionsHead.setAttribute('scope', 'col');
-      actionsHead.setAttribute('aria-label', this.i18n.t('common.actions'));
-      const actionsLabel = document.createElement('span');
-      actionsLabel.className = 'sr-only';
-      actionsLabel.textContent = this.i18n.t('common.actions');
-      actionsHead.appendChild(actionsLabel);
-      headRow.appendChild(actionsHead);
-
-      thead.appendChild(headRow);
-      table.appendChild(thead);
-
-      const tbody = document.createElement('tbody');
-      const streakRows: StreakRowOverlayMeta[] = [];
-      const rowCellStateClass =
-        'transition-colors group-hover:bg-slate-50/70 group-focus-within:bg-slate-50/90';
-      const stickyRowCellStateClass =
-        'transition-colors group-hover:bg-slate-50 group-focus-within:bg-slate-50';
-      this.rows.forEach((row) => {
-      const habitPending = this.isHabitPending(this.getHabitRef(row.habit));
-      const rowCheckedStates = this.days.map(
-        (day) => row.completionByDateKey.get(day.key) === true
-      );
-      const dayAnchors: Array<{ xAnchor: HTMLElement; yAnchor: HTMLElement }> =
-        [];
-      const tr = document.createElement('tr');
-      tr.className = 'group h-11 border-b border-slate-200/80 last:border-b-0';
-
-      const title = document.createElement('td');
-      title.className =
-        `${stickyLeftCellClass} px-3 align-middle text-sm text-slate-900 ${stickyRowCellStateClass}`;
-
-      const titleInput = createInputBase({
-        value: row.habit.title,
-        disabled: this.loading || this.createPending || habitPending,
-        className:
-          'h-[34px] min-w-0 border-transparent bg-transparent px-2 text-base font-medium leading-5 text-slate-900 shadow-none hover:border-slate-300 focus-visible:bg-white md:text-sm disabled:border-transparent disabled:bg-transparent disabled:text-slate-500',
-        onKeyDown: (event: KeyboardEvent) => {
-          if (event.key !== 'Enter') return;
-          event.preventDefault();
-          titleInput.blur();
+      if (!this.tableComponent) {
+        this.tableComponent = new HabitTrackerTable(this.i18n);
+        this.tableHost.replaceChildren(this.tableComponent.element);
+      } else if (!this.tableComponent.element.isConnected) {
+        this.tableHost.replaceChildren(this.tableComponent.element);
+      }
+      this.tableComponent.update({
+        rows: this.rows,
+        days: this.days,
+        loading: this.loading,
+        createPending: this.createPending,
+        pendingCellKeys: this.pendingCellKeys,
+        sortMode: this.sortMode,
+        prioritySortDirection: this.prioritySortDirection,
+        isHabitPending: (habitUuid) => this.isHabitPending(habitUuid),
+        onTogglePrioritySort: () => {
+          this.togglePrioritySort();
         },
-      });
-      titleInput.title = row.habit.title;
-      titleInput.addEventListener('blur', () => {
-        void this.renameHabit(row, titleInput.value);
-      });
-      title.appendChild(titleInput);
-      tr.appendChild(title);
-
-      this.days.forEach((day, index) => {
-        const td = document.createElement('td');
-        td.className = `h-11 px-3 text-center align-middle ${rowCellStateClass}`;
-        const cellKey = this.toCellKey(this.getHabitRef(row.habit), day.key);
-        const pending = this.pendingCellKeys.has(cellKey);
-        const checked = rowCheckedStates[index];
-        const checkboxDisabled =
-          pending || this.loading || this.createPending || habitPending;
-
-        const checkbox = new Checkbox({
-          checked,
-          disabled: checkboxDisabled,
-          ariaLabel: `${row.habit.title} ${day.shortLabel} completion`,
-          className: 'inline-flex items-center justify-center',
-        });
-        checkbox.onChange(() => {
-          void this.toggleCell(row, day, checked);
-        });
-
-        const streakCell = document.createElement('div');
-        streakCell.className =
-          'relative mx-auto flex h-8 w-8 items-center justify-center';
-
-        const checkboxEl = checkbox.getElement();
-        checkboxEl.style.position = 'relative';
-        checkboxEl.style.zIndex = '1';
-        checkboxEl.style.display = 'inline-flex';
-        checkboxEl.style.alignItems = 'center';
-        checkboxEl.style.justifyContent = 'center';
-        const indicatorEl = checkboxEl.querySelector('div');
-        streakCell.appendChild(checkboxEl);
-
-        dayAnchors.push({
-          xAnchor: streakCell,
-          yAnchor:
-            indicatorEl instanceof HTMLElement ? indicatorEl : streakCell,
-        });
-
-        td.appendChild(streakCell);
-        tr.appendChild(td);
-      });
-
-      const actions = document.createElement('td');
-      actions.className =
-        `${stickyRightCellClass} w-14 px-3 text-center align-middle ${stickyRowCellStateClass}`;
-      const actionsRow = document.createElement('div');
-      actionsRow.className = 'relative inline-flex';
-
-      const menuButton = createIconButton({
-        icon: 'ellipsis-vertical',
-        size: 'sm',
-        tone: 'text',
-        title: this.i18n.t('habits.rowActions'),
-        ariaLabel: this.i18n.t('habits.openRowActions'),
-        disabled: this.loading || this.createPending || habitPending,
-      });
-      menuButton.classList.add('text-slate-600');
-      menuButton.setAttribute('aria-haspopup', 'menu');
-
-      const menuPanel = createSurface({
-        elevated: true,
-        className: 'absolute left-0 top-0 z-50 hidden w-36 overflow-hidden',
-      });
-      menuPanel.setAttribute('role', 'menu');
-
-      const menuController = new AnchoredMenu({
-        container: actionsRow,
-        panel: menuPanel,
-        onOpenChange: (open) => {
-          menuButton.setAttribute('aria-expanded', open ? 'true' : 'false');
-          menuButton.classList.toggle('bg-indigo-50', open);
-          menuButton.classList.toggle('text-indigo-700', open);
-          actions.style.zIndex = open ? '40' : '';
-          actionsRow.style.zIndex = open ? '50' : '';
+        onRenameHabit: (row, nextTitleRaw) => {
+          void this.renameHabit(row, nextTitleRaw);
         },
-      });
-      menuController.mount();
-      this.rowMenuControllers.add(menuController);
-
-      const archiveItem = createDropdownItem({
-        label: this.i18n.t('common.archive'),
-        onClick: () => {
-          menuController.close();
+        onUpdatePriority: (row, nextPriority) => {
+          void this.updateHabitPriority(row, nextPriority);
+        },
+        onToggleCell: (row, day, previousChecked) => {
+          void this.toggleCell(row, day, previousChecked);
+        },
+        onArchiveHabit: (row) => {
           void this.archiveHabit(row);
         },
-      });
-      archiveItem.setAttribute('role', 'menuitem');
-
-      const deleteItem = createDropdownItem({
-        label: this.i18n.t('common.delete'),
-        variant: 'danger',
-        onClick: () => {
-          menuController.close();
+        onDeleteHabit: (row) => {
           void this.deleteHabit(row);
         },
       });
-      deleteItem.setAttribute('role', 'menuitem');
-
-      menuPanel.append(archiveItem, deleteItem);
-      menuButton.setAttribute('aria-expanded', 'false');
-      menuButton.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (menuButton.disabled) return;
-        if (menuController.isOpen()) {
-          menuController.close();
-          return;
-        }
-        this.closeOtherRowMenus(menuController);
-        menuController.openAt({
-          anchor: menuButton,
-          placement: 'bottom-end',
-          fallbackPlacements: ['bottom-start', 'top-end', 'top-start'],
-          gap: 4,
-          margin: 8,
-          lockPlacementAfterOpen: true,
-        });
-      });
-
-      actionsRow.append(menuButton, menuPanel);
-
-      actions.appendChild(actionsRow);
-      tr.appendChild(actions);
-
-        tbody.appendChild(tr);
-        streakRows.push({
-          dayAnchors,
-          checkedStates: rowCheckedStates,
-        });
-      });
-
-      table.appendChild(tbody);
-      tableWrap.appendChild(table);
-      content.appendChild(tableWrap);
-      this.body.appendChild(content);
-      this.bindStreakOverlay(tableWrap, table, streakRows);
     } else {
-      this.body.appendChild(content);
+      this.tableComponent?.destroy();
+      this.tableComponent = null;
+      this.tableHost.replaceChildren();
     }
 
     if (this.archivedRows.length > 0) {
-      content.appendChild(this.renderArchivedSection());
+      this.archivedHost.appendChild(this.renderArchivedSection());
     }
   }
 
@@ -1101,7 +836,7 @@ export class HabitsQuickModal {
         this.archivedRows = habits
           .filter((habit) => habit.status === Status.Archived)
           .map((habit) => this.mapHabitToRow(habit));
-        this.sortRowsByTitle();
+        this.sortRows();
         this.sortArchivedRowsByTitle();
         if (this.archivedRows.length === 0) {
           this.showArchived = false;
@@ -1136,7 +871,7 @@ export class HabitsQuickModal {
       const created = await this.service.createHabit(title);
       if (created.status === Status.Active) {
         this.rows.push(this.mapHabitToRow(created));
-        this.sortRowsByTitle();
+        this.sortRows();
       }
       this.createTitle = '';
       this.closeCreateModal();
@@ -1177,22 +912,63 @@ export class HabitsQuickModal {
       ...row.habit,
       title: nextTitle,
     };
-    this.sortRowsByTitle();
+    this.sortRows();
     this.renderFooter();
     this.renderBody();
     try {
       const updated = await this.service.patchHabitTitle(habitUuid, nextTitle);
       row.habit = updated;
       row.completionByDateKey = this.buildCompletionMap(updated);
-      this.sortRowsByTitle();
+      this.sortRows();
       emitKanbanRefreshRequest();
     } catch {
       row.habit = {
         ...row.habit,
         title: previousTitle,
       };
-      this.sortRowsByTitle();
+      this.sortRows();
       this.errorKey = 'habits.error.rename';
+    } finally {
+      this.pendingHabitIds.delete(habitUuid);
+      this.renderFooter();
+      this.renderBody();
+    }
+  }
+
+  private async updateHabitPriority(
+    row: HabitRowState,
+    nextPriority: UiPriority
+  ): Promise<void> {
+    const habitUuid = this.getHabitRef(row.habit);
+    if (this.loading || this.createPending || this.isHabitPending(habitUuid)) {
+      return;
+    }
+
+    const previousPriority = this.getHabitPriority(row.habit);
+    if (nextPriority === previousPriority) return;
+
+    this.errorKey = null;
+    this.pendingHabitIds.add(habitUuid);
+    row.habit = {
+      ...row.habit,
+      priority: nextPriority as Priority,
+    };
+    this.renderFooter();
+    this.renderBody();
+    try {
+      const updated = await this.service.patchHabitPriority(
+        habitUuid,
+        nextPriority
+      );
+      row.habit = updated;
+      row.completionByDateKey = this.buildCompletionMap(updated);
+      emitKanbanRefreshRequest();
+    } catch {
+      row.habit = {
+        ...row.habit,
+        priority: previousPriority as Priority,
+      };
+      this.errorKey = 'habits.error.priority';
     } finally {
       this.pendingHabitIds.delete(habitUuid);
       this.renderFooter();
@@ -1245,7 +1021,7 @@ export class HabitsQuickModal {
       );
       if (restored.status === Status.Active) {
         this.rows.push(this.mapHabitToRow(restored));
-        this.sortRowsByTitle();
+        this.sortRows();
       }
       if (this.archivedRows.length === 0) {
         this.showArchived = false;

@@ -195,6 +195,8 @@ export const es: AppTranslations = {
   'common.close': 'Cerrar',
   'common.create': 'Crear',
   'common.delete': 'Eliminar',
+  'common.markDoneToday': 'Marcar como hecho hoy',
+  'common.restore': 'Restaurar',
   'common.language': 'Idioma',
   'common.languageEnglish': 'Inglés',
   'common.languageRusyn': 'Rusino',
@@ -205,6 +207,7 @@ export const es: AppTranslations = {
   'common.retry': 'Reintentar',
   'common.save': 'Guardar',
   'common.undo': 'Deshacer',
+  'common.undoToday': 'Deshacer hoy',
   'profileSettings.open': 'Configuración del perfil',
   'profileSettings.title': 'Configuración del perfil',
   'profileSettings.subtitle':
@@ -310,6 +313,7 @@ export const es: AppTranslations = {
   'profileSettings.delete.success':
     'Se solicitó la eliminación de la cuenta.',
   'header.aiAssistant': 'Asistente de IA',
+  'header.closeRoutines': 'Cerrar rutinas',
   'header.logout': 'Cerrar sesión',
   'header.openAppMenu': 'Abrir menú de la app',
   'header.openRoutines': 'Abrir rutinas',
@@ -325,6 +329,22 @@ export const es: AppTranslations = {
   'habits.create.title': 'Nueva rutina',
   'habits.createFirst': 'Crear la primera rutina',
   'habits.createPending': 'Creando...',
+  'habits.archived.description':
+    'Ocultas del seguimiento activo. Puedes restaurarlas en cualquier momento.',
+  'habits.archived.itemDescription': 'Rutina archivada',
+  'habits.archived.panelDescription':
+    'Las rutinas archivadas se mantienen fuera del seguimiento diario hasta que las restaures.',
+  'habits.archived.status': 'Archivada',
+  'habits.archived.toggle': 'Archivadas ({count})',
+  'habits.card.completedToday': 'Completada hoy',
+  'habits.card.history': 'Historial reciente',
+  'habits.card.historyHint': 'Actualiza cualquiera de los últimos 10 días.',
+  'habits.card.lastTen': '{count}/10 completadas',
+  'habits.card.manageHint':
+    '¿Necesitas renombrar, archivar o corregir el historial? Cambia a Gestionar.',
+  'habits.card.openToday': 'Pendiente hoy',
+  'habits.card.streak': 'Racha actual: {count}',
+  'habits.card.today': 'Hoy',
   'habits.empty': 'Todavía no hay rutinas activas.',
   'habits.error.archive': 'No se pudo archivar la rutina.',
   'habits.error.create': 'No se pudo crear la rutina.',
@@ -332,16 +352,39 @@ export const es: AppTranslations = {
   'habits.error.emptyTitle':
     'El título de la rutina no puede estar vacío.',
   'habits.error.load': 'No se pudieron cargar las rutinas.',
+  'habits.error.priority': 'No se pudo actualizar la prioridad de la rutina.',
   'habits.error.rename': 'No se pudo renombrar la rutina.',
+  'habits.error.restore': 'No se pudo restaurar la rutina.',
   'habits.error.toggleCompletion':
     'No se pudo actualizar el estado de la rutina.',
   'habits.loading': 'Cargando rutinas...',
-  'habits.modal.subtitle': 'Historial de completado de los últimos 10 días',
+  'habits.manage.description':
+    'Renombra rutinas, corrige el historial reciente y administra el archivo sin interrumpir el flujo de Hoy.',
+  'habits.modal.subtitle': 'Mantén el foco en hoy y en tu impulso reciente.',
   'habits.modal.title': 'Rutinas',
   'habits.newRoutine': 'Nueva rutina',
   'habits.openRowActions': 'Abrir acciones de la rutina',
+  'habits.priority': 'Prioridad',
   'habits.rowActions': 'Acciones de la rutina',
+  'habits.summary.archived': 'Archivadas',
+  'habits.summary.archivedCount': '{count} archivadas',
+  'habits.summary.cleared': 'Bien. Terminaste por hoy.',
+  'habits.summary.hiddenCompleted': '{count} ocultas',
+  'habits.summary.keepGoing': '{open} siguen abiertas. Sigue así.',
+  'habits.summary.noneDue': 'No hay nada pendiente hoy.',
+  'habits.summary.open': 'Pendientes',
+  'habits.summary.progress': '{completed} de {total} hechas hoy',
+  'habits.summary.today': 'Hoy',
   'habits.table.routine': 'Rutina',
+  'habits.today.archivedHint':
+    'Ahora solo tienes rutinas archivadas. Abre Gestionar para restaurar una o crea una rutina nueva.',
+  'habits.today.hiddenCompletedEmpty':
+    'Todo lo visible de hoy ya está hecho. Muestra las rutinas completadas para revisarlas.',
+  'habits.today.hideCompleted': 'Ocultar hechas',
+  'habits.today.showCompleted': 'Mostrar hechas ({count})',
+  'habits.view.aria': 'Vista de rutinas',
+  'habits.view.manage': 'Gestionar',
+  'habits.view.today': 'Hoy',
   'loading.canvasFailed':
     'No se pudieron cargar los datos del canvas. Vuelve a intentarlo.',
   'login.caption': 'Inicia sesión en Majom Canvas',
@@ -364,6 +407,9 @@ export const es: AppTranslations = {
   'routineDelete.confirmMessage':
     '¿Seguro que quieres eliminar "{routine}" de forma permanente? Esta acción no se puede deshacer.',
   'routineDelete.confirmTitle': '¿Eliminar rutina permanentemente?',
+  'routineArchive.confirmMessage':
+    '¿Seguro que quieres archivar "{routine}"? Se quitará de tus rutinas activas y podrás restaurarla más tarde.',
+  'routineArchive.confirmTitle': '¿Archivar rutina?',
   'saveButton.autosaveFailed': 'Falló el autoguardado',
   'saveButton.autosaveInProgress': 'Autoguardado en curso',
   'saveButton.save': 'Guardar',

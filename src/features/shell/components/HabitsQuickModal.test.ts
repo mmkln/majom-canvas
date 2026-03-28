@@ -12,6 +12,7 @@ import {
   HabitsQuickModal,
   type HabitsQuickModalService,
 } from './HabitsQuickModal.ts';
+import type { UiPriority } from '../../../majom-wrapper/utils/priorityMapping.ts';
 
 type Deferred<T> = {
   promise: Promise<T>;
@@ -68,6 +69,10 @@ function createService(
   options?: {
     createImpl?: (title: string) => Promise<Habit>;
     patchTitleImpl?: (habitUuid: string, title: string) => Promise<Habit>;
+    patchPriorityImpl?: (
+      habitUuid: string,
+      priority: UiPriority
+    ) => Promise<Habit>;
     archiveImpl?: (habitUuid: string) => Promise<Habit>;
     restoreImpl?: (habitUuid: string) => Promise<Habit>;
     deleteImpl?: (habitUuid: string) => Promise<void>;
@@ -78,6 +83,7 @@ function createService(
   toggleHabitCompletion: ReturnType<typeof vi.fn>;
   createHabit: ReturnType<typeof vi.fn>;
   patchHabitTitle: ReturnType<typeof vi.fn>;
+  patchHabitPriority: ReturnType<typeof vi.fn>;
   archiveHabit: ReturnType<typeof vi.fn>;
   restoreHabit: ReturnType<typeof vi.fn>;
   deleteHabit: ReturnType<typeof vi.fn>;
@@ -96,6 +102,15 @@ function createService(
           id: habitIdFromUuid(habitUuid),
           uuid: habitUuid,
           title,
+        }))
+  );
+  const patchHabitPriority = vi.fn(
+    options?.patchPriorityImpl ??
+      (async (habitUuid: string, priority: UiPriority) =>
+        makeHabit({
+          id: habitIdFromUuid(habitUuid),
+          uuid: habitUuid,
+          priority: priority as Priority,
         }))
   );
   const archiveHabit = vi.fn(
@@ -124,6 +139,7 @@ function createService(
     toggleHabitCompletion,
     createHabit,
     patchHabitTitle,
+    patchHabitPriority,
     archiveHabit,
     restoreHabit,
     deleteHabit,
@@ -134,6 +150,7 @@ function createService(
     toggleHabitCompletion,
     createHabit,
     patchHabitTitle,
+    patchHabitPriority,
     archiveHabit,
     restoreHabit,
     deleteHabit,
@@ -355,56 +372,85 @@ describe('HabitsQuickModal routines management', () => {
     const headers = Array.from(
       modal.body.querySelectorAll('thead th')
     ) as HTMLTableCellElement[];
-    expect(headers).toHaveLength(12);
+    expect(headers).toHaveLength(13);
     expect(headers[0].getAttribute('scope')).toBe('col');
     expect(headers[0].className).toContain('h-11');
+    expect(headers[0].className).toContain('w-[44px]');
+    expect(headers[0].className).toContain('text-center');
+    expect(headers[0].className).toContain('sticky');
+    expect(headers[0].className).toContain('left-0');
     expect(headers[0].className).toContain('z-20');
     expect(headers[0].className).toContain('top-0');
-    expect(headers[1].className).toContain('px-3');
-    expect(headers[1].className).toContain('text-[12px]');
-    expect(headers[1].className).toContain('bg-indigo-50');
     expect(headers[1].className).toContain('sticky');
-    expect(headers[1].className).toContain('top-0');
+    expect(headers[1].className).toContain('text-left');
     expect(headers[1].className).toContain('z-20');
-    expect(headers[1].style.background).toBe('');
-    expect(headers[11].className).toContain('sticky');
-    expect(headers[11].className).toContain('right-0');
-    expect(headers[11].className).toContain('z-20');
-    expect(headers[11].className).toContain('top-0');
-    expect(headers[11].className).not.toContain('border-l');
+    expect(headers[1].style.left).toBe('44px');
+    expect(headers[2].className).toContain('px-3');
+    expect(headers[2].className).toContain('text-[12px]');
+    expect(headers[2].className).toContain('bg-indigo-50');
+    expect(headers[2].className).toContain('sticky');
+    expect(headers[2].className).toContain('top-0');
+    expect(headers[2].className).toContain('z-20');
+    expect(headers[2].style.background).toBe('');
+    expect(headers[12].className).toContain('sticky');
+    expect(headers[12].className).toContain('right-0');
+    expect(headers[12].className).toContain('z-20');
+    expect(headers[12].className).toContain('top-0');
+    expect(headers[12].className).not.toContain('border-l');
 
-    const shortLabel = headers[1].children[1] as HTMLElement;
+    const priorityHeaderButton = headers[0].querySelector('button');
+    expect(priorityHeaderButton?.textContent?.trim()).toBe('');
+    expect(priorityHeaderButton?.getAttribute('aria-label')).toBe('Priority');
+    expect(
+      priorityHeaderButton?.querySelector('svg')?.getAttribute('data-icon-name')
+    ).toBe('bars-2');
+
+    const shortLabel = headers[2].children[1] as HTMLElement;
     expect(shortLabel.className).toContain('text-[12px]');
 
     const row = modal.body.querySelector('tbody tr') as HTMLTableRowElement | null;
     expect(row).not.toBeNull();
     expect(row?.className).toContain('group');
 
-    const titleCell = row?.querySelector('td') as HTMLTableCellElement | null;
+    const bodyCells = Array.from(row?.querySelectorAll('td') ?? []) as
+      HTMLTableCellElement[];
+    expect(bodyCells).toHaveLength(13);
+
+    const priorityCell = bodyCells[0] ?? null;
+    const titleCell = bodyCells[1] ?? null;
+    expect(priorityCell).not.toBeNull();
+    expect(priorityCell?.className).toContain('sticky');
+    expect(priorityCell?.className).toContain('left-0');
+    expect(priorityCell?.className).toContain('z-10');
     expect(titleCell).not.toBeNull();
     expect(titleCell?.className).toContain('z-10');
+    expect(titleCell?.style.left).toBe('44px');
     expect(titleCell?.className).toContain('group-hover:bg-slate-50');
     expect(titleCell?.className).toContain('group-focus-within:bg-slate-50');
     expect(titleCell?.className).not.toContain('group-hover:bg-slate-50/70');
+    expect(bodyCells[12].className).toContain('sticky');
+    expect(bodyCells[12].className).toContain('right-0');
+    expect(bodyCells[12].className).toContain('z-10');
+    expect(bodyCells[12].className).toContain('group-hover:bg-slate-50');
+    expect(bodyCells[12].className).toContain('group-focus-within:bg-slate-50');
+    expect(bodyCells[12].className).not.toContain('border-l');
 
-    const bodyCells = Array.from(row?.querySelectorAll('td') ?? []) as
-      HTMLTableCellElement[];
-    expect(bodyCells).toHaveLength(12);
-    expect(bodyCells[11].className).toContain('sticky');
-    expect(bodyCells[11].className).toContain('right-0');
-    expect(bodyCells[11].className).toContain('z-10');
-    expect(bodyCells[11].className).toContain('group-hover:bg-slate-50');
-    expect(bodyCells[11].className).toContain('group-focus-within:bg-slate-50');
-    expect(bodyCells[11].className).not.toContain('border-l');
+    const priorityCellButton = bodyCells[0]?.querySelector(
+      `[data-habit-priority-trigger="${habit.uuid}"]`
+    ) as HTMLButtonElement | null;
+    expect(priorityCellButton).not.toBeNull();
+    expect(priorityCellButton?.textContent?.trim()).toBe('');
 
-    const titleInput = row?.querySelector('input[type="text"]') as
-      | HTMLInputElement
-      | null;
-    expect(titleInput).not.toBeNull();
-    expect(titleInput?.getAttribute('data-component')).toBe('HudInputBase');
-    expect(titleInput?.className).toContain('text-base');
-    expect(titleInput?.className).toContain('md:text-sm');
-    expect(titleInput?.className).toContain('focus-visible:ring-2');
+    const titleLabel = row?.querySelector(
+      `[data-habit-title-label="${habit.uuid}"]`
+    ) as HTMLButtonElement | null;
+    expect(titleLabel).not.toBeNull();
+    expect(titleLabel?.textContent).toBe('Morning Routine');
+    expect(titleLabel?.className).toContain('truncate');
+    expect(titleLabel?.className).toContain('text-base');
+    expect(titleLabel?.tagName).toBe('BUTTON');
+    expect(titleLabel?.getAttribute('aria-label')).toBeTruthy();
+    expect(row?.querySelector(`[data-habit-title-input="${habit.uuid}"]`)).toBeNull();
 
     const checkboxRoot = row?.querySelector(
       '[data-component="Checkbox"]'
@@ -415,6 +461,79 @@ describe('HabitsQuickModal routines management', () => {
     expect(indicator?.className).toContain('hover:border-slate-400');
     expect(indicator?.style.borderColor).toBe('');
     expect(indicator?.style.backgroundColor).toBe('');
+  });
+
+  it('sorts routines by priority when the priority header is clicked', () => {
+    const low = makeHabit({
+      id: 'habit-uuid-1',
+      title: 'Low routine',
+      priority: Priority.Low,
+    });
+    const highest = makeHabit({
+      id: 'habit-uuid-2',
+      title: 'Highest routine',
+      priority: Priority.Highest,
+    });
+    const medium = makeHabit({
+      id: 'habit-uuid-3',
+      title: 'Medium routine',
+      priority: Priority.Medium,
+    });
+    const { service } = createService([low, highest, medium], async () => low);
+    const modal = new HabitsQuickModal(service) as any;
+    modal.body = document.createElement('div');
+    modal.rows = [
+      modal.mapHabitToRow(low),
+      modal.mapHabitToRow(highest),
+      modal.mapHabitToRow(medium),
+    ];
+    modal.loading = false;
+
+    modal.renderBody();
+
+    const tableWrapBefore = modal.body.querySelector(
+      'div.w-full.overflow-auto.rounded-xl.border.border-slate-200\\/80.bg-white'
+    ) as HTMLDivElement | null;
+    const priorityHeaderButton = modal.body.querySelector(
+      'thead th:nth-child(1) button'
+    ) as HTMLButtonElement | null;
+    priorityHeaderButton?.click();
+
+    const tableWrapAfterDesc = modal.body.querySelector(
+      'div.w-full.overflow-auto.rounded-xl.border.border-slate-200\\/80.bg-white'
+    ) as HTMLDivElement | null;
+    const sortedDescHeaderButton = modal.body.querySelector(
+      'thead th:nth-child(1) button'
+    ) as HTMLButtonElement | null;
+
+    expect(tableWrapAfterDesc).toBe(tableWrapBefore);
+    expect(modal.rows.map((item: any) => item.habit.title)).toEqual([
+      'Highest routine',
+      'Medium routine',
+      'Low routine',
+    ]);
+    expect(
+      sortedDescHeaderButton?.querySelector('svg')?.getAttribute('data-icon-name')
+    ).toBe('arrow-down');
+
+    sortedDescHeaderButton?.click();
+
+    const sortedAscHeaderButton = modal.body.querySelector(
+      'thead th:nth-child(1) button'
+    ) as HTMLButtonElement | null;
+    const tableWrapAfterAsc = modal.body.querySelector(
+      'div.w-full.overflow-auto.rounded-xl.border.border-slate-200\\/80.bg-white'
+    ) as HTMLDivElement | null;
+
+    expect(modal.rows.map((item: any) => item.habit.title)).toEqual([
+      'Low routine',
+      'Medium routine',
+      'Highest routine',
+    ]);
+    expect(tableWrapAfterAsc).toBe(tableWrapBefore);
+    expect(
+      sortedAscHeaderButton?.querySelector('svg')?.getAttribute('data-icon-name')
+    ).toBe('arrow-up');
   });
 
   it('renames routine and keeps sorted rows', async () => {
@@ -442,6 +561,76 @@ describe('HabitsQuickModal routines management', () => {
       'Aardvark',
       'Alpha',
     ]);
+    const eventArg = (globalThis as any).window.dispatchEvent.mock.calls[0][0] as {
+      type: string;
+    };
+    expect(eventArg.type).toBe(KANBAN_REFRESH_REQUEST_EVENT);
+  });
+
+  it('opens the routine title editor only on demand', () => {
+    const habit = makeHabit();
+    const { service } = createService([habit], async () => habit);
+    const modal = new HabitsQuickModal(service) as any;
+    modal.body = document.createElement('div');
+    modal.rows = [modal.mapHabitToRow(habit)];
+    modal.loading = false;
+
+    modal.renderBody();
+
+    const editTrigger = modal.body.querySelector(
+      `[data-habit-title-label="${habit.uuid}"]`
+    ) as HTMLButtonElement | null;
+    expect(editTrigger).not.toBeNull();
+
+    editTrigger?.click();
+
+    const titleInput = modal.body.querySelector(
+      `[data-habit-title-input="${habit.uuid}"]`
+    ) as HTMLInputElement | null;
+    expect(titleInput).not.toBeNull();
+    expect(titleInput?.getAttribute('data-component')).toBe('HudInputBase');
+    expect(titleInput?.value).toBe('Morning Routine');
+  });
+
+  it('renders a compact priority selector in the dedicated priority column', () => {
+    const habit = makeHabit({ priority: Priority.High });
+    const { service } = createService([habit], async () => habit);
+    const modal = new HabitsQuickModal(service) as any;
+    modal.body = document.createElement('div');
+    modal.rows = [modal.mapHabitToRow(habit)];
+    modal.loading = false;
+
+    modal.renderBody();
+
+    const trigger = modal.body.querySelector(
+      `[data-habit-priority-trigger="${habit.uuid}"]`
+    ) as HTMLButtonElement | null;
+    const icon = trigger?.querySelector('svg');
+
+    expect(trigger).not.toBeNull();
+    expect(trigger?.getAttribute('aria-label')).toContain('Priority');
+    expect(trigger?.textContent?.trim()).toBe('');
+    expect(icon?.getAttribute('data-icon-name')).toBe('chevron-up');
+    expect(icon?.classList.contains('text-red-500')).toBe(true);
+  });
+
+  it('updates routine priority and keeps the returned server state', async () => {
+    const base = makeHabit({ id: 'habit-uuid-7', priority: Priority.Low });
+    const updated = makeHabit({ id: 'habit-uuid-7', priority: Priority.High });
+    const { service, patchHabitPriority } = createService(
+      [base],
+      async () => base,
+      {
+        patchPriorityImpl: async () => updated,
+      }
+    );
+    const modal = new HabitsQuickModal(service) as any;
+    modal.rows = [modal.mapHabitToRow(base)];
+
+    await modal.updateHabitPriority(modal.rows[0], 'high');
+
+    expect(patchHabitPriority).toHaveBeenCalledWith('habit-uuid-7', 'high');
+    expect(modal.rows[0].habit.priority).toBe(Priority.High);
     const eventArg = (globalThis as any).window.dispatchEvent.mock.calls[0][0] as {
       type: string;
     };

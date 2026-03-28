@@ -8,6 +8,10 @@ import {
   Status,
   type Habit,
 } from '../../../majom-wrapper/interfaces/index.ts';
+import {
+  mapPriorityToBackend,
+  type UiPriority,
+} from '../../../majom-wrapper/utils/priorityMapping.ts';
 
 export class ShellHabitsService {
   private readonly http = new HttpInterceptorClient(environment.apiUrl);
@@ -46,6 +50,17 @@ export class ShellHabitsService {
   ): Promise<Habit> {
     return firstValueFrom(
       this.habitsApi.patchHabitTitle(habitUuid, title).pipe(first())
+    );
+  }
+
+  public async patchHabitPriority(
+    habitUuid: string,
+    priority: UiPriority
+  ): Promise<Habit> {
+    return firstValueFrom(
+      this.habitsApi
+        .patchHabit(habitUuid, { priority: mapPriorityToBackend(priority) })
+        .pipe(first())
     );
   }
 

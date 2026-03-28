@@ -127,6 +127,8 @@ export class HabitElement extends PlanningElement {
       });
     }
 
+    super.drawAnchors(ctx, panZoom);
+
     ctx.restore();
   }
 

@@ -8,32 +8,43 @@ export const en = {
     'Drop the goal where you want it to appear.',
   'existingPicker.compactHint.story':
     'Drop the story where you want it to appear.',
+  'existingPicker.compactHint.habit':
+    'Drop the routine where you want it to appear.',
   'existingPicker.compactHint.task':
     'Drop the task where you want it to appear.',
   'existingPicker.compactTitle': 'Placing on canvas',
   'existingPicker.dialogTitle.goal': 'Add existing goal',
+  'existingPicker.dialogTitle.habit': 'Add existing routine',
   'existingPicker.dialogTitle.story': 'Add existing story',
   'existingPicker.dialogTitle.task': 'Add existing task',
   'existingPicker.drawerSubtitle.goal':
     'Search existing goals and place them where you need.',
+  'existingPicker.drawerSubtitle.habit':
+    'Search existing routines and place them where you need.',
   'existingPicker.drawerSubtitle.story':
     'Search existing stories and place them where you need.',
   'existingPicker.drawerSubtitle.task':
     'Search existing tasks and place them where you need.',
   'existingPicker.empty.none.goal': 'No goals to show',
+  'existingPicker.empty.none.habit': 'No routines to show',
   'existingPicker.empty.none.story': 'No stories to show',
   'existingPicker.empty.none.task': 'No tasks to show',
   'existingPicker.empty.notFound.goal': 'No goals found',
+  'existingPicker.empty.notFound.habit': 'No routines found',
   'existingPicker.empty.notFound.story': 'No stories found',
   'existingPicker.empty.notFound.task': 'No tasks found',
   'existingPicker.emptySubtitle.noTerm.goal':
     'Search existing goals or add one directly from the canvas.',
+  'existingPicker.emptySubtitle.noTerm.habit':
+    'Search existing routines or add one directly from the canvas.',
   'existingPicker.emptySubtitle.noTerm.story':
     'Search existing stories or add one directly from the canvas.',
   'existingPicker.emptySubtitle.noTerm.task':
     'Search existing tasks or add one directly from the canvas.',
   'existingPicker.emptySubtitle.withTerm.goal':
     'Try a different keyword or drag another goal onto the canvas.',
+  'existingPicker.emptySubtitle.withTerm.habit':
+    'Try a different keyword or drag another routine onto the canvas.',
   'existingPicker.emptySubtitle.withTerm.story':
     'Try a different keyword or drag another story onto the canvas.',
   'existingPicker.emptySubtitle.withTerm.task':
@@ -49,12 +60,14 @@ export const en = {
   'existingPicker.retryLoadMore': 'Retry load more',
   'existingPicker.scrollForMore': 'Scroll for more',
   'existingPicker.searchPlaceholder.goal': 'Search goals...',
+  'existingPicker.searchPlaceholder.habit': 'Search routines...',
   'existingPicker.searchPlaceholder.story': 'Search stories...',
   'existingPicker.searchPlaceholder.task': 'Search tasks...',
   'existingPicker.shownCount': '{count} shown',
   'existingPicker.unknown': 'Unknown',
   'existingPicker.updated': 'Updated {date}',
   'existingPicker.untitled.goal': 'Untitled goal',
+  'existingPicker.untitled.habit': 'Untitled routine',
   'existingPicker.untitled.story': 'Untitled story',
   'existingPicker.untitled.task': 'Untitled task',
   'priority.high': 'High',
@@ -362,11 +375,15 @@ export const en = {
   'canvasContextMenu.element': 'element',
   'canvasContextMenu.fillMissingDetails': 'Fill missing details',
   'canvasContextMenu.findExistingGoal': 'Find existing goal',
+  'canvasContextMenu.findExistingHabit': 'Find existing routine',
   'canvasContextMenu.findExistingStory': 'Find existing story',
   'canvasContextMenu.findExistingTask': 'Find existing task',
   'canvasContextMenu.focus': 'Focus',
   'canvasContextMenu.goal': 'goal',
   'canvasContextMenu.goals': 'goals',
+  'canvasContextMenu.habit': 'routine',
+  'canvasContextMenu.habitActions': 'Routine actions',
+  'canvasContextMenu.habits': 'routines',
   'canvasContextMenu.highlight': 'Highlight',
   'canvasContextMenu.item': 'item',
   'canvasContextMenu.linkBlockers': 'Link blockers',
@@ -403,16 +420,20 @@ export const en = {
   'common.close': 'Close',
   'common.create': 'Create',
   'common.delete': 'Delete',
+  'common.doneToday': 'Done today',
+  'common.markDoneToday': 'Mark done today',
   'common.language': 'Language',
   'common.languageEnglish': 'English',
   'common.languageRusyn': 'Rusyn',
   'common.languageSpanish': 'Spanish',
   'common.languageSelection': 'Language selection',
   'common.languageUkrainian': 'Ukrainian',
+  'common.restore': 'Restore',
   'common.redo': 'Redo',
   'common.retry': 'Retry',
   'common.save': 'Save',
   'common.undo': 'Undo',
+  'common.undoToday': 'Undo today',
   'profileSettings.open': 'Profile settings',
   'profileSettings.title': 'Profile settings',
   'profileSettings.subtitle':
@@ -515,6 +536,8 @@ export const en = {
   'header.toggleAiAssistantPanel': 'Toggle AI assistant panel',
   'header.toggleTimeClusteringPanel': 'Toggle time clustering panel',
   'habits.confirmArchive': 'Archive routine "{title}"?',
+  'habits.archivedSubtitle': 'Hidden from the active routines table.',
+  'habits.archivedToggle': 'Archived ({count})',
   'habits.create.description': 'Add a routine you want to track daily.',
   'habits.create.placeholder': 'Routine title',
   'habits.create.title': 'New routine',
@@ -526,13 +549,16 @@ export const en = {
   'habits.error.delete': 'Failed to delete routine.',
   'habits.error.emptyTitle': 'Routine title cannot be empty.',
   'habits.error.load': 'Failed to load routines.',
+  'habits.error.priority': 'Failed to update routine priority.',
   'habits.error.rename': 'Failed to rename routine.',
   'habits.error.toggleCompletion': 'Failed to update routine completion.',
   'habits.loading': 'Loading routines...',
   'habits.modal.subtitle': 'Completion history for the last 10 days',
   'habits.modal.title': 'Routines',
   'habits.newRoutine': 'New routine',
+  'habits.noActive': 'No active routines right now.',
   'habits.openRowActions': 'Open routine actions',
+  'habits.priority': 'Priority',
   'habits.rowActions': 'Routine actions',
   'habits.table.routine': 'Routine',
   'loading.canvasFailed': 'Failed to load canvas data. Please try again.',
@@ -555,6 +581,8 @@ export const en = {
   'routineDelete.confirmMessage':
     'Are you sure you want to delete "{routine}" permanently? This action cannot be undone.',
   'routineDelete.confirmTitle': 'Delete routine permanently?',
+  'routineStatus.active': 'Active',
+  'routineStatus.archived': 'Archived',
   'saveButton.autosaveFailed': 'Autosave failed',
   'saveButton.autosaveInProgress': 'Autosave in progress',
   'saveButton.save': 'Save',
@@ -728,7 +756,6 @@ export const en = {
   'learningStudio.actions.openAccess': 'Open access',
   'learningStudio.actions.openAuthoring': 'Edit details',
   'learningStudio.actions.openLearner': 'Preview lesson',
-  'learningStudio.actions.openSettings': 'Open settings',
   'learningStudio.authoring.canvasBody':
     'Shape the course as structured modules and lesson blocks, then edit the details in the inspector.',
   'learningStudio.authoring.canvasEmpty':
@@ -779,10 +806,14 @@ export const en = {
   'learningStudio.fields.lessonTitle': 'Lesson title',
   'learningStudio.fields.lessonType': 'Lesson type',
   'learningStudio.fields.moduleTitle': 'Module title',
+  'learningStudio.fields.objective': 'Objective',
   'learningStudio.fields.title': 'Course title',
   'learningStudio.manageTitle': 'Manage',
   'learningStudio.home.courseDescriptionFallback':
     'No description yet. Open Build to shape this course draft.',
+  'learningStudio.home.courseStatsModules': '{count} modules',
+  'learningStudio.home.courseStatsUnits': '{count} units',
+  'learningStudio.home.courseTitleFallback': 'Untitled course',
   'learningStudio.home.courseStats': '{modules} modules · {lessons} lessons',
   'learningStudio.home.emptyBody':
     'Create the first local course draft to unlock overview, build, and learner preview. No backend or enrollment API is required in this prototype phase.',
@@ -791,6 +822,7 @@ export const en = {
   'learningStudio.home.subtitle':
     'Browse local draft courses here, then open an overview before moving into build or learner preview.',
   'learningStudio.home.title': 'Course library',
+  'learningStudio.home.updatedAt': 'Updated {date}',
   'learningStudio.home.viewAll': 'All courses',
   'learningStudio.inspector.course': 'Course',
   'learningStudio.inspector.lesson': 'Lesson',
@@ -845,10 +877,11 @@ export const en = {
   'learningStudio.overview.emptyBody':
     'Open a course from the library to review its structure, status, and next steps.',
   'learningStudio.overview.emptyTitle': 'No course selected for overview',
+  'learningStudio.overview.descriptionFallback':
+    'Add a short course description to clarify the promise and scope before you keep building.',
   'learningStudio.overview.learnCta': 'Preview learner',
   'learningStudio.overview.learnerHint':
     'Learners currently invited or enrolled locally.',
-  'learningStudio.overview.manageCta': 'Open settings',
   'learningStudio.overview.moduleLessons': '{count} lessons',
   'learningStudio.overview.nextBuildBody':
     'Add modules, lessons, exercises, and sequencing details.',
@@ -856,14 +889,10 @@ export const en = {
   'learningStudio.overview.nextLearnBody':
     'Check how the course feels for a student before sharing it.',
   'learningStudio.overview.nextLearnTitle': 'Preview the learner journey',
-  'learningStudio.overview.nextManageBody':
-    'Review access, publishing state, and other secondary controls.',
-  'learningStudio.overview.nextManageTitle': 'Prepare access and settings',
   'learningStudio.overview.nextSubtitle':
     'Use the overview as the handoff between structure work, learner preview, and course management.',
   'learningStudio.overview.nextTitle': 'What should happen next?',
   'learningStudio.overview.openModuleCta': 'Edit module',
-  'learningStudio.overview.shareCta': 'Manage access',
   'learningStudio.overview.structureEmptyBody':
     'Move into Build to add the first module and shape the learner path.',
   'learningStudio.overview.structureEmptyTitle': 'No modules yet',
@@ -872,69 +901,63 @@ export const en = {
   'learningStudio.overview.structureTitle': 'Course structure',
   'learningStudio.overview.subtitle':
     'Start with a clear course overview, then move into build, learner preview, or management.',
-  'learningStudio.access.archiveCta': 'Archive access',
-  'learningStudio.access.caveatBody':
-    'This access surface is local-only for now. The buttons are placeholders for future enrollment and sharing APIs.',
-  'learningStudio.access.caveatTitle': 'Implementation note',
-  'learningStudio.access.copyLinkCta': 'Copy share link',
-  'learningStudio.access.emptyBody':
-    'Choose a course first to manage local access and enrollment records.',
-  'learningStudio.access.emptyTitle': 'No course selected for access',
-  'learningStudio.access.inviteCta': 'Invite learner',
-  'learningStudio.access.localPrototypeNotice':
-    'Enrollment and access grants are still local-prototype concepts here.',
-  'learningStudio.access.participantsCount': '{count} people',
-  'learningStudio.access.participantsEmpty':
-    'No learners or collaborators have been granted access yet.',
-  'learningStudio.access.participantsTitle': 'Access list',
-  'learningStudio.access.revokeCta': 'Revoke',
-  'learningStudio.access.role.editor': 'Editor',
-  'learningStudio.access.role.learner': 'Learner',
-  'learningStudio.access.role.viewer': 'Viewer',
-  'learningStudio.access.shareLinkFallback':
-    'Share link will be connected when the backend access flow exists.',
-  'learningStudio.access.shareLinkLabel': 'Share link',
-  'learningStudio.access.status.active': 'Active',
-  'learningStudio.access.status.pending': 'Pending',
-  'learningStudio.access.status.revoked': 'Revoked',
-  'learningStudio.access.subtitle':
-    'Review who can open {courseTitle}, then wire in invite and revoke flows later.',
-  'learningStudio.access.title': 'Access and enrollment',
-  'learningStudio.settings.archiveCta': 'Archive course',
-  'learningStudio.settings.caveatBody':
-    'Settings in this view are intentionally presentational. Publish, versioning, and real enrollment rules should come from backend contracts later.',
-  'learningStudio.settings.caveatTitle': 'Prototype boundary',
-  'learningStudio.settings.courseStatus': 'Course status',
-  'learningStudio.settings.courseTitle': 'Course title',
-  'learningStudio.settings.duplicateCta': 'Duplicate draft',
-  'learningStudio.settings.duplicateSuffix': 'Copy',
-  'learningStudio.settings.emptyBody':
-    'Choose a course first to review publish-oriented settings.',
-  'learningStudio.settings.emptyTitle': 'No course selected for settings',
-  'learningStudio.settings.learnerCount': 'Learners',
-  'learningStudio.settings.lessonCount': 'Lessons',
-  'learningStudio.settings.localPrototypeNotice':
-    'This screen is a local-only settings scaffold. It keeps the publication story visible without implying a backend contract yet.',
-  'learningStudio.settings.moduleCount': 'Modules',
-  'learningStudio.settings.publishedAt': 'Published at',
-  'learningStudio.settings.publishCta': 'Publish course',
-  'learningStudio.settings.subtitle':
-    'Keep publish-related metadata visible while the actual storage and access rules stay local-only.',
-  'learningStudio.settings.title': 'Course settings',
-  'learningStudio.settings.updatedAt': 'Last updated',
   'learningStudio.lesson.defaultCheckpointTitle': 'Checkpoint',
   'learningStudio.lesson.defaultExerciseTitle': 'Exercise',
   'learningStudio.lesson.defaultLessonTitle': 'Lesson',
   'learningStudio.module.defaultTitle': 'Module',
-  'learningStudio.nav.access': 'Access',
   'learningStudio.nav.authoring': 'Authoring',
   'learningStudio.nav.build': 'Build',
   'learningStudio.nav.home': 'Home',
   'learningStudio.nav.learn': 'Learn',
   'learningStudio.nav.learner': 'Learner',
   'learningStudio.nav.overview': 'Overview',
-  'learningStudio.nav.settings': 'Settings',
   'learningStudio.navigationLabel': 'Course workflow',
+  'learningStudio.shell.build': 'Build',
+  'learningStudio.shell.overview': 'Overview',
+  'learningStudio.shell.preview': 'Preview',
+  'learningStudio.stage.backHome': 'Back to library',
+  'learningStudio.stage.previewBody':
+    'Validate the course flow in a read-only sandbox before building learner runtime.',
+  'learningStudio.stage.previewEmphasis': 'Preview stays sandbox-only in this phase.',
+  'learningStudio.stage.previewTitle': 'Preview',
+  'learningStudio.build.courseDescriptionsReady':
+    'Descriptions are in place for the current units.',
+  'learningStudio.build.courseHasStructure':
+    'The course already has structure to keep building.',
+  'learningStudio.build.courseMissingDescriptions':
+    '{count} units still need a description.',
+  'learningStudio.build.inspectorCourseTitle': 'Course summary',
+  'learningStudio.build.inspectorModuleTitle': 'Module',
+  'learningStudio.build.inspectorUnitTitle': 'Unit',
+  'learningStudio.build.prerequisitesEmpty':
+    'No other lessons are available for prerequisites yet.',
+  'learningStudio.build.prerequisitesTitle': 'Prerequisites',
+  'learningStudio.build.contentTitle': 'Lesson content',
+  'learningStudio.build.contentEmpty':
+    'Add the first structured block to give this lesson a stable learner flow.',
+  'learningStudio.build.blockAdd': 'Add block',
+  'learningStudio.build.blockMoveUp': 'Up',
+  'learningStudio.build.blockMoveDown': 'Down',
+  'learningStudio.build.blockRemove': 'Remove',
+  'learningStudio.build.blockReferenceUnavailable':
+    'No matching child units are available.',
+  'learningStudio.build.blockTypeIntro': 'Intro',
+  'learningStudio.build.blockTypeConcept': 'Concept',
+  'learningStudio.build.blockTypeExample': 'Example',
+  'learningStudio.build.blockTypeInstruction': 'Instruction',
+  'learningStudio.build.blockTypeSummary': 'Summary',
+  'learningStudio.build.blockTypeExerciseRef': 'Exercise reference',
+  'learningStudio.build.blockTypeCheckpointRef': 'Checkpoint reference',
+  'learningStudio.build.readinessMissingLessons':
+    'Add the first lessons to give this course structure.',
+  'learningStudio.preview.blockedBy': 'Blocked by',
+  'learningStudio.preview.warningBrokenCheckpointRef':
+    'A checkpoint reference points to a missing child unit.',
+  'learningStudio.preview.warningBrokenExerciseRef':
+    'An exercise reference points to a missing child unit.',
+  'learningStudio.preview.warningMissingContent':
+    'This lesson still needs meaningful learner-facing content.',
+  'learningStudio.preview.warningsTitle': 'Warnings',
   'learningStudio.placeholders.courseAudience':
     'Who is this course for?',
   'learningStudio.placeholders.courseDescription':

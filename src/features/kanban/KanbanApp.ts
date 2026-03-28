@@ -45,10 +45,10 @@ export class KanbanApp {
       onStoryGroupsToggleAll: (columnId, collapsed) =>
         store.setAllStoryGroupsCollapsed(columnId, collapsed),
       onTaskAction: (action, taskId) => this.emitTaskAction(action, taskId),
-      onHabitToggle: (habitId, completed) =>
-        store.toggleHabitCompleted(habitId, completed),
-      onHabitTitlePatch: (habitId, title) =>
-        store.patchHabitTitle(habitId, title),
+      onHabitToggle: (habitUuid, completed) =>
+        store.toggleHabitCompleted(habitUuid, completed),
+      onHabitTitlePatch: (habitUuid, title) =>
+        store.patchHabitTitle(habitUuid, title),
       onHabitUpdate: () => refreshKanbanData(store),
     });
     this.view = view;

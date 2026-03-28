@@ -17,6 +17,7 @@ type HudIconButtonOptions = {
   size?: HudIconButtonSize;
   tone?: HudIconButtonTone;
   iconSize?: number;
+  iconClassName?: string;
   iconStrokeWidth?: number;
   loading?: boolean;
   className?: string;
@@ -72,6 +73,9 @@ class HudIconButton extends HudButtonBase {
       strokeWidth: options.iconStrokeWidth,
     });
     icon.setAttribute('aria-hidden', 'true');
+    if (options.iconClassName) {
+      icon.className.baseVal = `${icon.className.baseVal} ${options.iconClassName}`.trim();
+    }
     this.getElement().appendChild(icon);
 
     this.initializeState({

@@ -37,6 +37,8 @@ type ExistingEntityPickerConfig<TItem, TKind extends ExistingPickerKind> = {
   getTitle: (item: TItem) => string;
   getDescription?: (item: TItem) => string | null | undefined;
   getStatus?: (item: TItem) => unknown;
+  formatStatusLabel?: (status: unknown, runtime: AppRuntime) => string;
+  getStatusChipPalette?: (status: unknown) => string;
   getPriority?: (item: TItem) => unknown;
   getUpdatedAt?: (item: TItem) => unknown;
   onCanvasLabel?: string;
@@ -523,8 +525,10 @@ export class ExistingEntityPicker<
       const statusValue = this.config.getStatus?.(item);
       if (statusValue !== undefined && statusValue !== null) {
         const statusChip = this.createChip(
-          this.formatEnum(statusValue),
-          this.getStatusChipPalette(statusValue)
+          this.config.formatStatusLabel?.(statusValue, this.runtime) ??
+            this.formatEnum(statusValue),
+          this.config.getStatusChipPalette?.(statusValue) ??
+            this.getStatusChipPalette(statusValue)
         );
         meta.append(statusChip);
       }
@@ -1102,12 +1106,15 @@ export class ExistingEntityPicker<
     this.renderFooter();
   }
 
-  private getItemKind(): 'goal' | 'story' | 'task' {
+  private getItemKind(): 'goal' | 'story' | 'task' | 'habit' {
     if (this.config.dragKind === 'existing-goal') {
       return 'goal';
     }
     if (this.config.dragKind === 'existing-story') {
       return 'story';
+    }
+    if (this.config.dragKind === 'existing-habit') {
+      return 'habit';
     }
     return 'task';
   }
@@ -1159,7 +1166,9 @@ export class ExistingEntityPicker<
         ? 'canvasContextMenu.goals'
         : this.getItemKind() === 'story'
           ? 'canvasContextMenu.stories'
-          : 'canvasContextMenu.tasks';
+          : this.getItemKind() === 'habit'
+            ? 'canvasContextMenu.habits'
+            : 'canvasContextMenu.tasks';
     return this.formatItemLabel(this.runtime.i18n.t(pluralKey), capitalize);
   }
 

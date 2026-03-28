@@ -1,16 +1,19 @@
 import type {
   Goal,
+  Habit,
   PlatformTask,
   Story,
 } from '../../../../majom-wrapper/interfaces/index.ts';
 
 export type ExistingPickerKind =
   | 'existing-goal'
+  | 'existing-habit'
   | 'existing-story'
   | 'existing-task';
 
 export type ExistingPickerItemByKind = {
   'existing-goal': Goal;
+  'existing-habit': Habit;
   'existing-story': Story;
   'existing-task': PlatformTask;
 };

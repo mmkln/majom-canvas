@@ -7,6 +7,7 @@ export type IconName =
   | 'academic-cap'
   | 'calendar-date-range'
   | 'view-columns'
+  | 'archive-box'
   | 'delete'
   | 'forward'
   | 'map-pin'
@@ -48,6 +49,7 @@ export type IconName =
   | 'arrow-up'
   | 'arrow-left'
   | 'arrow-right'
+  | 'arrow-uturn-left'
   | 'arrow-ultum-left'
   | 'arrow-ultum-right'
   | 'light-bulb'
@@ -183,6 +185,15 @@ export function createIcon(
     svg.appendChild(
       makePath(
         'M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125Z'
+      )
+    );
+    return svg;
+  }
+
+  if (name === 'archive-box') {
+    svg.appendChild(
+      makePath(
+        'M3.75 7.5h16.5M6 7.5l.75 11.25A1.5 1.5 0 0 0 8.246 20.25h7.508a1.5 1.5 0 0 0 1.496-1.5L18 7.5M9.75 11.25h4.5M9 3.75h6a1.5 1.5 0 0 1 1.5 1.5V7.5h-9V5.25A1.5 1.5 0 0 1 9 3.75Z'
       )
     );
     return svg;
@@ -394,6 +405,11 @@ export function createIcon(
 
   if (name === 'arrow-right') {
     svg.appendChild(makePath('M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3'));
+    return svg;
+  }
+
+  if (name === 'arrow-uturn-left') {
+    svg.appendChild(makePath('M9 15 3 9m0 0 6-6M3 9h12a6 6 0 1 1 0 12h-3'));
     return svg;
   }
 

@@ -21,7 +21,7 @@ describe('KanbanStore habit updates', () => {
     } as any;
 
     const store = new KanbanStore(dataService);
-    const result = await store.toggleHabitCompleted(101, true);
+    const result = await store.toggleHabitCompleted('habit-uuid-101', true);
 
     expect(result).toBe(false);
     expect(notify).toHaveBeenCalledWith('Failed to update routine', 'error');
