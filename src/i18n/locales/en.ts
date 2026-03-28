@@ -1042,6 +1042,24 @@ export const en = {
   'learningStudio.build.readinessMissingLessons':
     'Add the first lessons to give this course structure.',
   'learningStudio.preview.blockedBy': 'Blocked by',
+  'learningStudio.preview.mapSummary': '{nodes} nodes · {edges} edges',
+  'learningStudio.preview.mapChildVisibilityAuto':
+    'Lesson-first map visibility',
+  'learningStudio.preview.mapChildVisibilityImportant':
+    'Important child units are promoted on the map',
+  'learningStudio.preview.mapChildVisibilityAll':
+    'All child units are visible on the map',
+  'learningStudio.preview.mapHiddenChildren': '+{count} hidden child units',
+  'learningStudio.preview.mapMetaStructural': 'Structural node',
+  'learningStudio.preview.mapCanvasUnavailable':
+    'Canvas rendering is unavailable in this environment. A fallback node list is shown instead.',
+  'learningStudio.preview.mapSurfaceBody':
+    'Inspect the derived course map without changing authoring data.',
+  'learningStudio.preview.mapFullscreenBody':
+    'Open the course map as the primary preview surface and navigate the learner path in an immersive stage.',
+  'learningStudio.preview.mapSelection': 'Selected lesson: {title}',
+  'learningStudio.preview.modeFocus': 'Focus',
+  'learningStudio.preview.modeMap': 'Map',
   'learningStudio.preview.warningBrokenCheckpointRef':
     'A checkpoint reference points to a missing child unit.',
   'learningStudio.preview.warningBrokenExerciseRef':

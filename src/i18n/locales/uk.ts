@@ -1050,6 +1050,24 @@ export const uk = {
   'learningStudio.build.readinessMissingLessons':
     'Додай перші уроки, щоб курс отримав структуру.',
   'learningStudio.preview.blockedBy': 'Блокується через',
+  'learningStudio.preview.mapSummary': '{nodes} вузлів · {edges} звʼязків',
+  'learningStudio.preview.mapChildVisibilityAuto':
+    'Lesson-first видимість карти',
+  'learningStudio.preview.mapChildVisibilityImportant':
+    'На карті підсвічуються лише важливі дочірні юніти',
+  'learningStudio.preview.mapChildVisibilityAll':
+    'На карті видно всі дочірні юніти',
+  'learningStudio.preview.mapHiddenChildren': '+{count} прихованих дочірніх юнітів',
+  'learningStudio.preview.mapMetaStructural': 'Структурний вузол',
+  'learningStudio.preview.mapCanvasUnavailable':
+    'Canvas-рендеринг недоступний у цьому середовищі. Замість нього показано fallback-список вузлів.',
+  'learningStudio.preview.mapSurfaceBody':
+    'Переглядай похідну карту курсу без зміни авторських даних.',
+  'learningStudio.preview.mapFullscreenBody':
+    'Відкривай карту курсу як основну preview-поверхню та переглядай learner path у повноекранному stage.',
+  'learningStudio.preview.mapSelection': 'Вибраний урок: {title}',
+  'learningStudio.preview.modeFocus': 'Фокус',
+  'learningStudio.preview.modeMap': 'Карта',
   'learningStudio.preview.warningBrokenCheckpointRef':
     'Посилання на checkpoint вказує на відсутній дочірній юніт.',
   'learningStudio.preview.warningBrokenExerciseRef':

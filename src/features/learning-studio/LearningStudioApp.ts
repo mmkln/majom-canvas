@@ -20,6 +20,7 @@ import {
   type LearningStudioUiStateV2,
   type LearningUnitType,
 } from './domain/types.ts';
+import { buildLearningCourseMapModel } from './map/index.ts';
 import { LearningStudioRootView } from './ui/index.ts';
 import type {
   LearningStudioBuildInspectorModel,
@@ -557,6 +558,25 @@ export class LearningStudioApp {
     return {
       course,
       modules,
+      map: buildLearningCourseMapModel({
+        content,
+        progressByUnitId: this.uiState.preview.sandboxProgress,
+        focusedUnitId: focusedLessonId,
+        recommendedUnitId: resolvePreviewRecommendedLessonId(
+          lessonById,
+          this.uiState.preview.sandboxProgress
+        ),
+        labels: {
+          module: this.runtime.i18n.t('learningStudio.module.defaultTitle'),
+          lesson: this.runtime.i18n.t('learningStudio.lesson.defaultLessonTitle'),
+          exercise: this.runtime.i18n.t(
+            'learningStudio.lesson.defaultExerciseTitle'
+          ),
+          checkpoint: this.runtime.i18n.t(
+            'learningStudio.lesson.defaultCheckpointTitle'
+          ),
+        },
+      }),
       focusedLesson:
         focusedLesson === null
           ? null

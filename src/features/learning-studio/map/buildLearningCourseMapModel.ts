@@ -48,9 +48,6 @@ export function buildLearningCourseMapModel(
     .sort((left, right) => left.order - right.order)
     .forEach((module) => {
       const moduleLessons = getModuleLessons(args.content, module);
-      const visibleChildren = moduleLessons.flatMap((lesson) =>
-        getVisibleChildUnits(lesson, args.content, presentation)
-      );
 
       if (presentation.showModules && !presentation.hiddenNodeIds.includes(module.id)) {
         nodes.push(
@@ -64,7 +61,7 @@ export function buildLearningCourseMapModel(
             isFocused: false,
             isRecommended: false,
             childCount: moduleLessons.length,
-            hiddenChildCount: moduleLessons.length + visibleChildren.length,
+            hiddenChildCount: 0,
             position: presentation.manualNodePositions[module.id] ?? null,
           })
         );

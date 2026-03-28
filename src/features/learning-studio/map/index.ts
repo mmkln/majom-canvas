@@ -11,3 +11,13 @@ export {
   type LearningCourseMapPresentation,
 } from './courseMapModel.ts';
 export { buildLearningCourseMapModel } from './buildLearningCourseMapModel.ts';
+export {
+  buildLearningCourseMapCanvasScene,
+  type LearningCourseMapCanvasSceneSnapshot,
+} from './buildLearningCourseMapCanvasScene.ts';
+export {
+  layoutLearningCourseMap,
+  type LearningCourseMapLayout,
+  type LearningCourseMapLayoutEdge,
+  type LearningCourseMapLayoutNode,
+} from './layoutLearningCourseMap.ts';

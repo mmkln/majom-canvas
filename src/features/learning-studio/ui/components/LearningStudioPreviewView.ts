@@ -3,6 +3,7 @@ import type {
   LearningStudioPreviewFocusedLesson,
   LearningStudioPreviewModel,
 } from './LearningStudioScreenModels.ts';
+import { LearningStudioPreviewMapView } from './LearningStudioPreviewMapView.ts';
 
 type LearningStudioPreviewViewOptions = {
   runtime: AppRuntime;
@@ -12,6 +13,8 @@ type LearningStudioPreviewViewOptions = {
 
 export class LearningStudioPreviewView {
   public readonly element: HTMLDivElement;
+  private surfaceMode: 'focus' | 'map' = 'focus';
+  private mapView: LearningStudioPreviewMapView | null = null;
 
   constructor(private options: LearningStudioPreviewViewOptions) {
     this.element = document.createElement('div');
@@ -24,10 +27,27 @@ export class LearningStudioPreviewView {
     this.render();
   }
 
+  public destroy(): void {
+    this.mapView?.destroy();
+    this.mapView = null;
+  }
+
   private render(): void {
+    this.mapView?.destroy();
+    this.mapView = null;
+
     const layout = document.createElement('div');
-    layout.className = 'flex h-full min-h-0 w-full flex-col lg:flex-row';
+    layout.className =
+      this.surfaceMode === 'map'
+        ? 'flex h-full min-h-0 w-full flex-col bg-slate-100'
+        : 'flex h-full min-h-0 w-full flex-col lg:flex-row';
     layout.dataset.role = 'learning-studio-preview';
+
+    if (this.surfaceMode === 'map') {
+      layout.append(this.renderImmersiveMapSurface());
+      this.element.replaceChildren(layout);
+      return;
+    }
 
     const rail = document.createElement('aside');
     rail.className =
@@ -48,16 +68,157 @@ export class LearningStudioPreviewView {
       'learningStudio.stage.previewBody'
     );
 
-    note.append(noteTitle, noteBody);
+    note.append(
+      noteTitle,
+      noteBody,
+      this.renderMapSummary(),
+      this.renderSurfaceModeSwitch()
+    );
     rail.append(note, this.renderLessonRail());
 
     const focus = document.createElement('section');
-    focus.className = 'min-h-0 min-w-0 flex-1 overflow-auto px-5 py-5 lg:px-8 lg:py-7';
+    focus.className = 'min-h-0 min-w-0 flex-1 overflow-hidden';
     focus.dataset.role = 'learning-studio-preview-focus';
-    focus.append(this.renderFocusedLesson());
+    focus.append(this.renderSurface());
 
     layout.append(rail, focus);
     this.element.replaceChildren(layout);
+  }
+
+  private renderImmersiveMapSurface(): HTMLElement {
+    const wrapper = document.createElement('section');
+    wrapper.className = 'flex h-full min-h-0 flex-col';
+    wrapper.dataset.role = 'learning-studio-preview-map-surface';
+
+    const header = document.createElement('div');
+    header.className =
+      'flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 bg-white px-4 py-3 lg:px-5';
+
+    const copy = document.createElement('div');
+    copy.className = 'min-w-0 space-y-1';
+
+    const title = document.createElement('h2');
+    title.className = 'text-sm font-semibold uppercase tracking-[0.12em] text-slate-600';
+    title.textContent = this.options.runtime.i18n.t('learningStudio.learner.mapTitle');
+
+    const body = document.createElement('p');
+    body.className = 'text-sm text-slate-600';
+    body.textContent = this.options.runtime.i18n.t(
+      'learningStudio.preview.mapFullscreenBody'
+    );
+
+    copy.append(title, body);
+
+    if (this.options.preview.focusedLesson !== null) {
+      const selection = document.createElement('p');
+      selection.className = 'text-xs font-medium text-slate-500';
+      selection.textContent = this.options.runtime.i18n.t(
+        'learningStudio.preview.mapSelection',
+        {
+          title: this.options.preview.focusedLesson.title,
+        }
+      );
+      copy.append(selection);
+    }
+
+    const controls = document.createElement('div');
+    controls.className = 'flex shrink-0 items-center gap-2';
+    controls.append(
+      this.createSurfaceModeButton('focus', 'learningStudio.preview.modeFocus'),
+      this.createSurfaceModeButton('map', 'learningStudio.preview.modeMap')
+    );
+
+    header.append(copy, controls);
+
+    const bodyRegion = document.createElement('div');
+    bodyRegion.className = 'min-h-0 flex-1 overflow-hidden';
+    this.mapView = new LearningStudioPreviewMapView({
+      runtime: this.options.runtime,
+      preview: this.options.preview,
+      onSelectLesson: (lessonId) => {
+        this.options.onSelectLesson(lessonId);
+      },
+      immersive: true,
+    });
+    bodyRegion.append(this.mapView.element);
+
+    wrapper.append(header, bodyRegion);
+    return wrapper;
+  }
+
+  private renderSurfaceModeSwitch(): HTMLElement {
+    const switcher = document.createElement('div');
+    switcher.className = 'flex items-center gap-2 pt-2';
+    switcher.dataset.role = 'learning-studio-preview-mode-switch';
+
+    switcher.append(
+      this.createSurfaceModeButton('focus', 'learningStudio.preview.modeFocus'),
+      this.createSurfaceModeButton('map', 'learningStudio.preview.modeMap')
+    );
+
+    return switcher;
+  }
+
+  private createSurfaceModeButton(
+    mode: 'focus' | 'map',
+    labelKey: 'learningStudio.preview.modeFocus' | 'learningStudio.preview.modeMap'
+  ): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className =
+      this.surfaceMode === mode
+        ? 'rounded-full border border-sky-500 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700'
+        : 'rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50';
+    button.dataset.role = `learning-studio-preview-mode-${mode}`;
+    button.textContent = this.options.runtime.i18n.t(labelKey);
+    button.addEventListener('click', () => {
+      this.surfaceMode = mode;
+      this.render();
+    });
+    return button;
+  }
+
+  private renderSurface(): HTMLElement {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'h-full min-h-0 overflow-auto px-5 py-5 lg:px-8 lg:py-7';
+    wrapper.append(this.renderFocusedLesson());
+    return wrapper;
+  }
+
+  private renderMapSummary(): HTMLElement {
+    const summary = document.createElement('div');
+    summary.className = 'space-y-1 rounded-lg border border-slate-200 bg-white px-3 py-2';
+    summary.dataset.role = 'learning-studio-preview-map-summary';
+
+    const title = document.createElement('p');
+    title.className =
+      'text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500';
+    title.textContent = this.options.runtime.i18n.t('learningStudio.learner.mapTitle');
+
+    const body = document.createElement('p');
+    body.className = 'text-xs text-slate-600';
+    body.textContent = this.options.runtime.i18n.t(
+      'learningStudio.preview.mapSummary',
+      {
+        nodes: String(this.options.preview.map.nodes.length),
+        edges: String(this.options.preview.map.edges.length),
+      }
+    );
+
+    const mode = document.createElement('p');
+    mode.className = 'text-xs text-slate-500';
+    mode.textContent = this.options.runtime.i18n.t(
+      this.options.preview.map.presentation.childUnitVisibility ===
+        'all_child_units'
+        ? 'learningStudio.preview.mapChildVisibilityAll'
+        : this.options.preview.map.presentation.childUnitVisibility ===
+            'important_only'
+          ? 'learningStudio.preview.mapChildVisibilityImportant'
+          : 'learningStudio.preview.mapChildVisibilityAuto'
+    );
+
+    summary.append(title, body, mode);
+    return summary;
   }
 
   private renderLessonRail(): HTMLElement {

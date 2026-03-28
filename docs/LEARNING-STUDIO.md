@@ -10,6 +10,7 @@
 - Build interaction spec: `docs/LEARNING-STUDIO-BUILD-INTERACTION-SPEC.md`
 - Preview/runtime spec: `docs/LEARNING-STUDIO-PREVIEW-LEARNER-RUNTIME-SPEC.md`
 - Course map decision record: `docs/LEARNING-STUDIO-COURSE-MAP-DECISION-RECORD.md`
+- Course map integration spec: `docs/LEARNING-STUDIO-COURSE-MAP-INTEGRATION-SPEC.md`
 - Publication/access/versioning spec: `docs/LEARNING-STUDIO-PUBLICATION-ACCESS-VERSIONING-SPEC.md`
 - Progress/assessment spec: `docs/LEARNING-STUDIO-PROGRESS-ASSESSMENT-SPEC.md`
 - Structured lesson format spec: `docs/LEARNING-STUDIO-STRUCTURED-LESSON-FORMAT-SPEC.md`

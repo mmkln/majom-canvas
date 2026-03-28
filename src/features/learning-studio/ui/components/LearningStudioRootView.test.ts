@@ -149,6 +149,55 @@ describe('LearningStudioRootView', () => {
             ],
           },
         ],
+        map: {
+          layoutMode: 'auto',
+          presentation: {
+            layoutMode: 'auto',
+            showModules: true,
+            childUnitVisibility: 'auto',
+            promotedUnitIds: [],
+            hiddenNodeIds: [],
+            manualNodePositions: {},
+          },
+          nodes: [
+            {
+              id: 'module-1',
+              kind: 'module',
+              title: 'Module 1',
+              moduleId: 'module-1',
+              parentId: null,
+              state: 'none',
+              isFocused: false,
+              isRecommended: false,
+              childCount: 1,
+              hiddenChildCount: 1,
+              position: null,
+            },
+            {
+              id: 'lesson-1',
+              kind: 'lesson',
+              title: 'Lesson 1',
+              moduleId: 'module-1',
+              parentId: 'module-1',
+              state: 'available',
+              isFocused: true,
+              isRecommended: true,
+              childCount: 0,
+              hiddenChildCount: 0,
+              position: null,
+            },
+          ],
+          edges: [
+            {
+              id: 'module-1->lesson-1:contains',
+              kind: 'contains',
+              fromId: 'module-1',
+              toId: 'lesson-1',
+            },
+          ],
+          focusedNodeId: 'lesson-1',
+          recommendedNodeId: 'lesson-1',
+        },
         focusedLesson: {
           id: 'lesson-1',
           moduleId: 'module-1',
@@ -179,6 +228,9 @@ describe('LearningStudioRootView', () => {
 
     expect(
       view.element.querySelector('[data-role="learning-studio-preview"]')
+    ).not.toBeNull();
+    expect(
+      view.element.querySelector('[data-role="learning-studio-preview-map-summary"]')
     ).not.toBeNull();
     expect(
       view.element.querySelector('[data-role="learning-studio-preview-canvas-host"]')

@@ -11,6 +11,7 @@
   - `docs/LEARNING-STUDIO-AUTHOR-UX-SPEC.md`
   - `docs/LEARNING-STUDIO-BUILD-INTERACTION-SPEC.md`
   - `docs/LEARNING-STUDIO-PROGRESS-ASSESSMENT-SPEC.md`
+  - `docs/LEARNING-STUDIO-COURSE-MAP-INTEGRATION-SPEC.md`
 
 ## Why this spec exists
 
@@ -114,6 +115,11 @@ Recommended v1 rule:
 - preview may read the current draft
 
 This allows creators to validate unpublished changes.
+
+Recommended implementation rule:
+
+- `Preview` should receive a derived course-map model built from the current draft content
+- the map model should be created in a dedicated map-integration layer, not inside the preview view itself
 
 ### Learner runtime content source
 

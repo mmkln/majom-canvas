@@ -278,6 +278,7 @@ export class LearningStudioRootView {
               onSelectLesson: options.onSelectPreviewLesson,
             });
           },
+          destroy: () => previewView.destroy(),
         };
       }
     }
