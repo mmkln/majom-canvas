@@ -18,8 +18,8 @@ export abstract class PlanningElement
   description: string;
   dueDate?: Date | null;
   tags?: string[];
-  /** Backend numeric id (legacy) */
-  backendId?: number;
+  /** Backend persistent ref; numeric for legacy entities, string for UUID-first ones */
+  backendId?: number | string;
   /** Backend UUID (new) */
   uuid?: string;
   focused: boolean = false;
@@ -51,7 +51,7 @@ export abstract class PlanningElement
     description?: string;
     dueDate?: Date | null;
     tags?: string[];
-    backendId?: number;
+    backendId?: number | string;
     uuid?: string;
   }) {
     super(x, y);

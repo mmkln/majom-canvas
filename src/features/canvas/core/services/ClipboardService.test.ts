@@ -4,6 +4,8 @@ import { Scene } from '../scene/Scene.ts';
 import { StoryElement } from '../../elements/StoryElement.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
 import { GoalElement } from '../../elements/GoalElement.ts';
+import { HabitElement } from '../../elements/HabitElement.ts';
+import { Status } from '../../../../majom-wrapper/interfaces/index.ts';
 
 describe('ClipboardService', () => {
   it('keeps copied task inside copied story after paste', () => {
@@ -83,5 +85,35 @@ describe('ClipboardService', () => {
 
     expect(pastedTask?.description).toBe(task.description);
     expect(pastedGoal?.description).toBe(goal.description);
+  });
+
+  it('pastes routines as new canvas elements without reusing backend identity', () => {
+    const clipboard = new ClipboardService();
+    const scene = new Scene();
+
+    const routine = new HabitElement({
+      x: 120,
+      y: 160,
+      title: 'Morning review',
+      description: 'Review the daily plan.',
+      habitStatus: Status.Archived,
+      backendId: 'routine-uuid-42',
+      uuid: 'routine-uuid-42',
+      completionHistory: [['2026-03-27', true]],
+    });
+
+    clipboard.copy([routine]);
+    const pasted = clipboard.paste(scene, { x: 600, y: 420 });
+    const pastedRoutine = pasted.find(
+      (element): element is HabitElement => element instanceof HabitElement
+    );
+
+    expect(pastedRoutine).toBeDefined();
+    expect(pastedRoutine?.title).toBe('Morning review');
+    expect(pastedRoutine?.description).toBe('Review the daily plan.');
+    expect(pastedRoutine?.habitStatus).toBe(Status.Archived);
+    expect(pastedRoutine?.backendId).toBeUndefined();
+    expect(pastedRoutine?.uuid).toBeUndefined();
+    expect(pastedRoutine?.id).not.toBe(routine.id);
   });
 });

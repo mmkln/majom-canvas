@@ -122,8 +122,8 @@ function toHabitCard(
 ): KanbanHabitCard {
   const isDueToday = habit.is_due_today === true;
   return {
-    key: String(habit.id),
-    habitId: habit.id,
+    key: habit.uuid,
+    habitUuid: habit.uuid,
     title: habit.title,
     isDueToday,
     isCompletedToday: !isDueToday,

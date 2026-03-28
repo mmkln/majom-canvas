@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  Priority,
   Status,
   type DateCompletion,
   type Habit,
@@ -35,17 +36,25 @@ function toLocalDateKey(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+function habitIdFromUuid(habitUuid: string): string {
+  return habitUuid;
+}
+
 function makeHabit(
   overrides: Partial<Habit> = {},
   completions: DateCompletion[] = []
 ): Habit {
+  const id = overrides.id ?? 'habit-uuid-1';
   return {
-    id: 1,
+    id,
+    uuid: overrides.uuid ?? String(id),
     title: 'Morning Routine',
     description: '',
     created_at: new Date(2026, 2, 1),
+    priority: Priority.Low,
     status: Status.Active,
     last_checked: new Date(2026, 2, 10),
+    meta: null,
     is_due_today: true,
     weekly_completions: [],
     completions,
@@ -55,12 +64,13 @@ function makeHabit(
 
 function createService(
   habits: Habit[],
-  toggleImpl: (habitId: number, date: Date) => Promise<Habit>,
+  toggleImpl: (habitUuid: string, date: Date) => Promise<Habit>,
   options?: {
     createImpl?: (title: string) => Promise<Habit>;
-    patchTitleImpl?: (habitId: number, title: string) => Promise<Habit>;
-    archiveImpl?: (habitId: number) => Promise<Habit>;
-    deleteImpl?: (habitId: number) => Promise<void>;
+    patchTitleImpl?: (habitUuid: string, title: string) => Promise<Habit>;
+    archiveImpl?: (habitUuid: string) => Promise<Habit>;
+    restoreImpl?: (habitUuid: string) => Promise<Habit>;
+    deleteImpl?: (habitUuid: string) => Promise<void>;
   }
 ): {
   service: HabitsQuickModalService;
@@ -69,19 +79,42 @@ function createService(
   createHabit: ReturnType<typeof vi.fn>;
   patchHabitTitle: ReturnType<typeof vi.fn>;
   archiveHabit: ReturnType<typeof vi.fn>;
+  restoreHabit: ReturnType<typeof vi.fn>;
   deleteHabit: ReturnType<typeof vi.fn>;
 } {
   const loadHabits = vi.fn(async () => habits);
   const toggleHabitCompletion = vi.fn(toggleImpl);
-  const createHabit = vi.fn(options?.createImpl ?? (async (title: string) => makeHabit({ id: 999, title })));
+  const createHabit = vi.fn(
+    options?.createImpl ??
+      (async (title: string) =>
+        makeHabit({ id: 'habit-uuid-999', title }))
+  );
   const patchHabitTitle = vi.fn(
     options?.patchTitleImpl ??
-      (async (habitId: number, title: string) => makeHabit({ id: habitId, title }))
+      (async (habitUuid: string, title: string) =>
+        makeHabit({
+          id: habitIdFromUuid(habitUuid),
+          uuid: habitUuid,
+          title,
+        }))
   );
   const archiveHabit = vi.fn(
     options?.archiveImpl ??
-      (async (habitId: number) =>
-        makeHabit({ id: habitId, status: Status.Archived }))
+      (async (habitUuid: string) =>
+        makeHabit({
+          id: habitIdFromUuid(habitUuid),
+          uuid: habitUuid,
+          status: Status.Archived,
+        }))
+  );
+  const restoreHabit = vi.fn(
+    options?.restoreImpl ??
+      (async (habitUuid: string) =>
+        makeHabit({
+          id: habitIdFromUuid(habitUuid),
+          uuid: habitUuid,
+          status: Status.Active,
+        }))
   );
   const deleteHabit = vi.fn(
     options?.deleteImpl ?? (async () => Promise.resolve())
@@ -92,6 +125,7 @@ function createService(
     createHabit,
     patchHabitTitle,
     archiveHabit,
+    restoreHabit,
     deleteHabit,
   };
   return {
@@ -101,6 +135,7 @@ function createService(
     createHabit,
     patchHabitTitle,
     archiveHabit,
+    restoreHabit,
     deleteHabit,
   };
 }
@@ -186,11 +221,11 @@ describe('HabitsQuickModal routines management', () => {
     await modal.toggleCell(row, day, false);
 
     expect(toggleHabitCompletion).toHaveBeenCalledTimes(1);
-    const [habitId, calledDate] = toggleHabitCompletion.mock.calls[0] as [
-      number,
+    const [habitUuid, calledDate] = toggleHabitCompletion.mock.calls[0] as [
+      string,
       Date,
     ];
-    expect(habitId).toBe(1);
+    expect(habitUuid).toBe('habit-uuid-1');
     expect(toLocalDateKey(calledDate)).toBe(yesterdayKey);
     expect(row.completionByDateKey.get(yesterdayKey)).toBe(true);
     expect((globalThis as any).window.dispatchEvent).toHaveBeenCalledTimes(1);
@@ -254,7 +289,7 @@ describe('HabitsQuickModal routines management', () => {
   });
 
   it('creates new routine and dispatches kanban refresh', async () => {
-    const created = makeHabit({ id: 2, title: 'Workout' });
+    const created = makeHabit({ id: 'habit-uuid-2', title: 'Workout' });
     const { service, createHabit } = createService([], async () => created, {
       createImpl: async () => created,
     });
@@ -314,6 +349,8 @@ describe('HabitsQuickModal routines management', () => {
     expect(assuredTableWrap.className).toContain('w-full');
     expect(assuredTableWrap.className).toContain('rounded-xl');
     expect(assuredTableWrap.className).toContain('border-slate-200/80');
+    expect(assuredTableWrap.className).toContain('overflow-auto');
+    expect(assuredTableWrap.style.maxHeight).toBe('min(56vh, 34rem)');
 
     const headers = Array.from(
       modal.body.querySelectorAll('thead th')
@@ -322,13 +359,18 @@ describe('HabitsQuickModal routines management', () => {
     expect(headers[0].getAttribute('scope')).toBe('col');
     expect(headers[0].className).toContain('h-11');
     expect(headers[0].className).toContain('z-20');
+    expect(headers[0].className).toContain('top-0');
     expect(headers[1].className).toContain('px-3');
     expect(headers[1].className).toContain('text-[12px]');
     expect(headers[1].className).toContain('bg-indigo-50');
+    expect(headers[1].className).toContain('sticky');
+    expect(headers[1].className).toContain('top-0');
+    expect(headers[1].className).toContain('z-20');
     expect(headers[1].style.background).toBe('');
     expect(headers[11].className).toContain('sticky');
     expect(headers[11].className).toContain('right-0');
     expect(headers[11].className).toContain('z-20');
+    expect(headers[11].className).toContain('top-0');
     expect(headers[11].className).not.toContain('border-l');
 
     const shortLabel = headers[1].children[1] as HTMLElement;
@@ -376,9 +418,9 @@ describe('HabitsQuickModal routines management', () => {
   });
 
   it('renames routine and keeps sorted rows', async () => {
-    const first = makeHabit({ id: 1, title: 'Alpha' });
-    const second = makeHabit({ id: 2, title: 'Beta' });
-    const updated = makeHabit({ id: 2, title: 'Aardvark' });
+    const first = makeHabit({ id: 'habit-uuid-1', title: 'Alpha' });
+    const second = makeHabit({ id: 'habit-uuid-2', title: 'Beta' });
+    const updated = makeHabit({ id: 'habit-uuid-2', title: 'Aardvark' });
     const { service, patchHabitTitle } = createService(
       [first, second],
       async () => first,
@@ -392,7 +434,10 @@ describe('HabitsQuickModal routines management', () => {
 
     await modal.renameHabit(row, 'Aardvark');
 
-    expect(patchHabitTitle).toHaveBeenCalledWith(2, 'Aardvark');
+    expect(patchHabitTitle).toHaveBeenCalledWith(
+      'habit-uuid-2',
+      'Aardvark'
+    );
     expect(modal.rows.map((item: any) => item.habit.title)).toEqual([
       'Aardvark',
       'Alpha',
@@ -404,23 +449,89 @@ describe('HabitsQuickModal routines management', () => {
   });
 
   it('removes routine from list when archive succeeds', async () => {
-    const base = makeHabit({ id: 9, title: 'Archive me' });
+    const base = makeHabit({ id: 'habit-uuid-9', title: 'Archive me' });
     const { service, archiveHabit } = createService([base], async () => base);
     const modal = new HabitsQuickModal(service) as any;
     modal.rows = [modal.mapHabitToRow(base)];
 
     await modal.archiveHabit(modal.rows[0]);
 
-    expect(archiveHabit).toHaveBeenCalledWith(9);
+    expect((globalThis as any).window.confirm).not.toHaveBeenCalled();
+    expect(archiveHabit).toHaveBeenCalledWith('habit-uuid-9');
     expect(modal.rows).toHaveLength(0);
+    expect(modal.archivedRows).toHaveLength(1);
     const eventArg = (globalThis as any).window.dispatchEvent.mock.calls[0][0] as {
       type: string;
     };
     expect(eventArg.type).toBe(KANBAN_REFRESH_REQUEST_EVENT);
   });
 
+  it('restores archived routine back into the active list', async () => {
+    const archived = makeHabit({
+      id: 'habit-uuid-13',
+      uuid: 'habit-uuid-13',
+      title: 'Archived routine',
+      status: Status.Archived,
+    });
+    const restored = makeHabit({
+      id: 'habit-uuid-13',
+      title: 'Archived routine',
+      status: Status.Active,
+    });
+    const { service, restoreHabit } = createService([], async () => restored, {
+      restoreImpl: async () => restored,
+    });
+    const modal = new HabitsQuickModal(service) as any;
+    modal.archivedRows = [modal.mapHabitToRow(archived)];
+    modal.showArchived = true;
+
+    await modal.restoreHabit(modal.archivedRows[0]);
+
+    expect(restoreHabit).toHaveBeenCalledWith('habit-uuid-13');
+    expect(modal.rows).toHaveLength(1);
+    expect(modal.archivedRows).toHaveLength(0);
+    expect(modal.showArchived).toBe(false);
+  });
+
+  it('renders archived disclosure and shows archived routines on demand', () => {
+    const active = makeHabit({ id: 'habit-uuid-1', title: 'Active routine' });
+    const archived = makeHabit({
+      id: 'habit-uuid-2',
+      title: 'Archived routine',
+      status: Status.Archived,
+    });
+    const { service } = createService([active, archived], async () => active);
+    const modal = new HabitsQuickModal(service) as any;
+    modal.body = document.createElement('div');
+    modal.rows = [modal.mapHabitToRow(active)];
+    modal.archivedRows = [modal.mapHabitToRow(archived)];
+    modal.loading = false;
+    modal.showArchived = false;
+
+    modal.renderBody();
+
+    const archivedButtons = Array.from(
+      (modal.body as HTMLDivElement).querySelectorAll('button')
+    ) as HTMLButtonElement[];
+    const archivedToggles = archivedButtons.filter((button) =>
+      button.textContent?.includes('Archived (1)')
+    );
+    expect(archivedToggles).toHaveLength(1);
+    expect(modal.body.textContent).not.toContain('Archived routine');
+
+    archivedToggles[0]?.click();
+
+    expect(modal.body.textContent).toContain('Archived routine');
+    expect(
+      modal.body.querySelector('button[aria-label="Restore"]')
+    ).not.toBeNull();
+    expect(
+      modal.body.querySelector('button[aria-label="Delete"]')
+    ).not.toBeNull();
+  });
+
   it('stores error and keeps routine when delete fails', async () => {
-    const base = makeHabit({ id: 11, title: 'Fragile' });
+    const base = makeHabit({ id: 'habit-uuid-11', title: 'Fragile' });
     const { service, deleteHabit } = createService([base], async () => base, {
       deleteImpl: async () => {
         throw new Error('delete failed');
@@ -432,13 +543,13 @@ describe('HabitsQuickModal routines management', () => {
 
     await modal.deleteHabit(modal.rows[0]);
 
-    expect(deleteHabit).toHaveBeenCalledWith(11);
+    expect(deleteHabit).toHaveBeenCalledWith('habit-uuid-11');
     expect(modal.rows).toHaveLength(1);
     expect(modal.errorKey).toBe('habits.error.delete');
   });
 
   it('does not delete routine when confirmation is cancelled', async () => {
-    const base = makeHabit({ id: 12, title: 'Keep me' });
+    const base = makeHabit({ id: 'habit-uuid-12', title: 'Keep me' });
     const { service, deleteHabit } = createService([base], async () => base);
     vi.spyOn(confirmDeleteRoutineModalModule, 'confirmDeleteRoutineModal').mockResolvedValue(false);
     const modal = new HabitsQuickModal(service) as any;

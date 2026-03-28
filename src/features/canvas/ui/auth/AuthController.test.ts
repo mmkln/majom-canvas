@@ -6,12 +6,14 @@ import type { AuthService } from '../../../../majom-wrapper/data-access/auth-ser
 import type { UserApiService } from '../../../../majom-wrapper/data-access/user-api-service.ts';
 
 const createUser = (overrides: Partial<User> = {}): User => ({
-  id: 1,
+  id: 'user-uuid-1',
+  uuid: 'user-uuid-1',
   email: 'user@example.com',
   username: 'user',
   language: 'en',
   wallpaper: null,
   wallpaper_id: null,
+  meta: null,
   deletion_requested_at: null,
   ...overrides,
 });

@@ -8,6 +8,7 @@ import {
   TasksApiService,
   StoriesApiService,
   GoalsApiService,
+  HabitsApiService,
   CanvasApiService,
   CanvasRelationsApiService,
   CanvasDataService,
@@ -23,8 +24,15 @@ import { environment } from '../../config/environment.ts';
 import { TaskElement } from './elements/TaskElement.ts';
 import { StoryElement } from './elements/StoryElement.ts';
 import { GoalElement } from './elements/GoalElement.ts';
+import { HabitElement } from './elements/HabitElement.ts';
 import { isPlanningElement } from './elements/utils/typeGuards.ts';
 import { ElementStatus } from './elements/ElementStatus.ts';
+import {
+  type CanvasPlanningElement,
+  isCanvasPlanningElement,
+  isRelationPlanningElement,
+  isTaskStoryGoalPlanningElement,
+} from './elements/utils/planningElementCapabilities.ts';
 import {
   ConnectionRelationType,
   type IConnection,
@@ -65,6 +73,7 @@ import type {
 } from '../ai-assistant/aiAssistantActions.ts';
 import type { I18nService } from '../../i18n/index.ts';
 import { AppRuntime, createAppRuntime } from '../../app-runtime/index.ts';
+import { Status } from '../../majom-wrapper/interfaces/index.ts';
 
 type CanvasListUiItem = {
   id: string;
@@ -142,6 +151,8 @@ export class CanvasApp {
     this.handleCanvasPositionsDirty(event);
   private readonly elementDeleteRequestedHandler = (event: Event): void =>
     this.handleElementDeleteRequested(event);
+  private readonly habitCanvasMutationRequestedHandler = (event: Event): void =>
+    this.handleHabitCanvasMutationRequested(event);
   private readonly canvasLinkLifecycleHandler = (event: Event): void =>
     this.handleCanvasLinkLifecycle(event);
   private readonly canvasAutosaveToggledHandler = (event: Event): void =>
@@ -175,6 +186,7 @@ export class CanvasApp {
       new TasksApiService(http),
       new StoriesApiService(http),
       new GoalsApiService(http),
+      new HabitsApiService(http),
       new CanvasApiService(http),
       new CanvasRelationsApiService(http)
     );
@@ -249,6 +261,10 @@ export class CanvasApp {
       this.elementDeleteRequestedHandler
     );
     window.addEventListener(
+      'habitCanvasMutationRequested',
+      this.habitCanvasMutationRequestedHandler
+    );
+    window.addEventListener(
       CANVAS_LINK_LIFECYCLE_EVENT,
       this.canvasLinkLifecycleHandler
     );
@@ -307,6 +323,10 @@ export class CanvasApp {
     window.removeEventListener(
       'elementDeleteRequested',
       this.elementDeleteRequestedHandler
+    );
+    window.removeEventListener(
+      'habitCanvasMutationRequested',
+      this.habitCanvasMutationRequestedHandler
     );
     window.removeEventListener(
       CANVAS_LINK_LIFECYCLE_EVENT,
@@ -454,9 +474,7 @@ export class CanvasApp {
 
     const elements = this.scene
       .getElements()
-      .filter(isPlanningElement) as Array<
-      TaskElement | StoryElement | GoalElement
-    >;
+      .filter(isCanvasPlanningElement) as CanvasPlanningElement[];
     const duplicateTitle = this.buildDuplicateCanvasTitle(this.canvasTitle);
     const currentViewState = this.getCurrentViewState();
 
@@ -640,7 +658,7 @@ export class CanvasApp {
 
   private handleElementDetailsEdited(event: Event): void {
     const customEvent = event as CustomEvent<{
-      element?: TaskElement | StoryElement | GoalElement;
+      element?: CanvasPlanningElement;
       patch?: Partial<{
         title: string;
         description: string;
@@ -660,13 +678,10 @@ export class CanvasApp {
 
   private handleCanvasPositionsDirty(event: Event): void {
     const customEvent = event as CustomEvent<{
-      elements?: Array<TaskElement | StoryElement | GoalElement>;
+      elements?: CanvasPlanningElement[];
     }>;
     const elements = (customEvent.detail?.elements ?? []).filter(
-      (el): el is TaskElement | StoryElement | GoalElement =>
-        el instanceof TaskElement ||
-        el instanceof StoryElement ||
-        el instanceof GoalElement
+      (el): el is CanvasPlanningElement => isCanvasPlanningElement(el)
     );
     if (elements.length === 0) return;
     this.canvasDataService.markPositionsDirty(elements);
@@ -674,7 +689,7 @@ export class CanvasApp {
 
   private handleElementDeleteRequested(event: Event): void {
     const customEvent = event as CustomEvent<{
-      element?: TaskElement | StoryElement | GoalElement;
+      element?: CanvasPlanningElement;
     }>;
     const element = customEvent.detail?.element;
     if (!element) return;
@@ -688,6 +703,63 @@ export class CanvasApp {
         console.error('Failed to delete element', err);
         notify('Failed to delete element', 'error');
         this.scene.addElement(element);
+      },
+    });
+  }
+
+  private handleHabitCanvasMutationRequested(event: Event): void {
+    const customEvent = event as CustomEvent<{
+      element?: HabitElement;
+      action?:
+        | 'toggle-completion-today'
+        | 'mark-done-today'
+        | 'undo-today'
+        | 'set-completion-date'
+        | 'archive'
+        | 'restore';
+      date?: string;
+      completed?: boolean;
+    }>;
+    const element = customEvent.detail?.element;
+    const action = customEvent.detail?.action;
+    const dateKey = customEvent.detail?.date;
+    const completed = customEvent.detail?.completed;
+    if (!(element instanceof HabitElement) || !action) return;
+    if (!this.authService.isLoggedIn()) {
+      authFlowService.requestLogin('protected-action');
+      return;
+    }
+    const parsedDate =
+      typeof dateKey === 'string' && dateKey.trim().length > 0
+        ? new Date(`${dateKey}T12:00:00`)
+        : new Date();
+    const request$ =
+      action === 'toggle-completion-today'
+        ? this.canvasDataService.setHabitCompletionToday(
+            element,
+            !element.completedToday
+          )
+        : action === 'mark-done-today'
+          ? this.canvasDataService.setHabitCompletionToday(element, true)
+          : action === 'undo-today'
+            ? this.canvasDataService.setHabitCompletionToday(element, false)
+            : action === 'set-completion-date'
+              ? this.canvasDataService.setHabitCompletionToday(
+                  element,
+                  completed === true,
+                  parsedDate
+                )
+            : this.canvasDataService.updateHabitLifecycleStatus(
+                element,
+                action === 'archive' ? Status.Archived : Status.Active
+              );
+    request$.subscribe({
+      next: () => {
+        this.scene.changes.next();
+      },
+      error: (err) => {
+        console.error('Failed to update routine on canvas', err);
+        notify('Failed to update routine', 'error');
       },
     });
   }
@@ -784,9 +856,10 @@ export class CanvasApp {
   public getAiAssistantSnapshot(): AiAssistantCanvasSnapshot {
     const planningElements = this.scene
       .getElements()
-      .filter(isPlanningElement) as Array<
-      TaskElement | StoryElement | GoalElement
-    >;
+      .filter(isTaskStoryGoalPlanningElement);
+    const selectedPlanningElements = this.scene
+      .getSelectedElements()
+      .filter(isTaskStoryGoalPlanningElement);
     const detail: AiAssistantCanvasSnapshot = {
       canvasId: this.canvasDataService.getActiveCanvasId(),
       canvasTitle: this.canvasTitle,
@@ -800,14 +873,9 @@ export class CanvasApp {
         taskCount: planningElements.filter(
           (element) => element instanceof TaskElement
         ).length,
-        selectedCount: this.scene
-          .getSelectedElements()
-          .filter(isPlanningElement).length,
+        selectedCount: selectedPlanningElements.length,
       },
-      selectionIds: this.scene
-        .getSelectedElements()
-        .filter(isPlanningElement)
-        .map((element) => element.id),
+      selectionIds: selectedPlanningElements.map((element) => element.id),
       focusId: this.getPlanningFocusId(),
       highlightedIds: this.scene
         .getHighlightedElementIds()
@@ -872,9 +940,7 @@ export class CanvasApp {
     }
     const elements = this.scene
       .getElements()
-      .filter(isPlanningElement) as Array<
-      TaskElement | StoryElement | GoalElement
-    >;
+      .filter(isCanvasPlanningElement) as CanvasPlanningElement[];
     const saveSource: CanvasSaveSource = showNotifications
       ? 'manual'
       : 'autosave';
@@ -892,7 +958,7 @@ export class CanvasApp {
     );
   }
   private saveLayoutPositions(
-    elements: Array<TaskElement | StoryElement | GoalElement>,
+    elements: CanvasPlanningElement[],
     showNotifications: boolean
   ): Observable<boolean> {
     const positions: CanvasPositionWriteDTO[] = [];
@@ -904,7 +970,9 @@ export class CanvasApp {
           ? 'task'
           : el instanceof StoryElement
             ? 'story'
-            : 'goal';
+            : el instanceof GoalElement
+              ? 'goal'
+              : 'habit';
       const elementUuid = el.uuid;
       if (!elementUuid) {
         missingIds.push(String((el as any).id));
@@ -950,9 +1018,10 @@ export class CanvasApp {
       this.canvasDataService.getRemovedPositionIds(elements);
     const needsPositionRefresh =
       this.canvasDataService.needsPositionRefresh(elements);
+    const relationCapableElements = elements.filter(isRelationPlanningElement);
     const hasRelationChanges = this.canvasDataService.hasRelationChanges(
       this.scene.getConnections(),
-      elements
+      relationCapableElements
     );
     const uniquePositions = this.dedupeLayoutPositions(positions);
     const changedPositions =
@@ -989,7 +1058,10 @@ export class CanvasApp {
       }),
       switchMap(() =>
         this.canvasDataService
-          .updateCanvasRelations(this.scene.getConnections(), elements)
+          .updateCanvasRelations(
+            this.scene.getConnections(),
+            relationCapableElements
+          )
           .pipe(
             catchError((err) => {
               this.queueUnsyncedDraft(relationsDraftId, 'relations', {
@@ -1172,7 +1244,7 @@ export class CanvasApp {
   }
 
   private applyFocusedElement(
-    elements: Array<TaskElement | StoryElement | GoalElement>,
+    elements: CanvasPlanningElement[],
     focusedUuid: string | null
   ): void {
     const focusedElement =
@@ -1186,7 +1258,7 @@ export class CanvasApp {
   }
 
   private applyHighlightedElements(
-    elements: Array<TaskElement | StoryElement | GoalElement>,
+    elements: CanvasPlanningElement[],
     highlightedUuids: string[]
   ): void {
     if (highlightedUuids.length === 0) {
@@ -1200,15 +1272,13 @@ export class CanvasApp {
             element.uuid === highlightedUuid || element.id === highlightedUuid
         )
       )
-      .filter((element): element is TaskElement | StoryElement | GoalElement =>
-        Boolean(element)
-      )
+      .filter((element): element is CanvasPlanningElement => Boolean(element))
       .map((element) => element.id);
     this.scene.setHighlightedElementIds(highlightedIds);
   }
 
   private replacePlanningElements(
-    elements: Array<TaskElement | StoryElement | GoalElement>
+    elements: CanvasPlanningElement[]
   ): void {
     this.scene.replaceElements(isPlanningElement, elements);
     this.emitAiAssistantContext();
@@ -2057,9 +2127,7 @@ export class CanvasApp {
     if (!this.authService.isLoggedIn()) return;
     const elements = this.scene
       .getElements()
-      .filter(isPlanningElement) as Array<
-      TaskElement | StoryElement | GoalElement
-    >;
+      .filter(isRelationPlanningElement);
     if (
       !this.canvasDataService.hasRelationChanges(
         this.scene.getConnections(),
@@ -2084,7 +2152,7 @@ export class CanvasApp {
 
   private getLinkElementBackendId(element: {
     id: string;
-    backendId?: number | null;
+    backendId?: string | number | null;
   }): number | null {
     if (Number.isFinite(element.backendId)) {
       return Number(element.backendId);

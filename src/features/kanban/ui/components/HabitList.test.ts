@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  Priority,
   Status,
   type Habit,
 } from '../../../../majom-wrapper/interfaces/index.ts';
@@ -7,22 +8,25 @@ import type { KanbanHabitCard } from '../../types.ts';
 import { HabitListComponent } from './HabitList.ts';
 import type { KanbanViewHandlers } from './types.ts';
 
-function makeHabitCard(id: number, isDueToday: boolean): KanbanHabitCard {
+function makeHabitCard(id: string, isDueToday: boolean): KanbanHabitCard {
   const source: Habit = {
     id,
+    uuid: id,
     title: `Habit ${id}`,
     description: '',
     created_at: new Date(2026, 1, 25),
+    priority: Priority.Low,
     status: Status.Active,
     last_checked: new Date(2026, 1, 25),
+    meta: null,
     is_due_today: isDueToday,
     weekly_completions: [],
     completions: [],
   };
 
   return {
-    key: String(id),
-    habitId: id,
+    key: source.uuid,
+    habitUuid: source.uuid,
     title: source.title,
     isDueToday,
     isCompletedToday: !isDueToday,
@@ -47,8 +51,8 @@ function makeHandlers(
 
 describe('HabitListComponent', () => {
   it('sortItems splits due/completed lists by isDueToday', () => {
-    const due = makeHabitCard(1, true);
-    const completed = makeHabitCard(2, false);
+    const due = makeHabitCard('habit-uuid-1', true);
+    const completed = makeHabitCard('habit-uuid-2', false);
     const component = new HabitListComponent({
       columnId: 'today',
       habits: [due, completed],
@@ -59,17 +63,19 @@ describe('HabitListComponent', () => {
 
     component.sortItems();
 
-    expect(component.dueItemList.map((item) => item.habitId)).toEqual([1]);
-    expect(component.completedItemList.map((item) => item.habitId)).toEqual([
-      2,
+    expect(component.dueItemList.map((item) => item.habitUuid)).toEqual([
+      'habit-uuid-1',
     ]);
+    expect(component.completedItemList.map((item) => item.habitUuid)).toEqual(
+      ['habit-uuid-2']
+    );
   });
 
   it('toggleCompletedList toggles collapsed state set', () => {
     const collapsed = new Set<'today'>(['today']);
     const component = new HabitListComponent({
       columnId: 'today',
-      habits: [makeHabitCard(1, true)],
+      habits: [makeHabitCard('habit-uuid-1', true)],
       completedHabitsCollapsed: collapsed,
       handlers: makeHandlers(),
       onLocalStateChange: () => undefined,
@@ -86,15 +92,15 @@ describe('HabitListComponent', () => {
     const onHabitUpdate = vi.fn();
     const component = new HabitListComponent({
       columnId: 'today',
-      habits: [makeHabitCard(1, true)],
+      habits: [makeHabitCard('habit-uuid-1', true)],
       completedHabitsCollapsed: new Set(),
       handlers: makeHandlers({ onHabitToggle, onHabitUpdate }),
       onLocalStateChange: () => undefined,
     });
 
-    await component.onHabitComplete(makeHabitCard(1, true), true);
+    await component.onHabitComplete(makeHabitCard('habit-uuid-1', true), true);
 
-    expect(onHabitToggle).toHaveBeenCalledWith(1, true);
+    expect(onHabitToggle).toHaveBeenCalledWith('habit-uuid-1', true);
     expect(onHabitUpdate).toHaveBeenCalledTimes(1);
   });
 
@@ -103,15 +109,21 @@ describe('HabitListComponent', () => {
     const onHabitUpdate = vi.fn();
     const component = new HabitListComponent({
       columnId: 'today',
-      habits: [makeHabitCard(1, true)],
+      habits: [makeHabitCard('habit-uuid-1', true)],
       completedHabitsCollapsed: new Set(),
       handlers: makeHandlers({ onHabitTitlePatch, onHabitUpdate }),
       onLocalStateChange: () => undefined,
     });
 
-    await component.onHabitTitleChange(makeHabitCard(1, true), 'Updated title');
+    await component.onHabitTitleChange(
+      makeHabitCard('habit-uuid-1', true),
+      'Updated title'
+    );
 
-    expect(onHabitTitlePatch).toHaveBeenCalledWith(1, 'Updated title');
+    expect(onHabitTitlePatch).toHaveBeenCalledWith(
+      'habit-uuid-1',
+      'Updated title'
+    );
     expect(onHabitUpdate).toHaveBeenCalledTimes(1);
   });
 
@@ -119,13 +131,13 @@ describe('HabitListComponent', () => {
     const onHabitToggle = vi.fn(async () => false);
     const component = new HabitListComponent({
       columnId: 'today',
-      habits: [makeHabitCard(1, true)],
+      habits: [makeHabitCard('habit-uuid-1', true)],
       completedHabitsCollapsed: new Set(),
       handlers: makeHandlers({ onHabitToggle }),
       onLocalStateChange: () => undefined,
     });
 
-    await component.onHabitComplete(makeHabitCard(1, true), true);
+    await component.onHabitComplete(makeHabitCard('habit-uuid-1', true), true);
 
     expect(component.isLoading()).toBe(false);
   });

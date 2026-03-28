@@ -31,13 +31,15 @@ export interface UserProfileUpdate {
   email?: string;
   language?: string;
   wallpaper_id?: string | null;
+  meta?: Record<string, unknown> | null;
 }
 
 /**
  * User defines the structure for user data returned from the backend.
  */
 export interface User {
-  id: number;
+  id: string;
+  uuid: string;
   email: string;
   username: string;
   first_name?: string;
@@ -47,6 +49,7 @@ export interface User {
   language: string;
   readonly wallpaper: Wallpaper | null;
   wallpaper_id: string | null;
+  readonly meta: Record<string, unknown> | null;
   readonly deletion_requested_at: string | null;
 }
 

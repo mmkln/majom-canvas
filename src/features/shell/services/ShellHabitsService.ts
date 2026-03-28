@@ -3,7 +3,11 @@ import { first } from 'rxjs/operators';
 import { environment } from '../../../config/environment.ts';
 import { HabitsApiService } from '../../../majom-wrapper/data-access/habits-api-service.ts';
 import { HttpInterceptorClient } from '../../../majom-wrapper/data-access/http-interceptor.ts';
-import { Status, type Habit } from '../../../majom-wrapper/interfaces/index.ts';
+import {
+  Priority,
+  Status,
+  type Habit,
+} from '../../../majom-wrapper/interfaces/index.ts';
 
 export class ShellHabitsService {
   private readonly http = new HttpInterceptorClient(environment.apiUrl);
@@ -14,11 +18,11 @@ export class ShellHabitsService {
   }
 
   public async toggleHabitCompletion(
-    habitId: number,
+    habitUuid: string,
     date: Date
   ): Promise<Habit> {
     return firstValueFrom(
-      this.habitsApi.toggleHabitCompletion(habitId, date).pipe(first())
+      this.habitsApi.toggleHabitCompletion(habitUuid, date).pipe(first())
     );
   }
 
@@ -28,23 +32,36 @@ export class ShellHabitsService {
         .createHabit({
           title,
           description: '',
+          priority: Priority.Low,
           status: Status.Active,
+          meta: null,
         })
         .pipe(first())
     );
   }
 
-  public async patchHabitTitle(habitId: number, title: string): Promise<Habit> {
+  public async patchHabitTitle(
+    habitUuid: string,
+    title: string
+  ): Promise<Habit> {
     return firstValueFrom(
-      this.habitsApi.patchHabitTitle(habitId, title).pipe(first())
+      this.habitsApi.patchHabitTitle(habitUuid, title).pipe(first())
     );
   }
 
-  public async archiveHabit(habitId: number): Promise<Habit> {
-    return firstValueFrom(this.habitsApi.archiveHabit(habitId).pipe(first()));
+  public async archiveHabit(habitUuid: string): Promise<Habit> {
+    return firstValueFrom(
+      this.habitsApi.archiveHabit(habitUuid).pipe(first())
+    );
   }
 
-  public async deleteHabit(habitId: number): Promise<void> {
-    await firstValueFrom(this.habitsApi.deleteHabit(habitId).pipe(first()));
+  public async restoreHabit(habitUuid: string): Promise<Habit> {
+    return firstValueFrom(
+      this.habitsApi.restoreHabit(habitUuid).pipe(first())
+    );
+  }
+
+  public async deleteHabit(habitUuid: string): Promise<void> {
+    await firstValueFrom(this.habitsApi.deleteHabit(habitUuid).pipe(first()));
   }
 }

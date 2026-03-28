@@ -197,7 +197,12 @@ export interface TaskRelationship {
   relationship_type: TaskRelationshipType;
 }
 
-export type CanvasRelationElementType = 'task' | 'story' | 'goal' | 'subgoal';
+export type CanvasRelationElementType =
+  | 'task'
+  | 'story'
+  | 'goal'
+  | 'subgoal'
+  | 'routine';
 export type CanvasRelationType =
   | 'parent_child'
   | 'blocks'
@@ -266,12 +271,15 @@ export interface Counter {
 }
 
 export interface Habit {
-  readonly id: number;
+  readonly id: string;
+  uuid: string;
   title: string;
   description: string;
   created_at: Date;
+  priority: Priority;
   status: Status;
   last_checked: Date;
+  meta: Record<string, unknown> | null;
   is_due_today: boolean;
   weekly_completions: DateCompletion[];
   completions: DateCompletion[];

@@ -19,6 +19,7 @@ import {
 import { TasksApiService } from '../data-access/tasks-api-service.ts';
 import { StoriesApiService } from '../data-access/stories-api-service.ts';
 import { GoalsApiService } from '../data-access/goals-api-service.ts';
+import { HabitsApiService } from '../data-access/habits-api-service.ts';
 import { CanvasRelationsApiService } from '../data-access/canvas-relations-api-service.ts';
 import {
   CanvasApiService,
@@ -27,21 +28,26 @@ import {
 import { mapTask } from '../../features/canvas/mappers/task-mapper.ts';
 import { mapStory } from '../../features/canvas/mappers/story-mapper.ts';
 import { mapGoal } from '../../features/canvas/mappers/goal-mapper.ts';
+import { mapHabit } from '../../features/canvas/mappers/habit-mapper.ts';
 import { TaskElement } from '../../features/canvas/elements/TaskElement.ts';
 import { StoryElement } from '../../features/canvas/elements/StoryElement.ts';
 import { GoalElement } from '../../features/canvas/elements/GoalElement.ts';
+import { HabitElement } from '../../features/canvas/elements/HabitElement.ts';
 import { mapStatusToBackend } from '../utils/statusMapping.ts';
 import {
   mapPriorityToBackend,
+  normalizeUiPriority,
   type UiPriority,
 } from '../utils/priorityMapping.ts';
-import type {
+import {
   CanvasRelation,
   CanvasRelationCreate,
   CanvasRelationType,
   PlatformTask,
   Story,
   Goal,
+  Habit,
+  Status,
 } from '../interfaces/index.ts';
 import { ElementStatus } from '../../features/canvas/elements/ElementStatus.ts';
 import Connection from '../../features/canvas/core/shapes/Connection.ts';
@@ -51,6 +57,13 @@ import {
 } from '../../features/canvas/core/interfaces/connection.ts';
 import type { CanvasLoadingPlaceholder } from '../../features/canvas/core/types/canvasLoading.ts';
 import { CanvasClientStorage } from '../../features/canvas/core/services/CanvasClientStorage.ts';
+import {
+  type CanvasPlanningElement,
+  type RelationPlanningElement,
+  getHabitLifecycleStatus,
+  getPlanningElementCapabilities,
+  getPlanningElementKind,
+} from '../../features/canvas/elements/utils/planningElementCapabilities.ts';
 
 type ElementPatch = Partial<{
   title: string;
@@ -60,7 +73,7 @@ type ElementPatch = Partial<{
   dueDate: Date | null;
 }>;
 
-type RelationElementType = 'task' | 'story' | 'goal';
+type RelationElementType = 'task' | 'story' | 'goal' | 'routine';
 
 type ElementUpdateStatus = {
   status: 'saving' | 'saved' | 'failed';
@@ -69,7 +82,7 @@ type ElementUpdateStatus = {
 
 type ElementUpdateRequest = {
   key: string;
-  element: TaskElement | StoryElement | GoalElement;
+  element: CanvasPlanningElement;
   patch: ElementPatch;
 };
 
@@ -91,13 +104,13 @@ export type CanvasElementsLoadState =
     }
   | {
       phase: 'elements-partial-ready';
-      elements: Array<TaskElement | StoryElement | GoalElement>;
+      elements: CanvasPlanningElement[];
       placeholders: CanvasLoadingPlaceholder[];
       focusedElementUuid: string | null;
     }
   | {
       phase: 'elements-ready';
-      elements: Array<TaskElement | StoryElement | GoalElement>;
+      elements: CanvasPlanningElement[];
       focusedElementUuid: string | null;
     };
 
@@ -140,9 +153,11 @@ export class CanvasDataService {
   private tasks$?: Observable<PlatformTask[]>;
   private stories$?: Observable<Story[]>;
   private goals$?: Observable<Goal[]>;
+  private habits$?: Observable<Habit[]>;
   private tasksCache: PlatformTask[] | null = null;
   private storiesCache: Story[] | null = null;
   private goalsCache: Goal[] | null = null;
+  private habitsCache: Habit[] | null = null;
   private positionRegistry: Map<string, PositionSnapshot> = new Map();
   private positionDirtyKeys = new Set<string>();
   private relationRegistry: Map<string, CanvasRelation> = new Map();
@@ -158,6 +173,7 @@ export class CanvasDataService {
     private tasksApi: TasksApiService,
     private storiesApi: StoriesApiService,
     private goalsApi: GoalsApiService,
+    private habitsApi: HabitsApiService,
     private canvasApi: CanvasApiService,
     private relationsApi: CanvasRelationsApiService
   ) {
@@ -165,11 +181,9 @@ export class CanvasDataService {
   }
 
   /**
-   * Load tasks, stories, goals along with their canvas positions.
+   * Load tasks, stories, goals, and habits along with their canvas positions.
    */
-  public loadElements(): Observable<
-    Array<TaskElement | StoryElement | GoalElement>
-  > {
+  public loadElements(): Observable<CanvasPlanningElement[]> {
     return this.loadElementsProgressive({
       viewportFirstThreshold: this.defaultViewportFirstThreshold,
     }).pipe(
@@ -360,16 +374,25 @@ export class CanvasDataService {
         maxY: y + diameter,
       };
     }
+    if (entry.element_type === 'habit') {
+      return {
+        minX: x,
+        minY: y,
+        maxX: x + HabitElement.diameter,
+        maxY: y + HabitElement.diameter,
+      };
+    }
     return { minX: x, minY: y, maxX: x, maxY: y };
   }
 
   private loadElementsByLayout(
     layout: CanvasPositionReadDTO[]
-  ): Observable<Array<TaskElement | StoryElement | GoalElement>> {
+  ): Observable<CanvasPlanningElement[]> {
     const layoutRefs = {
       task: { ids: new Set<number>(), uuids: new Set<string>() },
       story: { ids: new Set<number>(), uuids: new Set<string>() },
       goal: { ids: new Set<number>(), uuids: new Set<string>() },
+      habit: { ids: new Set<number>(), uuids: new Set<string>() },
     };
     layout.forEach((pos) => {
       const type = pos.element_type;
@@ -385,18 +408,31 @@ export class CanvasDataService {
     const taskUuids = Array.from(layoutRefs.task.uuids);
     const storyUuids = Array.from(layoutRefs.story.uuids);
     const goalUuids = Array.from(layoutRefs.goal.uuids);
+    const habitUuids = Array.from(layoutRefs.habit.uuids);
     return this.fetchTasksByRefsCached(taskIds, taskUuids).pipe(
       switchMap((tasks) =>
         this.fetchStoriesByRefsCached(storyIds, storyUuids).pipe(
           switchMap((stories) =>
             this.fetchGoalsByRefsCached(goalIds, goalUuids).pipe(
-              map((goals) => {
-                const taskElements = tasks.map((t) => mapTask(t, layout));
-                const storyElements = stories.map((s) => mapStory(s, layout));
-                const goalElements = goals.map((g) => mapGoal(g, layout));
-                this.linkTasksToStories(taskElements, storyElements, tasks);
-                return [...taskElements, ...storyElements, ...goalElements];
-              })
+              switchMap((goals) =>
+                this.fetchHabitsByRefsCached(habitUuids).pipe(
+                  map((habits) => {
+                    const taskElements = tasks.map((t) => mapTask(t, layout));
+                    const storyElements = stories.map((s) => mapStory(s, layout));
+                    const goalElements = goals.map((g) => mapGoal(g, layout));
+                    const habitElements = habits.map((habit) =>
+                      mapHabit(habit, layout)
+                    );
+                    this.linkTasksToStories(taskElements, storyElements, tasks);
+                    return [
+                      ...taskElements,
+                      ...storyElements,
+                      ...goalElements,
+                      ...habitElements,
+                    ];
+                  })
+                )
+              )
             )
           )
         )
@@ -405,13 +441,10 @@ export class CanvasDataService {
   }
 
   private mergeLoadedElements(
-    primary: Array<TaskElement | StoryElement | GoalElement>,
-    secondary: Array<TaskElement | StoryElement | GoalElement>
-  ): Array<TaskElement | StoryElement | GoalElement> {
-    const mergedById = new Map<
-      string,
-      TaskElement | StoryElement | GoalElement
-    >();
+    primary: CanvasPlanningElement[],
+    secondary: CanvasPlanningElement[]
+  ): CanvasPlanningElement[] {
+    const mergedById = new Map<string, CanvasPlanningElement>();
     primary.forEach((element) => mergedById.set(element.id, element));
     secondary.forEach((element) => mergedById.set(element.id, element));
     return Array.from(mergedById.values());
@@ -464,6 +497,17 @@ export class CanvasDataService {
           width: this.normalizeCoord(diameter),
           height: this.normalizeCoord(diameter),
         });
+        return;
+      }
+      if (entry.element_type === 'habit') {
+        placeholders.push({
+          elementType: 'habit',
+          elementUuid: entry.element_uuid,
+          x: this.normalizeCoord(entry.x),
+          y: this.normalizeCoord(entry.y),
+          width: HabitElement.diameter,
+          height: HabitElement.diameter,
+        });
       }
     });
     return placeholders;
@@ -492,7 +536,7 @@ export class CanvasDataService {
 
   public updateCanvasRelations(
     connections: IConnection[],
-    elements: Array<TaskElement | StoryElement | GoalElement>
+    elements: RelationPlanningElement[]
   ): Observable<void> {
     if (!this.canvasId) return of(undefined);
     const elementRefs = this.buildElementRefMap(elements);
@@ -553,7 +597,7 @@ export class CanvasDataService {
 
   public hasRelationChanges(
     connections: IConnection[],
-    elements: Array<TaskElement | StoryElement | GoalElement>
+    elements: RelationPlanningElement[]
   ): boolean {
     if (!this.canvasId) return connections.length > 0;
     const elementRefs = this.buildElementRefMap(elements);
@@ -598,15 +642,9 @@ export class CanvasDataService {
   }
 
   private getElementUpdateKey(
-    element: TaskElement | StoryElement | GoalElement
+    element: CanvasPlanningElement
   ): string {
-    const type =
-      element instanceof TaskElement
-        ? 'task'
-        : element instanceof StoryElement
-          ? 'story'
-          : 'goal';
-    return `${type}:${element.id}`;
+    return `${getPlanningElementKind(element)}:${element.id}`;
   }
 
   private buildBackendPatch(patch: ElementPatch): Partial<{
@@ -677,7 +715,10 @@ export class CanvasDataService {
         if (req.element instanceof StoryElement) {
           return this.storiesApi.patchStory(ref, payload as Partial<Story>);
         }
-        return this.goalsApi.patchGoal(ref, payload as Partial<Goal>);
+        if (req.element instanceof GoalElement) {
+          return this.goalsApi.patchGoal(ref, payload as Partial<Goal>);
+        }
+        return this.habitsApi.patchHabit(ref, payload as Partial<Habit>);
       }),
       tap((updated) => {
         if (!updated) return;
@@ -685,8 +726,10 @@ export class CanvasDataService {
           this.upsertTaskCache(updated as PlatformTask);
         } else if (updated && req.element instanceof StoryElement) {
           this.upsertStoryCache(updated as Story);
-        } else if (updated) {
+        } else if (updated && req.element instanceof GoalElement) {
           this.upsertGoalCache(updated as Goal);
+        } else if (updated) {
+          this.applyHabitDtoToElement(req.element as HabitElement, updated as Habit);
         }
         const activeCanvasId = this.canvasId;
         if (activeCanvasId) {
@@ -884,11 +927,88 @@ export class CanvasDataService {
     );
   }
 
+  public toggleHabitCompletionToday(
+    habit: HabitElement,
+    date: Date = new Date()
+  ): Observable<Habit> {
+    const ref = this.getBackendRef(habit);
+    if (!ref) {
+      return throwError(() => new Error('Habit is not persisted yet.'));
+    }
+    return this.habitsApi.toggleHabitCompletion(ref, date).pipe(
+      tap((updated) => this.applyHabitDtoToElement(habit, updated))
+    );
+  }
+
+  public setHabitCompletionToday(
+    habit: HabitElement,
+    completed: boolean,
+    date: Date = new Date()
+  ): Observable<Habit> {
+    if (this.isHabitCompletionStateCurrent(habit, completed, date)) {
+      const ref = this.getBackendRef(habit);
+      if (!ref) {
+        return throwError(() => new Error('Habit is not persisted yet.'));
+      }
+      const cached = this.habitsCache?.find(
+        (entry) =>
+          String(entry.id) === String(ref) ||
+          (entry.uuid && String(entry.uuid) === String(ref))
+      );
+      if (cached) {
+        return of(cached);
+      }
+    }
+    return this.toggleHabitCompletionToday(habit, date);
+  }
+
+  private isHabitCompletionStateCurrent(
+    habit: HabitElement,
+    completed: boolean,
+    date: Date
+  ): boolean {
+    const dateKey = this.toDateKey(date);
+    const historyMatch = habit.completionHistory.find(
+      ([entryDate]) => entryDate === dateKey
+    );
+    if (historyMatch) {
+      return historyMatch[1] === completed;
+    }
+    const lastChecked = habit.lastChecked;
+    if (lastChecked && this.toDateKey(lastChecked) === dateKey) {
+      return completed === true;
+    }
+    if (dateKey === this.toDateKey(new Date())) {
+      return habit.completedToday === completed;
+    }
+    return completed === false;
+  }
+
+  private toDateKey(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  public updateHabitLifecycleStatus(
+    habit: HabitElement,
+    status: Status.Active | Status.Archived
+  ): Observable<Habit> {
+    const ref = this.getBackendRef(habit);
+    if (!ref) {
+      return throwError(() => new Error('Habit is not persisted yet.'));
+    }
+    return this.habitsApi.patchHabit(ref, { status }).pipe(
+      tap((updated) => this.applyHabitDtoToElement(habit, updated))
+    );
+  }
+
   public readonly elementUpdateStatusChanges =
     this.elementUpdateStatus$.asObservable();
 
   public queueElementUpdate(
-    element: TaskElement | StoryElement | GoalElement,
+    element: CanvasPlanningElement,
     patch: ElementPatch
   ): void {
     if (!patch || Object.keys(patch).length === 0) return;
@@ -951,7 +1071,8 @@ export class CanvasDataService {
       const isPlanningType =
         snapshot.element_type === 'task' ||
         snapshot.element_type === 'story' ||
-        snapshot.element_type === 'goal';
+        snapshot.element_type === 'goal' ||
+        snapshot.element_type === 'habit';
       if (!isPlanningType) continue;
       if (!snapshot.meta || snapshot.meta.focused !== true) continue;
       return snapshot.element_uuid;
@@ -965,7 +1086,8 @@ export class CanvasDataService {
       const isPlanningType =
         snapshot.element_type === 'task' ||
         snapshot.element_type === 'story' ||
-        snapshot.element_type === 'goal';
+        snapshot.element_type === 'goal' ||
+        snapshot.element_type === 'habit';
       if (!isPlanningType) continue;
       if (!snapshot.meta || snapshot.meta.highlighted !== true) continue;
       highlighted.push(snapshot.element_uuid);
@@ -986,16 +1108,18 @@ export class CanvasDataService {
     this.tasksCache = null;
     this.storiesCache = null;
     this.goalsCache = null;
+    this.habitsCache = null;
     this.tasks$ = undefined;
     this.stories$ = undefined;
     this.goals$ = undefined;
+    this.habits$ = undefined;
     this.positionRegistry.clear();
     this.positionDirtyKeys.clear();
     this.relationRegistry.clear();
   }
 
   public markPositionsDirty(
-    elements: Array<TaskElement | StoryElement | GoalElement>
+    elements: CanvasPlanningElement[]
   ): void {
     if (elements.length === 0) return;
     elements.forEach((el) => {
@@ -1007,11 +1131,9 @@ export class CanvasDataService {
   }
 
   public ensureElementsPersisted(
-    elements: Array<TaskElement | StoryElement | GoalElement>
+    elements: CanvasPlanningElement[]
   ): Observable<void> {
-    const toCreate = elements.filter(
-      (el) => !Number.isFinite(this.getBackendId(el))
-    );
+    const toCreate = elements.filter((el) => !this.getBackendRef(el));
     if (toCreate.length === 0) return of(undefined);
     const creates: Observable<any>[] = [];
 
@@ -1073,6 +1195,24 @@ export class CanvasDataService {
                 el.uuid = created.uuid;
               }
               this.upsertGoalCache(created);
+              return created;
+            })
+          )
+        );
+      } else if (el instanceof HabitElement) {
+        const payload: Partial<Habit> = {
+          title: el.title,
+          description: el.description,
+          priority: mapPriorityToBackend(el.priority),
+          status: el.habitStatus,
+          meta: el.meta ?? null,
+        };
+        creates.push(
+          this.habitsApi.createHabit(payload).pipe(
+            map((created) => {
+              el.backendId = created.id;
+              el.uuid = created.uuid ?? created.id;
+              this.upsertHabitCache(created);
               return created;
             })
           )
@@ -1228,6 +1368,26 @@ export class CanvasDataService {
     );
   }
 
+  private fetchHabitsByRefsCached(uuids: string[]): Observable<Habit[]> {
+    if (uuids.length === 0) return of([]);
+    const { cached, missing } = this.getCachedByUuids(this.habitsCache, uuids);
+    if (missing.length === 0) {
+      return of(this.orderByUuids(cached, uuids));
+    }
+    return this.loadHabitsCached().pipe(
+      map((habits) => {
+        this.habitsCache = habits;
+        return this.orderByUuids(
+          this.dedupeById([...cached, ...habits.filter((habit) => {
+            if (!habit.uuid) return false;
+            return missing.includes(habit.uuid);
+          })]),
+          uuids
+        );
+      })
+    );
+  }
+
   private loadTasksCached(force: boolean = false): Observable<PlatformTask[]> {
     if (!force && this.tasksCache) return of(this.tasksCache);
     if (!force && this.tasks$) return this.tasks$;
@@ -1267,6 +1427,19 @@ export class CanvasDataService {
       shareReplay(1)
     );
     return this.goals$;
+  }
+
+  private loadHabitsCached(force: boolean = false): Observable<Habit[]> {
+    if (!force && this.habitsCache) return of(this.habitsCache);
+    if (!force && this.habits$) return this.habits$;
+    this.habits$ = this.habitsApi.getHabits().pipe(
+      map((habits) => {
+        this.habitsCache = habits;
+        return habits;
+      }),
+      shareReplay(1)
+    );
+    return this.habits$;
   }
 
   private getCachedByIds<T extends { id: number }>(
@@ -1309,6 +1482,21 @@ export class CanvasDataService {
       else missing.push(uuid);
     });
     return { cached, missing };
+  }
+
+  private orderByUuids<T extends { uuid?: string }>(
+    items: T[],
+    uuids: string[]
+  ): T[] {
+    const byUuid = new Map<string, T>();
+    items.forEach((item) => {
+      if (item.uuid) {
+        byUuid.set(item.uuid, item);
+      }
+    });
+    return uuids
+      .map((uuid) => byUuid.get(uuid))
+      .filter((item): item is T => Boolean(item));
   }
 
   private mergeCache<T extends { id: number }>(
@@ -1377,6 +1565,35 @@ export class CanvasDataService {
     }
   }
 
+  private upsertHabitCache(habit: Habit): void {
+    if (!this.habitsCache) {
+      this.habitsCache = [habit];
+      return;
+    }
+    const idx = this.habitsCache.findIndex((entry) => entry.id === habit.id);
+    if (idx >= 0) {
+      this.habitsCache[idx] = habit;
+    } else {
+      this.habitsCache.push(habit);
+    }
+  }
+
+  private applyHabitDtoToElement(element: HabitElement, habit: Habit): void {
+    element.backendId = habit.id;
+    element.uuid = habit.uuid ?? habit.id;
+    element.title = habit.title;
+    element.description = habit.description;
+    element.priority = normalizeUiPriority(habit.priority);
+    element.habitStatus = getHabitLifecycleStatus(habit.status ?? Status.Active);
+    element.meta = habit.meta ?? null;
+    element.isDueToday = habit.is_due_today === true;
+    const mapped = mapHabit(habit, []);
+    element.completedToday = mapped.completedToday;
+    element.lastChecked = mapped.lastChecked;
+    element.completionHistory = mapped.completionHistory;
+    this.upsertHabitCache(habit);
+  }
+
   public setActiveCanvas(
     canvas: Pick<CanvasSummary, 'id' | 'name' | 'meta'>
   ): void {
@@ -1404,7 +1621,9 @@ export class CanvasDataService {
         ? 'task'
         : req.element instanceof StoryElement
           ? 'story'
-          : 'goal';
+          : req.element instanceof GoalElement
+            ? 'goal'
+            : 'habit';
     CanvasClientStorage.upsertUnsyncedDraft(this.canvasId, {
       id: this.getElementDraftId(req),
       kind: 'element-patch',
@@ -1591,8 +1810,28 @@ export class CanvasDataService {
     );
   }
 
+  public archiveCanvas(id: string): Observable<CanvasSummary> {
+    return this.canvasApi.archiveCanvas(id).pipe(
+      tap((updated) => {
+        if (this.canvasId === updated.id) {
+          this.setActiveCanvas(updated);
+        }
+      })
+    );
+  }
+
+  public restoreCanvas(id: string): Observable<CanvasSummary> {
+    return this.canvasApi.restoreCanvas(id).pipe(
+      tap((updated) => {
+        if (this.canvasId === updated.id) {
+          this.setActiveCanvas(updated);
+        }
+      })
+    );
+  }
+
   public getRemovedPositionIds(
-    elements: Array<TaskElement | StoryElement | GoalElement>
+    elements: CanvasPlanningElement[]
   ): string[] {
     if (this.positionRegistry.size === 0) return [];
     const activeKeys = this.getElementKeys(elements);
@@ -1606,7 +1845,7 @@ export class CanvasDataService {
   }
 
   public needsPositionRefresh(
-    elements: Array<TaskElement | StoryElement | GoalElement>
+    elements: CanvasPlanningElement[]
   ): boolean {
     const keys = this.getElementKeys(elements);
     for (const key of keys) {
@@ -1638,7 +1877,7 @@ export class CanvasDataService {
   }
 
   public getPositionIdForElement(
-    element: TaskElement | StoryElement | GoalElement
+    element: CanvasPlanningElement
   ): string | null {
     const key = this.getPositionKeyForElement(element);
     if (!key) return null;
@@ -1646,12 +1885,14 @@ export class CanvasDataService {
   }
 
   public deleteElement(
-    element: TaskElement | StoryElement | GoalElement
+    element: CanvasPlanningElement
   ): Observable<void> {
-    const type = this.getElementType(element);
+    const type = this.getCanvasElementType(element);
     if (!type) return of(undefined);
     const ref = this.getBackendRef(element);
-    if (!ref) {
+    const supportsPermanentDelete =
+      getPlanningElementCapabilities(element).supportsPermanentDelete;
+    if (!ref || !supportsPermanentDelete) {
       return this.deletePositionForElement(element);
     }
     const deleteEntity$ =
@@ -1659,7 +1900,9 @@ export class CanvasDataService {
         ? this.tasksApi.deleteTask(ref)
         : element instanceof StoryElement
           ? this.storiesApi.deleteStory(ref)
-          : this.goalsApi.deleteGoal(ref);
+          : element instanceof GoalElement
+            ? this.goalsApi.deleteGoal(ref)
+            : this.habitsApi.deleteHabit(ref);
     return deleteEntity$.pipe(
       switchMap(() =>
         this.deletePositionForElement(element).pipe(
@@ -1909,7 +2152,7 @@ export class CanvasDataService {
   }
 
   private getElementKeys(
-    elements: Array<TaskElement | StoryElement | GoalElement>
+    elements: CanvasPlanningElement[]
   ): Set<string> {
     const keys = new Set<string>();
     elements.forEach((el) => {
@@ -1919,12 +2162,13 @@ export class CanvasDataService {
     return keys;
   }
 
-  private getElementType(
-    element: TaskElement | StoryElement | GoalElement
+  private getRelationElementType(
+    element: RelationPlanningElement
   ): RelationElementType | null {
     if (element instanceof TaskElement) return 'task';
     if (element instanceof StoryElement) return 'story';
     if (element instanceof GoalElement) return 'goal';
+    if (element instanceof HabitElement) return 'routine';
     return null;
   }
 
@@ -1973,11 +2217,11 @@ export class CanvasDataService {
   }
 
   private buildElementRefMap(
-    elements: Array<TaskElement | StoryElement | GoalElement>
+    elements: RelationPlanningElement[]
   ): Map<string, { uuid: string; type: RelationElementType }> {
     const map = new Map<string, { uuid: string; type: RelationElementType }>();
     elements.forEach((element) => {
-      const type = this.getElementType(element);
+      const type = this.getRelationElementType(element);
       if (!type || !element.uuid) return;
       map.set(element.uuid, { uuid: element.uuid, type });
       map.set(element.id, { uuid: element.uuid, type });
@@ -1993,7 +2237,7 @@ export class CanvasDataService {
   }
 
   private getBackendId(
-    element: TaskElement | StoryElement | GoalElement
+    element: CanvasPlanningElement
   ): number | null {
     if (Number.isFinite(element.backendId)) {
       return element.backendId ?? null;
@@ -2004,19 +2248,28 @@ export class CanvasDataService {
   }
 
   private getBackendRef(
-    element: TaskElement | StoryElement | GoalElement
+    element: CanvasPlanningElement
   ): string | null {
     if (element.uuid) return element.uuid;
+    if (typeof element.backendId === 'string' && element.backendId.length > 0) {
+      return element.backendId;
+    }
     if (Number.isFinite(element.backendId)) {
       return String(element.backendId);
     }
     return null;
   }
 
+  private getCanvasElementType(
+    element: CanvasPlanningElement
+  ): 'task' | 'story' | 'goal' | 'habit' | null {
+    return getPlanningElementKind(element);
+  }
+
   private getPositionKeyForElement(
-    element: TaskElement | StoryElement | GoalElement
+    element: CanvasPlanningElement
   ): string | null {
-    const type = this.getElementType(element);
+    const type = this.getCanvasElementType(element);
     if (!type || !element.uuid) return null;
     return this.buildPositionKey(type, `uuid:${element.uuid}`);
   }
@@ -2146,7 +2399,7 @@ export class CanvasDataService {
   }
 
   private deletePositionForElement(
-    element: TaskElement | StoryElement | GoalElement
+    element: CanvasPlanningElement
   ): Observable<void> {
     const key = this.getPositionKeyForElement(element);
     if (!key) return of(undefined);
@@ -2164,7 +2417,7 @@ export class CanvasDataService {
   }
 
   private removePositionByKey(
-    element: TaskElement | StoryElement | GoalElement
+    element: CanvasPlanningElement
   ): void {
     const key = this.getPositionKeyForElement(element);
     if (key) {
@@ -2174,7 +2427,7 @@ export class CanvasDataService {
   }
 
   private removeElementFromCache(
-    type: 'task' | 'story' | 'goal',
+    type: 'task' | 'story' | 'goal' | 'habit',
     uuid: string
   ): void {
     if (type === 'task' && this.tasksCache) {
@@ -2185,6 +2438,8 @@ export class CanvasDataService {
       );
     } else if (type === 'goal' && this.goalsCache) {
       this.goalsCache = this.goalsCache.filter((goal) => goal.uuid !== uuid);
+    } else if (type === 'habit' && this.habitsCache) {
+      this.habitsCache = this.habitsCache.filter((habit) => habit.uuid !== uuid);
     }
   }
 }

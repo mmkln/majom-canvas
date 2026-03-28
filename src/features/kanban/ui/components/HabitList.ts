@@ -64,7 +64,7 @@ export class HabitListComponent {
       let ok = false;
       try {
         ok = await this.options.handlers.onHabitToggle(
-          habitCard.habitId,
+          habitCard.habitUuid,
           completed
         );
       } catch {
@@ -91,7 +91,7 @@ export class HabitListComponent {
       let ok = false;
       try {
         ok = await this.options.handlers.onHabitTitlePatch(
-          habitCard.habitId,
+          habitCard.habitUuid,
           next
         );
       } catch {

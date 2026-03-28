@@ -62,6 +62,7 @@ export type HabitsQuickModalService = Pick<
   | 'createHabit'
   | 'patchHabitTitle'
   | 'archiveHabit'
+  | 'restoreHabit'
   | 'deleteHabit'
 >;
 
@@ -146,6 +147,8 @@ export class HabitsQuickModal {
   ) => void;
   private days: HabitDay[];
   private rows: HabitRowState[] = [];
+  private archivedRows: HabitRowState[] = [];
+  private showArchived = false;
   private loading = false;
   private errorKey: AppTranslationKey | null = null;
   private createErrorKey: AppTranslationKey | null = null;
@@ -154,7 +157,7 @@ export class HabitsQuickModal {
   private createPending = false;
   private focusCreateInputOnRender = false;
   private readonly pendingCellKeys = new Set<string>();
-  private readonly pendingHabitIds = new Set<number>();
+  private readonly pendingHabitIds = new Set<string>();
   private readonly rowMenuControllers = new Set<AnchoredMenu>();
   private streakOverlayWrap: HTMLDivElement | null = null;
   private streakOverlayRows: StreakRowOverlayMeta[] = [];
@@ -228,6 +231,8 @@ export class HabitsQuickModal {
     this.body = null;
     this.footer = null;
     this.rows = [];
+    this.archivedRows = [];
+    this.showArchived = false;
     this.loading = false;
     this.errorKey = null;
     this.createErrorKey = null;
@@ -298,12 +303,16 @@ export class HabitsQuickModal {
     return completionByDateKey;
   }
 
-  private toCellKey(habitId: number, dateKey: string): string {
-    return `${habitId}:${dateKey}`;
+  private getHabitRef(habit: Habit): string {
+    return habit.uuid;
   }
 
-  private isHabitPending(habitId: number): boolean {
-    return this.pendingHabitIds.has(habitId);
+  private toCellKey(habitUuid: string, dateKey: string): string {
+    return `${habitUuid}:${dateKey}`;
+  }
+
+  private isHabitPending(habitUuid: string): boolean {
+    return this.pendingHabitIds.has(habitUuid);
   }
 
   private mapHabitToRow(habit: Habit): HabitRowState {
@@ -344,7 +353,7 @@ export class HabitsQuickModal {
       openCount: summary.open,
       completedCount: summary.completed,
       totalDue: summary.total,
-      archivedCount: 0,
+      archivedCount: this.archivedRows.length,
       activeCount: this.rows.length,
     };
   }
@@ -353,10 +362,18 @@ export class HabitsQuickModal {
     this.onStatusChange?.(this.getStatusSnapshot());
   }
 
-  private sortRowsByTitle(): void {
-    this.rows.sort((left, right) =>
+  private sortRowListByTitle(rows: HabitRowState[]): void {
+    rows.sort((left, right) =>
       left.habit.title.localeCompare(right.habit.title)
     );
+  }
+
+  private sortRowsByTitle(): void {
+    this.sortRowListByTitle(this.rows);
+  }
+
+  private sortArchivedRowsByTitle(): void {
+    this.sortRowListByTitle(this.archivedRows);
   }
 
   private disposeRowMenus(): void {
@@ -560,6 +577,98 @@ export class HabitsQuickModal {
     return wrap;
   }
 
+  private renderArchivedSection(): HTMLElement {
+    const section = document.createElement('section');
+    section.className = 'overflow-hidden rounded-xl border border-slate-200/80 bg-white';
+
+    const header = document.createElement('button');
+    header.type = 'button';
+    header.className =
+      'flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-slate-50';
+    header.setAttribute('aria-expanded', this.showArchived ? 'true' : 'false');
+    header.addEventListener('click', () => {
+      this.showArchived = !this.showArchived;
+      this.renderBody();
+    });
+
+    const heading = document.createElement('div');
+    heading.className = 'min-w-0';
+
+    const title = document.createElement('div');
+    title.className = 'text-sm font-semibold text-slate-800';
+    title.textContent = this.i18n.t('habits.archivedToggle', {
+      count: String(this.archivedRows.length),
+    });
+
+    const subtitle = document.createElement('div');
+    subtitle.className = 'text-xs text-slate-500';
+    subtitle.textContent = this.i18n.t('habits.archivedSubtitle');
+
+    const chevron = createIcon(this.showArchived ? 'chevron-up' : 'chevron-down', {
+      size: 14,
+      strokeWidth: 1.9,
+    });
+    chevron.setAttribute('aria-hidden', 'true');
+    chevron.classList.add('shrink-0', 'text-slate-500');
+
+    heading.append(title, subtitle);
+    header.append(heading, chevron);
+    section.appendChild(header);
+
+    if (!this.showArchived) {
+      return section;
+    }
+
+    const list = document.createElement('div');
+    list.className = 'border-t border-slate-200/80';
+
+    this.archivedRows.forEach((row) => {
+      const habitPending = this.isHabitPending(this.getHabitRef(row.habit));
+      const item = document.createElement('div');
+      item.className =
+        'flex items-center justify-between gap-3 px-3 py-2.5 transition-colors hover:bg-slate-50';
+
+      const label = document.createElement('div');
+      label.className = 'min-w-0 text-sm font-medium text-slate-700';
+      label.textContent = row.habit.title;
+      label.title = row.habit.title;
+
+      const actions = document.createElement('div');
+      actions.className = 'flex items-center gap-1.5';
+
+      const restoreButton = createIconButton({
+        icon: 'arrow-uturn-left',
+        tone: 'text',
+        size: 'sm',
+        title: this.i18n.t('common.restore'),
+        ariaLabel: this.i18n.t('common.restore'),
+        disabled: this.loading || this.createPending || habitPending,
+        onClick: () => {
+          void this.restoreHabit(row);
+        },
+      });
+
+      const deleteButton = createIconButton({
+        icon: 'trash',
+        tone: 'danger',
+        size: 'sm',
+        title: this.i18n.t('common.delete'),
+        ariaLabel: this.i18n.t('common.delete'),
+        disabled: this.loading || this.createPending || habitPending,
+        onClick: () => {
+          void this.deleteHabit(row);
+        },
+      });
+
+      actions.append(restoreButton, deleteButton);
+      item.append(label, actions);
+      list.appendChild(item);
+    });
+
+    section.appendChild(list);
+    return section;
+  }
+
   private openCreateModal(): void {
     if (this.createOverlay) return;
     this.focusCreateInputOnRender = true;
@@ -688,7 +797,7 @@ export class HabitsQuickModal {
       content.appendChild(errorBox);
     }
 
-    if (this.loading && this.rows.length === 0) {
+    if (this.loading && this.rows.length === 0 && this.archivedRows.length === 0) {
       const loading = document.createElement('div');
       loading.className = 'py-6 text-sm text-slate-500';
       loading.textContent = this.i18n.t('habits.loading');
@@ -697,7 +806,7 @@ export class HabitsQuickModal {
       return;
     }
 
-    if (!this.loading && this.rows.length === 0) {
+    if (!this.loading && this.rows.length === 0 && this.archivedRows.length === 0) {
       const emptyState = document.createElement('div');
       emptyState.className =
         'flex min-h-[16rem] flex-col items-center justify-center gap-3 text-center';
@@ -724,71 +833,81 @@ export class HabitsQuickModal {
 
     content.appendChild(this.renderQuickAddToolbar());
 
-    const tableWrap = document.createElement('div');
-    tableWrap.className =
-      'w-full overflow-x-auto rounded-xl border border-slate-200/80 bg-white';
-    tableWrap.style.position = 'relative';
+    if (this.rows.length === 0 && this.archivedRows.length > 0) {
+      const noActive = document.createElement('p');
+      noActive.className = 'text-sm text-slate-500';
+      noActive.textContent = this.i18n.t('habits.noActive');
+      content.appendChild(noActive);
+    }
 
-    const table = document.createElement('table');
-    table.className = 'min-w-[860px] w-full border-separate border-spacing-0';
-    table.style.position = 'relative';
-    table.style.zIndex = '1';
+    if (this.rows.length > 0) {
+      const tableWrap = document.createElement('div');
+      tableWrap.className =
+        'w-full overflow-auto rounded-xl border border-slate-200/80 bg-white';
+      tableWrap.style.position = 'relative';
+      tableWrap.style.maxHeight = 'min(56vh, 34rem)';
+      tableWrap.style.overscrollBehavior = 'contain';
 
-    const thead = document.createElement('thead');
-    const headRow = document.createElement('tr');
-    const headerCellBaseClass =
-      'h-11 border-b border-slate-200/80 px-3 py-1.5 align-middle text-[12px] font-semibold leading-[1.35] text-slate-600';
-    const stickyLeftHeaderClass = 'sticky left-0 z-20 bg-slate-50 text-left';
-    const stickyLeftCellClass = 'sticky left-0 z-10 bg-white';
-    const stickyRightHeaderClass =
-      'sticky right-0 z-20 bg-slate-50 text-center';
-    const stickyRightCellClass =
-      'sticky right-0 z-10 bg-white';
-    const titleHead = document.createElement('th');
-    titleHead.className =
-      `${headerCellBaseClass} ${stickyLeftHeaderClass}`;
-    titleHead.setAttribute('scope', 'col');
-    titleHead.textContent = this.i18n.t('habits.table.routine');
-    headRow.appendChild(titleHead);
+      const table = document.createElement('table');
+      table.className = 'min-w-[860px] w-full border-separate border-spacing-0';
+      table.style.position = 'relative';
+      table.style.zIndex = '1';
 
-    const todayKey = toLocalDateKey(new Date());
-    this.days.forEach((day) => {
-      const th = document.createElement('th');
-      th.setAttribute('scope', 'col');
-      th.className =
-        `${headerCellBaseClass} text-center ${day.key === todayKey ? 'bg-indigo-50' : 'bg-slate-50'}`;
-      const dayLabel = document.createElement('div');
-      dayLabel.className = 'text-[12px] font-semibold text-slate-600';
-      dayLabel.textContent = day.dayLabel;
-      const shortLabel = document.createElement('div');
-      shortLabel.className = 'text-[12px] font-normal text-slate-500';
-      shortLabel.textContent = day.shortLabel;
-      th.append(dayLabel, shortLabel);
-      headRow.appendChild(th);
-    });
+      const thead = document.createElement('thead');
+      const headRow = document.createElement('tr');
+      const headerCellBaseClass =
+        'h-11 border-b border-slate-200/80 px-3 py-1.5 align-middle text-[12px] font-semibold leading-[1.35] text-slate-600';
+      const stickyLeftHeaderClass = 'sticky left-0 top-0 z-20 bg-slate-50 text-left';
+      const stickyLeftCellClass = 'sticky left-0 z-10 bg-white';
+      const stickyRightHeaderClass =
+        'sticky right-0 top-0 z-20 bg-slate-50 text-center';
+      const stickyRightCellClass =
+        'sticky right-0 z-10 bg-white';
+      const titleHead = document.createElement('th');
+      titleHead.className =
+        `${headerCellBaseClass} ${stickyLeftHeaderClass}`;
+      titleHead.setAttribute('scope', 'col');
+      titleHead.textContent = this.i18n.t('habits.table.routine');
+      headRow.appendChild(titleHead);
 
-    const actionsHead = document.createElement('th');
-    actionsHead.className =
-      `${headerCellBaseClass} ${stickyRightHeaderClass} w-14`;
-    actionsHead.setAttribute('scope', 'col');
-    actionsHead.setAttribute('aria-label', this.i18n.t('common.actions'));
-    const actionsLabel = document.createElement('span');
-    actionsLabel.className = 'sr-only';
-    actionsLabel.textContent = this.i18n.t('common.actions');
-    actionsHead.appendChild(actionsLabel);
-    headRow.appendChild(actionsHead);
+      const todayKey = toLocalDateKey(new Date());
+      this.days.forEach((day) => {
+        const th = document.createElement('th');
+        th.setAttribute('scope', 'col');
+        th.className =
+          `${headerCellBaseClass} sticky top-0 z-20 text-center ${day.key === todayKey ? 'bg-indigo-50' : 'bg-slate-50'}`;
+        const dayLabel = document.createElement('div');
+        dayLabel.className = 'text-[12px] font-semibold text-slate-600';
+        dayLabel.textContent = day.dayLabel;
+        const shortLabel = document.createElement('div');
+        shortLabel.className = 'text-[12px] font-normal text-slate-500';
+        shortLabel.textContent = day.shortLabel;
+        th.append(dayLabel, shortLabel);
+        headRow.appendChild(th);
+      });
 
-    thead.appendChild(headRow);
-    table.appendChild(thead);
+      const actionsHead = document.createElement('th');
+      actionsHead.className =
+        `${headerCellBaseClass} ${stickyRightHeaderClass} w-14`;
+      actionsHead.setAttribute('scope', 'col');
+      actionsHead.setAttribute('aria-label', this.i18n.t('common.actions'));
+      const actionsLabel = document.createElement('span');
+      actionsLabel.className = 'sr-only';
+      actionsLabel.textContent = this.i18n.t('common.actions');
+      actionsHead.appendChild(actionsLabel);
+      headRow.appendChild(actionsHead);
 
-    const tbody = document.createElement('tbody');
-    const streakRows: StreakRowOverlayMeta[] = [];
-    const rowCellStateClass =
-      'transition-colors group-hover:bg-slate-50/70 group-focus-within:bg-slate-50/90';
-    const stickyRowCellStateClass =
-      'transition-colors group-hover:bg-slate-50 group-focus-within:bg-slate-50';
-    this.rows.forEach((row) => {
-      const habitPending = this.isHabitPending(row.habit.id);
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      const streakRows: StreakRowOverlayMeta[] = [];
+      const rowCellStateClass =
+        'transition-colors group-hover:bg-slate-50/70 group-focus-within:bg-slate-50/90';
+      const stickyRowCellStateClass =
+        'transition-colors group-hover:bg-slate-50 group-focus-within:bg-slate-50';
+      this.rows.forEach((row) => {
+      const habitPending = this.isHabitPending(this.getHabitRef(row.habit));
       const rowCheckedStates = this.days.map(
         (day) => row.completionByDateKey.get(day.key) === true
       );
@@ -822,7 +941,7 @@ export class HabitsQuickModal {
       this.days.forEach((day, index) => {
         const td = document.createElement('td');
         td.className = `h-11 px-3 text-center align-middle ${rowCellStateClass}`;
-        const cellKey = this.toCellKey(row.habit.id, day.key);
+        const cellKey = this.toCellKey(this.getHabitRef(row.habit), day.key);
         const pending = this.pendingCellKeys.has(cellKey);
         const checked = rowCheckedStates[index];
         const checkboxDisabled =
@@ -880,7 +999,7 @@ export class HabitsQuickModal {
 
       const menuPanel = createSurface({
         elevated: true,
-        className: 'absolute left-0 top-0 z-30 hidden w-36 overflow-hidden',
+        className: 'absolute left-0 top-0 z-50 hidden w-36 overflow-hidden',
       });
       menuPanel.setAttribute('role', 'menu');
 
@@ -891,6 +1010,8 @@ export class HabitsQuickModal {
           menuButton.setAttribute('aria-expanded', open ? 'true' : 'false');
           menuButton.classList.toggle('bg-indigo-50', open);
           menuButton.classList.toggle('text-indigo-700', open);
+          actions.style.zIndex = open ? '40' : '';
+          actionsRow.style.zIndex = open ? '50' : '';
         },
       });
       menuController.mount();
@@ -941,18 +1062,25 @@ export class HabitsQuickModal {
       actions.appendChild(actionsRow);
       tr.appendChild(actions);
 
-      tbody.appendChild(tr);
-      streakRows.push({
-        dayAnchors,
-        checkedStates: rowCheckedStates,
+        tbody.appendChild(tr);
+        streakRows.push({
+          dayAnchors,
+          checkedStates: rowCheckedStates,
+        });
       });
-    });
 
-    table.appendChild(tbody);
-    tableWrap.appendChild(table);
-    content.appendChild(tableWrap);
-    this.body.appendChild(content);
-    this.bindStreakOverlay(tableWrap, table, streakRows);
+      table.appendChild(tbody);
+      tableWrap.appendChild(table);
+      content.appendChild(tableWrap);
+      this.body.appendChild(content);
+      this.bindStreakOverlay(tableWrap, table, streakRows);
+    } else {
+      this.body.appendChild(content);
+    }
+
+    if (this.archivedRows.length > 0) {
+      content.appendChild(this.renderArchivedSection());
+    }
   }
 
   private async refresh(): Promise<void> {
@@ -970,7 +1098,14 @@ export class HabitsQuickModal {
         this.rows = habits
           .filter((habit) => habit.status === Status.Active)
           .map((habit) => this.mapHabitToRow(habit));
+        this.archivedRows = habits
+          .filter((habit) => habit.status === Status.Archived)
+          .map((habit) => this.mapHabitToRow(habit));
         this.sortRowsByTitle();
+        this.sortArchivedRowsByTitle();
+        if (this.archivedRows.length === 0) {
+          this.showArchived = false;
+        }
       }
     } catch {
       if (refreshVersion === this.refreshVersion) {
@@ -1022,8 +1157,8 @@ export class HabitsQuickModal {
     row: HabitRowState,
     nextTitleRaw: string
   ): Promise<void> {
-    const habitId = row.habit.id;
-    if (this.loading || this.createPending || this.isHabitPending(habitId)) {
+    const habitUuid = this.getHabitRef(row.habit);
+    if (this.loading || this.createPending || this.isHabitPending(habitUuid)) {
       return;
     }
 
@@ -1037,7 +1172,7 @@ export class HabitsQuickModal {
     if (nextTitle === previousTitle) return;
 
     this.errorKey = null;
-    this.pendingHabitIds.add(habitId);
+    this.pendingHabitIds.add(habitUuid);
     row.habit = {
       ...row.habit,
       title: nextTitle,
@@ -1046,7 +1181,7 @@ export class HabitsQuickModal {
     this.renderFooter();
     this.renderBody();
     try {
-      const updated = await this.service.patchHabitTitle(habitId, nextTitle);
+      const updated = await this.service.patchHabitTitle(habitUuid, nextTitle);
       row.habit = updated;
       row.completionByDateKey = this.buildCompletionMap(updated);
       this.sortRowsByTitle();
@@ -1059,53 +1194,76 @@ export class HabitsQuickModal {
       this.sortRowsByTitle();
       this.errorKey = 'habits.error.rename';
     } finally {
-      this.pendingHabitIds.delete(habitId);
+      this.pendingHabitIds.delete(habitUuid);
       this.renderFooter();
       this.renderBody();
     }
   }
 
-  private confirmAction(message: string): boolean {
-    if (typeof window === 'undefined' || typeof window.confirm !== 'function') {
-      return true;
-    }
-    return window.confirm(message);
-  }
-
   private async archiveHabit(row: HabitRowState): Promise<void> {
-    const habitId = row.habit.id;
-    if (this.loading || this.createPending || this.isHabitPending(habitId)) {
-      return;
-    }
-    if (
-      !this.confirmAction(
-        this.i18n.t('habits.confirmArchive', { title: row.habit.title })
-      )
-    ) {
+    const habitUuid = this.getHabitRef(row.habit);
+    if (this.loading || this.createPending || this.isHabitPending(habitUuid)) {
       return;
     }
 
     this.errorKey = null;
-    this.pendingHabitIds.add(habitId);
+    this.pendingHabitIds.add(habitUuid);
     this.renderFooter();
     this.renderBody();
     try {
-      await this.service.archiveHabit(habitId);
-      this.rows = this.rows.filter((item) => item.habit.id !== habitId);
+      const archived = await this.service.archiveHabit(habitUuid);
+      this.rows = this.rows.filter((item) => item.habit.uuid !== habitUuid);
+      if (archived.status === Status.Archived) {
+        this.archivedRows.push(this.mapHabitToRow(archived));
+        this.sortArchivedRowsByTitle();
+      }
       emitKanbanRefreshRequest();
       this.emitStatusChange();
     } catch {
       this.errorKey = 'habits.error.archive';
     } finally {
-      this.pendingHabitIds.delete(habitId);
+      this.pendingHabitIds.delete(habitUuid);
+      this.renderFooter();
+      this.renderBody();
+    }
+  }
+
+  private async restoreHabit(row: HabitRowState): Promise<void> {
+    const habitUuid = this.getHabitRef(row.habit);
+    if (this.loading || this.createPending || this.isHabitPending(habitUuid)) {
+      return;
+    }
+
+    this.errorKey = null;
+    this.pendingHabitIds.add(habitUuid);
+    this.renderFooter();
+    this.renderBody();
+    try {
+      const restored = await this.service.restoreHabit(habitUuid);
+      this.archivedRows = this.archivedRows.filter(
+        (item) => item.habit.uuid !== habitUuid
+      );
+      if (restored.status === Status.Active) {
+        this.rows.push(this.mapHabitToRow(restored));
+        this.sortRowsByTitle();
+      }
+      if (this.archivedRows.length === 0) {
+        this.showArchived = false;
+      }
+      emitKanbanRefreshRequest();
+      this.emitStatusChange();
+    } catch {
+      this.errorKey = 'habits.error.archive';
+    } finally {
+      this.pendingHabitIds.delete(habitUuid);
       this.renderFooter();
       this.renderBody();
     }
   }
 
   private async deleteHabit(row: HabitRowState): Promise<void> {
-    const habitId = row.habit.id;
-    if (this.loading || this.createPending || this.isHabitPending(habitId)) {
+    const habitUuid = this.getHabitRef(row.habit);
+    if (this.loading || this.createPending || this.isHabitPending(habitUuid)) {
       return;
     }
     const confirmed = await confirmDeleteRoutineModal({
@@ -1117,18 +1275,24 @@ export class HabitsQuickModal {
     }
 
     this.errorKey = null;
-    this.pendingHabitIds.add(habitId);
+    this.pendingHabitIds.add(habitUuid);
     this.renderFooter();
     this.renderBody();
     try {
-      await this.service.deleteHabit(habitId);
-      this.rows = this.rows.filter((item) => item.habit.id !== habitId);
+      await this.service.deleteHabit(habitUuid);
+      this.rows = this.rows.filter((item) => item.habit.uuid !== habitUuid);
+      this.archivedRows = this.archivedRows.filter(
+        (item) => item.habit.uuid !== habitUuid
+      );
+      if (this.archivedRows.length === 0) {
+        this.showArchived = false;
+      }
       emitKanbanRefreshRequest();
       this.emitStatusChange();
     } catch {
       this.errorKey = 'habits.error.delete';
     } finally {
-      this.pendingHabitIds.delete(habitId);
+      this.pendingHabitIds.delete(habitUuid);
       this.renderFooter();
       this.renderBody();
     }
@@ -1139,9 +1303,9 @@ export class HabitsQuickModal {
     day: HabitDay,
     previousChecked: boolean
   ): Promise<void> {
-    const habitId = row.habit.id;
-    const cellKey = this.toCellKey(habitId, day.key);
-    if (this.pendingCellKeys.has(cellKey) || this.isHabitPending(habitId))
+    const habitUuid = this.getHabitRef(row.habit);
+    const cellKey = this.toCellKey(habitUuid, day.key);
+    if (this.pendingCellKeys.has(cellKey) || this.isHabitPending(habitUuid))
       return;
 
     this.errorKey = null;
@@ -1151,10 +1315,7 @@ export class HabitsQuickModal {
     this.renderBody();
 
     try {
-      const updated = await this.service.toggleHabitCompletion(
-        habitId,
-        day.date
-      );
+      const updated = await this.service.toggleHabitCompletion(habitUuid, day.date);
       row.habit = updated;
       row.completionByDateKey = this.buildCompletionMap(updated);
       emitKanbanRefreshRequest();

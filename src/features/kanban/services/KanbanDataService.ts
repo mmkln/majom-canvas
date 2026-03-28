@@ -44,11 +44,14 @@ export class KanbanDataService {
     return this.tasksApi.patchTask(taskId, payload).pipe(first());
   }
 
-  public toggleHabitCompletion(habitId: number, date: Date): Observable<Habit> {
-    return this.habitsApi.toggleHabitCompletion(habitId, date).pipe(first());
+  public toggleHabitCompletion(
+    habitUuid: string,
+    date: Date
+  ): Observable<Habit> {
+    return this.habitsApi.toggleHabitCompletion(habitUuid, date).pipe(first());
   }
 
-  public patchHabitTitle(habitId: number, title: string): Observable<Habit> {
-    return this.habitsApi.patchHabit(habitId, { title }).pipe(first());
+  public patchHabitTitle(habitUuid: string, title: string): Observable<Habit> {
+    return this.habitsApi.patchHabit(habitUuid, { title }).pipe(first());
   }
 }

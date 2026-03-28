@@ -57,14 +57,17 @@ function makeTask(
   };
 }
 
-function makeHabit(id: number, status: Status, isDueToday: boolean): Habit {
+function makeHabit(id: string, status: Status, isDueToday: boolean): Habit {
   return {
     id,
+    uuid: id,
     title: `Habit ${id}`,
     description: '',
     created_at: NOW,
+    priority: Priority.Low,
     status,
     last_checked: NOW,
+    meta: null,
     is_due_today: isDueToday,
     weekly_completions: [],
     completions: [],
@@ -92,14 +95,15 @@ function byId(
 }
 
 function collectAllTaskIds(columns: KanbanColumnState[]): number[] {
-  return columns.flatMap((column) => [
-    ...column.sections.tasks.map((task) => task.taskId),
-    ...column.sections.challengeTasks.map((task) => task.taskId),
-    ...column.sections.completedTasks.map((task) => task.taskId),
-    ...column.sections.storyGroups.flatMap((group) =>
-      group.tasks.map((task) => task.taskId)
-    ),
-  ]);
+  return columns.reduce<number[]>((acc, column) => {
+    acc.push(...column.sections.tasks.map((task) => task.taskId));
+    acc.push(...column.sections.challengeTasks.map((task) => task.taskId));
+    acc.push(...column.sections.completedTasks.map((task) => task.taskId));
+    column.sections.storyGroups.forEach((group) => {
+      acc.push(...group.tasks.map((task) => task.taskId));
+    });
+    return acc;
+  }, []);
 }
 
 describe('buildKanbanColumns task assignment rules', () => {
@@ -247,16 +251,16 @@ describe('buildKanbanColumns task assignment rules', () => {
       tasks: [],
       events: [],
       habits: [
-        makeHabit(101, Status.Active, true),
-        makeHabit(102, Status.Cancelled, true),
-        makeHabit(103, Status.Active, false),
+        makeHabit('habit-uuid-101', Status.Active, true),
+        makeHabit('habit-uuid-102', Status.Cancelled, true),
+        makeHabit('habit-uuid-103', Status.Active, false),
       ],
       now: NOW,
     });
 
     expect(
-      byId(columns, 'today').sections.habits.map((item) => item.habitId)
-    ).toEqual([101, 103]);
+      byId(columns, 'today').sections.habits.map((item) => item.habitUuid)
+    ).toEqual(['habit-uuid-101', 'habit-uuid-103']);
     columns
       .filter((column) => column.id !== 'today')
       .forEach((column) => {

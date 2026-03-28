@@ -12,7 +12,7 @@ export type KanbanViewHandlers = {
     collapsed: boolean
   ) => void;
   onTaskAction: (action: KanbanTaskAction, taskId: number) => void;
-  onHabitToggle: (habitId: number, completed: boolean) => Promise<boolean>;
-  onHabitTitlePatch: (habitId: number, title: string) => Promise<boolean>;
+  onHabitToggle: (habitUuid: string, completed: boolean) => Promise<boolean>;
+  onHabitTitlePatch: (habitUuid: string, title: string) => Promise<boolean>;
   onHabitUpdate: () => void;
 };

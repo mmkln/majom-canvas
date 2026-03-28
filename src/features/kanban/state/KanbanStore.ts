@@ -164,12 +164,12 @@ export class KanbanStore {
   }
 
   public async patchHabitTitle(
-    habitId: number,
+    habitUuid: string,
     title: string
   ): Promise<boolean> {
     try {
       await firstValueFrom(
-        this.dataService.patchHabitTitle(habitId, title).pipe(first())
+        this.dataService.patchHabitTitle(habitUuid, title).pipe(first())
       );
       notify('Routine updated', 'success');
       return true;
@@ -181,13 +181,13 @@ export class KanbanStore {
   }
 
   public async toggleHabitCompleted(
-    habitId: number,
+    habitUuid: string,
     _completed: boolean
   ): Promise<boolean> {
     try {
       await firstValueFrom(
         this.dataService
-          .toggleHabitCompletion(habitId, new Date())
+          .toggleHabitCompletion(habitUuid, new Date())
           .pipe(first())
       );
       notify('Routine updated', 'success');

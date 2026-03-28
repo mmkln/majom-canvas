@@ -14,36 +14,46 @@ export class HabitsApiService {
   }
 
   public patchHabit(
-    habitId: number,
+    habitUuid: string,
     payload: Partial<Habit>
   ): Observable<Habit> {
-    const encodedId = encodeURIComponent(String(habitId));
-    return this.http.patch<Habit>(`/habits/${encodedId}/`, payload);
+    const encodedUuid = encodeURIComponent(habitUuid);
+    return this.http.patch<Habit>(`/habits/${encodedUuid}/`, payload);
   }
 
-  public patchHabitTitle(habitId: number, title: string): Observable<Habit> {
-    return this.patchHabit(habitId, { title });
+  public patchHabitTitle(
+    habitUuid: string,
+    title: string
+  ): Observable<Habit> {
+    return this.patchHabit(habitUuid, { title });
   }
 
   public createHabit(payload: Partial<Habit>): Observable<Habit> {
     return this.http.post<Habit>('/habits/', payload);
   }
 
-  public archiveHabit(habitId: number): Observable<Habit> {
-    return this.patchHabit(habitId, { status: Status.Archived });
+  public archiveHabit(habitUuid: string): Observable<Habit> {
+    return this.patchHabit(habitUuid, { status: Status.Archived });
   }
 
-  public deleteHabit(habitId: number): Observable<void> {
-    const encodedId = encodeURIComponent(String(habitId));
-    return this.http.delete<void>(`/habits/${encodedId}/`);
+  public restoreHabit(habitUuid: string): Observable<Habit> {
+    return this.patchHabit(habitUuid, { status: Status.Active });
   }
 
-  public toggleHabitCompletion(habitId: number, date: Date): Observable<Habit> {
-    const encodedId = encodeURIComponent(String(habitId));
+  public deleteHabit(habitUuid: string): Observable<void> {
+    const encodedUuid = encodeURIComponent(habitUuid);
+    return this.http.delete<void>(`/habits/${encodedUuid}/`);
+  }
+
+  public toggleHabitCompletion(
+    habitUuid: string,
+    date: Date
+  ): Observable<Habit> {
+    const encodedUuid = encodeURIComponent(habitUuid);
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
-    return this.http.post<Habit>(`/habits/${encodedId}/toggle_completion/`, {
+    return this.http.post<Habit>(`/habits/${encodedUuid}/toggle_completion/`, {
       date: `${year}-${month}-${day}`,
     });
   }

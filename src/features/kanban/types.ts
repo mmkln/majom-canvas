@@ -48,7 +48,7 @@ export type KanbanTaskCard = {
 
 export type KanbanHabitCard = {
   key: string;
-  habitId: number;
+  habitUuid: string;
   title: string;
   isDueToday: boolean;
   isCompletedToday: boolean;
