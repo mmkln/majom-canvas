@@ -603,21 +603,32 @@ export class CanvasManager {
       const pad = 4 / this.panZoom.scale;
       connectables.forEach((el) => {
         if ((el as any).isHovered) {
+          const overlayGeometry = this.getConnectionHoverOverlayGeometry(
+            el,
+            pad
+          );
+          if (!overlayGeometry) return;
           this.ctx.save();
           this.ctx.fillStyle = HOVER_OVERLAY_FILL;
           this.ctx.strokeStyle = HOVER_OUTLINE_COLOR;
           this.ctx.lineWidth = 2 / this.panZoom.scale;
-          if ('radius' in el) {
+          if (overlayGeometry.kind === 'circle') {
             this.ctx.beginPath();
-            this.ctx.arc(el.x, el.y, (el as any).radius + pad, 0, 2 * Math.PI);
+            this.ctx.arc(
+              overlayGeometry.cx,
+              overlayGeometry.cy,
+              overlayGeometry.radius,
+              0,
+              2 * Math.PI
+            );
           } else {
             this.ctx.beginPath();
             this.ctx.roundRect(
-              (el as any).x - pad,
-              (el as any).y - pad,
-              (el as any).width + pad * 2,
-              (el as any).height + pad * 2,
-              6 / this.panZoom.scale
+              overlayGeometry.x,
+              overlayGeometry.y,
+              overlayGeometry.width,
+              overlayGeometry.height,
+              overlayGeometry.cornerRadius
             );
           }
           this.ctx.fill();
@@ -762,6 +773,13 @@ export class CanvasManager {
       this.ctx.beginPath();
       this.ctx.roundRect(x, y, width, height, 8);
       this.ctx.fill();
+    } else if (placeholder.elementType === 'habit') {
+      const centerX = x + width / 2;
+      const centerY = y + height / 2;
+      const radius = Math.min(width, height) / 2;
+      this.ctx.beginPath();
+      this.ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+      this.ctx.fill();
     } else {
       const centerX = x + width / 2;
       const centerY = y + height / 2;
@@ -782,6 +800,11 @@ export class CanvasManager {
       this.ctx.roundRect(x, y, width, height, 24);
     } else if (placeholder.elementType === 'story') {
       this.ctx.roundRect(x, y, width, height, 8);
+    } else if (placeholder.elementType === 'habit') {
+      const centerX = x + width / 2;
+      const centerY = y + height / 2;
+      const radius = Math.min(width, height) / 2;
+      this.ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
     } else {
       const centerX = x + width / 2;
       const centerY = y + height / 2;
@@ -807,6 +830,42 @@ export class CanvasManager {
       }
     }
     this.ctx.closePath();
+  }
+
+  private getConnectionHoverOverlayGeometry(
+    element: any,
+    pad: number
+  ):
+    | { kind: 'circle'; cx: number; cy: number; radius: number }
+    | {
+        kind: 'rect';
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        cornerRadius: number;
+      }
+    | null {
+    const bounds = this.getElementBounds(element);
+    if (!bounds) return null;
+
+    if (typeof element?.radius === 'number') {
+      return {
+        kind: 'circle',
+        cx: bounds.x + bounds.width / 2,
+        cy: bounds.y + bounds.height / 2,
+        radius: Math.min(bounds.width, bounds.height) / 2 + pad,
+      };
+    }
+
+    return {
+      kind: 'rect',
+      x: bounds.x - pad,
+      y: bounds.y - pad,
+      width: bounds.width + pad * 2,
+      height: bounds.height + pad * 2,
+      cornerRadius: 6 / this.panZoom.scale,
+    };
   }
 
   private setupBackgroundLayer(): void {

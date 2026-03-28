@@ -387,6 +387,73 @@ function createVisibilityHarness(): {
   };
 }
 
+function createConnectionHoverOverlayHarness(): {
+  getConnectionHoverOverlayGeometry: (
+    element: unknown,
+    pad: number
+  ) =>
+    | { kind: 'circle'; cx: number; cy: number; radius: number }
+    | {
+        kind: 'rect';
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        cornerRadius: number;
+      }
+    | null;
+} {
+  const harness: {
+    panZoom: { scale: number };
+    getElementBounds?: (
+      element: unknown,
+      overrides?: Partial<{
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        radius: number;
+      }>
+    ) => { x: number; y: number; width: number; height: number } | null;
+  } = {
+    panZoom: { scale: 1 },
+  };
+
+  harness.getElementBounds = (element, overrides) =>
+    (
+      CanvasManager.prototype as unknown as {
+        getElementBounds: (
+          target: unknown,
+          incoming: unknown,
+          incomingOverrides?: unknown
+        ) => { x: number; y: number; width: number; height: number } | null;
+      }
+    ).getElementBounds.call(harness, element, overrides);
+
+  return {
+    getConnectionHoverOverlayGeometry: (element, pad) =>
+      (
+        CanvasManager.prototype as unknown as {
+          getConnectionHoverOverlayGeometry: (
+            target: unknown,
+            incomingElement: unknown,
+            incomingPad: number
+          ) =>
+            | { kind: 'circle'; cx: number; cy: number; radius: number }
+            | {
+                kind: 'rect';
+                x: number;
+                y: number;
+                width: number;
+                height: number;
+                cornerRadius: number;
+              }
+            | null;
+        }
+      ).getConnectionHoverOverlayGeometry.call(harness, element, pad),
+  };
+}
+
 describe('CanvasManager connection visibility culling', () => {
   const viewBounds: ViewBounds = {
     minX: 0,
@@ -541,6 +608,30 @@ describe('CanvasManager cull bounds hysteresis', () => {
     ).expandViewBounds.call(harness, null);
 
     expect(result).toBeNull();
+  });
+});
+
+describe('CanvasManager connection hover overlay geometry', () => {
+  it('centers circular overlays using element bounds for planning circles', () => {
+    const harness = createConnectionHoverOverlayHarness();
+
+    const geometry = harness.getConnectionHoverOverlayGeometry(
+      {
+        x: 120,
+        y: 80,
+        width: 180,
+        height: 180,
+        radius: 90,
+      },
+      4
+    );
+
+    expect(geometry).toEqual({
+      kind: 'circle',
+      cx: 210,
+      cy: 170,
+      radius: 94,
+    });
   });
 });
 
