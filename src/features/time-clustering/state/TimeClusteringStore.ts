@@ -5,9 +5,7 @@ import {
   validateClusterPlacement,
 } from '../domain/rules.ts';
 import {
-  dayOffsetDateKey,
   isoFromDateKeyMinute,
-  startOfWeekDateKey,
   todayDateKey,
 } from '../domain/time.ts';
 import type {
@@ -44,158 +42,13 @@ type TimeClusteringStoreAction =
   | { type: 'applySuggestionAction'; action: TimeClusteringSuggestionAction }
   | { type: 'applyAiSuggestionAction'; action: TimeClusteringSuggestionAction };
 
-function createSeedCluster(params: {
-  id: string;
-  title: string;
-  colorToken: string;
-  dateKey: string;
-  startMinute: number;
-  endMinute: number;
-  recurrence?: TimeClusterRecurrence;
-}): TimeCluster {
-  return normalizeCluster({
-    id: params.id,
-    title: params.title,
-    colorToken: params.colorToken,
-    startAtIso: isoFromDateKeyMinute(params.dateKey, params.startMinute),
-    endAtIso: isoFromDateKeyMinute(params.dateKey, params.endMinute),
-    recurrence: params.recurrence ?? 'none',
-  });
-}
-
 function createDefaultSnapshot(): TimeClusteringStateSnapshot {
   const selectedDateKey = todayDateKey();
-  const weekStartDateKey = startOfWeekDateKey(selectedDateKey);
-  const weekDateKeys = Array.from({ length: 7 }, (_, index) =>
-    dayOffsetDateKey(weekStartDateKey, index)
-  );
-  const [
-    monday,
-    tuesday,
-    wednesday,
-    thursday,
-    friday,
-    saturday,
-    sunday,
-  ] = weekDateKeys;
 
   return {
     selectedDateKey,
     weekAnchorDateKey: selectedDateKey,
-    clusters: [
-      createSeedCluster({
-        id: 'seed-kickoff',
-        title: 'Weekly kickoff',
-        colorToken: 'orange',
-        dateKey: monday,
-        startMinute: 8 * 60 + 30,
-        endMinute: 9 * 60 + 15,
-      }),
-      createSeedCluster({
-        id: 'seed-support-triage',
-        title: 'Support triage',
-        colorToken: 'green',
-        dateKey: monday,
-        startMinute: 11 * 60,
-        endMinute: 12 * 60,
-      }),
-      createSeedCluster({
-        id: 'seed-user-interviews',
-        title: 'User interviews',
-        colorToken: 'teal',
-        dateKey: tuesday,
-        startMinute: 9 * 60 + 30,
-        endMinute: 11 * 60,
-      }),
-      createSeedCluster({
-        id: 'seed-design-review',
-        title: 'Design review',
-        colorToken: 'violet',
-        dateKey: tuesday,
-        startMinute: 14 * 60,
-        endMinute: 15 * 60,
-      }),
-      createSeedCluster({
-        id: 'seed-deep-work',
-        title: 'Deep work',
-        colorToken: 'blue',
-        dateKey: wednesday,
-        startMinute: 9 * 60,
-        endMinute: 10 * 60 + 30,
-      }),
-      createSeedCluster({
-        id: 'seed-planning',
-        title: 'Planning',
-        colorToken: 'amber',
-        dateKey: wednesday,
-        startMinute: 12 * 60,
-        endMinute: 13 * 60,
-      }),
-      createSeedCluster({
-        id: 'seed-async-docs',
-        title: 'Async docs',
-        colorToken: 'green',
-        dateKey: wednesday,
-        startMinute: 15 * 60,
-        endMinute: 16 * 60,
-      }),
-      createSeedCluster({
-        id: 'seed-client-prep',
-        title: 'Client prep',
-        colorToken: 'orange',
-        dateKey: thursday,
-        startMinute: 10 * 60,
-        endMinute: 11 * 60,
-      }),
-      createSeedCluster({
-        id: 'seed-prototype-build',
-        title: 'Prototype build',
-        colorToken: 'violet',
-        dateKey: thursday,
-        startMinute: 13 * 60,
-        endMinute: 15 * 60,
-      }),
-      createSeedCluster({
-        id: 'seed-release-prep',
-        title: 'Release prep',
-        colorToken: 'teal',
-        dateKey: friday,
-        startMinute: 9 * 60,
-        endMinute: 10 * 60,
-      }),
-      createSeedCluster({
-        id: 'seed-qa-sweep',
-        title: 'QA sweep',
-        colorToken: 'blue',
-        dateKey: friday,
-        startMinute: 11 * 60,
-        endMinute: 12 * 60 + 30,
-      }),
-      createSeedCluster({
-        id: 'seed-retro',
-        title: 'Retro',
-        colorToken: 'amber',
-        dateKey: friday,
-        startMinute: 16 * 60,
-        endMinute: 17 * 60,
-      }),
-      createSeedCluster({
-        id: 'seed-content-pass',
-        title: 'Content pass',
-        colorToken: 'orange',
-        dateKey: saturday,
-        startMinute: 10 * 60 + 30,
-        endMinute: 11 * 60 + 30,
-      }),
-      createSeedCluster({
-        id: 'seed-week-reset',
-        title: 'Week reset',
-        colorToken: 'teal',
-        dateKey: sunday,
-        startMinute: 17 * 60,
-        endMinute: 18 * 60,
-      }),
-    ],
+    clusters: [],
     lastWarnings: [],
   };
 }

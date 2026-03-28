@@ -60,6 +60,7 @@ describe('TimeClusteringStore', () => {
     });
 
     expect(resolveLoad).toBeTypeOf('function');
+    expect(store.getSnapshot().clusters).toHaveLength(0);
     resolveLoad!({
       selectedDateKey: '2026-04-02',
       weekAnchorDateKey: '2026-03-31',
