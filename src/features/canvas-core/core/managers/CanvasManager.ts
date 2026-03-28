@@ -37,19 +37,16 @@ import {
   SHOW_TASK_TEXT_SCALE,
   SHOW_ANIM_SCALE,
   TASK_DROP_PLACEHOLDER_FILL,
-  SMART_GUIDE_COLOR,
-  SMART_GUIDE_CONTAINER_COLOR,
-  SMART_GUIDE_LABEL_COLOR,
-  SMART_GUIDE_LINE_WIDTH,
-  SMART_GUIDE_SPACING_COLOR,
-  SMART_GUIDE_VIEWPORT_CENTER_COLOR,
 } from '../constants.ts';
 import { StoryLayoutService } from '../services/StoryLayoutService.ts';
 import { getBoundingBox } from '../utils/geometryUtils.ts';
 import { hasStatusAnimation } from '../../elements/utils/statusAnimations.ts';
 import { CANVAS_PERF_LOG } from '../../../../config/env/index.ts';
 import { isCircleVisible, isRectVisible } from '../utils/viewBounds.ts';
-import { drawAlignmentOverlay } from '../utils/smartGuideRenderer.ts';
+import {
+  DEFAULT_ALIGNMENT_PRESENTATION_THEME,
+  drawAlignmentOverlay,
+} from '../../alignment/index.ts';
 import { BehaviorSubject, Subject, Subscription } from 'rxjs';
 import { CanvasClientStorage } from '../services/CanvasClientStorage.ts';
 import type { AlignmentPreferences } from '../alignment/types.ts';
@@ -755,12 +752,7 @@ export class CanvasManager {
       ctx: this.ctx,
       overlay: smartGuideOverlay,
       scale: this.panZoom.scale,
-      color: SMART_GUIDE_COLOR,
-      spacingColor: SMART_GUIDE_SPACING_COLOR,
-      containerColor: SMART_GUIDE_CONTAINER_COLOR,
-      viewportCenterColor: SMART_GUIDE_VIEWPORT_CENTER_COLOR,
-      labelColor: SMART_GUIDE_LABEL_COLOR,
-      lineWidth: SMART_GUIDE_LINE_WIDTH,
+      ...DEFAULT_ALIGNMENT_PRESENTATION_THEME,
     });
 
     // draw bounding box for multiple selected elements using geometryUtils
