@@ -1,0 +1,8 @@
+export const LEARNING_MODULE_WIDTH = 520;
+export const LEARNING_MODULE_HEIGHT = 180;
+
+export const LEARNING_LESSON_WIDTH = 376;
+export const LEARNING_LESSON_HEIGHT = 112;
+
+export const LEARNING_CHILD_UNIT_WIDTH = 288;
+export const LEARNING_CHILD_UNIT_HEIGHT = 72;

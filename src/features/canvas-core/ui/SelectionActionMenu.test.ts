@@ -93,7 +93,11 @@ function createSelectionActionMenu(
   scene: Scene,
   interactionAdapter: CanvasInteractionAdapter | null = null,
   runtime: AppRuntime = createAppRuntime({ initialLocale: 'en' }),
-  options: { enableLegacyPlanningActions?: boolean } = {}
+  options: {
+    enableLegacyPlanningActions?: boolean;
+    positionStrategy?: 'below-bounds' | 'top-right-inset';
+    omitDividerForInteractionActions?: boolean;
+  } = {}
 ): SelectionActionMenu {
   return new SelectionActionMenu(
     scene,
@@ -228,6 +232,57 @@ describe('SelectionActionMenu adapter-driven actions', () => {
         .filter((label): label is string => Boolean(label));
 
       expect(labels).toEqual(['Inspect generic node']);
+    } finally {
+      selectionMenu.unmount();
+      container.remove();
+    }
+  });
+
+  it('can render adapter-only actions as a compact attached row', () => {
+    const scene = new Scene();
+    const node = new GenericCanvasNode('generic-1');
+    scene.addElement(node);
+    scene.setSelected([node]);
+
+    const selectionMenu = createSelectionActionMenu(
+      scene,
+      {
+        getSelectionActions() {
+          return [
+            {
+              id: 'generic-selection-actions',
+              actions: [
+                {
+                  id: 'inspect-generic',
+                  label: 'Inspect generic node',
+                },
+              ],
+            },
+          ];
+        },
+      },
+      createAppRuntime({ initialLocale: 'en' }),
+      {
+        enableLegacyPlanningActions: false,
+        positionStrategy: 'top-right-inset',
+        omitDividerForInteractionActions: true,
+      }
+    );
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    selectionMenu.mount(container);
+
+    try {
+      const surface = container.querySelector('div');
+      const dividers = Array.from(container.querySelectorAll('div')).filter((el) =>
+        el.className.includes('bg-slate-200/70')
+      );
+
+      expect(surface?.className).toContain('rounded-xl');
+      expect(dividers).toHaveLength(0);
+      expect(surface?.style.left).not.toBe('');
+      expect(surface?.style.top).not.toBe('');
     } finally {
       selectionMenu.unmount();
       container.remove();

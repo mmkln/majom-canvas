@@ -16,6 +16,7 @@ import {
   createTextButton,
 } from '../primitives/index.ts';
 import { createIcon, type IconName } from '../icons.ts';
+import { CANVAS_CORE_UI_ROOT_ID } from '../UIManager.ts';
 import { OverlayController } from '../../../../ui-lib/src/services/OverlayController.ts';
 import { AppRuntime, createAppRuntime } from '../../../../app-runtime/index.ts';
 
@@ -1036,7 +1037,9 @@ export class ExistingEntityPicker<
     if (typeof document === 'undefined') {
       throw new Error('ExistingEntityPicker requires a browser document');
     }
-    const canvasUiRoot = document.getElementById('canvas-ui-root');
+    const canvasUiRoot =
+      document.getElementById(CANVAS_CORE_UI_ROOT_ID) ??
+      document.getElementById('canvas-ui-root');
     return canvasUiRoot instanceof HTMLElement ? canvasUiRoot : document.body;
   }
 

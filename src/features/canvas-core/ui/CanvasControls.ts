@@ -59,7 +59,7 @@ export class CanvasControls {
     const orientation = options.orientation ?? 'vertical';
     const isHorizontal = orientation === 'horizontal';
     const layoutClass = isHorizontal
-      ? 'flex-row items-center gap-1 w-fit min-w-fit'
+      ? 'flex-row items-center gap-1 w-[100%] min-w-fit justify-between'
       : 'flex-col items-center';
     const baseClass = embedded ? '' : 'absolute right-4 bottom-4 z-20';
     const defaultClass = `flex ${layoutClass} gap-1 px-3 py-2`;

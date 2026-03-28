@@ -15,6 +15,7 @@ export type CanvasUiPreferences = {
   showNavigationDock: boolean;
   showSaveControls: boolean;
   showCanvasMenu: boolean;
+  miniMapInitiallyVisible: boolean;
 };
 
 export type CanvasUiAdapterContext = {

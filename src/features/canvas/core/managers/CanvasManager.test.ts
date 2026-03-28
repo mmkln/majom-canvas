@@ -9,6 +9,7 @@ import type { IConnectable } from '../interfaces/connectable.ts';
 import { GoalElement } from '../../elements/GoalElement.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
 import { ElementStatus } from '../../elements/ElementStatus.ts';
+import { CanvasClientStorage } from '../services/CanvasClientStorage.ts';
 
 type AnimationLoopHarness = {
   isAnimationRunning: boolean;
@@ -26,6 +27,26 @@ type ViewBounds = {
   maxX: number;
   maxY: number;
 };
+
+function createStorageMock(): Storage {
+  const store = new Map<string, string>();
+  return {
+    get length() {
+      return store.size;
+    },
+    clear: () => {
+      store.clear();
+    },
+    getItem: (key: string) => store.get(key) ?? null,
+    key: (index: number) => Array.from(store.keys())[index] ?? null,
+    removeItem: (key: string) => {
+      store.delete(key);
+    },
+    setItem: (key: string, value: string) => {
+      store.set(key, value);
+    },
+  } as Storage;
+}
 
 function runStartAnimationLoop(target: AnimationLoopHarness): void {
   (
@@ -327,7 +348,6 @@ function createVisibilityHarness(): {
     (
       CanvasManager.prototype as unknown as {
         getElementBounds: (
-          target: unknown,
           incoming: unknown,
           incomingOverrides?: unknown
         ) => { x: number; y: number; width: number; height: number } | null;
@@ -338,7 +358,6 @@ function createVisibilityHarness(): {
     (
       CanvasManager.prototype as unknown as {
         isElementVisible: (
-          target: unknown,
           incoming: unknown,
           incomingViewBounds: ViewBounds | null,
           incomingOverrides?: unknown
@@ -350,7 +369,6 @@ function createVisibilityHarness(): {
     (
       CanvasManager.prototype as unknown as {
         getConnectionCurveBounds: (
-          target: unknown,
           incomingConnection: IConnection,
           incomingFrom: IConnectable,
           incomingTo: IConnectable
@@ -363,7 +381,6 @@ function createVisibilityHarness(): {
       (
         CanvasManager.prototype as unknown as {
           buildConnectableLookup: (
-            target: unknown,
             incomingConnectables: IConnectable[]
           ) => Map<string, IConnectable>;
         }
@@ -372,7 +389,6 @@ function createVisibilityHarness(): {
       (
         CanvasManager.prototype as unknown as {
           isConnectionVisible: (
-            target: unknown,
             incomingConnection: IConnection,
             incomingLookup: Map<string, IConnectable>,
             incomingViewBounds: ViewBounds | null
@@ -423,7 +439,6 @@ function createConnectionHoverOverlayHarness(): {
     (
       CanvasManager.prototype as unknown as {
         getElementBounds: (
-          target: unknown,
           incoming: unknown,
           incomingOverrides?: unknown
         ) => { x: number; y: number; width: number; height: number } | null;
@@ -435,7 +450,6 @@ function createConnectionHoverOverlayHarness(): {
       (
         CanvasManager.prototype as unknown as {
           getConnectionHoverOverlayGeometry: (
-            target: unknown,
             incomingElement: unknown,
             incomingPad: number
           ) =>
@@ -572,10 +586,7 @@ describe('CanvasManager cull bounds hysteresis', () => {
 
     const result = (
       CanvasManager.prototype as unknown as {
-        expandViewBounds: (
-          target: unknown,
-          input: ViewBounds | null
-        ) => ViewBounds | null;
+        expandViewBounds: (input: ViewBounds | null) => ViewBounds | null;
       }
     ).expandViewBounds.call(harness, {
       minX: 0,
@@ -600,10 +611,7 @@ describe('CanvasManager cull bounds hysteresis', () => {
 
     const result = (
       CanvasManager.prototype as unknown as {
-        expandViewBounds: (
-          target: unknown,
-          input: ViewBounds | null
-        ) => ViewBounds | null;
+        expandViewBounds: (input: ViewBounds | null) => ViewBounds | null;
       }
     ).expandViewBounds.call(harness, null);
 
@@ -685,7 +693,6 @@ describe('CanvasManager goal progress dirty updates', () => {
     (
       CanvasManager.prototype as unknown as {
         updateGoalLinksAndProgressIfNeeded: (
-          target: unknown,
           sourceConnections: IConnection[]
         ) => void;
       }
@@ -710,7 +717,6 @@ describe('CanvasManager goal progress dirty updates', () => {
     (
       CanvasManager.prototype as unknown as {
         updateGoalLinksAndProgressIfNeeded: (
-          target: unknown,
           sourceConnections: IConnection[]
         ) => void;
       }
@@ -719,5 +725,86 @@ describe('CanvasManager goal progress dirty updates', () => {
     expect(goal.links).toEqual(['task-1']);
     expect(goal.progress).toBe(1);
     expect(harness.goalProgressDirty).toBe(false);
+  });
+});
+
+describe('CanvasManager smart guide preferences', () => {
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', createStorageMock());
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('persists and forwards per-kind smart guide preferences', () => {
+    const setSmartGuidePreferences = vi.fn();
+    const requestDraw = vi.fn();
+    const harness = {
+      smartGuidePreferences: {
+        showSpacingGuides: true,
+        showContainerGuides: true,
+        showViewportCenterGuides: true,
+      },
+      interactionManager: {
+        setSmartGuidePreferences,
+      },
+      requestDraw,
+    };
+
+    (
+      CanvasManager.prototype as unknown as {
+        setSmartGuidePreferences: (
+          this: typeof harness,
+          preferences: Partial<typeof harness.smartGuidePreferences>
+        ) => void;
+      }
+    ).setSmartGuidePreferences.call(harness, {
+      showSpacingGuides: false,
+      showViewportCenterGuides: false,
+    });
+
+    expect(harness.smartGuidePreferences).toEqual({
+      showSpacingGuides: false,
+      showContainerGuides: true,
+      showViewportCenterGuides: false,
+    });
+    expect(setSmartGuidePreferences).toHaveBeenCalledWith({
+      showSpacingGuides: false,
+      showContainerGuides: true,
+      showViewportCenterGuides: false,
+    });
+    expect(CanvasClientStorage.getCanvasSpacingGuidesEnabled(true)).toBe(false);
+    expect(CanvasClientStorage.getCanvasContainerGuidesEnabled(true)).toBe(
+      true
+    );
+    expect(
+      CanvasClientStorage.getCanvasViewportCenterGuidesEnabled(true)
+    ).toBe(false);
+    expect(requestDraw).toHaveBeenCalledTimes(1);
+  });
+
+  it('persists and forwards the master smart guides toggle', () => {
+    const setSmartGuidesEnabled = vi.fn();
+    const requestDraw = vi.fn();
+    const harness = {
+      smartGuidesEnabled: true,
+      interactionManager: {
+        setSmartGuidesEnabled,
+      },
+      requestDraw,
+    };
+
+    (
+      CanvasManager.prototype as unknown as {
+        setSmartGuidesEnabled: (this: typeof harness, enabled: boolean) => void;
+      }
+    ).setSmartGuidesEnabled.call(harness, false);
+
+    expect(harness.smartGuidesEnabled).toBe(false);
+    expect(setSmartGuidesEnabled).toHaveBeenCalledWith(false);
+    expect(CanvasClientStorage.getCanvasSmartGuidesEnabled(true)).toBe(false);
+    expect(requestDraw).toHaveBeenCalledTimes(1);
   });
 });

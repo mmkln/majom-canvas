@@ -5,7 +5,6 @@ import type {
   IStructuredCanvasNode,
 } from '../../canvas-core/elements/interfaces/structuredCanvasNode.ts';
 import type { UiPriority } from '../../../majom-wrapper/utils/priorityMapping.ts';
-import { emitLearningCanvasEditorRequested } from './LearningCanvasEditorEvents.ts';
 
 type LearningCanvasEntityNodeOptions = {
   nodeKind: string;
@@ -51,13 +50,6 @@ export abstract class LearningCanvasEntityNode extends StructuredCanvasNode {
     this.selected = options.selected ?? false;
     this.backendId = options.backendId;
     this.uuid = options.uuid;
-  }
-
-  public override onDoubleClick(): void {
-    emitLearningCanvasEditorRequested({
-      kind: this.nodeKind === 'module' ? 'module' : 'unit',
-      id: this.id,
-    });
   }
 
   public abstract clone(): IStructuredCanvasNode;

@@ -73,6 +73,8 @@ type ActionNode =
 
 type SelectionActionMenuOptions = {
   enableLegacyPlanningActions?: boolean;
+  positionStrategy?: 'below-bounds' | 'top-right-inset';
+  omitDividerForInteractionActions?: boolean;
 };
 
 export class SelectionActionMenu {
@@ -123,9 +125,12 @@ export class SelectionActionMenu {
     private readonly runtime: AppRuntime = createAppRuntime(),
     private readonly options: SelectionActionMenuOptions = {}
   ) {
+    const useAttachedStyle =
+      this.options.positionStrategy === 'top-right-inset';
     this.container = createSurface({
-      className:
-        'fixed z-40 hidden translate-x-0 items-center gap-1 rounded-full p-1.5 pr-2.5',
+      className: useAttachedStyle
+        ? 'fixed z-40 hidden translate-x-0 items-center gap-1 rounded-xl border border-slate-200/80 bg-white/95 p-1.5 shadow-sm'
+        : 'fixed z-40 hidden translate-x-0 items-center gap-1 rounded-full p-1.5 pr-2.5',
     });
 
     this.actionNodes = this.enableLegacyPlanningActions
@@ -214,7 +219,7 @@ export class SelectionActionMenu {
         target: primary,
       });
       this.show();
-      this.positionUnderBounds(bounds);
+      this.positionForBounds(bounds);
       return;
     }
 
@@ -249,7 +254,7 @@ export class SelectionActionMenu {
       return;
     }
     this.show();
-    this.positionUnderBounds(bounds);
+    this.positionForBounds(bounds);
     this.aiActionsDropdown?.reposition();
   }
 
@@ -488,7 +493,7 @@ export class SelectionActionMenu {
     ];
   }
 
-  private positionUnderBounds(bounds: {
+  private positionForBounds(bounds: {
     x: number;
     y: number;
     width: number;
@@ -496,6 +501,20 @@ export class SelectionActionMenu {
   }): void {
     const panZoom = this.canvasManager.getPanZoomManager();
     const rect = this.canvasManager.getCanvas().getBoundingClientRect();
+    if (this.options.positionStrategy === 'top-right-inset') {
+      const anchorX = bounds.x + bounds.width - 12;
+      const anchorY = bounds.y + 12;
+      const screenX = anchorX * panZoom.scale - panZoom.scrollX + rect.left;
+      const screenY = anchorY * panZoom.scale - panZoom.scrollY + rect.top;
+      positionFixedElement(this.container, {
+        anchorX: screenX,
+        anchorY: screenY,
+        alignX: 'right',
+        alignY: 'top',
+      });
+      return;
+    }
+
     const anchorX = bounds.x + bounds.width / 2;
     const anchorY = bounds.y + bounds.height;
     const screenX = anchorX * panZoom.scale - panZoom.scrollX + rect.left;
@@ -583,10 +602,17 @@ export class SelectionActionMenu {
       return;
     }
 
-    const divider = document.createElement('div');
-    divider.className = 'mx-1 h-4 w-px shrink-0 bg-slate-200/70';
-    this.container.appendChild(divider);
-    this.interactionActionElements.push(divider);
+    if (
+      !(
+        (this.options.omitDividerForInteractionActions ?? false) &&
+        !this.enableLegacyPlanningActions
+      )
+    ) {
+      const divider = document.createElement('div');
+      divider.className = 'mx-1 h-4 w-px shrink-0 bg-slate-200/70';
+      this.container.appendChild(divider);
+      this.interactionActionElements.push(divider);
+    }
 
     actions.forEach((action) => {
       const button = this.createInteractionActionButton(action, context);

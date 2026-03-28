@@ -1,10 +1,12 @@
 export type HudToggleSwitchOptions = {
   label: string;
+  ariaLabel?: string;
   checked?: boolean;
   disabled?: boolean;
   className?: string;
   labelClassName?: string;
   size?: 'default' | 'compact';
+  hideLabel?: boolean;
   fullWidth?: boolean;
   togglePosition?: 'left' | 'right';
   onChange?: (checked: boolean, event: Event) => void;
@@ -17,6 +19,7 @@ export function createHudToggleSwitch(
   root.setAttribute('data-component', 'HudToggleSwitch');
   const disabled = options.disabled === true;
   const size = options.size ?? 'default';
+  const hideLabel = options.hideLabel === true;
   const fullWidth = options.fullWidth ?? true;
   const togglePosition = options.togglePosition ?? 'left';
   const gapClass = size === 'compact' ? 'gap-2' : 'gap-3';
@@ -36,16 +39,20 @@ export function createHudToggleSwitch(
   input.disabled = disabled;
   input.setAttribute('role', 'switch');
   input.setAttribute('aria-checked', input.checked ? 'true' : 'false');
-  input.setAttribute('aria-label', options.label);
+  input.setAttribute('aria-label', options.ariaLabel ?? options.label);
 
   const track = document.createElement('div');
   track.className = trackClassName;
   track.setAttribute('aria-hidden', 'true');
 
-  const text = document.createElement('span');
-  text.className =
-    `${fullWidth ? 'min-w-0' : ''} select-none ${textSizeClass} font-medium text-slate-700 ${options.labelClassName ?? ''}`.trim();
-  text.textContent = options.label;
+  const text = hideLabel
+    ? null
+    : document.createElement('span');
+  if (text) {
+    text.className =
+      `${fullWidth ? 'min-w-0' : ''} select-none ${textSizeClass} font-medium text-slate-700 ${options.labelClassName ?? ''}`.trim();
+    text.textContent = options.label;
+  }
 
   input.addEventListener('change', (event) => {
     const target = event.currentTarget as HTMLInputElement | null;
@@ -55,12 +62,19 @@ export function createHudToggleSwitch(
   });
 
   if (togglePosition === 'right') {
-    if (fullWidth) {
+    if (text && fullWidth) {
       text.classList.add('flex-1');
     }
-    root.append(input, text, track);
+    root.append(input);
+    if (text) {
+      root.append(text);
+    }
+    root.append(track);
   } else {
-    root.append(input, track, text);
+    root.append(input, track);
+    if (text) {
+      root.append(text);
+    }
   }
   return root;
 }

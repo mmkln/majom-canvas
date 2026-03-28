@@ -11,9 +11,7 @@ const LEARNING_HIT_TEST_PRIORITIES: Record<string, number> = {
   checkpoint: 360,
   exercise: 350,
   lesson: 320,
-  task: 310,
   module: 260,
-  story: 250,
 };
 
 export class LearningCanvasRuntimeSemanticsAdapter
@@ -44,8 +42,7 @@ export class LearningCanvasRuntimeSemanticsAdapter
       isStructuredCanvasNode(element) &&
       (element.nodeKind === 'lesson' ||
         element.nodeKind === 'exercise' ||
-        element.nodeKind === 'checkpoint' ||
-        element.nodeKind === 'task')
+        element.nodeKind === 'checkpoint')
     );
   }
 

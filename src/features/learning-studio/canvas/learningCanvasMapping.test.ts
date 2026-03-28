@@ -9,7 +9,7 @@ import {
   mergeElementsIntoLearningContent,
 } from './learningCanvasMapping.ts';
 import type { LearningCourseContent } from '../domain/types.ts';
-import { isLearningModuleNode } from './learningCanvasNodes.ts';
+import { isLearningLessonNode, isLearningModuleNode } from './learningCanvasNodes.ts';
 
 function createContent(): LearningCourseContent {
   return {
@@ -86,18 +86,18 @@ function createContent(): LearningCourseContent {
 }
 
 describe('learningCanvasMapping', () => {
-  it('maps learning content into module stories, unit tasks and prerequisite connections', () => {
+  it('maps learning content into modules, units and prerequisite connections', () => {
     const snapshot = buildLearningCanvasScene(createContent());
 
-    const stories = snapshot.elements.filter((element) => element.id === 'module-1');
-    const tasks = snapshot.elements.filter((element) =>
+    const modules = snapshot.elements.filter((element) => element.id === 'module-1');
+    const units = snapshot.elements.filter((element) =>
       ['lesson-1', 'exercise-1', 'lesson-2'].includes(element.id)
     );
 
-    expect(stories).toHaveLength(1);
-    expect(tasks).toHaveLength(3);
-    expect(stories[0]?.nodeKind).toBe('module');
-    expect(tasks.map((element) => element.nodeKind)).toEqual([
+    expect(modules).toHaveLength(1);
+    expect(units).toHaveLength(3);
+    expect(modules[0]?.nodeKind).toBe('module');
+    expect(units.map((element) => element.nodeKind)).toEqual([
       'lesson',
       'exercise',
       'lesson',
@@ -105,33 +105,41 @@ describe('learningCanvasMapping', () => {
     expect(snapshot.connections.map((connection) => connection.id)).toEqual([
       'learning-prerequisite:lesson-1:lesson-2',
     ]);
+    expect(snapshot.connections[0]?.relationType).toBe(
+      ConnectionRelationType.Prerequisite
+    );
+    const lesson2 = snapshot.elements.find((element) => element.id === 'lesson-2');
+    if (!isLearningLessonNode(lesson2)) {
+      throw new Error('Expected lesson-2 to be a learning lesson node.');
+    }
+    expect(lesson2.prerequisiteLessonIds).toEqual(['lesson-1']);
   });
 
   it('merges canvas positions, lesson order and prerequisite links back into learning content', () => {
     const content = createContent();
     const snapshot = buildLearningCanvasScene(content);
-    const story = snapshot.elements.find((element) => element.id === 'module-1');
+    const module = snapshot.elements.find((element) => element.id === 'module-1');
     const lesson1 = snapshot.elements.find((element) => element.id === 'lesson-1');
     const lesson2 = snapshot.elements.find((element) => element.id === 'lesson-2');
     const exercise = snapshot.elements.find((element) => element.id === 'exercise-1');
 
     if (
-      !story ||
-      !isLearningModuleNode(story) ||
+      !module ||
+      !isLearningModuleNode(module) ||
       !lesson1 ||
       !lesson2 ||
       !exercise
     ) {
-      throw new Error('Expected story and tasks to exist in canvas snapshot.');
+      throw new Error('Expected module and units to exist in canvas snapshot.');
     }
 
-    story.x = 480;
-    story.y = 320;
-    story.replaceOrderedLayoutChildren([lesson2 as any, lesson1 as any, exercise as any]);
+    module.x = 480;
+    module.y = 320;
+    module.replaceOrderedLayoutChildren([lesson2 as any, lesson1 as any, exercise as any]);
 
     const merged = mergeElementsIntoLearningContent(
       content,
-      [story as any],
+      [module as any],
       [lesson1 as any, lesson2 as any, exercise as any],
       [
         new Connection(
@@ -139,7 +147,7 @@ describe('learningCanvasMapping', () => {
           'lesson-1',
           'learning-prerequisite:lesson-2:lesson-1',
           ConnectionLineType.SShaped,
-          ConnectionRelationType.Blocks
+          ConnectionRelationType.Prerequisite
         ),
       ]
     );
@@ -157,5 +165,36 @@ describe('learningCanvasMapping', () => {
     expect(
       merged.units.find((unit) => unit.id === 'exercise-1')?.parentLessonId
     ).toBe('lesson-1');
+  });
+
+  it('keeps accepting legacy block-style prerequisite connections when merging', () => {
+    const content = createContent();
+    const snapshot = buildLearningCanvasScene(content);
+    const module = snapshot.elements.find((element) => element.id === 'module-1');
+    const lesson1 = snapshot.elements.find((element) => element.id === 'lesson-1');
+    const lesson2 = snapshot.elements.find((element) => element.id === 'lesson-2');
+
+    if (!module || !isLearningModuleNode(module) || !lesson1 || !lesson2) {
+      throw new Error('Expected module and lessons to exist in canvas snapshot.');
+    }
+
+    const merged = mergeElementsIntoLearningContent(
+      content,
+      [module as any],
+      [lesson1 as any, lesson2 as any],
+      [
+        new Connection(
+          'lesson-1',
+          'lesson-2',
+          'learning-prerequisite:lesson-1:lesson-2',
+          ConnectionLineType.SShaped,
+          ConnectionRelationType.Blocks
+        ),
+      ]
+    );
+
+    expect(
+      merged.units.find((unit) => unit.id === 'lesson-2')?.prerequisiteLessonIds
+    ).toEqual(['lesson-1']);
   });
 });

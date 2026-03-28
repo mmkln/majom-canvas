@@ -2,418 +2,292 @@
 
 ## Status
 
-- State: decision draft
+- State: decision record
 - Updated: 2026-03-28
-- Scope: creator preview behavior, real learner runtime behavior, and the product boundary between them
+- Scope: creator preview behavior, learner runtime behavior, and the role of the interactive course map
 - Related docs:
   - `docs/LEARNING-STUDIO.md`
-  - `docs/LEARNING-STUDIO-IMPLEMENTATION-BLUEPRINT.md`
+  - `docs/LEARNING-STUDIO-STRATEGY-RESET.md`
   - `docs/LEARNING-STUDIO-AUTHOR-UX-SPEC.md`
-  - `docs/LEARNING-STUDIO-PUBLICATION-ACCESS-VERSIONING-SPEC.md`
+  - `docs/LEARNING-STUDIO-BUILD-INTERACTION-SPEC.md`
   - `docs/LEARNING-STUDIO-PROGRESS-ASSESSMENT-SPEC.md`
 
 ## Why this spec exists
 
-The project already decided that creator-facing `Learn` should be treated as `Preview`.
+After the strategy reset, the canvas has a clearer home:
 
-That decision removed one ambiguity, but left another one unresolved:
+- not as the main authoring editor
+- yes as the interactive course map for preview and learner runtime
 
-- what exactly preview is
-- how it differs from the real learner experience
-- whether preview writes progress
-- whether preview and learner runtime use the same UI
-- which metadata and controls belong only to the creator
-
-Without these rules, the module risks building a mixed-mode interface that is confusing for both authors and learners.
-
-## Problem Statement
-
-The unresolved questions were:
-
-- whether preview is just the learner screen opened by the creator
-- whether preview should simulate progress or write real progress
-- whether draft content can be previewed before publication
-- whether a learner sees the same navigation and chrome as the creator
-- whether preview should expose editing context
-
-This document defines the recommended v1 boundary.
-
-## Recommended v1 Product Position
-
-For v1, `Preview` and real learner runtime should be treated as:
-
-- visually related
-- structurally aligned
-- behaviorally distinct
-
-They should share the same learning model and much of the same presentation language, but they should not be treated as the same runtime context.
-
-## Core Definitions
-
-### Preview
-
-A creator-facing validation surface used to inspect how a course would feel to a learner.
-
-Preview exists to answer:
-
-- does the course hold together as a whole
-- is the sequence understandable
-- does the current lesson feel clear
-- does the next-step recommendation make sense
-- do prerequisites and progression gates behave as intended
-
-Preview is therefore course-level validation, not just a lesson-level peek.
-
-Recommended v1 implication:
-
-- the preview page should show the course-level shell and enough overall structure to explain where the focused lesson sits in the broader flow
-- preview should never collapse into a single isolated lesson card without course context
-
-### Quick lesson preview in Build
-
-A lightweight creator-facing modal opened from a lesson node while remaining inside `Build`.
-
-Quick lesson preview exists to answer:
-
-- does this specific lesson read clearly right now
-- does the lesson content roughly match its role in the structure
-- should the creator keep editing here or move into full-course preview
-
-Recommended v1 rule:
-
-- quick lesson preview is not the same thing as `Preview`
-- it does not change the current route
-- it does not replace the full preview screen
-- it should remain read-only
-- it should not break normal lesson selection and drag behavior in `Build`
-
-### Real learner runtime
-
-The actual learner-facing consumption flow for an enrolled learner on a published course version.
-
-Learner runtime exists to support:
-
-- entering the course
-- progressing through units
-- saving real progress
-- resuming from the correct next step
+This document defines that boundary.
 
 ## Core Decision
 
 Recommended v1 rule:
 
-- creator preview is **not** the same thing as real learner runtime
+- creator preview and learner runtime may both use an interactive course map as their main orientation shell
 
-They may reuse many UI components, but they must be treated as different modes with different data, permissions, and side effects.
+At the same time:
+
+- creator preview remains a creator mode
+- learner runtime remains a learner mode
+
+They may share presentation language, but not data source, side effects, or permissions.
+
+## Core Definitions
+
+### Preview
+
+A creator-facing validation environment used to inspect how the course would feel to a learner.
+
+Preview should answer:
+
+- where the learner starts
+- what is available next
+- what is blocked and why
+- how the map reads
+- whether branching and prerequisites are understandable
+
+Preview may use the interactive map prominently because the map is now part of the validation job.
+
+### Learner runtime
+
+The actual learner-facing course experience on a published course version.
+
+Learner runtime should support:
+
+- orientation
+- progression
+- resuming
+- path understanding
+- real progress writing
+
+### Interactive course map
+
+A learner-facing map of modules, lessons, branches, and prerequisites.
+
+Its job is to support:
+
+- “Where am I?”
+- “What can I open?”
+- “What is blocked?”
+- “What path makes sense next?”
+
+It is not the primary authoring editor.
+
+## Product Position
+
+Recommended v1 rule:
+
+- `Preview` and learner runtime should share map language
+- `Build` should not
+
+That gives one coherent visual/navigation model for course consumption and validation, while keeping authoring optimized for structure editing.
 
 ## Entry Points
 
 ### Creator preview entrypoint
 
-The creator reaches preview from the author journey:
+The creator reaches preview from:
 
-- `Home`
 - `Course Overview`
 - `Build`
-- `Preview`
 
-The creator should be able to preview from:
+Preview should feel like a validation detour from authoring.
 
-- the course overview
-- the build screen
+### Learner runtime entrypoint
 
-But preview is still conceptually inside the creator workspace.
-It is the broader course-level validation checkpoint, not the fastest lesson inspection tool.
+The learner reaches runtime from learner-facing entry points such as:
 
-### Quick lesson preview entrypoint
-
-The creator reaches quick lesson preview from:
-
-- a lesson node in `Build`
-- or a lesson-specific contextual action inside `Build`
-
-It should always feel like a local inspection surface, not a mode switch.
-If the product uses click-based opening, it must still preserve predictable build selection semantics.
-
-### Real learner runtime entrypoint
-
-The learner should enter from a learner-facing context such as:
-
-- enrolled course library
-- access link that resolves into an enrollment
+- course library
+- enrollment link
 - assigned course list
 
-The learner should not be entering through creator-oriented course management screens.
+The learner should not enter through creator management screens.
 
-## Source of Content
+## Content Source
 
 ### Preview content source
 
 Recommended v1 rule:
 
-- preview may use the current draft as its content source
+- preview may read the current draft
 
-This is necessary so the creator can validate unpublished changes before publishing.
+This allows creators to validate unpublished changes.
 
 ### Learner runtime content source
 
 Recommended v1 rule:
 
-- real learner runtime must use a published course version
+- learner runtime must read a published course version
 
-This follows the versioning rules already defined in:
-
-- `docs/LEARNING-STUDIO-PUBLICATION-ACCESS-VERSIONING-SPEC.md`
-
-Critical implication:
-
-- learner runtime must never point directly at a mutable draft
+Learner runtime must never point directly at mutable draft content.
 
 ## Progress and Side Effects
 
-### Preview progress
+### Preview
 
-Recommended v1 rule:
+Preview uses sandbox progress only.
 
-- preview uses sandbox progress only
+It may simulate:
 
-This means:
+- available
+- blocked
+- in progress
+- completed
 
-- opening lessons in preview may simulate `available`, `in_progress`, `completed`, and `review`
-- those state changes exist only for the creator session or a creator-specific preview sandbox
-- preview must not modify enrollment progress
+It must not write real learner progress.
 
-### Quick lesson preview progress
+### Learner runtime
 
-Recommended v1 rule:
-
-- quick lesson preview does not simulate sandbox progression
-- it is a content check, not a flow simulation environment
-
-### Real learner progress
-
-Recommended v1 rule:
-
-- learner runtime writes real progress for the learner's enrollment on a published course version
-
-This includes:
-
-- started state
-- completion state
-- review state
-- resume position
-- next-step recommendation context
+Learner runtime writes real progress for the learner enrollment on a published course version.
 
 ## Permission Boundary
 
 ### Creator in preview can:
 
-- open any lesson
-- inspect blocked paths and prerequisites
-- simulate progression
-- move freely across the course structure
-- see warnings about incomplete or awkward sequencing
+- jump freely through the map
+- inspect blocked and available nodes
+- see course-level validation context
+- return to `Build`
 
 ### Creator in preview cannot:
 
 - write real learner progress
-- impersonate a learner's actual enrollment history
-- access creator editing controls from inside the core learner content surface without leaving preview mode
+- act as a real learner enrollment
+- open creator editing chrome inside the core learner surface
 
-### Learner in runtime can:
+### Learner can:
 
-- open allowed lessons
-- complete lessons, exercises, and checkpoints
-- resume progress
-- see next recommended steps
+- follow the available path
+- inspect the map at learner-facing density
+- resume meaningful next steps
+- write real progress
 
-### Learner in runtime cannot:
+### Learner cannot:
 
-- edit structure
-- publish
-- grant access
-- view creator-only management metadata
+- access creator editing controls
+- validate draft-only content
+- see creator-only management context
 
-## Information Visibility Rules
+## Recommended Preview Layout
 
-### Preview should show
+Preview should combine:
 
-- course-level structure and orientation
-- learner-facing content
+- interactive map for orientation
+- focused lesson or unit presentation
 - learner-facing progression cues
-- current-step and next-step behavior
-- prerequisite and lock behavior
-- optional creator-only preview banner or context label
-- clear relation between the focused lesson and the wider course sequence
+- a clear `Back to Build`
 
-### Preview may also show limited creator context
+Preview should not collapse into:
 
-Only in lightweight supporting surfaces such as:
+- only one lesson card with no map context
 
-- a preview badge
-- a note that this is sandbox progress
-- an exit back to `Build`
+Unless the course is extremely linear and the map adds no value.
 
-It should not clutter the learner surface with authoring controls.
+## Recommended Learner Runtime Layout
 
-### Quick lesson preview should show
+Learner runtime should use the same core map language where helpful, but with learner-specific priorities:
 
-- the selected lesson in learner-facing presentation language
-- the lesson's current blocks and references
-- lightweight lesson context such as module title
-- an obvious CTA to open full `Preview`
+- stronger resume cues
+- clearer availability states
+- minimal creator chrome
+- stable progress context
 
-### Quick lesson preview should not show
+For simple linear courses, the map may become compact or secondary.
+For branching or prerequisite-heavy courses, the map may be the primary navigation shell.
 
-- structure editing controls
-- inspector editing controls
-- full creator navigation chrome
-- simulated learner progression controls
+## Map Node Quick Preview
 
-### Learner runtime should show
-
-- only learner-relevant content and progression cues
-- enrollment-relevant status
-- resume and completion context
-
-### Learner runtime should hide
-
-- draft-only metadata
-- creator settings
-- publish state controls
-- access-management actions
-- authoring inspector behavior
-
-## Navigation Model
-
-### Preview navigation
-
-Recommended v1 behavior:
-
-- the creator can jump more freely than a learner
-- preview should allow quick switching between lessons or modules to validate the whole flow
-
-This is deliberate.
-Preview is a validation environment, not a strict attempt to trap the creator inside learner pacing.
-
-### Quick lesson preview navigation
-
-Recommended v1 behavior:
-
-- the modal stays local to the currently selected lesson
-- it should be easy to close and continue editing
-- it may link out to full `Preview`
-- it should not become a second full navigation shell
-- it should not try to simulate the whole course-level validation story
-
-### Learner navigation
-
-Recommended v1 behavior:
-
-- the learner sees one dominant next step
-- blocked lessons remain visibly blocked
-- navigation should encourage the recommended path even if some exploration remains possible
-
-The learner experience should optimize for clarity and momentum, not author-style inspection.
-
-## UI Relationship
-
-Recommended v1 direction:
-
-- preview and learner runtime should share the same core lesson presentation language
-- but they should not share exactly the same surrounding shell
-
-Recommended distinction:
-
-- preview keeps lightweight creator context and an obvious path back to authoring
-- learner runtime keeps learner context such as enrolled course state, resume status, and completion summaries
-- quick lesson preview keeps even less chrome than preview and behaves as a local build overlay
-- preview keeps more course-level structure than quick lesson preview so the creator can reason about the overall flow
-
-## Structural Recommendation
-
-Recommended v1 implementation shape:
-
-- one shared lesson/step presentation system
-- one shared course progression model
-- two runtime modes:
-  - `preview`
-  - `learner`
-
-The mode should affect:
-
-- content source
-- side effects
-- visible controls
-- surrounding shell
-
-It should not require a completely separate rendering system unless later complexity proves that necessary.
-
-## Required Distinctions for v1
-
-These distinctions should be enforced explicitly:
-
-- preview can use draft content
-- learner runtime uses published content only
-- preview uses sandbox progress
-- learner runtime writes real enrollment progress
-- preview exposes a route back to build
-- learner runtime does not expose creator management controls
-- quick lesson preview stays lesson-local and does not become a second preview route
-
-## Naming Decision
-
-Creator-facing naming:
-
-- use `Preview`
-
-Learner-facing naming:
-
-- do not call the learner's real experience `Preview`
-- it is simply the course or learning experience
-
-This prevents role confusion.
-
-## Analytics and Interpretation
+Both `Preview` and learner runtime may use a lightweight node quick preview on top of the interactive map.
 
 Recommended v1 rule:
 
-- preview behavior should never be mixed into learner analytics
+- quick preview is for inspection
+- focused lesson or unit routes are for real work
 
-This means:
+That means:
 
-- preview openings
-- preview completions
-- preview next-step simulations
+- quick preview may summarize a lesson, exercise, or checkpoint
+- quick preview may explain blocked states and unmet prerequisites
+- quick preview may provide one CTA into the focused lesson or unit route
+- quick preview must remain read-only
 
-must not inflate real learner completion or engagement numbers.
+Recommended surface:
 
-## Explicitly Out of Scope for v1
+- desktop: stable side panel attached to the map shell
+- mobile: bottom sheet or full-screen sheet
 
-- creator previewing as a specific real learner identity
-- co-viewing or live mentoring inside runtime
-- collaborative annotations between creator and learner
-- branch-specific analytics
-- multiple learner personas in preview
+Avoid:
 
-## Decisions This Spec Resolves
+- hover-only popovers
+- narrow drawers as the main learner content surface
+- treating quick preview as the primary runtime
 
-- preview is a creator validation mode, not the real learner mode
-- preview may use draft content
-- learner runtime must use published versions
-- preview must use sandbox progress
-- learner runtime alone writes real enrollment progress
-- preview and learner runtime may share core presentation components, but not the same surrounding product context
+History and state rules:
 
-## Recommended Next Documentation Step
+- opening quick preview should not create first-class route history
+- panning, zooming, and transient map selection should not become durable navigation state
+- entering the actual lesson or unit should create or update the focused runtime route
+- reload and deep-link behavior should target the focused runtime route, not the quick preview surface
 
-After this spec, the next most useful clarification is:
+Blocked-node rule:
 
-- `Build Interaction Spec`
+- blocked nodes may open quick preview
+- blocked quick preview should explain the exact unmet prerequisite
+- blocked quick preview should send the learner to the prerequisite, not into a dead-end runtime
 
-That document should define:
+## Map Design Rules
 
-- where modules, lessons, and exercises are created
-- what opens inline vs in an inspector or side panel
-- what the primary CTA is on each build-state screen
-- how the future block-based shell can transition into a stronger canvas-centered experience
+The interactive course map should optimize for:
+
+- readability
+- path understanding
+- availability and blocking
+- progress orientation
+
+It should not optimize for:
+
+- freeform editing
+- author-only gestures
+- visible connection ports
+- graph theatrics
+- mandatory preview hops before opening the recommended next step
+- popover-style ephemeral reading surfaces for meaningful lesson inspection
+
+## Preview vs Learner Runtime
+
+### What should stay shared
+
+- lesson presentation language
+- unit hierarchy
+- map language
+- prerequisite visualization
+- progress semantics language
+- quick preview language for read-only node inspection
+
+### What must stay different
+
+- source of content
+- ability to mutate real progress
+- surrounding chrome
+- management and editing controls
+
+## Minimum v1 Success Criteria
+
+`Preview` is successful when:
+
+1. The creator can understand the learner path through the map quickly.
+2. The creator can validate blocked vs available states.
+3. Returning to `Build` is obvious and low-friction.
+
+Learner runtime is successful when:
+
+1. The learner can orient immediately.
+2. The learner can see one clear next move.
+3. Branches and prerequisites are understandable without creator knowledge.
+
+## Final Rule
+
+The interactive map belongs primarily to preview and learner runtime.
+That is the canvas's strongest product role after the strategy reset.

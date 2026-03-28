@@ -1,3 +1,5 @@
+import type { LearningCourseMapModel } from '../../map/index.ts';
+
 export type LearningStudioHomeCourseCard = {
   id: string;
   title: string;
@@ -14,7 +16,27 @@ export type LearningStudioOverviewStructureModule = {
   lessonCount: number;
   exerciseCount: number;
   checkpointCount: number;
+  warning?: 'needs_lessons' | null;
 };
+
+export type LearningStudioOverviewReadinessIssue =
+  | {
+      kind: 'missing_title';
+    }
+  | {
+      kind: 'missing_description';
+    }
+  | {
+      kind: 'missing_modules';
+    }
+  | {
+      kind: 'modules_need_lessons';
+      count: number;
+    }
+  | {
+      kind: 'lessons_need_descriptions';
+      count: number;
+    };
 
 export type LearningStudioOverviewModel = {
   courseId: string;
@@ -30,6 +52,9 @@ export type LearningStudioOverviewModel = {
   updatedAt: string;
   structure: LearningStudioOverviewStructureModule[];
   nextRecommendedRoute: 'build' | 'preview';
+  hasUnpublishedChanges?: boolean;
+  activeEnrollmentCount?: number;
+  readinessIssues?: LearningStudioOverviewReadinessIssue[];
 };
 
 export type LearningStudioBuildChildUnit = {
@@ -161,6 +186,7 @@ export type LearningStudioPreviewFocusedLesson = {
 export type LearningStudioPreviewModel = {
   course: LearningStudioOverviewModel;
   modules: LearningStudioPreviewModule[];
+  map: LearningCourseMapModel;
   focusedLesson: LearningStudioPreviewFocusedLesson | null;
   nextRecommendedLessonId: string | null;
   sandboxMode: true;

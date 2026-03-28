@@ -147,6 +147,7 @@ export class ConnectionInteractionService {
       const shape = elements[i];
       const points = shape.getConnectionPoints();
       for (const point of points) {
+        if (point.isInteractive === false) continue;
         const dx = x - point.x;
         const dy = y - point.y;
         const distance = Math.sqrt(dx * dx + dy * dy);

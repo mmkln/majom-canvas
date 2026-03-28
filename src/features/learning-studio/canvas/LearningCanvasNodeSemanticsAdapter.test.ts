@@ -3,6 +3,10 @@ import { LearningCanvasNodeSemanticsAdapter } from './LearningCanvasNodeSemantic
 import { LearningExerciseNode } from './LearningExerciseNode.ts';
 import { LearningLessonNode } from './LearningLessonNode.ts';
 import { LearningModuleNode } from './LearningModuleNode.ts';
+import {
+  LEARNING_MODULE_HEIGHT,
+  LEARNING_MODULE_WIDTH,
+} from './LearningCanvasRenderConstants.ts';
 
 describe('LearningCanvasNodeSemanticsAdapter', () => {
   it('treats module and unit nodes as scene elements', () => {
@@ -53,8 +57,8 @@ describe('LearningCanvasNodeSemanticsAdapter', () => {
         moduleNode
       )
     ).toEqual({
-      width: 720,
-      height: 280,
+      width: LEARNING_MODULE_WIDTH,
+      height: LEARNING_MODULE_HEIGHT,
       focused: true,
       highlighted: false,
     });
@@ -69,8 +73,8 @@ describe('LearningCanvasNodeSemanticsAdapter', () => {
         kind: 'lesson',
         x: 0,
         y: 0,
-        width: 272,
-        height: 112,
+        width: 18,
+        height: 18,
         title: 'Lesson',
         description: '',
       })
@@ -82,8 +86,8 @@ describe('LearningCanvasNodeSemanticsAdapter', () => {
         kind: 'exercise',
         x: 0,
         y: 0,
-        width: 272,
-        height: 112,
+        width: 18,
+        height: 18,
         title: 'Exercise',
         description: '',
         containerId: 'module-1',
@@ -96,8 +100,8 @@ describe('LearningCanvasNodeSemanticsAdapter', () => {
         kind: 'mystery',
         x: 0,
         y: 0,
-        width: 272,
-        height: 112,
+        width: 18,
+        height: 18,
         title: 'Mystery',
         description: '',
         containerId: 'module-1',

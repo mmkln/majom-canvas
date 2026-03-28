@@ -1,7 +1,5 @@
 import type { AppRuntime } from '../../../../app-runtime/index.ts';
-import type { LearningCanvasHostApi } from '../../canvas/LearningCanvasHostApi.ts';
 import { LearningStudioBuildStageView } from './LearningStudioBuildStageView.ts';
-import { LearningStudioCanvasHostView } from './LearningStudioCanvasHostView.ts';
 import { LearningStudioCourseShellView } from './LearningStudioCourseShellView.ts';
 import { LearningStudioHomeView } from './LearningStudioHomeView.ts';
 import { LearningStudioOverviewView } from './LearningStudioOverviewView.ts';
@@ -78,7 +76,6 @@ type LearningStudioRootViewOptions = {
   ) => void;
   onRemoveLessonBlock: (unitId: string, blockId: string) => void;
   onSelectPreviewLesson: (unitId: string) => void;
-  resolveCanvasHostApi: (route: 'build' | 'preview') => LearningCanvasHostApi | null;
 };
 
 type LearningStudioScreenInstance = {
@@ -88,25 +85,6 @@ type LearningStudioScreenInstance = {
   update?: (options: LearningStudioRootViewOptions) => void;
 };
 
-function createUnavailableCanvasHostApi(): LearningCanvasHostApi {
-  return {
-    getDocument: () => {
-      throw new Error('Learning canvas host API is unavailable.');
-    },
-    saveContent: () => {},
-    commands: {
-      createModule: () => {},
-      createLesson: () => {},
-      createExercise: () => {},
-      createCheckpoint: () => {},
-      setLessonPrerequisite: () => {},
-    },
-    selection: {
-      setSelection: () => {},
-    },
-  };
-}
-
 export class LearningStudioRootView {
   public readonly element: HTMLDivElement;
   private readonly content: HTMLElement;
@@ -115,7 +93,7 @@ export class LearningStudioRootView {
   constructor(private options: LearningStudioRootViewOptions) {
     this.element = document.createElement('div');
     this.element.className =
-      'flex h-full w-full flex-col overflow-hidden bg-slate-50 text-slate-900';
+      'flex h-full w-full flex-col overflow-hidden bg-white text-slate-900';
     this.content = document.createElement('main');
     this.element.append(this.content);
     this.render();
@@ -135,9 +113,12 @@ export class LearningStudioRootView {
     const immersiveCanvasStage =
       this.options.screen.kind === 'build' ||
       this.options.screen.kind === 'preview';
+    const overviewStage = this.options.screen.kind === 'overview';
     this.content.className = immersiveCanvasStage
       ? 'min-h-0 flex-1 overflow-hidden'
-      : 'min-h-0 flex-1 overflow-auto px-6 py-6 md:px-8';
+      : overviewStage
+        ? 'min-h-0 flex-1 overflow-auto'
+        : 'min-h-0 flex-1 overflow-auto px-6 py-6 md:px-8';
 
     const nextKey = this.getScreenKey(this.options.screen);
     if (this.currentScreen?.key === nextKey && this.currentScreen.update) {
@@ -190,6 +171,7 @@ export class LearningStudioRootView {
               course: this.options.screen.course,
               onOpenStage: this.options.onOpenStage,
               onSaveOverview: this.options.onSaveOverview,
+              onSelectModule: this.options.onSelectModule,
             }).element,
           }).element,
         };
@@ -197,15 +179,17 @@ export class LearningStudioRootView {
         const buildStage = new LearningStudioBuildStageView({
           runtime: this.options.runtime,
           build: this.options.screen.build,
-          hostApi:
-            this.options.resolveCanvasHostApi('build') ??
-            createUnavailableCanvasHostApi(),
           onAddModule: this.options.onAddModule,
           onSelectCourse: this.options.onSelectCourse,
           onSelectModule: this.options.onSelectModule,
           onSelectUnit: this.options.onSelectUnit,
           onAddLesson: this.options.onAddLesson,
+          onAddExercise: this.options.onAddExercise,
+          onAddCheckpoint: this.options.onAddCheckpoint,
+          onMoveModule: this.options.onMoveModule,
           onToggleModuleCollapse: this.options.onToggleModuleCollapse,
+          onMoveLesson: this.options.onMoveLesson,
+          onMoveChildUnit: this.options.onMoveChildUnit,
           onUpdateModuleTitle: this.options.onUpdateModuleTitle,
           onUpdateModuleDescription: this.options.onUpdateModuleDescription,
           onUpdateUnitTitle: this.options.onUpdateUnitTitle,
@@ -239,15 +223,17 @@ export class LearningStudioRootView {
             buildStage.update({
               runtime: options.runtime,
               build: options.screen.build,
-              hostApi:
-                options.resolveCanvasHostApi('build') ??
-                createUnavailableCanvasHostApi(),
               onAddModule: options.onAddModule,
               onSelectCourse: options.onSelectCourse,
               onSelectModule: options.onSelectModule,
               onSelectUnit: options.onSelectUnit,
               onAddLesson: options.onAddLesson,
+              onAddExercise: options.onAddExercise,
+              onAddCheckpoint: options.onAddCheckpoint,
+              onMoveModule: options.onMoveModule,
               onToggleModuleCollapse: options.onToggleModuleCollapse,
+              onMoveLesson: options.onMoveLesson,
+              onMoveChildUnit: options.onMoveChildUnit,
               onUpdateModuleTitle: options.onUpdateModuleTitle,
               onUpdateModuleDescription: options.onUpdateModuleDescription,
               onUpdateUnitTitle: options.onUpdateUnitTitle,

@@ -1,60 +1,21 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { createAppRuntime } from '../../../../app-runtime/index.ts';
-import type { LearningCanvasHostApi } from '../../canvas/LearningCanvasHostApi.ts';
-import {
-  LEARNING_CANVAS_EDITOR_REQUESTED_EVENT,
-  type LearningCanvasEditorRequestedDetail,
-} from '../../canvas/LearningCanvasEditorEvents.ts';
 import type { LearningStudioBuildModel } from './LearningStudioScreenModels.ts';
 import { LearningStudioBuildStageView } from './LearningStudioBuildStageView.ts';
 
-function createHostApiStub(): LearningCanvasHostApi {
+function createBuildModel(): LearningStudioBuildModel {
   return {
-    getDocument: () => ({
-      canvasId: 'learning-course:course-1:build',
-      courseId: 'course-1',
-      draftId: 'draft-1',
-      mode: 'build',
-      title: 'Course build test',
-      content: {
-        title: 'Course build test',
-        description: '',
-        audience: '',
-        outcomes: [],
-        estimatedDurationMinutes: null,
-        modules: [],
-        units: [],
-        moduleLayouts: [],
-      },
-      selection: null,
-    }),
-    saveContent: vi.fn(),
-    commands: {
-      createModule: vi.fn(),
-      createLesson: vi.fn(),
-      createExercise: vi.fn(),
-      createCheckpoint: vi.fn(),
-      setLessonPrerequisite: vi.fn(),
-    },
-    selection: {
-      setSelection: vi.fn(),
-    },
-  };
-}
-
-function createOptions() {
-  const build: LearningStudioBuildModel = {
     course: {
       courseId: 'course-1',
       draftId: 'draft-1',
       title: 'Course build test',
-      description: 'Build should expose the canvas workspace.',
+      description: 'Structured build test.',
       audience: '',
       outcomes: [],
       lifecycleState: 'draft',
       moduleCount: 1,
-      unitCount: 2,
+      unitCount: 3,
       latestPublishedVersionId: null,
       updatedAt: '2026-03-28T09:00:00.000Z',
       structure: [],
@@ -64,21 +25,21 @@ function createOptions() {
       {
         id: 'module-1',
         title: 'Module 1',
-        description: '',
+        description: 'Module description',
         order: 0,
-        selected: false,
+        selected: true,
         collapsed: false,
         missingLessons: false,
-        childUnitCount: 1,
+        childUnitCount: 2,
         lessons: [
           {
             id: 'lesson-1',
             title: 'Lesson 1',
-            description: '',
+            description: 'Lesson description',
             type: 'lesson',
             order: 0,
             selected: true,
-            missingDescription: true,
+            missingDescription: false,
             prerequisiteIssue: false,
             childUnits: [
               {
@@ -86,6 +47,13 @@ function createOptions() {
                 title: 'Exercise 1',
                 type: 'exercise',
                 order: 0,
+                selected: false,
+              },
+              {
+                id: 'checkpoint-1',
+                title: 'Checkpoint 1',
+                type: 'checkpoint',
+                order: 1,
                 selected: false,
               },
             ],
@@ -98,7 +66,7 @@ function createOptions() {
       kind: 'unit',
       id: 'lesson-1',
       title: 'Lesson 1',
-      description: '',
+      description: 'Lesson description',
       objective: '',
       type: 'lesson',
       prerequisiteLessonIds: [],
@@ -108,17 +76,23 @@ function createOptions() {
       availableCheckpointRefs: [],
     },
   };
+}
 
+function createOptions() {
   return {
     runtime: createAppRuntime({ initialLocale: 'en' }),
-    hostApi: createHostApiStub(),
-    build,
+    build: createBuildModel(),
     onAddModule: vi.fn(),
     onSelectCourse: vi.fn(),
     onSelectModule: vi.fn(),
     onSelectUnit: vi.fn(),
     onAddLesson: vi.fn(),
+    onAddExercise: vi.fn(),
+    onAddCheckpoint: vi.fn(),
+    onMoveModule: vi.fn(),
     onToggleModuleCollapse: vi.fn(),
+    onMoveLesson: vi.fn(),
+    onMoveChildUnit: vi.fn(),
     onUpdateModuleTitle: vi.fn(),
     onUpdateModuleDescription: vi.fn(),
     onUpdateUnitTitle: vi.fn(),
@@ -135,124 +109,94 @@ function createOptions() {
 }
 
 describe('LearningStudioBuildStageView', () => {
-  it('shows a canvas-first build workspace without course map or side inspector', () => {
+  it('renders a structured build workspace with rail and inspector pane', () => {
+    const view = new LearningStudioBuildStageView(createOptions());
+
+    expect(
+      view.element.querySelector('[data-role="learning-studio-build-rail"]')
+    ).not.toBeNull();
+    expect(
+      view.element.querySelector('[data-role="learning-studio-build-inspector-pane"]')
+    ).not.toBeNull();
+    expect(
+      view.element.querySelector('[data-role="learning-studio-build-select-module-module-1"]')
+    ).not.toBeNull();
+    expect(
+      view.element.querySelector('[data-role="learning-studio-build-select-unit-lesson-1"]')
+    ).not.toBeNull();
+  });
+
+  it('shows the empty state and creates the first module from the CTA', () => {
     const options = createOptions();
-    options.build.modules = [];
-    options.build.course.moduleCount = 0;
-    options.build.course.unitCount = 0;
-    options.build.selected = null;
-    options.build.inspector = {
-      kind: 'course',
-      title: 'Course build test',
-      description: '',
-      moduleCount: 0,
-      unitCount: 0,
-      missingModules: true,
-      missingDescriptions: 0,
+    options.build = {
+      ...options.build,
+      course: {
+        ...options.build.course,
+        moduleCount: 0,
+        unitCount: 0,
+      },
+      modules: [],
+      selected: { kind: 'course', id: 'course-1' },
+      inspector: {
+        kind: 'course',
+        title: 'Course build test',
+        description: '',
+        moduleCount: 0,
+        unitCount: 0,
+        missingModules: true,
+        missingDescriptions: 0,
+      },
     };
 
     const view = new LearningStudioBuildStageView(options);
-
-    const addModule = view.element.querySelector(
-      '[data-role="learning-studio-build-add-module"]'
-    ) as HTMLButtonElement | null;
-    const emptyAddModule = view.element.querySelector(
+    const button = view.element.querySelector(
       '[data-role="learning-studio-build-empty-add-module"]'
     ) as HTMLButtonElement | null;
 
     expect(
-      view.element.querySelector('[data-role="learning-studio-build-canvas-host"]')
-    ).not.toBeNull();
-    expect(
       view.element.querySelector('[data-role="learning-studio-build-empty"]')
     ).not.toBeNull();
-    expect(
-      view.element.querySelector('[data-role="learning-studio-build-rail"]')
-    ).toBeNull();
-    expect(
-      view.element.querySelector('[data-role="learning-studio-build-inspector-pane"]')
-    ).toBeNull();
+    expect(button).not.toBeNull();
 
-    if (!addModule || !emptyAddModule) {
-      throw new Error('Expected add-module actions.');
-    }
+    button?.click();
 
-    addModule.click();
-    emptyAddModule.click();
-
-    expect(options.onAddModule).toHaveBeenCalledTimes(2);
+    expect(options.onAddModule).toHaveBeenCalledTimes(1);
   });
 
-  it('opens the details modal for canvas editor requests when the target is already selected', () => {
-    const options = createOptions();
-    options.build.selected = { kind: 'module', id: 'module-1' };
-    options.build.inspector = {
-      kind: 'module',
-      id: 'module-1',
-      title: 'Module 1',
-      description: '',
-      lessonCount: 1,
-    };
-    const view = new LearningStudioBuildStageView(options);
-
-    window.dispatchEvent(
-      new CustomEvent<LearningCanvasEditorRequestedDetail>(
-        LEARNING_CANVAS_EDITOR_REQUESTED_EVENT,
-        {
-          detail: {
-            kind: 'module',
-            id: 'module-1',
-          },
-        }
-      )
-    );
-
-    expect(
-      document.body.querySelector('[data-role="learning-studio-build-details-modal"]')
-    ).not.toBeNull();
-    expect(options.onSelectModule).not.toHaveBeenCalled();
-
-    view.destroy();
-  });
-
-  it('requests selection first and then opens the details modal on the next build update', () => {
+  it('forwards outline actions through the structured controls', () => {
     const options = createOptions();
     const view = new LearningStudioBuildStageView(options);
 
-    window.dispatchEvent(
-      new CustomEvent<LearningCanvasEditorRequestedDetail>(
-        LEARNING_CANVAS_EDITOR_REQUESTED_EVENT,
-        {
-          detail: {
-            kind: 'module',
-            id: 'module-1',
-          },
-        }
-      )
-    );
+    (
+      view.element.querySelector(
+        '[data-role="learning-studio-build-select-course"]'
+      ) as HTMLButtonElement
+    ).click();
+    (
+      view.element.querySelector(
+        '[data-role="learning-studio-build-add-lesson-module-1"]'
+      ) as HTMLButtonElement
+    ).click();
+    (
+      view.element.querySelector(
+        '[data-role="learning-studio-build-add-exercise-lesson-1"]'
+      ) as HTMLButtonElement
+    ).click();
+    (
+      view.element.querySelector(
+        '[data-role="learning-studio-build-add-checkpoint-lesson-1"]'
+      ) as HTMLButtonElement
+    ).click();
+    (
+      view.element.querySelector(
+        '[data-role="learning-studio-build-move-child-down-exercise-1"]'
+      ) as HTMLButtonElement
+    ).click();
 
-    expect(options.onSelectModule).toHaveBeenCalledWith('module-1');
-    expect(
-      document.body.querySelector('[data-role="learning-studio-build-details-modal"]')
-    ).toBeNull();
-
-    view.update({
-      ...options,
-      build: {
-        ...options.build,
-        selected: { kind: 'module', id: 'module-1' },
-        inspector: {
-          kind: 'module',
-          id: 'module-1',
-          title: 'Module 1',
-          description: '',
-          lessonCount: 1,
-        },
-      },
-    });
-
-    expect(
-      document.body.querySelector('[data-role="learning-studio-build-details-modal"]')
-    ).not.toBeNull();
+    expect(options.onSelectCourse).toHaveBeenCalledTimes(1);
+    expect(options.onAddLesson).toHaveBeenCalledWith('module-1');
+    expect(options.onAddExercise).toHaveBeenCalledWith('lesson-1');
+    expect(options.onAddCheckpoint).toHaveBeenCalledWith('lesson-1');
+    expect(options.onMoveChildUnit).toHaveBeenCalledWith('exercise-1', 1);
   });
 });

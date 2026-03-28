@@ -103,8 +103,27 @@ export class UIManager {
       onAnimationsToggle: (enabled) =>
         this.canvasManager.setAnimationsEnabled(enabled),
       initialSmartGuidesEnabled: this.canvasManager.getSmartGuidesEnabled(),
+      initialSpacingGuidesEnabled:
+        this.canvasManager.getSmartGuidePreferences().showSpacingGuides,
+      initialContainerGuidesEnabled:
+        this.canvasManager.getSmartGuidePreferences().showContainerGuides,
+      initialViewportCenterGuidesEnabled:
+        this.canvasManager.getSmartGuidePreferences()
+          .showViewportCenterGuides,
       onSmartGuidesToggle: (enabled) =>
         this.canvasManager.setSmartGuidesEnabled(enabled),
+      onSpacingGuidesToggle: (enabled) =>
+        this.canvasManager.setSmartGuidePreferences({
+          showSpacingGuides: enabled,
+        }),
+      onContainerGuidesToggle: (enabled) =>
+        this.canvasManager.setSmartGuidePreferences({
+          showContainerGuides: enabled,
+        }),
+      onViewportCenterGuidesToggle: (enabled) =>
+        this.canvasManager.setSmartGuidePreferences({
+          showViewportCenterGuides: enabled,
+        }),
     });
     const saveControls = new SaveControls(canvasMenu, this.runtime);
     this.addExistingTaskService = new AddExistingTaskService(

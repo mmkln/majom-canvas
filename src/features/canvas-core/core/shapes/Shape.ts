@@ -88,6 +88,7 @@ export abstract class Shape implements IShape, IConnectable {
     const hoveredPort: ConnectionPoint | undefined = (this as any).hoveredPort;
     if (this.selected || this.isHovered || hoveredPort) {
       for (const point of connectionPoints) {
+        if (point.isVisible === false) continue;
         const isPortHovered = hoveredPort
           ? point.x === hoveredPort.x && point.y === hoveredPort.y
           : false;
@@ -140,6 +141,7 @@ export abstract class Shape implements IShape, IConnectable {
     const hoveredPort: ConnectionPoint | undefined = (this as any).hoveredPort;
     if (this.selected || this.isHovered || hoveredPort) {
       for (const pt of pts) {
+        if (pt.isVisible === false) continue;
         const isPortHovered = hoveredPort
           ? pt.x === hoveredPort.x && pt.y === hoveredPort.y
           : false;

@@ -28,4 +28,6 @@ export interface ConnectionPoint {
   angle: number;
   isHovered: boolean;
   direction: 'left' | 'right' | 'top' | 'bottom';
+  isVisible?: boolean;
+  isInteractive?: boolean;
 }

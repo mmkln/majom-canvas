@@ -27,6 +27,11 @@ const MINI_MAP_VISIBLE_KEY = 'ui:minimap-visible';
 const CANVAS_ANIMATIONS_ENABLED_KEY = 'ui:canvas-animations-enabled';
 const CANVAS_AUTOSAVE_ENABLED_KEY = 'ui:canvas-autosave-enabled';
 const CANVAS_SMART_GUIDES_ENABLED_KEY = 'ui:canvas-smart-guides-enabled';
+const CANVAS_SPACING_GUIDES_ENABLED_KEY = 'ui:canvas-spacing-guides-enabled';
+const CANVAS_CONTAINER_GUIDES_ENABLED_KEY =
+  'ui:canvas-container-guides-enabled';
+const CANVAS_VIEWPORT_CENTER_GUIDES_ENABLED_KEY =
+  'ui:canvas-viewport-center-guides-enabled';
 
 function getDraftsKey(canvasId: string): string {
   return `${DRAFTS_KEY_PREFIX}:${canvasId}`;
@@ -103,6 +108,39 @@ export class CanvasClientStorage {
 
   public static setCanvasSmartGuidesEnabled(enabled: boolean): void {
     writeEnvelope(CANVAS_SMART_GUIDES_ENABLED_KEY, enabled, null);
+  }
+
+  public static getCanvasSpacingGuidesEnabled(defaultEnabled = true): boolean {
+    const stored = readEnvelope<unknown>(CANVAS_SPACING_GUIDES_ENABLED_KEY);
+    return typeof stored === 'boolean' ? stored : defaultEnabled;
+  }
+
+  public static setCanvasSpacingGuidesEnabled(enabled: boolean): void {
+    writeEnvelope(CANVAS_SPACING_GUIDES_ENABLED_KEY, enabled, null);
+  }
+
+  public static getCanvasContainerGuidesEnabled(
+    defaultEnabled = true
+  ): boolean {
+    const stored = readEnvelope<unknown>(CANVAS_CONTAINER_GUIDES_ENABLED_KEY);
+    return typeof stored === 'boolean' ? stored : defaultEnabled;
+  }
+
+  public static setCanvasContainerGuidesEnabled(enabled: boolean): void {
+    writeEnvelope(CANVAS_CONTAINER_GUIDES_ENABLED_KEY, enabled, null);
+  }
+
+  public static getCanvasViewportCenterGuidesEnabled(
+    defaultEnabled = true
+  ): boolean {
+    const stored = readEnvelope<unknown>(
+      CANVAS_VIEWPORT_CENTER_GUIDES_ENABLED_KEY
+    );
+    return typeof stored === 'boolean' ? stored : defaultEnabled;
+  }
+
+  public static setCanvasViewportCenterGuidesEnabled(enabled: boolean): void {
+    writeEnvelope(CANVAS_VIEWPORT_CENTER_GUIDES_ENABLED_KEY, enabled, null);
   }
 
   public static getMiniMapVisible(defaultVisible = true): boolean {

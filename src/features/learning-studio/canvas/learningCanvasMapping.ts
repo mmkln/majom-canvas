@@ -1,4 +1,3 @@
-import { StoryLayoutService } from '../../canvas-core/core/services/StoryLayoutService.ts';
 import Connection from '../../canvas-core/core/shapes/Connection.ts';
 import {
   ConnectionLineType,
@@ -11,23 +10,39 @@ import type {
   LearningCourseModule,
   LearningCourseUnit,
 } from '../domain/types.ts';
-import type { LearningCanvasSelection } from './LearningCanvasHostApi.ts';
 import { LearningCheckpointNode } from './LearningCheckpointNode.ts';
 import { LearningExerciseNode } from './LearningExerciseNode.ts';
 import { LearningLessonNode } from './LearningLessonNode.ts';
 import { LearningModuleNode } from './LearningModuleNode.ts';
-import type { LearningUnitNode } from './LearningUnitNode.ts';
 import {
+  LEARNING_MODULE_HEIGHT,
+  LEARNING_MODULE_WIDTH,
+  LEARNING_CHILD_UNIT_HEIGHT,
+  LEARNING_LESSON_HEIGHT,
+} from './LearningCanvasRenderConstants.ts';
+import {
+  type LearningCanvasUnitNode,
   isLearningUnitNode as isLearningCanvasUnitNode,
   isLearningModuleNode,
 } from './learningCanvasNodes.ts';
 
-const MODULE_STORY_WIDTH = 744;
-const MODULE_STORY_MIN_HEIGHT = 252;
-const storyLayoutService = new StoryLayoutService();
+const MODULE_HORIZONTAL_GAP = 72;
+const MODULE_HEADER_HEIGHT = 56;
+const MODULE_PADDING_X = 24;
+const MODULE_BODY_TOP_GAP = 20;
+const MODULE_PADDING_BOTTOM = 20;
+const LESSON_VERTICAL_GAP = 20;
+const LESSON_TO_CHILD_GAP = 10;
+const CHILD_VERTICAL_GAP = 8;
+const CHILD_INDENT = 24;
+
+type LearningCanvasSelection =
+  | { kind: 'course'; id: string }
+  | { kind: 'module'; id: string }
+  | { kind: 'unit'; id: string };
 
 export type LearningCanvasSceneSnapshot = {
-  elements: Array<LearningModuleNode | LearningUnitNode>;
+  elements: Array<LearningModuleNode | LearningCanvasUnitNode>;
   connections: IConnection[];
 };
 
@@ -39,7 +54,7 @@ export function buildLearningCanvasScene(
     .slice()
     .sort((left, right) => left.order - right.order);
   const unitsById = new Map(content.units.map((unit) => [unit.id, unit] as const));
-  const elements: Array<LearningModuleNode | LearningUnitNode> = [];
+  const elements: Array<LearningModuleNode | LearningCanvasUnitNode> = [];
   const connections: IConnection[] = [];
 
   orderedModules.forEach((module, index) => {
@@ -51,16 +66,14 @@ export function buildLearningCanvasScene(
         y: 64 + Math.floor(index / 2) * 420,
         collapsed: false,
       };
-    const story = new LearningModuleNode({
+    const moduleNode = new LearningModuleNode({
       id: module.id,
       uuid: module.id,
       x: layout.x,
       y: layout.y,
-      width: MODULE_STORY_WIDTH,
-      height: MODULE_STORY_MIN_HEIGHT,
       title: module.title || 'Untitled module',
       description: module.description,
-      tasks: [],
+      units: [],
       selected: selection?.kind === 'module' && selection.id === module.id,
     });
 
@@ -71,30 +84,66 @@ export function buildLearningCanvasScene(
           selection?.kind === 'unit' && selection.id === unit.id
         )
     );
-
-    const layoutPlan = storyLayoutService.planLayoutForOrderedTasks(
-      story,
-      orderedUnits,
-      story.width,
-      story.height
-    );
-    story.width = layoutPlan.nextWidth;
-    story.height = layoutPlan.nextHeight;
-    story.replaceOrderedLayoutChildren(layoutPlan.orderedTasks);
-    layoutPlan.orderedTasks.forEach((task) => {
-      const position = layoutPlan.positions.get(task.id);
-      if (position) {
-        task.x = position.x;
-        task.y = position.y;
-      }
+    moduleNode.width = LEARNING_MODULE_WIDTH;
+    moduleNode.replaceOrderedLayoutChildren(orderedUnits);
+    const startY = layout.y + MODULE_HEADER_HEIGHT + MODULE_BODY_TOP_GAP;
+    let previousKind: 'lesson' | 'child' | null = null;
+    let bottomY = startY;
+    orderedUnits.forEach((unitNode) => {
+      const isChildUnit = unitNode.parentLessonId !== null;
+      const gap =
+        previousKind == null
+          ? 0
+          : isChildUnit
+            ? previousKind === 'lesson'
+              ? LESSON_TO_CHILD_GAP
+              : CHILD_VERTICAL_GAP
+            : LESSON_VERTICAL_GAP;
+      const nextY = previousKind == null ? startY : bottomY + gap;
+      unitNode.x =
+        layout.x +
+        MODULE_PADDING_X +
+        (isChildUnit ? CHILD_INDENT : 0);
+      unitNode.y = nextY;
+      bottomY = unitNode.y + unitNode.height;
+      previousKind = isChildUnit ? 'child' : 'lesson';
     });
+    moduleNode.height = Math.max(
+      LEARNING_MODULE_HEIGHT,
+      bottomY - layout.y + MODULE_PADDING_BOTTOM
+    );
 
-    elements.push(story, ...layoutPlan.orderedTasks);
+    elements.push(moduleNode, ...orderedUnits);
   });
 
   content.units
     .filter((unit) => unit.parentLessonId === null && unit.type === 'lesson')
     .forEach((lesson) => {
+      /*
+       * UX contract from docs:
+       * - Prerequisite is a dependency, not a content node.
+       * - It connects top-level lessons only; it should not be used as the
+       *   primary structure between modules, lessons, and child units.
+       * - It should read as an exception, a conditional dependency, and a
+       *   cross-structure rule, not as the main structure of the course.
+       * - Final visual treatment should be a thin, restrained, low-contrast
+       *   directional line that supports interpretation without dominating
+       *   the board.
+       * - It should be directional enough to read flow, while still staying
+       *   quieter than node borders and primary structure.
+       * - It should stay lower-contrast than node borders and support reading,
+       *   not turn the board into a line-first diagram or diagrammatic theater.
+       * - Visibility should stay restrained by default and become clearer only
+       *   when needed for interpretation of a relevant selected lesson.
+       * - Prerequisite editing is a secondary lesson-level action, not primary
+       *   persistent node chrome.
+       *
+       * Current implementation state:
+       * - prerequisites are emitted structurally here and rendered with a
+       *   restrained learning-specific connection treatment in canvas-core
+       * - dense visibility policies can still evolve later without changing the
+       *   structural ownership encoded here
+       */
       lesson.prerequisiteLessonIds.forEach((prerequisiteId) => {
         if (!unitsById.has(prerequisiteId)) return;
         connections.push(
@@ -103,7 +152,7 @@ export function buildLearningCanvasScene(
             lesson.id,
             `learning-prerequisite:${prerequisiteId}:${lesson.id}`,
             ConnectionLineType.SShaped,
-            ConnectionRelationType.Blocks
+            ConnectionRelationType.Prerequisite
           )
         );
       });
@@ -126,19 +175,24 @@ export function mergeSceneIntoLearningContent(
   content: LearningCourseContent,
   scene: Scene
 ): LearningCourseContent {
-  const stories = scene
+  const moduleNodes = scene
     .getElements()
     .filter(isLearningModuleNode);
-  const tasks = scene
+  const unitNodes = scene
     .getElements()
     .filter(isLearningCanvasUnitNode);
-  return mergeElementsIntoLearningContent(content, stories, tasks, scene.getConnections());
+  return mergeElementsIntoLearningContent(
+    content,
+    moduleNodes,
+    unitNodes,
+    scene.getConnections()
+  );
 }
 
 export function mergeElementsIntoLearningContent(
   content: LearningCourseContent,
-  stories: LearningModuleNode[],
-  tasks: LearningUnitNode[],
+  moduleNodes: LearningModuleNode[],
+  unitNodes: LearningCanvasUnitNode[],
   connections: IConnection[]
 ): LearningCourseContent {
   const originalModules = new Map(
@@ -147,19 +201,19 @@ export function mergeElementsIntoLearningContent(
   const originalUnits = new Map(
     content.units.map((unit) => [unit.id, unit] as const)
   );
-  const taskById = new Map(tasks.map((task) => [task.id, task] as const));
-  const storyById = new Map(stories.map((story) => [story.id, story] as const));
+  const unitById = new Map(unitNodes.map((unit) => [unit.id, unit] as const));
+  const moduleById = new Map(moduleNodes.map((module) => [module.id, module] as const));
 
-  const nextModules = stories
+  const nextModules = moduleNodes
     .slice()
     .sort((left, right) =>
       left.y === right.y ? left.x - right.x : left.y - right.y
     )
-    .map((story, index) => {
-      const original = originalModules.get(story.id);
-      const lessonIds = story
+    .map((module, index) => {
+      const original = originalModules.get(module.id);
+      const lessonIds = module
         .getOrderedLayoutChildren()
-        .map((task) => originalUnits.get(task.id))
+        .map((unit) => originalUnits.get(unit.id))
         .filter(
           (unit): unit is LearningCourseUnit =>
             unit != null &&
@@ -168,9 +222,9 @@ export function mergeElementsIntoLearningContent(
         )
         .map((lesson) => lesson.id);
       return {
-        id: story.id,
-        title: story.title,
-        description: story.description,
+        id: module.id,
+        title: module.title,
+        description: module.description,
         order: index,
         lessonIds,
         ...(original
@@ -188,33 +242,39 @@ export function mergeElementsIntoLearningContent(
     });
   });
 
-  const lessonTaskOrderById = new Map<string, number>();
-  const childTaskOrderById = new Map<string, number>();
+  const lessonOrderById = new Map<string, number>();
+  const childOrderById = new Map<string, number>();
   nextModules.forEach((module) => {
-    const story = storyById.get(module.id);
-    if (!story) return;
-    const storyTaskIds = story.getOrderedLayoutChildren().map((task) => task.id);
-    const topLevelLessonIds = storyTaskIds.filter((taskId) => {
-      const original = originalUnits.get(taskId);
+    const moduleNode = moduleById.get(module.id);
+    if (!moduleNode) return;
+    const moduleUnitIds = moduleNode.getOrderedLayoutChildren().map((unit) => unit.id);
+    const topLevelLessonIds = moduleUnitIds.filter((unitId) => {
+      const original = originalUnits.get(unitId);
       return original?.parentLessonId === null && original.type === 'lesson';
     });
     topLevelLessonIds.forEach((lessonId, index) => {
-      lessonTaskOrderById.set(lessonId, index);
+      lessonOrderById.set(lessonId, index);
     });
 
     const childCounters = new Map<string, number>();
-    storyTaskIds.forEach((taskId) => {
-      const original = originalUnits.get(taskId);
+    moduleUnitIds.forEach((unitId) => {
+      const original = originalUnits.get(unitId);
       if (!original || original.parentLessonId === null) return;
       const parentLessonId = original.parentLessonId;
       const nextIndex = childCounters.get(parentLessonId) ?? 0;
-      childTaskOrderById.set(taskId, nextIndex);
+      childOrderById.set(unitId, nextIndex);
       childCounters.set(parentLessonId, nextIndex + 1);
     });
   });
 
   const prerequisiteMap = new Map<string, Set<string>>();
   connections.forEach((connection) => {
+    if (
+      connection.relationType !== ConnectionRelationType.Prerequisite &&
+      connection.relationType !== ConnectionRelationType.Blocks
+    ) {
+      return;
+    }
     const from = originalUnits.get(connection.fromId);
     const to = originalUnits.get(connection.toId);
     if (!from || !to) return;
@@ -233,9 +293,9 @@ export function mergeElementsIntoLearningContent(
   });
 
   const nextUnits = content.units
-    .filter((unit) => taskById.has(unit.id))
+    .filter((unit) => unitById.has(unit.id))
     .map((unit) => {
-      const task = taskById.get(unit.id)!;
+      const unitNode = unitById.get(unit.id)!;
       const nextModuleId =
         unit.parentLessonId === null
           ? moduleIdByLessonId.get(unit.id) ?? unit.moduleId
@@ -243,12 +303,12 @@ export function mergeElementsIntoLearningContent(
       return {
         ...unit,
         moduleId: nextModuleId,
-        title: task.title,
-        description: task.description,
+        title: unitNode.title,
+        description: unitNode.description,
         order:
           unit.parentLessonId === null
-            ? lessonTaskOrderById.get(unit.id) ?? unit.order
-            : childTaskOrderById.get(unit.id) ?? unit.order,
+            ? lessonOrderById.get(unit.id) ?? unit.order
+            : childOrderById.get(unit.id) ?? unit.order,
         prerequisiteLessonIds:
           unit.parentLessonId === null && unit.type === 'lesson'
             ? Array.from(prerequisiteMap.get(unit.id) ?? [])
@@ -257,7 +317,7 @@ export function mergeElementsIntoLearningContent(
     });
 
   const nextModuleLayouts = nextModules.map((module, index) => {
-    const story = storyById.get(module.id)!;
+    const moduleNode = moduleById.get(module.id)!;
     const existingLayout =
       content.moduleLayouts.find((layout) => layout.moduleId === module.id) ??
       {
@@ -268,8 +328,8 @@ export function mergeElementsIntoLearningContent(
       };
     return {
       ...existingLayout,
-      x: story.x,
-      y: story.y,
+      x: moduleNode.x,
+      y: moduleNode.y,
     };
   });
 
@@ -313,7 +373,7 @@ function flattenModuleUnits(
 function createLearningUnitNode(
   unit: LearningCourseUnit,
   selected = false
-): LearningUnitNode {
+): LearningCanvasUnitNode {
   const shared = {
     id: unit.id,
     uuid: unit.id,
@@ -322,6 +382,8 @@ function createLearningUnitNode(
     moduleId: unit.moduleId,
     parentLessonId: unit.parentLessonId,
     selected,
+    prerequisiteLessonIds:
+      unit.type === 'lesson' ? unit.prerequisiteLessonIds : [],
   };
 
   switch (unit.type) {

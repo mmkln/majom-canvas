@@ -85,7 +85,7 @@ function renderMenuLabels(
     );
 
     const labels: string[] = [];
-    container
+    document.body
       .querySelectorAll<HTMLButtonElement>('[role="menu"] button')
       .forEach((button) => {
         const label = button.textContent?.trim();
@@ -151,11 +151,11 @@ describe('ContextMenu selection connection actions', () => {
         })
       );
 
-      expect(container.textContent).toContain('Goal');
+      expect(document.body.textContent).toContain('Goal');
 
       runtime.setLocale('uk');
 
-      expect(container.textContent).toContain('Ціль');
+      expect(document.body.textContent).toContain('Ціль');
     } finally {
       contextMenu.unmount();
       container.remove();
@@ -198,7 +198,7 @@ describe('ContextMenu selection connection actions', () => {
       );
 
       const labels = Array.from(
-        container.querySelectorAll<HTMLButtonElement>('[role="menu"] button')
+        document.body.querySelectorAll<HTMLButtonElement>('[role="menu"] button')
       )
         .map((button) => button.textContent?.trim())
         .filter((label): label is string => Boolean(label));
@@ -253,7 +253,7 @@ describe('ContextMenu selection connection actions', () => {
       );
 
       const labels = Array.from(
-        container.querySelectorAll<HTMLButtonElement>('[role="menu"] button')
+        document.body.querySelectorAll<HTMLButtonElement>('[role="menu"] button')
       )
         .map((button) => button.textContent?.trim())
         .filter((label): label is string => Boolean(label));

@@ -7,7 +7,6 @@ import {
   LocalStorageLearningStudioRepository,
 } from './data/LocalStorageLearningStudioRepository.ts';
 import { LearningStudioApp } from './LearningStudioApp.ts';
-import type { LearningCanvasHostApi } from './canvas/LearningCanvasHostApi.ts';
 
 function createStorageMock() {
   const store = new Map<string, string>();
@@ -30,7 +29,7 @@ describe('LearningStudioApp', () => {
     document.body.innerHTML = '';
   });
 
-  it('mounts the rebuilt Home screen and persists the normalized v2 skeleton', () => {
+  it('mounts the Home screen and persists the normalized v2 skeleton', () => {
     const storage = createStorageMock();
     storage.setItem(
       'learning-studio-state-v1',
@@ -72,9 +71,6 @@ describe('LearningStudioApp', () => {
     expect(
       parent.querySelector('[data-role="learning-studio-home"]')
     ).not.toBeNull();
-    expect(
-      parent.querySelector('[data-role="learning-studio-redesign-placeholder"]')
-    ).toBeNull();
     expect(app.getStateSnapshot().version).toBe(2);
     expect(app.getUiStateSnapshot()).toEqual(
       expect.objectContaining({
@@ -96,35 +92,7 @@ describe('LearningStudioApp', () => {
     expect(parent.querySelector('[data-module="learning-studio"]')).toBeNull();
   });
 
-  it('creates a course and opens the new overview flow', () => {
-    const repository = new LocalStorageLearningStudioRepository(
-      createStorageMock() as unknown as Storage
-    );
-    const app = new LearningStudioApp({
-      runtime: createAppRuntime({ initialLocale: 'en' }),
-      repository,
-    });
-    const parent = document.createElement('div');
-
-    app.mount(parent);
-
-    const createButton = parent.querySelector(
-      '[data-role="learning-studio-home-create-manual"]'
-    ) as HTMLButtonElement | null;
-    expect(createButton).not.toBeNull();
-
-    createButton?.click();
-
-    const snapshot = app.getStateSnapshot();
-    const uiSnapshot = app.getUiStateSnapshot();
-
-    expect(snapshot.courses).toHaveLength(1);
-    expect(snapshot.drafts).toHaveLength(1);
-    expect(uiSnapshot.route).toBe('overview');
-    expect(parent.querySelector('[data-role="learning-studio-overview"]')).not.toBeNull();
-  });
-
-  it('opens Build inside the connected canvas-core host', () => {
+  it('creates a course and opens the overview flow', () => {
     const repository = new LocalStorageLearningStudioRepository(
       createStorageMock() as unknown as Storage
     );
@@ -142,16 +110,50 @@ describe('LearningStudioApp', () => {
       ) as HTMLButtonElement
     ).click();
 
+    expect(app.getStateSnapshot().courses).toHaveLength(1);
+    expect(app.getStateSnapshot().drafts).toHaveLength(1);
+    expect(app.getUiStateSnapshot().route).toBe('overview');
+    expect(parent.querySelector('[data-role="learning-studio-overview"]')).not.toBeNull();
+  });
+
+  it('opens Build as a structured workspace and creates the first module', () => {
+    const repository = new LocalStorageLearningStudioRepository(
+      createStorageMock() as unknown as Storage
+    );
+    const app = new LearningStudioApp({
+      runtime: createAppRuntime({ initialLocale: 'en' }),
+      repository,
+    });
+    const parent = document.createElement('div');
+
+    app.mount(parent);
+    (
+      parent.querySelector(
+        '[data-role="learning-studio-home-create-manual"]'
+      ) as HTMLButtonElement
+    ).click();
     (
       parent.querySelector(
         '[data-role="learning-studio-shell-open-build"]'
       ) as HTMLButtonElement
     ).click();
 
-    expect(parent.querySelector('[data-role="learning-studio-build"]')).not.toBeNull();
+    expect(parent.querySelector('[data-role="learning-studio-build-rail"]')).not.toBeNull();
     expect(
       parent.querySelector('[data-role="learning-studio-build-canvas-host"]')
-    ).not.toBeNull();
+    ).toBeNull();
+
+    (
+      parent.querySelector(
+        '[data-role="learning-studio-build-empty-add-module"]'
+      ) as HTMLButtonElement
+    ).click();
+
+    const content = app.getStateSnapshot().drafts[0]?.content;
+    expect(content?.modules).toHaveLength(1);
+    expect(
+      parent.querySelector('[data-role="learning-studio-build-empty"]')
+    ).toBeNull();
   });
 
   it('opens Preview as a read-only validation surface', () => {
@@ -165,7 +167,6 @@ describe('LearningStudioApp', () => {
     const parent = document.createElement('div');
 
     app.mount(parent);
-
     (
       parent.querySelector(
         '[data-role="learning-studio-home-create-manual"]'
@@ -196,7 +197,6 @@ describe('LearningStudioApp', () => {
     const parent = document.createElement('div');
 
     app.mount(parent);
-
     (
       parent.querySelector(
         '[data-role="learning-studio-home-create-manual"]'
@@ -222,7 +222,6 @@ describe('LearningStudioApp', () => {
     expect(lessonId).toBeTruthy();
 
     internalApp.selectUnit(lessonId!);
-
     (
       parent.querySelector(
         '[data-role="learning-studio-shell-open-preview"]'
@@ -235,7 +234,7 @@ describe('LearningStudioApp', () => {
     expect(parent.textContent).toContain('Lesson 1');
   });
 
-  it('exposes deterministic prerequisite commands through the build canvas host', () => {
+  it('edits structured lesson blocks through direct app mutations', () => {
     const repository = new LocalStorageLearningStudioRepository(
       createStorageMock() as unknown as Storage
     );
@@ -246,70 +245,6 @@ describe('LearningStudioApp', () => {
     const parent = document.createElement('div');
 
     app.mount(parent);
-
-    (
-      parent.querySelector(
-        '[data-role="learning-studio-home-create-manual"]'
-      ) as HTMLButtonElement
-    ).click();
-
-    (
-      app as unknown as {
-        addModule: () => void;
-        addLesson: (moduleId: string) => void;
-        resolveCanvasHostApi: (route: 'build' | 'preview') => LearningCanvasHostApi | null;
-      }
-    ).addModule();
-
-    const moduleId = app.getStateSnapshot().drafts[0]?.content.modules[0]?.id;
-    expect(moduleId).toBeTruthy();
-
-    (
-      app as unknown as {
-        addLesson: (moduleId: string) => void;
-      }
-    ).addLesson(moduleId!);
-    (
-      app as unknown as {
-        addLesson: (moduleId: string) => void;
-      }
-    ).addLesson(moduleId!);
-
-    const lessons = app
-      .getStateSnapshot()
-      .drafts[0]?.content.units.filter(
-        (unit) => unit.type === 'lesson' && unit.parentLessonId === null
-      );
-    expect(lessons).toHaveLength(2);
-
-    const hostApi = (
-      app as unknown as {
-        resolveCanvasHostApi: (route: 'build' | 'preview') => LearningCanvasHostApi | null;
-      }
-    ).resolveCanvasHostApi('build');
-    expect(hostApi).not.toBeNull();
-
-    hostApi?.commands.setLessonPrerequisite(lessons![1]!.id, lessons![0]!.id, true);
-
-    const updatedLesson = app
-      .getStateSnapshot()
-      .drafts[0]?.content.units.find((unit) => unit.id === lessons![1]!.id);
-
-    expect(updatedLesson?.prerequisiteLessonIds).toEqual([lessons![0]!.id]);
-  });
-
-  it('edits structured lesson blocks through minimal app mutations', () => {
-    const repository = new LocalStorageLearningStudioRepository(
-      createStorageMock() as unknown as Storage
-    );
-    const app = new LearningStudioApp({
-      runtime: createAppRuntime({ initialLocale: 'en' }),
-      repository,
-    });
-    const parent = document.createElement('div');
-
-    app.mount(parent);
-
     (
       parent.querySelector(
         '[data-role="learning-studio-home-create-manual"]'
@@ -345,6 +280,11 @@ describe('LearningStudioApp', () => {
         direction: -1 | 1
       ) => void;
       removeLessonBlock: (unitId: string, blockId: string) => void;
+      setLessonPrerequisite: (
+        lessonId: string,
+        prerequisiteLessonId: string,
+        enabled: boolean
+      ) => void;
     };
 
     internalApp.addModule();
@@ -352,11 +292,16 @@ describe('LearningStudioApp', () => {
     expect(moduleId).toBeTruthy();
 
     internalApp.addLesson(moduleId!);
-    const lessonId = app
-      .getStateSnapshot()
-      .drafts[0]?.content.units.find(
-        (unit) => unit.type === 'lesson' && unit.parentLessonId === null
-      )?.id;
+    internalApp.addLesson(moduleId!);
+    const lessons =
+      app
+        .getStateSnapshot()
+        .drafts[0]?.content.units.filter(
+          (unit) => unit.type === 'lesson' && unit.parentLessonId === null
+        ) ?? [];
+    expect(lessons).toHaveLength(2);
+
+    const lessonId = lessons[0]?.id;
     expect(lessonId).toBeTruthy();
 
     internalApp.addChildUnit(lessonId!, 'exercise');
@@ -381,16 +326,21 @@ describe('LearningStudioApp', () => {
     internalApp.updateLessonBlockText(lessonId!, conceptId!, 'Core concept');
     internalApp.moveLessonBlock(lessonId!, exerciseRefId!, -1);
     internalApp.removeLessonBlock(lessonId!, conceptId!);
+    internalApp.setLessonPrerequisite(lessons[1]!.id, lessons[0]!.id, true);
 
     blocks =
       app
         .getStateSnapshot()
         .drafts[0]?.content.units.find((unit) => unit.id === lessonId)?.blocks ?? [];
+    const secondLesson = app
+      .getStateSnapshot()
+      .drafts[0]?.content.units.find((unit) => unit.id === lessons[1]!.id);
 
     expect(blocks).toHaveLength(1);
     expect(blocks[0]).toMatchObject({
       order: 0,
       type: 'exercise_ref',
     });
+    expect(secondLesson?.prerequisiteLessonIds).toEqual([lessons[0]!.id]);
   });
 });

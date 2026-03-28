@@ -48,9 +48,7 @@ import type {
 import type { I18nService } from '../../i18n/index.ts';
 import { AppRuntime, createAppRuntime } from '../../app-runtime/index.ts';
 import type { CanvasCoreAdapters } from './adapters/CanvasCoreAdapters.ts';
-import type {
-  CanvasDataAdapter,
-} from './adapters/CanvasDataAdapter.ts';
+import type { CanvasDataAdapter } from './adapters/CanvasDataAdapter.ts';
 import type {
   CanvasLayoutRecord,
   CanvasNodeSemanticsAdapter,
@@ -59,6 +57,8 @@ import type {
 } from './adapters/CanvasNodeSemanticsAdapter.ts';
 import type { CanvasPersistenceAdapter } from './adapters/CanvasPersistenceAdapter.ts';
 import { DEFAULT_CANVAS_RUNTIME_SEMANTICS_ADAPTER } from './adapters/CanvasRuntimeSemanticsAdapter.ts';
+import { CANVAS_CORE_CANVAS_ELEMENT_ID } from './CanvasModule.ts';
+import { PlanningCanvasAlignmentAdapter } from './adapters/planning/PlanningCanvasAlignmentAdapter.ts';
 import {
   planningCanvasElementSemantics,
   type PlanningCanvasElement,
@@ -157,7 +157,10 @@ export class CanvasApp {
   ) {
     this.runtime = runtime;
     this.i18n = this.runtime.i18n;
-    const resolvedCanvas = canvasElement ?? document.getElementById('myCanvas');
+    const resolvedCanvas =
+      canvasElement ??
+      document.getElementById(CANVAS_CORE_CANVAS_ELEMENT_ID) ??
+      document.getElementById('myCanvas');
     if (!(resolvedCanvas instanceof HTMLCanvasElement)) {
       throw new Error('Canvas element not found');
     }
@@ -166,19 +169,25 @@ export class CanvasApp {
 
     // Створюємо нову сцену (це місце для зберігання всіх елементів)
     this.scene = new Scene();
+    const alignmentAdapter =
+      adapters.alignment ??
+      (adapters.nodeSemantics ? null : new PlanningCanvasAlignmentAdapter());
 
     // Передаємо сцену в CanvasManager, щоб менеджер міг працювати з даними
     this.canvasManager = new CanvasManager(
       this.canvas,
       this.scene,
       adapters.appearance ?? null,
-      adapters.semantics ?? DEFAULT_CANVAS_RUNTIME_SEMANTICS_ADAPTER
+      adapters.semantics ?? DEFAULT_CANVAS_RUNTIME_SEMANTICS_ADAPTER,
+      adapters.background ?? null,
+      alignmentAdapter
     );
     // Ініціалізація сервісу аутентифікації
     this.authService = new AuthService();
     this.canvasDataService = adapters.data;
     this.persistenceAdapter = adapters.persistence;
-    this.nodeSemantics = adapters.nodeSemantics ?? planningCanvasElementSemantics;
+    this.nodeSemantics =
+      adapters.nodeSemantics ?? planningCanvasElementSemantics;
     this.planningRelations = adapters.planningRelations ?? null;
     // Створюємо компонент для авторизації
     // Використовуємо UIManager для монтування UI-компонентів
@@ -663,7 +672,9 @@ export class CanvasApp {
     const customEvent = event as CustomEvent<{
       elements?: ICanvasElement[];
     }>;
-    const elements = this.nodeSemantics.getElements(customEvent.detail?.elements ?? []);
+    const elements = this.nodeSemantics.getElements(
+      customEvent.detail?.elements ?? []
+    );
     if (elements.length === 0) return;
     this.canvasDataService.markPositionsDirty(
       this.nodeSemantics.toNodeRecords(elements, this.scene)
@@ -902,9 +913,8 @@ export class CanvasApp {
       records
     );
     const uniquePositions = this.dedupeLayoutRecords(positions);
-    const changedPositions = this.canvasDataService.filterLayoutUpdates(
-      uniquePositions
-    );
+    const changedPositions =
+      this.canvasDataService.filterLayoutUpdates(uniquePositions);
     const layoutDraftId = 'layout-sync';
     const relationsDraftId = 'relations-sync';
     if (

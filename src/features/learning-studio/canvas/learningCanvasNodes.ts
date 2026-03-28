@@ -3,10 +3,14 @@ import { LearningCheckpointNode } from './LearningCheckpointNode.ts';
 import { LearningExerciseNode } from './LearningExerciseNode.ts';
 import { LearningLessonNode } from './LearningLessonNode.ts';
 import { LearningModuleNode } from './LearningModuleNode.ts';
-import { LearningUnitNode } from './LearningUnitNode.ts';
 
 export type LearningCanvasNode =
   | LearningModuleNode
+  | LearningLessonNode
+  | LearningExerciseNode
+  | LearningCheckpointNode;
+
+export type LearningCanvasUnitNode =
   | LearningLessonNode
   | LearningExerciseNode
   | LearningCheckpointNode;
@@ -19,8 +23,12 @@ export function isLearningModuleNode(
 
 export function isLearningUnitNode(
   element: ICanvasElement | null | undefined
-): element is LearningUnitNode {
-  return element instanceof LearningUnitNode;
+): element is LearningCanvasUnitNode {
+  return (
+    element instanceof LearningLessonNode ||
+    element instanceof LearningExerciseNode ||
+    element instanceof LearningCheckpointNode
+  );
 }
 
 export function isLearningLessonNode(

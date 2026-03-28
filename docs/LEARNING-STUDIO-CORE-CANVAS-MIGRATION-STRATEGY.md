@@ -1,222 +1,168 @@
-# Learning Studio Core-Canvas and Migration Strategy
+# Learning Studio Core-Canvas Role and Migration Strategy
 
 ## Status
 
-- State: decision draft
-- Updated: 2026-03-27
-- Scope: migration strategy from temporary block-based surfaces to a dedicated learning canvas runtime
+- State: decision record
+- Updated: 2026-03-28
+- Scope: canvas role after the strategy reset and how current canvas work should be repurposed
 - Related docs:
   - `docs/LEARNING-STUDIO.md`
-  - `docs/LEARNING-STUDIO-IMPLEMENTATION-BLUEPRINT.md`
+  - `docs/LEARNING-STUDIO-STRATEGY-RESET.md`
   - `docs/LEARNING-STUDIO-BUILD-INTERACTION-SPEC.md`
   - `docs/LEARNING-STUDIO-PREVIEW-LEARNER-RUNTIME-SPEC.md`
-  - `docs/LEARNING-STUDIO-STRUCTURED-LESSON-FORMAT-SPEC.md`
 
 ## Why this spec exists
 
-The current planning canvas is too tightly optimized around planning entities and workflows to be treated as a drop-in learning canvas.
+The old question was:
 
-At the same time:
+- how do we migrate `Build` into a dedicated learning canvas?
 
-- the product still wants a canvas-first direction
-- a temporary block-based shell is acceptable for early work
+That is no longer the right question.
 
-Without an explicit migration strategy, the project risks either:
+The new question is:
 
-- overcommitting to the temporary block renderer
-- or prematurely coupling learning to planning-canvas assumptions
+- how do we repurpose canvas work into the right product role?
 
 ## Core Decision
 
-Recommended v1 rule:
+Recommended rule:
 
-- the learning domain and interaction contract must be designed independently of the current planning-canvas implementation
+- do not migrate `Build` toward canvas-first authoring
+- migrate canvas work toward preview and learner runtime map use
 
-This means:
+## New Canvas Role
 
-- temporary block-based rendering is acceptable
-- direct reuse of planning-canvas internals is not the source of truth
-- future `core-canvas` work should consume learning-domain data through stable interfaces
+The learning canvas should now primarily support:
 
-## Product Position
+- interactive course map
+- prerequisite visualization
+- branching and alternate path understanding
+- learner orientation and progress navigation
+- creator preview of learner flow
 
-The product remains:
+It should not be the primary answer to:
 
-- canvas-first
+- how a creator builds the course structure
 
-But the implementation path is:
+## What remains valuable from current canvas work
 
-- block-based shell first
-- dedicated learning canvas later
+The following investments are still useful:
 
-This is acceptable only if the temporary renderer does not invent different behavior from the future interaction model.
+- learning-specific node visuals
+- learning-specific connection rendering
+- map layout metadata
+- map navigation chrome
+- preview/runtime interaction patterns
 
-## What must remain stable across migration
+These should be treated as seeds for:
 
-The following should not change when the center surface changes from block-based to real canvas:
+- creator `Preview`
+- learner runtime
 
-- screen hierarchy
-- author flow
-- learner flow
-- single-selection model in `Build`
-- inspector-driven editing
-- CTA hierarchy
-- creation flows for modules, lessons, exercises, and checkpoints
-- preview vs real learner runtime boundary
+## What should stop being the migration target
 
-If these change during migration, the product will feel rewritten rather than upgraded.
+The following should no longer be the main destination:
 
-## What is renderer-specific and allowed to change
+- canvas-first `Build`
+- drag-to-connect authoring as a normal creator path
+- visible connection ports for course creation
+- spatial course editing as the source of truth
 
-These details may evolve between temporary shell and real canvas:
+## Recommended Architecture Boundary
 
-- exact layout engine
-- drag-and-drop behavior
-- zoom and pan behavior
-- spatial positioning fidelity
-- node and connector rendering details
-- animation richness
+### Domain
 
-These are implementation details, not product-contract decisions.
+The learning domain owns:
 
-## Temporary Block-Based Shell Responsibilities
+- modules
+- lessons
+- exercises
+- checkpoints
+- prerequisites
+- progress semantics
 
-The temporary renderer must already support:
+### Authoring UI
 
-- clear hierarchy
-- clear selection
-- contextual create actions
-- stable ordering
-- inspector handoff
-- readiness cues
+The structured builder owns:
 
-It must not:
+- creation flows
+- ordering
+- outline/tree/list representation
+- dense editing entry
 
-- introduce duplicate navigation models
-- treat every card like an independent mini-screen
-- invent interaction shortcuts that cannot survive a later canvas
+### Map renderer
 
-## Dedicated Learning Canvas Responsibilities
+The canvas renderer owns:
 
-The future dedicated learning canvas should eventually provide:
+- map drawing
+- map layout metadata
+- learner-facing orientation
+- creator preview map
 
-- learning-specific node rendering
-- learning-specific container behavior
-- connection rendering for prerequisites or sequencing
-- shared author/learner presentation over the same domain model
-- spatial navigation without inheriting planning-entity semantics
-
-The canvas should feel native to learning, not like a planning board with relabeled boxes.
-
-## Separation of Concerns
-
-Recommended architecture boundary:
-
-- learning domain owns course/module/lesson/exercise/checkpoint data
-- learning UI state owns selection, focused item, open panels, and runtime mode
-- renderer owns only drawing, layout interaction, and surface gestures
-
-The renderer should not own:
-
-- business rules for progress
-- publication/versioning logic
-- access logic
-- learner runtime semantics
+The map renderer should not own authoring truth.
 
 ## Layout State Strategy
 
-Recommended v1 rule:
+Recommended rule:
 
-- layout state should be stored separately from content structure
+- map layout state stays separate from canonical course structure
 
-This makes migration safer because:
+That means:
 
-- content remains stable even if layout representation changes
-- block-based ordering can later coexist with spatial layout metadata
-- the product can gradually add position data without rewriting course content
+- authoring order does not depend on map placement
+- preview/runtime map can evolve without rewriting authoring data
+- courses can be authored without ever touching spatial layout tools
 
 ## Migration Stages
 
-### Stage 1: Stable block-based shell
+### Stage 1. Stop the wrong migration
 
-- use block-based center workspace
-- enforce the final interaction contract already defined in docs
-- keep layout state simple
+- stop treating canvas authoring as the destination for `Build`
+- keep `Build` on a structured-builder path
 
-### Stage 2: Renderer abstraction
+### Stage 2. Stabilize shared domain model
 
-- extract a renderer-facing interface from the temporary build workspace
-- keep domain and inspector behavior unchanged
-- make selection and contextual actions independent from the current DOM layout
+- keep one canonical course structure model
+- keep prerequisites and branching as domain rules
+- keep map layout metadata separate
 
-### Stage 3: Dedicated learning canvas
+### Stage 3. Turn current canvas into preview map
 
-- introduce a learning-specific renderer
-- preserve existing author flow and learner flow
-- progressively replace block presentation with true spatial navigation
+- use learning nodes and connections for creator preview
+- validate path readability, blocking, and branching
 
-### Stage 4: Deeper learning interactions
+### Stage 4. Turn preview map into learner runtime map
 
-- richer prerequisite graph expression
-- more meaningful learner map navigation
-- AI-assisted structural editing on-canvas
+- reuse the same map language for real learner flow
+- add runtime-specific progress and navigation behavior
 
-These belong only after the base migration is stable.
+### Stage 5. Expand map sophistication only when needed
 
-## Recommended Renderer Contract
+- richer branching
+- stronger map navigation
+- advanced learner path views
 
-The future renderer should be able to consume something conceptually like:
+## Non-Goals
 
-- `elements`
-- `relationships`
-- `selection`
-- `layoutState`
-- `mode`
-- `allowedActions`
+- moving the whole creator experience onto a canvas
+- forcing authors to create course structure through map gestures
+- keeping legacy planning-style affordances just because canvas-core supports them
 
-The exact API can evolve later, but the key rule is:
+## Implementation Implication
 
-- renderer input should come from learning-domain state and UI state, not from planning-specific models
+Current learning canvas code should be evaluated with one question:
 
-## Preview and Learner Implications
+- does this help preview/runtime map quality?
 
-The same renderer may later support:
+If yes, keep or refine it.
+If no, do not keep investing in it as authoring infrastructure.
 
-- `build`
-- `preview`
-- `learner`
+## Final Rule
 
-But the mode must affect:
+The correct migration is no longer:
 
-- visible chrome
-- allowed actions
-- side effects
-- information density
+- `Build -> better authoring canvas`
 
-It must not collapse these modes into one ambiguous runtime.
+It is:
 
-## Non-Goals for v1
-
-- rewriting the planning canvas first
-- forcing learning onto existing `Goal/Story/Task` renderer contracts
-- building full graph editing before the product interaction model is stable
-- perfect spatial layout tools in the first restart pass
-
-## Decisions This Spec Resolves
-
-- temporary block-based rendering is acceptable, but only as a transport layer for the real interaction model
-- learning must not be permanently coupled to planning-canvas entity assumptions
-- layout state should remain separate from course content
-- migration should preserve UX contracts and change renderer details underneath them
-
-## Recommended Next Documentation Step
-
-After this spec, the next most useful document is:
-
-- `Implementation Restart Plan`
-
-That plan should define:
-
-- which prototype code is discarded
-- which module foundations remain
-- what the first clean implementation increment is
+- `canvas experiments -> stronger preview map -> stronger learner runtime map`

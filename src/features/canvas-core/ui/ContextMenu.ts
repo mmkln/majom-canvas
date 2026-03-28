@@ -178,9 +178,9 @@ export class ContextMenu {
     return this.options.enableLegacyPlanningActions ?? true;
   }
 
-  mount(parent: HTMLElement = document.body): void {
-    parent.appendChild(this.menu);
-    parent.appendChild(this.submenu);
+  mount(_parent: HTMLElement = document.body): void {
+    document.body.appendChild(this.menu);
+    document.body.appendChild(this.submenu);
     this.handler = (event: Event) => {
       const customEvent = event as CustomEvent<ContextMenuDetail>;
       this.show(customEvent.detail);

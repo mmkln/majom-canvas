@@ -50,7 +50,7 @@ export class LearningCanvasNodeSemanticsAdapter
         description: record.description,
         status: meta.status as any,
         priority: meta.priority as any,
-        tasks: [],
+        units: [],
       });
     }
 
@@ -86,6 +86,11 @@ export class LearningCanvasNodeSemanticsAdapter
         return new LearningLessonNode({
           ...common,
           parentLessonId: null,
+          prerequisiteLessonIds: Array.isArray(meta.prerequisiteLessonIds)
+            ? meta.prerequisiteLessonIds.filter(
+                (value): value is string => typeof value === 'string'
+              )
+            : [],
         });
       case 'exercise':
         return new LearningExerciseNode({
@@ -166,6 +171,8 @@ export class LearningCanvasNodeSemanticsAdapter
     if (!isLearningUnitNode(element)) {
       throw new Error(`Unsupported learning node kind: ${element.nodeKind}`);
     }
+    const prerequisiteLessonIds =
+      element.nodeKind === 'lesson' ? element.prerequisiteLessonIds : undefined;
     return {
       id: element.id,
       kind: element.nodeKind,
@@ -187,6 +194,7 @@ export class LearningCanvasNodeSemanticsAdapter
         status: element.status,
         priority: element.priority,
         dueDate: element.dueDate ? element.dueDate.toISOString() : null,
+        prerequisiteLessonIds,
       },
     };
   }

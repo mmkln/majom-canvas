@@ -21,6 +21,7 @@ export {
 } from '../../../../ui-lib/src/hud/index.ts';
 export { HudDropdown } from '../../../../ui-lib/src/hud/index.ts';
 export { HudAnchoredMenu } from '../../../../ui-lib/src/hud/index.ts';
+export { HudSubmenu } from '../../../../ui-lib/src/hud/index.ts';
 export { createHudDivider } from '../../../../ui-lib/src/hud/index.ts';
 export { createHudField } from '../../../../ui-lib/src/hud/index.ts';
 export {
@@ -30,13 +31,19 @@ export {
 } from '../../../../ui-lib/src/hud/index.ts';
 export {
   createHudDropdownItem,
+  createHudDropdownControlItem,
   createHudBadge,
   type HudBadgeOptions,
   type HudBadgeTone,
+  type HudDropdownControlItemOptions,
+  type HudDropdownControlItemTone,
   type HudDropdownItemTone,
   type HudMenuItemVariant,
   createHudMenuControlRow,
   type HudMenuControlRowOptions,
+  createHudMenuPreferenceGroup,
+  type HudMenuPreferenceGroupHandle,
+  type HudMenuPreferenceGroupOptions,
   createHudDropdownIconRow,
   type HudDropdownIconAction,
   type HudDropdownIconActionTone,
@@ -104,19 +111,26 @@ export {
   type TextButtonState,
   Dropdown,
   AnchoredMenu,
+  Submenu,
   createDivider,
   createField,
   createFormMessage,
   type FormMessage,
   type FormMessageTone,
   createDropdownItem,
+  createDropdownControlItem,
   createBadge,
   type BadgeOptions,
   type BadgeTone,
+  type DropdownControlItemOptions,
+  type DropdownControlItemTone,
   type DropdownItemTone,
   type MenuItemVariant,
   createMenuControlRow,
   type MenuControlRowOptions,
+  createMenuPreferenceGroup,
+  type MenuPreferenceGroupHandle,
+  type MenuPreferenceGroupOptions,
   createDropdownIconRow,
   type DropdownIconAction,
   type DropdownIconActionTone,

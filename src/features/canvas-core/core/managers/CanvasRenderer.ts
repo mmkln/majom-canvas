@@ -1,17 +1,24 @@
 import type { PanZoomManager } from './PanZoomManager.ts';
-import { BackgroundGridRenderer } from '../rendering/BackgroundGridRenderer.ts';
+import type { CanvasBackgroundAdapter } from '../../adapters/CanvasBackgroundAdapter.ts';
+import { HexGridCanvasBackgroundAdapter } from '../../adapters/HexGridCanvasBackgroundAdapter.ts';
 
 export class CanvasRenderer {
-  private readonly backgroundRenderer = new BackgroundGridRenderer();
+  private readonly backgroundAdapter: CanvasBackgroundAdapter;
 
-  constructor(private readonly panZoom: PanZoomManager) {}
+  constructor(
+    private readonly panZoom: PanZoomManager,
+    backgroundAdapter: CanvasBackgroundAdapter | null = null
+  ) {
+    this.backgroundAdapter =
+      backgroundAdapter ?? new HexGridCanvasBackgroundAdapter();
+  }
 
   public drawBackground(
     ctx: CanvasRenderingContext2D,
     viewportWidth: number,
     viewportHeight: number
   ): void {
-    this.backgroundRenderer.draw({
+    this.backgroundAdapter.drawBackground({
       ctx,
       panZoom: this.panZoom,
       viewportWidth,
@@ -20,10 +27,10 @@ export class CanvasRenderer {
   }
 
   public invalidateBackground(): void {
-    this.backgroundRenderer.invalidate();
+    this.backgroundAdapter.invalidateBackground?.();
   }
 
   public clearBackgroundCache(): void {
-    this.backgroundRenderer.clearCache();
+    this.backgroundAdapter.clearBackgroundCache?.();
   }
 }

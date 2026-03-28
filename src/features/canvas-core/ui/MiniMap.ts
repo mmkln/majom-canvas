@@ -62,6 +62,7 @@ export class MiniMap {
     if (!useSurface) {
       this.container.className = className;
     }
+    this.container.dataset.role = 'canvas-mini-map';
     if (!embedded) {
       this.container.style.right = `${SIDEBAR_TOKENS.compactWidthPx}px`;
     }

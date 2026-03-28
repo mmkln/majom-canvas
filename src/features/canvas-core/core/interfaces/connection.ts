@@ -25,6 +25,7 @@ export enum ConnectionLineType {
 export enum ConnectionRelationType {
   LeadsTo = 'leads_to',
   Blocks = 'blocks',
+  Prerequisite = 'prerequisite',
   ParentChild = 'parent_child',
   RelatesTo = 'relates_to',
 }

@@ -1,6 +1,8 @@
 // managers/CanvasManager.ts
 import { Scene } from '../scene/Scene.ts';
+import type { CanvasAlignmentAdapter } from '../../adapters/CanvasAlignmentAdapter.ts';
 import type { CanvasAppearanceAdapter } from '../../adapters/CanvasAppearanceAdapter.ts';
+import type { CanvasBackgroundAdapter } from '../../adapters/CanvasBackgroundAdapter.ts';
 import { PanZoomManager } from './PanZoomManager.ts';
 import { ScrollbarManager } from './ScrollbarManager.ts';
 import { CanvasRenderer } from './CanvasRenderer.ts';
@@ -36,16 +38,21 @@ import {
   SHOW_ANIM_SCALE,
   TASK_DROP_PLACEHOLDER_FILL,
   SMART_GUIDE_COLOR,
+  SMART_GUIDE_CONTAINER_COLOR,
+  SMART_GUIDE_LABEL_COLOR,
   SMART_GUIDE_LINE_WIDTH,
+  SMART_GUIDE_SPACING_COLOR,
+  SMART_GUIDE_VIEWPORT_CENTER_COLOR,
 } from '../constants.ts';
 import { StoryLayoutService } from '../services/StoryLayoutService.ts';
 import { getBoundingBox } from '../utils/geometryUtils.ts';
 import { hasStatusAnimation } from '../../elements/utils/statusAnimations.ts';
 import { CANVAS_PERF_LOG } from '../../../../config/env/index.ts';
 import { isCircleVisible, isRectVisible } from '../utils/viewBounds.ts';
-import { drawSmartGuides } from '../utils/smartGuideRenderer.ts';
+import { drawAlignmentOverlay } from '../utils/smartGuideRenderer.ts';
 import { BehaviorSubject, Subject, Subscription } from 'rxjs';
 import { CanvasClientStorage } from '../services/CanvasClientStorage.ts';
+import type { AlignmentPreferences } from '../alignment/types.ts';
 import type {
   CanvasLoadPhase,
   CanvasLoadingPlaceholder,
@@ -76,6 +83,11 @@ export type CanvasPerfSnapshot = {
   statusAnimDetail: 'full' | 'reduced';
   timestampMs: number;
 };
+
+export type CanvasSmartGuidePreferences = Pick<
+  AlignmentPreferences,
+  'showSpacingGuides' | 'showContainerGuides' | 'showViewportCenterGuides'
+>;
 
 type ProgressSourceNode = IStructuredCanvasNode & {
   status: string;
@@ -183,6 +195,11 @@ export class CanvasManager {
   private lastAnimationFrameMs: number = 0;
   private animationsEnabled: boolean = true;
   private smartGuidesEnabled: boolean = true;
+  private smartGuidePreferences: CanvasSmartGuidePreferences = {
+    showSpacingGuides: true,
+    showContainerGuides: true,
+    showViewportCenterGuides: true,
+  };
   private readonly enablePerfLogging: boolean = CANVAS_PERF_LOG;
   private readonly perfLogIntervalMs: number = 1000;
   private currentConnectionAnimDetail: 'full' | 'reduced' = 'full';
@@ -254,7 +271,9 @@ export class CanvasManager {
     canvas: HTMLCanvasElement,
     scene: Scene,
     appearanceAdapter: CanvasAppearanceAdapter | null = null,
-    semanticsAdapter: CanvasRuntimeSemanticsAdapter
+    semanticsAdapter: CanvasRuntimeSemanticsAdapter,
+    backgroundAdapter: CanvasBackgroundAdapter | null = null,
+    alignmentAdapter: CanvasAlignmentAdapter | null = null
   ) {
     this.canvas = canvas;
     // disable native touch gestures so pointer events work for drag/resize
@@ -263,21 +282,27 @@ export class CanvasManager {
     this.scene = scene;
     this.appearanceAdapter = appearanceAdapter;
     this.semanticsAdapter = semanticsAdapter;
-    this.scene.getHighlightedElementIds().forEach((id) =>
-      this.highlightedElementIds.add(id)
-    );
-    this.animationsEnabled = CanvasClientStorage.getCanvasAnimationsEnabled(
-      true
-    );
+    this.scene
+      .getHighlightedElementIds()
+      .forEach((id) => this.highlightedElementIds.add(id));
+    this.animationsEnabled =
+      CanvasClientStorage.getCanvasAnimationsEnabled(true);
     this.smartGuidesEnabled =
       CanvasClientStorage.getCanvasSmartGuidesEnabled(false);
+    this.smartGuidePreferences = {
+      showSpacingGuides: CanvasClientStorage.getCanvasSpacingGuidesEnabled(true),
+      showContainerGuides:
+        CanvasClientStorage.getCanvasContainerGuidesEnabled(true),
+      showViewportCenterGuides:
+        CanvasClientStorage.getCanvasViewportCenterGuidesEnabled(true),
+    };
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Canvas 2D context not available');
     this.ctx = ctx;
 
     this.setupBackgroundLayer();
     this.panZoom = new PanZoomManager(canvas);
-    this.renderer = new CanvasRenderer(this.panZoom);
+    this.renderer = new CanvasRenderer(this.panZoom, backgroundAdapter);
     this.connectionRenderBackend = new Canvas2DConnectionRenderBackend();
     this.scrollbarManager = new ScrollbarManager(
       canvas,
@@ -288,9 +313,11 @@ export class CanvasManager {
       canvas,
       scene,
       this.panZoom,
-      this.semanticsAdapter
+      this.semanticsAdapter,
+      alignmentAdapter ?? undefined
     );
     this.interactionManager.setSmartGuidesEnabled(this.smartGuidesEnabled);
+    this.interactionManager.setSmartGuidePreferences(this.smartGuidePreferences);
     this.keyboardManager = new KeyboardManager(scene, this);
 
     this.sceneChangesSubscription = this.scene.changes.subscribe(() => {
@@ -471,7 +498,11 @@ export class CanvasManager {
       this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
       // Fallback path if layered background cannot be created in the DOM.
       this.renderer.invalidateBackground();
-      this.renderer.drawBackground(this.ctx, this.canvas.width, this.canvas.height);
+      this.renderer.drawBackground(
+        this.ctx,
+        this.canvas.width,
+        this.canvas.height
+      );
     }
     this.ctx.save();
     this.ctx.translate(-this.panZoom.scrollX, -this.panZoom.scrollY);
@@ -498,7 +529,10 @@ export class CanvasManager {
           this.cachedProgressAggregateNodes.push(element);
         }
       });
-      this.cachedConnectables = [...this.cachedShapes, ...this.cachedStructuredNodes];
+      this.cachedConnectables = [
+        ...this.cachedShapes,
+        ...this.cachedStructuredNodes,
+      ];
       this.cachedConnectableLookup = this.buildConnectableLookup(
         this.cachedConnectables
       );
@@ -530,7 +564,10 @@ export class CanvasManager {
     let animatedTotal = 0;
     let animatedVisibleCount = 0;
     structuredNodes.forEach((element) => {
-      if (!('status' in element) || !hasStatusAnimation((element as any).status))
+      if (
+        !('status' in element) ||
+        !hasStatusAnimation((element as any).status)
+      )
         return;
       animatedTotal += 1;
       if (this.isElementVisible(element, cullBounds)) {
@@ -554,9 +591,7 @@ export class CanvasManager {
       connectionAnimDetail = this.resolveConnectionAnimDetail(
         animatedConnectionVisibleCount
       );
-      statusAnimDetail = this.resolveStatusAnimDetail(
-        animatedVisibleCount
-      );
+      statusAnimDetail = this.resolveStatusAnimDetail(animatedVisibleCount);
       this.panZoom.renderFlags.connectionAnimDetail = connectionAnimDetail;
       this.panZoom.renderFlags.statusAnimDetail = statusAnimDetail;
     }
@@ -715,12 +750,16 @@ export class CanvasManager {
       this.ctx.restore();
     }
 
-    const smartGuideLines = this.interactionManager.getSmartGuideLines();
-    drawSmartGuides({
+    const smartGuideOverlay = this.interactionManager.getSmartGuideOverlay();
+    drawAlignmentOverlay({
       ctx: this.ctx,
-      guides: smartGuideLines,
+      overlay: smartGuideOverlay,
       scale: this.panZoom.scale,
       color: SMART_GUIDE_COLOR,
+      spacingColor: SMART_GUIDE_SPACING_COLOR,
+      containerColor: SMART_GUIDE_CONTAINER_COLOR,
+      viewportCenterColor: SMART_GUIDE_VIEWPORT_CENTER_COLOR,
+      labelColor: SMART_GUIDE_LABEL_COLOR,
       lineWidth: SMART_GUIDE_LINE_WIDTH,
     });
 
@@ -979,8 +1018,7 @@ export class CanvasManager {
   private resolveConnectionAnimDetail(
     visibleAnimatedConnections: number
   ): 'full' | 'reduced' {
-    return visibleAnimatedConnections >
-      this.fullConnectionAnimDetailMaxVisible
+    return visibleAnimatedConnections > this.fullConnectionAnimDetailMaxVisible
       ? 'reduced'
       : 'full';
   }
@@ -1311,6 +1349,10 @@ export class CanvasManager {
     return this.smartGuidesEnabled;
   }
 
+  public getSmartGuidePreferences(): Readonly<CanvasSmartGuidePreferences> {
+    return { ...this.smartGuidePreferences };
+  }
+
   public setAnimationsEnabled(enabled: boolean): void {
     if (this.animationsEnabled === enabled) return;
     this.animationsEnabled = enabled;
@@ -1330,6 +1372,37 @@ export class CanvasManager {
     this.smartGuidesEnabled = enabled;
     CanvasClientStorage.setCanvasSmartGuidesEnabled(enabled);
     this.interactionManager.setSmartGuidesEnabled(enabled);
+    this.requestDraw();
+  }
+
+  public setSmartGuidePreferences(
+    preferences: Partial<CanvasSmartGuidePreferences>
+  ): void {
+    const nextPreferences: CanvasSmartGuidePreferences = {
+      ...this.smartGuidePreferences,
+      ...preferences,
+    };
+    if (
+      nextPreferences.showSpacingGuides ===
+        this.smartGuidePreferences.showSpacingGuides &&
+      nextPreferences.showContainerGuides ===
+        this.smartGuidePreferences.showContainerGuides &&
+      nextPreferences.showViewportCenterGuides ===
+        this.smartGuidePreferences.showViewportCenterGuides
+    ) {
+      return;
+    }
+    this.smartGuidePreferences = nextPreferences;
+    CanvasClientStorage.setCanvasSpacingGuidesEnabled(
+      nextPreferences.showSpacingGuides
+    );
+    CanvasClientStorage.setCanvasContainerGuidesEnabled(
+      nextPreferences.showContainerGuides
+    );
+    CanvasClientStorage.setCanvasViewportCenterGuidesEnabled(
+      nextPreferences.showViewportCenterGuides
+    );
+    this.interactionManager.setSmartGuidePreferences(nextPreferences);
     this.requestDraw();
   }
 

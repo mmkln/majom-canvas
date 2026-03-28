@@ -15,6 +15,8 @@ type CanvasModuleOptions = {
   resolveAdapters?: () => CanvasCoreAdapters | Promise<CanvasCoreAdapters>;
 };
 
+export const CANVAS_CORE_CANVAS_ELEMENT_ID = 'canvas-core-canvas';
+
 export class CanvasModule implements WorkspaceModule {
   public readonly id = 'canvas' as const;
   private app: CanvasApp | null = null;
@@ -39,7 +41,7 @@ export class CanvasModule implements WorkspaceModule {
       parent.style.position = parent.style.position || 'relative';
       parent.style.minHeight = parent.style.minHeight || '100%';
       const canvas = document.createElement('canvas');
-      canvas.id = 'myCanvas';
+      canvas.id = CANVAS_CORE_CANVAS_ELEMENT_ID;
       canvas.style.display = 'block';
       canvas.style.pointerEvents = 'auto';
       canvas.style.width = '100%';

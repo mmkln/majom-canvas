@@ -97,9 +97,11 @@ class ConnectionRenderer {
     ctx: CanvasRenderingContext2D,
     curve: ConnectionCurve
   ): void {
+    ctx.save();
     connection.buildPath(ctx, curve);
     this.setStrokeProperties(connection, ctx);
     ctx.stroke();
+    ctx.restore();
   }
 
   private drawWaveLine(
@@ -288,7 +290,8 @@ class ConnectionRenderer {
     detail: ConnectionAnimDetail
   ): void {
     const angle = connection.getTangentAngle();
-    const headLength = 15;
+    const headLength =
+      connection.relationType === ConnectionRelationType.Prerequisite ? 10 : 15;
     const scale = panZoom.scale ?? 1;
     const baseColor = this.getRelationColor(connection);
     ctx.beginPath();
@@ -314,8 +317,13 @@ class ConnectionRenderer {
       ctx.restore();
       return;
     }
+    ctx.save();
+    if (connection.relationType === ConnectionRelationType.Prerequisite) {
+      ctx.globalAlpha = connection.selected ? 0.95 : 0.72;
+    }
     ctx.fillStyle = connection.selected ? SELECT_COLOR : baseColor;
     ctx.fill();
+    ctx.restore();
   }
 
   private getConnectionAnimDetail(
@@ -373,10 +381,14 @@ class ConnectionRenderer {
     connection: RenderableConnection,
     ctx: CanvasRenderingContext2D
   ): void {
-    ctx.setLineDash([]);
+    const isPrerequisite =
+      connection.relationType === ConnectionRelationType.Prerequisite;
     const baseColor = this.getRelationColor(connection);
+
+    ctx.setLineDash([]);
+    ctx.globalAlpha = isPrerequisite && !connection.selected ? 0.56 : 1;
     ctx.strokeStyle = connection.selected ? SELECT_COLOR : baseColor;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = isPrerequisite ? 1.5 : 2;
   }
 
   private getRelationColor(connection: RenderableConnection): string {
@@ -385,6 +397,8 @@ class ConnectionRenderer {
         return '#a78bfa';
       case ConnectionRelationType.Blocks:
         return '#f87171';
+      case ConnectionRelationType.Prerequisite:
+        return '#0f766e';
       case ConnectionRelationType.ParentChild:
         return '#38bdf8';
       case ConnectionRelationType.RelatesTo:

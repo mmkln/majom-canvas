@@ -66,6 +66,11 @@ export {
   type HudMenuControlRowOptions as MenuControlRowOptions,
 } from './HudMenuControlRow.ts';
 export {
+  createHudMenuPreferenceGroup as createMenuPreferenceGroup,
+  type HudMenuPreferenceGroupHandle as MenuPreferenceGroupHandle,
+  type HudMenuPreferenceGroupOptions as MenuPreferenceGroupOptions,
+} from './HudMenuPreferenceGroup.ts';
+export {
   createHudDropdownIconRow as createDropdownIconRow,
   type HudDropdownIconAction as DropdownIconAction,
   type HudDropdownIconActionTone as DropdownIconActionTone,
@@ -130,6 +135,7 @@ export {
   createHudToggleSwitch as createToggleSwitch,
   type HudToggleSwitchOptions as ToggleSwitchOptions,
 } from './HudToggleSwitch.ts';
+export { HudSubmenu as Submenu, type HudSubmenuOptions as SubmenuOptions } from './HudSubmenu.ts';
 
 export { createHudSurface as createSurface } from './HudSurface.ts';
 export {
@@ -228,6 +234,11 @@ export {
   type HudMenuControlRowOptions,
 } from './HudMenuControlRow.ts';
 export {
+  createHudMenuPreferenceGroup,
+  type HudMenuPreferenceGroupHandle,
+  type HudMenuPreferenceGroupOptions,
+} from './HudMenuPreferenceGroup.ts';
+export {
   createHudDropdownIconRow,
   type HudDropdownIconAction,
   type HudDropdownIconActionTone,
@@ -283,6 +294,7 @@ export {
   createHudToggleSwitch,
   type HudToggleSwitchOptions,
 } from './HudToggleSwitch.ts';
+export { HudSubmenu, type HudSubmenuOptions } from './HudSubmenu.ts';
 export { createHudSurface } from './HudSurface.ts';
 export {
   HudMenuButton,

@@ -1,10 +1,30 @@
 # Learning Studio Canvas Author Journeys
 
+## Status Note
+
+This document is historical as of 2026-03-28.
+
+It described the superseded assumption that canvas authoring would be the primary creator workflow.
+Keep it only as reference for:
+
+- map readability ideas
+- prerequisite/path observations
+- historical context
+
+Do not use it as the current source of truth for course authoring strategy.
+Use instead:
+
+- `docs/LEARNING-STUDIO-STRATEGY-RESET.md`
+- `docs/LEARNING-STUDIO-AUTHOR-UX-SPEC.md`
+- `docs/LEARNING-STUDIO-BUILD-INTERACTION-SPEC.md`
+- `docs/LEARNING-STUDIO-PREVIEW-LEARNER-RUNTIME-SPEC.md`
+
 ## Status
 
 - State: working audit
 - Updated: 2026-03-28
 - Scope: creator journey for course creation on canvas
+- Current desktop-v1 simplification reference: `docs/LEARNING-STUDIO-CANVAS-DESKTOP-V1-UX-CONTRACT.md`
 - Related docs:
   - `docs/LEARNING-STUDIO.md`
   - `docs/LEARNING-STUDIO-AUTHOR-UX-SPEC.md`
@@ -45,6 +65,10 @@ The creator should feel that the course is made on canvas, not in side chrome.
 
 ## Important Current Product Reality
 
+When this document conflicts with the current desktop-v1 simplification contract,
+`docs/LEARNING-STUDIO-CANVAS-DESKTOP-V1-UX-CONTRACT.md`
+should win.
+
 The intended journey and the currently implemented journey are close, but not identical.
 
 As of now:
@@ -55,6 +79,7 @@ As of now:
 - `Build` and `Preview` are recommended by the product flow, but not strictly gated by it
 - the current `Build` shell intentionally omits `Course map` and side `Inspector`
 - detail editing happens through modal entry from the selected canvas element
+- quick lesson preview is still a planned secondary validation loop, not yet a required baseline surface
 
 This means the document below describes:
 
@@ -234,7 +259,9 @@ Shape the course into modules, lessons, exercises, and checkpoints.
 
 - `Course map` is useful but still somewhat utilitarian
 - module and lesson hierarchy is clearer than before, but still not yet a highly polished construction tree
-- `Add lesson` is less discoverable than `Add module` when the map is hidden, because it remains contextual
+- `Add lesson` is less discoverable than `Add module` when it is available only through menus
+- selected module state should carry a visible `Add lesson`
+- selected lesson state should carry visible `Add exercise`, `Add checkpoint`, and `Edit`
 
 ## Canonical Journey 3: Creator Edits Lesson Details
 
@@ -259,8 +286,8 @@ Turn a structural lesson node into a meaningful learning step.
 ### Supporting surfaces
 
 - canvas keeps context
-- course map helps jump to another lesson
-- inspector may remain available as a secondary side surface if explicitly shown
+- selection action menu accelerates the next structural action
+- context menu holds secondary and list-heavy actions
 - lesson preview modal gives a fast read-only check without leaving `Build`
 
 ### What must be true
@@ -276,12 +303,13 @@ Turn a structural lesson node into a meaningful learning step.
 
 - supported
 - structured lesson block editor exists
-- prerequisite editing exists in inspector and canvas actions
+- prerequisite editing exists in the details modal and canvas actions
 
 ### Current friction
 
-- lesson editing is already powerful, but the surrounding `Build` shell still needs stronger overall composure than the inspector itself
-- the overall flow still assumes the user understands the split between structure on canvas and content in inspector
+- lesson editing is already powerful, but the surrounding `Build` shell still needs stronger overall composure than the modal/selection flow around it
+- the overall flow still assumes the user understands the split between structure on canvas and content in the details modal
+- double click alone is too weak as the only obvious edit path
 
 ## Canonical Journey 4: Creator Peeks a Lesson Without Leaving Build
 
@@ -305,7 +333,7 @@ Quickly understand how one selected lesson feels to a learner without switching 
 ### Supporting surfaces
 
 - canvas remains visible as the structural context behind the modal
-- inspector remains the editing surface after the modal closes
+- details modal remains the deep-edit surface when the creator returns to editing
 
 ### What must be true
 
@@ -326,88 +354,7 @@ Quickly understand how one selected lesson feels to a learner without switching 
 - if the modal grows too much, it will start competing with the real `Preview` page
 - that would blur the product boundary between local lesson checking and full-course validation
 
-## Canonical Journey 5: Creator Focuses on Canvas
-
-### Goal
-
-Temporarily remove navigation and editing chrome to work directly on the canvas.
-
-### Path
-
-1. Enter `Build`
-2. Hide `Course map`
-3. Hide `Inspector`
-4. Work on canvas with maximum width
-5. Reopen either side surface only when needed
-
-### Primary surface
-
-- canvas only
-
-### Supporting surfaces
-
-- hidden until explicitly restored
-
-### What must be true
-
-- hiding side surfaces must not remount or reset the canvas
-- the restore controls must remain obvious
-- hide/show controls should live close to the surfaces they affect
-
-### Current implementation status
-
-- supported
-- `Course map` can be hidden from inside the rail
-- `Inspector` can be hidden from inside the inspector pane
-- restore controls appear inside the workspace when a panel is hidden
-
-### Current friction
-
-- no single `focus canvas` control yet
-- current pattern is functional, but still slightly mechanical
-
-## Canonical Journey 6: Creator Uses Course Map for Navigation
-
-### Goal
-
-Jump quickly across a larger course without relying only on spatial canvas navigation.
-
-### Path
-
-1. Open `Build`
-2. Use `Course map` header for orientation
-3. Select a module from the map
-4. Select a lesson from the map
-5. Jump back to canvas context and inspector editing
-
-### Primary surface
-
-- `Course map`
-
-### Supporting surfaces
-
-- canvas
-- inspector
-
-### What must be true
-
-- the map is compact and readable
-- it does not duplicate the same summary in multiple places
-- it is navigation-first, not a second full editor
-
-### Current implementation status
-
-- supported
-- duplicate top-level summary was removed from the old root block
-- rail header now owns the structural summary
-
-### Current friction
-
-- course map is now cleaner, but still not a final mature tree control
-- readiness cues are minimal
-- selection and navigation are coherent, but the rail is not yet strong enough to fully replace canvas exploration on large courses
-
-## Canonical Journey 7: Creator Validates in Preview and Returns
+## Canonical Journey 5: Creator Validates in Preview and Returns
 
 ### Goal
 
@@ -456,6 +403,7 @@ Check whether the whole course feels coherent without leaving the authoring flow
 - the route model allows the creator to open `Preview` before the flow is truly ready, even if the product recommendation points back to `Build`
 - returning from `Preview` currently falls back too easily to course-level context instead of taking the author back to the lesson or module that needs fixing
 - there is still no strong explicit `Back to Build` action inside preview itself; the route switch exists, but the workflow cue is weak
+- `Preview -> Build` should restore the relevant lesson or module whenever possible
 
 ## UX Contract for Build
 
@@ -465,8 +413,9 @@ Check whether the whole course feels coherent without leaving the authoring flow
 
 ### What is secondary
 
-- `Course map`
-- optional `Inspector`
+- details modal
+- selection action menu
+- context menu
 
 ### What is contextual
 
@@ -488,13 +437,12 @@ The current course creation flow is now coherent enough to support real work:
 
 - there is a real first-time path
 - `Build` has a usable creation path
-- side surfaces can be hidden
 - preview is separate from authoring
 - route, selection, and creation are all wired through one app-level state model
 
 The flow is not yet fully mature:
 
-- `Course map` still needs refinement as a navigation tree
+- selected-state structural actions still need stronger visibility
 - `Build` can still become more intentional in spacing and hierarchy
 - preview needs a stronger return/continuation story
 - the product still relies on recommendation more than enforcement for the intended step order
@@ -518,7 +466,7 @@ Current key implementation files:
 
 ## Next Design Priorities
 
-1. Strengthen `Course map` as a mature navigation tree without turning it into a second editor.
-2. Add one explicit `focus canvas` action that hides both side surfaces together.
-3. Improve `Preview` handoff and next-step clarity.
-4. Keep `Overview` lightweight so it does not delay entry into real authoring work.
+1. Expose stronger visible selected-state actions for `Add lesson`, `Add exercise`, `Add checkpoint`, and `Edit`.
+2. Improve `Preview` handoff and next-step clarity.
+3. Keep `Overview` lightweight so it does not delay entry into real authoring work.
+4. Add quick lesson preview only if it stays clearly secondary to full-course `Preview`.

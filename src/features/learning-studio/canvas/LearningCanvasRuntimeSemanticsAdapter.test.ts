@@ -17,7 +17,7 @@ describe('LearningCanvasRuntimeSemanticsAdapter', () => {
     expect(adapter.canResizeElement(moduleNode)).toBe(true);
   });
 
-  it('prioritizes lesson/task nodes over module/story nodes for hit testing', () => {
+  it('prioritizes lesson nodes over modules for hit testing', () => {
     const adapter = new LearningCanvasRuntimeSemanticsAdapter();
     const moduleNode = new LearningModuleNode({});
     const lessonNode = new LearningLessonNode({

@@ -2,8 +2,8 @@ import {
   createBadge,
   createDropdownItem,
   createSurface,
+  Submenu,
 } from '../primitives/index.ts';
-import { positionFixedElement } from '../overlayPosition.ts';
 import { createIcon } from '../../../../ui-lib/src/hud/icons.ts';
 import {
   getAppLocaleLabel,
@@ -11,9 +11,6 @@ import {
   type AppLocale,
   I18nService,
 } from '../../../../i18n/index.ts';
-
-const SUBMENU_CLOSE_DELAY_MS = 120;
-const SUBMENU_GAP_PX = 4;
 
 export type LocaleSubmenuHandle = {
   trigger: HTMLButtonElement;
@@ -61,8 +58,6 @@ function createTriggerTrailing(
 export function createLocaleSubmenu(
   options: LocaleSubmenuOptions
 ): LocaleSubmenuHandle {
-  let closeTimeoutId: number | null = null;
-
   const panel = createSurface({
     elevated: true,
     className: 'fixed hidden min-w-[10rem] overflow-hidden',
@@ -76,60 +71,9 @@ export function createLocaleSubmenu(
     label: options.i18n.t('common.language'),
     trailing: createTriggerTrailing(options.i18n, options.currentLocale),
     disabled: options.disabled ?? false,
-    onClick: (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (!isOpen()) {
-        open();
-      }
-    },
   });
   trigger.dataset.role = 'locale-submenu-trigger';
-  trigger.setAttribute('aria-haspopup', 'menu');
-  trigger.setAttribute('aria-expanded', 'false');
-
-  const clearCloseTimer = (): void => {
-    if (closeTimeoutId === null) return;
-    window.clearTimeout(closeTimeoutId);
-    closeTimeoutId = null;
-  };
-
-  const scheduleClose = (): void => {
-    clearCloseTimer();
-    closeTimeoutId = window.setTimeout(() => {
-      close();
-    }, SUBMENU_CLOSE_DELAY_MS);
-  };
-
-  const positionPanel = (): void => {
-    const triggerRect = trigger.getBoundingClientRect();
-    const panelRect = panel.getBoundingClientRect();
-    const panelWidth = panelRect.width || 160;
-    const openLeft =
-      triggerRect.right + SUBMENU_GAP_PX + panelWidth > window.innerWidth - 8;
-
-    positionFixedElement(panel, {
-      anchorX: openLeft
-        ? triggerRect.left - SUBMENU_GAP_PX
-        : triggerRect.right + SUBMENU_GAP_PX,
-      anchorY: triggerRect.top,
-      alignX: openLeft ? 'right' : 'left',
-      alignY: 'top',
-    });
-  };
-
-  const setExpandedState = (expanded: boolean): void => {
-    trigger.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-    trigger.classList.toggle('bg-indigo-50', expanded);
-    trigger.classList.toggle('text-slate-800', expanded);
-  };
-
-  const close = (): void => {
-    clearCloseTimer();
-    panel.style.display = 'none';
-    panel.style.visibility = '';
-    setExpandedState(false);
-  };
+  let submenu: Submenu | null = null;
 
   const renderPanelItems = (): void => {
     panel.innerHTML = '';
@@ -148,7 +92,7 @@ export function createLocaleSubmenu(
           event.preventDefault();
           event.stopPropagation();
           options.onSelect(locale);
-          close();
+          submenu?.close();
         },
       });
       item.dataset.role = 'locale-submenu-item';
@@ -156,97 +100,21 @@ export function createLocaleSubmenu(
       panel.appendChild(item);
     });
   };
-
-  const isOpen = (): boolean => panel.style.display === 'block';
-
-  const open = (): void => {
-    if (options.disabled) return;
-    clearCloseTimer();
-    renderPanelItems();
-    if (!panel.isConnected) {
-      document.body.appendChild(panel);
-    }
-    panel.style.display = 'block';
-    panel.style.visibility = 'hidden';
-    positionPanel();
-    panel.style.visibility = 'visible';
-    setExpandedState(true);
-  };
-
-  const focusFirstItem = (): void => {
-    const first = panel.querySelector('button:not([disabled])');
-    if (first instanceof HTMLButtonElement) {
-      first.focus();
-    }
-  };
-
-  trigger.addEventListener('mouseenter', () => {
-    open();
-  });
-  trigger.addEventListener('mouseleave', () => {
-    scheduleClose();
-  });
-  trigger.addEventListener('focus', () => {
-    open();
-  });
-  trigger.addEventListener('focusout', (event) => {
-    const relatedTarget = event.relatedTarget;
-    if (relatedTarget instanceof Node && panel.contains(relatedTarget)) {
-      return;
-    }
-    scheduleClose();
-  });
-  trigger.addEventListener('keydown', (event) => {
-    if (
-      event.key === 'Enter' ||
-      event.key === ' ' ||
-      event.key === 'ArrowRight'
-    ) {
-      event.preventDefault();
-      open();
-      focusFirstItem();
-      return;
-    }
-    if (event.key === 'Escape' || event.key === 'ArrowLeft') {
-      event.preventDefault();
-      close();
-    }
-  });
-
-  panel.addEventListener('mouseenter', () => {
-    clearCloseTimer();
-  });
-  panel.addEventListener('mousedown', (event) => {
-    event.stopPropagation();
-  });
-  panel.addEventListener('mouseleave', () => {
-    scheduleClose();
-  });
-  panel.addEventListener('focusout', (event) => {
-    const relatedTarget = event.relatedTarget;
-    if (
-      relatedTarget === trigger ||
-      (relatedTarget instanceof Node && panel.contains(relatedTarget))
-    ) {
-      return;
-    }
-    scheduleClose();
-  });
-  panel.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' || event.key === 'ArrowLeft') {
-      event.preventDefault();
-      close();
-      trigger.focus();
-    }
+  submenu = new Submenu({
+    trigger,
+    panel,
+    openMode: 'hover-or-click',
+    placement: 'right-start',
+    panelZIndex: options.panelZIndex ?? 320,
+    beforeOpen: renderPanelItems,
   });
 
   return {
     trigger,
-    close,
+    close: () => submenu?.close(),
     destroy: () => {
-      clearCloseTimer();
-      close();
-      panel.remove();
+      submenu?.destroy();
+      submenu = null;
     },
   };
 }

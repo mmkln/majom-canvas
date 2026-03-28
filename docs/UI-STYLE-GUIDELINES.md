@@ -28,6 +28,7 @@ These principles must not be violated in new non-canvas UI work.
 5. **Semantic text system:** use defined text roles (primary/secondary/muted/error/inverse) and avoid ad-hoc color choices in feature code.
 6. **Scale-bound typography and spacing:** font sizes, line heights, and text spacing follow a finite ladder; avoid random one-off values.
 7. **Major-island full-bleed default:** top-level workspace islands (canvas, kanban, time-clustering, AI chat) should use full-size layout without card-like outer wrappers unless explicit functional separation is needed.
+8. **No bubble nesting by default:** avoid page-shell card -> workspace card -> section card -> sub-card -> pill-wrapper stacking. If one whole wrapper layer can be removed without losing meaning, remove it.
 
 ---
 
@@ -81,6 +82,12 @@ These values reflect the strongest existing conventions in `ui-lib/hud` and moda
   3. semantic grouping requires explicit division.
 - If spacing + contrast already communicate structure, do not add a border.
 - Avoid nested/double borders (e.g., bordered card + bordered internal wrappers) unless needed for interaction semantics.
+- Avoid “bubble tree” composition where multiple rounded bordered/shadowed wrappers are nested only to create visual separation. Use one strong surface, then rely on spacing, alignment, divider lines, and typography hierarchy inside it.
+- Before introducing a new card/surface wrapper, ask:
+  - does this layer have a distinct functional job?
+  - is that job obvious to the user?
+  - would removing this wrapper make the screen clearer?
+  If the answer to the last question is yes, remove the wrapper.
 
 ### 3.4 Spacing and control sizing
 
@@ -162,6 +169,11 @@ Every interactive control must define:
 
 **Rule:** state behavior should be encoded in variant/class maps, not scattered event-driven inline style mutations.
 
+**Rule:** do not use hover-time lift motion to show interactivity.
+- Avoid `translateY`, float-up, jump, or similar vertical movement on hover for cards, list rows, buttons, and other standard UI controls.
+- Prefer stable hover cues such as background, border, shadow, underline, or foreground-color changes.
+- A hover state may strengthen shadow slightly, but the element itself should remain spatially stable.
+
 ### 3.9 Minimalist beauty principle
 
 The visual default is calm and minimal:
@@ -170,6 +182,7 @@ The visual default is calm and minimal:
 - Prefer one clear accent per component; avoid multi-accent competition inside one block.
 - Use borders as a functional tool, not a default visual pattern.
 - If removing a visual detail does not reduce usability or meaning, remove it.
+- If removing an entire nested surface layer does not reduce usability or meaning, remove that layer rather than tuning it.
 
 ### 3.10 Workspace islands (major functional blocks)
 
@@ -188,6 +201,7 @@ Why this aligns with the current style system:
 - supports the minimalist principle (less decorative noise),
 - preserves available working area for functional tools,
 - avoids duplicate “card-inside-workspace” framing.
+- avoids “bubble-in-bubble” UI where every hierarchy level looks like its own isolated mini-app.
 
 ---
 
@@ -351,18 +365,22 @@ Use these concrete values for new table/grid UI unless a documented exception is
    - `AiAssistantPanel` and `WorkspaceControlsBar` define many visual decisions as direct DOM style assignments.
    - Risk: hard to enforce global spacing/color/radius/depth policy and harder to audit.
 
+3. **Missing shared composition layer above primitives**
+   - Many feature modules still assemble toolbars, docks, menu triggers, and action clusters with local `document.createElement(...)`, `appendChild(...)`, and feature-specific glue even when they already reuse HUD primitives.
+   - Risk: repeated imperative layout code, inconsistent assembly patterns, harder AI-assisted generation, and more drift between near-identical feature surfaces.
+
 ### Medium priority
 
-3. **Feature-local styling systems not mapped to shared token ladder**
+4. **Feature-local styling systems not mapped to shared token ladder**
    - Kanban CSS (`kanbanStyles.ts`) uses its own visual grammar and micro-sizes.
    - Risk: visual mismatch with shared HUD/modals over time.
 
-4. **Legacy component pockets**
+5. **Legacy component pockets**
    - `SearchSelect` uses local dropdown styles (`gray-*`, custom z/depth choices) instead of HUD dropdown/surface primitives.
 
 ### Low priority
 
-5. **Compatibility export duplication in HUD public index**
+6. **Compatibility export duplication in HUD public index**
    - Useful for migration, but increases API surface and can blur “recommended” entry points.
 
 ---
@@ -400,12 +418,14 @@ If any item is "no", PR must include a brief exception rationale.
 - Consolidate base `components` and HUD overlap (especially input/select/button conventions).
 - Migrate `SearchSelect` visual layer to shared dropdown/surface style contracts.
 - Normalize shell control bars to shared button primitives and class maps.
+- Introduce a small shared composition layer for recurring feature patterns such as toolbars, action groups, dock sections, and menu-trigger blocks so feature code stops rebuilding the same imperative DOM structure locally.
 
 ### Phase 3 (consistency hardening)
 
 - Map kanban visual system to shared token policy (without forcing full visual redesign).
 - Reduce inline style footprint in AI assistant and shell UI surfaces.
 - Keep compatibility exports but document recommended import paths clearly.
+- Reduce duplicate near-equivalent feature surfaces by converging on canonical composition helpers and canonical import paths.
 
 ---
 
@@ -419,6 +439,7 @@ When generating or updating UI:
 4. Keep repeated styles in typed class/variant maps.
 5. Keep feature modules focused on composition, state, and domain behavior.
 6. For dropdown/menu triggers embedded in shared control bars, keep the trigger inside the same visual block and choose explicit anchored placement based on its visual edge. Right-most triggers in bottom/floating bars should open upward and right-aligned first.
+7. If the same feature-local assembly pattern appears a second time, prefer extracting a shared composition helper instead of copying another imperative DOM tree.
 
 ---
 
@@ -504,6 +525,7 @@ Forbidden by default:
 - Infinite decorative motion loops in core UI surfaces.
 - Parallax-like movement for standard controls.
 - Long or attention-grabbing animation for routine interactions.
+- Hover-lift motion for standard interactive elements (`translateY`, float, jump, or "card rises on hover" patterns).
 
 ### 11.5 Density modes
 

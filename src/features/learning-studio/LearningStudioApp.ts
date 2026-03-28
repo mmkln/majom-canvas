@@ -20,20 +20,16 @@ import {
   type LearningStudioUiStateV2,
   type LearningUnitType,
 } from './domain/types.ts';
-import { LearningStudioRootView } from './ui/components/LearningStudioRootView.ts';
+import { LearningStudioRootView } from './ui/index.ts';
 import type {
   LearningStudioBuildInspectorModel,
   LearningStudioBuildModel,
   LearningStudioHomeCourseCard,
   LearningStudioOverviewModel,
+  LearningStudioOverviewReadinessIssue,
   LearningStudioPreviewModel,
   LearningStudioScreenModel,
-} from './ui/components/LearningStudioScreenModels.ts';
-import type {
-  LearningCanvasDocument,
-  LearningCanvasHostApi,
-  LearningCanvasSelection,
-} from './canvas/LearningCanvasHostApi.ts';
+} from './ui/index.ts';
 
 type LearningStudioAppOptions = {
   runtime?: AppRuntime;
@@ -158,7 +154,6 @@ export class LearningStudioApp {
       onRemoveLessonBlock: (unitId, blockId) =>
         this.removeLessonBlock(unitId, blockId),
       onSelectPreviewLesson: (unitId) => this.selectPreviewLesson(unitId),
-      resolveCanvasHostApi: (route) => this.resolveCanvasHostApi(route),
     };
   }
 
@@ -222,27 +217,46 @@ export class LearningStudioApp {
 
     const draft = this.findDraftForCourse(course);
     const content = draft?.content ?? this.getPrimaryAuthoringContent(course);
+    const publishedVersion = this.findPublishedVersionForCourse(course);
     const structure = content.modules
       .slice()
       .sort((left, right) => left.order - right.order)
       .map((module) => {
         const units = content.units.filter((unit) => unit.moduleId === module.id);
+        const lessonCount = units.filter((unit) => unit.type === 'lesson').length;
         return {
           id: module.id,
           title: module.title,
-          lessonCount: units.filter((unit) => unit.type === 'lesson').length,
+          lessonCount,
           exerciseCount: units.filter((unit) => unit.type === 'exercise').length,
           checkpointCount: units.filter((unit) => unit.type === 'checkpoint').length,
+          warning: lessonCount === 0 ? ('needs_lessons' as const) : null,
         };
       });
 
-    const basicsReady =
-      content.title.trim().length > 0 &&
-      content.description.trim().length > 0;
-    const structureReady =
-      content.modules.length > 0 &&
-      content.units.some((unit) => unit.type === 'lesson' || unit.type === 'exercise');
-    const previewReady = basicsReady && structureReady;
+    const moduleIdsNeedingLessons = new Set(
+      structure
+        .filter((module) => module.lessonCount === 0)
+        .map((module) => module.id)
+    );
+    const lessonDescriptionCount = content.units.filter(
+      (unit) =>
+        unit.type === 'lesson' &&
+        unit.parentLessonId === null &&
+        unit.description.trim().length === 0
+    ).length;
+    const readinessIssues = this.buildOverviewReadinessIssues({
+      content,
+      moduleIdsNeedingLessons,
+      lessonDescriptionCount,
+    });
+    const previewReady = readinessIssues.every(
+      (issue) => issue.kind === 'lessons_need_descriptions'
+    );
+    const activeEnrollmentCount = this.state.enrollments.filter(
+      (enrollment) =>
+        enrollment.courseId === course.id && enrollment.status === 'active'
+    ).length;
 
     return {
       courseId: course.id,
@@ -257,9 +271,55 @@ export class LearningStudioApp {
       latestPublishedVersionId: course.latestPublishedVersionId,
       updatedAt: course.updatedAt,
       structure,
-      nextRecommendedRoute:
-        !basicsReady || !structureReady ? 'build' : 'preview',
+      nextRecommendedRoute: previewReady ? 'preview' : 'build',
+      hasUnpublishedChanges:
+        publishedVersion !== null &&
+        this.courseContentDiffers(content, publishedVersion.content),
+      activeEnrollmentCount,
+      readinessIssues,
     };
+  }
+
+  private buildOverviewReadinessIssues(args: {
+    content: LearningCourseContent;
+    moduleIdsNeedingLessons: Set<string>;
+    lessonDescriptionCount: number;
+  }): LearningStudioOverviewReadinessIssue[] {
+    const issues: LearningStudioOverviewReadinessIssue[] = [];
+
+    if (args.content.title.trim().length === 0) {
+      issues.push({ kind: 'missing_title' });
+    }
+    if (args.content.description.trim().length === 0) {
+      issues.push({ kind: 'missing_description' });
+    }
+    if (args.content.modules.length === 0) {
+      issues.push({ kind: 'missing_modules' });
+    }
+    if (args.moduleIdsNeedingLessons.size > 0) {
+      issues.push({
+        kind: 'modules_need_lessons',
+        count: args.moduleIdsNeedingLessons.size,
+      });
+    }
+    if (args.lessonDescriptionCount > 0) {
+      issues.push({
+        kind: 'lessons_need_descriptions',
+        count: args.lessonDescriptionCount,
+      });
+    }
+
+    return issues.slice(0, 4);
+  }
+
+  private courseContentDiffers(
+    current: LearningCourseContent,
+    published: LearningCourseContent
+  ): boolean {
+    return (
+      serializeComparableLearningContent(current) !==
+      serializeComparableLearningContent(published)
+    );
   }
 
   private buildBuildModel(course: LearningStudioOverviewModel): LearningStudioBuildModel {
@@ -1541,171 +1601,6 @@ export class LearningStudioApp {
     this.persistAndRender();
   }
 
-  private resolveCanvasHostApi(
-    route: 'build' | 'preview'
-  ): LearningCanvasHostApi | null {
-    const document = this.buildCanvasDocument(route);
-    if (!document) return null;
-    return {
-      getDocument: () => {
-        const nextDocument = this.buildCanvasDocument(route);
-        return nextDocument ?? document;
-      },
-      saveContent: (nextContent) => {
-        if (route !== 'build') return;
-        this.saveCanvasDraftContent(document.courseId, nextContent);
-      },
-      commands: {
-        createModule: (position) => {
-          if (route !== 'build') return;
-          this.addModule({
-            x: position?.sceneX,
-            y: position?.sceneY,
-          });
-        },
-        createLesson: (moduleId) => {
-          if (route !== 'build') return;
-          this.addLesson(moduleId);
-        },
-        createExercise: (lessonId) => {
-          if (route !== 'build') return;
-          this.addChildUnit(lessonId, 'exercise');
-        },
-        createCheckpoint: (lessonId) => {
-          if (route !== 'build') return;
-          this.addChildUnit(lessonId, 'checkpoint');
-        },
-        setLessonPrerequisite: (lessonId, prerequisiteLessonId, enabled) => {
-          if (route !== 'build') return;
-          this.setLessonPrerequisite(lessonId, prerequisiteLessonId, enabled);
-        },
-      },
-      selection: {
-        setSelection: (selection) => {
-          if (route !== 'build') return;
-          this.syncCanvasSelection(selection);
-        },
-      },
-    };
-  }
-
-  private syncCanvasSelection(selection: LearningCanvasSelection): void {
-    const nextKind =
-      selection.kind === 'course'
-        ? 'course'
-        : selection.kind === 'module'
-          ? 'module'
-          : 'lesson';
-    const nextPanel =
-      selection.kind === 'course'
-        ? 'course'
-        : selection.kind === 'module'
-          ? 'module'
-          : 'lesson';
-
-    if (
-      this.uiState.route === 'build' &&
-      this.uiState.selectedElementKind === nextKind &&
-      this.uiState.selectedElementId === selection.id &&
-      this.uiState.inspectorPanel === nextPanel
-    ) {
-      return;
-    }
-
-    this.uiState = this.normalizeUiState(
-      {
-        ...this.uiState,
-        route: 'build',
-        selectedElementKind: nextKind,
-        selectedElementId: selection.id,
-        inspectorPanel: nextPanel,
-        updatedAt: new Date().toISOString(),
-      },
-      this.state
-    );
-    this.persistAndRender();
-  }
-
-  private buildCanvasDocument(
-    route: 'build' | 'preview'
-  ): LearningCanvasDocument | null {
-    const course = this.findCourse(this.state, this.uiState.selectedCourseId);
-    if (!course) return null;
-    const draft = this.findDraftForCourse(course);
-    const content = this.getPrimaryAuthoringContent(course);
-    return {
-      canvasId: `learning-course:${course.id}:${route}`,
-      courseId: course.id,
-      draftId: draft?.id ?? null,
-      mode: route,
-      title: content.title.trim().length > 0 ? content.title : 'Untitled course',
-      content: structuredClone(content),
-      selection:
-        route === 'build'
-          ? this.uiState.selectedElementKind === 'module' &&
-            this.uiState.selectedElementId
-            ? {
-                kind: 'module',
-                id: this.uiState.selectedElementId,
-              }
-            : this.uiState.selectedElementKind === 'lesson' &&
-                this.uiState.selectedElementId
-              ? {
-                  kind: 'unit',
-                  id: this.uiState.selectedElementId,
-                }
-              : {
-                  kind: 'course',
-                  id: course.id,
-                }
-          : null,
-    };
-  }
-
-  private saveCanvasDraftContent(
-    courseId: string,
-    nextContent: LearningCourseContent
-  ): void {
-    const selectedCourse = this.findCourse(this.state, courseId);
-    const selectedDraft = selectedCourse
-      ? this.findDraftForCourse(selectedCourse)
-      : null;
-    if (!selectedCourse || !selectedDraft) return;
-
-    const now = new Date().toISOString();
-    this.state = this.normalizeState({
-      ...this.state,
-      courses: this.state.courses.map((course) =>
-        course.id === selectedCourse.id
-          ? {
-              ...course,
-              updatedAt: now,
-            }
-          : course
-      ),
-      drafts: this.state.drafts.map((draft) =>
-        draft.id === selectedDraft.id
-          ? {
-              ...draft,
-              content: structuredClone(nextContent),
-              updatedAt: now,
-            }
-          : draft
-      ),
-      updatedAt: now,
-    });
-    this.uiState = this.normalizeUiState(
-      {
-        ...this.uiState,
-        selectedCourseId: courseId,
-        selectedDraftId: selectedDraft.id,
-        updatedAt: now,
-      },
-      this.state
-    );
-    this.persist();
-  }
-
   private persistAndRender(): void {
     this.persist();
     this.render();
@@ -1982,6 +1877,78 @@ function createEntityId(prefix: string): string {
   return `${prefix}:${Date.now().toString(36)}:${Math.random()
     .toString(36)
     .slice(2, 8)}`;
+}
+
+function serializeComparableLearningContent(
+  content: LearningCourseContent
+): string {
+  return JSON.stringify({
+    title: content.title,
+    description: content.description,
+    audience: content.audience,
+    outcomes: content.outcomes.slice(),
+    estimatedDurationMinutes: content.estimatedDurationMinutes,
+    modules: content.modules
+      .slice()
+      .sort((left, right) =>
+        left.order === right.order
+          ? left.id.localeCompare(right.id)
+          : left.order - right.order
+      )
+      .map((module) => ({
+        id: module.id,
+        title: module.title,
+        description: module.description,
+        order: module.order,
+        lessonIds: module.lessonIds.slice(),
+      })),
+    units: content.units
+      .slice()
+      .sort((left, right) => {
+        if (left.moduleId !== right.moduleId) {
+          return left.moduleId.localeCompare(right.moduleId);
+        }
+        const leftParent = left.parentLessonId ?? '';
+        const rightParent = right.parentLessonId ?? '';
+        if (leftParent !== rightParent) {
+          return leftParent.localeCompare(rightParent);
+        }
+        if (left.order !== right.order) {
+          return left.order - right.order;
+        }
+        return left.id.localeCompare(right.id);
+      })
+      .map((unit) => ({
+        id: unit.id,
+        moduleId: unit.moduleId,
+        parentLessonId: unit.parentLessonId,
+        order: unit.order,
+        type: unit.type,
+        title: unit.title,
+        description: unit.description,
+        objective: unit.objective,
+        estimatedDurationMinutes: unit.estimatedDurationMinutes,
+        prerequisiteLessonIds: unit.prerequisiteLessonIds.slice().sort(),
+        blocks: unit.blocks
+          .slice()
+          .sort((left, right) => left.order - right.order)
+          .map((block) =>
+            'refUnitId' in block
+              ? {
+                  id: block.id,
+                  order: block.order,
+                  type: block.type,
+                  refUnitId: block.refUnitId,
+                }
+              : {
+                  id: block.id,
+                  order: block.order,
+                  type: block.type,
+                  text: block.text,
+                }
+          ),
+      })),
+  });
 }
 
 function createUnit(args: {

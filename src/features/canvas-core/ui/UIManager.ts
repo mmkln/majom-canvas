@@ -32,6 +32,8 @@ import {
   type ExistingPickerDragStartedDetail,
 } from './events/existingPickerEvents.ts';
 
+export const CANVAS_CORE_UI_ROOT_ID = 'canvas-core-ui-root';
+
 export class UIManager {
   private readonly preferences: CanvasUiPreferences;
   private readonly components: {
@@ -65,6 +67,7 @@ export class UIManager {
     private readonly runtime: AppRuntime = createAppRuntime()
   ) {
     this.preferences = {
+      miniMapInitiallyVisible: true,
       showBoardSelector: true,
       showNavigationDock: true,
       showSaveControls: true,
@@ -74,7 +77,10 @@ export class UIManager {
     this.canvasNavigationDock = new CanvasNavigationDock(
       this.scene,
       this.canvasManager,
-      this.runtime
+      this.runtime,
+      {
+        initialMiniMapVisible: this.preferences.miniMapInitiallyVisible,
+      }
     );
     const extensionComponents = this.uiAdapter.createComponents({
       canvasManager: this.canvasManager,
@@ -99,8 +105,33 @@ export class UIManager {
           ? (enabled) => this.canvasManager.setAnimationsEnabled(enabled)
           : undefined,
         initialSmartGuidesEnabled: this.canvasManager.getSmartGuidesEnabled(),
+        initialSpacingGuidesEnabled:
+          this.canvasManager.getSmartGuidePreferences().showSpacingGuides,
+        initialContainerGuidesEnabled:
+          this.canvasManager.getSmartGuidePreferences().showContainerGuides,
+        initialViewportCenterGuidesEnabled:
+          this.canvasManager.getSmartGuidePreferences()
+            .showViewportCenterGuides,
         onSmartGuidesToggle: this.preferences.showCanvasMenu
           ? (enabled) => this.canvasManager.setSmartGuidesEnabled(enabled)
+          : undefined,
+        onSpacingGuidesToggle: this.preferences.showCanvasMenu
+          ? (enabled) =>
+              this.canvasManager.setSmartGuidePreferences({
+                showSpacingGuides: enabled,
+              })
+          : undefined,
+        onContainerGuidesToggle: this.preferences.showCanvasMenu
+          ? (enabled) =>
+              this.canvasManager.setSmartGuidePreferences({
+                showContainerGuides: enabled,
+              })
+          : undefined,
+        onViewportCenterGuidesToggle: this.preferences.showCanvasMenu
+          ? (enabled) =>
+              this.canvasManager.setSmartGuidePreferences({
+                showViewportCenterGuides: enabled,
+              })
           : undefined,
         hidden: !this.preferences.showCanvasMenu,
       });
@@ -224,7 +255,8 @@ export class UIManager {
 
   private createUiRoot(): HTMLDivElement {
     const root = document.createElement('div');
-    root.id = 'canvas-ui-root';
+    root.id = CANVAS_CORE_UI_ROOT_ID;
+    root.dataset.canvasUiRoot = 'canvas-core';
     root.style.position = 'absolute';
     root.style.left = '0';
     root.style.top = '0';

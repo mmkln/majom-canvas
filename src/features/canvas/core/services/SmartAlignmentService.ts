@@ -23,6 +23,10 @@ export type SmartGuideLine =
   | {
       orientation: 'vertical';
       targetId: string;
+      guideKind?: 'edge' | 'spacing' | 'container' | 'viewport-center';
+      label?: string;
+      primary?: boolean;
+      locked?: boolean;
       position: number;
       start: number;
       end: number;
@@ -33,6 +37,10 @@ export type SmartGuideLine =
   | {
       orientation: 'horizontal';
       targetId: string;
+      guideKind?: 'edge' | 'spacing' | 'container' | 'viewport-center';
+      label?: string;
+      primary?: boolean;
+      locked?: boolean;
       position: number;
       start: number;
       end: number;
@@ -143,7 +151,10 @@ export class SmartAlignmentService {
     maxSecondaryDistance?: number;
     minGuideLength?: number;
     maxGuideLength?: number;
-    preferredVerticalGuide?: Extract<SmartGuideLine, { orientation: 'vertical' }> | null;
+    preferredVerticalGuide?: Extract<
+      SmartGuideLine,
+      { orientation: 'vertical' }
+    > | null;
     preferredHorizontalGuide?: Extract<
       SmartGuideLine,
       { orientation: 'horizontal' }
@@ -200,7 +211,10 @@ export class SmartAlignmentService {
             effectiveMinGuideLength,
             maxGuideLength
           );
-          const nextGuide: Extract<SmartGuideLine, { orientation: 'vertical' }> = {
+          const nextGuide: Extract<
+            SmartGuideLine,
+            { orientation: 'vertical' }
+          > = {
             orientation: 'vertical',
             targetId: candidate.id,
             position: targetValue,
@@ -254,7 +268,10 @@ export class SmartAlignmentService {
             effectiveMinGuideLength,
             maxGuideLength
           );
-          const nextGuide: Extract<SmartGuideLine, { orientation: 'horizontal' }> = {
+          const nextGuide: Extract<
+            SmartGuideLine,
+            { orientation: 'horizontal' }
+          > = {
             orientation: 'horizontal',
             targetId: candidate.id,
             position: targetValue,
@@ -288,14 +305,22 @@ export class SmartAlignmentService {
       });
     });
 
+    const verticalMatch = bestVertical as VerticalBestMatch | null;
+    const horizontalMatch = bestHorizontal as HorizontalBestMatch | null;
+    const verticalGuide =
+      verticalMatch === null ? null : (verticalMatch.guide as SmartGuideLine);
+    const horizontalGuide =
+      horizontalMatch === null
+        ? null
+        : (horizontalMatch.guide as SmartGuideLine);
     const guides: SmartGuideLine[] = [];
-    if (bestVertical) guides.push(bestVertical.guide);
-    if (bestHorizontal) guides.push(bestHorizontal.guide);
+    if (verticalGuide) guides.push(verticalGuide);
+    if (horizontalGuide) guides.push(horizontalGuide);
 
     return {
       guides,
-      snapOffsetX: bestVertical?.offset ?? 0,
-      snapOffsetY: bestHorizontal?.offset ?? 0,
+      snapOffsetX: verticalMatch === null ? 0 : verticalMatch.offset,
+      snapOffsetY: horizontalMatch === null ? 0 : horizontalMatch.offset,
     };
   }
 
@@ -347,14 +372,20 @@ export class SmartAlignmentService {
   ): boolean {
     if (!preferredGuide) return false;
     const nextMatches = this.isSameVerticalGuide(nextGuide, preferredGuide);
-    const currentMatches = this.isSameVerticalGuide(currentGuide, preferredGuide);
+    const currentMatches = this.isSameVerticalGuide(
+      currentGuide,
+      preferredGuide
+    );
     return nextMatches && !currentMatches;
   }
 
   private shouldPreferHorizontalGuide(
     nextGuide: Extract<SmartGuideLine, { orientation: 'horizontal' }>,
     currentGuide: Extract<SmartGuideLine, { orientation: 'horizontal' }>,
-    preferredGuide: Extract<SmartGuideLine, { orientation: 'horizontal' }> | null
+    preferredGuide: Extract<
+      SmartGuideLine,
+      { orientation: 'horizontal' }
+    > | null
   ): boolean {
     if (!preferredGuide) return false;
     const nextMatches = this.isSameHorizontalGuide(nextGuide, preferredGuide);

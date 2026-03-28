@@ -168,6 +168,7 @@ export abstract class StructuredCanvasNode
     if (this.selected || this.isHovered) {
       const points = this.getConnectionPoints();
       for (const point of points) {
+        if (point.isVisible === false) continue;
         ctx.save();
         ctx.setLineDash([]);
         ctx.beginPath();

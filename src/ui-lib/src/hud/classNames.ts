@@ -80,6 +80,22 @@ export const HUD_MENU_ICON_ROW_CLASS =
 export const HUD_MENU_CONTROL_ROW_CLASS = 'w-full px-4 py-3';
 export const HUD_MENU_CONTROL_ITEM_CLASS =
   'flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm leading-5 transition-[background-color,color,box-shadow] duration-150 ease-out';
+export const HUD_MENU_PREFERENCE_GROUP_CLASS =
+  'w-full';
+export const HUD_MENU_PREFERENCE_GROUP_SUMMARY_CLASS =
+  'flex w-full items-center gap-3 px-4 py-3 text-left transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-inset';
+export const HUD_MENU_PREFERENCE_GROUP_SUMMARY_DEFAULT_CLASS =
+  'text-slate-700 hover:bg-slate-100 hover:text-slate-900 active:bg-slate-200';
+export const HUD_MENU_PREFERENCE_GROUP_SUMMARY_EXPANDED_CLASS =
+  'text-slate-900 hover:bg-slate-100 active:bg-slate-200';
+export const HUD_MENU_PREFERENCE_GROUP_SUMMARY_DISABLED_CLASS =
+  'cursor-not-allowed text-slate-400 hover:bg-transparent hover:text-slate-400';
+export const HUD_MENU_PREFERENCE_GROUP_BODY_CLASS =
+  'px-4 pb-2 pt-0';
+export const HUD_MENU_PREFERENCE_GROUP_BODY_INSET_SM_CLASS = 'pl-7';
+export const HUD_MENU_PREFERENCE_GROUP_BODY_INSET_MD_CLASS = 'pl-9';
+export const HUD_MENU_PREFERENCE_GROUP_BODY_DENSITY_DEFAULT_CLASS = 'space-y-1.5';
+export const HUD_MENU_PREFERENCE_GROUP_BODY_DENSITY_COMPACT_CLASS = 'space-y-1';
 export const HUD_MENU_ICON_BUTTON_BASE_CLASS =
   'flex min-w-0 flex-1 items-center justify-center px-0 py-3 text-sm transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-inset disabled:cursor-not-allowed';
 export const HUD_MENU_ICON_BUTTON_DEFAULT_CLASS =
@@ -94,6 +110,9 @@ export const HUD_MENU_HEADER_TITLE_CLASS =
   'text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400';
 export const HUD_MENU_HEADER_SUBTITLE_CLASS =
   'mt-1 text-sm leading-5 text-slate-600';
+export const HUD_SUBMENU_PANEL_CLASS =
+  'fixed hidden z-40';
+export const HUD_SUBMENU_TRIGGER_OPEN_CLASS = 'bg-indigo-50 text-slate-800';
 
 export const HUD_PAGE_EYEBROW_CLASS =
   'mb-2 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400';
@@ -218,6 +237,25 @@ export const MENU_ITEM_HINT_TRIGGER_CLASS = HUD_MENU_ITEM_HINT_TRIGGER_CLASS;
 export const MENU_ICON_ROW_CLASS = HUD_MENU_ICON_ROW_CLASS;
 export const MENU_CONTROL_ROW_CLASS = HUD_MENU_CONTROL_ROW_CLASS;
 export const MENU_CONTROL_ITEM_CLASS = HUD_MENU_CONTROL_ITEM_CLASS;
+export const MENU_PREFERENCE_GROUP_CLASS = HUD_MENU_PREFERENCE_GROUP_CLASS;
+export const MENU_PREFERENCE_GROUP_SUMMARY_CLASS =
+  HUD_MENU_PREFERENCE_GROUP_SUMMARY_CLASS;
+export const MENU_PREFERENCE_GROUP_SUMMARY_DEFAULT_CLASS =
+  HUD_MENU_PREFERENCE_GROUP_SUMMARY_DEFAULT_CLASS;
+export const MENU_PREFERENCE_GROUP_SUMMARY_EXPANDED_CLASS =
+  HUD_MENU_PREFERENCE_GROUP_SUMMARY_EXPANDED_CLASS;
+export const MENU_PREFERENCE_GROUP_SUMMARY_DISABLED_CLASS =
+  HUD_MENU_PREFERENCE_GROUP_SUMMARY_DISABLED_CLASS;
+export const MENU_PREFERENCE_GROUP_BODY_CLASS =
+  HUD_MENU_PREFERENCE_GROUP_BODY_CLASS;
+export const MENU_PREFERENCE_GROUP_BODY_INSET_SM_CLASS =
+  HUD_MENU_PREFERENCE_GROUP_BODY_INSET_SM_CLASS;
+export const MENU_PREFERENCE_GROUP_BODY_INSET_MD_CLASS =
+  HUD_MENU_PREFERENCE_GROUP_BODY_INSET_MD_CLASS;
+export const MENU_PREFERENCE_GROUP_BODY_DENSITY_DEFAULT_CLASS =
+  HUD_MENU_PREFERENCE_GROUP_BODY_DENSITY_DEFAULT_CLASS;
+export const MENU_PREFERENCE_GROUP_BODY_DENSITY_COMPACT_CLASS =
+  HUD_MENU_PREFERENCE_GROUP_BODY_DENSITY_COMPACT_CLASS;
 export const MENU_ICON_BUTTON_BASE_CLASS = HUD_MENU_ICON_BUTTON_BASE_CLASS;
 export const MENU_ICON_BUTTON_DEFAULT_CLASS =
   HUD_MENU_ICON_BUTTON_DEFAULT_CLASS;
@@ -225,6 +263,8 @@ export const MENU_ICON_BUTTON_WARNING_CLASS =
   HUD_MENU_ICON_BUTTON_WARNING_CLASS;
 export const MENU_ICON_BUTTON_DANGER_CLASS =
   HUD_MENU_ICON_BUTTON_DANGER_CLASS;
+export const SUBMENU_PANEL_CLASS = HUD_SUBMENU_PANEL_CLASS;
+export const SUBMENU_TRIGGER_OPEN_CLASS = HUD_SUBMENU_TRIGGER_OPEN_CLASS;
 export const PAGE_EYEBROW_CLASS = HUD_PAGE_EYEBROW_CLASS;
 export const PAGE_TITLE_CLASS = HUD_PAGE_TITLE_CLASS;
 export const FIELD_CLASS = HUD_FIELD_CLASS;

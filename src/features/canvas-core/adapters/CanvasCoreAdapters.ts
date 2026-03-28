@@ -1,4 +1,6 @@
 import type { CanvasAppearanceAdapter } from './CanvasAppearanceAdapter.ts';
+import type { CanvasAlignmentAdapter } from './CanvasAlignmentAdapter.ts';
+import type { CanvasBackgroundAdapter } from './CanvasBackgroundAdapter.ts';
 import type { CanvasDataAdapter } from './CanvasDataAdapter.ts';
 import type { CanvasInteractionAdapter } from './CanvasInteractionAdapter.ts';
 import type { CanvasLookupAdapter } from './CanvasLookupAdapter.ts';
@@ -15,6 +17,8 @@ export type CanvasCoreAdapters = {
   ui: CanvasUiAdapter;
   nodeSemantics?: CanvasNodeSemanticsAdapter;
   appearance?: CanvasAppearanceAdapter;
+  alignment?: CanvasAlignmentAdapter;
+  background?: CanvasBackgroundAdapter;
   interaction?: CanvasInteractionAdapter;
   semantics?: CanvasRuntimeSemanticsAdapter;
   planningRelations?: PlanningCanvasRelationAdapter;

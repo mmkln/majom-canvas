@@ -2,484 +2,198 @@
 
 ## Status
 
-- State: decision draft
+- State: decision record
 - Updated: 2026-03-28
-- Scope: creator-facing interaction contract for the `Build` screen
+- Scope: creator-facing interaction contract for the `Build` screen after the strategy reset
 - Related docs:
   - `docs/LEARNING-STUDIO.md`
-  - `docs/LEARNING-STUDIO-IMPLEMENTATION-BLUEPRINT.md`
+  - `docs/LEARNING-STUDIO-STRATEGY-RESET.md`
   - `docs/LEARNING-STUDIO-AUTHOR-UX-SPEC.md`
   - `docs/LEARNING-STUDIO-PREVIEW-LEARNER-RUNTIME-SPEC.md`
 
 ## Why this spec exists
 
-The creator flow is now defined at the screen level, but the most important working surface is still under-specified:
+The old build direction assumed a canvas-first authoring workspace.
+That is no longer the target product model.
 
-- how the creator adds modules
-- how the creator adds lessons and exercises
-- what edits happen inline
-- what edits happen in the inspector
-- where primary and contextual actions live
-- how selection and reordering work
+This document defines the new rule:
 
-Without this contract, the `Build` screen will keep drifting between:
-
-- page-like forms
-- noisy card collections
-- fake-canvas experiments
-
-This document defines the recommended v1 interaction model for `Build`.
+- `Build` is a structured builder
 
 ## Core Decision
 
 Recommended v1 rule:
 
-- `Build` is one structured authoring workspace
+- `Build` is an outline-first, hierarchy-first authoring workspace
 
 It is not:
 
-- a set of equal-weight mode buttons
-- a pure form page
-- a collection of random action cards
-
-It should feel like one focused workspace with clear hierarchy, clear selection, and context-aware actions.
-
-## Renderer-Agnostic Rule
-
-This spec intentionally defines interaction behavior separately from rendering technology.
-
-That means:
-
-- the same interaction contract should work in a temporary block-based shell
-- and later in a dedicated `core-canvas` implementation
-
-The creator should not need to relearn the product because the center surface changes from blocks to a real canvas.
+- a freeform canvas board
+- a graph editor
+- a drag-to-connect authoring surface
 
 ## Primary Job of Build
 
 The creator uses `Build` to:
 
-- shape the course structure
-- add required learning units
-- sequence modules and lessons
-- open a details modal by double-clicking a selected element
-- edit metadata and prerequisites inside that modal
-- understand what is still missing before preview or publishing
-- quickly inspect a lesson in learner-facing form without leaving `Build`
+- create modules
+- create lessons
+- create exercises and checkpoints
+- keep order clear
+- edit structure quickly
+- open focused editing surfaces for dense changes
 
-## Build Screen Layout
+The screen should optimize for speed and predictability, not spatial exploration.
 
-Recommended v1 layout:
+## Recommended Build Layout
 
-- top: course-stage header
-- center: main build workspace
-
-### 1. Course-stage header
+### 1. Stage header
 
 The top header should contain:
 
-- course title and lightweight context
-- current stage label: `Build`
-- primary CTA: `Add module`
-- secondary CTA: `Preview`
-- overflow or secondary management actions, if needed
+- course title
+- stage label `Build`
+- primary CTA `Add module`
+- secondary CTA `Preview`
 
-The header should **not** contain:
+The header should not contain:
 
-- `Add lesson`
-- `Add exercise`
-- repeated actions that only make sense inside a specific module
+- lesson-only or exercise-only actions
+- repeated contextual actions that belong inside the structure
 
-Reason:
+### 2. Structure workspace
 
-- module creation is the top-level structural action
-- lesson and exercise creation are contextual, not global
+The main workspace should show a structured hierarchy:
 
-### 2. Main build workspace
+- module rows or containers
+- lesson rows nested inside modules
+- exercise/checkpoint rows nested inside lessons
 
-The center workspace is the main work surface.
+The structure should read immediately as:
 
-Its job is to:
+`Module -> Lesson -> Exercise / Checkpoint`
 
-- show the current course structure in an editable spatial or block-based form
-- make the selected context obvious
-- make the next structural action obvious
+### 3. Focused editing surface
 
-Recommended v1 representation:
+Dense edits should open in:
 
-- modules as strong container blocks
-- lessons as primary child cards inside modules
-- exercises and checkpoints as secondary child units attached to lessons
+- a modal
+- or another focused editing surface outside the main list rhythm
 
-The workspace should communicate hierarchy immediately.
+The structure area should stay optimized for:
 
-### 3. Details modal
+- creation
+- ordering
+- navigation
+- selection
 
-The primary editing surface for selected content is a modal opened from the selected element.
+Not for:
 
-Its job is to hold edits that would otherwise clutter the workspace:
+- full dense content editing inline everywhere
 
-- module metadata
-- lesson metadata
-- lesson description and objective
-- prerequisites
-- structured lesson blocks
+## Interaction Rules
 
-Recommended rule:
+### Primary creation flow
 
-- single click selects
-- double click opens the details modal
+The creation path should be explicit and deterministic:
 
-### 4. Quick lesson preview modal
+1. `Add module`
+2. inside a module, `Add lesson`
+3. inside a lesson, `Add exercise` or `Add checkpoint`
 
-`Build` may include a lightweight lesson preview modal opened from a lesson node.
+The creator should not need to discover creation through:
 
-Its job is to:
+- right click only
+- hidden menus only
+- canvas gestures only
 
-- give the creator a fast learner-facing read of the selected lesson
-- reduce the cost of checking lesson quality while still building structure
-- avoid forcing a full route change for every small validation step
+### Reordering
 
-It should:
+Reordering should be optimized for hierarchy and sequence:
 
-- be read-only
-- be local to the selected lesson
-- close back into the same build context
-- offer a path to full `Preview`
-- preserve predictable lesson selection and drag behavior
+- move modules among modules
+- move lessons inside their module
+- move child units inside their lesson
 
-It should not:
+Reordering should preserve structural ownership.
 
-- replace the details modal
-- replace full-course preview
-- become a second authoring surface
+### Editing
 
-Recommended interaction rule:
+Single click should mean:
 
-- do not let quick preview break the normal single-selection gesture
-- prefer an explicit lesson preview affordance, double-click, or another low-friction but clearly secondary trigger
-- if direct click-to-preview is used, it must still keep selection and drag semantics reliable
+- select
 
-## Primary CTA Rules
+`Edit` should be explicit and visible from the selected context.
 
-### Build-level primary CTA
+Double click may still exist as a shortcut, but it must not be the only discoverable edit path.
 
-The primary CTA of the whole `Build` screen is:
+## Visual Model of Build
 
-- `Add module`
+The structure should feel like a course builder, not like a generic page of forms.
 
-This action may appear in exactly two places:
+Recommended visual language:
 
-- course-stage header
-- continuation block at the end of the module list/workspace
+- strong top-level module containers or rows
+- clear lesson rows as the main authoring unit
+- lighter child rows for exercise/checkpoint
+- stable spacing that communicates hierarchy before decoration does
 
-This duplication is intentional because:
+The creator should be able to scan:
 
-- one placement helps at the top of the workspace
-- one placement helps after the creator scrolls through existing modules
+- what exists
+- what belongs to what
+- what is missing next
 
-`Add module` should not also appear in:
+## What does not belong in Build anymore
 
-- every empty subsection
+The following should not be the primary authoring strategy:
 
-## Contextual CTA Rules
+- freeform spatial node placement
+- drag-to-connect prerequisites as the normal path
+- visible connection ports
+- map-first structural editing
 
-### Module-level CTA
-
-Within a module, the dominant contextual CTA is:
-
-- `Add lesson`
-
-Optional companion CTA:
-
-- `Add exercise`
-
-But `Add exercise` should usually live one level deeper, closer to a lesson context, unless the product later supports module-level loose practice units.
-
-### Lesson-level CTA
-
-Within a selected lesson, the contextual CTA is:
-
-- `Add exercise`
-
-Optional companion CTA:
-
-- `Add checkpoint`
-
-These actions should live:
-
-- in the lesson card area
-- or in the lesson details modal
-
-Additional lesson-level action may exist:
-
-- `Preview lesson`
-
-This action should live close to the lesson itself, not in the global header.
-
-They should not be promoted to the course header.
-
-## Creation Flows
-
-### Create module
-
-Recommended v1 flow:
-
-- creator clicks `Add module`
-- a new module appears immediately in sequence
-- the new module becomes selected
-- the inspector opens to module details
-
-The creator should not have to go through a heavy modal just to create an empty module.
-
-### Create lesson
-
-Recommended v1 flow:
-
-- creator enters a specific module context
-- clicks `Add lesson`
-- a new lesson appears inside that module
-- the lesson becomes selected
-- the inspector opens to lesson details
-
-This keeps lesson creation anchored to the module where it belongs.
-
-### Create exercise
-
-Recommended v1 flow:
-
-- creator selects a lesson
-- clicks `Add exercise`
-- a new exercise appears under that lesson
-- the exercise becomes selected
-- the inspector or inline details area opens
-
-### Create checkpoint
-
-Recommended v1 flow:
-
-- creator selects a lesson
-- chooses `Add checkpoint`
-- checkpoint appears in the same child-unit area as exercises
-
-This keeps practice and validation within the same local lesson structure.
-
-## Quick Validation Flow
-
-Recommended v1 flow:
-
-- creator selects a lesson
-- double-clicks to open details when deeper editing is needed
-- opens `Preview lesson`
-- sees a read-only lesson modal
-- closes it and keeps editing
-
-Use full `Preview` when the creator wants to validate:
-
-- how the course reads overall
-- lesson sequence
-- next-step logic
-- prerequisite behavior
-- broader course coherence
-
-## Inline vs Inspector Rules
-
-Recommended v1 principle:
-
-- use inline editing for short, high-frequency edits
-- use the details modal for richer, lower-frequency, or structurally sensitive edits
-- use the inspector only as an optional persistent side surface when the creator explicitly wants it visible
-
-## Inline edits
-
-Safe inline edits:
-
-- module title
-- lesson title
-- expand/collapse
-- quick add actions
-- lightweight reorder controls
-
-Inline should be fast and low-friction.
-
-## Inspector edits
-
-Use the inspector for:
-
-- descriptions
-- outcomes or intent
-- audience-facing details
-- lesson type changes
-- prerequisites
-- readiness warnings
-- advanced settings
-
-This keeps the workspace readable.
-
-## What should not happen in modals by default
-
-Avoid using modals for routine structural authoring such as:
-
-- creating an empty module
-- creating a basic lesson
-- renaming a lesson
-
-Modals are acceptable for:
-
-- AI-assisted generation prompts
-- destructive confirmations
-- larger structured import flows
-
-## Selection Model
-
-Recommended v1 rule:
-
-- `Build` uses single selection
-
-This means:
-
-- one selected course/module/lesson/exercise at a time
-- selection controls the inspector contents
-- selection also controls contextual actions
-
-### Selection behavior
-
-- clicking a module selects the module
-- clicking a lesson selects the lesson
-- clicking an exercise selects the exercise
-- clicking empty workspace clears element selection but keeps the course context
-
-The UI should always make the selected element obvious.
-
-## Reordering Rules
-
-Recommended v1 rule:
-
-- modules reorder within the course
-- lessons reorder within their parent module
-- exercises and checkpoints reorder within their parent lesson
-
-Recommended UX:
-
-- drag-and-drop when the renderer supports it well
-- explicit move up/down or move left/right controls as an acceptable temporary fallback
-
-The rule that matters more than the mechanism:
-
-- reordering must be local and predictable
-
-The creator should never wonder whether an item moved inside its parent or across the whole course.
-
-## Empty State Rules
-
-### Empty course
-
-When the course has no modules:
-
-- the workspace should explain what a first module is
-- the dominant action should be `Add module`
-- preview should stay visible but clearly secondary
-
-### Empty module
-
-When a module has no lessons:
-
-- the module body should show a clear local empty state
-- the dominant action should be `Add lesson`
-
-### Empty lesson
-
-When a lesson has no exercises or checkpoints:
-
-- the lesson should still be valid as a content unit
-- but the UI may suggest `Add exercise` or `Add checkpoint`
-
-The product should not imply that every lesson is broken just because it has no child practice units.
-
-## Readiness Cues
-
-`Build` should help the creator understand what still needs work.
-
-Recommended v1 readiness cues:
-
-- course has no modules
-- module has no lessons
-- lesson has empty title or empty description
-- lesson has unresolved prerequisite problems
-- course has not yet been previewed since the last major structure change
-
-These cues should be visible as lightweight indicators in:
-
-- the structure rail
-- the inspector
-- the course overview summary
-
-They should not dominate the main workspace like error banners.
-
-## Action Deduplication Rules
-
-To avoid the primitive noisy UI state seen in earlier prototypes:
-
-- do not show `Preview` on every lesson card
-- do not show `Add module` in rail, header, inspector, and empty state simultaneously
-- do not expose `Share`, `Settings`, or `Publish` as equal-weight neighbors of build actions
-- do not give every card a full toolbar by default
-
-Contextual actions should appear near the element they affect.
+The canvas may still appear in the product, but not as the core mechanism of `Build`.
 
 ## Build vs Preview Boundary
 
-`Build` should optimize for authoring.
-It should not try to be half authoring and half learner runtime.
+### Build
+
+Build answers:
+
+- what is the structure
+- what is missing
+- what needs to be edited
+
+### Preview
+
+Preview answers:
+
+- how does the course feel to a learner
+- what path is available
+- what is blocked
+- what should happen next
+
+## Implication for prerequisites
+
+Prerequisites are domain-level rules.
+In `Build`, they should be edited through focused controls, not through primary graph gestures.
 
 That means:
 
-- `Build` may show structural progression cues
-- `Build` may show readiness warnings
-- `Build` may offer a lesson-local quick preview modal
-- `Build` should not become the main place for learner-style lesson consumption
+- prerequisite editing is a secondary action
+- prerequisite visualization is more important in `Preview` and learner runtime than in primary authoring
 
-If the creator wants to validate the learner flow, the correct next step is:
+## Minimum v1 Build Requirements
 
-- `Preview`
+`Build` is good enough for v1 when:
 
-If the creator only wants to sanity-check one lesson, the correct lighter step is:
+1. A creator can add and reorder modules, lessons, exercises, and checkpoints quickly.
+2. The hierarchy is obvious without spatial interpretation.
+3. Editing details is one click away from the selected context.
+4. The creator can move to `Preview` without feeling they just left the real work surface.
 
-- quick lesson preview inside `Build`
+## Final Rule
 
-## Temporary Block-Based Shell Rule
-
-Because the real `core-canvas` may come later, the immediate block-based shell should still respect this interaction contract.
-
-That means:
-
-- one selected element
-- one inspector
-- one primary build CTA
-- contextual create actions inside the correct parent context
-- predictable hierarchy and reorder behavior
-
-The temporary renderer must not invent a different interaction model just because it is not yet a real canvas.
-
-## Decisions This Spec Resolves
-
-- `Build` has one primary screen-level CTA: `Add module`
-- lesson and exercise creation are contextual, not global
-- the structure rail is for navigation and orientation, not duplicate editing
-- single selection drives the inspector
-- inline editing stays lightweight
-- richer edits live in the inspector
-- empty states and readiness cues must guide structure creation without flooding the screen with duplicate CTAs
-
-## Recommended Next Documentation Step
-
-After this spec, the next most useful clarification is:
-
-- `Core-Canvas and Migration Strategy`
-
-That document should define:
-
-- what the dedicated learning canvas must abstract away from the planning canvas
-- which interaction rules stay stable across the renderer change
-- what can remain block-based temporarily
-- what should never be coupled to the temporary renderer
+Treat `Build` as a structured builder.
+Do not keep investing in canvas-first authoring patterns there.

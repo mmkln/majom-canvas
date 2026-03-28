@@ -13,6 +13,10 @@ export const REGION_SELECT_BORDER_COLOR = SELECT_COLOR;
 export const REGION_SELECT_FILL = 'rgba(29,78,216,0.2)';
 export const TASK_DROP_PLACEHOLDER_FILL = 'rgba(29,78,216,0.16)';
 export const SMART_GUIDE_COLOR = 'rgba(29,78,216,0.72)';
+export const SMART_GUIDE_SPACING_COLOR = 'rgba(13, 148, 136, 0.84)';
+export const SMART_GUIDE_CONTAINER_COLOR = 'rgba(245, 158, 11, 0.88)';
+export const SMART_GUIDE_VIEWPORT_CENTER_COLOR = 'rgba(14, 165, 233, 0.84)';
+export const SMART_GUIDE_LABEL_COLOR = '#0f172a';
 export const SMART_GUIDE_LINE_WIDTH = 1.5;
 // Font settings
 export const FONT_FAMILY = 'Arial';

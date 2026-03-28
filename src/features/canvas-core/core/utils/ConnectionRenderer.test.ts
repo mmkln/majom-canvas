@@ -235,4 +235,68 @@ describe('ConnectionRenderer geometry reuse', () => {
     expect(fullArcCalls).toBeGreaterThan(0);
     expect(reducedArcCalls).toBe(0);
   });
+
+  it('renders prerequisite connections with restrained width and opacity', () => {
+    const { ctx } = createCtxStub();
+    const start: ConnectionPoint = {
+      x: 16,
+      y: 24,
+      angle: 0,
+      isHovered: false,
+      direction: 'right',
+    };
+    const end: ConnectionPoint = {
+      x: 180,
+      y: 96,
+      angle: Math.PI,
+      isHovered: false,
+      direction: 'left',
+    };
+    const curve = {
+      start,
+      end,
+      cp1: { x: 48, y: 24 },
+      cp2: { x: 148, y: 96 },
+      isBezier: true,
+    };
+    const strokeStates: Array<{ lineWidth: number; globalAlpha: number }> = [];
+    const fillStates: Array<{ globalAlpha: number }> = [];
+    (ctx.stroke as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      strokeStates.push({
+        lineWidth: (ctx as unknown as CtxStub).lineWidth,
+        globalAlpha: (ctx as unknown as CtxStub).globalAlpha,
+      });
+    });
+    (ctx.fill as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      fillStates.push({
+        globalAlpha: (ctx as unknown as CtxStub).globalAlpha,
+      });
+    });
+
+    const connection = {
+      relationType: ConnectionRelationType.Prerequisite,
+      selected: false,
+      getCurvePoints: vi.fn(() => curve),
+      buildPath: vi.fn(),
+      getClosestConnectionPoints: vi.fn(() => ({ start, end })),
+      getTangentAngle: vi.fn(() => 0),
+      sampleCurveWithTangent: vi.fn(() => ({ x: 0, y: 0, nx: 0, ny: 1 })),
+    };
+
+    connectionRenderer.draw(
+      connection,
+      ctx,
+      { scale: 1, timeMs: 0 } as unknown as PanZoomManager,
+      createConnectable('from'),
+      createConnectable('to')
+    );
+
+    expect(strokeStates[0]).toEqual({
+      lineWidth: 1.5,
+      globalAlpha: 0.56,
+    });
+    expect(fillStates[fillStates.length - 1]).toEqual({
+      globalAlpha: 0.72,
+    });
+  });
 });

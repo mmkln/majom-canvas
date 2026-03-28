@@ -10,6 +10,10 @@ import { AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
 /**
  * Groups minimap and navigation controls into one right-bottom dock.
  */
+type CanvasNavigationDockOptions = {
+  initialMiniMapVisible?: boolean;
+};
+
 export class CanvasNavigationDock {
   private readonly container: HTMLDivElement;
   private readonly miniMapSlot: HTMLDivElement;
@@ -21,16 +25,22 @@ export class CanvasNavigationDock {
   constructor(
     scene: Scene,
     canvasManager: CanvasManager,
-    runtime: AppRuntime = createAppRuntime()
+    runtime: AppRuntime = createAppRuntime(),
+    options: CanvasNavigationDockOptions = {}
   ) {
-    this.miniMapVisible = CanvasClientStorage.getMiniMapVisible(true);
+    this.miniMapVisible =
+      options.initialMiniMapVisible ??
+      CanvasClientStorage.getMiniMapVisible(true);
     this.container = createSurface({
       className:
-        'absolute z-20 flex w-fit min-w-fit flex-col items-end overflow-visible p-0',
+        'absolute z-20 flex w-fit flex-col items-end overflow-visible p-0',
     });
+    this.container.dataset.role = 'canvas-navigation-dock';
     applyCanvasHudCornerPosition(this.container, 'bottom-right');
     this.miniMapSlot = document.createElement('div');
-    this.miniMapSlot.className = 'w-fit min-w-fit overflow-hidden rounded-t-2xl';
+    this.miniMapSlot.className =
+      'w-fit min-w-fit overflow-hidden rounded-t-2xl';
+    this.miniMapSlot.dataset.role = 'canvas-navigation-dock-mini-map-slot';
 
     this.miniMap = new MiniMap(scene, canvasManager, {
       embedded: true,

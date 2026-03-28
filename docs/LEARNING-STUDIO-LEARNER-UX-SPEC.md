@@ -176,6 +176,65 @@ Recommended v1 rule:
 - map visible
 - next step dominant
 
+## Map Quick Preview
+
+The learner may inspect a node from the course map without immediately leaving the map.
+
+Recommended v1 rule:
+
+- quick preview is optional
+- quick preview is read-only
+- quick preview must never replace the real lesson runtime
+
+Quick preview is most useful when the learner wants to:
+
+- inspect an upcoming lesson before opening it
+- understand why a node is blocked
+- compare nearby branch options
+- revisit a completed lesson before reopening it
+
+Quick preview is least useful when the learner already wants the recommended next step.
+
+In that case:
+
+- `Start next lesson` or `Resume lesson` should bypass preview and open the focused runtime directly
+
+Recommended interaction:
+
+- selecting a map node may open a stable secondary preview surface
+- on desktop, prefer a side panel
+- on mobile, prefer a bottom sheet
+- do not use hover as the primary trigger
+- do not make quick preview the primary click target for opening content
+
+Quick preview should show only:
+
+- unit type
+- title
+- current state
+- blocked reason when relevant
+- short description or objective
+- estimated duration when available
+- module or sequence context
+- for lessons, required child work and the first incomplete required child item
+
+Quick preview should end with one clear CTA such as:
+
+- `Start lesson`
+- `Resume lesson`
+- `Review lesson`
+- `Open exercise`
+- `Open checkpoint`
+- `Go to prerequisite`
+
+Quick preview should not:
+
+- show full lesson content blocks
+- allow completion actions
+- write learner progress
+- become a second lesson runtime inside the map
+- compete with the dominant next-step CTA
+
 ## Blocked State Rules
 
 If a lesson is blocked, the learner should see:
@@ -197,6 +256,11 @@ Recommended v1 rule:
 - if nothing is `in_progress`, the product should send them to the recommended next available lesson
 
 The learner should not have to remember where they left off.
+
+Quick preview must not change this rule.
+
+If the learner actually opens a lesson or unit, the product should resume through the focused runtime route.
+Transient map selection or quick preview state should not become the learner's persisted resume target.
 
 ## Lesson Runtime Layout
 
