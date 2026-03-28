@@ -752,7 +752,7 @@ export class CanvasManager {
       ctx: this.ctx,
       overlay: smartGuideOverlay,
       scale: this.panZoom.scale,
-      ...DEFAULT_ALIGNMENT_PRESENTATION_THEME,
+      theme: DEFAULT_ALIGNMENT_PRESENTATION_THEME,
     });
 
     // draw bounding box for multiple selected elements using geometryUtils

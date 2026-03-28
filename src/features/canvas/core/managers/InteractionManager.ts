@@ -35,6 +35,7 @@ import type {
   AlignmentOverlayModel,
   AlignmentPreferences,
   AlignmentProposal,
+  AlignmentRect,
 } from '../alignment/types.ts';
 import {
   SMART_GUIDES_CANDIDATE_BUFFER_PX,
@@ -1120,6 +1121,8 @@ export class InteractionManager {
     const result = this.smartGuideSession.update({
       movingSubject,
       subjects,
+      viewportBounds: this.getSmartGuideViewportBounds(),
+      presentationScale: this.panZoom.scale,
       threshold,
       releaseThreshold: SMART_GUIDES_RELEASE_PX / this.panZoom.scale,
       maxSecondaryDistance,
@@ -1169,6 +1172,8 @@ export class InteractionManager {
     const result = this.smartGuideSession.update({
       movingSubject,
       subjects,
+      viewportBounds: this.getSmartGuideViewportBounds(),
+      presentationScale: this.panZoom.scale,
       threshold,
       releaseThreshold: SMART_GUIDES_RELEASE_PX / this.panZoom.scale,
       maxSecondaryDistance,
@@ -1201,6 +1206,28 @@ export class InteractionManager {
       showViewportCenterGuides:
         this.smartGuidePreferences.showViewportCenterGuides,
       strictness: 'default',
+    };
+  }
+
+  private getSmartGuideViewportBounds(): AlignmentRect {
+    const viewportWidth = this.canvas.width - this.panZoom.scrollbarWidth;
+    const viewportHeight = this.canvas.height - this.panZoom.scrollbarWidth;
+    const left = this.panZoom.scrollX / this.panZoom.scale;
+    const top = this.panZoom.scrollY / this.panZoom.scale;
+    const right = (this.panZoom.scrollX + viewportWidth) / this.panZoom.scale;
+    const bottom =
+      (this.panZoom.scrollY + viewportHeight) / this.panZoom.scale;
+    return {
+      x: left,
+      y: top,
+      width: right - left,
+      height: bottom - top,
+      left,
+      right,
+      top,
+      bottom,
+      centerX: left + (right - left) / 2,
+      centerY: top + (bottom - top) / 2,
     };
   }
 

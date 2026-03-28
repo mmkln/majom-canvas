@@ -1,3 +1,7 @@
+import {
+  createSmartGuideOverlayModel,
+  type SmartGuideOverlayOptions,
+} from './createSmartGuideOverlayModel.ts';
 import type {
   AlignmentBadgeVisual,
   AlignmentBandVisual,
@@ -14,17 +18,28 @@ export type AppliedAlignmentProposal = {
 };
 
 export function createAlignmentOverlayFromProposals(
-  proposals: ReadonlyArray<AppliedAlignmentProposal>
+  proposals: ReadonlyArray<AppliedAlignmentProposal>,
+  options: SmartGuideOverlayOptions = {}
 ): AlignmentOverlayModel {
   const visuals: AlignmentOverlayModel['visuals'] = [];
   proposals.forEach(({ proposal, primary, locked }) => {
-    proposal.visuals.forEach((visual) => {
+    getProposalVisuals(proposal, options).forEach((visual) => {
       visuals.push(applyVisualState(visual, primary, locked));
     });
   });
   return {
     visuals,
   };
+}
+
+function getProposalVisuals(
+  proposal: AlignmentProposal,
+  options: SmartGuideOverlayOptions
+): AlignmentProposal['visuals'] {
+  if (proposal.kind === 'spacing' && proposal.sourceGuides.length > 0) {
+    return createSmartGuideOverlayModel(proposal.sourceGuides, options).visuals;
+  }
+  return proposal.visuals;
 }
 
 function applyVisualState(

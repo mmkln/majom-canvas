@@ -19,35 +19,42 @@ export type SmartAlignmentCandidate = {
   bounds: SmartAlignmentRect;
 };
 
-export type SmartGuideLine =
-  | {
-      orientation: 'vertical';
-      targetId: string;
-      guideKind?: 'edge' | 'spacing' | 'container' | 'viewport-center';
-      label?: string;
-      primary?: boolean;
-      locked?: boolean;
-      position: number;
-      start: number;
-      end: number;
-      offset: number;
-      movingAnchor: HorizontalAnchor;
-      targetAnchor: HorizontalAnchor;
-    }
-  | {
-      orientation: 'horizontal';
-      targetId: string;
-      guideKind?: 'edge' | 'spacing' | 'container' | 'viewport-center';
-      label?: string;
-      primary?: boolean;
-      locked?: boolean;
-      position: number;
-      start: number;
-      end: number;
-      offset: number;
-      movingAnchor: VerticalAnchor;
-      targetAnchor: VerticalAnchor;
-    };
+export type VerticalSmartGuideLine = {
+  orientation: 'vertical';
+  targetId: string;
+  guideKind?: 'edge' | 'spacing' | 'container' | 'viewport-center';
+  label?: string;
+  spacingDistance?: number;
+  primary?: boolean;
+  locked?: boolean;
+  position: number;
+  start: number;
+  end: number;
+  offset: number;
+  movingAnchor: HorizontalAnchor;
+  targetAnchor: HorizontalAnchor;
+};
+
+export type HorizontalSmartGuideLine = {
+  orientation: 'horizontal';
+  targetId: string;
+  guideKind?: 'edge' | 'spacing' | 'container' | 'viewport-center';
+  label?: string;
+  spacingDistance?: number;
+  primary?: boolean;
+  locked?: boolean;
+  position: number;
+  start: number;
+  end: number;
+  offset: number;
+  movingAnchor: VerticalAnchor;
+  targetAnchor: VerticalAnchor;
+};
+
+export type SmartGuideLine = VerticalSmartGuideLine | HorizontalSmartGuideLine;
+
+type VerticalGuideLine = VerticalSmartGuideLine;
+type HorizontalGuideLine = HorizontalSmartGuideLine;
 
 export type SmartAlignmentResult = {
   guides: SmartGuideLine[];
@@ -58,13 +65,13 @@ export type SmartAlignmentResult = {
 type VerticalBestMatch = {
   absOffset: number;
   offset: number;
-  guide: Extract<SmartGuideLine, { orientation: 'vertical' }>;
+  guide: VerticalGuideLine;
 };
 
 type HorizontalBestMatch = {
   absOffset: number;
   offset: number;
-  guide: Extract<SmartGuideLine, { orientation: 'horizontal' }>;
+  guide: HorizontalGuideLine;
 };
 
 const HORIZONTAL_ANCHORS: Array<{
@@ -151,14 +158,8 @@ export class SmartAlignmentService {
     maxSecondaryDistance?: number;
     minGuideLength?: number;
     maxGuideLength?: number;
-    preferredVerticalGuide?: Extract<
-      SmartGuideLine,
-      { orientation: 'vertical' }
-    > | null;
-    preferredHorizontalGuide?: Extract<
-      SmartGuideLine,
-      { orientation: 'horizontal' }
-    > | null;
+    preferredVerticalGuide?: VerticalGuideLine | null;
+    preferredHorizontalGuide?: HorizontalGuideLine | null;
   }): SmartAlignmentResult {
     const { movingBounds, candidates } = args;
     const threshold = Math.max(0, args.threshold);
@@ -211,10 +212,7 @@ export class SmartAlignmentService {
             effectiveMinGuideLength,
             maxGuideLength
           );
-          const nextGuide: Extract<
-            SmartGuideLine,
-            { orientation: 'vertical' }
-          > = {
+          const nextGuide: VerticalGuideLine = {
             orientation: 'vertical',
             targetId: candidate.id,
             position: targetValue,
@@ -268,10 +266,7 @@ export class SmartAlignmentService {
             effectiveMinGuideLength,
             maxGuideLength
           );
-          const nextGuide: Extract<
-            SmartGuideLine,
-            { orientation: 'horizontal' }
-          > = {
+          const nextGuide: HorizontalGuideLine = {
             orientation: 'horizontal',
             targetId: candidate.id,
             position: targetValue,
@@ -305,14 +300,16 @@ export class SmartAlignmentService {
       });
     });
 
+    const verticalMatch = bestVertical as VerticalBestMatch | null;
+    const horizontalMatch = bestHorizontal as HorizontalBestMatch | null;
     const guides: SmartGuideLine[] = [];
-    if (bestVertical) guides.push(bestVertical.guide);
-    if (bestHorizontal) guides.push(bestHorizontal.guide);
+    if (verticalMatch) guides.push(verticalMatch.guide);
+    if (horizontalMatch) guides.push(horizontalMatch.guide);
 
     return {
       guides,
-      snapOffsetX: bestVertical?.offset ?? 0,
-      snapOffsetY: bestHorizontal?.offset ?? 0,
+      snapOffsetX: verticalMatch?.offset ?? 0,
+      snapOffsetY: horizontalMatch?.offset ?? 0,
     };
   }
 
@@ -358,9 +355,9 @@ export class SmartAlignmentService {
   }
 
   private shouldPreferVerticalGuide(
-    nextGuide: Extract<SmartGuideLine, { orientation: 'vertical' }>,
-    currentGuide: Extract<SmartGuideLine, { orientation: 'vertical' }>,
-    preferredGuide: Extract<SmartGuideLine, { orientation: 'vertical' }> | null
+    nextGuide: VerticalGuideLine,
+    currentGuide: VerticalGuideLine,
+    preferredGuide: VerticalGuideLine | null
   ): boolean {
     if (!preferredGuide) return false;
     const nextMatches = this.isSameVerticalGuide(nextGuide, preferredGuide);
@@ -372,12 +369,9 @@ export class SmartAlignmentService {
   }
 
   private shouldPreferHorizontalGuide(
-    nextGuide: Extract<SmartGuideLine, { orientation: 'horizontal' }>,
-    currentGuide: Extract<SmartGuideLine, { orientation: 'horizontal' }>,
-    preferredGuide: Extract<
-      SmartGuideLine,
-      { orientation: 'horizontal' }
-    > | null
+    nextGuide: HorizontalGuideLine,
+    currentGuide: HorizontalGuideLine,
+    preferredGuide: HorizontalGuideLine | null
   ): boolean {
     if (!preferredGuide) return false;
     const nextMatches = this.isSameHorizontalGuide(nextGuide, preferredGuide);
@@ -389,8 +383,8 @@ export class SmartAlignmentService {
   }
 
   private isSameVerticalGuide(
-    first: Extract<SmartGuideLine, { orientation: 'vertical' }>,
-    second: Extract<SmartGuideLine, { orientation: 'vertical' }>
+    first: VerticalGuideLine,
+    second: VerticalGuideLine
   ): boolean {
     return (
       first.targetId === second.targetId &&
@@ -401,8 +395,8 @@ export class SmartAlignmentService {
   }
 
   private isSameHorizontalGuide(
-    first: Extract<SmartGuideLine, { orientation: 'horizontal' }>,
-    second: Extract<SmartGuideLine, { orientation: 'horizontal' }>
+    first: HorizontalGuideLine,
+    second: HorizontalGuideLine
   ): boolean {
     return (
       first.targetId === second.targetId &&

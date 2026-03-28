@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { SmartGuideLine } from '../services/SmartAlignmentService.ts';
+import {
+  createAlignmentRect,
+  type SmartGuideLine,
+} from '../services/SmartAlignmentService.ts';
 import { createSmartGuideOverlayModel } from './createSmartGuideOverlayModel.ts';
 
 describe('createSmartGuideOverlayModel', () => {
@@ -55,13 +58,14 @@ describe('createSmartGuideOverlayModel', () => {
     });
   });
 
-  it('groups spacing guides into line, band, and badge visuals', () => {
+  it('groups spacing guides into dual measurement rails and a badge', () => {
     const guides: SmartGuideLine[] = [
       {
         orientation: 'vertical',
         targetId: 'spacing-x:left:right',
         guideKind: 'spacing',
         label: '103 px',
+        spacingDistance: 103,
         position: 525,
         start: 100,
         end: 212,
@@ -75,6 +79,7 @@ describe('createSmartGuideOverlayModel', () => {
         targetId: 'spacing-x:left:right',
         guideKind: 'spacing',
         label: '103 px',
+        spacingDistance: 103,
         position: 797,
         start: 100,
         end: 212,
@@ -84,27 +89,191 @@ describe('createSmartGuideOverlayModel', () => {
       },
     ];
 
-    expect(createSmartGuideOverlayModel(guides)).toEqual({
+    expect(
+      createSmartGuideOverlayModel(guides, {
+        movingBounds: createAlignmentRect({
+          x: 525,
+          y: 100,
+          width: 272,
+          height: 112,
+        }),
+        viewportBounds: createAlignmentRect({
+          x: 0,
+          y: 0,
+          width: 1200,
+          height: 800,
+        }),
+        scale: 1,
+      })
+    ).toEqual({
       visuals: [
         {
-          type: 'band',
-          axis: 'x',
+          type: 'line',
+          axis: 'y',
           kind: 'spacing',
           primary: true,
-          start: 525,
-          end: 797,
-          depthStart: 100,
-          depthEnd: 212,
+          locked: true,
+          position: 86,
+          start: 422,
+          end: 525,
         },
+        {
+          type: 'line',
+          axis: 'y',
+          kind: 'spacing',
+          primary: true,
+          locked: true,
+          position: 86,
+          start: 797,
+          end: 900,
+        },
+        {
+          type: 'badge',
+          kind: 'spacing',
+          text: '103 px',
+          x: 661,
+          y: 74,
+        },
+      ],
+    });
+  });
+
+  it('flips spacing rails below the element when there is no room above', () => {
+    const guides: SmartGuideLine[] = [
+      {
+        orientation: 'vertical',
+        targetId: 'spacing-x:left:right',
+        guideKind: 'spacing',
+        label: '103 px',
+        spacingDistance: 103,
+        position: 525,
+        start: 0,
+        end: 120,
+        offset: 5,
+        movingAnchor: 'left',
+        targetAnchor: 'left',
+      },
+      {
+        orientation: 'vertical',
+        targetId: 'spacing-x:left:right',
+        guideKind: 'spacing',
+        label: '103 px',
+        spacingDistance: 103,
+        position: 797,
+        start: 0,
+        end: 120,
+        offset: 5,
+        movingAnchor: 'right',
+        targetAnchor: 'right',
+      },
+    ];
+
+    expect(
+      createSmartGuideOverlayModel(guides, {
+        movingBounds: createAlignmentRect({
+          x: 525,
+          y: 8,
+          width: 272,
+          height: 112,
+        }),
+        viewportBounds: createAlignmentRect({
+          x: 0,
+          y: 0,
+          width: 1200,
+          height: 800,
+        }),
+        scale: 1,
+      })
+    ).toEqual({
+      visuals: [
+        {
+          type: 'line',
+          axis: 'y',
+          kind: 'spacing',
+          primary: true,
+          locked: false,
+          position: 134,
+          start: 422,
+          end: 525,
+        },
+        {
+          type: 'line',
+          axis: 'y',
+          kind: 'spacing',
+          primary: true,
+          locked: false,
+          position: 134,
+          start: 797,
+          end: 900,
+        },
+        {
+          type: 'badge',
+          kind: 'spacing',
+          text: '103 px',
+          x: 661,
+          y: 146,
+        },
+      ],
+    });
+  });
+
+  it('places vertical spacing rails on the left side by default', () => {
+    const guides: SmartGuideLine[] = [
+      {
+        orientation: 'horizontal',
+        targetId: 'spacing-y:top:bottom',
+        guideKind: 'spacing',
+        label: '48 px',
+        spacingDistance: 48,
+        position: 240,
+        start: 525,
+        end: 797,
+        offset: 6,
+        movingAnchor: 'top',
+        targetAnchor: 'top',
+      },
+      {
+        orientation: 'horizontal',
+        targetId: 'spacing-y:top:bottom',
+        guideKind: 'spacing',
+        label: '48 px',
+        spacingDistance: 48,
+        position: 400,
+        start: 525,
+        end: 797,
+        offset: 6,
+        movingAnchor: 'bottom',
+        targetAnchor: 'bottom',
+      },
+    ];
+
+    expect(
+      createSmartGuideOverlayModel(guides, {
+        movingBounds: createAlignmentRect({
+          x: 525,
+          y: 240,
+          width: 272,
+          height: 112,
+        }),
+        viewportBounds: createAlignmentRect({
+          x: 0,
+          y: 0,
+          width: 1200,
+          height: 800,
+        }),
+        scale: 1,
+      })
+    ).toEqual({
+      visuals: [
         {
           type: 'line',
           axis: 'x',
           kind: 'spacing',
           primary: true,
-          locked: true,
-          position: 525,
-          start: 100,
-          end: 212,
+          locked: false,
+          position: 511,
+          start: 192,
+          end: 240,
         },
         {
           type: 'line',
@@ -112,16 +281,16 @@ describe('createSmartGuideOverlayModel', () => {
           kind: 'spacing',
           primary: true,
           locked: false,
-          position: 797,
-          start: 100,
-          end: 212,
+          position: 511,
+          start: 400,
+          end: 448,
         },
         {
           type: 'badge',
           kind: 'spacing',
-          text: '103 px',
-          x: 661,
-          y: 156,
+          text: '48 px',
+          x: 499,
+          y: 320,
         },
       ],
     });

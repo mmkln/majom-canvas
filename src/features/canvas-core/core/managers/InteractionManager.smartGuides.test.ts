@@ -250,16 +250,44 @@ describe('InteractionManager smart guides integration', () => {
     manager.handleMouseMove(530, 110);
 
     expect(movingTask.x).toBe(525);
-    const verticalGuides = getOverlayLines(manager, 'spacing').filter(
-      (guide) => guide.axis === 'x'
+    const spacingRails = getOverlayLines(manager, 'spacing').filter(
+      (guide) => guide.axis === 'y'
     );
-    expect(verticalGuides).toHaveLength(2);
-    expect(verticalGuides.map((guide) => guide.position)).toEqual([525, 797]);
+    expect(spacingRails).toHaveLength(2);
+    expect(
+      spacingRails.map((guide) => ({
+        position: guide.position,
+        start: guide.start,
+        end: guide.end,
+      }))
+    ).toEqual([
+      { position: 86, start: 422, end: 525 },
+      { position: 86, start: 797, end: 900 },
+    ]);
     expect(
       manager
         .getSmartGuideOverlay()
         .visuals.filter((visual) => visual.type === 'band')
-    ).toHaveLength(1);
+    ).toHaveLength(0);
+  });
+
+  it('flips horizontal spacing rails below the element when there is no room above', () => {
+    const { scene, manager, movingTask } = createHarness();
+    movingTask.y = 8;
+    const left = new TaskElement({ id: 'left', x: 150, y: 8 });
+    const right = new TaskElement({ id: 'right', x: 900, y: 8 });
+    scene.addElement(left);
+    scene.addElement(right);
+
+    beginDrag(manager, movingTask);
+    manager.handleMouseMove(530, 18);
+
+    expect(movingTask.x).toBe(525);
+    expect(
+      getOverlayLines(manager, 'spacing')
+        .filter((guide) => guide.axis === 'y')
+        .map((guide) => guide.position)
+    ).toEqual([134, 134]);
   });
 
   it('does not use spacing guides when spacing preferences are disabled', () => {

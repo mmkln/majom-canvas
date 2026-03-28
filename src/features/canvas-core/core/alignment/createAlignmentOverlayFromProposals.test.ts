@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { SmartGuideLine } from '../services/SmartAlignmentService.ts';
+import {
+  createAlignmentRect,
+  type SmartGuideLine,
+} from '../services/SmartAlignmentService.ts';
 import { createAlignmentOverlayFromProposals } from './createAlignmentOverlayFromProposals.ts';
 import {
   createAlignmentProposalFromSmartGuide,
@@ -43,13 +46,14 @@ describe('createAlignmentOverlayFromProposals', () => {
     });
   });
 
-  it('preserves spacing visuals while applying proposal state', () => {
+  it('preserves dual spacing rails while applying proposal state', () => {
     const guides: SmartGuideLine[] = [
       {
         orientation: 'vertical',
         targetId: 'spacing-x:left:right',
         guideKind: 'spacing',
         label: '103 px',
+        spacingDistance: 103,
         position: 525,
         start: 100,
         end: 212,
@@ -62,6 +66,7 @@ describe('createAlignmentOverlayFromProposals', () => {
         targetId: 'spacing-x:left:right',
         guideKind: 'spacing',
         label: '103 px',
+        spacingDistance: 103,
         position: 797,
         start: 100,
         end: 212,
@@ -84,45 +89,49 @@ describe('createAlignmentOverlayFromProposals', () => {
           primary: true,
           locked: false,
         },
-      ])
+      ], {
+        movingBounds: createAlignmentRect({
+          x: 525,
+          y: 100,
+          width: 272,
+          height: 112,
+        }),
+        viewportBounds: createAlignmentRect({
+          x: 0,
+          y: 0,
+          width: 1200,
+          height: 800,
+        }),
+        scale: 1,
+      })
     ).toEqual({
       visuals: [
         {
-          type: 'band',
-          axis: 'x',
-          kind: 'spacing',
-          primary: true,
-          start: 525,
-          end: 797,
-          depthStart: 100,
-          depthEnd: 212,
-        },
-        {
           type: 'line',
-          axis: 'x',
+          axis: 'y',
           kind: 'spacing',
           primary: true,
           locked: false,
-          position: 525,
-          start: 100,
-          end: 212,
+          position: 86,
+          start: 422,
+          end: 525,
         },
         {
           type: 'line',
-          axis: 'x',
+          axis: 'y',
           kind: 'spacing',
           primary: true,
           locked: false,
-          position: 797,
-          start: 100,
-          end: 212,
+          position: 86,
+          start: 797,
+          end: 900,
         },
         {
           type: 'badge',
           kind: 'spacing',
           text: '103 px',
           x: 661,
-          y: 156,
+          y: 74,
         },
       ],
     });

@@ -19,6 +19,8 @@ import type {
 type AlignmentSessionUpdateArgs = {
   movingSubject: AlignmentSubject | null;
   subjects: AlignmentSubject[];
+  viewportBounds?: AlignmentRect | null;
+  presentationScale?: number;
   threshold: number;
   releaseThreshold: number;
   maxSecondaryDistance: number;
@@ -121,7 +123,11 @@ export class AlignmentSession {
       }));
       this.appliedProposals = appliedProposals;
       this.guides = this.materializeGuidesFromAppliedProposals(appliedProposals);
-      this.overlay = createAlignmentOverlayFromProposals(appliedProposals);
+      this.overlay = createAlignmentOverlayFromProposals(appliedProposals, {
+        movingBounds,
+        viewportBounds: args.viewportBounds ?? null,
+        scale: args.presentationScale ?? 1,
+      });
       this.lockedVerticalGuide = null;
       this.lockedHorizontalGuide = null;
       return {
@@ -238,7 +244,11 @@ export class AlignmentSession {
 
     this.appliedProposals = appliedProposals;
     this.guides = this.materializeGuidesFromAppliedProposals(appliedProposals);
-    this.overlay = createAlignmentOverlayFromProposals(appliedProposals);
+    this.overlay = createAlignmentOverlayFromProposals(appliedProposals, {
+      movingBounds: this.shiftRect(movingBounds, snapOffsetX, snapOffsetY),
+      viewportBounds: args.viewportBounds ?? null,
+      scale: args.presentationScale ?? 1,
+    });
     return {
       guides: this.guides,
       overlay: this.overlay,

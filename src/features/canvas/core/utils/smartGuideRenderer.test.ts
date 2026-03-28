@@ -6,9 +6,9 @@ type MockContext = {
   strokeStyle: string;
   lineWidth: number;
   dashCalls: number[][];
+  strokeCount: number;
   paths: Array<Array<{ x: number; y: number }>>;
   beginCount: number;
-  strokeCount: number;
   saveCount: number;
   restoreCount: number;
   save: () => void;
@@ -26,9 +26,9 @@ function createMockContext(): MockContext {
     strokeStyle: '',
     lineWidth: 0,
     dashCalls: [],
+    strokeCount: 0,
     paths,
     beginCount: 0,
-    strokeCount: 0,
     saveCount: 0,
     restoreCount: 0,
     save: () => {
@@ -58,7 +58,7 @@ function createMockContext(): MockContext {
 }
 
 describe('drawSmartGuides', () => {
-  it('renders solid vertical and horizontal guide lines with scaled line width', () => {
+  it('renders shared guide visuals through the legacy canvas shim', () => {
     const ctx = createMockContext();
     const guides: SmartGuideLine[] = [
       {
@@ -87,15 +87,10 @@ describe('drawSmartGuides', () => {
       ctx: ctx as unknown as CanvasRenderingContext2D,
       guides,
       scale: 2,
-      color: 'rgba(1,2,3,0.4)',
-      lineWidth: 1.5,
     });
 
     expect(ctx.saveCount).toBe(1);
     expect(ctx.restoreCount).toBe(1);
-    expect(ctx.strokeStyle).toBe('rgba(1,2,3,0.4)');
-    expect(ctx.lineWidth).toBeCloseTo(0.75, 5);
-    expect(ctx.dashCalls).toEqual([[]]);
     expect(ctx.beginCount).toBe(2);
     expect(ctx.strokeCount).toBe(2);
     expect(ctx.paths).toEqual([
@@ -117,8 +112,6 @@ describe('drawSmartGuides', () => {
       ctx: ctx as unknown as CanvasRenderingContext2D,
       guides: [],
       scale: 1,
-      color: '#000',
-      lineWidth: 2,
     });
 
     expect(ctx.saveCount).toBe(0);

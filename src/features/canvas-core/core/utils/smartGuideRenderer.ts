@@ -1,48 +1,46 @@
 import { FONT_FAMILY } from '../constants.ts';
-import { createSmartGuideOverlayModel } from '../alignment/createSmartGuideOverlayModel.ts';
+import {
+  createSmartGuideOverlayModel,
+  type SmartGuideOverlayOptions,
+} from '../alignment/createSmartGuideOverlayModel.ts';
 import type {
   AlignmentBadgeVisual,
   AlignmentBandVisual,
+  AlignmentGuideKind,
   AlignmentLineVisual,
   AlignmentOverlayModel,
   AlignmentPointVisual,
+  AlignmentRect,
 } from '../alignment/types.ts';
 import type { SmartGuideLine } from '../services/SmartAlignmentService.ts';
+import {
+  DEFAULT_ALIGNMENT_PRESENTATION_THEME,
+  getAlignmentKindStyle,
+  type AlignmentPresentationTheme,
+} from '../../alignment/presentation/theme.ts';
 
 export function drawSmartGuides(args: {
   ctx: CanvasRenderingContext2D;
   guides: ReadonlyArray<SmartGuideLine>;
   scale: number;
-  color: string;
-  spacingColor?: string;
-  containerColor?: string;
-  viewportCenterColor?: string;
-  labelColor?: string;
-  lineWidth: number;
+  movingBounds?: AlignmentRect | null;
+  viewportBounds?: AlignmentRect | null;
+  theme?: AlignmentPresentationTheme;
 }): void {
-  const {
-    ctx,
-    guides,
-    scale,
-    color,
-    spacingColor = color,
-    containerColor = color,
-    viewportCenterColor = color,
-    labelColor = color,
-    lineWidth,
-  } = args;
+  const { ctx, guides, scale, theme = DEFAULT_ALIGNMENT_PRESENTATION_THEME } =
+    args;
   if (guides.length === 0) return;
+  const overlayOptions: SmartGuideOverlayOptions = {
+    movingBounds: args.movingBounds ?? null,
+    viewportBounds: args.viewportBounds ?? null,
+    scale,
+  };
 
   drawAlignmentOverlay({
     ctx,
-    overlay: createSmartGuideOverlayModel(guides),
+    overlay: createSmartGuideOverlayModel(guides, overlayOptions),
     scale,
-    color,
-    spacingColor,
-    containerColor,
-    viewportCenterColor,
-    labelColor,
-    lineWidth,
+    theme,
   });
 }
 
@@ -50,23 +48,13 @@ export function drawAlignmentOverlay(args: {
   ctx: CanvasRenderingContext2D;
   overlay: AlignmentOverlayModel;
   scale: number;
-  color: string;
-  spacingColor?: string;
-  containerColor?: string;
-  viewportCenterColor?: string;
-  labelColor?: string;
-  lineWidth: number;
+  theme?: AlignmentPresentationTheme;
 }): void {
   const {
     ctx,
     overlay,
     scale,
-    color,
-    spacingColor = color,
-    containerColor = color,
-    viewportCenterColor = color,
-    labelColor = color,
-    lineWidth,
+    theme = DEFAULT_ALIGNMENT_PRESENTATION_THEME,
   } = args;
   if (overlay.visuals.length === 0) return;
 
@@ -74,22 +62,8 @@ export function drawAlignmentOverlay(args: {
   const bands = overlay.visuals.filter(
     (visual): visual is AlignmentBandVisual => visual.type === 'band'
   );
-  const edgeLines = overlay.visuals.filter(
-    (visual): visual is AlignmentLineVisual =>
-      visual.type === 'line' &&
-      (visual.kind === 'edge' || visual.kind === 'center')
-  );
-  const containerLines = overlay.visuals.filter(
-    (visual): visual is AlignmentLineVisual =>
-      visual.type === 'line' && visual.kind === 'container'
-  );
-  const viewportCenterLines = overlay.visuals.filter(
-    (visual): visual is AlignmentLineVisual =>
-      visual.type === 'line' && visual.kind === 'viewport-center'
-  );
-  const spacingLines = overlay.visuals.filter(
-    (visual): visual is AlignmentLineVisual =>
-      visual.type === 'line' && visual.kind === 'spacing'
+  const lines = overlay.visuals.filter(
+    (visual): visual is AlignmentLineVisual => visual.type === 'line'
   );
   const points = overlay.visuals.filter(
     (visual): visual is AlignmentPointVisual => visual.type === 'point'
@@ -99,61 +73,27 @@ export function drawAlignmentOverlay(args: {
   );
 
   ctx.save();
-  renderBands(ctx, bands, {
-    color,
-    spacingColor,
-  });
-  renderLines(ctx, edgeLines, {
-    scale: normalizedScale,
-    lineWidth,
-    color,
-    dashed: [],
-    drawCaps: false,
-  });
-  renderLines(ctx, containerLines, {
-    scale: normalizedScale,
-    lineWidth,
-    color: containerColor,
-    dashed: [10 / normalizedScale, 4 / normalizedScale],
-    drawCaps: false,
-  });
-  renderLines(ctx, viewportCenterLines, {
-    scale: normalizedScale,
-    lineWidth,
-    color: viewportCenterColor,
-    dashed: [2 / normalizedScale, 5 / normalizedScale],
-    drawCaps: false,
-  });
-  renderLines(ctx, spacingLines, {
-    scale: normalizedScale,
-    lineWidth,
-    color: spacingColor,
-    dashed: [6 / normalizedScale, 4 / normalizedScale],
-    drawCaps: true,
-  });
-  renderPoints(ctx, points, {
-    scale: normalizedScale,
-    color,
-    spacingColor,
-  });
-  renderBadges(ctx, badges, {
-    scale: normalizedScale,
-    labelColor,
-  });
+  renderBands(ctx, bands, { scale: normalizedScale, theme });
+  renderLines(ctx, lines, { scale: normalizedScale, theme });
+  renderPoints(ctx, points, { scale: normalizedScale, theme });
+  renderBadges(ctx, badges, { scale: normalizedScale, theme });
   ctx.restore();
 }
 
 function renderBands(
   ctx: CanvasRenderingContext2D,
   visuals: ReadonlyArray<AlignmentBandVisual>,
-  colors: {
-    color: string;
-    spacingColor: string;
+  args: {
+    scale: number;
+    theme: AlignmentPresentationTheme;
   }
 ): void {
   if (visuals.length === 0) return;
   ctx.setLineDash([]);
   visuals.forEach((visual) => {
+    const kindStyle = getAlignmentKindStyle(args.theme, visual.kind).band;
+    if (!kindStyle) return;
+
     const width =
       visual.axis === 'x'
         ? Math.max(0, visual.end - visual.start)
@@ -164,14 +104,15 @@ function renderBands(
         : Math.max(0, visual.end - visual.start);
     if (width === 0 || height === 0) return;
 
-    ctx.fillStyle =
-      visual.kind === 'spacing' ? colors.spacingColor : colors.color;
-    ctx.globalAlpha = visual.primary ? 0.12 : 0.07;
+    ctx.fillStyle = kindStyle.fill;
+    ctx.globalAlpha =
+      kindStyle.fillOpacity *
+      getStateOpacityMultiplier(args.theme, visual.primary, false);
     if (visual.axis === 'x') {
       ctx.fillRect(visual.start, visual.depthStart, width, height);
-      return;
+    } else {
+      ctx.fillRect(visual.depthStart, visual.start, width, height);
     }
-    ctx.fillRect(visual.depthStart, visual.start, width, height);
   });
   ctx.globalAlpha = 1;
 }
@@ -181,25 +122,27 @@ function renderLines(
   visuals: ReadonlyArray<AlignmentLineVisual>,
   args: {
     scale: number;
-    lineWidth: number;
-    color: string;
-    dashed: number[];
-    drawCaps: boolean;
+    theme: AlignmentPresentationTheme;
   }
 ): void {
   if (visuals.length === 0) return;
-  const dash = args.dashed;
-  ctx.strokeStyle = args.color;
-  ctx.setLineDash(dash);
-
   visuals.forEach((visual) => {
-    ctx.lineWidth = getVisualLineWidth(visual, args.lineWidth, args.scale);
+    const style = resolveLineStyle(visual, args.theme, args.scale);
+    ctx.strokeStyle = style.stroke;
+    ctx.lineWidth = style.strokeWidth;
+    ctx.globalAlpha = style.strokeOpacity;
+    ctx.lineCap = style.lineCap;
+    ctx.setLineDash(style.dash);
     drawGuideLine(ctx, visual);
-    if (!args.drawCaps) return;
-    ctx.setLineDash([]);
-    drawGuideCaps(ctx, visual, args.scale);
-    ctx.setLineDash(dash);
+    if (style.showCaps) {
+      ctx.lineCap = 'butt';
+      ctx.setLineDash([]);
+      drawGuideCaps(ctx, visual, style.capSize);
+    }
   });
+  ctx.globalAlpha = 1;
+  ctx.lineCap = 'butt';
+  ctx.setLineDash([]);
 }
 
 function renderPoints(
@@ -207,18 +150,23 @@ function renderPoints(
   visuals: ReadonlyArray<AlignmentPointVisual>,
   args: {
     scale: number;
-    color: string;
-    spacingColor: string;
+    theme: AlignmentPresentationTheme;
   }
 ): void {
-  if (visuals.length === 0) return;
+  if (!args.theme.point.visible || visuals.length === 0) return;
   ctx.setLineDash([]);
   visuals.forEach((visual) => {
-    const size = (visual.primary ? 6 : 4) / args.scale;
-    ctx.fillStyle = visual.kind === 'spacing' ? args.spacingColor : args.color;
-    ctx.globalAlpha = 1;
+    const kindStyle = getAlignmentKindStyle(args.theme, visual.kind).line;
+    const size =
+      (visual.primary ? args.theme.point.size : args.theme.point.size * 0.85) /
+      args.scale;
+    ctx.fillStyle = kindStyle.stroke;
+    ctx.globalAlpha =
+      kindStyle.strokeOpacity *
+      getStateOpacityMultiplier(args.theme, visual.primary, false);
     ctx.fillRect(visual.x - size / 2, visual.y - size / 2, size, size);
   });
+  ctx.globalAlpha = 1;
 }
 
 function renderBadges(
@@ -226,20 +174,100 @@ function renderBadges(
   visuals: ReadonlyArray<AlignmentBadgeVisual>,
   args: {
     scale: number;
-    labelColor: string;
+    theme: AlignmentPresentationTheme;
   }
 ): void {
   if (visuals.length === 0) return;
-  const fontSize = 11 / args.scale;
-  ctx.setLineDash([]);
-  ctx.fillStyle = args.labelColor;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = `${fontSize}px ${FONT_FAMILY}`;
-  ctx.globalAlpha = 1;
   visuals.forEach((visual) => {
+    const badgeStyle = getAlignmentKindStyle(args.theme, visual.kind).badge;
+    if (!badgeStyle) return;
+
+    const fontSize = args.theme.badge.fontSize / args.scale;
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+    const chrome = badgeStyle.chrome ?? 'pill';
+
+    if (chrome === 'pill') {
+      const paddingX = args.theme.badge.paddingX / args.scale;
+      const paddingY = args.theme.badge.paddingY / args.scale;
+      const textMetricsWidth = measureLabelWidth(ctx, visual.text, fontSize);
+      const width = textMetricsWidth + paddingX * 2;
+      const height = fontSize + paddingY * 2;
+      const x = visual.x - width / 2;
+      const y = visual.y - height / 2;
+      const radius = args.theme.badge.radius / args.scale;
+
+      if (badgeStyle.fill) {
+        ctx.fillStyle = badgeStyle.fill;
+        applyBadgeShadow(ctx, args.theme.badge, args.scale);
+        fillBadgeBackground(ctx, x, y, width, height, radius);
+        resetBadgeShadow(ctx);
+      }
+
+      if (badgeStyle.border && args.theme.badge.borderWidth > 0) {
+        ctx.strokeStyle = badgeStyle.border;
+        ctx.lineWidth = args.theme.badge.borderWidth / args.scale;
+        strokeBadgeBorder(ctx, x, y, width, height, radius);
+      }
+    }
+
+    ctx.fillStyle = badgeStyle.textColor;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `${args.theme.badge.fontWeight} ${fontSize}px ${FONT_FAMILY}`;
     ctx.fillText(visual.text, visual.x, visual.y);
   });
+}
+
+function applyBadgeShadow(
+  ctx: CanvasRenderingContext2D,
+  badgeTheme: AlignmentPresentationTheme['badge'],
+  scale: number
+): void {
+  ctx.shadowColor = badgeTheme.shadowColor;
+  ctx.shadowBlur = badgeTheme.shadowBlur / scale;
+  ctx.shadowOffsetY = badgeTheme.shadowOffsetY / scale;
+}
+
+function resetBadgeShadow(ctx: CanvasRenderingContext2D): void {
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+}
+
+function fillBadgeBackground(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+): void {
+  if (typeof ctx.roundRect === 'function') {
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, Math.min(radius, height / 2));
+    ctx.fill();
+    return;
+  }
+  ctx.fillRect(x, y, width, height);
+}
+
+function strokeBadgeBorder(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+): void {
+  if (typeof ctx.roundRect === 'function') {
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, Math.min(radius, height / 2));
+    ctx.stroke();
+    return;
+  }
+  ctx.strokeRect(x, y, width, height);
 }
 
 function drawGuideLine(
@@ -260,9 +288,8 @@ function drawGuideLine(
 function drawGuideCaps(
   ctx: CanvasRenderingContext2D,
   visual: AlignmentLineVisual,
-  scale: number
+  capSize: number
 ): void {
-  const capSize = 8 / scale;
   ctx.beginPath();
   if (visual.axis === 'x') {
     ctx.moveTo(visual.position - capSize, visual.start);
@@ -278,14 +305,63 @@ function drawGuideCaps(
   ctx.stroke();
 }
 
-function getVisualLineWidth(
+function resolveLineStyle(
   visual: AlignmentLineVisual,
-  baseLineWidth: number,
+  theme: AlignmentPresentationTheme,
   scale: number
+): {
+  stroke: string;
+  strokeWidth: number;
+  strokeOpacity: number;
+  dash: number[];
+  showCaps: boolean;
+  capSize: number;
+  lineCap: CanvasLineCap;
+} {
+  const style = getAlignmentKindStyle(theme, visual.kind).line;
+  const strokeOpacity = Math.min(
+    1,
+    style.strokeOpacity * getStateOpacityMultiplier(theme, visual.primary, visual.locked)
+  );
+  const strokeWidth =
+    (style.strokeWidth *
+      (visual.locked ? theme.state.lockedStrokeWidthMultiplier : 1)) /
+    scale;
+
+  return {
+    stroke: style.stroke,
+    strokeWidth,
+    strokeOpacity,
+    dash: style.dash.map((segment) => segment / scale),
+    showCaps: style.showCaps,
+    capSize: (style.capSize ?? 8) / scale,
+    lineCap: style.lineCap ?? 'butt',
+  };
+}
+
+function getStateOpacityMultiplier(
+  theme: AlignmentPresentationTheme,
+  primary: boolean,
+  locked: boolean
 ): number {
-  let weight = visual.primary ? 1 : 0.72;
-  if (visual.locked) {
-    weight *= 1.12;
+  let multiplier = primary ? 1 : theme.state.secondaryOpacityMultiplier;
+  if (locked) {
+    multiplier *= theme.state.lockedOpacityMultiplier;
   }
-  return (baseLineWidth * weight) / scale;
+  return multiplier;
+}
+
+function measureLabelWidth(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  fontSize: number
+): number {
+  const previousFont = ctx.font;
+  ctx.font = `${fontSize}px ${FONT_FAMILY}`;
+  const measured =
+    typeof ctx.measureText === 'function'
+      ? ctx.measureText(text).width
+      : text.length * fontSize * 0.56;
+  ctx.font = previousFont;
+  return measured;
 }
