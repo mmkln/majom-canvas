@@ -88,6 +88,10 @@ const HOUR_ROW_HEIGHT_PX = 56;
 const TIME_GUTTER_WIDTH_PX = 56;
 const DAY_VIEW_MIN_WIDTH_PX = 300;
 const WEEK_VIEW_DAY_WIDTH_PX = 136;
+const CURRENT_TIME_LINE_COLOR = '#2563eb';
+const CURRENT_TIME_DASH_COLOR = 'rgba(37, 99, 235, 0.55)';
+const CURRENT_TIME_DASH_SIZE = '20px 2px';
+const CURRENT_TIME_DASH_PATTERN = `linear-gradient(to right, ${CURRENT_TIME_DASH_COLOR} 0 12px, transparent 12px 20px)`;
 const CLUSTER_STEP_MINUTES = MIN_CLUSTER_DURATION_MINUTES;
 const CLUSTER_DRAG_THRESHOLD_PX = 4;
 const CLUSTER_DOUBLE_CLICK_WINDOW_MS = 300;
@@ -692,6 +696,11 @@ export class TimeClusteringRootView {
   private disposeRuntimeSubscription: (() => void) | null = null;
   private nowIndicatorTimerId: number | null = null;
   private pendingScrollFrameId: number | null = null;
+  private pendingCalendarScrollState: {
+    contextKey: string;
+    scrollTop: number;
+    scrollLeft: number;
+  } | null = null;
   private clusterEditModalOverlay: HTMLDivElement | null = null;
   private refreshClusterEditModalTranslations: (() => void) | null = null;
   private editingCluster: SelectedClusterRef | null = null;
@@ -1080,13 +1089,15 @@ export class TimeClusteringRootView {
     );
     const contextKey = this.getCalendarContextKey(snapshot, weekDateKeys);
     const previousScrollContainer = this.calendarScrollContainer;
-    const previousScrollState = previousScrollContainer
-      ? {
-          contextKey: previousScrollContainer.dataset.contextKey ?? '',
-          scrollTop: previousScrollContainer.scrollTop,
-          scrollLeft: previousScrollContainer.scrollLeft,
-        }
-      : null;
+    const previousScrollState =
+      this.pendingCalendarScrollState ??
+      (previousScrollContainer
+        ? {
+            contextKey: previousScrollContainer.dataset.contextKey ?? '',
+            scrollTop: previousScrollContainer.scrollTop,
+            scrollLeft: previousScrollContainer.scrollLeft,
+          }
+        : null);
 
     this.reconcileTransientState(snapshot, visibleDateKeys);
 
@@ -1099,12 +1110,19 @@ export class TimeClusteringRootView {
       contextKey,
       renderedClustersByDate
     );
-    if (
-      previousScrollState &&
-      previousScrollState.contextKey === contextKey &&
-      this.calendarScrollContainer
-    ) {
-      const { scrollLeft, scrollTop } = previousScrollState;
+    if (previousScrollState && this.calendarScrollContainer) {
+      const { scrollTop } = previousScrollState;
+      const scrollLeft = this.shouldPreserveHorizontalCalendarScroll(
+        previousScrollState.contextKey,
+        contextKey
+      )
+        ? previousScrollState.scrollLeft
+        : 0;
+      this.pendingCalendarScrollState = {
+        contextKey,
+        scrollTop,
+        scrollLeft,
+      };
       this.updateClusterActionMenu();
       this.clearPendingScrollFrame();
       this.pendingScrollFrameId = window.requestAnimationFrame(() => {
@@ -1113,6 +1131,7 @@ export class TimeClusteringRootView {
           this.calendarScrollContainer!.scrollTop = scrollTop;
           this.calendarScrollContainer!.scrollLeft = scrollLeft;
         });
+        this.pendingCalendarScrollState = null;
         this.updateClusterActionMenu();
         this.pendingScrollFrameId = null;
       });
@@ -1159,6 +1178,24 @@ export class TimeClusteringRootView {
     window.requestAnimationFrame(() => {
       this.suppressCalendarOverlayCloseOnScroll = false;
     });
+  }
+
+  private shouldPreserveHorizontalCalendarScroll(
+    previousContextKey: string,
+    nextContextKey: string
+  ): boolean {
+    if (previousContextKey === nextContextKey) {
+      return true;
+    }
+    return (
+      this.getCalendarContextKind(previousContextKey) ===
+      this.getCalendarContextKind(nextContextKey)
+    );
+  }
+
+  private getCalendarContextKind(contextKey: string): string {
+    const [kind] = contextKey.split(':', 1);
+    return kind ?? '';
   }
 
   private getCalendarContextKey(
@@ -1524,6 +1561,7 @@ export class TimeClusteringRootView {
     const isWeekMode = this.layoutMode === 'fullscreen';
     const container = document.createElement('div');
     container.className = 'h-full overflow-auto';
+    container.dataset.role = 'calendar-scroll-container';
     container.dataset.contextKey = contextKey;
     container.addEventListener(
       'scroll',
@@ -1579,10 +1617,16 @@ export class TimeClusteringRootView {
         );
 
     this.clearPendingScrollFrame();
+    this.pendingCalendarScrollState = {
+      contextKey: container.dataset.contextKey ?? '',
+      scrollTop: targetTop,
+      scrollLeft: container.scrollLeft,
+    };
     this.pendingScrollFrameId = window.requestAnimationFrame(() => {
       this.runWithSuppressedCalendarScrollClose(() => {
         container.scrollTop = targetTop;
       });
+      this.pendingCalendarScrollState = null;
       this.pendingScrollFrameId = null;
     });
   }
@@ -1657,7 +1701,7 @@ export class TimeClusteringRootView {
     body.style.minWidth = `${TIME_GUTTER_WIDTH_PX + WEEK_VIEW_DAY_WIDTH_PX * 7}px`;
 
     const columnsGrid = document.createElement('div');
-    columnsGrid.className = 'grid flex-1 gap-0';
+    columnsGrid.className = 'relative grid flex-1 gap-0';
     columnsGrid.style.gridTemplateColumns = `repeat(7, minmax(${WEEK_VIEW_DAY_WIDTH_PX}px, 1fr))`;
     columnsGrid.dataset.role = 'week-columns-grid';
 
@@ -1672,6 +1716,10 @@ export class TimeClusteringRootView {
       column.dataset.dateKey = dateKey;
       columnsGrid.appendChild(column);
     });
+
+    columnsGrid.appendChild(
+      this.renderWeekCurrentTimeIndicator(weekDateKeys, todayKey)
+    );
 
     body.append(this.renderTimeGutter(), columnsGrid);
     wrapper.append(header, body);
@@ -1759,6 +1807,37 @@ export class TimeClusteringRootView {
       clientX: event.clientX,
       clientY: event.clientY,
     });
+  }
+
+  private handleCalendarBackgroundDoubleClick(
+    event: MouseEvent,
+    dateKey: string,
+    calendarMode: 'day' | 'week'
+  ): void {
+    if (event.button !== 0) return;
+    if (this.activeClusterGesture) return;
+    const target = event.target;
+    const currentTarget = event.currentTarget;
+    if (!(target instanceof HTMLElement)) return;
+    if (!(currentTarget instanceof HTMLElement)) return;
+    if (target.closest('[data-role="cluster-block"]')) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    this.closeCalendarContextMenu();
+
+    const startMinute = this.resolveContextMenuStartMinute(
+      currentTarget,
+      event.clientY
+    );
+    this.createClusterAtDateKey(dateKey, { startMinute });
+    if (
+      calendarMode === 'week' &&
+      this.store.getSnapshot().selectedDateKey !== dateKey
+    ) {
+      this.store.setSelectedDate(dateKey);
+      return;
+    }
   }
 
   private beginClusterGesture(params: {
@@ -2577,6 +2656,8 @@ export class TimeClusteringRootView {
     column.dataset.selectedDate = isSelectedDate ? 'true' : 'false';
     column.onpointerdown = (event) =>
       this.handleCalendarBackgroundPointerDown(event, dateKey, calendarMode);
+    column.ondblclick = (event) =>
+      this.handleCalendarBackgroundDoubleClick(event, dateKey, calendarMode);
     column.oncontextmenu = (event) =>
       this.handleCalendarBackgroundContextMenu(event, dateKey);
 
@@ -2602,33 +2683,98 @@ export class TimeClusteringRootView {
       column.appendChild(eventBlock);
     });
 
-    if (dateKey === todayDateKey()) {
-      column.appendChild(this.renderCurrentTimeIndicator());
+    if (calendarMode === 'day') {
+      column.appendChild(
+        this.renderCurrentTimeIndicator(isToday ? 'solid' : 'dashed')
+      );
     }
 
     return column;
   }
 
-  private renderCurrentTimeIndicator(): HTMLDivElement {
-    const indicatorColor = '#2563eb';
+  private renderCurrentTimeIndicator(
+    variant: 'solid' | 'dashed'
+  ): HTMLDivElement {
     const indicator = document.createElement('div');
     indicator.className = 'pointer-events-none absolute inset-x-0 z-20';
     indicator.dataset.role = 'current-time-indicator';
+    indicator.dataset.variant = variant;
     indicator.style.top = `${(currentMinuteOfDay() / 60) * HOUR_ROW_HEIGHT_PX}px`;
 
     const line = document.createElement('div');
-    line.style.borderTop = `2px solid ${indicatorColor}`;
+    line.dataset.role = 'current-time-indicator-line';
+    line.style.width = '100%';
+    line.style.height = '2px';
+    if (variant === 'solid') {
+      line.style.background = CURRENT_TIME_LINE_COLOR;
+    } else {
+      line.style.backgroundImage = CURRENT_TIME_DASH_PATTERN;
+      line.style.backgroundRepeat = 'repeat-x';
+      line.style.backgroundSize = CURRENT_TIME_DASH_SIZE;
+    }
 
-    const dot = document.createElement('div');
-    dot.style.position = 'absolute';
-    dot.style.left = '-4px';
-    dot.style.top = '-4px';
-    dot.style.width = '8px';
-    dot.style.height = '8px';
-    dot.style.borderRadius = '999px';
-    dot.style.background = indicatorColor;
+    indicator.append(line);
+    if (variant === 'solid') {
+      const dot = document.createElement('div');
+      dot.dataset.role = 'current-time-indicator-dot';
+      dot.style.position = 'absolute';
+      dot.style.left = '-4px';
+      dot.style.top = '-4px';
+      dot.style.width = '8px';
+      dot.style.height = '8px';
+      dot.style.borderRadius = '999px';
+      dot.style.background = CURRENT_TIME_LINE_COLOR;
+      indicator.append(dot);
+    }
+    return indicator;
+  }
 
-    indicator.append(dot, line);
+  private renderWeekCurrentTimeIndicator(
+    weekDateKeys: string[],
+    todayKey: string
+  ): HTMLDivElement {
+    const indicator = document.createElement('div');
+    indicator.className = 'pointer-events-none absolute inset-x-0 z-20';
+    indicator.dataset.role = 'current-time-indicator';
+    indicator.dataset.variant = 'week';
+    indicator.style.top = `${(currentMinuteOfDay() / 60) * HOUR_ROW_HEIGHT_PX}px`;
+
+    const line = document.createElement('div');
+    line.dataset.role = 'current-time-indicator-line';
+    line.style.width = '100%';
+    line.style.height = '2px';
+    line.style.backgroundImage = CURRENT_TIME_DASH_PATTERN;
+    line.style.backgroundRepeat = 'repeat-x';
+    line.style.backgroundSize = CURRENT_TIME_DASH_SIZE;
+    indicator.append(line);
+
+    const todayIndex = weekDateKeys.indexOf(todayKey);
+    if (todayIndex >= 0) {
+      const dayWidthPercent = 100 / weekDateKeys.length;
+      const leftPercent = dayWidthPercent * todayIndex;
+
+      const segment = document.createElement('div');
+      segment.dataset.role = 'current-time-indicator-today-segment';
+      segment.style.position = 'absolute';
+      segment.style.left = `${leftPercent}%`;
+      segment.style.top = '0';
+      segment.style.width = `${dayWidthPercent}%`;
+      segment.style.height = '2px';
+      segment.style.background = CURRENT_TIME_LINE_COLOR;
+      indicator.append(segment);
+
+      const dot = document.createElement('div');
+      dot.dataset.role = 'current-time-indicator-dot';
+      dot.style.position = 'absolute';
+      dot.style.left = `calc(${leftPercent}% - 4px)`;
+      dot.style.top = '-4px';
+      dot.style.width = '8px';
+      dot.style.height = '8px';
+      dot.style.borderRadius = '999px';
+      dot.style.background = CURRENT_TIME_LINE_COLOR;
+      indicator.append(dot);
+    }
+
     return indicator;
   }
 
@@ -2835,14 +2981,12 @@ export class TimeClusteringRootView {
     const target = this.calendarContextMenuTarget;
     if (!target) return;
     this.closeCalendarContextMenu();
-    const clusterId = this.createClusterAtDateKey(target.dateKey, {
+    this.createClusterAtDateKey(target.dateKey, {
       startMinute: target.startMinute,
     });
     if (this.store.getSnapshot().selectedDateKey !== target.dateKey) {
       this.store.setSelectedDate(target.dateKey);
     }
-    this.selectedCluster = { clusterId, dateKey: target.dateKey };
-    this.requestRender();
   }
 
   private createClusterAtDateKey(
@@ -2895,7 +3039,7 @@ export class TimeClusteringRootView {
     this.selectedCluster = { clusterId, dateKey };
     this.store.createCluster({
       id: clusterId,
-      title: `Cluster ${existingClusters.length + 1}`,
+      title: this.i18n.t('timeClustering.newCluster'),
       colorToken:
         CLUSTER_COLOR_TOKENS[
           snapshot.clusters.length % CLUSTER_COLOR_TOKENS.length

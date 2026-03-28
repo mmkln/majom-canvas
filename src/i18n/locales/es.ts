@@ -503,6 +503,7 @@ export const es: AppTranslations = {
   'timeClustering.repeatsWeekly': 'Se repite semanalmente',
   'timeClustering.resizeEnd': 'Cambiar fin',
   'timeClustering.resizeStart': 'Cambiar inicio',
+  'timeClustering.newCluster': 'Nuevo bloque',
   'timeClustering.selectDate': 'Seleccionar fecha',
   'timeClustering.untitledCluster': 'Bloque sin título',
   'timeClustering.view.day': 'Día',

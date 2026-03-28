@@ -1,5 +1,5 @@
-import { LocalStorageTimeClusteringRepository } from './data/LocalStorageTimeClusteringRepository.ts';
 import type { TimeClusteringLayoutMode } from './domain/types.ts';
+import type { TimeClusteringRepository } from './data/TimeClusteringRepository.ts';
 import { TimeClusteringStore } from './state/TimeClusteringStore.ts';
 import { TimeClusteringRootView } from './ui/components/TimeClusteringRootView.ts';
 import {
@@ -7,9 +7,14 @@ import {
   type TimeClusteringSuggestion,
 } from './services/TimeClusteringSuggestionService.ts';
 import { AppRuntime, createAppRuntime } from '../../app-runtime/index.ts';
+import { environment } from '../../config/environment.ts';
+import { HttpInterceptorClient } from '../../majom-wrapper/data-access/http-interceptor.ts';
+import { TimeClusteringApiService } from '../../majom-wrapper/data-access/time-clustering-api-service.ts';
+import { ApiTimeClusteringRepository } from './data/ApiTimeClusteringRepository.ts';
 
 type TimeClusteringAppOptions = {
   runtime?: AppRuntime;
+  repository?: TimeClusteringRepository;
   initialLayoutMode?: TimeClusteringLayoutMode;
   initialShowOverlapWarnings?: boolean;
   onLayoutModeChange?: (mode: TimeClusteringLayoutMode) => void;
@@ -21,9 +26,7 @@ export class TimeClusteringApp {
     mode: TimeClusteringLayoutMode
   ) => void;
   private readonly onShowOverlapWarningsChange?: (show: boolean) => void;
-  private readonly store = new TimeClusteringStore(
-    new LocalStorageTimeClusteringRepository()
-  );
+  private readonly store: TimeClusteringStore;
   private readonly suggestionService =
     new StubTimeClusteringSuggestionService();
   private readonly view: TimeClusteringRootView;
@@ -37,6 +40,14 @@ export class TimeClusteringApp {
     this.showOverlapWarnings = options.initialShowOverlapWarnings ?? true;
     this.onLayoutModeChange = options.onLayoutModeChange;
     this.onShowOverlapWarningsChange = options.onShowOverlapWarningsChange;
+    this.store = new TimeClusteringStore(
+      options.repository ??
+        new ApiTimeClusteringRepository(
+          new TimeClusteringApiService(
+            new HttpInterceptorClient(environment.apiUrl)
+          )
+        )
+    );
     this.view = new TimeClusteringRootView({
       runtime: this.runtime,
       store: this.store,

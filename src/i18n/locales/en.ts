@@ -682,6 +682,7 @@ export const en = {
   'timeClustering.repeatsWeekly': 'Repeats weekly',
   'timeClustering.resizeEnd': 'Resize end for {title}',
   'timeClustering.resizeStart': 'Resize start for {title}',
+  'timeClustering.newCluster': 'New cluster',
   'timeClustering.selectDate': 'Select a date.',
   'timeClustering.untitledCluster': 'Untitled cluster',
   'timeClustering.view.day': 'Day',
@@ -712,7 +713,9 @@ export const en = {
   'workspaceControls.energyCurrent': 'Energy: {level}',
   'workspaceControls.energyHigh': "It's rolling",
   'workspaceControls.energyLow': 'Low battery',
-  'workspaceControls.energyMenuTitle': 'Energy level',
+  'workspaceControls.energyMenuTitle': 'Energy now',
+  'workspaceControls.energyMenuSubtitle': "What's your energy right now?",
+  'workspaceControls.energyPickerHint': 'Choose your current energy',
   'workspaceControls.energyNeutral': 'Steady',
   'workspaceControls.openEnergyStats': 'View stats',
   'workspaceControls.energySelector': 'Energy selector',
@@ -800,7 +803,6 @@ export const en = {
   'learningStudio.course.aiPrefix': 'AI course draft',
   'learningStudio.course.manualPrefix': 'Course draft',
   'learningStudio.eyebrow': 'Local prototype',
-  'learningStudio.fields.audience': 'Audience',
   'learningStudio.fields.description': 'Description',
   'learningStudio.fields.lessonDescription': 'Lesson description',
   'learningStudio.fields.lessonTitle': 'Lesson title',
@@ -814,11 +816,20 @@ export const en = {
   'learningStudio.home.courseStatsModules': '{count} modules',
   'learningStudio.home.courseStatsUnits': '{count} units',
   'learningStudio.home.courseTitleFallback': 'Untitled course',
-  'learningStudio.home.courseStats': '{modules} modules · {lessons} lessons',
   'learningStudio.home.emptyBody':
     'Create the first local course draft to unlock overview, build, and learner preview. No backend or enrollment API is required in this prototype phase.',
   'learningStudio.home.emptyTitle': 'No courses yet',
+  'learningStudio.home.filterAll': 'All',
+  'learningStudio.home.filterArchived': 'Archived',
+  'learningStudio.home.filterDrafts': 'Drafts',
+  'learningStudio.home.filterPublished': 'Published',
+  'learningStudio.home.noResultsBody':
+    'No courses match the current search or lifecycle filter.',
+  'learningStudio.home.noResultsTitle': 'No matching courses',
   'learningStudio.home.openCourseCta': 'Open overview',
+  'learningStudio.home.openCourseHint': 'Open course',
+  'learningStudio.home.searchLabel': 'Search courses',
+  'learningStudio.home.searchPlaceholder': 'Search by course title',
   'learningStudio.home.subtitle':
     'Browse local draft courses here, then open an overview before moving into build or learner preview.',
   'learningStudio.home.title': 'Course library',
@@ -874,37 +885,37 @@ export const en = {
     'Stay oriented in the course roadmap while opening the active lesson in a larger focus panel.',
   'learningStudio.learner.title': 'Learner preview',
   'learningStudio.overview.buildCta': 'Build course',
+  'learningStudio.overview.basicsTitle': 'Course basics',
+  'learningStudio.overview.basicsSummary':
+    'Course title and description are already set. Open details only when you need to refine them.',
   'learningStudio.overview.emptyBody':
     'Open a course from the library to review its structure, status, and next steps.',
   'learningStudio.overview.emptyTitle': 'No course selected for overview',
-  'learningStudio.overview.descriptionFallback':
-    'Add a short course description to clarify the promise and scope before you keep building.',
+  'learningStudio.overview.editBasicsCta': 'Edit details',
+  'learningStudio.overview.hideBasicsCta': 'Hide details',
   'learningStudio.overview.learnCta': 'Preview learner',
-  'learningStudio.overview.learnerHint':
-    'Learners currently invited or enrolled locally.',
+  'learningStudio.overview.moduleCheckpoints': '{count} checkpoints',
+  'learningStudio.overview.moduleExercises': '{count} exercises',
   'learningStudio.overview.moduleLessons': '{count} lessons',
+  'learningStudio.overview.moduleNeedsLessons': 'Needs lessons',
   'learningStudio.overview.nextBuildBody':
     'Add modules, lessons, exercises, and sequencing details.',
   'learningStudio.overview.nextBuildTitle': 'Continue building',
   'learningStudio.overview.nextLearnBody':
     'Check how the course feels for a student before sharing it.',
   'learningStudio.overview.nextLearnTitle': 'Preview the learner journey',
-  'learningStudio.overview.nextSubtitle':
-    'Use the overview as the handoff between structure work, learner preview, and course management.',
   'learningStudio.overview.nextTitle': 'What should happen next?',
-  'learningStudio.overview.openModuleCta': 'Edit module',
+  'learningStudio.overview.saveCta': 'Save basics',
   'learningStudio.overview.structureEmptyBody':
     'Move into Build to add the first module and shape the learner path.',
   'learningStudio.overview.structureEmptyTitle': 'No modules yet',
-  'learningStudio.overview.structureSubtitle':
-    'Review the modules and lesson density before jumping into editing.',
   'learningStudio.overview.structureTitle': 'Course structure',
-  'learningStudio.overview.subtitle':
-    'Start with a clear course overview, then move into build, learner preview, or management.',
   'learningStudio.lesson.defaultCheckpointTitle': 'Checkpoint',
   'learningStudio.lesson.defaultExerciseTitle': 'Exercise',
   'learningStudio.lesson.defaultLessonTitle': 'Lesson',
   'learningStudio.module.defaultTitle': 'Module',
+  'learningStudio.canvasHost.unavailable': 'Canvas is unavailable in this environment.',
+  'learningStudio.canvasHost.mountError': 'Canvas failed to load.',
   'learningStudio.nav.authoring': 'Authoring',
   'learningStudio.nav.build': 'Build',
   'learningStudio.nav.home': 'Home',
@@ -926,6 +937,15 @@ export const en = {
     'The course already has structure to keep building.',
   'learningStudio.build.courseMissingDescriptions':
     '{count} units still need a description.',
+  'learningStudio.build.workspaceTitle': 'Build on canvas',
+  'learningStudio.build.workspaceHint':
+    'Add modules, select nodes, and double-click elements when you want to edit details.',
+  'learningStudio.build.addModuleCta': 'Add module',
+  'learningStudio.build.addLessonCta': 'Add lesson',
+  'learningStudio.build.detailsModalTitle': 'Edit details',
+  'learningStudio.build.emptyTitle': 'Start with the first module',
+  'learningStudio.build.emptyBody':
+    'Create the first module here. The canvas becomes the working map for lessons, exercises, and checkpoints.',
   'learningStudio.build.inspectorCourseTitle': 'Course summary',
   'learningStudio.build.inspectorModuleTitle': 'Module',
   'learningStudio.build.inspectorUnitTitle': 'Unit',
@@ -958,8 +978,6 @@ export const en = {
   'learningStudio.preview.warningMissingContent':
     'This lesson still needs meaningful learner-facing content.',
   'learningStudio.preview.warningsTitle': 'Warnings',
-  'learningStudio.placeholders.courseAudience':
-    'Who is this course for?',
   'learningStudio.placeholders.courseDescription':
     'Describe the promise, scope, and tone of the course.',
   'learningStudio.placeholders.courseTitle':

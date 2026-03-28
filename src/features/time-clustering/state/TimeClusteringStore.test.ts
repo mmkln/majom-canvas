@@ -47,6 +47,45 @@ function createCluster(params: {
 }
 
 describe('TimeClusteringStore', () => {
+  it('hydrates from an async repository snapshot when no local edits happened first', async () => {
+    let resolveLoad: ((snapshot: TimeClusteringStateSnapshot) => void) | null =
+      null;
+    const store = new TimeClusteringStore({
+      load: () =>
+        new Promise<TimeClusteringStateSnapshot>((resolve) => {
+          resolveLoad = resolve;
+        }),
+      save: vi.fn(),
+      clear: vi.fn(),
+    });
+
+    expect(resolveLoad).toBeTypeOf('function');
+    resolveLoad!({
+      selectedDateKey: '2026-04-02',
+      weekAnchorDateKey: '2026-03-31',
+      lastWarnings: [],
+      clusters: [
+        createCluster({
+          id: 'cluster-api',
+          title: 'API snapshot',
+          colorToken: 'teal',
+          startDateKey: '2026-04-02',
+          startMinute: 9 * 60,
+          endMinute: 10 * 60,
+        }),
+      ],
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(store.getSnapshot().selectedDateKey).toBe('2026-04-02');
+    expect(store.getSnapshot().clusters.map((cluster) => cluster.id)).toEqual([
+      'cluster-api',
+    ]);
+
+    store.destroy();
+  });
+
   it('detects an overlap against a carry-over cluster from the previous day', () => {
     const store = new TimeClusteringStore(
       createRepository({

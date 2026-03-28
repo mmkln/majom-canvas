@@ -688,6 +688,7 @@ export const uk = {
   'timeClustering.repeatsWeekly': 'Повторюється щотижня',
   'timeClustering.resizeEnd': 'Змінити кінець для {title}',
   'timeClustering.resizeStart': 'Змінити початок для {title}',
+  'timeClustering.newCluster': 'Новий кластер',
   'timeClustering.selectDate': 'Виберіть дату.',
   'timeClustering.untitledCluster': 'Кластер без назви',
   'timeClustering.view.day': 'День',
@@ -718,7 +719,9 @@ export const uk = {
   'workspaceControls.energyCurrent': 'Енергія: {level}',
   'workspaceControls.energyHigh': 'Пішло',
   'workspaceControls.energyLow': 'Прокидаюсь',
-  'workspaceControls.energyMenuTitle': 'Рівень енергії',
+  'workspaceControls.energyMenuTitle': 'Енергія зараз',
+  'workspaceControls.energyMenuSubtitle': 'Яка твоя енергія зараз?',
+  'workspaceControls.energyPickerHint': 'Оберіть поточний рівень енергії',
   'workspaceControls.energyNeutral': 'Рівно',
   'workspaceControls.openEnergyStats': 'Статистика',
   'workspaceControls.energySelector': 'Вибір енергії',
@@ -806,7 +809,6 @@ export const uk = {
   'learningStudio.course.aiPrefix': 'AI-чернетка курсу',
   'learningStudio.course.manualPrefix': 'Чернетка курсу',
   'learningStudio.eyebrow': 'Локальний прототип',
-  'learningStudio.fields.audience': 'Аудиторія',
   'learningStudio.fields.description': 'Опис',
   'learningStudio.fields.lessonDescription': 'Опис уроку',
   'learningStudio.fields.lessonTitle': 'Назва уроку',
@@ -820,11 +822,20 @@ export const uk = {
   'learningStudio.home.courseStatsModules': '{count} модулів',
   'learningStudio.home.courseStatsUnits': '{count} елементів',
   'learningStudio.home.courseTitleFallback': 'Курс без назви',
-  'learningStudio.home.courseStats': '{modules} модулів · {lessons} уроків',
   'learningStudio.home.emptyBody':
     'Створи першу локальну чернетку курсу, щоб відкрити огляд, побудову та preview для студента. На цьому етапі backend та enrollment API не потрібні.',
   'learningStudio.home.emptyTitle': 'Курсів ще немає',
+  'learningStudio.home.filterAll': 'Усі',
+  'learningStudio.home.filterArchived': 'Архівні',
+  'learningStudio.home.filterDrafts': 'Чернетки',
+  'learningStudio.home.filterPublished': 'Опубліковані',
+  'learningStudio.home.noResultsBody':
+    'Жоден курс не відповідає поточному пошуку або lifecycle-фільтру.',
+  'learningStudio.home.noResultsTitle': 'Немає відповідних курсів',
   'learningStudio.home.openCourseCta': 'Відкрити огляд',
+  'learningStudio.home.openCourseHint': 'Відкрити курс',
+  'learningStudio.home.searchLabel': 'Пошук курсів',
+  'learningStudio.home.searchPlaceholder': 'Шукай за назвою курсу',
   'learningStudio.home.subtitle':
     'Тут живуть локальні чернетки курсів: відкрий огляд, а тоді переходь до побудови або preview.',
   'learningStudio.home.title': 'Бібліотека курсів',
@@ -880,37 +891,38 @@ export const uk = {
     'Тримай орієнтир у roadmap курсу, відкриваючи активний урок у більшій focus panel.',
   'learningStudio.learner.title': 'Режим студента',
   'learningStudio.overview.buildCta': 'Перейти до побудови',
+  'learningStudio.overview.basicsTitle': 'База курсу',
+  'learningStudio.overview.basicsSummary':
+    'Назва й опис курсу вже задані. Відкривай деталі лише коли справді треба їх уточнити.',
   'learningStudio.overview.emptyBody':
     'Відкрий курс із бібліотеки, щоб побачити його структуру, статус і наступні кроки.',
   'learningStudio.overview.emptyTitle': 'Для огляду не вибрано курс',
-  'learningStudio.overview.descriptionFallback':
-    'Додай короткий опис курсу, щоб зафіксувати його обіцянку й обсяг перед подальшою роботою.',
+  'learningStudio.overview.editBasicsCta': 'Редагувати деталі',
+  'learningStudio.overview.hideBasicsCta': 'Сховати деталі',
   'learningStudio.overview.learnCta': 'Preview як студент',
-  'learningStudio.overview.learnerHint':
-    'Студенти, яких локально запросили або зарахували.',
+  'learningStudio.overview.moduleCheckpoints': '{count} checkpoint-ів',
+  'learningStudio.overview.moduleExercises': '{count} вправ',
   'learningStudio.overview.moduleLessons': '{count} уроків',
+  'learningStudio.overview.moduleNeedsLessons': 'Потрібні уроки',
   'learningStudio.overview.nextBuildBody':
     'Додай модулі, уроки, вправи та послідовність проходження.',
   'learningStudio.overview.nextBuildTitle': 'Продовжити побудову',
   'learningStudio.overview.nextLearnBody':
     'Подивись, як курс відчувається для студента, перш ніж ділитися ним.',
   'learningStudio.overview.nextLearnTitle': 'Перевірити шлях студента',
-  'learningStudio.overview.nextSubtitle':
-    'Огляд пов’язує побудову, preview для студента й керування курсом.',
   'learningStudio.overview.nextTitle': 'Що робити далі?',
-  'learningStudio.overview.openModuleCta': 'Редагувати модуль',
+  'learningStudio.overview.saveCta': 'Зберегти базу',
   'learningStudio.overview.structureEmptyBody':
     'Перейди до побудови, щоб додати перший модуль і сформувати шлях студента.',
   'learningStudio.overview.structureEmptyTitle': 'Модулів ще немає',
-  'learningStudio.overview.structureSubtitle':
-    'Переглянь модулі й щільність уроків перед редагуванням.',
   'learningStudio.overview.structureTitle': 'Структура курсу',
-  'learningStudio.overview.subtitle':
-    'Почни з огляду курсу, а далі переходь до побудови, preview і керування.',
   'learningStudio.lesson.defaultCheckpointTitle': 'Checkpoint',
   'learningStudio.lesson.defaultExerciseTitle': 'Вправа',
   'learningStudio.lesson.defaultLessonTitle': 'Урок',
   'learningStudio.module.defaultTitle': 'Модуль',
+  'learningStudio.canvasHost.unavailable':
+    'Канвас недоступний у цьому середовищі.',
+  'learningStudio.canvasHost.mountError': 'Не вдалося завантажити канвас.',
   'learningStudio.nav.authoring': 'Authoring',
   'learningStudio.nav.build': 'Побудова',
   'learningStudio.nav.home': 'Головна',
@@ -933,6 +945,15 @@ export const uk = {
     'Курс уже має структуру для подальшого build.',
   'learningStudio.build.courseMissingDescriptions':
     '{count} юнітів ще потребують опису.',
+  'learningStudio.build.workspaceTitle': 'Побудова на канвасі',
+  'learningStudio.build.workspaceHint':
+    'Додавай модулі, вибирай вузли й відкривай деталі подвійним кліком.',
+  'learningStudio.build.addModuleCta': 'Додати модуль',
+  'learningStudio.build.addLessonCta': 'Додати урок',
+  'learningStudio.build.detailsModalTitle': 'Редагувати деталі',
+  'learningStudio.build.emptyTitle': 'Почни з першого модуля',
+  'learningStudio.build.emptyBody':
+    'Створи тут перший модуль. Канвас стане робочою мапою для уроків, вправ і checkpoint-ів.',
   'learningStudio.build.inspectorCourseTitle': 'Підсумок курсу',
   'learningStudio.build.inspectorModuleTitle': 'Модуль',
   'learningStudio.build.inspectorUnitTitle': 'Юніт',
@@ -965,8 +986,6 @@ export const uk = {
   'learningStudio.preview.warningMissingContent':
     'Цьому уроку ще бракує змістовного learner-facing контенту.',
   'learningStudio.preview.warningsTitle': 'Попередження',
-  'learningStudio.placeholders.courseAudience':
-    'Для кого цей курс?',
   'learningStudio.placeholders.courseDescription':
     'Опиши обіцянку, scope і тон курсу.',
   'learningStudio.placeholders.courseTitle':

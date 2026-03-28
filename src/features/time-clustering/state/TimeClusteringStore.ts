@@ -16,7 +16,10 @@ import type {
   TimeClusteringStateSnapshot,
   TimeClusteringSuggestionAction,
 } from '../domain/types.ts';
-import type { TimeClusteringRepository } from '../data/TimeClusteringRepository.ts';
+import type {
+  TimeClusteringRepository,
+  TimeClusteringRepositoryResult,
+} from '../data/TimeClusteringRepository.ts';
 
 export type TimeClusteringStoreListener = (
   snapshot: TimeClusteringStateSnapshot
@@ -315,18 +318,35 @@ export class TimeClusteringStore {
   private readonly stateSubject: BehaviorSubject<TimeClusteringStateSnapshot>;
   private readonly actions$ = new Subject<TimeClusteringStoreAction>();
   private readonly subscriptions = new Subscription();
+  private hasLocalChanges = false;
+  private writeQueue = Promise.resolve();
 
   constructor(private readonly repository: TimeClusteringRepository) {
+    const initialLoad = repository.load();
+    const syncInitialSnapshot = this.resolveSyncLoad(initialLoad);
     this.stateSubject = new BehaviorSubject<TimeClusteringStateSnapshot>(
-      repository.load() ?? createDefaultSnapshot()
+      syncInitialSnapshot ?? createDefaultSnapshot()
     );
     this.subscriptions.add(
       this.actions$.subscribe((action) => {
         const next = this.reduce(this.stateSubject.value, action);
         this.stateSubject.next(next);
-        this.repository.save(next);
+        if (action.type !== 'initializeFromStorage') {
+          this.hasLocalChanges = true;
+          this.enqueuePersist(next);
+        }
       })
     );
+    if (this.isPromiseLike(initialLoad)) {
+      void initialLoad
+        .then((snapshot) => {
+          if (!snapshot || this.hasLocalChanges) return;
+          this.stateSubject.next(snapshot);
+        })
+        .catch((error) => {
+          console.warn('Failed to hydrate time clustering snapshot.', error);
+        });
+    }
   }
 
   public get state$() {
@@ -395,6 +415,32 @@ export class TimeClusteringStore {
     this.subscriptions.unsubscribe();
     this.actions$.complete();
     this.stateSubject.complete();
+  }
+
+  private enqueuePersist(snapshot: TimeClusteringStateSnapshot): void {
+    this.writeQueue = this.writeQueue
+      .catch(() => undefined)
+      .then(() => this.repository.save(snapshot))
+      .catch((error) => {
+        console.warn('Failed to persist time clustering snapshot.', error);
+      });
+  }
+
+  private isPromiseLike<T>(
+    value: TimeClusteringRepositoryResult<T>
+  ): value is Promise<T> {
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      'then' in value &&
+      typeof value.then === 'function'
+    );
+  }
+
+  private resolveSyncLoad(
+    value: TimeClusteringRepositoryResult<TimeClusteringStateSnapshot | null>
+  ): TimeClusteringStateSnapshot | null {
+    return this.isPromiseLike(value) ? null : value;
   }
 
   private reduce(

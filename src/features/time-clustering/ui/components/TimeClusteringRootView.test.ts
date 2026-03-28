@@ -164,6 +164,22 @@ function dispatchContextMenuEvent(
   );
 }
 
+function dispatchDoubleClickEvent(
+  target: EventTarget,
+  options: { clientX?: number; clientY?: number } = {}
+): void {
+  target.dispatchEvent(
+    new MouseEvent('dblclick', {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      buttons: 1,
+      clientX: options.clientX ?? 0,
+      clientY: options.clientY ?? 0,
+    })
+  );
+}
+
 function getCluster(
   store: TimeClusteringStore,
   clusterId: string
@@ -281,6 +297,40 @@ describe('TimeClusteringRootView', () => {
         '[data-role="cluster-block"][data-cluster-id="cluster-2"]'
       )
     ).not.toBeNull();
+
+    view.unmount();
+    store.destroy();
+  });
+
+  it('renders a dashed current-time line for non-today day columns in day mode', () => {
+    const store = new TimeClusteringStore(
+      createRepository(
+        createSnapshot({
+          selectedDateKey: '2026-03-26',
+          weekAnchorDateKey: '2026-03-26',
+        })
+      )
+    );
+    const { view } = createView(store);
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    view.mount(parent);
+
+    const indicator = parent.querySelector<HTMLElement>(
+      '[data-role="calendar-column"][data-date-key="2026-03-26"] [data-role="current-time-indicator"]'
+    );
+    const line = indicator?.querySelector<HTMLElement>(
+      '[data-role="current-time-indicator-line"]'
+    );
+
+    expect(indicator).not.toBeNull();
+    expect(indicator?.dataset.variant).toBe('dashed');
+    expect(line?.style.backgroundRepeat).toBe('repeat-x');
+    expect(line?.style.backgroundSize).toBe('20px 2px');
+    expect(
+      indicator?.querySelector('[data-role="current-time-indicator-dot"]')
+    ).toBeNull();
 
     view.unmount();
     store.destroy();
@@ -498,12 +548,150 @@ describe('TimeClusteringRootView', () => {
 
     expect(store.getSnapshot().clusters).toHaveLength(initialCount + 1);
     const createdCluster = store.getSnapshot().clusters.at(-1);
+    expect(createdCluster?.title).toBe('New cluster');
     expect(createdCluster?.startAtIso).toBe(
       isoFromDateKeyMinute('2026-03-25', 7 * 60 + 30)
     );
     expect(createdCluster?.endAtIso).toBe(
       isoFromDateKeyMinute('2026-03-25', 9 * 60)
     );
+
+    view.unmount();
+    store.destroy();
+  });
+
+  it('creates a cluster when the user double clicks empty calendar space', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function mockGetBoundingClientRect(this: HTMLElement): DOMRect {
+        if (
+          this.dataset.role === 'calendar-column' &&
+          this.dataset.dateKey === '2026-03-25'
+        ) {
+          return {
+            x: 40,
+            y: 100,
+            width: 320,
+            height: 24 * 56,
+            top: 100,
+            right: 360,
+            bottom: 100 + 24 * 56,
+            left: 40,
+            toJSON: () => ({}),
+          } as DOMRect;
+        }
+
+        return {
+          x: 0,
+          y: 0,
+          width: 0,
+          height: 0,
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+          toJSON: () => ({}),
+        } as DOMRect;
+      }
+    );
+
+    const store = new TimeClusteringStore(createRepository(createSnapshot()));
+    const { view } = createView(store);
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    view.mount(parent);
+
+    const column = parent.querySelector<HTMLDivElement>(
+      '[data-role="calendar-column"][data-date-key="2026-03-25"]'
+    );
+    expect(column).not.toBeNull();
+
+    const initialCount = store.getSnapshot().clusters.length;
+    dispatchDoubleClickEvent(column!, {
+      clientX: 120,
+      clientY: 100 + 56 * 7.5,
+    });
+
+    expect(store.getSnapshot().clusters).toHaveLength(initialCount + 1);
+    const createdCluster = store.getSnapshot().clusters.at(-1);
+    expect(createdCluster?.title).toBe('New cluster');
+    expect(createdCluster?.startAtIso).toBe(
+      isoFromDateKeyMinute('2026-03-25', 7 * 60 + 30)
+    );
+    expect(createdCluster?.endAtIso).toBe(
+      isoFromDateKeyMinute('2026-03-25', 9 * 60)
+    );
+
+    view.unmount();
+    store.destroy();
+  });
+
+  it('preserves calendar scroll when creating a cluster from empty space', () => {
+    vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback: FrameRequestCallback): number => {
+        callback(0);
+        return 1;
+      });
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function mockGetBoundingClientRect(this: HTMLElement): DOMRect {
+        if (
+          this.dataset.role === 'calendar-column' &&
+          this.dataset.dateKey === '2026-03-25'
+        ) {
+          return {
+            x: 40,
+            y: 100,
+            width: 320,
+            height: 24 * 56,
+            top: 100,
+            right: 360,
+            bottom: 100 + 24 * 56,
+            left: 40,
+            toJSON: () => ({}),
+          } as DOMRect;
+        }
+
+        return {
+          x: 0,
+          y: 0,
+          width: 0,
+          height: 0,
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+          toJSON: () => ({}),
+        } as DOMRect;
+      }
+    );
+
+    const store = new TimeClusteringStore(createRepository(createSnapshot()));
+    const { view } = createView(store);
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    view.mount(parent);
+
+    const scrollContainer = parent.querySelector<HTMLDivElement>(
+      '[data-role="calendar-scroll-container"]'
+    );
+    const column = parent.querySelector<HTMLDivElement>(
+      '[data-role="calendar-column"][data-date-key="2026-03-25"]'
+    );
+    expect(scrollContainer).not.toBeNull();
+    expect(column).not.toBeNull();
+
+    scrollContainer!.scrollTop = 640;
+    dispatchDoubleClickEvent(column!, {
+      clientX: 120,
+      clientY: 100 + 56 * 7.5,
+    });
+
+    const restoredScrollContainer = parent.querySelector<HTMLDivElement>(
+      '[data-role="calendar-scroll-container"]'
+    );
+    expect(restoredScrollContainer?.scrollTop).toBe(640);
 
     view.unmount();
     store.destroy();
@@ -1233,6 +1421,32 @@ describe('TimeClusteringRootView', () => {
       '[data-role="calendar-day-column"]'
     );
     expect(dayColumns).toHaveLength(7);
+    const currentTimeIndicators = parent.querySelectorAll(
+      '[data-role="week-columns-grid"] > [data-role="current-time-indicator"]'
+    );
+    expect(currentTimeIndicators).toHaveLength(1);
+    expect(
+      parent.querySelectorAll(
+        '[data-role="calendar-day-column"] [data-role="current-time-indicator"]'
+      )
+    ).toHaveLength(0);
+    const weekIndicator = parent.querySelector<HTMLElement>(
+      '[data-role="week-columns-grid"] > [data-role="current-time-indicator"]'
+    );
+    expect(weekIndicator?.dataset.variant).toBe('week');
+    expect(
+      weekIndicator?.querySelector('[data-role="current-time-indicator-dot"]')
+    ).not.toBeNull();
+    expect(
+      weekIndicator
+        ?.querySelector<HTMLElement>('[data-role="current-time-indicator-line"]')
+        ?.style.backgroundSize
+    ).toBe('20px 2px');
+    expect(
+      weekIndicator?.querySelector<HTMLElement>(
+        '[data-role="current-time-indicator-today-segment"]'
+      )?.style.left
+    ).toBe(`${(100 / 7) * 2}%`);
     const weekDayHeaders = parent.querySelectorAll(
       '[data-role="week-day-header"]'
     );
@@ -1418,6 +1632,51 @@ describe('TimeClusteringRootView', () => {
       view.unmount();
       store.destroy();
     }
+  });
+
+  it('preserves vertical calendar scroll when toggling between day and week layouts', () => {
+    vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback: FrameRequestCallback): number => {
+        callback(0);
+        return 1;
+      });
+    const store = new TimeClusteringStore(createRepository(createSnapshot()));
+    const { view } = createView(store);
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    view.mount(parent);
+
+    const layoutToggleButton = parent.querySelector<HTMLButtonElement>(
+      '[data-role="view-mode-button"][data-mode="layout-toggle"]'
+    );
+    const dayScrollContainer = parent.querySelector<HTMLDivElement>(
+      '[data-role="calendar-scroll-container"]'
+    );
+    expect(dayScrollContainer).not.toBeNull();
+
+    dayScrollContainer!.scrollTop = 640;
+    layoutToggleButton?.click();
+
+    const weekScrollContainer = parent.querySelector<HTMLDivElement>(
+      '[data-role="calendar-scroll-container"]'
+    );
+    expect(weekScrollContainer?.scrollTop).toBe(640);
+
+    parent
+      .querySelector<HTMLButtonElement>(
+        '[data-role="view-mode-button"][data-mode="layout-toggle"]'
+      )
+      ?.click();
+
+    const restoredDayScrollContainer = parent.querySelector<HTMLDivElement>(
+      '[data-role="calendar-scroll-container"]'
+    );
+    expect(restoredDayScrollContainer?.scrollTop).toBe(640);
+
+    view.unmount();
+    store.destroy();
   });
 
   it('switches the selected day when clicking a week header without changing layout', () => {
