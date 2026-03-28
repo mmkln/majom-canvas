@@ -402,9 +402,13 @@ export const en = {
   'canvasMenu.alignmentGuides': 'Alignment guides',
   'canvasMenu.autosave': 'Autosave',
   'canvasMenu.canvasAnimations': 'Canvas animations',
+  'canvasMenu.containerGuides': 'Container guides',
   'canvasMenu.deleteCanvas': 'Delete canvas',
   'canvasMenu.duplicateCanvas': 'Duplicate canvas',
+  'canvasMenu.guideOptions': 'Guide options',
   'canvasMenu.openCanvasMenu': 'Open canvas menu',
+  'canvasMenu.spacingGuides': 'Spacing guides',
+  'canvasMenu.viewportCenterGuides': 'Viewport center guides',
   'canvas.duplicateFailed': 'Failed to duplicate canvas.',
   'canvas.duplicatePrefix': 'Copy - ',
   'canvas.duplicateSuccess': 'Canvas duplicated.',
@@ -724,6 +728,7 @@ export const en = {
   'workspaceControls.kanban': 'Kanban',
   'workspaceControls.learningStudio': 'Learning Studio',
   'workspaceControls.hideControls': 'Hide workspace controls',
+  'workspaceControls.pinControls': 'Pin workspace controls',
   'workspaceControls.openRoutines': 'Open routines',
   'workspaceControls.routines': 'Routines',
   'workspaceControls.selectEnergy': 'Select energy',
@@ -732,6 +737,7 @@ export const en = {
   'workspaceControls.toggleAiAssistantPanel': 'Toggle AI assistant panel',
   'workspaceControls.toggleTimeClusteringPanel':
     'Toggle time clustering panel',
+  'workspaceControls.unpinControls': 'Unpin workspace controls',
   'energyStats.chartAriaLabel': 'Energy trend over the last {days} days',
   'energyStats.empty': 'No energy entries yet.',
   'energyStats.error': 'Failed to load energy stats.',
@@ -745,6 +751,7 @@ export const en = {
   'energyStats.title': 'Energy stats',
   'learningStudio.actions.createAi': 'Create with AI',
   'learningStudio.actions.createManual': 'Create manually',
+  'learningStudio.actions.addCheckpoint': 'Add checkpoint',
   'learningStudio.actions.addExercise': 'Add exercise',
   'learningStudio.actions.addLesson': 'Add lesson',
   'learningStudio.actions.addModule': 'Add module',
@@ -813,6 +820,8 @@ export const en = {
   'learningStudio.manageTitle': 'Manage',
   'learningStudio.home.courseDescriptionFallback':
     'No description yet. Open Build to shape this course draft.',
+  'learningStudio.home.courseCount': '{count} courses',
+  'learningStudio.home.createCourse': 'Create new',
   'learningStudio.home.courseStatsModules': '{count} modules',
   'learningStudio.home.courseStatsUnits': '{count} units',
   'learningStudio.home.courseTitleFallback': 'Untitled course',
@@ -830,6 +839,7 @@ export const en = {
   'learningStudio.home.openCourseHint': 'Open course',
   'learningStudio.home.searchLabel': 'Search courses',
   'learningStudio.home.searchPlaceholder': 'Search by course title',
+  'learningStudio.home.sectionTitle': 'Courses',
   'learningStudio.home.subtitle':
     'Browse local draft courses here, then open an overview before moving into build or learner preview.',
   'learningStudio.home.title': 'Course library',
@@ -893,23 +903,79 @@ export const en = {
   'learningStudio.overview.emptyTitle': 'No course selected for overview',
   'learningStudio.overview.editBasicsCta': 'Edit details',
   'learningStudio.overview.hideBasicsCta': 'Hide details',
+  'learningStudio.overview.issueLessonsNeedDescriptions':
+    '{count} lessons still need descriptions.',
+  'learningStudio.overview.issueLessonsNeedDescriptionsDetail':
+    '{count} lessons still need descriptions before the learner-facing flow feels complete.',
+  'learningStudio.overview.issueMissingDescription':
+    'Add a course description.',
+  'learningStudio.overview.issueMissingModules': 'Create the first module.',
+  'learningStudio.overview.issueMissingTitle': 'Add a course title.',
+  'learningStudio.overview.issueModulesNeedLessons':
+    '{count} modules still need lessons.',
+  'learningStudio.overview.issueTypeCritical': 'Critical',
+  'learningStudio.overview.issueTypeReady': 'Ready',
+  'learningStudio.overview.issueTypeWarning': 'Warning',
   'learningStudio.overview.learnCta': 'Preview learner',
+  'learningStudio.overview.lifecycleArchived':
+    'Archived courses stay out of the active catalog.',
+  'learningStudio.overview.lifecycleActionTitle': 'Recommended next action',
+  'learningStudio.overview.lifecycleDraftLabel': 'Draft and published',
+  'learningStudio.overview.lifecycleLearnerLabel': 'Learner access',
+  'learningStudio.overview.lifecycleLearnersBlocked':
+    'Learners cannot open this course until a version is published.',
+  'learningStudio.overview.lifecycleLearnersCurrent':
+    'Current learners stay on the version they already started. Active enrollments: {count}.',
+  'learningStudio.overview.lifecycleLearnersReady':
+    'New learners open the latest published version.',
+  'learningStudio.overview.lifecycleNoPublished':
+    'No published version yet. Draft changes stay private.',
+  'learningStudio.overview.lifecyclePrivateDraftChanges':
+    'Draft changes are private until you publish.',
+  'learningStudio.overview.lifecyclePublishedCurrent':
+    'Published version is up to date.',
+  'learningStudio.overview.lifecycleStatusLabel': 'Status',
+  'learningStudio.overview.lifecycleTitle': 'Publishing',
+  'learningStudio.overview.lifecycleUpdatedLabel': 'Last updated',
   'learningStudio.overview.moduleCheckpoints': '{count} checkpoints',
   'learningStudio.overview.moduleExercises': '{count} exercises',
   'learningStudio.overview.moduleLessons': '{count} lessons',
   'learningStudio.overview.moduleNeedsLessons': 'Needs lessons',
+  'learningStudio.overview.moduleReady': 'Ready',
   'learningStudio.overview.nextBuildBody':
     'Add modules, lessons, exercises, and sequencing details.',
+  'learningStudio.overview.nextBuildReasonBasics':
+    'Finish the course basics so the structure has enough context.',
+  'learningStudio.overview.nextBuildReasonMissingModules':
+    'Start the course structure by adding the first module.',
+  'learningStudio.overview.nextBuildReasonModulesNeedLessons':
+    '{count} modules still need lessons before the learner path is coherent.',
   'learningStudio.overview.nextBuildTitle': 'Continue building',
   'learningStudio.overview.nextLearnBody':
     'Check how the course feels for a student before sharing it.',
+  'learningStudio.overview.nextPreviewReasonPublishedStable':
+    'Published version is live. Reopen Preview to spot-check the learner path.',
+  'learningStudio.overview.nextPreviewReasonValidate':
+    'Structure is complete enough to validate the learner flow before sharing it.',
   'learningStudio.overview.nextLearnTitle': 'Preview the learner journey',
-  'learningStudio.overview.nextTitle': 'What should happen next?',
+  'learningStudio.overview.nextTitle': 'Next step',
+  'learningStudio.overview.readinessReadyBody':
+    'The structure is complete enough to open Preview and validate the learner flow.',
+  'learningStudio.overview.readinessReadyTitle':
+    'Ready for learner validation',
+  'learningStudio.overview.readinessTitle': 'Readiness',
+  'learningStudio.overview.footerUpdatedAt': 'Last updated {date}',
   'learningStudio.overview.saveCta': 'Save basics',
+  'learningStudio.overview.startWorkCta': 'Start working',
+  'learningStudio.overview.structureMoreModules': '{count} more modules',
   'learningStudio.overview.structureEmptyBody':
     'Move into Build to add the first module and shape the learner path.',
   'learningStudio.overview.structureEmptyTitle': 'No modules yet',
   'learningStudio.overview.structureTitle': 'Course structure',
+  'learningStudio.overview.workStatusArchived': 'Archived',
+  'learningStudio.overview.workStatusInProgress': 'In progress',
+  'learningStudio.overview.workStatusNeedsReview': 'Needs review',
+  'learningStudio.overview.workStatusReady': 'Ready',
   'learningStudio.lesson.defaultCheckpointTitle': 'Checkpoint',
   'learningStudio.lesson.defaultExerciseTitle': 'Exercise',
   'learningStudio.lesson.defaultLessonTitle': 'Lesson',
@@ -925,7 +991,12 @@ export const en = {
   'learningStudio.navigationLabel': 'Course workflow',
   'learningStudio.shell.build': 'Build',
   'learningStudio.shell.overview': 'Overview',
+  'learningStudio.shell.publish': 'Publish',
   'learningStudio.shell.preview': 'Preview',
+  'learningStudio.shell.settings': 'Settings',
+  'learningStudio.shell.versionDraft': 'Draft',
+  'learningStudio.shell.versionPublished': 'v{version}',
+  'learningStudio.shell.versionState': '{state} · v{version}',
   'learningStudio.stage.backHome': 'Back to library',
   'learningStudio.stage.previewBody':
     'Validate the course flow in a read-only sandbox before building learner runtime.',
@@ -937,15 +1008,15 @@ export const en = {
     'The course already has structure to keep building.',
   'learningStudio.build.courseMissingDescriptions':
     '{count} units still need a description.',
-  'learningStudio.build.workspaceTitle': 'Build on canvas',
+  'learningStudio.build.workspaceTitle': 'Build course structure',
   'learningStudio.build.workspaceHint':
-    'Add modules, select nodes, and double-click elements when you want to edit details.',
+    'Shape modules, lessons, exercises, and checkpoints in a structured outline. Use the inspector to edit details and prerequisite logic.',
   'learningStudio.build.addModuleCta': 'Add module',
   'learningStudio.build.addLessonCta': 'Add lesson',
   'learningStudio.build.detailsModalTitle': 'Edit details',
   'learningStudio.build.emptyTitle': 'Start with the first module',
   'learningStudio.build.emptyBody':
-    'Create the first module here. The canvas becomes the working map for lessons, exercises, and checkpoints.',
+    'Create the first module here, then keep building the learner path in a structured workspace.',
   'learningStudio.build.inspectorCourseTitle': 'Course summary',
   'learningStudio.build.inspectorModuleTitle': 'Module',
   'learningStudio.build.inspectorUnitTitle': 'Unit',

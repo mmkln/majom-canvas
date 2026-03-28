@@ -4,6 +4,8 @@ import type { TimeClusteringLayoutMode } from '../time-clustering/domain/types.t
 export const WORKSPACE_ACTIVE_VIEW_STORAGE_KEY = 'workspace-active-view';
 export const AI_ASSISTANT_OPEN_STORAGE_KEY = 'ai-assistant-open';
 export const TIME_CLUSTERING_OPEN_STORAGE_KEY = 'time-clustering-open';
+export const WORKSPACE_VIEW_SWITCHER_PINNED_STORAGE_KEY =
+  'workspace-view-switcher-pinned';
 export const TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY =
   'time-clustering-layout-mode';
 export const TIME_CLUSTERING_OVERLAP_WARNINGS_VISIBLE_STORAGE_KEY =
@@ -136,6 +138,26 @@ export function loadPersistedAiAssistantOpen(): boolean {
 export function persistAiAssistantOpen(open: boolean): void {
   try {
     localStorage.setItem(AI_ASSISTANT_OPEN_STORAGE_KEY, open ? '1' : '0');
+  } catch {
+    // no-op
+  }
+}
+
+export function loadPersistedWorkspaceViewSwitcherPinned(): boolean {
+  try {
+    const value = localStorage.getItem(WORKSPACE_VIEW_SWITCHER_PINNED_STORAGE_KEY);
+    return value === '1' || value === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function persistWorkspaceViewSwitcherPinned(pinned: boolean): void {
+  try {
+    localStorage.setItem(
+      WORKSPACE_VIEW_SWITCHER_PINNED_STORAGE_KEY,
+      pinned ? '1' : '0'
+    );
   } catch {
     // no-op
   }
