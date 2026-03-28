@@ -242,12 +242,12 @@ This is the best option if the goal is to connect the current frontend quickly w
 ### Endpoints
 
 ```http
-GET    /api/time-clustering/snapshot
-PUT    /api/time-clustering/snapshot
-DELETE /api/time-clustering/snapshot
+GET    /time-clustering/snapshot
+PUT    /time-clustering/snapshot
+DELETE /time-clustering/snapshot
 ```
 
-### `GET /api/time-clustering/snapshot`
+### `GET /time-clustering/snapshot`
 
 Response:
 
@@ -272,7 +272,7 @@ Response:
 }
 ```
 
-### `PUT /api/time-clustering/snapshot`
+### `PUT /time-clustering/snapshot`
 
 Request body:
 
@@ -291,7 +291,7 @@ Behavior:
 - validate and normalize clusters before saving
 - return the normalized saved snapshot
 
-### `DELETE /api/time-clustering/snapshot`
+### `DELETE /time-clustering/snapshot`
 
 Behavior:
 
@@ -304,19 +304,19 @@ This is the better long-term backend design, but it requires a frontend reposito
 ### Endpoints
 
 ```http
-GET    /api/time-clustering/state
-PUT    /api/time-clustering/state
+GET    /time-clustering/state
+PUT    /time-clustering/state
 
-GET    /api/time-clustering/clusters
-POST   /api/time-clustering/clusters
-PATCH  /api/time-clustering/clusters/:id
-DELETE /api/time-clustering/clusters/:id
+GET    /time-clustering/clusters
+POST   /time-clustering/clusters
+PATCH  /time-clustering/clusters/:id
+DELETE /time-clustering/clusters/:id
 
-POST   /api/time-clustering/actions/duplicate-day
-GET    /api/time-clustering/warnings
+POST   /time-clustering/actions/duplicate-day
+GET    /time-clustering/warnings
 ```
 
-### `GET /api/time-clustering/state`
+### `GET /time-clustering/state`
 
 ```json
 {
@@ -325,7 +325,7 @@ GET    /api/time-clustering/warnings
 }
 ```
 
-### `PUT /api/time-clustering/state`
+### `PUT /time-clustering/state`
 
 ```json
 {
@@ -334,12 +334,12 @@ GET    /api/time-clustering/warnings
 }
 ```
 
-### `GET /api/time-clustering/clusters`
+### `GET /time-clustering/clusters`
 
 Recommended query params:
 
 ```http
-GET /api/time-clustering/clusters?fromDateKey=2026-03-24&toDateKey=2026-03-31
+GET /time-clustering/clusters?fromDateKey=2026-03-24&toDateKey=2026-03-31
 ```
 
 Response:
@@ -366,7 +366,7 @@ Important:
 - frontend builds calendar segments locally
 - backend does not need to return day/week UI projections
 
-### `POST /api/time-clustering/clusters`
+### `POST /time-clustering/clusters`
 
 ```json
 {
@@ -383,7 +383,7 @@ Important:
 
 Response: created cluster
 
-### `PATCH /api/time-clustering/clusters/:id`
+### `PATCH /time-clustering/clusters/:id`
 
 ```json
 {
@@ -399,11 +399,11 @@ Response: created cluster
 
 Response: updated cluster
 
-### `DELETE /api/time-clustering/clusters/:id`
+### `DELETE /time-clustering/clusters/:id`
 
 Delete one cluster by id.
 
-### `POST /api/time-clustering/actions/duplicate-day`
+### `POST /time-clustering/actions/duplicate-day`
 
 Request:
 
@@ -493,7 +493,7 @@ Do not replace `selectedDateKey` and `weekAnchorDateKey` with timestamps. The fr
 
 ### Fastest integration
 
-1. implement `GET/PUT/DELETE /api/time-clustering/snapshot`
+1. implement `GET/PUT/DELETE /time-clustering/snapshot`
 2. store the snapshot per user
 3. validate and normalize each cluster before save
 4. connect the frontend repository to this API
