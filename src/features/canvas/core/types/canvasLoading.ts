@@ -1,5 +1,5 @@
 export type CanvasLoadingPlaceholder = {
-  elementType: 'task' | 'story' | 'goal';
+  elementType: 'task' | 'story' | 'goal' | 'habit';
   elementUuid: string;
   x: number;
   y: number;

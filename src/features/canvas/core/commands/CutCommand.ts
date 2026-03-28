@@ -3,6 +3,10 @@ import { Scene } from '../scene/Scene.ts';
 import { clipboardService } from '../services/ClipboardService.ts';
 import { PlanningElement } from '../../elements/PlanningElement.ts';
 import { notify } from '../services/NotificationService.ts';
+import {
+  getPlanningElementCapabilities,
+  isCanvasPlanningElement,
+} from '../../elements/utils/planningElementCapabilities.ts';
 
 /**
  * Command to cut (copy + delete) PlanningElements: supports undo/redo.
@@ -19,8 +23,17 @@ export class CutCommand extends Command {
   execute(): void {
     const selection = this.scene
       .getSelectedElements()
-      .filter((el): el is PlanningElement => el instanceof PlanningElement);
+      .filter(
+        (el): el is PlanningElement =>
+          el instanceof PlanningElement &&
+          isCanvasPlanningElement(el) &&
+          getPlanningElementCapabilities(el).supportsDuplication
+      );
     this.elements = selection;
+    if (this.elements.length === 0) {
+      notify(`Nothing to cut`, 'info');
+      return;
+    }
     // copy to clipboard, then remove from scene
     clipboardService.copy(this.elements);
     this.scene.removeElements(this.elements);

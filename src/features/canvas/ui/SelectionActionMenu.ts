@@ -4,6 +4,7 @@ import type { CanvasManager } from '../core/managers/CanvasManager.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
+import { HabitElement } from '../elements/HabitElement.ts';
 import { StoryLayoutService } from '../core/services/StoryLayoutService.ts';
 import {
   SelectionContext,
@@ -17,6 +18,7 @@ import { getViewBounds, isRectVisible } from '../core/utils/viewBounds.ts';
 import { addTaskToStory } from './storyTaskActions.ts';
 import { createIconButton, createSurface } from './primitives/index.ts';
 import { StatusSelector } from './components/StatusSelector.ts';
+import { RoutineStatusSelector } from './components/RoutineStatusSelector.ts';
 import { AiActionsDropdown } from './components/AiActionsDropdown.ts';
 import { emitAiAssistantIntentRequested } from '../../ai-assistant/aiAssistantEvents.ts';
 import {
@@ -27,6 +29,16 @@ import {
   getAiAssistantLinkBlockersHint,
 } from '../../ai-assistant/aiAssistantHints.ts';
 import { AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
+import {
+  selectionSupportsAiActions,
+  selectionSupportsDailyCompletion,
+  selectionSupportsDuplication,
+  selectionSupportsLifecycleStatus,
+  selectionSupportsPermanentDelete,
+  selectionSupportsRelations,
+} from '../elements/utils/planningElementCapabilities.ts';
+import { Status } from '../../../majom-wrapper/interfaces/index.ts';
+import { Checkbox } from '../../../ui-lib/src/components/Checkbox.ts';
 
 type ActionContext = {
   elements: PlanningElement[];
@@ -49,7 +61,7 @@ type ActionNode =
       title: string;
       icon?: IconName;
       iconOptions?: IconOptions;
-      variant?: 'icon' | 'status' | 'ai';
+      variant?: 'icon' | 'status' | 'ai' | 'routine-status' | 'routine-checkbox';
       isDanger?: boolean;
       isVisible?: (context: ActionContext) => boolean;
       onClick?: () => void;
@@ -66,6 +78,8 @@ export class SelectionActionMenu {
   private actionElements: Map<string, HTMLElement> = new Map();
   private aiActionsDropdown: AiActionsDropdown | null = null;
   private statusSelector: StatusSelector | null = null;
+  private routineStatusSelector: RoutineStatusSelector | null = null;
+  private routineCompletionCheckbox: Checkbox | null = null;
   private subscriptions: Subscription[] = [];
   private disposeRuntimeSubscription: (() => void) | null = null;
   private suspendUpdates = false;
@@ -141,6 +155,9 @@ export class SelectionActionMenu {
     this.subscriptions = [];
     this.statusSelector?.destroy();
     this.statusSelector = null;
+    this.routineStatusSelector?.destroy();
+    this.routineStatusSelector = null;
+    this.routineCompletionCheckbox = null;
     this.aiActionsDropdown?.destroy();
     this.aiActionsDropdown = null;
     window.removeEventListener('resize', this.resizeHandler);
@@ -197,6 +214,7 @@ export class SelectionActionMenu {
     };
     this.updateActionVisibility(context);
     this.updateAiDropdown();
+    this.updateRoutineControls(context);
     this.updateDeleteConfirmation(planningSelected);
     this.updateStatusSelector(planningSelected);
     this.show();
@@ -218,6 +236,7 @@ export class SelectionActionMenu {
     this.deleteConfirmState = null;
     this.clearDeleteConfirmTimer();
     this.statusSelector?.close();
+    this.routineStatusSelector?.close();
     if (!this.container.classList.contains('hidden')) {
       this.container.classList.remove('flex');
       this.container.classList.add('hidden');
@@ -231,6 +250,9 @@ export class SelectionActionMenu {
     this.aiActionsDropdown = null;
     this.statusSelector?.destroy();
     this.statusSelector = null;
+    this.routineStatusSelector?.destroy();
+    this.routineStatusSelector = null;
+    this.routineCompletionCheckbox = null;
     this.actionNodes.forEach((node) => {
       if (node.kind === 'divider') {
         const divider = document.createElement('div');
@@ -247,6 +269,31 @@ export class SelectionActionMenu {
         this.statusSelector = selector;
         this.actionElements.set(node.id, selector.element);
         this.container.appendChild(selector.element);
+        return;
+      }
+      if (node.variant === 'routine-status') {
+        const selector = new RoutineStatusSelector({
+          i18n: this.runtime.i18n,
+          onStatusChange: (status) => this.applyRoutineStatus(status),
+        });
+        this.routineStatusSelector = selector;
+        this.actionElements.set(node.id, selector.element);
+        this.container.appendChild(selector.element);
+        return;
+      }
+      if (node.variant === 'routine-checkbox') {
+        const checkbox = new Checkbox({
+          checked: false,
+          ariaLabel: this.runtime.i18n.t('common.doneToday'),
+          stopPropagation: true,
+        });
+        checkbox.getElement().classList.add('shrink-0');
+        checkbox.onChange((checked) => {
+          this.applyRoutineCompletion(checked);
+        });
+        this.routineCompletionCheckbox = checkbox;
+        this.actionElements.set(node.id, checkbox.getElement());
+        this.container.appendChild(checkbox.getElement());
         return;
       }
       if (node.variant === 'ai') {
@@ -290,7 +337,20 @@ export class SelectionActionMenu {
   private buildActionNodes(): ActionNode[] {
     const isSingle = (context: ActionContext): boolean => !context.isMulti;
     const isMulti = (context: ActionContext): boolean => context.isMulti;
+    const supportsStatus = (context: ActionContext): boolean =>
+      selectionSupportsLifecycleStatus(context.elements);
+    const supportsHabitActions = (context: ActionContext): boolean =>
+      selectionSupportsDailyCompletion(context.elements);
+    const supportsAi = (context: ActionContext): boolean =>
+      selectionSupportsAiActions(context.elements);
+    const supportsCopy = (context: ActionContext): boolean =>
+      selectionSupportsDuplication(context.elements);
+    const supportsPermanentDelete = (context: ActionContext): boolean =>
+      selectionSupportsPermanentDelete(context.elements);
+    const supportsRelations = (context: ActionContext): boolean =>
+      selectionSupportsRelations(context.elements);
     const hasConnections = (context: ActionContext): boolean =>
+      supportsRelations(context) &&
       this.bulkActions.hasConnectionsForElements(context.elements);
     const isStory = (context: ActionContext): boolean =>
       context.primary instanceof StoryElement;
@@ -303,12 +363,32 @@ export class SelectionActionMenu {
         id: 'status',
         title: this.runtime.i18n.t('selectionMenu.changeStatus'),
         variant: 'status',
+        isVisible: supportsStatus,
         onClick: () => {},
       },
       {
         kind: 'divider',
         id: 'divider-status',
-        isVisible: isMulti,
+        isVisible: (context) => isMulti(context) && supportsStatus(context),
+      },
+      {
+        kind: 'action',
+        id: 'habit-lifecycle',
+        title: this.runtime.i18n.t('selectionMenu.changeStatus'),
+        variant: 'routine-status',
+        isVisible: supportsHabitActions,
+      },
+      {
+        kind: 'divider',
+        id: 'divider-habit',
+        isVisible: supportsHabitActions,
+      },
+      {
+        kind: 'action',
+        id: 'habit-completion',
+        title: this.runtime.i18n.t('common.doneToday'),
+        variant: 'routine-checkbox',
+        isVisible: supportsHabitActions,
       },
       {
         kind: 'divider',
@@ -320,19 +400,19 @@ export class SelectionActionMenu {
         id: 'ai-menu',
         title: this.runtime.i18n.t('selectionMenu.aiActions'),
         variant: 'ai',
-        isVisible: (context) => isSingle(context) || isMulti(context),
+        isVisible: supportsAi,
       },
       {
         kind: 'divider',
         id: 'divider-ai',
-        isVisible: (context) => isSingle(context) || isMulti(context),
+        isVisible: supportsAi,
       },
       {
         kind: 'action',
         id: 'copy-bulk',
         title: this.runtime.i18n.t('selectionMenu.copy'),
         icon: 'square-2-stack',
-        isVisible: isMulti,
+        isVisible: (context) => isMulti(context) && supportsCopy(context),
         onClick: () => this.handleCopy(),
       },
       {
@@ -340,7 +420,10 @@ export class SelectionActionMenu {
         id: 'remove-connections-bulk',
         title: this.runtime.i18n.t('selectionMenu.removeConnections'),
         icon: 'link-slash',
-        isVisible: (context) => isMulti(context) && hasConnections(context),
+        isVisible: (context) =>
+          isMulti(context) &&
+          supportsRelations(context) &&
+          hasConnections(context),
         onClick: () => this.handleRemoveConnections(),
       },
       {
@@ -351,14 +434,20 @@ export class SelectionActionMenu {
         isVisible: isMulti,
         onClick: () => this.handleRemove(),
       },
-      { kind: 'divider', id: 'divider-delete-bulk', isVisible: isMulti },
+      {
+        kind: 'divider',
+        id: 'divider-delete-bulk',
+        isVisible: (context) =>
+          isMulti(context) && supportsPermanentDelete(context),
+      },
       {
         kind: 'action',
         id: 'delete-bulk-danger',
         title: this.runtime.i18n.t('selectionMenu.deletePermanently'),
         icon: 'trash',
         isDanger: true,
-        isVisible: isMulti,
+        isVisible: (context) =>
+          isMulti(context) && supportsPermanentDelete(context),
         onClick: () => {
           this.handleDeletePermanently();
         },
@@ -399,7 +488,7 @@ export class SelectionActionMenu {
         id: 'copy',
         title: this.runtime.i18n.t('selectionMenu.copy'),
         icon: 'square-2-stack',
-        isVisible: isSingle,
+        isVisible: (context) => isSingle(context) && supportsCopy(context),
         onClick: () => this.handleCopy(),
       },
       {
@@ -407,7 +496,10 @@ export class SelectionActionMenu {
         id: 'remove-connections',
         title: this.runtime.i18n.t('selectionMenu.removeConnections'),
         icon: 'link-slash',
-        isVisible: (context) => isSingle(context) && hasConnections(context),
+        isVisible: (context) =>
+          isSingle(context) &&
+          supportsRelations(context) &&
+          hasConnections(context),
         onClick: () => this.handleRemoveConnections(),
       },
       {
@@ -421,7 +513,8 @@ export class SelectionActionMenu {
       {
         kind: 'divider',
         id: 'divider-delete',
-        isVisible: isSingle,
+        isVisible: (context) =>
+          isSingle(context) && supportsPermanentDelete(context),
       },
       {
         kind: 'action',
@@ -429,7 +522,8 @@ export class SelectionActionMenu {
         title: this.runtime.i18n.t('selectionMenu.deletePermanently'),
         icon: 'trash',
         isDanger: true,
-        isVisible: isSingle,
+        isVisible: (context) =>
+          isSingle(context) && supportsPermanentDelete(context),
         onClick: () => {
           this.handleDeletePermanently();
         },
@@ -524,7 +618,10 @@ export class SelectionActionMenu {
     hint: string;
     onClick: () => void;
   }> {
-    if (this.selectedElements.length === 0) {
+    if (
+      this.selectedElements.length === 0 ||
+      !selectionSupportsAiActions(this.selectedElements)
+    ) {
       return [];
     }
 
@@ -602,7 +699,12 @@ export class SelectionActionMenu {
   }
 
   private applyStatus(status: ElementStatus): void {
-    if (this.selectedElements.length === 0) return;
+    if (
+      this.selectedElements.length === 0 ||
+      !selectionSupportsLifecycleStatus(this.selectedElements)
+    ) {
+      return;
+    }
     this.bulkActions.updateStatus(this.selectedElements, status);
   }
 
@@ -673,6 +775,9 @@ export class SelectionActionMenu {
   }
 
   private handleDeletePermanently(): void {
+    if (!selectionSupportsPermanentDelete(this.selectedElements)) {
+      return;
+    }
     const confirmKey = this.getDeleteConfirmKey(this.selectedElements);
     if (!confirmKey) return;
     if (!this.isConfirmingDelete(confirmKey)) {
@@ -702,11 +807,55 @@ export class SelectionActionMenu {
   }
 
   private handleRemoveConnections(): void {
+    if (!selectionSupportsRelations(this.selectedElements)) {
+      return;
+    }
     this.bulkActions.removeConnectionsForElements(this.selectedElements);
   }
 
+  private applyRoutineCompletion(completed: boolean): void {
+    if (!selectionSupportsDailyCompletion(this.selectedElements)) {
+      return;
+    }
+    this.selectedElements.forEach((element) => {
+      window.dispatchEvent(
+        new CustomEvent('habitCanvasMutationRequested', {
+          detail: {
+            element,
+            action: 'set-completion-date',
+            date: this.getTodayKey(),
+            completed,
+          },
+        })
+      );
+    });
+  }
+
+  private applyRoutineStatus(status: Status.Active | Status.Archived): void {
+    if (!selectionSupportsDailyCompletion(this.selectedElements)) {
+      return;
+    }
+    const action = status === Status.Archived ? 'archive' : 'restore';
+    this.selectedElements.forEach((element) => {
+      window.dispatchEvent(
+        new CustomEvent('habitCanvasMutationRequested', {
+          detail: {
+            element,
+            action,
+          },
+        })
+      );
+    });
+  }
+
   private updateStatusSelector(elements: PlanningElement[]): void {
-    if (!this.statusSelector || elements.length === 0) return;
+    if (
+      !this.statusSelector ||
+      elements.length === 0 ||
+      !selectionSupportsLifecycleStatus(elements)
+    ) {
+      return;
+    }
     const status = SelectionContext.getMixedStatus(elements);
     this.statusSelector.setState(status ?? null);
   }
@@ -773,7 +922,37 @@ export class SelectionActionMenu {
     if (element instanceof TaskElement) return `task:${element.id}`;
     if (element instanceof StoryElement) return `story:${element.id}`;
     if (element instanceof GoalElement) return `goal:${element.id}`;
+    if (element instanceof HabitElement) return `habit:${element.id}`;
     return null;
+  }
+
+  private updateRoutineControls(context: ActionContext): void {
+    if (!selectionSupportsDailyCompletion(context.elements)) {
+      return;
+    }
+    const completeAll = context.elements.every((element) => element.completedToday);
+    this.routineCompletionCheckbox?.setChecked(completeAll);
+    const archivedAll = context.elements.every(
+      (element) => element.habitStatus === Status.Archived
+    );
+    const activeAll = context.elements.every(
+      (element) => element.habitStatus === Status.Active
+    );
+    this.routineStatusSelector?.setState(
+      archivedAll
+        ? Status.Archived
+        : activeAll
+          ? Status.Active
+          : null
+    );
+  }
+
+  private getTodayKey(): string {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   private clearDeleteConfirmTimer(): void {

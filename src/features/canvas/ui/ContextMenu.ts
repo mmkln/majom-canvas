@@ -13,6 +13,7 @@ import type { ICanvasElement } from '../core/interfaces/canvasElement.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
+import { HabitElement } from '../elements/HabitElement.ts';
 import { StoryLayoutService } from '../core/services/StoryLayoutService.ts';
 import { positionFixedElement } from './overlayPosition.ts';
 import { BulkActionsController } from '../core/services/BulkActionsController.ts';
@@ -21,14 +22,17 @@ import { addTaskToStory } from './storyTaskActions.ts';
 import { ExistingTaskPicker } from './components/ExistingTaskPicker.ts';
 import { ExistingGoalPicker } from './components/ExistingGoalPicker.ts';
 import { ExistingStoryPicker } from './components/ExistingStoryPicker.ts';
+import { ExistingHabitPicker } from './components/ExistingHabitPicker.ts';
 import { createMenuBadge } from './components/MenuBadge.ts';
 import { AddExistingTaskService } from '../core/services/AddExistingTaskService.ts';
 import { AddExistingGoalService } from '../core/services/AddExistingGoalService.ts';
 import { AddExistingStoryService } from '../core/services/AddExistingStoryService.ts';
+import { AddExistingHabitService } from '../core/services/AddExistingHabitService.ts';
 import {
   createSurface,
   createDivider,
   createDropdownItem,
+  createDropdownControlItem,
   createDropdownIconRow,
   createSplitDropdownItem,
   type MenuItemVariant,
@@ -41,6 +45,12 @@ import {
   STATUS_ICON_TONE_CLASS,
   STATUS_ORDER,
 } from './statusPresentation.ts';
+import {
+  getRoutineStatusLabel,
+  ROUTINE_STATUS_ICON_MAP,
+  ROUTINE_STATUS_ICON_TONE_CLASS,
+  ROUTINE_STATUS_ORDER,
+} from './routineStatusPresentation.ts';
 import { emitAiAssistantIntentRequested } from '../../ai-assistant/aiAssistantEvents.ts';
 import {
   getAiAssistantBreakdownHint,
@@ -53,6 +63,13 @@ import {
   type PlanningElement,
 } from '../core/services/SelectionContext.ts';
 import { AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
+import {
+  getPlanningElementCapabilities,
+  isHabitElement,
+  isTaskStoryGoalPlanningElement,
+} from '../elements/utils/planningElementCapabilities.ts';
+import { Status } from '../../../majom-wrapper/interfaces/index.ts';
+import { Checkbox } from '../../../ui-lib/src/components/Checkbox.ts';
 
 type ContextMenuDetail = {
   element: ICanvasElement | null;
@@ -98,11 +115,17 @@ type ContextMenuRowItem = {
   dividerAfter?: boolean;
 };
 
+type ContextMenuControlItem = {
+  control: HTMLElement;
+  dividerAfter?: boolean;
+};
+
 type ContextMenuItem =
   | ContextMenuActionItem
   | ContextMenuSubmenuItem
   | ContextMenuSplitActionItem
-  | ContextMenuRowItem;
+  | ContextMenuRowItem
+  | ContextMenuControlItem;
 
 type ContextMenuSection = {
   title?: string;
@@ -132,9 +155,11 @@ export class ContextMenu {
     private existingTaskPicker: ExistingTaskPicker,
     private existingGoalPicker: ExistingGoalPicker,
     private existingStoryPicker: ExistingStoryPicker,
+    private existingHabitPicker: ExistingHabitPicker,
     private addExistingTaskService: AddExistingTaskService,
     private addExistingGoalService: AddExistingGoalService,
     private addExistingStoryService: AddExistingStoryService,
+    private addExistingHabitService: AddExistingHabitService,
     private readonly runtime: AppRuntime = createAppRuntime()
   ) {
     this.bulkActions = new BulkActionsController(scene);
@@ -195,6 +220,7 @@ export class ContextMenu {
     this.existingTaskPicker.close();
     this.existingGoalPicker.close();
     this.existingStoryPicker.close();
+    this.existingHabitPicker.close();
     this.closeSubmenu();
     this.submenu.removeEventListener('keydown', this.onSubmenuKeyDown);
     this.submenu.remove();
@@ -306,6 +332,15 @@ export class ContextMenu {
               'canvasContextMenu.findExistingTask'
             ),
           },
+          {
+            label: this.getPlanningElementLabel('habit', { capitalize: true }),
+            action: () => this.createRoutineAt(sceneX, sceneY),
+            secondaryAction: () => this.openExistingHabitPicker(sceneX, sceneY),
+            secondaryIcon: 'magnifying-glass',
+            secondaryLabel: this.runtime.i18n.t(
+              'canvasContextMenu.findExistingHabit'
+            ),
+          },
         ],
       });
       return sections;
@@ -314,7 +349,8 @@ export class ContextMenu {
     const isPlanningElement =
       element instanceof TaskElement ||
       element instanceof StoryElement ||
-      element instanceof GoalElement;
+      element instanceof GoalElement ||
+      element instanceof HabitElement;
     const confirmKey = this.getElementConfirmKey(element);
     const isConfirming = this.isConfirmingDelete(confirmKey);
     const elementLabel = this.getElementLabel(element);
@@ -356,7 +392,11 @@ export class ContextMenu {
     }
 
     actionItems.push(this.buildElementActionRow(element, planningElement));
-    if (planningElement) {
+    if (
+      planningElement &&
+      isTaskStoryGoalPlanningElement(planningElement) &&
+      getPlanningElementCapabilities(planningElement).supportsAiActions
+    ) {
       actionItems.push({
         label: this.runtime.i18n.t('canvasContextMenu.aiAssist'),
         submenu: this.buildPlanningElementAiItems(planningElement),
@@ -372,6 +412,9 @@ export class ContextMenu {
       }
       if (el instanceof GoalElement) {
         return this.getPlanningElementLabel('goal', { capitalize: true });
+      }
+      if (el instanceof HabitElement) {
+        return this.getPlanningElementLabel('habit', { capitalize: true });
       }
       return undefined;
     };
@@ -397,6 +440,13 @@ export class ContextMenu {
             ),
           },
         ],
+      });
+    }
+
+    if (planningElement && isHabitElement(planningElement)) {
+      sections.push({
+        title: this.runtime.i18n.t('canvasContextMenu.habitActions'),
+        items: [this.buildHabitCompletionControl(planningElement)],
       });
     }
 
@@ -434,7 +484,10 @@ export class ContextMenu {
       });
     }
 
-    if (planningElement) {
+    if (
+      planningElement &&
+      getPlanningElementCapabilities(planningElement).supportsLifecycleStatus
+    ) {
       sections.push({
         title: this.runtime.i18n.t('canvasContextMenu.setStatus'),
         items: STATUS_ORDER.map((status) => {
@@ -451,6 +504,17 @@ export class ContextMenu {
           };
         }),
       });
+    } else if (planningElement && isHabitElement(planningElement)) {
+      sections.push({
+        title: this.runtime.i18n.t('canvasContextMenu.setStatus'),
+        items: this.buildRoutineStatusItems(planningElement),
+      });
+    }
+
+    if (
+      planningElement &&
+      getPlanningElementCapabilities(planningElement).supportsPermanentDelete
+    ) {
       sections.push({
         items: [
           {
@@ -494,6 +558,9 @@ export class ContextMenu {
     target: PlanningElement,
     selected: PlanningElement[]
   ): ContextMenuActionItem[] {
+    if (!getPlanningElementCapabilities(target).supportsRelations) {
+      return [];
+    }
     if (selected.length === 0) return [];
 
     const items: ContextMenuActionItem[] = [];
@@ -678,13 +745,23 @@ export class ContextMenu {
     elements: PlanningElement[],
     options: { capitalize?: boolean } = {}
   ): string {
-    const goalCount = elements.filter((element) => element instanceof GoalElement).length;
-    const storyCount = elements.filter((element) => element instanceof StoryElement).length;
-    const taskCount = elements.filter((element) => element instanceof TaskElement).length;
+    const goalCount = elements.filter(
+      (element) => element instanceof GoalElement
+    ).length;
+    const storyCount = elements.filter(
+      (element) => element instanceof StoryElement
+    ).length;
+    const taskCount = elements.filter(
+      (element) => element instanceof TaskElement
+    ).length;
+    const habitCount = elements.filter(
+      (element) => element instanceof HabitElement
+    ).length;
     const kinds = [
       goalCount > 0 ? 'goal' : null,
       storyCount > 0 ? 'story' : null,
       taskCount > 0 ? 'task' : null,
+      habitCount > 0 ? 'habit' : null,
     ].filter(Boolean);
 
     if (kinds.length !== 1) {
@@ -706,15 +783,24 @@ export class ContextMenu {
         plural: storyCount > 1,
       });
     }
-    return this.getPlanningElementLabel('task', {
+    if (taskCount > 0) {
+      return this.getPlanningElementLabel('task', {
+        capitalize: options.capitalize,
+        plural: taskCount > 1,
+      });
+    }
+    return this.getPlanningElementLabel('habit', {
       capitalize: options.capitalize,
-      plural: taskCount > 1,
+      plural: habitCount > 1,
     });
   }
 
   private buildConnectionItems(
     target: PlanningElement
   ): ContextMenuActionItem[] {
+    if (!getPlanningElementCapabilities(target).supportsRelations) {
+      return [];
+    }
     if (!this.bulkActions.hasConnectionsForElement(target)) {
       return [];
     }
@@ -750,6 +836,13 @@ export class ContextMenu {
       section.items.forEach((item, itemIndex) => {
         if (this.isRowItem(item)) {
           this.menu.appendChild(this.createRow(item));
+          if (item.dividerAfter && itemIndex < section.items.length - 1) {
+            this.menu.appendChild(createDivider({ inset: false }));
+          }
+          return;
+        }
+        if (this.isControlItem(item)) {
+          this.menu.appendChild(this.createControlItem(item));
           if (item.dividerAfter && itemIndex < section.items.length - 1) {
             this.menu.appendChild(createDivider({ inset: false }));
           }
@@ -809,6 +902,12 @@ export class ContextMenu {
 
   private isRowItem(item: ContextMenuItem): item is ContextMenuRowItem {
     return 'row' in item;
+  }
+
+  private isControlItem(
+    item: ContextMenuItem
+  ): item is ContextMenuControlItem {
+    return 'control' in item;
   }
 
   private isSplitActionItem(
@@ -914,24 +1013,108 @@ export class ContextMenu {
         },
       });
     }
-    row.push(
-      {
+    if (
+      planningElement &&
+      getPlanningElementCapabilities(planningElement).supportsDuplication
+    ) {
+      row.push({
         icon: 'square-2-stack',
         label: this.runtime.i18n.t('canvasContextMenu.copy'),
         action: () =>
           historyService.execute(new CopyCommand(this.scene, [element])),
-      },
-      {
-        icon: 'minus',
-        label: this.runtime.i18n.t('canvasContextMenu.removeFromCanvas'),
-        action: () =>
-          historyService.execute(new DeleteCommand(this.scene, [element])),
-      }
-    );
+      });
+    }
+    row.push({
+      icon: 'minus',
+      label: this.runtime.i18n.t('canvasContextMenu.removeFromCanvas'),
+      action: () =>
+        historyService.execute(new DeleteCommand(this.scene, [element])),
+    });
     return {
       row,
       dividerAfter: true,
     };
+  }
+
+  private buildHabitCompletionControl(
+    habit: HabitElement
+  ): ContextMenuControlItem {
+    const checkbox = new Checkbox({
+      checked: habit.completedToday,
+      ariaLabel: this.runtime.i18n.t('common.doneToday'),
+      stopPropagation: true,
+      onChange: (checked) => {
+        this.emitHabitAction(habit, 'set-completion-date', {
+          completed: checked,
+          date: this.getTodayKey(),
+        });
+        this.hide();
+      },
+    });
+    checkbox.getElement().classList.add('shrink-0');
+    const control = createDropdownControlItem({
+      label: this.runtime.i18n.t('common.doneToday'),
+      control: checkbox.getElement(),
+      onClick: () => {
+        checkbox.toggleChecked();
+      },
+    });
+
+    return { control };
+  }
+
+  private buildRoutineStatusItems(
+    habit: HabitElement
+  ): ContextMenuActionItem[] {
+    return ROUTINE_STATUS_ORDER.map((status) => {
+      const isCurrent = habit.habitStatus === status;
+      return {
+        label: getRoutineStatusLabel(status, this.runtime.i18n),
+        leading: this.createRoutineStatusIcon(status),
+        trailing: isCurrent ? this.createActiveStatusCheck() : null,
+        variant: isCurrent ? 'selected' : 'default',
+        action: () => {
+          if (isCurrent) return 'keep-open';
+          this.emitHabitAction(
+            habit,
+            status === Status.Archived ? 'archive' : 'restore'
+          );
+        },
+      };
+    });
+  }
+
+  private emitHabitAction(
+    habit: HabitElement,
+    action:
+      | 'mark-done-today'
+      | 'undo-today'
+      | 'archive'
+      | 'restore'
+      | 'set-completion-date',
+    options: {
+      date?: string;
+      completed?: boolean;
+    } = {}
+  ): void {
+    window.dispatchEvent(
+      new CustomEvent('habitCanvasMutationRequested', {
+        detail: {
+          element: habit,
+          action,
+          date: options.date,
+          completed: options.completed,
+        },
+      })
+    );
+  }
+
+  private getTodayKey(): string {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   private createStatusIcon(status: ElementStatus): HTMLSpanElement {
@@ -954,6 +1137,21 @@ export class ContextMenu {
     const check = createIcon('check', { size: 14, strokeWidth: 2 });
     check.setAttribute('aria-hidden', 'true');
     wrap.appendChild(check);
+    return wrap;
+  }
+
+  private createRoutineStatusIcon(
+    status: Status.Active | Status.Archived
+  ): HTMLSpanElement {
+    const wrap = document.createElement('span');
+    wrap.className = 'inline-flex items-center justify-center';
+    const icon = createIcon(ROUTINE_STATUS_ICON_MAP[status], {
+      size: 14,
+      strokeWidth: 1.7,
+    });
+    icon.classList.add('shrink-0', ROUTINE_STATUS_ICON_TONE_CLASS[status]);
+    icon.setAttribute('aria-hidden', 'true');
+    wrap.appendChild(icon);
     return wrap;
   }
 
@@ -987,6 +1185,17 @@ export class ContextMenu {
         onClick: () => this.executeItemAction(button.action),
       })),
     });
+    row.addEventListener('mouseenter', () => {
+      this.closeSubmenu();
+    });
+    row.addEventListener('focusin', () => {
+      this.closeSubmenu();
+    });
+    return row;
+  }
+
+  private createControlItem(item: ContextMenuControlItem): HTMLElement {
+    const row = item.control;
     row.addEventListener('mouseenter', () => {
       this.closeSubmenu();
     });
@@ -1225,6 +1434,7 @@ export class ContextMenu {
     if (element instanceof TaskElement) return `task:${element.id}`;
     if (element instanceof StoryElement) return `story:${element.id}`;
     if (element instanceof GoalElement) return `goal:${element.id}`;
+    if (element instanceof HabitElement) return `habit:${element.id}`;
     return null;
   }
 
@@ -1238,11 +1448,14 @@ export class ContextMenu {
     if (element instanceof GoalElement) {
       return this.getPlanningElementLabel('goal');
     }
+    if (element instanceof HabitElement) {
+      return this.getPlanningElementLabel('habit');
+    }
     return this.getGenericLabel('item');
   }
 
   private getPlanningElementLabel(
-    kind: 'goal' | 'story' | 'task',
+    kind: 'goal' | 'story' | 'task' | 'habit',
     options: { plural?: boolean; capitalize?: boolean } = {}
   ): string {
     const key =
@@ -1254,9 +1467,13 @@ export class ContextMenu {
           ? options.plural
             ? 'canvasContextMenu.stories'
             : 'canvasContextMenu.story'
-          : options.plural
-            ? 'canvasContextMenu.tasks'
-            : 'canvasContextMenu.task';
+          : kind === 'task'
+            ? options.plural
+              ? 'canvasContextMenu.tasks'
+              : 'canvasContextMenu.task'
+            : options.plural
+              ? 'canvasContextMenu.habits'
+              : 'canvasContextMenu.habit';
     return this.formatLabelCase(this.runtime.i18n.t(key), options.capitalize);
   }
 
@@ -1325,6 +1542,18 @@ export class ContextMenu {
     this.canvasManager.draw();
   }
 
+  private createRoutineAt(sceneX: number, sceneY: number): void {
+    const routine = new HabitElement({
+      x: sceneX - HabitElement.radius,
+      y: sceneY - HabitElement.radius,
+      title: this.runtime.i18n.t('habits.newRoutine'),
+      habitStatus: Status.Active,
+    });
+    historyService.execute(new AddElementCommand(this.scene, routine));
+    this.scene.setSelected([routine]);
+    this.canvasManager.draw();
+  }
+
   private openExistingGoalPicker(sceneX: number, sceneY: number): void {
     this.existingGoalPicker.open({
       sceneX,
@@ -1357,6 +1586,18 @@ export class ContextMenu {
       isOnCanvas: (story) => this.addExistingStoryService.isOnCanvas(story),
       onPick: (story, storyX, storyY) => {
         this.addExistingStoryService.addOrFocus(story, storyX, storyY);
+      },
+    });
+  }
+
+  private openExistingHabitPicker(sceneX: number, sceneY: number): void {
+    this.existingHabitPicker.open({
+      sceneX,
+      sceneY,
+      canvasChanges: this.scene.changes,
+      isOnCanvas: (habit) => this.addExistingHabitService.isOnCanvas(habit),
+      onPick: (habit, habitX, habitY) => {
+        this.addExistingHabitService.addOrFocus(habit, habitX, habitY);
       },
     });
   }

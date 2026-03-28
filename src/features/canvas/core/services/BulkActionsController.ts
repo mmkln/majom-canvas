@@ -7,6 +7,11 @@ import type { PlanningElement } from './SelectionContext.ts';
 import { ConnectionCreationService } from './ConnectionCreationService.ts';
 import { ConnectionRemovalService } from './ConnectionRemovalService.ts';
 import { notify } from './NotificationService.ts';
+import {
+  selectionSupportsDuplication,
+  selectionSupportsLifecycleStatus,
+  selectionSupportsPermanentDelete,
+} from '../../elements/utils/planningElementCapabilities.ts';
 
 export class BulkActionsController {
   private readonly connectionCreationService: ConnectionCreationService;
@@ -19,7 +24,12 @@ export class BulkActionsController {
 
   public copy(elements: PlanningElement[]): void {
     if (elements.length === 0) return;
-    historyService.execute(new CopyCommand(this.scene, elements));
+    const duplicable = selectionSupportsDuplication(elements) ? elements : [];
+    if (duplicable.length === 0) {
+      notify('Nothing in this selection can be copied.', 'info');
+      return;
+    }
+    historyService.execute(new CopyCommand(this.scene, duplicable));
   }
 
   public removeFromCanvas(elements: PlanningElement[]): void {
@@ -29,7 +39,12 @@ export class BulkActionsController {
 
   public deletePermanently(elements: PlanningElement[]): void {
     if (elements.length === 0) return;
-    elements.forEach((element) => {
+    const removable = selectionSupportsPermanentDelete(elements) ? elements : [];
+    if (removable.length === 0) {
+      notify('Nothing in this selection can be deleted permanently.', 'info');
+      return;
+    }
+    removable.forEach((element) => {
       window.dispatchEvent(
         new CustomEvent('elementDeleteRequested', {
           detail: { element },
@@ -42,7 +57,9 @@ export class BulkActionsController {
     elements: PlanningElement[],
     status: ElementStatus
   ): void {
-    if (elements.length === 0) return;
+    if (elements.length === 0 || !selectionSupportsLifecycleStatus(elements)) {
+      return;
+    }
     // TODO: replace per-element PATCH with bulk endpoints:
     // /tasks/bulk/, /stories/bulk/, /goals/bulk/ (ids + patch payload).
     elements.forEach((element) => {

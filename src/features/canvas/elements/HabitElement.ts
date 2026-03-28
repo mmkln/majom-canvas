@@ -5,19 +5,24 @@ import { editElement$ } from '../core/eventBus.ts';
 import {
   FONT_FAMILY,
   SELECT_COLOR,
+  SHOW_ANIM_SCALE,
   SHOW_GOAL_TEXT_SCALE,
 } from '../core/constants.ts';
 import type { ConnectionPoint } from '../core/interfaces/shape.ts';
 import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { PlanningElement } from './PlanningElement.ts';
+import { ElementStatus } from './ElementStatus.ts';
 import {
   HABIT_ACTIVE_FILL,
   HABIT_ARCHIVED_FILL,
 } from './constants.ts';
 import { TextRenderer } from '../utils/TextRenderer.ts';
+import { drawStatusAnimationCircle } from './utils/statusAnimations.ts';
 
 const HABIT_TEXT_LIGHT = '#f8fafc';
 const HABIT_TEXT_DARK = '#0f172a';
+const HABIT_ACTIVE_ANIM_COLOR = '#bfdbfe';
+const HABIT_ARCHIVED_ANIM_COLOR = '#94a3b8';
 export type HabitCompletionEntry = [string, boolean];
 
 export class HabitElement extends PlanningElement {
@@ -91,10 +96,14 @@ export class HabitElement extends PlanningElement {
   }
 
   public draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
-    const showText = panZoom.scale >= SHOW_GOAL_TEXT_SCALE;
+    const renderFlags = panZoom.renderFlags;
+    const showText =
+      renderFlags?.showGoalText ?? panZoom.scale >= SHOW_GOAL_TEXT_SCALE;
+    const showAnim = renderFlags?.showAnim ?? panZoom.scale >= SHOW_ANIM_SCALE;
     const centerX = this.x + this.radius;
     const centerY = this.y + this.radius;
     const { fillColor, textColor } = this.resolveAppearance();
+    const animationIntent = this.resolveAnimationIntent();
 
     ctx.save();
     ctx.beginPath();
@@ -106,6 +115,22 @@ export class HabitElement extends PlanningElement {
       ctx.strokeStyle = SELECT_COLOR;
       ctx.lineWidth = 3 / panZoom.scale;
       ctx.stroke();
+    }
+
+    if (showAnim && animationIntent) {
+      drawStatusAnimationCircle({
+        status: animationIntent.status,
+        ctx,
+        centerX,
+        centerY,
+        radius: this.radius,
+        lineWidth: 2 / panZoom.scale,
+        scale: panZoom.scale,
+        color: animationIntent.color,
+        timeMs: panZoom.timeMs,
+        viewBounds: panZoom.viewBounds,
+        detail: renderFlags?.statusAnimDetail,
+      });
     }
 
     if (showText) {
@@ -251,6 +276,22 @@ export class HabitElement extends PlanningElement {
     return {
       fillColor: this.isDueToday ? '#3e7ae0' : HABIT_ACTIVE_FILL,
       textColor: HABIT_TEXT_LIGHT,
+    };
+  }
+
+  private resolveAnimationIntent():
+    | { status: ElementStatus; color: string }
+    | null {
+    if (this.habitStatus === Status.Archived) {
+      return {
+        status: ElementStatus.Defined,
+        color: HABIT_ARCHIVED_ANIM_COLOR,
+      };
+    }
+
+    return {
+      status: ElementStatus.InProgress,
+      color: HABIT_ACTIVE_ANIM_COLOR,
     };
   }
 }

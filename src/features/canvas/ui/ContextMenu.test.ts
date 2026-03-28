@@ -6,11 +6,14 @@ import type { CanvasManager } from '../core/managers/CanvasManager.ts';
 import type { IViewState } from '../core/interfaces/interfaces.ts';
 import { Scene } from '../core/scene/Scene.ts';
 import type { AddExistingGoalService } from '../core/services/AddExistingGoalService.ts';
+import type { AddExistingHabitService } from '../core/services/AddExistingHabitService.ts';
 import type { AddExistingStoryService } from '../core/services/AddExistingStoryService.ts';
 import type { AddExistingTaskService } from '../core/services/AddExistingTaskService.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
+import { HabitElement } from '../elements/HabitElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import type { ExistingGoalPicker } from './components/ExistingGoalPicker.ts';
+import type { ExistingHabitPicker } from './components/ExistingHabitPicker.ts';
 import type { ExistingStoryPicker } from './components/ExistingStoryPicker.ts';
 import type { ExistingTaskPicker } from './components/ExistingTaskPicker.ts';
 import { ContextMenu } from './ContextMenu.ts';
@@ -51,9 +54,11 @@ function createContextMenu(
     pickerStub as unknown as ExistingTaskPicker,
     pickerStub as unknown as ExistingGoalPicker,
     pickerStub as unknown as ExistingStoryPicker,
+    pickerStub as unknown as ExistingHabitPicker,
     {} as unknown as AddExistingTaskService,
     {} as unknown as AddExistingGoalService,
     {} as unknown as AddExistingStoryService,
+    {} as unknown as AddExistingHabitService,
     runtime
   );
 }
@@ -151,6 +156,39 @@ describe('ContextMenu selection connection actions', () => {
       runtime.setLocale('uk');
 
       expect(container.textContent).toContain('Ціль');
+    } finally {
+      contextMenu.unmount();
+      container.remove();
+    }
+  });
+
+  it('renders routine completion as a native dropdown control item', () => {
+    const scene = new Scene();
+    const routine = new HabitElement({ id: 'routine-1', title: 'Morning review' });
+    scene.addElement(routine);
+
+    const contextMenu = createContextMenu(scene);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    contextMenu.mount(container);
+
+    try {
+      window.dispatchEvent(
+        new CustomEvent('contextMenuRequested', {
+          detail: {
+            element: routine,
+            sceneX: 0,
+            sceneY: 0,
+          },
+        })
+      );
+
+      expect(
+        container.querySelector('[data-component="HudDropdownControlItem"]')
+      ).not.toBeNull();
+      expect(
+        container.querySelector('[data-component="HudMenuControlRow"]')
+      ).toBeNull();
     } finally {
       contextMenu.unmount();
       container.remove();

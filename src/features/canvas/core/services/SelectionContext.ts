@@ -1,11 +1,11 @@
 import type { Scene } from '../scene/Scene.ts';
 import type { ICanvasElement } from '../interfaces/canvasElement.ts';
-import { TaskElement } from '../../elements/TaskElement.ts';
-import { StoryElement } from '../../elements/StoryElement.ts';
-import { GoalElement } from '../../elements/GoalElement.ts';
 import { ElementStatus } from '../../elements/ElementStatus.ts';
-
-export type PlanningElement = TaskElement | StoryElement | GoalElement;
+import {
+  type CanvasPlanningElement as PlanningElement,
+  isCanvasPlanningElement,
+  selectionSupportsLifecycleStatus,
+} from '../../elements/utils/planningElementCapabilities.ts';
 
 type BoundedCanvasElement = ICanvasElement & {
   x: number;
@@ -41,11 +41,7 @@ export class SelectionContext {
   public static isPlanningElement(
     element: ICanvasElement
   ): element is PlanningElement {
-    return (
-      element instanceof TaskElement ||
-      element instanceof StoryElement ||
-      element instanceof GoalElement
-    );
+    return isCanvasPlanningElement(element);
   }
 
   public static getSelectionBounds(elements: PlanningElement[]): {
@@ -74,7 +70,7 @@ export class SelectionContext {
   public static getMixedStatus(
     elements: PlanningElement[]
   ): ElementStatus | null {
-    if (elements.length === 0) return null;
+    if (!selectionSupportsLifecycleStatus(elements)) return null;
     const statuses = new Set(elements.map((el) => el.status));
     if (statuses.size !== 1) return null;
     return elements[0].status;
