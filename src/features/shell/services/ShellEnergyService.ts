@@ -45,14 +45,6 @@ export class ShellEnergyService implements AppEnergyService {
       return null;
     }
 
-    if (existingRecordId) {
-      return firstValueFrom(
-        this.energyApi
-          .updateEnergy(existingRecordId, { energy: level })
-          .pipe(first())
-      );
-    }
-
     return firstValueFrom(
       this.energyApi.createEnergy({ energy: level }).pipe(first())
     );

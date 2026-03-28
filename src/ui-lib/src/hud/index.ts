@@ -20,6 +20,7 @@ export {
 
 export {
   createHudIconButton as createIconButton,
+  setHudIconButtonContent as setIconButtonContent,
   setHudIconButtonLoading as setIconButtonLoading,
   type HudIconButtonTone as IconButtonTone,
 } from './HudIconButton.ts';
@@ -132,6 +133,10 @@ export {
 
 export { createHudSurface as createSurface } from './HudSurface.ts';
 export {
+  createHudMenuHeader as createMenuHeader,
+  type HudMenuHeaderOptions as MenuHeaderOptions,
+} from './HudMenuHeader.ts';
+export {
   createHudSidebarRailButton as createSidebarRailButton,
   createHudSidebarRailButtonBadge as createSidebarRailButtonBadge,
   setHudSidebarRailButtonActive as setSidebarRailButtonActive,
@@ -154,6 +159,7 @@ export * from './classNames.ts';
 // Compatibility exports for incremental migration
 export {
   createHudIconButton,
+  setHudIconButtonContent,
   setHudIconButtonLoading,
   type HudIconButtonTone,
 } from './HudIconButton.ts';
@@ -213,6 +219,10 @@ export {
   type HudSidebarRailButtonBadgeTone,
   type HudSidebarRailButtonBadgeVariant,
 } from './HudSidebar.ts';
+export {
+  createHudMenuHeader,
+  type HudMenuHeaderOptions,
+} from './HudMenuHeader.ts';
 export {
   createHudMenuControlRow,
   type HudMenuControlRowOptions,

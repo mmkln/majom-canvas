@@ -143,10 +143,7 @@ export class AppRuntime {
     this.emitSnapshot();
 
     try {
-      const record = await this.energyService?.saveEnergy(
-        level,
-        previousState.recordId
-      );
+      const record = await this.energyService?.saveEnergy(level);
       this.energyState = {
         level: record?.energy ?? level,
         recordId: record?.id ?? previousState.recordId,

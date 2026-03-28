@@ -66,8 +66,8 @@ describe('AppRuntime', () => {
           recordedAt: '2026-03-26T08:00:00.000Z',
           energy: EnergyLevel.LOW,
         }),
-        saveEnergy: async (level, existingRecordId) => ({
-          id: existingRecordId ?? 'energy-1',
+        saveEnergy: async (level) => ({
+          id: 'energy-2',
           recordedAt: '2026-03-26T09:00:00.000Z',
           energy: level,
         }),
@@ -80,6 +80,7 @@ describe('AppRuntime', () => {
     await runtime.setEnergyLevel(EnergyLevel.HIGH);
 
     expect(runtime.getEnergyState().level).toBe(EnergyLevel.HIGH);
+    expect(runtime.getEnergyState().recordId).toBe('energy-2');
     expect(runtime.getSnapshot().energy.saving).toBe(false);
   });
 });

@@ -50,6 +50,7 @@ const iconSizeByButtonSize: Record<HudIconButtonSize, number> = {
 class HudIconButton extends HudButtonBase {
   private loadingSize: number;
   private loadingStrokeWidth: number;
+  private readonly contentSlot: HTMLSpanElement;
 
   constructor(options: HudIconButtonOptions) {
     const buttonSize = options.size ?? 'md';
@@ -68,6 +69,10 @@ class HudIconButton extends HudButtonBase {
     this.loadingSize = iconSize;
     this.loadingStrokeWidth = options.iconStrokeWidth ?? 2;
 
+    this.contentSlot = document.createElement('span');
+    this.contentSlot.setAttribute('data-hud-icon-button-content', 'true');
+    this.contentSlot.className = 'inline-flex items-center justify-center';
+
     const icon = createIcon(options.icon, {
       size: iconSize,
       strokeWidth: options.iconStrokeWidth,
@@ -76,7 +81,8 @@ class HudIconButton extends HudButtonBase {
     if (options.iconClassName) {
       icon.className.baseVal = `${icon.className.baseVal} ${options.iconClassName}`.trim();
     }
-    this.getElement().appendChild(icon);
+    this.contentSlot.appendChild(icon);
+    this.getElement().appendChild(this.contentSlot);
 
     this.initializeState({
       loading: options.loading ?? false,
@@ -91,6 +97,10 @@ class HudIconButton extends HudButtonBase {
     if (strokeWidth !== undefined) {
       this.loadingStrokeWidth = strokeWidth;
     }
+  }
+
+  public setContent(content: Node): void {
+    this.contentSlot.replaceChildren(content);
   }
 
   protected renderLoadingContent(): void {
@@ -128,4 +138,23 @@ export function setHudIconButtonLoading(
     button.removeAttribute('aria-busy');
     button.removeAttribute('data-loading');
   }
+}
+
+export function setHudIconButtonContent(
+  button: HTMLButtonElement,
+  content: Node
+): void {
+  const controller = getHudButtonController(button);
+  if (controller && controller instanceof HudIconButton) {
+    controller.setContent(content);
+    return;
+  }
+
+  const slot = button.querySelector<HTMLElement>('[data-hud-icon-button-content="true"]');
+  if (slot) {
+    slot.replaceChildren(content);
+    return;
+  }
+
+  button.replaceChildren(content);
 }

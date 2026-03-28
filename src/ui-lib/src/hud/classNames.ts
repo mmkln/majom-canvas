@@ -89,6 +89,12 @@ export const HUD_MENU_ICON_BUTTON_WARNING_CLASS =
 export const HUD_MENU_ICON_BUTTON_DANGER_CLASS =
   'font-medium text-rose-600 hover:bg-rose-50 hover:text-rose-700 active:bg-rose-100';
 
+export const HUD_MENU_HEADER_CLASS = 'px-4 pb-3 pt-3';
+export const HUD_MENU_HEADER_TITLE_CLASS =
+  'text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400';
+export const HUD_MENU_HEADER_SUBTITLE_CLASS =
+  'mt-1 text-sm leading-5 text-slate-600';
+
 export const HUD_PAGE_EYEBROW_CLASS =
   'mb-2 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400';
 

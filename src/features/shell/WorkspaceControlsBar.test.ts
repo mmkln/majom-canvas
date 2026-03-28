@@ -17,6 +17,14 @@ function getButtonByAriaLabel(
   return root.querySelector(`button[aria-label="${ariaLabel}"]`);
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
 describe('WorkspaceControlsBar sidebar variant', () => {
   it('uses shared sidebar rail buttons and dividers', () => {
     const bar = new WorkspaceControlsBar({
@@ -346,7 +354,7 @@ describe('WorkspaceControlsBar floating variant', () => {
 
     runtime.setLocale('uk');
 
-    expect(routinesButton?.getAttribute('aria-label')).toBe('Відкрити звички');
+    expect(routinesButton?.getAttribute('aria-label')).toBe('Відкрити рутини');
     expect(chatButton?.getAttribute('aria-label')).toBe(
       'Перемкнути панель AI асистента'
     );
@@ -399,7 +407,7 @@ describe('WorkspaceControlsBar floating variant', () => {
     ) as HTMLButtonElement;
     energyButton.click();
 
-    expect(floatingBar.element.textContent).toContain('Energy level');
+    expect(floatingBar.element.textContent).toContain('Energy now');
 
     const highOption = floatingBar.element.querySelector<HTMLButtonElement>(
       'button[data-energy-level="4"]'
@@ -412,18 +420,18 @@ describe('WorkspaceControlsBar floating variant', () => {
     expect(energyButton.getAttribute('aria-label')).toBe("Energy: It's rolling");
     expect(
       energyButton
-        .querySelector('img')
-        ?.getAttribute('data-energy-emoji')
-    ).toBe('😛');
+        .querySelector('svg')
+        ?.getAttribute('data-energy-glyph')
+    ).toBe(EnergyLevel.HIGH);
     const sidebarEnergyButton = getButtonByAriaLabel(
       sidebarBar.element,
       "Energy: It's rolling"
     );
     expect(
       sidebarEnergyButton
-        ?.querySelector('img')
-        ?.getAttribute('data-energy-emoji')
-    ).toBe('😛');
+        ?.querySelector('svg')
+        ?.getAttribute('data-energy-glyph')
+    ).toBe(EnergyLevel.HIGH);
 
     floatingBar.destroy();
     sidebarBar.destroy();
@@ -431,7 +439,63 @@ describe('WorkspaceControlsBar floating variant', () => {
     sidebarBar.element.remove();
   });
 
-  it('renders energy options from highest to lowest in the dropdown', async () => {
+  it('updates the sidebar energy icon immediately before save resolves', async () => {
+    const deferred = createDeferred<{
+      id: string;
+      recordedAt: string;
+      energy: EnergyLevel;
+    }>();
+    const runtime = createAppRuntime({
+      initialLocale: 'en',
+      energyService: {
+        loadEnergy: async () => null,
+        loadEnergyHistory: async () => [],
+        saveEnergy: () => deferred.promise,
+      },
+    });
+    const sidebarBar = new WorkspaceControlsBar({
+      runtime,
+      initialView: 'canvas',
+      showKanban: true,
+      showTimeClustering: false,
+      showRoutines: false,
+      showChat: false,
+      variant: 'sidebar',
+    });
+    document.body.appendChild(sidebarBar.element);
+
+    const sidebarEnergyButton = getButtonByAriaLabel(
+      sidebarBar.element,
+      'Select energy'
+    ) as HTMLButtonElement;
+    sidebarEnergyButton.click();
+
+    const highOption = sidebarBar.element.querySelector<HTMLButtonElement>(
+      `button[data-energy-level="${EnergyLevel.HIGH}"]`
+    );
+    expect(highOption).not.toBeNull();
+
+    highOption?.click();
+
+    expect(
+      sidebarEnergyButton
+        .querySelector('svg')
+        ?.getAttribute('data-energy-glyph')
+    ).toBe(EnergyLevel.HIGH);
+
+    deferred.resolve({
+      id: 'energy-1',
+      recordedAt: '2026-03-26T09:00:00.000Z',
+      energy: EnergyLevel.HIGH,
+    });
+    await deferred.promise;
+    await Promise.resolve();
+
+    sidebarBar.destroy();
+    sidebarBar.element.remove();
+  });
+
+  it('renders energy options from low to high in the picker scale', async () => {
     const runtime = createAppRuntime({
       initialLocale: 'en',
       energyService: {
@@ -466,11 +530,11 @@ describe('WorkspaceControlsBar floating variant', () => {
     ).map((button) => button.dataset.energyLevel);
 
     expect(optionOrder).toEqual([
-      EnergyLevel.VERY_HIGH,
-      EnergyLevel.HIGH,
-      EnergyLevel.NEUTRAL,
-      EnergyLevel.LOW,
       EnergyLevel.VERY_LOW,
+      EnergyLevel.LOW,
+      EnergyLevel.NEUTRAL,
+      EnergyLevel.HIGH,
+      EnergyLevel.VERY_HIGH,
     ]);
 
     bar.destroy();
@@ -525,5 +589,55 @@ describe('WorkspaceControlsBar floating variant', () => {
     document
       .querySelectorAll('[data-component="ModalOverlay"]')
       .forEach((node) => node.remove());
+  });
+
+  it('keeps the hovered energy preview stable while moving between battery bars', () => {
+    const runtime = createAppRuntime({
+      initialLocale: 'en',
+      energyService: {
+        loadEnergy: async () => null,
+        loadEnergyHistory: async () => [],
+        saveEnergy: async (level) => ({
+          id: 'energy-1',
+          recordedAt: '2026-03-26T09:00:00.000Z',
+          energy: level,
+        }),
+      },
+    });
+    const bar = new WorkspaceControlsBar({
+      runtime,
+      initialView: 'canvas',
+      showKanban: true,
+      showTimeClustering: false,
+      showRoutines: false,
+      showChat: false,
+      variant: 'floating',
+    });
+    document.body.appendChild(bar.element);
+
+    const energyButton = getButtonByAriaLabel(
+      bar.element,
+      'Select energy'
+    ) as HTMLButtonElement;
+    energyButton.click();
+
+    const lowButton = bar.element.querySelector<HTMLButtonElement>(
+      `button[data-energy-level="${EnergyLevel.LOW}"]`
+    );
+    expect(lowButton).not.toBeNull();
+
+    const lowLabel = lowButton?.getAttribute('aria-label') ?? '';
+    lowButton?.dispatchEvent(new MouseEvent('mouseenter'));
+    expect(bar.element.textContent).toContain(lowLabel);
+
+    lowButton?.dispatchEvent(new MouseEvent('mouseleave'));
+    expect(bar.element.textContent).toContain(lowLabel);
+
+    const batteryShell = lowButton?.parentElement?.parentElement as HTMLElement;
+    batteryShell.dispatchEvent(new MouseEvent('mouseleave'));
+    expect(bar.element.textContent).not.toContain(lowLabel);
+
+    bar.destroy();
+    bar.element.remove();
   });
 });
