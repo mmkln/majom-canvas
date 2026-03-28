@@ -1,0 +1,147 @@
+export {
+  createHudIconButton,
+  setHudIconButtonLoading,
+  type HudIconButtonTone,
+} from '../../../../ui-lib/src/hud/index.ts';
+export {
+  HUD_BUTTON_CONTROLLER,
+  getHudButtonController,
+  type HudButtonElement,
+  type HudButtonState,
+  HudButtonBase,
+} from '../../../../ui-lib/src/hud/index.ts';
+export {
+  createHudTextButton,
+  setHudTextButtonLoading,
+  setHudTextButtonState,
+  type HudTextButtonTone,
+  type HudTextButtonSize,
+  type HudTextButtonElement,
+  type HudTextButtonState,
+} from '../../../../ui-lib/src/hud/index.ts';
+export { HudDropdown } from '../../../../ui-lib/src/hud/index.ts';
+export { HudAnchoredMenu } from '../../../../ui-lib/src/hud/index.ts';
+export { createHudDivider } from '../../../../ui-lib/src/hud/index.ts';
+export { createHudField } from '../../../../ui-lib/src/hud/index.ts';
+export {
+  createHudFormMessage,
+  type HudFormMessage,
+  type HudFormMessageTone,
+} from '../../../../ui-lib/src/hud/index.ts';
+export {
+  createHudDropdownItem,
+  createHudBadge,
+  type HudBadgeOptions,
+  type HudBadgeTone,
+  type HudDropdownItemTone,
+  type HudMenuItemVariant,
+  createHudMenuControlRow,
+  type HudMenuControlRowOptions,
+  createHudDropdownIconRow,
+  type HudDropdownIconAction,
+  type HudDropdownIconActionTone,
+  type HudDropdownIconRowOptions,
+  createHudSplitDropdownItem,
+  type HudSplitDropdownItemOptions,
+} from '../../../../ui-lib/src/hud/index.ts';
+export {
+  createHudInputBase,
+  setHudInputState,
+  type HudInputBaseOptions,
+  type HudInputBaseState,
+  type HudInputVariant,
+} from '../../../../ui-lib/src/hud/index.ts';
+export {
+  createHudInput,
+  type HudInput,
+  type HudInputKind,
+  createHudTextInputControl,
+  type HudTextInputControl,
+  type HudTextInputKind,
+} from '../../../../ui-lib/src/hud/index.ts';
+export {
+  createHudSegmentedControl,
+  HudSegmentedControl,
+  type HudSegmentedControlOption,
+  type HudSegmentedControlSize,
+} from '../../../../ui-lib/src/hud/index.ts';
+export {
+  createHudStepPicker,
+  type HudStepPicker,
+  type HudStepPickerOptions,
+} from '../../../../ui-lib/src/hud/index.ts';
+export {
+  createHudToggleSwitch,
+  type HudToggleSwitchOptions,
+} from '../../../../ui-lib/src/hud/index.ts';
+export { createHudSurface } from '../../../../ui-lib/src/hud/index.ts';
+
+// Prefix-free exports for new code
+export {
+  createIconButton,
+  setIconButtonLoading,
+  type IconButtonTone,
+  createSidebarRailButton,
+  createSidebarRailButtonBadge,
+  setSidebarRailButtonActive,
+  setSidebarRailButtonBadge,
+  createSidebarDivider,
+  SIDEBAR_TOKENS,
+  type SidebarRailButtonBadgeOptions,
+  type SidebarRailButtonBadgeTone,
+  type SidebarRailButtonBadgeVariant,
+  BUTTON_CONTROLLER,
+  getButtonController,
+  type ButtonElement,
+  type ButtonState,
+  ButtonBase,
+  createTextButton,
+  setTextButtonLoading,
+  setTextButtonState,
+  type TextButtonTone,
+  type TextButtonSize,
+  type TextButtonElement,
+  type TextButtonState,
+  Dropdown,
+  AnchoredMenu,
+  createDivider,
+  createField,
+  createFormMessage,
+  type FormMessage,
+  type FormMessageTone,
+  createDropdownItem,
+  createBadge,
+  type BadgeOptions,
+  type BadgeTone,
+  type DropdownItemTone,
+  type MenuItemVariant,
+  createMenuControlRow,
+  type MenuControlRowOptions,
+  createDropdownIconRow,
+  type DropdownIconAction,
+  type DropdownIconActionTone,
+  type DropdownIconRowOptions,
+  createSplitDropdownItem,
+  type SplitDropdownItemOptions,
+  createInputBase,
+  setInputState,
+  type InputBaseOptions,
+  type InputBaseState,
+  type InputVariant,
+  createInput,
+  type Input,
+  type InputKind,
+  createTextInputControl,
+  type TextInputControl,
+  type TextInputKind,
+  createSegmentedControl,
+  SegmentedControl,
+  type SegmentedControlOption,
+  type SegmentedControlSize,
+  createStepPicker,
+  type StepPicker,
+  type StepPickerOptions,
+  createToggleSwitch,
+  type ToggleSwitchOptions,
+  createSurface,
+} from '../../../../ui-lib/src/hud/index.ts';

@@ -11,6 +11,11 @@
 - Progress/assessment spec: `docs/LEARNING-STUDIO-PROGRESS-ASSESSMENT-SPEC.md`
 - Preview/runtime spec: `docs/LEARNING-STUDIO-PREVIEW-LEARNER-RUNTIME-SPEC.md`
 - Build interaction spec: `docs/LEARNING-STUDIO-BUILD-INTERACTION-SPEC.md`
+- Canvas author journeys: `docs/LEARNING-STUDIO-CANVAS-AUTHOR-JOURNEYS.md`
+- Learner UX spec: `docs/LEARNING-STUDIO-LEARNER-UX-SPEC.md`
+- Structured lesson format spec: `docs/LEARNING-STUDIO-STRUCTURED-LESSON-FORMAT-SPEC.md`
+- Core-canvas/migration spec: `docs/LEARNING-STUDIO-CORE-CANVAS-MIGRATION-STRATEGY.md`
+- Implementation restart plan: `docs/LEARNING-STUDIO-IMPLEMENTATION-RESTART-PLAN.md`
 
 This document tracks the current understanding of the planned learning module.
 It should be updated as discussions continue and requirements become more concrete.
@@ -28,6 +33,8 @@ It should be updated as discussions continue and requirements become more concre
 - `Goal`, `Story`, and `Task` are not the canonical course model.
 - Existing planning entities may be used as design references, visual precedents, or projection targets into the broader planning and execution system.
 - Reusing canvas interaction patterns does not mean reusing planning entities as the source of truth for course data.
+- The v1 target segment is creator-led courses shared with explicitly invited learners.
+- Real learner runtime is a first-class product concern and is distinct from creator-facing `Preview`.
 
 ## Vision
 
@@ -488,9 +495,9 @@ These are important questions that are easy to postpone too long.
 
 ### 1. Who The Product Is For First
 
-- is the first release for solo creators teaching others
-- for self-learners building their own plans
-- or for coaches, mentors, and small cohorts
+Chosen v1 direction:
+
+- creator-led courses shared with explicitly invited learners
 
 This changes the access model, authoring flow, and AI role significantly.
 
@@ -522,10 +529,9 @@ Access control is not just a technical detail here; it changes the core product 
 
 ### 4. Progress Semantics
 
-- what exactly counts as starting a lesson
-- what exactly counts as completing it
-- is completion manual, automatic, or mixed
-- can a lesson be revisited and marked for review
+Focused v1 draft spec:
+
+- `docs/LEARNING-STUDIO-PROGRESS-ASSESSMENT-SPEC.md`
 
 If this stays fuzzy, progress tracking will feel untrustworthy.
 
@@ -538,7 +544,31 @@ If this stays fuzzy, progress tracking will feel untrustworthy.
 
 This is one of the most important integration decisions in the whole product.
 
-### 6. Assessment And Feedback
+### 6. Learner Runtime UX
+
+Focused v1 draft spec:
+
+- `docs/LEARNING-STUDIO-LEARNER-UX-SPEC.md`
+
+The learner runtime must now be treated as a first-class flow, not only as a preview concern.
+
+### 7. Structured Lesson Format
+
+Focused v1 draft spec:
+
+- `docs/LEARNING-STUDIO-STRUCTURED-LESSON-FORMAT-SPEC.md`
+
+This defines the minimum shared content contract between AI generation, authoring UI, preview, and learner runtime.
+
+### 8. Core-Canvas Migration Strategy
+
+Focused v1 draft spec:
+
+- `docs/LEARNING-STUDIO-CORE-CANVAS-MIGRATION-STRATEGY.md`
+
+This defines how the product can stay canvas-first without coupling itself to the current planning-canvas implementation.
+
+### 9. Assessment And Feedback
 
 - do exercises only exist as checkboxes, or as graded activities
 - can the AI assess answers
@@ -547,7 +577,7 @@ This is one of the most important integration decisions in the whole product.
 
 Learning products become shallow if they only model content and not evaluation.
 
-### 7. AI Trust, Provenance, And Quality Control
+### 10. AI Trust, Provenance, And Quality Control
 
 - where does generated course structure come from
 - can the creator review and approve AI-generated material before learners see it
@@ -556,7 +586,7 @@ Learning products become shallow if they only model content and not evaluation.
 
 This matters even more if the AI uses external examples or web knowledge.
 
-### 8. Structured Content Format
+### 11. Structured Content Format
 
 - what is the minimal content block model for a lesson
 - text only, or text plus examples, tasks, references, and reflection prompts
@@ -565,7 +595,7 @@ This matters even more if the AI uses external examples or web knowledge.
 
 This is one of the most foundational architecture decisions.
 
-### 9. Success Metrics
+### 12. Success Metrics
 
 - what proves the module is working
 - course creation count
@@ -576,7 +606,7 @@ This is one of the most foundational architecture decisions.
 
 Without this, it will be hard to know whether the concept is actually helping users.
 
-### 10. Failure Modes
+### 13. Failure Modes
 
 - what happens when the AI gives a weak plan
 - what happens when the learner does not know what to ask for
@@ -648,12 +678,12 @@ This gives the product the integration it wants without permanently binding cour
 
 ## Recommended Delivery Stages
 
-### Stage 1: Learning As Structured Planning
+### Stage 1: Canvas-First Learning Prototype
 
 - AI generates a course outline or learning plan into a canvas-first learning experience.
 - Users refine the generated structure manually on the canvas.
 - Early iterations may still project lesson or exercise work into task-like execution states where useful.
-- No dedicated learner runtime is required yet.
+- Early local passes may simulate learner runtime, but the product contract must already preserve a distinct real learner runtime boundary.
 
 ### Stage 2: Dedicated Learning View
 
@@ -703,7 +733,7 @@ Based on the current workspace architecture, the most realistic implementation p
 - keep using the shell-level module system for a future dedicated learning workspace
 - reuse canvas interaction patterns instead of replacing them immediately
 - reuse the AI assistant runtime for course generation and tutoring workflows
-- ship the first learning experience through existing task and planning concepts before introducing a fully separate content model
+- keep learning-domain models separate from planning entities even if planning-style visual families or execution projections are reused
 
 This is an inference from the current source layout and runtime contracts, especially the existing workspace modules and AI assistant integration.
 
@@ -722,21 +752,13 @@ That is another reason to avoid treating planning entities as the permanent cour
 
 ## Open Product Questions
 
-- Is the first release focused more on course authoring or on learner consumption?
 - Will courses be linear, graph-based, or hybrid?
 - How much of the course can AI generate automatically in v1?
 - Will a learning plan be separate from a course, or a personalized view over course content?
-- Should the learner experience be a dedicated module view, or a mode inside the same canvas workspace?
-- What does progress mean in the first version: visited nodes, completed lessons, passed checkpoints, or something else?
-- Which existing planning entities should be reused directly in v1, and where do we need learning-specific entities?
 - At what point does `learning-studio` stop being a view over planning data and become its own runtime and persistence boundary?
 - Should lessons always create mirrored execution tasks, or only when the learner commits them into an active plan?
-- In the first release, is access granted per course, per plan, or per learner workspace?
 - How much external knowledge and retrieval should the AI use when composing personalized plans?
 - Should the first AI-generated plan use only internal course structures, or also synthesize plans directly from open-ended learner intent?
-- Which user segment should the first release optimize for: creator-led teaching, self-learning, or mentor-led learning?
-- What are the exact publication, versioning, and progress rules for a course after learners already started it?
-- What is the minimum structured lesson format that AI and UI can both rely on?
 - Which learning events and outcomes will define success for the first release?
 
 ## Decision Log
@@ -791,15 +813,9 @@ That is another reason to avoid treating planning entities as the permanent cour
 
 ## Next Areas To Define
 
-- minimum v1 access and sharing flow
-- v1 user journey
-- first-release target user segment
 - module runtime boundary
-- domain model
-- structured lesson format
-- progress and completion rules
-- publication and versioning rules
-- canvas interaction model for learning
+- planning synchronization rules
+- AI trust and approval policy
+- success metrics and event model
 - AI generation workflow
 - AI tutoring workflow
-- persistence and progress model

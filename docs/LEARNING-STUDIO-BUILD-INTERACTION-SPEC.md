@@ -3,7 +3,7 @@
 ## Status
 
 - State: decision draft
-- Updated: 2026-03-27
+- Updated: 2026-03-28
 - Scope: creator-facing interaction contract for the `Build` screen
 - Related docs:
   - `docs/LEARNING-STUDIO.md`
@@ -62,19 +62,19 @@ The creator uses `Build` to:
 - shape the course structure
 - add required learning units
 - sequence modules and lessons
-- edit metadata and prerequisites
+- open a details modal by double-clicking a selected element
+- edit metadata and prerequisites inside that modal
 - understand what is still missing before preview or publishing
+- quickly inspect a lesson in learner-facing form without leaving `Build`
 
 ## Build Screen Layout
 
 Recommended v1 layout:
 
 - top: course-stage header
-- left: structure rail
 - center: main build workspace
-- right: inspector panel
 
-## 1. Course-stage header
+### 1. Course-stage header
 
 The top header should contain:
 
@@ -95,32 +95,7 @@ Reason:
 - module creation is the top-level structural action
 - lesson and exercise creation are contextual, not global
 
-## 2. Structure rail
-
-The left rail should be a compact orientation and navigation surface.
-
-It should show:
-
-- course overview node
-- modules in sequence
-- selected module or selected lesson context
-- readiness cues such as missing lessons or incomplete required metadata
-
-The structure rail should allow:
-
-- selecting a module
-- selecting a lesson
-- quickly jumping across the course
-
-The structure rail should **not** become a second full editing surface.
-
-It should not contain:
-
-- duplicated `Add module` buttons at multiple levels
-- large editing forms
-- repeated per-item action menus that already exist in the main workspace
-
-## 3. Main build workspace
+### 2. Main build workspace
 
 The center workspace is the main work surface.
 
@@ -138,23 +113,52 @@ Recommended v1 representation:
 
 The workspace should communicate hierarchy immediately.
 
-## 4. Inspector panel
+### 3. Details modal
 
-The right-side inspector is the main editing surface for selected content.
+The primary editing surface for selected content is a modal opened from the selected element.
 
-Its job is to hold edits that would otherwise clutter the main workspace.
+Its job is to hold edits that would otherwise clutter the workspace:
 
-Recommended inspector targets:
-
-- course metadata
 - module metadata
 - lesson metadata
-- lesson description and type
+- lesson description and objective
 - prerequisites
-- readiness hints
-- advanced or less frequent settings
+- structured lesson blocks
 
-The inspector should react to one selected element at a time.
+Recommended rule:
+
+- single click selects
+- double click opens the details modal
+
+### 4. Quick lesson preview modal
+
+`Build` may include a lightweight lesson preview modal opened from a lesson node.
+
+Its job is to:
+
+- give the creator a fast learner-facing read of the selected lesson
+- reduce the cost of checking lesson quality while still building structure
+- avoid forcing a full route change for every small validation step
+
+It should:
+
+- be read-only
+- be local to the selected lesson
+- close back into the same build context
+- offer a path to full `Preview`
+- preserve predictable lesson selection and drag behavior
+
+It should not:
+
+- replace the details modal
+- replace full-course preview
+- become a second authoring surface
+
+Recommended interaction rule:
+
+- do not let quick preview break the normal single-selection gesture
+- prefer an explicit lesson preview affordance, double-click, or another low-friction but clearly secondary trigger
+- if direct click-to-preview is used, it must still keep selection and drag semantics reliable
 
 ## Primary CTA Rules
 
@@ -176,8 +180,6 @@ This duplication is intentional because:
 
 `Add module` should not also appear in:
 
-- the structure rail
-- the inspector
 - every empty subsection
 
 ## Contextual CTA Rules
@@ -207,7 +209,13 @@ Optional companion CTA:
 These actions should live:
 
 - in the lesson card area
-- or in the lesson inspector
+- or in the lesson details modal
+
+Additional lesson-level action may exist:
+
+- `Preview lesson`
+
+This action should live close to the lesson itself, not in the global header.
 
 They should not be promoted to the course header.
 
@@ -256,12 +264,31 @@ Recommended v1 flow:
 
 This keeps practice and validation within the same local lesson structure.
 
+## Quick Validation Flow
+
+Recommended v1 flow:
+
+- creator selects a lesson
+- double-clicks to open details when deeper editing is needed
+- opens `Preview lesson`
+- sees a read-only lesson modal
+- closes it and keeps editing
+
+Use full `Preview` when the creator wants to validate:
+
+- how the course reads overall
+- lesson sequence
+- next-step logic
+- prerequisite behavior
+- broader course coherence
+
 ## Inline vs Inspector Rules
 
 Recommended v1 principle:
 
 - use inline editing for short, high-frequency edits
-- use the inspector for richer, lower-frequency, or structurally sensitive edits
+- use the details modal for richer, lower-frequency, or structurally sensitive edits
+- use the inspector only as an optional persistent side surface when the creator explicitly wants it visible
 
 ## Inline edits
 
@@ -409,11 +436,16 @@ That means:
 
 - `Build` may show structural progression cues
 - `Build` may show readiness warnings
+- `Build` may offer a lesson-local quick preview modal
 - `Build` should not become the main place for learner-style lesson consumption
 
 If the creator wants to validate the learner flow, the correct next step is:
 
 - `Preview`
+
+If the creator only wants to sanity-check one lesson, the correct lighter step is:
+
+- quick lesson preview inside `Build`
 
 ## Temporary Block-Based Shell Rule
 

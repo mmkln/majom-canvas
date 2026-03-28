@@ -2,15 +2,16 @@ export type LearningStudioRoute =
   | 'home'
   | 'overview'
   | 'build'
-  | 'learn'
-  | 'access'
-  | 'settings';
+  | 'preview'
+  | 'learner_home'
+  | 'learner_lesson'
+  | 'learner_completion';
 
-export type LearningCourseStatus = 'draft' | 'published' | 'archived';
+export type LearningStudioMode = 'author' | 'preview' | 'learner';
 
-export type LearningLessonType = 'lesson' | 'exercise' | 'checkpoint';
+export type LearningCourseLifecycleState = 'draft' | 'published' | 'archived';
 
-export type LearningStudioSelectedElementKind = 'course' | 'module' | 'lesson';
+export type LearningUnitType = 'lesson' | 'exercise' | 'checkpoint';
 
 export type LearningProgressState =
   | 'locked'
@@ -19,181 +20,265 @@ export type LearningProgressState =
   | 'completed'
   | 'review';
 
-export type LearningLessonSequencingState = {
-  lessonId: string;
-  courseId: string;
-  progressState: LearningProgressState;
-  isLocked: boolean;
-  blockingPrerequisiteIds: string[];
-};
+export type LearningCompletionMethod =
+  | 'manual'
+  | 'auto_progress_to_in_progress'
+  | 'sandbox_preview';
 
-export type LearningCourse = {
-  id: string;
-  title: string;
-  description: string;
-  audience: string;
-  outcomes: string[];
-  status: LearningCourseStatus;
-  createdAt: string;
-  updatedAt: string;
-  moduleIds: string[];
-};
+export type LearningStudioSelectionKind =
+  | 'course'
+  | 'module'
+  | 'lesson'
+  | 'block';
 
-export type LearningCourseModule = {
+export type LearningStudioInspectorPanel =
+  | 'none'
+  | 'course'
+  | 'module'
+  | 'lesson';
+
+export type LearningLessonTextBlockType =
+  | 'intro'
+  | 'concept'
+  | 'example'
+  | 'instruction'
+  | 'summary';
+
+type LearningLessonTextBlock = {
   id: string;
-  courseId: string;
-  title: string;
   order: number;
-  lessonIds: string[];
+  type: LearningLessonTextBlockType;
+  text: string;
 };
 
-export type LearningLesson = {
+type LearningLessonExerciseReferenceBlock = {
   id: string;
-  moduleId: string;
-  title: string;
-  description: string;
   order: number;
-  type: LearningLessonType;
-  prerequisiteIds: string[];
+  type: 'exercise_ref';
+  refUnitId: string;
 };
 
-export type LearningLessonLearnerState = {
-  lessonId: string;
-  courseId: string;
-  moduleId: string;
-  title: string;
-  description: string;
-  type: LearningLessonType;
-  prerequisiteIds: string[];
-  blockedByLessonIds: string[];
-  progressState: LearningProgressState;
-  isLocked: boolean;
-  isCompleted: boolean;
+type LearningLessonCheckpointReferenceBlock = {
+  id: string;
+  order: number;
+  type: 'checkpoint_ref';
+  refUnitId: string;
 };
 
-export type LearningCourseLearnerSnapshot = {
-  courseId: string;
-  learnerRef: string;
-  focusedLessonId: string | null;
-  nextAvailableLessonId: string | null;
-  lessons: LearningLessonLearnerState[];
-};
-
-export type LearningCourseLearnerProgressSummary = {
-  courseId: string;
-  learnerRef: string;
-  totalLessons: number;
-  completedLessons: number;
-  availableLessons: number;
-  lockedLessons: number;
-  inProgressLessons: number;
-  reviewLessons: number;
-  completionPercentage: number;
-  isCompleted: boolean;
-};
-
-export type LearningRecommendedLearnerStep = {
-  courseId: string;
-  learnerRef: string;
-  lessonId: string;
-  moduleId: string;
-  title: string;
-  description: string;
-  type: LearningLessonType;
-  progressState: LearningProgressState;
-  isLocked: boolean;
-};
+export type LearningLessonBlock =
+  | LearningLessonTextBlock
+  | LearningLessonExerciseReferenceBlock
+  | LearningLessonCheckpointReferenceBlock;
 
 export type LearningModuleLayout = {
   moduleId: string;
   x: number;
   y: number;
+  collapsed: boolean;
 };
 
-export type Enrollment = {
+export type LearningCourseModule = {
   id: string;
-  courseId: string;
-  learnerRef: string;
-  status: 'active' | 'revoked';
+  title: string;
+  description: string;
+  order: number;
+  lessonIds: string[];
+};
+
+export type LearningCourseUnit = {
+  id: string;
+  moduleId: string;
+  parentLessonId: string | null;
+  order: number;
+  type: LearningUnitType;
+  title: string;
+  description: string;
+  objective: string;
+  estimatedDurationMinutes: number | null;
+  prerequisiteLessonIds: string[];
+  blocks: LearningLessonBlock[];
   createdAt: string;
   updatedAt: string;
 };
 
-export type CourseAccessGrant = {
+export type LearningCourseContent = {
+  title: string;
+  description: string;
+  audience: string;
+  outcomes: string[];
+  estimatedDurationMinutes: number | null;
+  modules: LearningCourseModule[];
+  units: LearningCourseUnit[];
+  moduleLayouts: LearningModuleLayout[];
+};
+
+export type LearningCourseRecord = {
+  id: string;
+  ownerRef: string;
+  lifecycleState: LearningCourseLifecycleState;
+  activeDraftId: string;
+  latestPublishedVersionId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LearningCourseDraft = {
+  id: string;
+  courseId: string;
+  revision: number;
+  content: LearningCourseContent;
+  lastPreviewedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LearningCoursePublishedVersion = {
+  id: string;
+  courseId: string;
+  versionNumber: number;
+  sourceDraftId: string;
+  content: LearningCourseContent;
+  publishedAt: string;
+};
+
+export type LearningCourseAccessGrant = {
   id: string;
   courseId: string;
   learnerRef: string;
-  createdAt: string;
+  grantedAt: string;
   revokedAt: string | null;
 };
 
-export type LearnerProgress = {
+export type LearningEnrollment = {
   id: string;
   courseId: string;
+  publishedVersionId: string;
   learnerRef: string;
-  lessonId: string;
+  status: 'active' | 'revoked';
+  createdAt: string;
+  startedAt: string | null;
+  updatedAt: string;
+};
+
+export type LearningProgressRecord = {
+  id: string;
+  enrollmentId: string;
+  publishedVersionId: string;
+  unitId: string;
   state: LearningProgressState;
-  updatedAt: string;
-};
-
-export type LearningSession = {
-  id: string;
-  courseId: string;
-  learnerRef: string;
-  lessonId: string | null;
-  startedAt: string;
+  completionMethod: LearningCompletionMethod | null;
+  startedAt: string | null;
   completedAt: string | null;
-};
-
-export type LearningStudioLocalStateV1 = {
-  version: 1;
-  courses: LearningCourse[];
-  modules: LearningCourseModule[];
-  lessons: LearningLesson[];
-  moduleLayouts: LearningModuleLayout[];
-  enrollments: Enrollment[];
-  accessGrants: CourseAccessGrant[];
-  learnerProgress: LearnerProgress[];
-  learningSessions: LearningSession[];
+  reviewRequestedAt: string | null;
+  lastOpenedAt: string | null;
   updatedAt: string;
 };
 
-export type LearningStudioUiStateV1 = {
-  version: 1;
+export type LearningLearnerSessionRecord = {
+  id: string;
+  enrollmentId: string;
+  courseId: string;
+  publishedVersionId: string;
+  focusedUnitId: string | null;
+  lastOpenedUnitId: string | null;
+  startedAt: string;
+  updatedAt: string;
+};
+
+export type LearningPreviewUiState = {
+  focusedUnitId: string | null;
+  sandboxProgress: Record<string, LearningProgressState>;
+  updatedAt: string | null;
+};
+
+export type LearningLearnerUiState = {
+  courseId: string | null;
+  enrollmentId: string | null;
+  focusedUnitId: string | null;
+  lastResumeUnitId: string | null;
+};
+
+export type LearningStudioLocalStateV2 = {
+  version: 2;
+  courses: LearningCourseRecord[];
+  drafts: LearningCourseDraft[];
+  publishedVersions: LearningCoursePublishedVersion[];
+  accessGrants: LearningCourseAccessGrant[];
+  enrollments: LearningEnrollment[];
+  progressRecords: LearningProgressRecord[];
+  learnerSessions: LearningLearnerSessionRecord[];
+  updatedAt: string;
+};
+
+export type LearningStudioUiStateV2 = {
+  version: 2;
   route: LearningStudioRoute;
+  mode: LearningStudioMode;
   selectedCourseId: string | null;
-  selectedElementKind: LearningStudioSelectedElementKind | null;
+  selectedDraftId: string | null;
+  selectedPublishedVersionId: string | null;
+  selectedEnrollmentId: string | null;
+  activeLearnerRef: string | null;
+  selectedElementKind: LearningStudioSelectionKind | null;
   selectedElementId: string | null;
-  focusedLessonId: string | null;
-  selectedLearnerRef: string;
+  inspectorPanel: LearningStudioInspectorPanel;
+  preview: LearningPreviewUiState;
+  learner: LearningLearnerUiState;
   updatedAt: string;
 };
 
-export function createEmptyLearningStudioState(): LearningStudioLocalStateV1 {
+export function createEmptyLearningStudioState(): LearningStudioLocalStateV2 {
   return {
-    version: 1,
+    version: 2,
     courses: [],
-    modules: [],
-    lessons: [],
-    moduleLayouts: [],
-    enrollments: [],
+    drafts: [],
+    publishedVersions: [],
     accessGrants: [],
-    learnerProgress: [],
-    learningSessions: [],
+    enrollments: [],
+    progressRecords: [],
+    learnerSessions: [],
     updatedAt: new Date().toISOString(),
   };
 }
 
-export function createEmptyLearningStudioUiState(): LearningStudioUiStateV1 {
+export function createEmptyLearningStudioUiState(): LearningStudioUiStateV2 {
   return {
-    version: 1,
+    version: 2,
     route: 'home',
+    mode: 'author',
     selectedCourseId: null,
+    selectedDraftId: null,
+    selectedPublishedVersionId: null,
+    selectedEnrollmentId: null,
+    activeLearnerRef: 'local-learner',
     selectedElementKind: null,
     selectedElementId: null,
-    focusedLessonId: null,
-    selectedLearnerRef: 'local-learner',
+    inspectorPanel: 'none',
+    preview: {
+      focusedUnitId: null,
+      sandboxProgress: {},
+      updatedAt: null,
+    },
+    learner: {
+      courseId: null,
+      enrollmentId: null,
+      focusedUnitId: null,
+      lastResumeUnitId: null,
+    },
     updatedAt: new Date().toISOString(),
+  };
+}
+
+export function createEmptyLearningCourseContent(): LearningCourseContent {
+  return {
+    title: '',
+    description: '',
+    audience: '',
+    outcomes: [],
+    estimatedDurationMinutes: null,
+    modules: [],
+    units: [],
+    moduleLayouts: [],
   };
 }
 
@@ -205,5 +290,20 @@ export function createDefaultLearningModuleLayout(
     moduleId,
     x: 32 + (index % 3) * 300,
     y: 32 + Math.floor(index / 3) * 240,
+    collapsed: false,
   };
+}
+
+export function deriveLearningStudioMode(
+  route: LearningStudioRoute
+): LearningStudioMode {
+  if (route === 'preview') return 'preview';
+  if (
+    route === 'learner_home' ||
+    route === 'learner_lesson' ||
+    route === 'learner_completion'
+  ) {
+    return 'learner';
+  }
+  return 'author';
 }

@@ -3,7 +3,7 @@
 ## Status
 
 - State: decision draft
-- Updated: 2026-03-27
+- Updated: 2026-03-28
 - Scope: creator preview behavior, real learner runtime behavior, and the product boundary between them
 - Related docs:
   - `docs/LEARNING-STUDIO.md`
@@ -56,10 +56,36 @@ A creator-facing validation surface used to inspect how a course would feel to a
 
 Preview exists to answer:
 
+- does the course hold together as a whole
 - is the sequence understandable
 - does the current lesson feel clear
 - does the next-step recommendation make sense
 - do prerequisites and progression gates behave as intended
+
+Preview is therefore course-level validation, not just a lesson-level peek.
+
+Recommended v1 implication:
+
+- the preview page should show the course-level shell and enough overall structure to explain where the focused lesson sits in the broader flow
+- preview should never collapse into a single isolated lesson card without course context
+
+### Quick lesson preview in Build
+
+A lightweight creator-facing modal opened from a lesson node while remaining inside `Build`.
+
+Quick lesson preview exists to answer:
+
+- does this specific lesson read clearly right now
+- does the lesson content roughly match its role in the structure
+- should the creator keep editing here or move into full-course preview
+
+Recommended v1 rule:
+
+- quick lesson preview is not the same thing as `Preview`
+- it does not change the current route
+- it does not replace the full preview screen
+- it should remain read-only
+- it should not break normal lesson selection and drag behavior in `Build`
 
 ### Real learner runtime
 
@@ -97,6 +123,17 @@ The creator should be able to preview from:
 - the build screen
 
 But preview is still conceptually inside the creator workspace.
+It is the broader course-level validation checkpoint, not the fastest lesson inspection tool.
+
+### Quick lesson preview entrypoint
+
+The creator reaches quick lesson preview from:
+
+- a lesson node in `Build`
+- or a lesson-specific contextual action inside `Build`
+
+It should always feel like a local inspection surface, not a mode switch.
+If the product uses click-based opening, it must still preserve predictable build selection semantics.
 
 ### Real learner runtime entrypoint
 
@@ -146,6 +183,13 @@ This means:
 - those state changes exist only for the creator session or a creator-specific preview sandbox
 - preview must not modify enrollment progress
 
+### Quick lesson preview progress
+
+Recommended v1 rule:
+
+- quick lesson preview does not simulate sandbox progression
+- it is a content check, not a flow simulation environment
+
 ### Real learner progress
 
 Recommended v1 rule:
@@ -194,11 +238,13 @@ This includes:
 
 ### Preview should show
 
+- course-level structure and orientation
 - learner-facing content
 - learner-facing progression cues
 - current-step and next-step behavior
 - prerequisite and lock behavior
 - optional creator-only preview banner or context label
+- clear relation between the focused lesson and the wider course sequence
 
 ### Preview may also show limited creator context
 
@@ -209,6 +255,20 @@ Only in lightweight supporting surfaces such as:
 - an exit back to `Build`
 
 It should not clutter the learner surface with authoring controls.
+
+### Quick lesson preview should show
+
+- the selected lesson in learner-facing presentation language
+- the lesson's current blocks and references
+- lightweight lesson context such as module title
+- an obvious CTA to open full `Preview`
+
+### Quick lesson preview should not show
+
+- structure editing controls
+- inspector editing controls
+- full creator navigation chrome
+- simulated learner progression controls
 
 ### Learner runtime should show
 
@@ -236,6 +296,16 @@ Recommended v1 behavior:
 This is deliberate.
 Preview is a validation environment, not a strict attempt to trap the creator inside learner pacing.
 
+### Quick lesson preview navigation
+
+Recommended v1 behavior:
+
+- the modal stays local to the currently selected lesson
+- it should be easy to close and continue editing
+- it may link out to full `Preview`
+- it should not become a second full navigation shell
+- it should not try to simulate the whole course-level validation story
+
 ### Learner navigation
 
 Recommended v1 behavior:
@@ -257,6 +327,8 @@ Recommended distinction:
 
 - preview keeps lightweight creator context and an obvious path back to authoring
 - learner runtime keeps learner context such as enrolled course state, resume status, and completion summaries
+- quick lesson preview keeps even less chrome than preview and behaves as a local build overlay
+- preview keeps more course-level structure than quick lesson preview so the creator can reason about the overall flow
 
 ## Structural Recommendation
 
@@ -287,6 +359,7 @@ These distinctions should be enforced explicitly:
 - learner runtime writes real enrollment progress
 - preview exposes a route back to build
 - learner runtime does not expose creator management controls
+- quick lesson preview stays lesson-local and does not become a second preview route
 
 ## Naming Decision
 

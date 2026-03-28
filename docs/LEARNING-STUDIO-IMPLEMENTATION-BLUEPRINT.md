@@ -11,6 +11,10 @@
 - Progress/assessment authority: `docs/LEARNING-STUDIO-PROGRESS-ASSESSMENT-SPEC.md`
 - Preview/runtime authority: `docs/LEARNING-STUDIO-PREVIEW-LEARNER-RUNTIME-SPEC.md`
 - Build interaction authority: `docs/LEARNING-STUDIO-BUILD-INTERACTION-SPEC.md`
+- Learner UX authority: `docs/LEARNING-STUDIO-LEARNER-UX-SPEC.md`
+- Structured lesson format authority: `docs/LEARNING-STUDIO-STRUCTURED-LESSON-FORMAT-SPEC.md`
+- Core-canvas/migration authority: `docs/LEARNING-STUDIO-CORE-CANVAS-MIGRATION-STRATEGY.md`
+- Restart-plan authority: `docs/LEARNING-STUDIO-IMPLEMENTATION-RESTART-PLAN.md`
 
 ---
 
@@ -415,13 +419,11 @@ No backend data-access services should be added in local prototype phase.
 
 ## 12) Open questions to confirm during implementation
 
-1. First target segment: self-learners, creator-led courses, or mentor-led cohorts?
-2. Progress semantics: what exactly marks "started" and "completed"?
-3. Publication/versioning policy after learner progression has started?
-   Current v1 recommendation lives in `docs/LEARNING-STUDIO-PUBLICATION-ACCESS-VERSIONING-SPEC.md`
-4. Sync policy with planning tasks: all lessons vs active next steps only?
-5. AI trust policy: review-before-publish mandatory or optional?
-6. Minimum assessment model in local prototype: checkbox-only or lightweight scoring?
+1. Any post-v1 segment expansion beyond creator-led courses with invited learners?
+2. Sync policy with planning tasks: all lessons vs active next steps only?
+3. AI trust policy: review-before-publish mandatory or optional?
+4. How minimal should the first structured lesson editor be before it becomes too limiting?
+5. Which telemetry and success events matter enough to capture in the local prototype?
 
 ---
 

@@ -3,8 +3,10 @@ export { HttpInterceptorClient } from './data-access/http-interceptor.ts';
 export { TasksApiService } from './data-access/tasks-api-service.ts';
 export { StoriesApiService } from './data-access/stories-api-service.ts';
 export { GoalsApiService } from './data-access/goals-api-service.ts';
+export { HabitsApiService } from './data-access/habits-api-service.ts';
 export { CanvasApiService } from './data-access/canvas-api-service.ts';
 export { CanvasRelationsApiService } from './data-access/canvas-relations-api-service.ts';
+export { TimeClusteringApiService } from './data-access/time-clustering-api-service.ts';
 export { CanvasDataService } from './services/CanvasDataService.ts';
 
 export type {

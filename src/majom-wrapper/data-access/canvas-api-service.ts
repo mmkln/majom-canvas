@@ -6,12 +6,15 @@ import {
 } from './canvas-position-dto.js';
 
 export type CanvasMeta = Record<string, unknown> | null;
+export type CanvasStatus = 'active' | 'archived';
 
 export interface CanvasSummary {
   id: string;
   name: string;
   created_at: string;
   meta?: CanvasMeta;
+  status?: CanvasStatus;
+  archived_at?: string | null;
 }
 
 export class CanvasApiService {
@@ -83,5 +86,13 @@ export class CanvasApiService {
   /** Delete canvas container */
   deleteCanvas(id: string): Observable<void> {
     return this.http.delete<void>(`/canvas/${id}/`);
+  }
+
+  public archiveCanvas(id: string): Observable<CanvasSummary> {
+    return this.http.post<CanvasSummary>(`/canvas/${id}/archive/`, {});
+  }
+
+  public restoreCanvas(id: string): Observable<CanvasSummary> {
+    return this.http.post<CanvasSummary>(`/canvas/${id}/restore/`, {});
   }
 }

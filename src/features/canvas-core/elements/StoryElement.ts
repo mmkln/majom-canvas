@@ -1,0 +1,470 @@
+// core/shapes/Story.ts
+import { PlanningElement } from './PlanningElement.ts';
+import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
+import { TaskElement } from './TaskElement.ts';
+import { ConnectionPoint } from '../core/interfaces/shape.ts';
+import type {
+  CanvasLayoutMetrics,
+  ICanvasLayoutContainer,
+} from './interfaces/canvasLayoutContainer.ts';
+import type { IStructuredCanvasNode } from './interfaces/structuredCanvasNode.ts';
+import {
+  SELECT_COLOR,
+  FOCUS_COLOR,
+  HIGHLIGHT_COLOR,
+  FOCUS_STORY_FILL,
+  HIGHLIGHT_STORY_FILL,
+  FONT_FAMILY,
+  TITLE_FONT_SIZE,
+  SMALL_FONT_SIZE,
+  SHOW_ANIM_SCALE,
+  SHOW_DETAILS_SCALE,
+  SHOW_STORY_TEXT_SCALE,
+} from '../core/constants.ts';
+import { editElement$ } from '../core/eventBus.ts';
+import { storyStyles } from './styles/storyStyles.ts';
+import { ElementStatus } from './ElementStatus.ts';
+import { v4 } from 'uuid';
+import { TextRenderer } from '../utils/TextRenderer.ts';
+import { drawStatusAnimationRect } from './utils/statusAnimations.ts';
+import type { UiPriority } from '../../../majom-wrapper/utils/priorityMapping.ts';
+import { getPriorityStrokeWidth } from './utils/priorityStroke.ts';
+import type { CanvasInteractionState } from './interfaces/structuredCanvasNode.ts';
+
+/**
+ * Story representation on the canvas - a container for tasks
+ */
+export class StoryElement
+  extends PlanningElement
+  implements ICanvasLayoutContainer<TaskElement>
+{
+  static width: number = 344;
+  static height: number = 240;
+  public borderColor: string = storyStyles[ElementStatus.Defined].borderColor;
+  /** Size for resize handles (in px) */
+  // Size in px for the circular resize handle (larger for better UX)
+  static HANDLE_SIZE: number = 8;
+  static readonly layoutMetrics: CanvasLayoutMetrics = {
+    paddingX: 36,
+    paddingY: 36,
+    gap: 28,
+    header: 56,
+    childWidth: TaskElement.width,
+    childHeight: TaskElement.height,
+  };
+
+  status: ElementStatus = ElementStatus.Defined;
+  tasks: TaskElement[] = [];
+  public priority: UiPriority = 'low';
+  public goalBackendId: number | null = null;
+  /** Currently hovered resize direction */
+  public hoveredResizeHandle: 'nw' | 'ne' | 'se' | 'sw' | null = null;
+
+  /**
+   * Create a new Story
+   */
+  constructor({
+    nodeKind = 'story',
+    id = v4(),
+    x = 0,
+    y = 0,
+    width = StoryElement.width,
+    height = 240,
+    title = 'New Story',
+    description = '',
+    status = ElementStatus.Defined,
+    priority = 'low',
+    tasks = [],
+    selected = false,
+    interactionStates,
+    backendId,
+    uuid,
+    goalBackendId = null,
+  }: {
+    nodeKind?: string;
+    id?: string;
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+    title?: string;
+    description?: string;
+    status?: ElementStatus;
+    priority?: UiPriority;
+    tasks?: TaskElement[];
+    selected?: boolean;
+    interactionStates?: Iterable<CanvasInteractionState>;
+    backendId?: number;
+    uuid?: string;
+    goalBackendId?: number | null;
+  }) {
+    // determine style by status
+    const style = storyStyles[status];
+    super({
+      nodeKind,
+      id,
+      x,
+      y,
+      width,
+      height,
+      fillColor: style.fillColor,
+      lineWidth: 2,
+      title,
+      description,
+      interactionStates,
+      backendId,
+      uuid,
+    });
+    // layer ordering: draw stories below tasks
+    this.zIndex = 1;
+    this.status = status;
+    this.borderColor = storyStyles[status].borderColor;
+    this.priority = priority;
+    this.tasks = tasks;
+    this.selected = selected;
+    this.goalBackendId = goalBackendId;
+  }
+
+  /**
+   * Draw the story container on canvas
+   */
+  draw(ctx: CanvasRenderingContext2D, panZoom: PanZoomManager): void {
+    const renderFlags = panZoom.renderFlags;
+    const showDetails =
+      renderFlags?.showDetails ?? panZoom.scale >= SHOW_DETAILS_SCALE;
+    const showText =
+      renderFlags?.showStoryText ?? panZoom.scale >= SHOW_STORY_TEXT_SCALE;
+    const showAnim = renderFlags?.showAnim ?? panZoom.scale >= SHOW_ANIM_SCALE;
+    // Apply fill and border based on status
+    const style = storyStyles[this.status];
+    const appearance = this.resolveAppearance(
+      {
+        fillColor: this.focused
+          ? FOCUS_STORY_FILL
+          : this.highlighted
+            ? HIGHLIGHT_STORY_FILL
+            : style.fillColor,
+        chromeColor: this.focused
+          ? FOCUS_COLOR
+          : this.highlighted
+            ? HIGHLIGHT_COLOR
+            : style.borderColor,
+        borderColor: this.focused
+          ? FOCUS_COLOR
+          : this.highlighted
+            ? HIGHLIGHT_COLOR
+            : this.selected
+              ? SELECT_COLOR
+              : style.borderColor,
+      },
+      { scale: panZoom.scale }
+    );
+    const strokeWidth = getPriorityStrokeWidth(this.priority) / panZoom.scale;
+    this.fillColor = appearance.fillColor;
+    this.borderColor = appearance.chromeColor ?? appearance.borderColor!;
+    const radius = 8 * panZoom.scale;
+    ctx.fillStyle = appearance.fillColor;
+    ctx.beginPath();
+    ctx.roundRect(this.x, this.y, this.width, this.height, radius);
+    ctx.fill();
+    // Border: dashed or solid
+    const dashOn = 6 / panZoom.scale;
+    const dashOff = 2 / panZoom.scale;
+    ctx.setLineDash(this.selected ? [] : [dashOn, dashOff]);
+    ctx.strokeStyle = appearance.borderColor ?? appearance.chromeColor!;
+    ctx.lineWidth = strokeWidth;
+    ctx.stroke();
+    if (showAnim) {
+      drawStatusAnimationRect({
+        status: this.status,
+        ctx,
+        x: this.x,
+        y: this.y,
+        width: this.width,
+        height: this.height,
+        radius,
+        lineWidth: strokeWidth,
+        scale: panZoom.scale,
+        color: appearance.chromeColor ?? appearance.borderColor!,
+        timeMs: panZoom.timeMs,
+        viewBounds: panZoom.viewBounds,
+        detail: renderFlags?.statusAnimDetail,
+      });
+    }
+    if (showText) {
+      // Title text with word wrapping
+      ctx.fillStyle = '#000000';
+      ctx.font = `bold ${TITLE_FONT_SIZE}px ${FONT_FAMILY}`;
+      // Calculate max width for title, accounting for potential buttons
+      const maxTitleWidth = this.width - 90; // Leave space for buttons on the right
+      const fontSize = 24;
+      const lineHeight = 1.3;
+      TextRenderer.drawWrappedText(
+        ctx,
+        this.title,
+        this.x + 16,
+        this.y + 32,
+        maxTitleWidth,
+        lineHeight,
+        3, // Max 2 lines for Story title
+        fontSize
+      );
+    }
+    // Draw anchors via base class
+    super.drawAnchors(ctx, panZoom);
+    // Draw resize handles when selected or hovered
+    if (showDetails && (this.selected || this.isHovered)) {
+      this.getResizeHandles(panZoom).forEach((h) => {
+        const isHandleHovered = this.hoveredResizeHandle === h.direction;
+        const size = StoryElement.HANDLE_SIZE / panZoom.scale;
+
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, size, 0, 2 * Math.PI);
+
+        ctx.fillStyle = isHandleHovered ? '#00A8FF' : SELECT_COLOR;
+        ctx.fill();
+      });
+    }
+  }
+
+  /**
+   * Draw a button
+   */
+  private drawButton(
+    ctx: CanvasRenderingContext2D,
+    panZoom: PanZoomManager,
+    x: number,
+    y: number,
+    icon: string,
+    color: string
+  ): void {
+    const size = 22 / panZoom.scale;
+
+    // Button background
+    if (color !== 'transparent') {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.roundRect(x, y, size, size, 4 / panZoom.scale);
+      ctx.fill();
+    }
+
+    // Icon
+    ctx.fillStyle = '#666666';
+    ctx.font = `${SMALL_FONT_SIZE / panZoom.scale}px ${FONT_FAMILY}`;
+    ctx.fillText(icon, x + 3 / panZoom.scale, y + 16 / panZoom.scale);
+  }
+
+  /**
+   * Check if coordinates are within this story
+   */
+  contains(px: number, py: number): boolean {
+    return (
+      px >= this.x &&
+      px <= this.x + this.width &&
+      py >= this.y &&
+      py <= this.y + this.height
+    );
+  }
+
+  /**
+   * Check if coordinates are within the edit button
+   */
+  isEditButtonClicked(px: number, py: number): boolean {
+    const titleHeight = 32;
+    const buttonSize = 22;
+    const buttonX = this.x + this.width - 80;
+    const buttonY = this.y + 6;
+
+    return (
+      px >= buttonX &&
+      px <= buttonX + buttonSize &&
+      py >= buttonY &&
+      py <= buttonY + buttonSize
+    );
+  }
+
+  /**
+   * Check if coordinates are within the delete button
+   */
+  isDeleteButtonClicked(px: number, py: number): boolean {
+    const titleHeight = 32;
+    const buttonSize = 22;
+    const buttonX = this.x + this.width - 50;
+    const buttonY = this.y + 6;
+
+    return (
+      px >= buttonX &&
+      px <= buttonX + buttonSize &&
+      py >= buttonY &&
+      py <= buttonY + buttonSize
+    );
+  }
+
+  /**
+   * Check if coordinates are within the add task button
+   */
+  isAddButtonClicked(px: number, py: number): boolean {
+    const titleHeight = 32;
+    const buttonSize = 22;
+    const buttonX = this.x + this.width - 20;
+    const buttonY = this.y + 6;
+
+    return (
+      px >= buttonX &&
+      px <= buttonX + buttonSize &&
+      py >= buttonY &&
+      py <= buttonY + buttonSize
+    );
+  }
+
+  /**
+   * Add a task to this story
+   */
+  addTask(task: TaskElement): void {
+    if (!this.tasks.find((t) => t.id === task.id)) {
+      this.tasks.push(task);
+    }
+  }
+
+  /**
+   * Remove a task from this story
+   */
+  removeTask(taskId: string): void {
+    this.tasks = this.tasks.filter((t) => t.id !== taskId);
+  }
+
+  public getLayoutMetrics(): CanvasLayoutMetrics {
+    return StoryElement.layoutMetrics;
+  }
+
+  public getOrderedLayoutChildren(): TaskElement[] {
+    return [...this.tasks];
+  }
+
+  public replaceOrderedLayoutChildren(children: TaskElement[]): void {
+    this.tasks = [...children];
+  }
+
+  public acceptsLayoutChild(
+    element: IStructuredCanvasNode
+  ): element is TaskElement {
+    return element instanceof TaskElement;
+  }
+
+  getBoundaryPoint(angle: number): { x: number; y: number } {
+    return { x: this.x + this.width / 2, y: this.y + this.height / 2 };
+  }
+
+  getConnectionPoints(): ConnectionPoint[] {
+    const points: ConnectionPoint[] = [];
+    const w = this.width;
+    const h = this.height;
+    points.push({
+      x: this.x + w / 2,
+      y: this.y,
+      angle: -Math.PI / 2,
+      isHovered: false,
+      direction: 'top',
+    });
+    points.push({
+      x: this.x + w,
+      y: this.y + h / 2,
+      angle: 0,
+      isHovered: false,
+      direction: 'right',
+    });
+    points.push({
+      x: this.x + w / 2,
+      y: this.y + h,
+      angle: Math.PI / 2,
+      isHovered: false,
+      direction: 'bottom',
+    });
+    points.push({
+      x: this.x,
+      y: this.y + h / 2,
+      angle: Math.PI,
+      isHovered: false,
+      direction: 'left',
+    });
+    return points;
+  }
+
+  /**
+   * Move story along with its tasks
+   */
+  public onDrag(x: number, y: number): void {
+    const dx = x - this.x;
+    const dy = y - this.y;
+    this.x = x;
+    this.y = y;
+    this.tasks.forEach((t) => {
+      t.x += dx;
+      t.y += dy;
+    });
+    this.hoveredResizeHandle = null;
+  }
+
+  /**
+   * Get positions and directions of resize handles
+   */
+  public getResizeHandles(
+    panZoom: PanZoomManager
+  ): { x: number; y: number; direction: 'nw' | 'ne' | 'se' | 'sw' }[] {
+    // Single handle: bottom-right corner only, to declutter UI and simplify resizing
+    const offsetFromEdge = 1;
+    return [
+      {
+        x: this.x + this.width - offsetFromEdge,
+        y: this.y + this.height - offsetFromEdge,
+        direction: 'se',
+      },
+    ];
+  }
+
+  /**
+   * Detect which resize handle (if any) contains px,py
+   */
+  public getResizeHandleDirectionAt(
+    px: number,
+    py: number,
+    panZoom: PanZoomManager
+  ): 'nw' | 'ne' | 'se' | 'sw' | null {
+    // clickable area: match handle size only
+    const detectSize = StoryElement.HANDLE_SIZE / panZoom.scale;
+    const handles = this.getResizeHandles(panZoom);
+    const handle = handles[0];
+
+    const dx = px - handle.x;
+    const dy = py - handle.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance <= detectSize) {
+      return handle.direction;
+    }
+
+    return null;
+  }
+
+  /**
+   * Prompt to edit story properties
+   */
+  public onDoubleClick(): void {
+    editElement$.next(this);
+  }
+
+  clone(): PlanningElement {
+    return new StoryElement({
+      nodeKind: this.nodeKind,
+      x: this.x,
+      y: this.y,
+      width: this.width,
+      height: this.height,
+      title: this.title,
+      description: this.description,
+      status: this.status,
+      priority: this.priority,
+      tasks: [],
+    });
+  }
+}
