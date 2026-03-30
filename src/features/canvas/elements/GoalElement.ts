@@ -56,6 +56,8 @@ export class GoalElement extends PlanningElement {
     priority = 'low',
     selected = false,
     description = '',
+    tags,
+    tagIds,
     scale,
     width,
     height,
@@ -70,6 +72,8 @@ export class GoalElement extends PlanningElement {
     priority?: UiPriority;
     selected?: boolean;
     description?: string;
+    tags?: string[];
+    tagIds?: number[];
     scale?: number;
     width?: number;
     height?: number;
@@ -88,6 +92,8 @@ export class GoalElement extends PlanningElement {
       fillColor: goalStyles[status].fillColor,
       lineWidth: 2,
       title,
+      tags,
+      tagIds,
       backendId,
       uuid,
     });
@@ -273,6 +279,8 @@ export class GoalElement extends PlanningElement {
       y: this.y,
       title: this.title,
       description: this.description,
+      tags: this.tags ? [...this.tags] : undefined,
+      tagIds: this.tagIds ? [...this.tagIds] : undefined,
       status: this.status,
       priority: this.priority,
       scale: this.scale,

@@ -7,11 +7,71 @@ import type { PlanningElement } from './SelectionContext.ts';
 import { ConnectionCreationService } from './ConnectionCreationService.ts';
 import { ConnectionRemovalService } from './ConnectionRemovalService.ts';
 import { notify } from './NotificationService.ts';
+import { GoalElement } from '../../elements/GoalElement.ts';
 import {
   selectionSupportsDuplication,
   selectionSupportsLifecycleStatus,
   selectionSupportsPermanentDelete,
 } from '../../elements/utils/planningElementCapabilities.ts';
+
+type GoalTagUpdateMode = 'add' | 'remove' | 'replace';
+type GoalTagCatalogItem = {
+  id: number;
+  title: string;
+};
+
+function normalizeGoalTagIds(tagIds: Iterable<number> | undefined): number[] {
+  return [...new Set(tagIds ?? [])].sort((left, right) => left - right);
+}
+
+function areGoalTagIdsEqual(left: number[], right: number[]): boolean {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
+}
+
+function resolveGoalTagIds(
+  currentIds: number[],
+  selectedIds: number[],
+  mode: GoalTagUpdateMode
+): number[] {
+  if (mode === 'replace') {
+    return normalizeGoalTagIds(selectedIds);
+  }
+
+  const nextIds = new Set(currentIds);
+  if (mode === 'add') {
+    selectedIds.forEach((id) => nextIds.add(id));
+  } else {
+    selectedIds.forEach((id) => nextIds.delete(id));
+  }
+  return normalizeGoalTagIds(nextIds);
+}
+
+function resolveGoalTagTitles(
+  goal: GoalElement,
+  nextIds: number[],
+  tagCatalog: ReadonlyArray<GoalTagCatalogItem>
+): string[] {
+  const catalogTitles = new Map(tagCatalog.map((tag) => [tag.id, tag.title]));
+  const currentTitles = new Map<number, string>();
+  [...(goal.tagIds ?? [])].forEach((id, index) => {
+    const title = goal.tags?.[index];
+    if (title) {
+      currentTitles.set(id, title);
+    }
+  });
+
+  const nextTitles: string[] = [];
+  nextIds.forEach((id) => {
+    const title = catalogTitles.get(id) ?? currentTitles.get(id);
+    if (title) {
+      nextTitles.push(title);
+    }
+  });
+  return nextTitles;
+}
 
 export class BulkActionsController {
   private readonly connectionCreationService: ConnectionCreationService;
@@ -72,6 +132,49 @@ export class BulkActionsController {
       );
     });
     this.scene.changes.next();
+  }
+
+  public updateGoalTags(
+    elements: PlanningElement[],
+    options: {
+      mode: GoalTagUpdateMode;
+      tagIds: number[];
+      tagCatalog: ReadonlyArray<GoalTagCatalogItem>;
+    }
+  ): void {
+    if (elements.length === 0) return;
+    const goals = elements.filter(
+      (element): element is GoalElement => element instanceof GoalElement
+    );
+    if (goals.length !== elements.length) {
+      return;
+    }
+
+    const selectedTagIds = normalizeGoalTagIds(options.tagIds);
+    let changed = false;
+    goals.forEach((goal) => {
+      const currentIds = normalizeGoalTagIds(goal.tagIds);
+      const nextIds = resolveGoalTagIds(
+        currentIds,
+        selectedTagIds,
+        options.mode
+      );
+      if (areGoalTagIdsEqual(currentIds, nextIds)) {
+        return;
+      }
+      const nextTitles = resolveGoalTagTitles(goal, nextIds, options.tagCatalog);
+      goal.tagIds = [...nextIds];
+      goal.tags = nextTitles;
+      window.dispatchEvent(
+        new CustomEvent('elementDetailsEdited', {
+          detail: { element: goal, patch: { tagIds: nextIds } },
+        })
+      );
+      changed = true;
+    });
+    if (changed) {
+      this.scene.changes.next();
+    }
   }
 
   public getEligibleLinkSourcesToTarget(

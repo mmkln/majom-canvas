@@ -4,7 +4,9 @@ import { ElementStatus } from '../../features/canvas/elements/ElementStatus.ts';
 /**
  * Map backend Status enum to UI ElementStatus
  */
-export function mapStatus(status: Status): ElementStatus {
+export function mapStatus(
+  status: Status | string | null | undefined
+): ElementStatus {
   switch (status) {
     case Status.Active:
       return ElementStatus.InProgress;

@@ -1,7 +1,19 @@
 // @vitest-environment jsdom
 
-import { Subject } from 'rxjs';
-import { afterEach, describe, expect, it } from 'vitest';
+import { of, Subject } from 'rxjs';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../../../majom-wrapper/data-access/tasks-api-service.ts', () => ({
+  TasksApiService: class {
+    public getTags() {
+      return of([]);
+    }
+
+    public createTag() {
+      return of({ id: 1, title: 'Focus', color: '#2563eb' });
+    }
+  },
+}));
 
 import { createAppRuntime } from '../../../app-runtime/index.ts';
 import type { AppRuntime } from '../../../app-runtime/index.ts';
@@ -12,6 +24,7 @@ import type { ConnectionPoint } from '../core/interfaces/shape.ts';
 import type { IViewState } from '../core/interfaces/interfaces.ts';
 import { Scene } from '../core/scene/Scene.ts';
 import { BulkActionsController } from '../core/services/BulkActionsController.ts';
+import { GoalElement } from '../elements/GoalElement.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
 import { SelectionActionMenu } from './SelectionActionMenu.ts';
 
@@ -110,6 +123,103 @@ function createSelectionActionMenu(
 }
 
 describe('SelectionActionMenu adapter-driven actions', () => {
+  it('shows the tags action for single goal selections', () => {
+    const scene = new Scene();
+    const goal = new GoalElement({ id: 'goal-1', title: 'Goal 1' });
+    scene.addElement(goal);
+    scene.setSelected([goal]);
+
+    const selectionMenu = createSelectionActionMenu(scene);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    selectionMenu.mount(container);
+
+    try {
+      const button = container.querySelector<HTMLButtonElement>(
+        'button[aria-label="Tags"]'
+      );
+      expect(button).not.toBeNull();
+    } finally {
+      selectionMenu.unmount();
+      container.remove();
+    }
+  });
+
+  it('shows the tags action for multi-goal selections', () => {
+    const scene = new Scene();
+    const goalA = new GoalElement({ id: 'goal-1', title: 'Goal 1' });
+    const goalB = new GoalElement({ id: 'goal-2', title: 'Goal 2' });
+    scene.addElement(goalA);
+    scene.addElement(goalB);
+    scene.setSelected([goalA, goalB]);
+
+    const selectionMenu = createSelectionActionMenu(scene);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    selectionMenu.mount(container);
+
+    try {
+      const button = container.querySelector<HTMLButtonElement>(
+        'button[aria-label="Tags"]'
+      );
+      expect(button).not.toBeNull();
+    } finally {
+      selectionMenu.unmount();
+      container.remove();
+    }
+  });
+
+  it('places the tags action before copy for goal selections', () => {
+    const scene = new Scene();
+    const goal = new GoalElement({ id: 'goal-1', title: 'Goal 1' });
+    scene.addElement(goal);
+    scene.setSelected([goal]);
+
+    const selectionMenu = createSelectionActionMenu(scene);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    selectionMenu.mount(container);
+
+    try {
+      const labels = Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+        .map((button) => button.getAttribute('aria-label'))
+        .filter((label): label is string => Boolean(label));
+
+      expect(labels.indexOf('Tags')).toBeGreaterThanOrEqual(0);
+      expect(labels.indexOf('Copy')).toBeGreaterThanOrEqual(0);
+      expect(labels.indexOf('Tags')).toBeLessThan(labels.indexOf('Copy'));
+    } finally {
+      selectionMenu.unmount();
+      container.remove();
+    }
+  });
+
+  it('hides the tags action for mixed multi-selection', () => {
+    const scene = new Scene();
+    const goal = new GoalElement({ id: 'goal-1', title: 'Goal 1' });
+    const task = new TaskElement({ id: 'task-1', title: 'Task 1' });
+    scene.addElement(goal);
+    scene.addElement(task);
+    scene.setSelected([goal, task]);
+
+    const selectionMenu = createSelectionActionMenu(scene);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    selectionMenu.mount(container);
+
+    try {
+      const button = container.querySelector<HTMLButtonElement>(
+        'button[aria-label="Tags"]'
+      );
+      const wrapper = button?.parentElement as HTMLElement | null;
+      expect(button).not.toBeNull();
+      expect(wrapper?.style.display).toBe('none');
+    } finally {
+      selectionMenu.unmount();
+      container.remove();
+    }
+  });
+
   it('renders adapter-provided selection actions', () => {
     const scene = new Scene();
     const task = new TaskElement({ id: 'task-1', title: 'Task 1' });

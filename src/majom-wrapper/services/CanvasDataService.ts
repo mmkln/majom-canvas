@@ -71,6 +71,7 @@ type ElementPatch = Partial<{
   status: ElementStatus;
   priority: UiPriority;
   dueDate: Date | null;
+  tagIds: number[];
 }>;
 
 type RelationElementType = 'task' | 'story' | 'goal' | 'routine';
@@ -653,6 +654,7 @@ export class CanvasDataService {
     status: string;
     priority: string;
     due_date: string | null;
+    tag_ids: number[];
   }> {
     const payload: Partial<{
       title: string;
@@ -660,6 +662,7 @@ export class CanvasDataService {
       status: string;
       priority: string;
       due_date: string | null;
+      tag_ids: number[];
     }> = {};
     if (patch.title !== undefined) payload.title = patch.title;
     if (patch.description !== undefined)
@@ -699,16 +702,19 @@ export class CanvasDataService {
           this.elementUpdateStatus$.next({ status: 'failed' });
           return of(undefined);
         }
-        const payload = this.buildBackendPatch(req.patch);
-        if (req.element instanceof TaskElement && 'dueDate' in req.patch) {
-          const dueDate = this.serializeDueDate(req.patch.dueDate);
-          if (dueDate !== undefined) {
-            payload.due_date = dueDate;
-          }
-        }
-        if (Object.keys(payload).length === 0) {
-          return of(undefined);
-        }
+    const payload = this.buildBackendPatch(req.patch);
+    if (req.element instanceof TaskElement && 'dueDate' in req.patch) {
+      const dueDate = this.serializeDueDate(req.patch.dueDate);
+      if (dueDate !== undefined) {
+        payload.due_date = dueDate;
+      }
+    }
+    if (req.element instanceof GoalElement && 'tagIds' in req.patch) {
+      payload.tag_ids = [...(req.patch.tagIds ?? [])];
+    }
+    if (Object.keys(payload).length === 0) {
+      return of(undefined);
+    }
         if (req.element instanceof TaskElement) {
           return this.tasksApi.patchTask(ref, payload as Partial<PlatformTask>);
         }
@@ -1186,6 +1192,7 @@ export class CanvasDataService {
           description: el.description,
           status: mapStatusToBackend(el.status),
           priority: mapPriorityToBackend(el.priority),
+          tag_ids: [...(el.tagIds ?? [])],
         };
         creates.push(
           this.goalsApi.createGoal(payload).pipe(

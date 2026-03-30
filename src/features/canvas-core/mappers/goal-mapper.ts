@@ -20,7 +20,8 @@ export function mapGoal(
     return l.element_uuid === dto.uuid;
   });
   const meta = pos?.meta as { goalScale?: number } | undefined;
-  const scale = meta?.goalScale;
+  const scale =
+    typeof meta?.goalScale === 'number' ? meta.goalScale : dto.scale ?? undefined;
   return new GoalElement({
     id: dto.uuid ?? dto.id.toString(),
     x: pos?.x ?? DEFAULT_X,
@@ -29,8 +30,10 @@ export function mapGoal(
     uuid: dto.uuid,
     title: dto.title,
     status: mapStatus(dto.status),
-    description: dto.description,
+    description: dto.description ?? '',
     priority: normalizeUiPriority(dto.priority),
-    scale: typeof scale === 'number' ? scale : undefined,
+    tags: dto.tags.map((tag) => tag.title),
+    tagIds: dto.tags.map((tag) => tag.id),
+    scale,
   });
 }

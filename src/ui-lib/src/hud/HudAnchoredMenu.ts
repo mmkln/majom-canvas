@@ -24,11 +24,14 @@ export type HudAnchoredResolvedPlacement = Exclude<
 type HudAnchoredAlign = 'start' | 'center' | 'end';
 type HudAnchoredPrimary = 'right' | 'left' | 'bottom' | 'top';
 type HudAnchoredMode = 'legacy' | 'modern';
+type HudAnchoredPositioning = 'container' | 'viewport';
 
 type HudAnchoredMenuOptions = {
   container: HTMLElement;
   panel: HTMLElement;
   onOpenChange?: (open: boolean) => void;
+  positioning?: HudAnchoredPositioning;
+  portalTarget?: HTMLElement;
 };
 
 type HudAnchoredMenuOpenOptions = {
@@ -49,6 +52,10 @@ export class HudAnchoredMenu {
   private readonly container: HTMLElement;
   private readonly panel: HTMLElement;
   private readonly onOpenChange?: (open: boolean) => void;
+  private readonly positioning: HudAnchoredPositioning;
+  private readonly portalTarget: HTMLElement;
+  private readonly originalParent: ParentNode | null;
+  private readonly originalNextSibling: ChildNode | null;
   private readonly menuController: FloatingMenuController;
   private mode: HudAnchoredMode = 'legacy';
   private open = false;
@@ -88,9 +95,15 @@ export class HudAnchoredMenu {
   constructor(options: HudAnchoredMenuOptions) {
     this.container = options.container;
     this.panel = options.panel;
+    this.positioning = options.positioning ?? 'container';
+    this.portalTarget = options.portalTarget ?? document.body;
+    this.originalParent = this.panel.parentNode;
+    this.originalNextSibling = this.panel.nextSibling;
     this.container.setAttribute('data-component', 'HudAnchoredMenu');
     this.panel.setAttribute('data-component', 'HudAnchoredMenuPanel');
     this.panel.classList.add('z-40');
+    this.panel.style.position =
+      this.positioning === 'viewport' ? 'fixed' : 'absolute';
     this.onOpenChange = options.onOpenChange;
     this.open = !this.panel.classList.contains('hidden');
     this.modernPlacement = {
@@ -105,12 +118,14 @@ export class HudAnchoredMenu {
     this.menuController = new FloatingMenuController({
       isOpen: () => this.open,
       setOpen: (open) => this.setOpen(open),
-      containsTarget: (target) => this.container.contains(target),
+      containsTarget: (target) =>
+        this.container.contains(target) || this.panel.contains(target),
     });
   }
 
   public mount(): void {
     if (this.mounted) return;
+    this.attachPanel();
     this.menuController.mount();
     window.addEventListener('resize', this.onResize);
     window.addEventListener('scroll', this.onScroll, true);
@@ -122,6 +137,7 @@ export class HudAnchoredMenu {
     this.menuController.unmount();
     window.removeEventListener('resize', this.onResize);
     window.removeEventListener('scroll', this.onScroll, true);
+    this.restorePanel();
     this.mounted = false;
   }
 
@@ -130,6 +146,7 @@ export class HudAnchoredMenu {
   }
 
   public openAt(options: HudAnchoredMenuOpenOptions): void {
+    this.attachPanel();
     this.anchor = options.anchor;
     const hasModernPlacement =
       typeof options.placement !== 'undefined' ||
@@ -206,6 +223,25 @@ export class HudAnchoredMenu {
       this.panel.style.width = '';
     }
     this.onOpenChange?.(open);
+  }
+
+  private attachPanel(): void {
+    if (this.positioning !== 'viewport') return;
+    if (this.panel.parentElement === this.portalTarget) return;
+    this.portalTarget.appendChild(this.panel);
+  }
+
+  private restorePanel(): void {
+    if (this.positioning !== 'viewport') return;
+    if (!this.originalParent) return;
+    if (
+      this.originalNextSibling &&
+      this.originalNextSibling.parentNode === this.originalParent
+    ) {
+      this.originalParent.insertBefore(this.panel, this.originalNextSibling);
+      return;
+    }
+    this.originalParent.appendChild(this.panel);
   }
 
   private measurePanel(): { width: number; height: number } {
@@ -321,7 +357,6 @@ export class HudAnchoredMenu {
     margin: number;
     matchAnchorWidth: boolean;
   }): void {
-    const containerRect = this.container.getBoundingClientRect();
     const minLeftAbsolute = params.margin;
     const maxLeftAbsolute =
       window.innerWidth - params.margin - params.menuWidth;
@@ -338,8 +373,14 @@ export class HudAnchoredMenu {
       minTopAbsolute,
       Math.max(minTopAbsolute, maxTopAbsolute)
     );
-    const left = clampedLeftAbsolute - containerRect.left;
-    const top = clampedTopAbsolute - containerRect.top;
+    const left =
+      this.positioning === 'viewport'
+        ? clampedLeftAbsolute
+        : clampedLeftAbsolute - this.container.getBoundingClientRect().left;
+    const top =
+      this.positioning === 'viewport'
+        ? clampedTopAbsolute
+        : clampedTopAbsolute - this.container.getBoundingClientRect().top;
 
     if (params.matchAnchorWidth) {
       this.panel.style.width = `${Math.round(params.anchorRect.width)}px`;

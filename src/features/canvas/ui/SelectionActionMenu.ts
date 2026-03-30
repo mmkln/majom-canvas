@@ -1,4 +1,4 @@
-import { Subscription } from 'rxjs';
+import { firstValueFrom, Subscription } from 'rxjs';
 import { Scene } from '../core/scene/Scene.ts';
 import type { CanvasManager } from '../core/managers/CanvasManager.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
@@ -39,6 +39,12 @@ import {
 } from '../elements/utils/planningElementCapabilities.ts';
 import { Status } from '../../../majom-wrapper/interfaces/index.ts';
 import { Checkbox } from '../../../ui-lib/src/components/Checkbox.ts';
+import { BulkTagActionPopover } from '../../../ui-lib/src/components/BulkTagActionPopover.ts';
+import { type TagPickerItem } from '../../../ui-lib/src/components/TagPickerField.ts';
+import { TasksApiService } from '../../../majom-wrapper/data-access/tasks-api-service.ts';
+import { HttpInterceptorClient } from '../../../majom-wrapper/data-access/http-interceptor.js';
+import { environment } from '../../../config/environment.ts';
+import { getDefaultTagColor } from '../../../majom-wrapper/utils/tagColor.ts';
 
 type ActionContext = {
   elements: PlanningElement[];
@@ -61,7 +67,13 @@ type ActionNode =
       title: string;
       icon?: IconName;
       iconOptions?: IconOptions;
-      variant?: 'icon' | 'status' | 'ai' | 'routine-status' | 'routine-checkbox';
+      variant?:
+        | 'icon'
+        | 'status'
+        | 'ai'
+        | 'goal-tags'
+        | 'routine-status'
+        | 'routine-checkbox';
       isDanger?: boolean;
       isVisible?: (context: ActionContext) => boolean;
       onClick?: () => void;
@@ -72,6 +84,15 @@ type ActionNode =
       isVisible?: (context: ActionContext) => boolean;
     };
 
+function selectionSupportsGoalTags(
+  elements: PlanningElement[]
+): elements is GoalElement[] {
+  return (
+    elements.length >= 1 &&
+    elements.every((element) => element instanceof GoalElement)
+  );
+}
+
 export class SelectionActionMenu {
   private readonly container: HTMLDivElement;
   private actionNodes: ActionNode[] = [];
@@ -79,8 +100,10 @@ export class SelectionActionMenu {
   private aiActionsDropdown: AiActionsDropdown | null = null;
   private statusSelector: StatusSelector | null = null;
   private routineStatusSelector: RoutineStatusSelector | null = null;
+  private goalTagsPopover: BulkTagActionPopover | null = null;
   private routineCompletionCheckbox: Checkbox | null = null;
   private subscriptions: Subscription[] = [];
+  private goalTagLoadSubscription: Subscription | null = null;
   private disposeRuntimeSubscription: (() => void) | null = null;
   private suspendUpdates = false;
   private activeInteractions = new Set<'drag' | 'resize' | 'select'>();
@@ -111,6 +134,13 @@ export class SelectionActionMenu {
   };
   private activeElement: PlanningElement | null = null;
   private selectedElements: PlanningElement[] = [];
+  private readonly tasksApi = new TasksApiService(
+    new HttpInterceptorClient(environment.apiUrl)
+  );
+  private goalTagOptions: TagPickerItem[] = [];
+  private goalTagsLoading = false;
+  private goalTagsLoadFailed = false;
+  private goalTagsSelectionKey: string | null = null;
   private layoutService = new StoryLayoutService();
 
   constructor(
@@ -153,10 +183,14 @@ export class SelectionActionMenu {
   public unmount(): void {
     this.subscriptions.forEach((sub) => sub.unsubscribe());
     this.subscriptions = [];
+    this.goalTagLoadSubscription?.unsubscribe();
+    this.goalTagLoadSubscription = null;
     this.statusSelector?.destroy();
     this.statusSelector = null;
     this.routineStatusSelector?.destroy();
     this.routineStatusSelector = null;
+    this.goalTagsPopover?.destroy();
+    this.goalTagsPopover = null;
     this.routineCompletionCheckbox = null;
     this.aiActionsDropdown?.destroy();
     this.aiActionsDropdown = null;
@@ -212,6 +246,7 @@ export class SelectionActionMenu {
       primary,
       isMulti: planningSelected.length > 1,
     };
+    this.updateGoalTagsState(context);
     this.updateActionVisibility(context);
     this.updateAiDropdown();
     this.updateRoutineControls(context);
@@ -232,7 +267,9 @@ export class SelectionActionMenu {
   private hide(): void {
     this.activeElement = null;
     this.aiActionsDropdown?.close();
+    this.goalTagsPopover?.close();
     this.selectedElements = [];
+    this.goalTagsSelectionKey = null;
     this.deleteConfirmState = null;
     this.clearDeleteConfirmTimer();
     this.statusSelector?.close();
@@ -248,6 +285,8 @@ export class SelectionActionMenu {
     this.actionElements.clear();
     this.aiActionsDropdown?.destroy();
     this.aiActionsDropdown = null;
+    this.goalTagsPopover?.destroy();
+    this.goalTagsPopover = null;
     this.statusSelector?.destroy();
     this.statusSelector = null;
     this.routineStatusSelector?.destroy();
@@ -309,6 +348,41 @@ export class SelectionActionMenu {
         this.container.appendChild(dropdown.element);
         return;
       }
+      if (node.variant === 'goal-tags') {
+        const btn = this.createIconButton(
+          node.title,
+          node.icon ?? 'tag',
+          node.onClick ?? (() => {})
+        );
+        const popover = new BulkTagActionPopover({
+          triggerButton: btn,
+          items: this.goalTagOptions,
+          loading: this.goalTagsLoading,
+          errorMessage: this.goalTagsLoadFailed ? 'Failed to load tags.' : null,
+          modeLabels: {
+            add: this.runtime.i18n.t('selectionMenu.addTags'),
+            remove: this.runtime.i18n.t('selectionMenu.removeTags'),
+            replace: this.runtime.i18n.t('selectionMenu.replaceTags'),
+          },
+          applyLabels: {
+            add: this.runtime.i18n.t('selectionMenu.applyAddTags'),
+            remove: this.runtime.i18n.t('selectionMenu.applyRemoveTags'),
+            replace: this.runtime.i18n.t('selectionMenu.applyReplaceTags'),
+          },
+          onCreate: async (title) => this.createGoalTag(title),
+          onApply: ({ mode, tagIds }) => {
+            this.bulkActions.updateGoalTags(this.selectedElements, {
+              mode,
+              tagIds,
+              tagCatalog: this.goalTagOptions,
+            });
+          },
+        });
+        this.goalTagsPopover = popover;
+        this.actionElements.set(node.id, popover.element);
+        this.container.appendChild(popover.element);
+        return;
+      }
       const btn = this.createIconButton(
         node.title,
         node.icon ?? 'square-2-stack',
@@ -343,6 +417,8 @@ export class SelectionActionMenu {
       selectionSupportsDailyCompletion(context.elements);
     const supportsAi = (context: ActionContext): boolean =>
       selectionSupportsAiActions(context.elements);
+    const supportsGoalTags = (context: ActionContext): boolean =>
+      selectionSupportsGoalTags(context.elements);
     const supportsCopy = (context: ActionContext): boolean =>
       selectionSupportsDuplication(context.elements);
     const supportsPermanentDelete = (context: ActionContext): boolean =>
@@ -365,6 +441,14 @@ export class SelectionActionMenu {
         variant: 'status',
         isVisible: supportsStatus,
         onClick: () => {},
+      },
+      {
+        kind: 'action',
+        id: 'goal-tags',
+        title: this.runtime.i18n.t('selectionMenu.tags'),
+        icon: 'tag',
+        variant: 'goal-tags',
+        isVisible: supportsGoalTags,
       },
       {
         kind: 'divider',
@@ -597,6 +681,104 @@ export class SelectionActionMenu {
       handler();
     });
     return btn;
+  }
+
+  private updateGoalTagsState(context: ActionContext): void {
+    if (!selectionSupportsGoalTags(context.elements)) {
+      this.goalTagsPopover?.close();
+      this.goalTagsSelectionKey = null;
+      return;
+    }
+
+    const nextSelectionKey = context.elements
+      .map((element) => element.id)
+      .sort()
+      .join('|');
+    if (this.goalTagsSelectionKey !== nextSelectionKey) {
+      this.goalTagsSelectionKey = nextSelectionKey;
+      this.goalTagsPopover?.reset();
+    }
+    this.ensureGoalTagsLoaded();
+    this.syncGoalTagsPopover();
+  }
+
+  private ensureGoalTagsLoaded(): void {
+    if (this.goalTagsLoading || this.goalTagLoadSubscription) {
+      return;
+    }
+    if (this.goalTagOptions.length > 0 && !this.goalTagsLoadFailed) {
+      return;
+    }
+
+    this.goalTagsLoading = true;
+    this.goalTagsLoadFailed = false;
+    this.syncGoalTagsPopover();
+    this.goalTagLoadSubscription = this.tasksApi.getTags().subscribe({
+      next: (tags) => {
+        this.goalTagOptions = tags.map((tag) => ({
+          id: tag.id,
+          title: tag.title,
+          color: tag.color,
+        }));
+        this.goalTagsLoading = false;
+        this.goalTagsLoadFailed = false;
+        this.syncGoalTagsPopover();
+      },
+      error: () => {
+        this.goalTagsLoading = false;
+        this.goalTagsLoadFailed = true;
+        this.goalTagLoadSubscription = null;
+        this.syncGoalTagsPopover();
+      },
+      complete: () => {
+        this.goalTagLoadSubscription = null;
+      },
+    });
+  }
+
+  private syncGoalTagsPopover(): void {
+    this.goalTagsPopover?.update({
+      items: this.goalTagOptions,
+      loading: this.goalTagsLoading,
+      errorMessage: this.goalTagsLoadFailed ? 'Failed to load tags.' : null,
+      onCreate: async (title) => this.createGoalTag(title),
+      onApply: ({ mode, tagIds }) => {
+        this.bulkActions.updateGoalTags(this.selectedElements, {
+          mode,
+          tagIds,
+          tagCatalog: this.goalTagOptions,
+        });
+      },
+    });
+  }
+
+  private async createGoalTag(title: string): Promise<TagPickerItem | null> {
+    try {
+      const created = await firstValueFrom(
+        this.tasksApi.createTag({
+          title,
+          color: getDefaultTagColor(title),
+        })
+      );
+      const createdOption = {
+        id: created.id,
+        title: created.title,
+        color: created.color,
+      };
+      const existingIndex = this.goalTagOptions.findIndex(
+        (tag) => tag.id === createdOption.id
+      );
+      if (existingIndex >= 0) {
+        this.goalTagOptions[existingIndex] = createdOption;
+      } else {
+        this.goalTagOptions.push(createdOption);
+      }
+      this.goalTagsLoadFailed = false;
+      this.syncGoalTagsPopover();
+      return createdOption;
+    } catch {
+      throw new Error('Failed to create tag.');
+    }
   }
 
   private updateAiDropdown(): void {

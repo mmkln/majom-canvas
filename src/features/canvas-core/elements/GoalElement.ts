@@ -58,6 +58,8 @@ export class GoalElement extends PlanningElement {
     selected = false,
     description = '',
     interactionStates,
+    tags,
+    tagIds,
     scale,
     width,
     height,
@@ -73,6 +75,8 @@ export class GoalElement extends PlanningElement {
     selected?: boolean;
     description?: string;
     interactionStates?: Iterable<CanvasInteractionState>;
+    tags?: string[];
+    tagIds?: number[];
     scale?: number;
     width?: number;
     height?: number;
@@ -93,6 +97,8 @@ export class GoalElement extends PlanningElement {
       lineWidth: 2,
       title,
       interactionStates,
+      tags,
+      tagIds,
       backendId,
       uuid,
     });
@@ -281,6 +287,8 @@ export class GoalElement extends PlanningElement {
       y: this.y,
       title: this.title,
       description: this.description,
+      tags: this.tags ? [...this.tags] : undefined,
+      tagIds: this.tagIds ? [...this.tagIds] : undefined,
       status: this.status,
       priority: this.priority,
       scale: this.scale,

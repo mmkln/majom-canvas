@@ -20,6 +20,14 @@ interface TaskListParams extends TasksFilterParams {
   search?: string;
 }
 
+export type TagCreatePayload = {
+  title: string;
+  color: string;
+  description?: string;
+};
+
+export type TagUpdatePayload = Partial<TagCreatePayload>;
+
 export class TasksApiService {
   constructor(private http: HttpInterceptorClient) {}
 
@@ -86,7 +94,26 @@ export class TasksApiService {
   }
 
   public getTags(): Observable<Tag[]> {
-    return this.http.get<Tag[]>('/tags/');
+    return this.http
+      .get<PaginatedResponse<Tag> | Tag[]>('/tags/')
+      .pipe(map((res) => (Array.isArray(res) ? res : res.results)));
+  }
+
+  public createTag(data: TagCreatePayload): Observable<Tag> {
+    return this.http.post<Tag>('/tags/', data);
+  }
+
+  public updateTag(
+    id: string | number,
+    data: TagUpdatePayload
+  ): Observable<Tag> {
+    const encodedId = encodeURIComponent(String(id));
+    return this.http.patch<Tag>(`/tags/${encodedId}/`, data);
+  }
+
+  public deleteTag(id: string | number): Observable<any> {
+    const encodedId = encodeURIComponent(String(id));
+    return this.http.delete(`/tags/${encodedId}/`);
   }
 
   public createSubtask(data: Partial<Subtask>): Observable<Subtask> {

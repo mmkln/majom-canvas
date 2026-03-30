@@ -68,26 +68,32 @@ export interface Goal {
   readonly id: number;
   uuid?: string;
   title: string;
-  description: string;
-  created_at: Date;
-  completed: boolean;
+  description: string | null;
+  created_at: string;
+  scale: number | null;
   tasks: PlatformTask[];
   stories?: Story[];
-  subgoals: {
-    items: Subgoal[];
-    total_count: number;
-    completed_count: number;
-    is_draft: boolean;
-  };
-  priority: Priority;
-  status: Status;
+  subgoals: SubgoalSummary;
+  priority: string;
+  status: string;
   strategies: Strategy[];
-  milestones: {
-    items: Milestone[];
-    total_count: number;
-    completed_count: number;
-    is_draft: boolean;
-  };
+  milestones: MilestoneSummary;
+  tags: Tag[];
+  tag_ids?: number[];
+}
+
+export interface SubgoalSummary {
+  items: Subgoal[];
+  total_count: number;
+  completed_count: number;
+  is_draft: boolean;
+}
+
+export interface MilestoneSummary {
+  items: Milestone[];
+  total_count: number;
+  completed_count: number;
+  is_draft: boolean;
 }
 
 export interface Subgoal {
@@ -374,8 +380,8 @@ export interface Tag {
   title: string;
   slug: string;
   color: string;
-  description?: string;
-  readonly tasks?: PlatformTask[];
+  description: string | null;
+  readonly tasks?: number[];
 }
 
 export interface Wallpaper {
@@ -445,17 +451,24 @@ export enum TaskRelationshipType {
  * Type Guards
  */
 export function isGoal(object: any): object is Goal {
+  const candidate = object as Partial<Goal>;
   return (
+    typeof object === 'object' &&
+    object !== null &&
     'id' in object &&
     'title' in object &&
     'description' in object &&
     'created_at' in object &&
-    'completed' in object &&
-    Array.isArray(object.tasks) &&
-    Array.isArray(object.subgoals) &&
+    'scale' in object &&
+    Array.isArray(candidate.tasks) &&
+    typeof candidate.subgoals === 'object' &&
+    candidate.subgoals !== null &&
     'priority' in object &&
     'status' in object &&
-    Array.isArray(object.strategies)
+    Array.isArray(candidate.strategies) &&
+    typeof candidate.milestones === 'object' &&
+    candidate.milestones !== null &&
+    Array.isArray(candidate.tags)
   );
 }
 

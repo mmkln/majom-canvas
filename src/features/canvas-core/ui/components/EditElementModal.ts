@@ -2,6 +2,7 @@ import { TaskElement } from '../../elements/TaskElement.ts';
 import { StoryElement } from '../../elements/StoryElement.ts';
 import { GoalElement, GoalScale } from '../../elements/GoalElement.ts';
 import { Scene } from '../../core/scene/Scene.ts';
+import { firstValueFrom, Subscription } from 'rxjs';
 import { ComponentFactory } from '../../../../ui-lib/src/core/ComponentFactory.ts';
 import {
   createModalActionRow,
@@ -23,11 +24,17 @@ import {
   ElementStatus,
 } from '../../elements/ElementStatus.ts';
 import type { UiPriority } from '../../../../majom-wrapper/utils/priorityMapping.ts';
+import type { Tag } from '../../../../majom-wrapper/interfaces/index.ts';
 import {
   getStatusLabel,
   STATUS_ICON_MAP,
   STATUS_ICON_TONE_CLASS,
 } from '../statusPresentation.ts';
+import { TagPickerField } from '../../../../ui-lib/src/components/TagPickerField.ts';
+import { environment } from '../../../../config/environment.ts';
+import { HttpInterceptorClient } from '../../../../majom-wrapper/data-access/http-interceptor.ts';
+import { TasksApiService } from '../../../../majom-wrapper/data-access/tasks-api-service.ts';
+import { getDefaultTagColor } from '../../../../majom-wrapper/utils/tagColor.ts';
 
 type DescriptionMode = 'view' | 'edit';
 
@@ -60,12 +67,31 @@ type DescriptionFieldController = {
   setMode: (mode: DescriptionMode, options?: { focus?: boolean }) => void;
 };
 
+type GoalTagOption = Pick<Tag, 'id' | 'title' | 'color'>;
+
+const normalizeNumberSet = (values: Iterable<number>): number[] =>
+  [...new Set(values)].sort((left, right) => left - right);
+
+const haveSameNumberSetMembers = (
+  left: Iterable<number>,
+  right: Iterable<number>
+): boolean => {
+  const normalizedLeft = normalizeNumberSet(left);
+  const normalizedRight = normalizeNumberSet(right);
+  if (normalizedLeft.length !== normalizedRight.length) return false;
+  return normalizedLeft.every(
+    (value, index) => value === normalizedRight[index]
+  );
+};
+
 // Modal for editing title, status, and priority of an element
 export class EditElementModal {
   private modal: HTMLDivElement | null = null;
   private statusControl: SegmentedControl<ElementStatus> | null = null;
   private priorityControl: SegmentedControl<UiPriority> | null = null;
   private scaleControl: SegmentedControl<GoalScale> | null = null;
+  private goalTagPicker: TagPickerField | null = null;
+  private tagLoadSubscription: Subscription | null = null;
 
   constructor(
     private element: TaskElement | StoryElement | GoalElement,
@@ -107,6 +133,8 @@ export class EditElementModal {
     const originalScale: GoalScale | null = goalElement
       ? goalElement.scale
       : null;
+    const originalTagIds = new Set(goalElement?.tagIds ?? []);
+    const originalTagTitles = new Set(goalElement?.tags ?? []);
     const originalDueDateValue = isTask
       ? formatDateInputValue(taskElement?.dueDate ?? null)
       : '';
@@ -115,7 +143,11 @@ export class EditElementModal {
     let tempStatus: ElementStatus = originalStatus;
     let tempPriority = originalPriority;
     let tempScale: GoalScale = originalScale ?? 1;
+    const tempTagIds = new Set(originalTagIds);
+    const availableGoalTags: GoalTagOption[] = [];
     let tempDueDateValue = originalDueDateValue;
+    let goalTagsLoading = false;
+    let goalTagsLoadFailed = false;
     let closeGuardOpen = false;
     let saveAndClose: (() => void) | null = null;
 
@@ -127,6 +159,9 @@ export class EditElementModal {
       if (tempPriority !== originalPriority) return true;
       if (isTask && tempDueDateValue !== originalDueDateValue) return true;
       if (isGoal && originalScale !== tempScale) return true;
+      if (isGoal && !haveSameNumberSetMembers(tempTagIds, originalTagIds)) {
+        return true;
+      }
       return false;
     };
 
@@ -267,7 +302,8 @@ export class EditElementModal {
           label: 'Highest',
           icon: 'chevron-double-up',
           iconColorClassName: 'text-red-500',
-          title: 'Highest priority. Super urgent and should be handled immediately.',
+          title:
+            'Highest priority. Super urgent and should be handled immediately.',
         },
       ],
       value: tempPriority,
@@ -332,6 +368,94 @@ export class EditElementModal {
         control: this.scaleControl.element,
       });
       formContent.appendChild(scaleField.element);
+
+      const tasksApi = new TasksApiService(
+        new HttpInterceptorClient(environment.apiUrl)
+      );
+      this.goalTagPicker = new TagPickerField({
+        items: availableGoalTags,
+        selectedIds: [...tempTagIds],
+        loading: true,
+        onCreate: async (title) => {
+          try {
+            const created = await firstValueFrom(
+              tasksApi.createTag({
+                title,
+                color: getDefaultTagColor(title),
+              })
+            );
+            const createdOption = {
+              id: created.id,
+              title: created.title,
+              color: created.color,
+            };
+            const existingIndex = availableGoalTags.findIndex(
+              (tag) => tag.id === createdOption.id
+            );
+            if (existingIndex >= 0) {
+              availableGoalTags[existingIndex] = createdOption;
+            } else {
+              availableGoalTags.push(createdOption);
+            }
+            goalTagsLoadFailed = false;
+            return createdOption;
+          } catch {
+            throw new Error('Failed to create tag.');
+          }
+        },
+        onChange: (selectedIds) => {
+          tempTagIds.clear();
+          selectedIds.forEach((id) => tempTagIds.add(id));
+        },
+      });
+      const tagsField = createField({
+        label: 'Tags',
+        control: this.goalTagPicker.element,
+      });
+      formContent.appendChild(tagsField.element);
+
+      const syncGoalTagPicker = (): void => {
+        this.goalTagPicker?.update({
+          items: availableGoalTags,
+          selectedIds: [...tempTagIds],
+          loading: goalTagsLoading,
+          errorMessage: goalTagsLoadFailed ? 'Failed to load tags.' : null,
+        });
+      };
+      goalTagsLoading = true;
+      syncGoalTagPicker();
+      this.tagLoadSubscription = tasksApi.getTags().subscribe({
+        next: (tags) => {
+          availableGoalTags.splice(
+            0,
+            availableGoalTags.length,
+            ...tags.map((tag) => ({
+              id: tag.id,
+              title: tag.title,
+              color: tag.color,
+            }))
+          );
+          if (originalTagIds.size === 0 && originalTagTitles.size > 0) {
+            const resolvedIds = tags
+              .filter((tag) => originalTagTitles.has(tag.title))
+              .map((tag) => tag.id);
+            if (resolvedIds.length > 0 && tempTagIds.size === 0) {
+              resolvedIds.forEach((id) => {
+                originalTagIds.add(id);
+                tempTagIds.add(id);
+              });
+            }
+          }
+          goalTagsLoading = false;
+          goalTagsLoadFailed = false;
+          syncGoalTagPicker();
+        },
+        error: () => {
+          goalTagsLoading = false;
+          goalTagsLoadFailed = true;
+          syncGoalTagPicker();
+        },
+      });
     }
 
     // Save function
@@ -350,6 +474,7 @@ export class EditElementModal {
         status: ElementStatus;
         priority: UiPriority;
         dueDate: Date | null;
+        tagIds: number[];
       }> = {};
       if (normalizedTitle !== originalTitle) patch.title = normalizedTitle;
       if (tempDescription !== originalDescription) {
@@ -368,6 +493,18 @@ export class EditElementModal {
       this.element.priority = tempPriority;
       let scaleChanged = false;
       if (this.element instanceof GoalElement) {
+        const nextTagIds = normalizeNumberSet(tempTagIds);
+        const tagsChanged = !haveSameNumberSetMembers(
+          tempTagIds,
+          originalTagIds
+        );
+        if (tagsChanged) {
+          patch.tagIds = nextTagIds;
+          this.element.tagIds = nextTagIds;
+          this.element.tags = availableGoalTags
+            .filter((tag) => tempTagIds.has(tag.id))
+            .map((tag) => tag.title);
+        }
         if (originalScale !== tempScale) {
           this.element.setScale(tempScale);
           scaleChanged = true;
@@ -724,6 +861,10 @@ export class EditElementModal {
   }
 
   private destroyControls(): void {
+    this.goalTagPicker?.destroy();
+    this.goalTagPicker = null;
+    this.tagLoadSubscription?.unsubscribe();
+    this.tagLoadSubscription = null;
     this.statusControl?.destroy();
     this.statusControl = null;
     this.priorityControl?.destroy();

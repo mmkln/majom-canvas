@@ -665,6 +665,7 @@ export class CanvasApp {
         status: ElementStatus;
         priority: UiPriority;
         dueDate: Date | null;
+        tagIds: number[];
       }>;
     }>;
     const element = customEvent.detail?.element;

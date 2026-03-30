@@ -9,6 +9,7 @@ export abstract class PlanningElement
 {
   dueDate?: Date | null;
   tags?: string[];
+  tagIds?: number[];
   /** Backend persistent ref; numeric for legacy entities, string for UUID-first ones */
   backendId?: number | string;
   /** Backend UUID (new) */
@@ -28,6 +29,7 @@ export abstract class PlanningElement
     interactionStates,
     dueDate,
     tags,
+    tagIds,
     backendId,
     uuid,
   }: {
@@ -44,6 +46,7 @@ export abstract class PlanningElement
     interactionStates?: Iterable<CanvasInteractionState>;
     dueDate?: Date | null;
     tags?: string[];
+    tagIds?: number[];
     backendId?: number | string;
     uuid?: string;
   }) {
@@ -64,5 +67,6 @@ export abstract class PlanningElement
     this.uuid = uuid;
     this.dueDate = dueDate ?? null;
     this.tags = tags;
+    this.tagIds = tagIds;
   }
 }

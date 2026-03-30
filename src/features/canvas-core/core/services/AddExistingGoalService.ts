@@ -32,7 +32,7 @@ export class AddExistingGoalService {
       backendId: goal.id,
       uuid: goal.uuid,
       title: goal.title,
-      description: goal.description,
+      description: goal.description ?? undefined,
       status: mapStatus(goal.status),
       priority: normalizedPriority,
       x: sceneX - GoalElement.width / 2,

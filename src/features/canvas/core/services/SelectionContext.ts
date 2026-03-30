@@ -7,6 +7,8 @@ import {
   selectionSupportsLifecycleStatus,
 } from '../../elements/utils/planningElementCapabilities.ts';
 
+export type { PlanningElement };
+
 type BoundedCanvasElement = ICanvasElement & {
   x: number;
   y: number;

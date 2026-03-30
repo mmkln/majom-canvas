@@ -1,5 +1,6 @@
 import { createIcon, type IconName } from '../icons.ts';
 import {
+  AnchoredMenu,
   createDropdownItem,
   createSurface,
   createTextButton,
@@ -25,11 +26,11 @@ export class AiActionsDropdown {
 
   private readonly triggerBtn: HTMLButtonElement;
   private readonly panel: HTMLDivElement;
+  private readonly menuController: AnchoredMenu;
   private readonly triggerLabel: string;
   private readonly openLabel: string;
   private readonly unavailableLabel: string;
   private items: AiActionsDropdownItem[] = [];
-  private open = false;
 
   constructor(options: AiActionsDropdownOptions = {}) {
     this.element = document.createElement('div');
@@ -75,13 +76,38 @@ export class AiActionsDropdown {
         'fixed left-0 top-0 z-[120] hidden min-w-[196px] max-w-[240px] overflow-hidden !rounded-xl',
     });
     this.panel.setAttribute('role', 'menu');
-    document.body.appendChild(this.panel);
-    this.element.append(this.triggerBtn);
+    this.element.append(this.triggerBtn, this.panel);
+
+    this.menuController = new AnchoredMenu({
+      container: this.element,
+      panel: this.panel,
+      positioning: 'viewport',
+      onOpenChange: (open) => {
+        this.triggerBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        this.triggerBtn.classList.toggle('bg-slate-100', open);
+        this.triggerBtn.classList.toggle('text-slate-800', open);
+        if (open) {
+          this.renderOptions();
+        }
+      },
+    });
+    this.menuController.mount();
 
     this.triggerBtn.addEventListener('click', (event) => {
       event.stopPropagation();
       if (this.items.length === 0) return;
-      this.setOpen(!this.open);
+      if (this.menuController.isOpen()) {
+        this.menuController.close();
+        return;
+      }
+      this.renderOptions();
+      this.menuController.openAt({
+        anchor: this.triggerBtn,
+        placement: 'bottom-start',
+        fallbackPlacements: ['bottom-end', 'top-start', 'top-end'],
+        gap: 8,
+        margin: 8,
+      });
     });
     this.triggerBtn.addEventListener('mousedown', (event) => {
       event.stopPropagation();
@@ -95,10 +121,6 @@ export class AiActionsDropdown {
     this.panel.addEventListener('pointerdown', (event) => {
       event.stopPropagation();
     });
-
-    window.addEventListener('resize', this.onWindowResize);
-    window.addEventListener('mousedown', this.onDocumentMouseDown);
-    window.addEventListener('keydown', this.onWindowKeyDown);
     this.syncTriggerState();
   }
 
@@ -107,61 +129,26 @@ export class AiActionsDropdown {
     this.renderOptions();
     this.syncTriggerState();
     if (this.items.length === 0) {
-      this.setOpen(false);
+      this.menuController.close();
       return;
     }
-    if (this.open) {
-      this.positionDropdown();
+    if (this.menuController.isOpen()) {
+      this.menuController.reposition();
     }
   }
 
   public close(): void {
-    this.setOpen(false);
+    this.menuController.close();
   }
 
   public reposition(): void {
-    if (!this.open) return;
-    this.positionDropdown();
+    this.menuController.reposition();
   }
 
   public destroy(): void {
-    this.setOpen(false);
-    window.removeEventListener('resize', this.onWindowResize);
-    window.removeEventListener('mousedown', this.onDocumentMouseDown);
-    window.removeEventListener('keydown', this.onWindowKeyDown);
+    this.menuController.close();
+    this.menuController.unmount();
     this.panel.remove();
-  }
-
-  private readonly onWindowResize = (): void => {
-    if (!this.open) return;
-    this.positionDropdown();
-  };
-
-  private readonly onDocumentMouseDown = (event: MouseEvent): void => {
-    if (!this.open) return;
-    const target = event.target;
-    if (!(target instanceof Node)) return;
-    if (this.element.contains(target)) return;
-    if (this.panel.contains(target)) return;
-    this.setOpen(false);
-  };
-
-  private readonly onWindowKeyDown = (event: KeyboardEvent): void => {
-    if (!this.open) return;
-    if (event.key !== 'Escape') return;
-    this.setOpen(false);
-  };
-
-  private setOpen(open: boolean): void {
-    if (this.open === open) return;
-    this.open = open;
-    this.panel.classList.toggle('hidden', !open);
-    this.triggerBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-    this.triggerBtn.classList.toggle('bg-slate-100', open);
-    this.triggerBtn.classList.toggle('text-slate-800', open);
-    if (open) {
-      this.positionDropdown();
-    }
   }
 
   private syncTriggerState(): void {
@@ -191,7 +178,7 @@ export class AiActionsDropdown {
         className: '!py-3.5 !text-[12px]',
         onClick: (event) => {
           event.stopPropagation();
-          this.setOpen(false);
+          this.menuController.close();
           item.onSelect();
         },
       });
@@ -201,48 +188,5 @@ export class AiActionsDropdown {
       });
       this.panel.appendChild(option);
     });
-  }
-
-  private positionDropdown(): void {
-    const anchorGap = 8;
-    const viewportPadding = 8;
-    this.panel.style.maxHeight = '';
-    this.panel.style.overflowY = 'hidden';
-
-    const triggerRect = this.triggerBtn.getBoundingClientRect();
-    const panelRect = this.panel.getBoundingClientRect();
-    const panelWidth = panelRect.width;
-    const panelHeight = panelRect.height;
-    const maxLeft = Math.max(
-      viewportPadding,
-      window.innerWidth - panelWidth - viewportPadding
-    );
-    let left = triggerRect.left;
-    if (left + panelWidth > window.innerWidth - viewportPadding) {
-      left = triggerRect.right - panelWidth;
-    }
-    left = Math.min(Math.max(left, viewportPadding), maxLeft);
-
-    const spaceBelow =
-      window.innerHeight - triggerRect.bottom - viewportPadding;
-    const spaceAbove = triggerRect.top - viewportPadding;
-
-    const openUpward = panelHeight > spaceBelow && spaceAbove > spaceBelow;
-    let top = triggerRect.bottom + anchorGap;
-    if (openUpward) {
-      top = Math.max(
-        viewportPadding,
-        triggerRect.top - panelHeight - anchorGap
-      );
-    }
-
-    const availableSpace = openUpward ? spaceAbove : spaceBelow;
-    if (panelHeight > availableSpace) {
-      this.panel.style.maxHeight = `${Math.max(120, Math.floor(availableSpace))}px`;
-      this.panel.style.overflowY = 'auto';
-    }
-
-    this.panel.style.left = `${Math.round(left)}px`;
-    this.panel.style.top = `${Math.round(top)}px`;
   }
 }
