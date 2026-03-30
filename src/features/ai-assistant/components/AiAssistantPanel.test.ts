@@ -90,12 +90,14 @@ function createController(initialState: AiAssistantPanelState): {
 }
 
 function getPanelInternals(panel: AiAssistantPanel): {
+  container: HTMLElement;
   messagesViewport: HTMLDivElement;
   scrollToBottomButton: HTMLButtonElement;
   messagesList: HTMLDivElement;
   sendButton: HTMLButtonElement;
 } {
   return panel as unknown as {
+    container: HTMLElement;
     messagesViewport: HTMLDivElement;
     scrollToBottomButton: HTMLButtonElement;
     messagesList: HTMLDivElement;
@@ -313,6 +315,24 @@ describe('AiAssistantPanel auto-scroll', () => {
       olderActions.classList.contains('group-focus-within:opacity-100')
     ).toBe(true);
     expect(latestActions.classList.contains('opacity-0')).toBe(false);
+    panel.unmount();
+  });
+
+  it('applies shared multi-island chrome only to the outer panel container', () => {
+    const { controller } = createController(createState([]));
+    const panel = new AiAssistantPanel({ controller });
+    panel.mount();
+    const { container } = getPanelInternals(panel);
+
+    panel.setIslandMode(true);
+    expect(container.style.borderRadius).toBe('28px');
+    expect(container.style.top).toBe('0px');
+    expect(container.style.right).toBe('0px');
+    expect(container.style.bottom).toBe('0px');
+
+    panel.setIslandMode(false);
+    expect(container.style.borderRadius).toMatch(/^0(px)?$/);
+
     panel.unmount();
   });
 

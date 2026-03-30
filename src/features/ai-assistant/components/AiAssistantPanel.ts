@@ -64,6 +64,11 @@ import {
   isWorkspaceViewChangedDetail,
 } from '../../shell/workspaceEvents.ts';
 import {
+  FULL_BLEED_ISLAND_CHROME,
+  MULTI_ISLAND_CHROME,
+  applyIslandFrame,
+} from '../../shell/islandChrome.ts';
+import {
   emitAiAssistantToggleRequested,
   AI_ASSISTANT_CONTEXT_CHANGED_EVENT,
   isAiAssistantContextDetail,
@@ -83,7 +88,6 @@ type AiAssistantPanelOptions = {
   executeAction?: AiAssistantActionExecutionHandler;
 };
 
-const CHAT_ISLAND_MARGIN_PX = 0;
 const CHAT_AUTO_SCROLL_THRESHOLD_PX = 40;
 const CHAT_PANEL_BORDER = '1px solid rgba(234, 238, 245, 1)';
 const CHAT_PANEL_SECTION_BORDER = '1px solid rgba(226, 232, 240, 0.72)';
@@ -91,7 +95,7 @@ const CHAT_PANEL_SURFACE_BORDER = '1px solid rgba(226, 232, 240, 0.82)';
 const CHAT_PANEL_SUBTLE_BORDER = '1px solid rgba(226, 232, 240, 0.78)';
 const CHAT_PANEL_BACKGROUND = '#ffffff';
 const CHAT_PANEL_SUBTLE_BACKGROUND = 'rgba(248, 250, 252, 0.92)';
-const CHAT_PANEL_RADIUS_PX = 0;
+const CHAT_PANEL_SURFACE_RADIUS_PX = 0;
 const CHAT_FONT_SIZE_LABEL = '12px';
 const CHAT_FONT_SIZE_META = '13px';
 const CHAT_FONT_SIZE_BODY = '14px';
@@ -540,16 +544,7 @@ export class AiAssistantPanel {
 
   public setIslandMode(enabled: boolean): void {
     if (!enabled) {
-      this.container.style.top = '0';
-      this.container.style.right = '0';
-      this.container.style.bottom = '0';
-      this.container.style.border = 'none';
-      this.container.style.borderLeft = '1px solid rgba(226, 232, 240, 0.92)';
-      this.container.style.borderRadius = '0';
-      this.container.style.background = '#ffffff';
-      this.container.style.boxShadow = 'none';
-      this.container.style.backdropFilter = 'none';
-      this.container.style.overflow = 'visible';
+      this.applyFullBleedContainerStyles();
       return;
     }
 
@@ -2752,17 +2747,34 @@ export class AiAssistantPanel {
   }
 
   private applyIslandContainerStyles(): void {
-    this.container.style.top = `${CHAT_ISLAND_MARGIN_PX}px`;
-    this.container.style.right = `${CHAT_ISLAND_MARGIN_PX}px`;
-    this.container.style.bottom = `${CHAT_ISLAND_MARGIN_PX}px`;
-    this.container.style.borderLeft = CHAT_PANEL_BORDER;
-    this.container.style.borderRadius = `${CHAT_PANEL_RADIUS_PX}px`;
-    this.container.style.background = CHAT_PANEL_BACKGROUND;
-    this.container.style.backdropFilter = 'none';
-    this.container.style.overflow = 'hidden';
+    applyIslandFrame(this.container, MULTI_ISLAND_CHROME, {
+      top: MULTI_ISLAND_CHROME.marginPx,
+      right: MULTI_ISLAND_CHROME.marginPx,
+      bottom: MULTI_ISLAND_CHROME.marginPx,
+      borderLeft: CHAT_PANEL_BORDER,
+      background: CHAT_PANEL_BACKGROUND,
+      backdropFilter: 'none',
+      overflow: 'hidden',
+    });
   }
 
-  private createFlatSurface(radiusPx = CHAT_PANEL_RADIUS_PX): HTMLDivElement {
+  private applyFullBleedContainerStyles(): void {
+    applyIslandFrame(this.container, FULL_BLEED_ISLAND_CHROME, {
+      top: FULL_BLEED_ISLAND_CHROME.marginPx,
+      right: FULL_BLEED_ISLAND_CHROME.marginPx,
+      bottom: FULL_BLEED_ISLAND_CHROME.marginPx,
+      border: 'none',
+      borderLeft: '1px solid rgba(226, 232, 240, 0.92)',
+      background: '#ffffff',
+      boxShadow: 'none',
+      backdropFilter: 'none',
+      overflow: 'visible',
+    });
+  }
+
+  private createFlatSurface(
+    radiusPx = CHAT_PANEL_SURFACE_RADIUS_PX
+  ): HTMLDivElement {
     return this.createPanelSurface({
       radiusPx,
       background: CHAT_PANEL_BACKGROUND,
@@ -2770,7 +2782,9 @@ export class AiAssistantPanel {
     });
   }
 
-  private createSubtleSurface(radiusPx = CHAT_PANEL_RADIUS_PX): HTMLDivElement {
+  private createSubtleSurface(
+    radiusPx = CHAT_PANEL_SURFACE_RADIUS_PX
+  ): HTMLDivElement {
     return this.createPanelSurface({
       radiusPx,
       background: CHAT_PANEL_SUBTLE_BACKGROUND,

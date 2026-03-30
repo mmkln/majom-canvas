@@ -22,6 +22,7 @@ vi.mock('../features/shell/WorkspaceViewSwitcher.ts', () => ({
   WorkspaceViewSwitcher: class {
     public mount(): void {}
     public unmount(): void {}
+    public destroy(): void {}
     public setActiveView(): void {}
     public setVisible(): void {}
     public setChatOpen(): void {}
@@ -72,6 +73,7 @@ import {
 
 type RuntimeHostInternalAccess = {
   workspaceRoot: HTMLDivElement;
+  islandBackdropRoot: HTMLDivElement;
   timeClusteringIslandRoot: HTMLDivElement;
   hostVisible: boolean;
   activeView: 'canvas' | 'kanban' | 'learning-studio';
@@ -209,9 +211,15 @@ describe('RuntimeHost time clustering island layout', () => {
 
     expect(host.workspaceRoot.style.left).toBe('360px');
     expect(host.workspaceRoot.style.right).toBe('0px');
+    expect(host.workspaceRoot.style.borderRadius).toBe('28px');
+    expect(host.islandBackdropRoot.style.display).toBe('block');
+    expect(host.islandBackdropRoot.style.background).toBe(
+      'rgb(244, 248, 252)'
+    );
     expect(host.timeClusteringIslandRoot.style.display).toBe('block');
     expect(host.timeClusteringIslandRoot.style.left).toBe('0px');
     expect(host.timeClusteringIslandRoot.style.width).toBe('360px');
+    expect(host.timeClusteringIslandRoot.style.borderRadius).toBe('28px');
     expect(canvas.style.display).toBe('block');
 
     host.dispose();

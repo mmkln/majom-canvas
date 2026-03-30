@@ -42,6 +42,12 @@ import {
 } from '../features/shell/workspaceUiState.ts';
 import type { WorkspaceView } from '../features/shell/WorkspaceView.ts';
 import { WorkspaceViewSwitcher } from '../features/shell/WorkspaceViewSwitcher.ts';
+import {
+  FULL_BLEED_ISLAND_CHROME,
+  MULTI_ISLAND_CHROME,
+  applyIslandBackdrop,
+  applyIslandFrame,
+} from '../features/shell/islandChrome.ts';
 import { AiAssistantPanel } from '../features/ai-assistant/components/AiAssistantPanel.ts';
 import type {
   AiAssistantActionExecutionHandler,
@@ -55,9 +61,6 @@ import { buildAiAssistantCapabilityContext } from '../features/ai-assistant/serv
 import type { TimeClusteringLayoutMode } from '../features/time-clustering/domain/types.ts';
 import { AppRuntime, createAppRuntime } from '../app-runtime/index.ts';
 
-const APP_ISLAND_GAP_PX = 0;
-const APP_ISLAND_MARGIN_PX = 0;
-const APP_ISLAND_RADIUS_PX = 0;
 const TIME_CLUSTERING_ISLAND_WIDTH_PX = 360;
 
 type KanbanModuleNamespace = {
@@ -103,6 +106,7 @@ export class RuntimeHost {
   private learningStudioModule: WorkspaceModule | null = null;
   private timeClusteringModule: TimeClusteringIslandModule | null = null;
   private readonly workspaceRoot: HTMLDivElement;
+  private readonly islandBackdropRoot: HTMLDivElement;
   private readonly wallpaperService: WallpaperService;
   private readonly wallpaperSubscription: Subscription;
   private currentWallpaperUrl = '';
@@ -149,6 +153,18 @@ export class RuntimeHost {
     this.workspaceRoot.style.transition =
       'left 180ms ease, top 180ms ease, right 180ms ease, bottom 180ms ease, border-radius 180ms ease, box-shadow 180ms ease';
     document.body.appendChild(this.workspaceRoot);
+    this.islandBackdropRoot = document.createElement('div');
+    this.islandBackdropRoot.id = 'workspace-island-backdrop-root';
+    this.islandBackdropRoot.style.position = 'fixed';
+    this.islandBackdropRoot.style.left = `${GLOBAL_APP_SIDEBAR_WIDTH_PX}px`;
+    this.islandBackdropRoot.style.top = '0';
+    this.islandBackdropRoot.style.right = '0';
+    this.islandBackdropRoot.style.bottom = '0';
+    this.islandBackdropRoot.style.zIndex = '34';
+    this.islandBackdropRoot.style.display = 'none';
+    this.islandBackdropRoot.style.pointerEvents = 'none';
+    applyIslandBackdrop(this.islandBackdropRoot, MULTI_ISLAND_CHROME);
+    document.body.appendChild(this.islandBackdropRoot);
     this.timeClusteringIslandRoot = document.createElement('div');
     this.timeClusteringIslandRoot.id = 'time-clustering-island-root';
     this.timeClusteringIslandRoot.style.position = 'fixed';
@@ -364,6 +380,7 @@ export class RuntimeHost {
     );
     window.removeEventListener('resize', this.windowResizeHandler);
     this.unmountRuntimeChrome();
+    this.viewSwitcher.destroy();
     this.shell?.dispose();
     this.shell = null;
     this.canvasModule = null;
@@ -371,6 +388,7 @@ export class RuntimeHost {
     this.learningStudioModule = null;
     this.timeClusteringModule?.unmount();
     this.timeClusteringModule = null;
+    this.islandBackdropRoot.remove();
     this.timeClusteringIslandRoot.remove();
     this.workspaceRoot.remove();
     this.chatPanel.unmount();
@@ -556,18 +574,20 @@ export class RuntimeHost {
       this.timeClusteringOpen && this.timeClusteringLayoutMode === 'fullscreen';
     if (!this.hostVisible) {
       this.unmountRuntimeChrome();
+      this.islandBackdropRoot.style.display = 'none';
       this.workspaceRoot.style.display = 'none';
       this.workspaceRoot.style.pointerEvents = 'none';
-      this.workspaceRoot.style.left = `${GLOBAL_APP_SIDEBAR_WIDTH_PX}px`;
-      this.workspaceRoot.style.top = '0';
-      this.workspaceRoot.style.right = '0';
-      this.workspaceRoot.style.bottom = '0';
-      this.workspaceRoot.style.width = `calc(100vw - ${GLOBAL_APP_SIDEBAR_WIDTH_PX}px)`;
-      this.workspaceRoot.style.height = '100vh';
-      this.workspaceRoot.style.borderRadius = '0';
-      this.workspaceRoot.style.overflow = 'visible';
-      this.workspaceRoot.style.boxShadow = 'none';
-      this.workspaceRoot.style.border = 'none';
+      applyIslandFrame(this.workspaceRoot, FULL_BLEED_ISLAND_CHROME, {
+        left: GLOBAL_APP_SIDEBAR_WIDTH_PX,
+        top: 0,
+        right: 0,
+        bottom: 0,
+        width: `calc(100vw - ${GLOBAL_APP_SIDEBAR_WIDTH_PX}px)`,
+        height: '100vh',
+        overflow: 'visible',
+        boxShadow: 'none',
+        border: 'none',
+      });
       if (canvas instanceof HTMLCanvasElement) {
         canvas.style.display = 'none';
         canvas.style.pointerEvents = 'none';
@@ -591,6 +611,11 @@ export class RuntimeHost {
     this.mountRuntimeChrome();
     const showWorkspace = !timeClusteringFullscreen;
     const showCanvas = showWorkspace && this.activeView === 'canvas';
+    this.syncIslandBackdropVisibility(
+      showWorkspace,
+      timeClusteringIslandWidth,
+      chatWidth
+    );
     this.workspaceRoot.style.display = showWorkspace ? 'block' : 'none';
     this.workspaceRoot.style.pointerEvents = showWorkspace ? 'auto' : 'none';
     if (showWorkspace) {
@@ -672,17 +697,22 @@ export class RuntimeHost {
   ): void {
     const hasLeftIsland = leftIslandWidth > 0;
     const hasRightIsland = chatWidth > 0;
+    const chrome =
+      hasLeftIsland || hasRightIsland
+        ? MULTI_ISLAND_CHROME
+        : FULL_BLEED_ISLAND_CHROME;
     if (!hasLeftIsland && !hasRightIsland) {
-      this.workspaceRoot.style.left = `${GLOBAL_APP_SIDEBAR_WIDTH_PX}px`;
-      this.workspaceRoot.style.top = '0';
-      this.workspaceRoot.style.right = '0';
-      this.workspaceRoot.style.bottom = '0';
-      this.workspaceRoot.style.width = 'auto';
-      this.workspaceRoot.style.height = 'auto';
-      this.workspaceRoot.style.borderRadius = '0';
-      this.workspaceRoot.style.overflow = 'visible';
-      this.workspaceRoot.style.boxShadow = 'none';
-      this.workspaceRoot.style.border = 'none';
+      applyIslandFrame(this.workspaceRoot, FULL_BLEED_ISLAND_CHROME, {
+        left: GLOBAL_APP_SIDEBAR_WIDTH_PX,
+        top: 0,
+        right: 0,
+        bottom: 0,
+        width: 'auto',
+        height: 'auto',
+        overflow: 'visible',
+        boxShadow: 'none',
+        border: 'none',
+      });
       if (canvasUiRoot) {
         canvasUiRoot.style.left = `${GLOBAL_APP_SIDEBAR_WIDTH_PX}px`;
         canvasUiRoot.style.top = '0';
@@ -694,11 +724,11 @@ export class RuntimeHost {
     }
 
     const workspaceLeftInset =
-      APP_ISLAND_MARGIN_PX +
-      (hasLeftIsland ? leftIslandWidth + APP_ISLAND_GAP_PX : 0);
+      chrome.marginPx +
+      (hasLeftIsland ? leftIslandWidth + chrome.gapPx : 0);
     const workspaceRightInset =
-      APP_ISLAND_MARGIN_PX +
-      (hasRightIsland ? chatWidth + APP_ISLAND_GAP_PX : 0);
+      chrome.marginPx +
+      (hasRightIsland ? chatWidth + chrome.gapPx : 0);
     const workspaceWidth = Math.max(
       320,
       window.innerWidth -
@@ -708,27 +738,37 @@ export class RuntimeHost {
     );
     const workspaceHeight = Math.max(
       240,
-      window.innerHeight - APP_ISLAND_MARGIN_PX * 2
+      window.innerHeight - chrome.marginPx * 2
     );
 
-    this.workspaceRoot.style.left = `${GLOBAL_APP_SIDEBAR_WIDTH_PX + workspaceLeftInset}px`;
-    this.workspaceRoot.style.top = `${APP_ISLAND_MARGIN_PX}px`;
-    this.workspaceRoot.style.right = `${workspaceRightInset}px`;
-    this.workspaceRoot.style.bottom = `${APP_ISLAND_MARGIN_PX}px`;
-    this.workspaceRoot.style.width = 'auto';
-    this.workspaceRoot.style.height = 'auto';
-    this.workspaceRoot.style.borderRadius = `${APP_ISLAND_RADIUS_PX}px`;
-    this.workspaceRoot.style.overflow = 'hidden';
-    this.workspaceRoot.style.border = 'none';
-    this.workspaceRoot.style.boxShadow = 'none';
+    applyIslandFrame(this.workspaceRoot, chrome, {
+      left: GLOBAL_APP_SIDEBAR_WIDTH_PX + workspaceLeftInset,
+      top: chrome.marginPx,
+      right: workspaceRightInset,
+      bottom: chrome.marginPx,
+      width: 'auto',
+      height: 'auto',
+      overflow: 'hidden',
+      border: 'none',
+      boxShadow: 'none',
+    });
 
     if (canvasUiRoot) {
       canvasUiRoot.style.left = `${GLOBAL_APP_SIDEBAR_WIDTH_PX + workspaceLeftInset}px`;
-      canvasUiRoot.style.top = `${APP_ISLAND_MARGIN_PX}px`;
+      canvasUiRoot.style.top = `${chrome.marginPx}px`;
       canvasUiRoot.style.width = `${workspaceWidth}px`;
       canvasUiRoot.style.height = `${workspaceHeight}px`;
-      canvasUiRoot.style.borderRadius = `${APP_ISLAND_RADIUS_PX}px`;
+      canvasUiRoot.style.borderRadius = `${chrome.radiusPx}px`;
     }
+  }
+
+  private syncIslandBackdropVisibility(
+    showWorkspace: boolean,
+    leftIslandWidth: number,
+    chatWidth: number
+  ): void {
+    const showBackdrop = showWorkspace && (leftIslandWidth > 0 || chatWidth > 0);
+    this.islandBackdropRoot.style.display = showBackdrop ? 'block' : 'none';
   }
 
   private syncCanvasUiRootToWorkspace(
@@ -785,12 +825,17 @@ export class RuntimeHost {
     }
 
     const chatInset =
-      APP_ISLAND_MARGIN_PX +
-      (chatWidth > 0 ? chatWidth + APP_ISLAND_GAP_PX : 0);
-    this.timeClusteringIslandRoot.style.left = `${GLOBAL_APP_SIDEBAR_WIDTH_PX + APP_ISLAND_MARGIN_PX}px`;
-    this.timeClusteringIslandRoot.style.top = `${APP_ISLAND_MARGIN_PX}px`;
-    this.timeClusteringIslandRoot.style.bottom = `${APP_ISLAND_MARGIN_PX}px`;
-    this.timeClusteringIslandRoot.style.borderRadius = `${APP_ISLAND_RADIUS_PX}px`;
+      MULTI_ISLAND_CHROME.marginPx +
+      (chatWidth > 0 ? chatWidth + MULTI_ISLAND_CHROME.gapPx : 0);
+    const chrome =
+      this.timeClusteringLayoutMode === 'docked-left'
+        ? MULTI_ISLAND_CHROME
+        : FULL_BLEED_ISLAND_CHROME;
+    applyIslandFrame(this.timeClusteringIslandRoot, chrome, {
+      left: GLOBAL_APP_SIDEBAR_WIDTH_PX + chrome.marginPx,
+      top: chrome.marginPx,
+      bottom: chrome.marginPx,
+    });
     if (this.timeClusteringLayoutMode === 'fullscreen') {
       this.timeClusteringIslandRoot.style.right = `${chatInset}px`;
       this.timeClusteringIslandRoot.style.width = 'auto';
