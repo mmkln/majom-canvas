@@ -101,6 +101,7 @@
 - Prefer tests that protect meaningful regressions: user interactions, state transitions, data flow, command execution, accessibility-critical behavior, conditional rendering with product meaning, and bug fixes that could realistically recur.
 - When a change is purely presentational and does not alter behavior, do not create a new test just to prove the component still renders.
 - Before adding a test, ask whether it would catch a costly regression or document important behavior. If not, skip it.
+- If you temporarily add a visual-only or implementation-detail assertion to verify a UI change, delete it before finishing the task unless it clearly protects meaningful behavior under the rules above.
 - The assistant may create temporary self-check tests or short-lived verification harnesses while implementing a change, but they must be deleted after verification unless they clearly protect meaningful product behavior under the rules above.
 - Do not leave behind ad hoc tests, throwaway fixtures, or one-off verification files that exist only to validate the assistant's current implementation pass.
 

@@ -10,7 +10,8 @@ import { AppRuntime, createAppRuntime } from '../../../../app-runtime/index.ts';
 import { TasksApiService } from '../../../../majom-wrapper/data-access/tasks-api-service.ts';
 import { HttpInterceptorClient } from '../../../../majom-wrapper/data-access/http-interceptor.js';
 import { environment } from '../../../../config/environment.ts';
-import { createTextButton } from '../primitives/index.ts';
+import { createIconButton, createTextButton } from '../primitives/index.ts';
+import { createIcon } from '../../../../ui-lib/src/hud/icons.ts';
 import { ExistingGoalPickerQueryModel } from './ExistingGoalPickerQueryModel.ts';
 
 type ExistingGoalPickerLoadParams = {
@@ -88,6 +89,15 @@ export class ExistingGoalPicker {
     const queryRow = document.createElement('div');
     queryRow.className = 'flex flex-wrap items-center gap-2';
 
+    const searchIcon = document.createElement('span');
+    searchIcon.className =
+      'inline-flex shrink-0 items-center justify-center text-slate-400';
+    searchIcon.dataset.role = 'goal-picker-query-search-icon';
+    searchIcon.setAttribute('aria-hidden', 'true');
+    searchIcon.appendChild(
+      createIcon('magnifying-glass', { size: 15, strokeWidth: 1.9 })
+    );
+
     const tokenWrap = document.createElement('div');
     tokenWrap.className = 'flex flex-wrap items-center gap-2';
     tokenWrap.dataset.role = 'goal-picker-query-tokens';
@@ -103,11 +113,13 @@ export class ExistingGoalPicker {
     queryInput.spellcheck = false;
     queryInput.dataset.role = 'goal-picker-query-input';
 
-    const clearAllButton = createTextButton({
-      text: api.runtime.i18n.t('existingPicker.goalQueryClearAll'),
+    const clearAllButton = createIconButton({
+      icon: 'x-mark',
+      size: 'sm',
       tone: 'text',
-      className:
-        'hidden h-auto shrink-0 rounded-full px-0 py-0 text-[11px] font-medium text-slate-500 hover:text-slate-700',
+      className: 'hidden shrink-0',
+      title: api.runtime.i18n.t('existingPicker.goalQueryClearAll'),
+      ariaLabel: api.runtime.i18n.t('existingPicker.goalQueryClearAll'),
       onClick: () => {
         const request = this.queryModel.clearAll();
         this.clearSearchDebounce();
@@ -119,7 +131,7 @@ export class ExistingGoalPicker {
     });
     clearAllButton.dataset.role = 'goal-picker-query-clear-all';
 
-    queryRow.append(tokenWrap, queryInput, clearAllButton);
+    queryRow.append(searchIcon, tokenWrap, queryInput, clearAllButton);
     querySurface.appendChild(queryRow);
 
     const helperText = document.createElement('div');

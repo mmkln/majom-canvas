@@ -34,6 +34,8 @@ export type HudInputOptions = {
   onChange?: (value: string, event: Event) => void;
   onKeyDown?: (event: KeyboardEvent) => void;
   passwordToggle?: boolean;
+  searchClearButton?: boolean;
+  searchClearLabel?: string;
   passwordToggleLabels?: {
     show: string;
     hide: string;
@@ -67,10 +69,11 @@ const kindDefaults: Record<
 export function createHudInput(options: HudInputOptions = {}): HudInput {
   const kind = options.kind ?? 'text';
   const defaults = kindDefaults[kind];
+  const inputType = options.type ?? defaults.type;
   const input = createHudInputBase({
     variant: options.variant ?? 'default',
     className: options.inputClassName,
-    type: options.type ?? defaults.type,
+    type: inputType,
     value: options.value,
     placeholder: options.placeholder,
     name: options.name,
@@ -94,12 +97,17 @@ export function createHudInput(options: HudInputOptions = {}): HudInput {
 
   const shouldRenderPasswordToggle =
     kind === 'password' && options.passwordToggle !== false;
+  const shouldRenderSearchClearButton =
+    inputType === 'search' && options.searchClearButton !== false;
   const shouldRenderLeadingIcon = Boolean(options.leadingIcon);
   const shouldRenderTrailingIcon =
-    Boolean(options.trailingIcon) && !shouldRenderPasswordToggle;
+    Boolean(options.trailingIcon) &&
+    !shouldRenderPasswordToggle &&
+    !shouldRenderSearchClearButton;
 
   if (
     !shouldRenderPasswordToggle &&
+    !shouldRenderSearchClearButton &&
     !shouldRenderLeadingIcon &&
     !shouldRenderTrailingIcon
   ) {
@@ -124,6 +132,10 @@ export function createHudInput(options: HudInputOptions = {}): HudInput {
   }
   if (shouldRenderTrailingIcon) {
     input.className = `${input.className} pr-10`.trim();
+  }
+  if (shouldRenderSearchClearButton) {
+    input.className = `${input.className} pr-11`.trim();
+    input.setAttribute('data-hud-search-clear', 'custom');
   }
   if (shouldRenderPasswordToggle) {
     input.className = `${input.className} pr-11`.trim();
@@ -174,10 +186,12 @@ export function createHudInput(options: HudInputOptions = {}): HudInput {
   }
 
   let toggleButton: HTMLButtonElement | null = null;
+  let searchClearButton: HTMLButtonElement | null = null;
   const passwordToggleLabels = {
     show: options.passwordToggleLabels?.show ?? 'Show password',
     hide: options.passwordToggleLabels?.hide ?? 'Hide password',
   };
+  const searchClearLabel = options.searchClearLabel ?? 'Clear search';
   const setToggleIcon = (iconName: IconName): void => {
     if (!toggleButton) return;
     toggleButton.innerHTML = '';
@@ -224,7 +238,40 @@ export function createHudInput(options: HudInputOptions = {}): HudInput {
     });
   }
 
+  const syncSearchClearState = (): void => {
+    if (!searchClearButton) return;
+    searchClearButton.style.display =
+      !input.disabled && input.value.length > 0 ? '' : 'none';
+  };
+
+  if (shouldRenderSearchClearButton) {
+    searchClearButton = createHudIconButton({
+      icon: 'x-mark',
+      tone: 'text',
+      size: 'sm',
+      iconSize: 14,
+      iconStrokeWidth: 1.8,
+      title: searchClearLabel,
+      ariaLabel: searchClearLabel,
+      type: 'button',
+      className:
+        'absolute right-1 top-1/2 -translate-y-1/2 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700',
+    });
+    searchClearButton.addEventListener('click', () => {
+      if (input.disabled || input.value.length === 0) return;
+      input.value = '';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.focus();
+      syncSearchClearState();
+    });
+    input.addEventListener('input', syncSearchClearState);
+  }
+
   wrapper.appendChild(input);
+  if (searchClearButton) {
+    wrapper.appendChild(searchClearButton);
+    syncSearchClearState();
+  }
   if (toggleButton) {
     wrapper.appendChild(toggleButton);
     syncToggleState();
@@ -235,6 +282,7 @@ export function createHudInput(options: HudInputOptions = {}): HudInput {
     input,
     setState: (state) => {
       setHudInputState(input, state);
+      syncSearchClearState();
       if (toggleButton && state.disabled !== undefined) {
         toggleButton.disabled = state.disabled;
       }
@@ -242,6 +290,7 @@ export function createHudInput(options: HudInputOptions = {}): HudInput {
     getValue: () => input.value,
     setValue: (value) => {
       input.value = value;
+      syncSearchClearState();
     },
     focus: () => input.focus(),
   };

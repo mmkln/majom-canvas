@@ -17,3 +17,11 @@ canvas {
   border: 1px solid #ccc;
   display: block; /* Remove extra space below canvas */
 }
+
+input[data-hud-search-clear='custom']::-webkit-search-cancel-button,
+input[data-hud-search-clear='custom']::-webkit-search-decoration,
+input[data-hud-search-clear='custom']::-webkit-search-results-button,
+input[data-hud-search-clear='custom']::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
