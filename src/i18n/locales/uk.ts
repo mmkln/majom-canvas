@@ -399,7 +399,7 @@ export const uk = {
   'canvasContextMenu.addItem': 'Додати елемент',
   'canvasContextMenu.addItemToStory': 'Додати елемент',
   'canvasContextMenu.addRelatedTasks': 'Додати повʼязані задачі',
-  'canvasContextMenu.aiAssist': 'AI допомога',
+  'canvasContextMenu.aiAssist': 'ШІ асистент',
   'canvasContextMenu.breakIntoStories': 'Розбити на історії',
   'canvasContextMenu.breakIntoTasks': 'Розбити на задачі',
   'canvasContextMenu.clarify': 'Уточнити',
@@ -489,19 +489,15 @@ export const uk = {
   'profileSettings.account.lastName': 'Прізвище',
   'profileSettings.account.username': "Ім'я користувача",
   'profileSettings.account.email': 'Email',
-  'profileSettings.account.currentUsernameDescription':
-    'Поточне: {username}',
-  'profileSettings.account.currentDetailsDescription':
-    '{username} · {email}',
+  'profileSettings.account.currentUsernameDescription': 'Поточне: {username}',
+  'profileSettings.account.currentDetailsDescription': '{username} · {email}',
   'profileSettings.account.panelDescription':
     "Оновіть ім'я, прізвище, ім'я користувача та email для цього акаунта.",
   'profileSettings.account.saved': 'Дані акаунта оновлено.',
-  'profileSettings.account.saveError':
-    'Не вдалося оновити дані акаунта.',
+  'profileSettings.account.saveError': 'Не вдалося оновити дані акаунта.',
   'profileSettings.account.updatedDescription':
     'Дані цього акаунта щойно оновлено.',
-  'profileSettings.account.usernameRequired':
-    "Ім'я користувача обов'язкове.",
+  'profileSettings.account.usernameRequired': "Ім'я користувача обов'язкове.",
   'profileSettings.account.emailRequired': "Email обов'язковий.",
   'profileSettings.account.emailInvalid': 'Введіть коректну email-адресу.',
   'profileSettings.account.logout': 'Вийти',
@@ -522,8 +518,7 @@ export const uk = {
   'profileSettings.security.saveError': 'Не вдалося оновити пароль.',
   'profileSettings.security.oldPasswordRequired':
     "Поточний пароль обов'язковий.",
-  'profileSettings.security.newPasswordRequired':
-    "Новий пароль обов'язковий.",
+  'profileSettings.security.newPasswordRequired': "Новий пароль обов'язковий.",
   'profileSettings.security.confirmPasswordRequired':
     'Підтвердьте новий пароль.',
   'profileSettings.security.passwordMinLength':
@@ -559,8 +554,7 @@ export const uk = {
   'profileSettings.appearance.selected': 'Обрано',
   'profileSettings.appearance.selectWallpaper': 'Обрати шпалери {id}',
   'profileSettings.appearance.saved': 'Шпалери оновлено.',
-  'profileSettings.appearance.saveError':
-    'Не вдалося зберегти зміну шпалер.',
+  'profileSettings.appearance.saveError': 'Не вдалося зберегти зміну шпалер.',
   'profileSettings.danger.title': 'Небезпечна зона',
   'profileSettings.danger.description':
     'Тут зібрані деструктивні дії над акаунтом, які потребують явного підтвердження.',
@@ -958,8 +952,7 @@ export const uk = {
     '{count} уроків ще потребують опису.',
   'learningStudio.overview.issueLessonsNeedDescriptionsDetail':
     '{count} уроків ще потребують опису, перш ніж learner-facing flow виглядатиме цілісно.',
-  'learningStudio.overview.issueMissingDescription':
-    'Додай опис курсу.',
+  'learningStudio.overview.issueMissingDescription': 'Додай опис курсу.',
   'learningStudio.overview.issueMissingModules': 'Створи перший модуль.',
   'learningStudio.overview.issueMissingTitle': 'Додай назву курсу.',
   'learningStudio.overview.issueModulesNeedLessons':
@@ -1102,7 +1095,8 @@ export const uk = {
     'На карті підсвічуються лише важливі дочірні юніти',
   'learningStudio.preview.mapChildVisibilityAll':
     'На карті видно всі дочірні юніти',
-  'learningStudio.preview.mapHiddenChildren': '+{count} прихованих дочірніх юнітів',
+  'learningStudio.preview.mapHiddenChildren':
+    '+{count} прихованих дочірніх юнітів',
   'learningStudio.preview.mapMetaStructural': 'Структурний вузол',
   'learningStudio.preview.mapCanvasUnavailable':
     'Canvas-рендеринг недоступний у цьому середовищі. Замість нього показано fallback-список вузлів.',
@@ -1122,21 +1116,19 @@ export const uk = {
   'learningStudio.preview.warningsTitle': 'Попередження',
   'learningStudio.placeholders.courseDescription':
     'Опиши обіцянку, scope і тон курсу.',
-  'learningStudio.placeholders.courseTitle':
-    'Назви чернетку курсу',
+  'learningStudio.placeholders.courseTitle': 'Назви чернетку курсу',
   'learningStudio.placeholders.lessonDescription':
     'Додай learner-facing нотатки, інструкції до вправи або критерії checkpoint.',
-  'learningStudio.placeholders.lessonTitle':
-    'Назви картку уроку',
-  'learningStudio.placeholders.moduleTitle':
-    'Назви контейнер модуля',
+  'learningStudio.placeholders.lessonTitle': 'Назви картку уроку',
+  'learningStudio.placeholders.moduleTitle': 'Назви контейнер модуля',
   'learningStudio.progress.available': 'Доступний',
   'learningStudio.progress.completed': 'Завершений',
   'learningStudio.progress.inProgress': 'У процесі',
   'learningStudio.progress.locked': 'Заблокований',
   'learningStudio.progress.review': 'Повторити',
   'learningStudio.redesign.badge': 'Триває redesign',
-  'learningStudio.redesign.title': 'Learning Studio тимчасово приховано, поки досвід користувача повністю перепроєктовується.',
+  'learningStudio.redesign.title':
+    'Learning Studio тимчасово приховано, поки досвід користувача повністю перепроєктовується.',
   'learningStudio.redesign.body':
     'Поточний прототип прибрано зі сторінки, щоб далі не нарощувати слабкий інтерфейс і спочатку спроєктувати сильніший end-to-end досвід створення курсу.',
   'learningStudio.redesign.noteJourney':

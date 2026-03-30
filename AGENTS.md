@@ -114,6 +114,41 @@
 - Prefer focused integration tests for bug localization because most regressions happen at module boundaries; add unit tests only after the suspect logic is narrowed down.
 - If the cause cannot be proven through automated tests because the issue depends on external systems, browser quirks, or manual-only behavior, explicitly state that limitation before applying a fix and add the strongest reproducible test coverage that is still possible.
 
+### Architecture Escalation Rule
+
+- For any non-trivial feature, workflow, or interactive UI change, do not keep patching an existing implementation if the work exposes weak state ownership, hidden coupling, duplicated control flow, or unclear UX semantics.
+- Before implementing, explicitly identify:
+  - the single owner of state;
+  - the source of truth for requests and side effects;
+  - the user-visible interaction model;
+  - the most likely failure modes.
+- Classify the task as either `patch-safe` or `redesign-required` before proceeding.
+- Choose `redesign-required` by default if any of the following is true:
+  - the solution would introduce or preserve duplicated state;
+  - the same flow is controlled from more than one place;
+  - multiple triggers can cause the same side effect independently;
+  - the UX depends on hidden or “magical” behavior;
+  - a second fix is being applied to the same interaction flow;
+  - the implementation is accumulating local workarounds, coordination glue, or special cases.
+- If the task is `redesign-required`, do not continue iterating on the weak baseline. First define:
+  - the state model;
+  - the event/update flow;
+  - the API contract;
+  - the UI contract.
+- Do not present an incremental patch as a strong solution when it is only a temporary workaround. State plainly what weakness remains.
+
+### Single Owner Rule
+
+- For interactive flows, one model/controller must own query state, filter state, and request lifecycle.
+- Do not split these responsibilities across multiple components unless there is a very clear boundary and a documented reason.
+- If text input, filters, debouncing, reload logic, and result shaping are coordinated from different places, treat that as a design smell and redesign before continuing.
+
+### Patch Limit Rule
+
+- If two consecutive fixes touch the same interaction flow, stop patching and redesign the flow.
+- Do not apply a third local fix to the same state/interaction model without first replacing the underlying design.
+- When this threshold is reached, explicitly say that the current baseline is no longer patch-safe.
+
 ### Learning From Corrections
 
 - When the user corrects the assistant and that correction reveals a stable project rule, a recurring mistake, a contradiction, or an important edge case, update `AGENTS.md` in the same task unless the user explicitly says not to.
