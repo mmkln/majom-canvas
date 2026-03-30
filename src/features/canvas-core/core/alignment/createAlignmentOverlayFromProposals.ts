@@ -10,6 +10,7 @@ import type {
   AlignmentPointVisual,
   AlignmentProposal,
 } from './types.ts';
+import { resolveAlignmentVisualEmphasis } from './types.ts';
 
 export type AppliedAlignmentProposal = {
   proposal: AlignmentProposal;
@@ -54,6 +55,7 @@ function applyVisualState(
   if (visual.type === 'line') {
     return {
       ...visual,
+      emphasis: resolveAlignmentVisualEmphasis(visual.kind, primary),
       primary,
       locked,
     };
@@ -61,8 +63,12 @@ function applyVisualState(
   if (visual.type === 'band' || visual.type === 'point') {
     return {
       ...visual,
+      emphasis: resolveAlignmentVisualEmphasis(visual.kind, primary),
       primary,
     };
   }
-  return visual;
+  return {
+    ...visual,
+    emphasis: resolveAlignmentVisualEmphasis(visual.kind, primary),
+  };
 }

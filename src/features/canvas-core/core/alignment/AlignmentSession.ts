@@ -433,7 +433,8 @@ export class AlignmentSession {
       (proposal) =>
         proposal.axis === args.axis &&
         Math.abs(proposal.delta - args.activeOffset) <= Number.EPSILON &&
-        proposal.id !== primaryProposal?.id
+        proposal.id !== primaryProposal?.id &&
+        this.shouldIncludeSupplementalProposal(primaryProposal, proposal)
     );
 
     return [
@@ -481,6 +482,23 @@ export class AlignmentSession {
     if (offsetMatch) return offsetMatch;
 
     return createAlignmentProposalFromSmartGuide(args.primaryGuide);
+  }
+
+  private shouldIncludeSupplementalProposal(
+    primaryProposal: AlignmentProposal | null,
+    proposal: AlignmentProposal
+  ): boolean {
+    if (!primaryProposal) return false;
+    if (this.isStructuralKind(primaryProposal.kind)) {
+      return proposal.kind === primaryProposal.kind;
+    }
+    return !this.isStructuralKind(proposal.kind);
+  }
+
+  private isStructuralKind(
+    kind: AlignmentProposal['kind']
+  ): boolean {
+    return kind === 'container' || kind === 'viewport-center';
   }
 
   private clampSpan(

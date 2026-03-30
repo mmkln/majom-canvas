@@ -44,7 +44,13 @@ type MockContext = {
   fillRects: FillRectSnapshot[];
   strokeRects: StrokeRectSnapshot[];
   paths: Array<Array<{ x: number; y: number }>>;
-  textCalls: Array<{ text: string; x: number; y: number }>;
+  textCalls: Array<{
+    text: string;
+    x: number;
+    y: number;
+    textAlign: CanvasTextAlign;
+    font: string;
+  }>;
   beginCount: number;
   strokeCount: number;
   saveCount: number;
@@ -64,7 +70,13 @@ type MockContext = {
 
 function createMockContext(): MockContext {
   const paths: Array<Array<{ x: number; y: number }>> = [];
-  const textCalls: Array<{ text: string; x: number; y: number }> = [];
+  const textCalls: Array<{
+    text: string;
+    x: number;
+    y: number;
+    textAlign: CanvasTextAlign;
+    font: string;
+  }> = [];
   const fillRects: FillRectSnapshot[] = [];
   const strokeRects: StrokeRectSnapshot[] = [];
   let currentDash: number[] = [];
@@ -137,7 +149,13 @@ function createMockContext(): MockContext {
       context.strokeCount += 1;
     },
     fillText: (text, x, y) => {
-      textCalls.push({ text, x, y });
+      textCalls.push({
+        text,
+        x,
+        y,
+        textAlign: context.textAlign,
+        font: context.font,
+      });
     },
     measureText: (text) =>
       ({ width: text.length * 6 } satisfies Pick<TextMetrics, 'width'>) as TextMetrics,
@@ -147,7 +165,7 @@ function createMockContext(): MockContext {
 }
 
 describe('drawSmartGuides', () => {
-  it('renders edge and center guides with calmer shared accent styling', () => {
+  it('renders edge and center guides with clearer primary-secondary contrast', () => {
     const ctx = createMockContext();
     const guides: SmartGuideLine[] = [
       {
@@ -159,6 +177,7 @@ describe('drawSmartGuides', () => {
         offset: 2,
         movingAnchor: 'left',
         targetAnchor: 'left',
+        primary: false,
       },
       {
         orientation: 'horizontal',
@@ -181,20 +200,19 @@ describe('drawSmartGuides', () => {
 
     expect(ctx.saveCount).toBe(1);
     expect(ctx.restoreCount).toBe(1);
-    expect(ctx.strokeSnapshots).toEqual([
-      {
-        strokeStyle: '#2563eb',
-        lineWidth: 0.5,
-        dash: [],
-        globalAlpha: 0.88,
-      },
-      {
-        strokeStyle: '#2563eb',
-        lineWidth: 0.5,
-        dash: [],
-        globalAlpha: 0.68,
-      },
-    ]);
+    expect(ctx.strokeSnapshots).toHaveLength(2);
+    expect(ctx.strokeSnapshots[0]).toMatchObject({
+      strokeStyle: '#2563eb',
+      lineWidth: 0.45,
+      dash: [],
+    });
+    expect(ctx.strokeSnapshots[0]!.globalAlpha).toBeCloseTo(0.4928, 6);
+    expect(ctx.strokeSnapshots[1]).toEqual({
+      strokeStyle: '#2563eb',
+      lineWidth: 0.5,
+      dash: [],
+      globalAlpha: 0.68,
+    });
     expect(ctx.paths).toEqual([
       [
         { x: 120, y: 40 },
@@ -221,14 +239,14 @@ describe('drawSmartGuides', () => {
     expect(ctx.strokeCount).toBe(0);
   });
 
-  it('renders spacing as dual measurement rails with a centered badge', () => {
+  it('renders spacing as dual measurement rails without a numeric label', () => {
     const ctx = createMockContext();
     const guides: SmartGuideLine[] = [
       {
         orientation: 'vertical',
         targetId: 'spacing-x:left:right',
         guideKind: 'spacing',
-        label: '103 px',
+        label: '103',
         spacingDistance: 103,
         position: 525,
         start: 100,
@@ -241,7 +259,7 @@ describe('drawSmartGuides', () => {
         orientation: 'vertical',
         targetId: 'spacing-x:left:right',
         guideKind: 'spacing',
-        label: '103 px',
+        label: '103',
         spacingDistance: 103,
         position: 797,
         start: 100,
@@ -274,32 +292,32 @@ describe('drawSmartGuides', () => {
     expect(ctx.strokeSnapshots).toEqual([
       {
         strokeStyle: '#2563eb',
-        lineWidth: 1,
+        lineWidth: 0.9,
         dash: [],
-        globalAlpha: 0.76,
+        globalAlpha: 0.68,
       },
       {
         strokeStyle: '#2563eb',
-        lineWidth: 1,
+        lineWidth: 0.9,
         dash: [],
-        globalAlpha: 0.76,
+        globalAlpha: 0.68,
       },
       {
         strokeStyle: '#2563eb',
-        lineWidth: 1,
+        lineWidth: 0.9,
         dash: [],
-        globalAlpha: 0.76,
+        globalAlpha: 0.68,
       },
       {
         strokeStyle: '#2563eb',
-        lineWidth: 1,
+        lineWidth: 0.9,
         dash: [],
-        globalAlpha: 0.76,
+        globalAlpha: 0.68,
       },
     ]);
     expect(ctx.fillRects).toEqual([]);
     expect(ctx.strokeRects).toEqual([]);
-    expect(ctx.textCalls).toEqual([{ text: '103 px', x: 661, y: 74 }]);
+    expect(ctx.textCalls).toEqual([]);
     expect(ctx.beginCount).toBe(4);
     expect(ctx.strokeCount).toBe(4);
     expect(ctx.paths).toEqual([
@@ -308,20 +326,20 @@ describe('drawSmartGuides', () => {
         { x: 525, y: 86 },
       ],
       [
-        { x: 422, y: 80 },
-        { x: 422, y: 92 },
-        { x: 525, y: 80 },
-        { x: 525, y: 92 },
+        { x: 422, y: 82 },
+        { x: 422, y: 90 },
+        { x: 525, y: 82 },
+        { x: 525, y: 90 },
       ],
       [
         { x: 797, y: 86 },
         { x: 900, y: 86 },
       ],
       [
-        { x: 797, y: 80 },
-        { x: 797, y: 92 },
-        { x: 900, y: 80 },
-        { x: 900, y: 92 },
+        { x: 797, y: 82 },
+        { x: 797, y: 90 },
+        { x: 900, y: 82 },
+        { x: 900, y: 90 },
       ],
     ]);
   });
@@ -363,16 +381,69 @@ describe('drawSmartGuides', () => {
     expect(ctx.strokeSnapshots).toEqual([
       {
         strokeStyle: '#334155',
-        lineWidth: 1,
+        lineWidth: 0.92,
         dash: [6, 4],
         globalAlpha: 0.42,
       },
       {
         strokeStyle: '#334155',
-        lineWidth: 1,
+        lineWidth: 0.92,
         dash: [2, 4],
         globalAlpha: 0.28,
       },
     ]);
+  });
+
+  it('does not render a numeric label for vertical spacing rails', () => {
+    const ctx = createMockContext();
+    const guides: SmartGuideLine[] = [
+      {
+        orientation: 'horizontal',
+        targetId: 'spacing-y:top:bottom',
+        guideKind: 'spacing',
+        label: '48',
+        spacingDistance: 48,
+        position: 240,
+        start: 525,
+        end: 797,
+        offset: 6,
+        movingAnchor: 'top',
+        targetAnchor: 'top',
+      },
+      {
+        orientation: 'horizontal',
+        targetId: 'spacing-y:top:bottom',
+        guideKind: 'spacing',
+        label: '48',
+        spacingDistance: 48,
+        position: 400,
+        start: 525,
+        end: 797,
+        offset: 6,
+        movingAnchor: 'bottom',
+        targetAnchor: 'bottom',
+      },
+    ];
+
+    drawSmartGuides({
+      ctx: ctx as unknown as CanvasRenderingContext2D,
+      guides,
+      scale: 1,
+      movingBounds: createAlignmentRect({
+        x: 525,
+        y: 240,
+        width: 272,
+        height: 112,
+      }),
+      viewportBounds: createAlignmentRect({
+        x: 0,
+        y: 0,
+        width: 1200,
+        height: 800,
+      }),
+      theme: DEFAULT_ALIGNMENT_PRESENTATION_THEME,
+    });
+
+    expect(ctx.textCalls).toEqual([]);
   });
 });

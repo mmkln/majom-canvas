@@ -9,6 +9,22 @@ export type AlignmentGuideKind =
   | 'container'
   | 'viewport-center';
 
+export type AlignmentVisualEmphasis =
+  | 'primary'
+  | 'secondary'
+  | 'structural'
+  | 'measurement';
+
+export type AlignmentVisualPlacement =
+  | 'span'
+  | 'centerline'
+  | 'outside-top'
+  | 'outside-bottom'
+  | 'outside-left'
+  | 'outside-right';
+
+export type AlignmentBadgeLabelMode = 'default' | 'measurement';
+
 export type AlignmentInteractionMode = 'move' | 'resize';
 
 export type AlignmentSubjectRole =
@@ -63,6 +79,8 @@ export type AlignmentLineVisual = {
   type: 'line';
   axis: AlignmentAxis;
   kind: AlignmentGuideKind;
+  emphasis: AlignmentVisualEmphasis;
+  placement: AlignmentVisualPlacement;
   primary: boolean;
   locked: boolean;
   position: number;
@@ -74,6 +92,8 @@ export type AlignmentBandVisual = {
   type: 'band';
   axis: AlignmentAxis;
   kind: AlignmentGuideKind;
+  emphasis: AlignmentVisualEmphasis;
+  placement: AlignmentVisualPlacement;
   primary: boolean;
   start: number;
   end: number;
@@ -84,6 +104,8 @@ export type AlignmentBandVisual = {
 export type AlignmentPointVisual = {
   type: 'point';
   kind: AlignmentGuideKind;
+  emphasis: AlignmentVisualEmphasis;
+  placement: AlignmentVisualPlacement;
   primary: boolean;
   x: number;
   y: number;
@@ -92,6 +114,9 @@ export type AlignmentPointVisual = {
 export type AlignmentBadgeVisual = {
   type: 'badge';
   kind: AlignmentGuideKind;
+  emphasis: AlignmentVisualEmphasis;
+  placement: AlignmentVisualPlacement;
+  labelMode: AlignmentBadgeLabelMode;
   text: string;
   x: number;
   y: number;
@@ -144,6 +169,19 @@ export function mergeAlignmentPreferences(
     ...DEFAULT_ALIGNMENT_PREFERENCES,
     ...overrides,
   };
+}
+
+export function resolveAlignmentVisualEmphasis(
+  kind: AlignmentGuideKind,
+  primary: boolean
+): AlignmentVisualEmphasis {
+  if (kind === 'spacing') {
+    return 'measurement';
+  }
+  if (kind === 'container' || kind === 'viewport-center') {
+    return 'structural';
+  }
+  return primary ? 'primary' : 'secondary';
 }
 
 export type AlignmentSessionState = {

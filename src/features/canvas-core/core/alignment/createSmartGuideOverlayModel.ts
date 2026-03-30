@@ -1,15 +1,13 @@
 import type { SmartGuideLine } from '../services/SmartAlignmentService.ts';
 import type {
   AlignmentRect,
-  AlignmentBadgeVisual,
-  AlignmentBandVisual,
   AlignmentGuideKind,
   AlignmentLineVisual,
   AlignmentOverlayModel,
 } from './types.ts';
+import { resolveAlignmentVisualEmphasis } from './types.ts';
 
 const DEFAULT_SPACING_OUTSIDE_OFFSET_PX = 14;
-const DEFAULT_SPACING_BADGE_OFFSET_PX = 12;
 
 export type SmartGuideOverlayOptions = {
   movingBounds?: AlignmentRect | null;
@@ -41,31 +39,29 @@ export function createSmartGuideOverlayModel(
 function createSpacingVisuals(
   groups: ReadonlyArray<SpacingGuideGroup>,
   options: SmartGuideOverlayOptions
-): Array<AlignmentLineVisual | AlignmentBandVisual | AlignmentBadgeVisual> {
-  const visuals: Array<
-    AlignmentLineVisual | AlignmentBandVisual | AlignmentBadgeVisual
-  > = [];
+): AlignmentLineVisual[] {
+  const visuals: AlignmentLineVisual[] = [];
 
   groups.forEach((group) => {
     visuals.push(
       ...toSpacingMeasurementLineVisuals(group.guides, group.label, options)
     );
 
-    const badgeVisual = toSpacingBadgeVisual(group.guides, group.label, options);
-    if (badgeVisual) {
-      visuals.push(badgeVisual);
-    }
   });
 
   return visuals;
 }
 
 function toLineVisual(guide: SmartGuideLine): AlignmentLineVisual {
+  const kind = getGuideKind(guide);
+  const primary = guide.primary !== false;
   return {
     type: 'line',
     axis: guide.orientation === 'vertical' ? 'x' : 'y',
-    kind: getGuideKind(guide),
-    primary: guide.primary !== false,
+    kind,
+    emphasis: resolveAlignmentVisualEmphasis(kind, primary),
+    placement: 'span',
+    primary,
     locked: guide.locked === true,
     position: guide.position,
     start: guide.start,
@@ -106,6 +102,8 @@ function toSpacingMeasurementLineVisuals(
         type: 'line',
         axis: 'y',
         kind: 'spacing',
+        emphasis: 'measurement',
+        placement: placement.mode,
         primary,
         locked,
         position: placement.railY,
@@ -116,6 +114,8 @@ function toSpacingMeasurementLineVisuals(
         type: 'line',
         axis: 'y',
         kind: 'spacing',
+        emphasis: 'measurement',
+        placement: placement.mode,
         primary,
         locked,
         position: placement.railY,
@@ -140,6 +140,8 @@ function toSpacingMeasurementLineVisuals(
       type: 'line',
       axis: 'x',
       kind: 'spacing',
+      emphasis: 'measurement',
+      placement: placement.mode,
       primary,
       locked,
       position: placement.railX,
@@ -150,6 +152,8 @@ function toSpacingMeasurementLineVisuals(
       type: 'line',
       axis: 'x',
       kind: 'spacing',
+      emphasis: 'measurement',
+      placement: placement.mode,
       primary,
       locked,
       position: placement.railX,
@@ -159,52 +163,6 @@ function toSpacingMeasurementLineVisuals(
   ];
 }
 
-function toSpacingBadgeVisual(
-  guides: ReadonlyArray<SmartGuideLine>,
-  label: string | null,
-  options: SmartGuideOverlayOptions
-): AlignmentBadgeVisual | null {
-  const firstGuide = guides[0];
-  if (!firstGuide || !label) return null;
-  const sortedGuides = [...guides].sort((left, right) => left.position - right.position);
-
-  if (firstGuide.orientation === 'vertical') {
-    const leftGuide = sortedGuides[0]!;
-    const rightGuide = sortedGuides[sortedGuides.length - 1]!;
-    const placement = resolveHorizontalSpacingPlacement({
-      leftGuide,
-      rightGuide,
-      movingBounds: options.movingBounds ?? null,
-      viewportBounds: options.viewportBounds ?? null,
-      scale: options.scale ?? 1,
-    });
-    return {
-      type: 'badge',
-      kind: 'spacing',
-      text: label,
-      x: (leftGuide.position + rightGuide.position) / 2,
-      y: placement.badgeY,
-    };
-  }
-
-  const topGuide = sortedGuides[0]!;
-  const bottomGuide = sortedGuides[sortedGuides.length - 1]!;
-  const placement = resolveVerticalSpacingPlacement({
-    topGuide,
-    bottomGuide,
-    movingBounds: options.movingBounds ?? null,
-    viewportBounds: options.viewportBounds ?? null,
-    scale: options.scale ?? 1,
-  });
-  return {
-    type: 'badge',
-    kind: 'spacing',
-    text: label,
-    x: placement.badgeX,
-    y: (topGuide.position + bottomGuide.position) / 2,
-  };
-}
-
 function resolveHorizontalSpacingPlacement(args: {
   leftGuide: SmartGuideLine;
   rightGuide: SmartGuideLine;
@@ -212,8 +170,8 @@ function resolveHorizontalSpacingPlacement(args: {
   viewportBounds: AlignmentRect | null;
   scale: number;
 }): {
+  mode: 'outside-top' | 'outside-bottom' | 'centerline';
   railY: number;
-  badgeY: number;
 } {
   const fallback =
     (Math.min(args.leftGuide.start, args.rightGuide.start) +
@@ -222,42 +180,41 @@ function resolveHorizontalSpacingPlacement(args: {
   const movingBounds = args.movingBounds;
   if (!movingBounds) {
     return {
+      mode: 'centerline',
       railY: fallback,
-      badgeY: fallback,
     };
   }
 
   const scale = Math.max(args.scale, Number.EPSILON);
   const outsideOffset = DEFAULT_SPACING_OUTSIDE_OFFSET_PX / scale;
-  const badgeOffset = DEFAULT_SPACING_BADGE_OFFSET_PX / scale;
   const topRailY = movingBounds.top - outsideOffset;
   const bottomRailY = movingBounds.bottom + outsideOffset;
   const viewportTop = args.viewportBounds?.top ?? Number.NEGATIVE_INFINITY;
   const viewportBottom = args.viewportBounds?.bottom ?? Number.POSITIVE_INFINITY;
-  const canPlaceTop = topRailY - badgeOffset >= viewportTop;
-  const canPlaceBottom = bottomRailY + badgeOffset <= viewportBottom;
+  const canPlaceTop = topRailY >= viewportTop;
+  const canPlaceBottom = bottomRailY <= viewportBottom;
 
   if (!args.viewportBounds) {
     return {
+      mode: 'outside-top',
       railY: topRailY,
-      badgeY: topRailY - badgeOffset,
     };
   }
   if (canPlaceTop) {
     return {
+      mode: 'outside-top',
       railY: topRailY,
-      badgeY: topRailY - badgeOffset,
     };
   }
   if (canPlaceBottom) {
     return {
+      mode: 'outside-bottom',
       railY: bottomRailY,
-      badgeY: bottomRailY + badgeOffset,
     };
   }
   return {
+    mode: 'centerline',
     railY: movingBounds.centerY,
-    badgeY: movingBounds.centerY,
   };
 }
 
@@ -268,8 +225,8 @@ function resolveVerticalSpacingPlacement(args: {
   viewportBounds: AlignmentRect | null;
   scale: number;
 }): {
+  mode: 'outside-left' | 'outside-right' | 'centerline';
   railX: number;
-  badgeX: number;
 } {
   const fallback =
     (Math.min(args.topGuide.start, args.bottomGuide.start) +
@@ -278,42 +235,41 @@ function resolveVerticalSpacingPlacement(args: {
   const movingBounds = args.movingBounds;
   if (!movingBounds) {
     return {
+      mode: 'centerline',
       railX: fallback,
-      badgeX: fallback,
     };
   }
 
   const scale = Math.max(args.scale, Number.EPSILON);
   const outsideOffset = DEFAULT_SPACING_OUTSIDE_OFFSET_PX / scale;
-  const badgeOffset = DEFAULT_SPACING_BADGE_OFFSET_PX / scale;
   const leftRailX = movingBounds.left - outsideOffset;
   const rightRailX = movingBounds.right + outsideOffset;
   const viewportLeft = args.viewportBounds?.left ?? Number.NEGATIVE_INFINITY;
   const viewportRight = args.viewportBounds?.right ?? Number.POSITIVE_INFINITY;
-  const canPlaceLeft = leftRailX - badgeOffset >= viewportLeft;
-  const canPlaceRight = rightRailX + badgeOffset <= viewportRight;
+  const canPlaceLeft = leftRailX >= viewportLeft;
+  const canPlaceRight = rightRailX <= viewportRight;
 
   if (!args.viewportBounds) {
     return {
+      mode: 'outside-left',
       railX: leftRailX,
-      badgeX: leftRailX - badgeOffset,
     };
   }
   if (canPlaceLeft) {
     return {
+      mode: 'outside-left',
       railX: leftRailX,
-      badgeX: leftRailX - badgeOffset,
     };
   }
   if (canPlaceRight) {
     return {
+      mode: 'outside-right',
       railX: rightRailX,
-      badgeX: rightRailX + badgeOffset,
     };
   }
   return {
+    mode: 'centerline',
     railX: movingBounds.centerX,
-    badgeX: movingBounds.centerX,
   };
 }
 

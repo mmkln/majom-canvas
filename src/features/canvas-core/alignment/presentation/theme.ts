@@ -35,16 +35,23 @@ export type AlignmentPresentationTheme = {
   >;
   state: {
     secondaryOpacityMultiplier: number;
+    secondaryStrokeWidthMultiplier: number;
+    structuralOpacityMultiplier: number;
+    structuralStrokeWidthMultiplier: number;
+    measurementOpacityMultiplier: number;
+    measurementStrokeWidthMultiplier: number;
     lockedOpacityMultiplier: number;
     lockedStrokeWidthMultiplier: number;
   };
   badge: {
     fontSize: number;
+    measurementFontWeight: number;
     paddingX: number;
     paddingY: number;
     borderWidth: number;
     radius: number;
     fontWeight: number;
+    placementOffset: number;
     shadowColor: string;
     shadowBlur: number;
     shadowOffsetY: number;
@@ -80,11 +87,11 @@ export const DEFAULT_ALIGNMENT_PRESENTATION_THEME: AlignmentPresentationTheme = 
     spacing: {
       line: {
         stroke: '#2563eb',
-        strokeWidth: 1,
-        strokeOpacity: 0.76,
+        strokeWidth: 0.9,
+        strokeOpacity: 0.68,
         dash: [],
         showCaps: true,
-        capSize: 6,
+        capSize: 4,
         lineCap: 'round',
       },
       badge: {
@@ -114,17 +121,24 @@ export const DEFAULT_ALIGNMENT_PRESENTATION_THEME: AlignmentPresentationTheme = 
     },
   },
   state: {
-    secondaryOpacityMultiplier: 0.78,
+    secondaryOpacityMultiplier: 0.56,
+    secondaryStrokeWidthMultiplier: 0.9,
+    structuralOpacityMultiplier: 1,
+    structuralStrokeWidthMultiplier: 0.92,
+    measurementOpacityMultiplier: 1,
+    measurementStrokeWidthMultiplier: 1,
     lockedOpacityMultiplier: 1.08,
     lockedStrokeWidthMultiplier: 1.12,
   },
   badge: {
     fontSize: 11,
+    measurementFontWeight: 400,
     paddingX: 6,
     paddingY: 3,
     borderWidth: 1,
     radius: 999,
     fontWeight: 600,
+    placementOffset: 1,
     shadowColor: 'rgba(15,23,42,0.08)',
     shadowBlur: 8,
     shadowOffsetY: 1.5,

@@ -6,12 +6,13 @@ import {
 import type {
   AlignmentBadgeVisual,
   AlignmentBandVisual,
-  AlignmentGuideKind,
   AlignmentLineVisual,
   AlignmentOverlayModel,
   AlignmentPointVisual,
   AlignmentRect,
+  AlignmentVisualPlacement,
 } from '../alignment/types.ts';
+import type { AlignmentVisualEmphasis } from '../alignment/types.ts';
 import type { SmartGuideLine } from '../services/SmartAlignmentService.ts';
 import {
   DEFAULT_ALIGNMENT_PRESENTATION_THEME,
@@ -105,9 +106,10 @@ function renderBands(
     if (width === 0 || height === 0) return;
 
     ctx.fillStyle = kindStyle.fill;
+    const semantics = visual.emphasis;
     ctx.globalAlpha =
       kindStyle.fillOpacity *
-      getStateOpacityMultiplier(args.theme, visual.primary, false);
+      getStateOpacityMultiplier(args.theme, semantics, false);
     if (visual.axis === 'x') {
       ctx.fillRect(visual.start, visual.depthStart, width, height);
     } else {
@@ -160,10 +162,11 @@ function renderPoints(
     const size =
       (visual.primary ? args.theme.point.size : args.theme.point.size * 0.85) /
       args.scale;
+    const semantics = visual.emphasis;
     ctx.fillStyle = kindStyle.stroke;
     ctx.globalAlpha =
       kindStyle.strokeOpacity *
-      getStateOpacityMultiplier(args.theme, visual.primary, false);
+      getStateOpacityMultiplier(args.theme, semantics, false);
     ctx.fillRect(visual.x - size / 2, visual.y - size / 2, size, size);
   });
   ctx.globalAlpha = 1;
@@ -211,11 +214,19 @@ function renderBadges(
       }
     }
 
+    const placementOffset = args.theme.badge.placementOffset / args.scale;
+    const textX = resolveBadgeTextX(visual, placementOffset);
+    const textAlign = resolveBadgeTextAlign(visual.placement);
+    const fontWeight =
+      visual.labelMode === 'measurement'
+        ? args.theme.badge.measurementFontWeight
+        : args.theme.badge.fontWeight;
+
     ctx.fillStyle = badgeStyle.textColor;
-    ctx.textAlign = 'center';
+    ctx.textAlign = textAlign;
     ctx.textBaseline = 'middle';
-    ctx.font = `${args.theme.badge.fontWeight} ${fontSize}px ${FONT_FAMILY}`;
-    ctx.fillText(visual.text, visual.x, visual.y);
+    ctx.font = `${fontWeight} ${fontSize}px ${FONT_FAMILY}`;
+    ctx.fillText(visual.text, textX, visual.y);
   });
 }
 
@@ -319,13 +330,15 @@ function resolveLineStyle(
   lineCap: CanvasLineCap;
 } {
   const style = getAlignmentKindStyle(theme, visual.kind).line;
+  const semantics = visual.emphasis;
   const strokeOpacity = Math.min(
     1,
-    style.strokeOpacity * getStateOpacityMultiplier(theme, visual.primary, visual.locked)
+    style.strokeOpacity *
+      getStateOpacityMultiplier(theme, semantics, visual.locked)
   );
   const strokeWidth =
     (style.strokeWidth *
-      (visual.locked ? theme.state.lockedStrokeWidthMultiplier : 1)) /
+      getStrokeWidthMultiplier(theme, semantics, visual.locked)) /
     scale;
 
   return {
@@ -341,12 +354,38 @@ function resolveLineStyle(
 
 function getStateOpacityMultiplier(
   theme: AlignmentPresentationTheme,
-  primary: boolean,
+  semantics: AlignmentVisualEmphasis,
   locked: boolean
 ): number {
-  let multiplier = primary ? 1 : theme.state.secondaryOpacityMultiplier;
+  let multiplier = 1;
+  if (semantics === 'secondary') {
+    multiplier *= theme.state.secondaryOpacityMultiplier;
+  } else if (semantics === 'structural') {
+    multiplier *= theme.state.structuralOpacityMultiplier;
+  } else if (semantics === 'measurement') {
+    multiplier *= theme.state.measurementOpacityMultiplier;
+  }
   if (locked) {
     multiplier *= theme.state.lockedOpacityMultiplier;
+  }
+  return multiplier;
+}
+
+function getStrokeWidthMultiplier(
+  theme: AlignmentPresentationTheme,
+  semantics: AlignmentVisualEmphasis,
+  locked: boolean
+): number {
+  let multiplier = 1;
+  if (semantics === 'secondary') {
+    multiplier *= theme.state.secondaryStrokeWidthMultiplier;
+  } else if (semantics === 'structural') {
+    multiplier *= theme.state.structuralStrokeWidthMultiplier;
+  } else if (semantics === 'measurement') {
+    multiplier *= theme.state.measurementStrokeWidthMultiplier;
+  }
+  if (locked) {
+    multiplier *= theme.state.lockedStrokeWidthMultiplier;
   }
   return multiplier;
 }
@@ -364,4 +403,29 @@ function measureLabelWidth(
       : text.length * fontSize * 0.56;
   ctx.font = previousFont;
   return measured;
+}
+
+function resolveBadgeTextAlign(
+  placement: AlignmentVisualPlacement
+): CanvasTextAlign {
+  if (placement === 'outside-left') {
+    return 'right';
+  }
+  if (placement === 'outside-right') {
+    return 'left';
+  }
+  return 'center';
+}
+
+function resolveBadgeTextX(
+  visual: AlignmentBadgeVisual,
+  placementOffset: number
+): number {
+  if (visual.placement === 'outside-left') {
+    return visual.x - placementOffset;
+  }
+  if (visual.placement === 'outside-right') {
+    return visual.x + placementOffset;
+  }
+  return visual.x;
 }

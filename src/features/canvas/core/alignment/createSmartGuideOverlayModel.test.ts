@@ -38,6 +38,8 @@ describe('createSmartGuideOverlayModel', () => {
           type: 'line',
           axis: 'x',
           kind: 'edge',
+          emphasis: 'secondary',
+          placement: 'span',
           primary: false,
           locked: false,
           position: 120,
@@ -48,6 +50,8 @@ describe('createSmartGuideOverlayModel', () => {
           type: 'line',
           axis: 'y',
           kind: 'center',
+          emphasis: 'primary',
+          placement: 'span',
           primary: true,
           locked: true,
           position: 300,
@@ -58,13 +62,13 @@ describe('createSmartGuideOverlayModel', () => {
     });
   });
 
-  it('groups spacing guides into dual measurement rails and a badge', () => {
+  it('groups spacing guides into dual measurement rails', () => {
     const guides: SmartGuideLine[] = [
       {
         orientation: 'vertical',
         targetId: 'spacing-x:left:right',
         guideKind: 'spacing',
-        label: '103 px',
+        label: '103',
         spacingDistance: 103,
         position: 525,
         start: 100,
@@ -78,7 +82,7 @@ describe('createSmartGuideOverlayModel', () => {
         orientation: 'vertical',
         targetId: 'spacing-x:left:right',
         guideKind: 'spacing',
-        label: '103 px',
+        label: '103',
         spacingDistance: 103,
         position: 797,
         start: 100,
@@ -111,6 +115,8 @@ describe('createSmartGuideOverlayModel', () => {
           type: 'line',
           axis: 'y',
           kind: 'spacing',
+          emphasis: 'measurement',
+          placement: 'outside-top',
           primary: true,
           locked: true,
           position: 86,
@@ -121,18 +127,13 @@ describe('createSmartGuideOverlayModel', () => {
           type: 'line',
           axis: 'y',
           kind: 'spacing',
+          emphasis: 'measurement',
+          placement: 'outside-top',
           primary: true,
           locked: true,
           position: 86,
           start: 797,
           end: 900,
-        },
-        {
-          type: 'badge',
-          kind: 'spacing',
-          text: '103 px',
-          x: 661,
-          y: 74,
         },
       ],
     });

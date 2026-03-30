@@ -146,7 +146,7 @@ export class SpacingRule implements AlignmentRule {
           const desiredRight = desiredLeft + args.movingBounds.width;
           const gap = desiredLeft - leftSubject.bounds.right;
           if (gap < 0) return;
-          const label = `${Math.round(gap)} px`;
+          const label = `${Math.round(gap)}`;
 
           const offset = desiredLeft - args.movingBounds.left;
           const absOffset = Math.abs(offset);
@@ -264,7 +264,7 @@ export class SpacingRule implements AlignmentRule {
           const desiredBottom = desiredTop + args.movingBounds.height;
           const gap = desiredTop - topSubject.bounds.bottom;
           if (gap < 0) return;
-          const label = `${Math.round(gap)} px`;
+          const label = `${Math.round(gap)}`;
 
           const offset = desiredTop - args.movingBounds.top;
           const absOffset = Math.abs(offset);

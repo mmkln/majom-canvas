@@ -91,7 +91,7 @@ describe('AlignmentEngine', () => {
     expect(result.proposals.map((proposal) => proposal.sourceGuides)).toHaveLength(2);
   });
 
-  it('aggregates rule outputs and uses rule order for snap priority', () => {
+  it('ranks proposals globally instead of using rule order for snap priority', () => {
     const engine = new AlignmentEngine([
       new StubRule({
         proposals: [createAlignmentProposalFromSmartGuide(createVerticalGuide())],
@@ -100,13 +100,15 @@ describe('AlignmentEngine', () => {
       }),
       new StubRule({
         proposals: [
-          createAlignmentProposalFromSmartGuide(createHorizontalGuide()),
           createAlignmentProposalFromSmartGuide(
-            createVerticalGuide({ targetId: 'secondary' })
+            createHorizontalGuide({ offset: 1 })
+          ),
+          createAlignmentProposalFromSmartGuide(
+            createVerticalGuide({ targetId: 'secondary', offset: 1 })
           ),
         ],
-        snapOffsetX: 5,
-        snapOffsetY: 4,
+        snapOffsetX: 1,
+        snapOffsetY: 1,
       }),
     ]);
 
@@ -133,7 +135,59 @@ describe('AlignmentEngine', () => {
         0
       )
     ).toBe(3);
+    expect(result.snapOffsetX).toBe(1);
+    expect(result.snapOffsetY).toBe(1);
+  });
+
+  it('treats structural guides as fallback behind local proposals', () => {
+    const engine = new AlignmentEngine([
+      new StubRule({
+        proposals: [
+          createAlignmentProposalFromSmartGuide(
+            createVerticalGuide({
+              targetId: 'container',
+              guideKind: 'container',
+              offset: 1,
+            })
+          ),
+        ],
+        snapOffsetX: 1,
+        snapOffsetY: 0,
+      }),
+      new StubRule({
+        proposals: [
+          createAlignmentProposalFromSmartGuide(
+            createVerticalGuide({
+              targetId: 'local-edge',
+              offset: 2,
+            })
+          ),
+        ],
+        snapOffsetX: 2,
+        snapOffsetY: 0,
+      }),
+    ]);
+
+    const result = engine.compute({
+      movingSubject: createAlignmentSubject({
+        id: '__moving__',
+        bounds: createAlignmentRect({
+          x: 100,
+          y: 100,
+          width: 50,
+          height: 50,
+        }),
+      }),
+      subjects: [],
+      threshold: 4,
+      minGuideLength: 0,
+      maxGuideLength: Number.POSITIVE_INFINITY,
+    });
+
     expect(result.snapOffsetX).toBe(2);
-    expect(result.snapOffsetY).toBe(4);
+    expect(result.proposals.map((proposal) => proposal.kind)).toEqual([
+      'edge',
+      'container',
+    ]);
   });
 });
