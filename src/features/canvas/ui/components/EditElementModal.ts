@@ -267,7 +267,7 @@ export class EditElementModal {
 
     if (isGoal) {
       this.scaleControl = createSegmentedControl({
-        size: 'md',
+        size: 'sm',
         fullWidth: true,
         ariaLabel: 'Scale',
         options: [
@@ -749,7 +749,7 @@ export class EditElementModal {
     onChange: (value: UiPriority) => void
   ): SegmentedControl<UiPriority> {
     return createSegmentedControl({
-      size: 'md',
+      size: 'sm',
       fullWidth: true,
       ariaLabel: 'Priority',
       options: [

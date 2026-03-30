@@ -225,7 +225,7 @@ export class EditElementModal {
 
     // Priority segmented control with label
     this.priorityControl = createSegmentedControl({
-      size: 'md',
+      size: 'sm',
       fullWidth: true,
       ariaLabel: 'Priority',
       options: [
@@ -299,7 +299,7 @@ export class EditElementModal {
 
     if (isGoal) {
       this.scaleControl = createSegmentedControl({
-        size: 'md',
+        size: 'sm',
         fullWidth: true,
         ariaLabel: 'Scale',
         options: [

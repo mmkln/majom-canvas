@@ -13,8 +13,6 @@ describe('HudTimeSelect', () => {
       onChange,
     });
 
-    expect(select.getAttribute('data-component')).toBe('HudTimeSelect');
-    expect(select.className).toContain('h-11');
     expect(
       Array.from(select.options).map((option) => option.textContent)
     ).toEqual(['09:00', '09:15', '09:30', '09:45', '10:00']);

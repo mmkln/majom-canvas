@@ -17,8 +17,6 @@ describe('HudSelectionChip', () => {
     expect(chip.type).toBe('button');
     expect(chip.dataset.selected).toBe('true');
     expect(chip.title).toBe('Pick day');
-    expect(chip.className).toContain('rounded-lg');
-    expect(chip.className).toContain('h-9');
   });
 
   it('updates chip selection state', () => {

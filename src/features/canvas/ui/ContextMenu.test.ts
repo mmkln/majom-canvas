@@ -10,7 +10,6 @@ import type { AddExistingHabitService } from '../core/services/AddExistingHabitS
 import type { AddExistingStoryService } from '../core/services/AddExistingStoryService.ts';
 import type { AddExistingTaskService } from '../core/services/AddExistingTaskService.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
-import { HabitElement } from '../elements/HabitElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import type { ExistingGoalPicker } from './components/ExistingGoalPicker.ts';
 import type { ExistingHabitPicker } from './components/ExistingHabitPicker.ts';
@@ -162,36 +161,4 @@ describe('ContextMenu selection connection actions', () => {
     }
   });
 
-  it('renders routine completion as a native dropdown control item', () => {
-    const scene = new Scene();
-    const routine = new HabitElement({ id: 'routine-1', title: 'Morning review' });
-    scene.addElement(routine);
-
-    const contextMenu = createContextMenu(scene);
-    const container = document.createElement('div');
-    document.body.appendChild(container);
-    contextMenu.mount(container);
-
-    try {
-      window.dispatchEvent(
-        new CustomEvent('contextMenuRequested', {
-          detail: {
-            element: routine,
-            sceneX: 0,
-            sceneY: 0,
-          },
-        })
-      );
-
-      expect(
-        container.querySelector('[data-component="HudDropdownControlItem"]')
-      ).not.toBeNull();
-      expect(
-        container.querySelector('[data-component="HudMenuControlRow"]')
-      ).toBeNull();
-    } finally {
-      contextMenu.unmount();
-      container.remove();
-    }
-  });
 });

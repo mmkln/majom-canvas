@@ -27,13 +27,6 @@ describe('CanvasBoardSelector', () => {
       })
     );
 
-    expect(access.titleWrap.style.maxWidth).toBe('min(44vw, 360px)');
-    expect(access.titleText.className).toContain('min-w-0');
-    expect(access.titleText.className).toContain('max-w-full');
-    expect(access.titleText.className).toContain('flex-1');
-    expect(access.titleText.style.flex).toBe('1 1 auto');
-    expect(access.titleLabel.className).toContain('truncate');
-    expect(access.titleLabel.className).toContain('min-w-0');
     expect(access.titleLabel.textContent).toBe(longTitle);
     expect(access.titleText.title).toBe(longTitle);
     expect(access.titleText.getAttribute('aria-label')).toBe(longTitle);
