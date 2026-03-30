@@ -737,7 +737,8 @@ export class TimeClusteringRootView {
       'flex h-full w-full flex-col overflow-hidden bg-slate-50 text-slate-900';
 
     const header = document.createElement('div');
-    header.className = 'border-b border-slate-200 bg-white px-5 py-3';
+    header.className =
+      'flex flex-col gap-2.5 border-b border-slate-200 bg-white py-3';
 
     this.timeClusteringMenuContainer = document.createElement('div');
     this.timeClusteringMenuContainer.className =
@@ -841,12 +842,21 @@ export class TimeClusteringRootView {
       'calendar-context-create-button';
     this.calendarContextMenu.append(this.calendarContextMenuCreateButton);
 
-    this.secondaryNav = document.createElement('div');
-    this.secondaryNav.className = 'mt-4 flex flex-col gap-2.5';
+    const headerTopBlock = document.createElement('div');
+    headerTopBlock.className = 'px-5';
+    headerTopBlock.dataset.role = 'time-clustering-header-top-block';
 
-    const navigationRow = document.createElement('div');
-    navigationRow.className =
-      'grid grid-cols-[auto_1fr_auto] items-center gap-3';
+    this.secondaryNav = document.createElement('div');
+    this.secondaryNav.className = 'flex flex-col gap-2.5 px-3';
+    this.secondaryNav.dataset.role = 'time-clustering-header-calendar-block';
+
+    const navigationTopRow = document.createElement('div');
+    navigationTopRow.className = 'flex items-center justify-between gap-3';
+    navigationTopRow.dataset.role = 'time-clustering-header-top-row';
+
+    const navigationBottomRow = document.createElement('div');
+    navigationBottomRow.className = 'flex items-center justify-center';
+    navigationBottomRow.dataset.role = 'time-clustering-header-period-row';
 
     const periodPicker = createStepPicker({
       previousLabel: this.i18n.t('timeClustering.period.previous'),
@@ -925,20 +935,16 @@ export class TimeClusteringRootView {
     navigationStart.append(this.viewModeSwitcher);
 
     const navigationActions = document.createElement('div');
-    navigationActions.className =
-      'inline-flex shrink-0 items-center justify-self-end gap-1.5';
+    navigationActions.className = 'inline-flex shrink-0 items-center gap-1.5';
     navigationActions.append(this.timeClusteringMenuContainer);
-    this.periodSwitcher.classList.add('justify-self-center');
-    navigationRow.append(
-      navigationStart,
-      this.periodSwitcher,
-      navigationActions
-    );
+    navigationTopRow.append(navigationStart, navigationActions);
+    navigationBottomRow.append(this.periodSwitcher);
 
     this.daySwitcher = document.createElement('div');
     this.daySwitcher.className = 'grid w-full grid-cols-7 gap-0.5';
     this.daySwitcher.dataset.role = 'day-switcher';
-    this.secondaryNav.append(navigationRow, this.daySwitcher);
+    headerTopBlock.append(navigationTopRow);
+    this.secondaryNav.append(navigationBottomRow, this.daySwitcher);
 
     this.warningBanner = document.createElement('div');
     this.warningBanner.className =
@@ -952,7 +958,7 @@ export class TimeClusteringRootView {
     this.calendarSurface.className = 'min-h-0 flex-1';
     this.calendarSurface.dataset.role = 'calendar-surface';
 
-    header.append(this.secondaryNav);
+    header.append(headerTopBlock, this.secondaryNav);
     body.append(this.calendarSurface);
     this.root.append(
       header,
@@ -1300,13 +1306,18 @@ export class TimeClusteringRootView {
     this.dayModeButton.dataset.selected = 'true';
     this.dayModeButton.setAttribute('aria-pressed', 'true');
     this.dayModeButton.setAttribute('aria-current', 'true');
-    this.dayModeButton.classList.add(...HUD_SEGMENTED_ITEM_ACTIVE_CLASS.split(' '));
+    this.dayModeButton.classList.add(
+      ...HUD_SEGMENTED_ITEM_ACTIVE_CLASS.split(' ')
+    );
     this.dayModeButton.classList.remove(
       ...HUD_SEGMENTED_ITEM_INACTIVE_CLASS.split(' ')
     );
 
     this.weekModeButton.dataset.selected = 'false';
-    this.weekModeButton.setAttribute('aria-pressed', isWeekMode ? 'true' : 'false');
+    this.weekModeButton.setAttribute(
+      'aria-pressed',
+      isWeekMode ? 'true' : 'false'
+    );
     this.weekModeButton.removeAttribute('aria-current');
     HUD_SEGMENTED_ITEM_INACTIVE_CLASS.split(' ')
       .filter(Boolean)
@@ -1314,9 +1325,7 @@ export class TimeClusteringRootView {
     this.weekModeButton
       .querySelector('svg')
       ?.classList.remove('text-indigo-400');
-    this.weekModeButton
-      .querySelector('svg')
-      ?.classList.add('text-slate-500');
+    this.weekModeButton.querySelector('svg')?.classList.add('text-slate-500');
   }
 
   private renderSecondaryNavigation(

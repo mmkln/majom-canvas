@@ -1181,25 +1181,38 @@ describe('TimeClusteringRootView', () => {
     const timeClusteringMenu = parent.querySelector<HTMLElement>(
       '[data-role="time-clustering-menu"]'
     );
-    const navigationRow = periodSwitcher?.parentElement;
+    const navigationTopRow = parent.querySelector<HTMLElement>(
+      '[data-role="time-clustering-header-top-row"]'
+    );
+    const navigationBottomRow = parent.querySelector<HTMLElement>(
+      '[data-role="time-clustering-header-period-row"]'
+    );
+    const headerTopBlock = parent.querySelector<HTMLElement>(
+      '[data-role="time-clustering-header-top-block"]'
+    );
+    const headerCalendarBlock = parent.querySelector<HTMLElement>(
+      '[data-role="time-clustering-header-calendar-block"]'
+    );
     const navigationStart = viewModeSwitcher?.parentElement;
     const navigationActions = timeClusteringMenu?.parentElement;
-    const secondaryNav = daySwitcher?.parentElement;
 
-    expect(secondaryNav?.firstElementChild).toBe(navigationRow);
-    expect(secondaryNav?.lastElementChild).toBe(daySwitcher);
+    expect(headerTopBlock?.firstElementChild).toBe(navigationTopRow);
+    expect(headerCalendarBlock?.firstElementChild).toBe(navigationBottomRow);
+    expect(headerCalendarBlock?.lastElementChild).toBe(daySwitcher);
     expect(periodSwitcher).not.toBeNull();
-    expect(navigationRow?.contains(periodSwitcher ?? null)).toBe(true);
-    expect(navigationRow?.contains(viewModeSwitcher ?? null)).toBe(true);
-    expect(navigationRow?.contains(timeClusteringMenu ?? null)).toBe(true);
+    expect(navigationBottomRow?.contains(periodSwitcher ?? null)).toBe(true);
+    expect(navigationTopRow?.contains(viewModeSwitcher ?? null)).toBe(true);
+    expect(navigationTopRow?.contains(timeClusteringMenu ?? null)).toBe(true);
+    expect(headerTopBlock).not.toBe(headerCalendarBlock);
     expect(daySwitcher?.classList.contains('hidden')).toBe(false);
     expect(viewModeSwitcher).not.toBeNull();
     expect(timeClusteringMenu).not.toBeNull();
-    expect(navigationRow?.className).toContain('grid-cols-[auto_1fr_auto]');
+    expect(navigationTopRow?.className).toContain('justify-between');
+    expect(navigationBottomRow?.className).toContain('justify-center');
+    expect(headerTopBlock?.className).toContain('px-5');
+    expect(headerCalendarBlock?.className).toContain('px-3');
     expect(navigationStart?.contains(viewModeSwitcher ?? null)).toBe(true);
     expect(navigationStart).not.toBe(navigationActions);
-    expect(periodSwitcher?.className).toContain('justify-self-center');
-    expect(navigationActions?.className).toContain('justify-self-end');
     expect(navigationActions?.className).toContain('gap-1.5');
     expect(navigationActions?.className).not.toContain('rounded-xl');
     expect(
