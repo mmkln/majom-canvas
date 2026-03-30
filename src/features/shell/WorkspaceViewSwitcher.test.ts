@@ -9,7 +9,7 @@ describe('WorkspaceViewSwitcher', () => {
     localStorage.clear();
   });
 
-  it('renders the app menu inside the same floating controls block on the right', () => {
+  it('renders the app menu and pin button inside the floating controls block', () => {
     const switcher = new WorkspaceViewSwitcher('canvas', {
       runtime: createAppRuntime({ initialLocale: 'en' }),
       showKanban: true,
@@ -30,32 +30,36 @@ describe('WorkspaceViewSwitcher', () => {
     const handleDock = container?.querySelector<HTMLDivElement>(
       'div[data-role="workspace-view-switcher-handle-dock"]'
     );
+    const intentZone = container?.querySelector<HTMLDivElement>(
+      'div[data-role="workspace-view-switcher-intent-zone"]'
+    );
     const pinButton = container?.querySelector<HTMLButtonElement>(
       'button[data-role="workspace-view-switcher-pin"]'
     );
 
     expect(container).not.toBeNull();
-    expect(container?.style.display).toBe('');
-    expect(container?.children).toHaveLength(2);
+    expect(container?.children).toHaveLength(3);
     expect(menuButton).not.toBeNull();
+    expect(handle).not.toBeNull();
+    expect(handleDock).not.toBeNull();
+    expect(intentZone).not.toBeNull();
+    expect(pinButton).not.toBeNull();
+    expect(intentZone?.style.width).toBe('68px');
+    expect(intentZone?.style.height).toBe('38px');
+    expect(intentZone?.style.bottom).toBe('-13px');
     expect(container?.firstElementChild?.contains(menuButton as HTMLButtonElement)).toBe(
       true
     );
-    expect(menuButton?.parentElement?.className).toContain('shrink-0');
-    expect(container?.firstElementChild?.lastElementChild?.contains(menuButton as HTMLButtonElement)).toBe(
+    expect(container?.firstElementChild?.contains(pinButton as HTMLButtonElement)).toBe(
       true
     );
-    expect(handle).not.toBeNull();
-    expect(handleDock).not.toBeNull();
-    expect(pinButton).not.toBeNull();
-    expect(container?.lastElementChild).toBe(handleDock);
     expect(handleDock?.contains(handle as HTMLButtonElement)).toBe(true);
-    expect(handleDock?.contains(pinButton as HTMLButtonElement)).toBe(true);
+    expect(handleDock?.contains(pinButton as HTMLButtonElement)).toBe(false);
 
     switcher.unmount();
   });
 
-  it('starts deeper-collapsed and expands from the visible handle before collapsing again', () => {
+  it('opens from the intent zone after a short hover delay', () => {
     vi.useFakeTimers();
 
     const switcher = new WorkspaceViewSwitcher('canvas', {
@@ -69,38 +73,85 @@ describe('WorkspaceViewSwitcher', () => {
     switcher.mount();
 
     const container = document.getElementById('workspace-view-switcher');
-    const handle = container?.querySelector(
-      'button[data-role="workspace-view-switcher-handle"]'
-    ) as HTMLButtonElement;
-    const pinButton = container?.querySelector(
-      'button[data-role="workspace-view-switcher-pin"]'
-    ) as HTMLButtonElement;
+    const intentZone = container?.querySelector(
+      'div[data-role="workspace-view-switcher-intent-zone"]'
+    ) as HTMLDivElement;
 
-    expect(container?.dataset.collapsed).toBe('true');
-    expect(handle.getAttribute('aria-expanded')).toBe('false');
-    expect(pinButton.style.display).toBe('none');
-    expect((container?.firstElementChild as HTMLElement).style.transform).toBe(
-      'translateY(66px)'
-    );
+    intentZone.dispatchEvent(new MouseEvent('mouseenter'));
+    vi.advanceTimersByTime(80);
+    expect(container?.dataset.mode).toBe('peek');
 
-    handle.dispatchEvent(new MouseEvent('mouseenter'));
-    expect(container?.dataset.collapsed).toBe('false');
-    expect(handle.getAttribute('aria-expanded')).toBe('true');
-    expect(pinButton.style.display).toBe('inline-flex');
-
-    handle.dispatchEvent(new MouseEvent('mouseleave'));
-    vi.advanceTimersByTime(600);
-    expect(container?.dataset.collapsed).toBe('true');
-    expect(pinButton.style.display).toBe('none');
-    expect(handle.style.height).toBe('24px');
+    vi.advanceTimersByTime(80);
+    expect(container?.dataset.mode).toBe('open');
 
     switcher.unmount();
     vi.useRealTimers();
   });
 
-  it('collapses from the handle click even while the handle is hovered', () => {
+  it('starts in peek mode and expands from the visible trigger before peeking again', () => {
     vi.useFakeTimers();
 
+    const switcher = new WorkspaceViewSwitcher('canvas', {
+      runtime: createAppRuntime({ initialLocale: 'en' }),
+      showKanban: true,
+      showTimeClustering: false,
+      showRoutines: false,
+      showChat: false,
+    });
+
+    switcher.mount();
+
+    const container = document.getElementById('workspace-view-switcher');
+    const handle = container?.querySelector(
+      'button[data-role="workspace-view-switcher-handle"]'
+    ) as HTMLButtonElement;
+    const handleDock = container?.querySelector(
+      'div[data-role="workspace-view-switcher-handle-dock"]'
+    ) as HTMLDivElement;
+    const pinButton = container?.querySelector(
+      'button[data-role="workspace-view-switcher-pin"]'
+    ) as HTMLButtonElement;
+
+    expect(container?.dataset.mode).toBe('peek');
+    expect(container?.dataset.collapsed).toBe('true');
+    expect(handle.getAttribute('aria-expanded')).toBe('false');
+    expect(
+      handle.querySelectorAll('svg')[1]?.getAttribute('data-icon-name')
+    ).toBe('chevron-up');
+    expect(handleDock.style.opacity).toBe('1');
+    expect(pinButton.style.display).toBe('none');
+    expect((container?.firstElementChild as HTMLElement).style.transform).toContain(
+      'translateY(66px)'
+    );
+    expect((container?.firstElementChild as HTMLElement).style.transform).toContain(
+      'scale(0.972)'
+    );
+
+    handle.dispatchEvent(new MouseEvent('mouseenter'));
+    expect(container?.dataset.mode).toBe('open');
+    expect(container?.dataset.collapsed).toBe('false');
+    expect(handle.getAttribute('aria-expanded')).toBe('true');
+    expect(
+      handle.querySelectorAll('svg')[1]?.getAttribute('data-icon-name')
+    ).toBe('chevron-down');
+    expect(handleDock.style.opacity).toBe('0');
+    expect(pinButton.style.display).toBe('inline-flex');
+    expect((container?.firstElementChild as HTMLElement).style.transform).toBe(
+      'translateY(0px) scale(1)'
+    );
+
+    handle.dispatchEvent(new MouseEvent('mouseleave'));
+    vi.advanceTimersByTime(800);
+    expect(container?.dataset.mode).toBe('peek');
+    expect(container?.dataset.collapsed).toBe('true');
+    expect(handleDock.style.opacity).toBe('1');
+    expect(pinButton.style.display).toBe('none');
+
+    switcher.unmount();
+    vi.useRealTimers();
+  });
+
+  it('opens the controls from the peek trigger click', () => {
     const switcher = new WorkspaceViewSwitcher('canvas', {
       runtime: createAppRuntime({ initialLocale: 'en' }),
       showKanban: true,
@@ -119,21 +170,114 @@ describe('WorkspaceViewSwitcher', () => {
       'button[data-role="workspace-view-switcher-pin"]'
     ) as HTMLButtonElement;
 
-    handle.dispatchEvent(new MouseEvent('mouseenter'));
+    handle.click();
+
+    expect(container?.dataset.mode).toBe('open');
     expect(container?.dataset.collapsed).toBe('false');
+    expect(handle.getAttribute('aria-expanded')).toBe('true');
     expect(pinButton.style.display).toBe('inline-flex');
 
-    handle.click();
-    expect(container?.dataset.collapsed).toBe('true');
-    expect(handle.getAttribute('aria-expanded')).toBe('false');
-    expect(pinButton.style.display).toBe('none');
-    expect((container?.firstElementChild as HTMLElement).style.pointerEvents).toBe(
-      'none'
-    );
+    switcher.unmount();
+  });
 
-    handle.dispatchEvent(new MouseEvent('mouseleave'));
+  it('removes the hidden handle from hit testing and tab order while expanded', () => {
+    const switcher = new WorkspaceViewSwitcher('canvas', {
+      runtime: createAppRuntime({ initialLocale: 'en' }),
+      showKanban: true,
+      showTimeClustering: false,
+      showRoutines: false,
+      showChat: false,
+    });
+
+    switcher.mount();
+
+    const container = document.getElementById('workspace-view-switcher');
+    const handle = container?.querySelector(
+      'button[data-role="workspace-view-switcher-handle"]'
+    ) as HTMLButtonElement;
+    const pinButton = container?.querySelector(
+      'button[data-role="workspace-view-switcher-pin"]'
+    ) as HTMLButtonElement;
+
+    expect(handle.style.pointerEvents).toBe('auto');
+    expect(handle.tabIndex).toBe(0);
+    expect(handle.getAttribute('aria-hidden')).toBe('false');
+
+    handle.click();
+
+    expect(container?.dataset.mode).toBe('open');
+    expect(handle.style.pointerEvents).toBe('none');
+    expect(handle.tabIndex).toBe(-1);
+    expect(handle.getAttribute('aria-hidden')).toBe('true');
+
+    pinButton.click();
+
+    expect(container?.dataset.mode).toBe('pinned');
+    expect(handle.style.pointerEvents).toBe('none');
+    expect(handle.tabIndex).toBe(-1);
+    expect(handle.getAttribute('aria-hidden')).toBe('true');
+
+    switcher.unmount();
+  });
+
+  it('can mount again after unmounting without losing its interaction state', () => {
+    const switcher = new WorkspaceViewSwitcher('canvas', {
+      runtime: createAppRuntime({ initialLocale: 'en' }),
+      showKanban: true,
+      showTimeClustering: false,
+      showRoutines: false,
+      showChat: false,
+    });
+
+    switcher.mount();
+    switcher.unmount();
+    switcher.mount();
+
+    const container = document.getElementById('workspace-view-switcher');
+    const handle = container?.querySelector(
+      'button[data-role="workspace-view-switcher-handle"]'
+    ) as HTMLButtonElement;
+
+    expect(container?.dataset.mode).toBe('peek');
+
+    handle.click();
+    expect(container?.dataset.mode).toBe('open');
+
+    switcher.destroy();
+  });
+
+  it('holds the panel open briefly after interaction and allows escape to return to peek', () => {
+    vi.useFakeTimers();
+
+    const switcher = new WorkspaceViewSwitcher('canvas', {
+      runtime: createAppRuntime({ initialLocale: 'en' }),
+      showKanban: true,
+      showTimeClustering: false,
+      showRoutines: false,
+      showChat: false,
+    });
+
+    switcher.mount();
+
+    const container = document.getElementById('workspace-view-switcher');
+    const handle = container?.querySelector(
+      'button[data-role="workspace-view-switcher-handle"]'
+    ) as HTMLButtonElement;
+    const controls = container?.firstElementChild as HTMLElement;
+
+    handle.click();
+    controls.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    controls.dispatchEvent(new MouseEvent('mouseleave'));
+
     vi.advanceTimersByTime(600);
-    expect(container?.dataset.collapsed).toBe('true');
+    expect(container?.dataset.mode).toBe('open');
+
+    vi.advanceTimersByTime(1100);
+    expect(container?.dataset.mode).toBe('peek');
+
+    handle.click();
+    controls.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(container?.dataset.mode).toBe('peek');
 
     switcher.unmount();
     vi.useRealTimers();
@@ -160,12 +304,14 @@ describe('WorkspaceViewSwitcher', () => {
       'button[data-role="workspace-view-switcher-pin"]'
     ) as HTMLButtonElement;
 
-    handle.dispatchEvent(new MouseEvent('mouseenter'));
+    handle.click();
     pinButton.click();
-    handle.dispatchEvent(new MouseEvent('mouseleave'));
-    pinButton.dispatchEvent(new MouseEvent('mouseleave'));
+    (container?.firstElementChild as HTMLElement).dispatchEvent(
+      new MouseEvent('mouseleave')
+    );
     vi.advanceTimersByTime(600);
 
+    expect(container?.dataset.mode).toBe('pinned');
     expect(container?.dataset.pinned).toBe('true');
     expect(container?.dataset.collapsed).toBe('false');
     expect(pinButton.getAttribute('aria-pressed')).toBe('true');
@@ -174,7 +320,7 @@ describe('WorkspaceViewSwitcher', () => {
     vi.useRealTimers();
   });
 
-  it('restores the pinned state and skips the initial auto-collapse', () => {
+  it('pins reliably through a single click activation path', () => {
     const switcher = new WorkspaceViewSwitcher('canvas', {
       runtime: createAppRuntime({ initialLocale: 'en' }),
       showKanban: true,
@@ -185,10 +331,79 @@ describe('WorkspaceViewSwitcher', () => {
 
     switcher.mount();
 
+    const container = document.getElementById('workspace-view-switcher');
+    const handle = container?.querySelector(
+      'button[data-role="workspace-view-switcher-handle"]'
+    ) as HTMLButtonElement;
+    const pinButton = container?.querySelector(
+      'button[data-role="workspace-view-switcher-pin"]'
+    ) as HTMLButtonElement;
+
+    handle.click();
+    pinButton.click();
+
+    expect(container?.dataset.mode).toBe('pinned');
+    expect(container?.dataset.pinned).toBe('true');
+    expect(pinButton.getAttribute('aria-pressed')).toBe('true');
+
+    switcher.unmount();
+  });
+
+  it('does not collapse when focus moves between elements inside the switcher', () => {
+    vi.useFakeTimers();
+
+    const switcher = new WorkspaceViewSwitcher('canvas', {
+      runtime: createAppRuntime({ initialLocale: 'en' }),
+      showKanban: true,
+      showTimeClustering: false,
+      showRoutines: false,
+      showChat: false,
+    });
+
+    switcher.mount();
+
+    const container = document.getElementById('workspace-view-switcher');
+    const handle = container?.querySelector(
+      'button[data-role="workspace-view-switcher-handle"]'
+    ) as HTMLButtonElement;
+    const pinButton = container?.querySelector(
+      'button[data-role="workspace-view-switcher-pin"]'
+    ) as HTMLButtonElement;
+    const menuButton = container?.querySelector(
+      'button[aria-label="Open app menu"]'
+    ) as HTMLButtonElement;
+
+    handle.click();
+    pinButton.focus();
+    menuButton.focus();
+    vi.runAllTimers();
+
+    expect(container?.dataset.mode).toBe('open');
+    expect(container?.dataset.collapsed).toBe('false');
+
+    switcher.unmount();
+    vi.useRealTimers();
+  });
+
+  it('restores the pinned state and skips the initial peek mode', () => {
+    const switcher = new WorkspaceViewSwitcher('canvas', {
+      runtime: createAppRuntime({ initialLocale: 'en' }),
+      showKanban: true,
+      showTimeClustering: false,
+      showRoutines: false,
+      showChat: false,
+    });
+
+    switcher.mount();
+
+    const handle = document.querySelector(
+      'button[data-role="workspace-view-switcher-handle"]'
+    ) as HTMLButtonElement;
     const pinButton = document.querySelector(
       'button[data-role="workspace-view-switcher-pin"]'
     ) as HTMLButtonElement;
 
+    handle.click();
     pinButton.click();
     switcher.unmount();
 
@@ -203,15 +418,20 @@ describe('WorkspaceViewSwitcher', () => {
     restoredSwitcher.mount();
 
     const container = document.getElementById('workspace-view-switcher');
+    const restoredHandleDock = container?.querySelector(
+      'div[data-role="workspace-view-switcher-handle-dock"]'
+    ) as HTMLDivElement;
     const restoredPinButton = container?.querySelector(
       'button[data-role="workspace-view-switcher-pin"]'
     ) as HTMLButtonElement;
 
+    expect(container?.dataset.mode).toBe('pinned');
     expect(container?.dataset.pinned).toBe('true');
     expect(container?.dataset.collapsed).toBe('false');
+    expect(restoredHandleDock.style.opacity).toBe('0');
     expect(restoredPinButton.getAttribute('aria-pressed')).toBe('true');
     expect((container?.firstElementChild as HTMLElement).style.transform).toBe(
-      'translateY(0px)'
+      'translateY(0px) scale(1)'
     );
 
     restoredSwitcher.unmount();

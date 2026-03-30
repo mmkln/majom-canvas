@@ -1,24 +1,24 @@
-import { WorkspaceControlsBar } from './WorkspaceControlsBar.ts';
-import { createIcon, type IconName } from '../canvas/ui/icons.ts';
 import type { WorkspaceView } from './WorkspaceView.ts';
 import type { TimeClusteringLayoutMode } from '../time-clustering/domain/types.ts';
 import { AppRuntime, createAppRuntime } from '../../app-runtime/index.ts';
-import { WorkspaceAppMenu } from './components/WorkspaceAppMenu.ts';
 import type { WallpaperService } from './services/WallpaperService.ts';
 import {
   loadPersistedWorkspaceViewSwitcherPinned,
   persistWorkspaceViewSwitcherPinned,
 } from './workspaceUiState.ts';
+import {
+  createWorkspaceViewSwitcherMachineState,
+  isWorkspaceViewSwitcherExpanded,
+  isWorkspaceViewSwitcherPinned,
+  transitionWorkspaceViewSwitcherMachineState,
+  type WorkspaceViewSwitcherMachineState,
+} from './WorkspaceViewSwitcherMachine.ts';
+import { WorkspaceViewSwitcherView } from './WorkspaceViewSwitcherView.ts';
 
 const WORKSPACE_VIEW_SWITCHER_COLLAPSE_DELAY_MS = 520;
+const WORKSPACE_VIEW_SWITCHER_OPEN_INTENT_DELAY_MS = 140;
+const WORKSPACE_VIEW_SWITCHER_INTERACTION_HOLD_MS = 1600;
 const WORKSPACE_VIEW_SWITCHER_COLLAPSED_EXTRA_OFFSET_PX = 22;
-const WORKSPACE_VIEW_SWITCHER_HANDLE_EXPANDED_BOTTOM_OFFSET_PX = -14;
-const WORKSPACE_VIEW_SWITCHER_HANDLE_PEEK_BOTTOM_OFFSET_PX = -6;
-const WORKSPACE_VIEW_SWITCHER_FALLBACK_HEIGHT_PX = 44;
-const WORKSPACE_VIEW_SWITCHER_TRANSITION_MS = 240;
-const WORKSPACE_VIEW_SWITCHER_OPACITY_TRANSITION_MS = 220;
-const WORKSPACE_VIEW_SWITCHER_TRANSITION_EASING =
-  'cubic-bezier(0.22, 1, 0.36, 1)';
 
 type WorkspaceViewSwitcherOptions = {
   runtime?: AppRuntime;
@@ -33,49 +33,42 @@ type WorkspaceViewSwitcherOptions = {
 };
 
 export class WorkspaceViewSwitcher {
-  private readonly container: HTMLDivElement;
-  private readonly controls: WorkspaceControlsBar;
-  private readonly appMenu: WorkspaceAppMenu;
+  private readonly runtime: AppRuntime;
+  private readonly view: WorkspaceViewSwitcherView;
   private readonly shouldRender: boolean;
   private readonly autoCollapseEnabled: boolean;
-  private readonly runtime: AppRuntime;
-  private readonly handleDock: HTMLDivElement;
-  private readonly handleButton: HTMLButtonElement;
-  private readonly handleViewIcon: HTMLSpanElement;
-  private readonly handleChevronIcon: HTMLSpanElement;
-  private readonly pinButton: HTMLButtonElement;
-  private readonly pinIcon: HTMLSpanElement;
+  private state: WorkspaceViewSwitcherMachineState;
   private collapseTimerId: number | null = null;
+  private openIntentTimerId: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private collapsedOffsetPx = 0;
-  private expanded = true;
-  private pinned = false;
-  private hoverWithin = false;
+  private handleHovered = false;
+  private controlsHovered = false;
   private focusWithin = false;
-  private suppressAutoExpand = false;
+  private holdOpenUntil = 0;
   private activeView: WorkspaceView;
   private disposeRuntimeSubscription: (() => void) | null = null;
   private readonly windowResizeHandler: () => void;
-  private readonly mouseEnterHandler: () => void;
-  private readonly mouseLeaveHandler: (event: MouseEvent) => void;
-  private readonly focusInHandler: () => void;
-  private readonly focusOutHandler: () => void;
-  private readonly handleClickHandler: () => void;
-  private readonly pinClickHandler: () => void;
 
   constructor(
     initialView: WorkspaceView,
     options: WorkspaceViewSwitcherOptions = {}
   ) {
-    const runtime = options.runtime ?? createAppRuntime();
-    this.runtime = runtime;
+    this.runtime = options.runtime ?? createAppRuntime();
     this.activeView = initialView;
-    this.appMenu = new WorkspaceAppMenu(runtime, {
-      wallpaperService: options.wallpaperService,
+    this.autoCollapseEnabled = !this.isCoarsePointer();
+    this.state = createWorkspaceViewSwitcherMachineState({
+      autoCollapseEnabled: this.autoCollapseEnabled,
+      initiallyPinned: this.autoCollapseEnabled
+        ? loadPersistedWorkspaceViewSwitcherPinned()
+        : false,
     });
-    this.controls = new WorkspaceControlsBar({
-      runtime,
+
+    this.view = new WorkspaceViewSwitcherView({
+      runtime: this.runtime,
+      wallpaperService: options.wallpaperService,
       initialView,
+      autoCollapseEnabled: this.autoCollapseEnabled,
       initialTimeClusteringOpen: options.initialTimeClusteringOpen,
       initialTimeClusteringLayoutMode: options.initialTimeClusteringLayoutMode,
       showKanban: options.showKanban,
@@ -83,261 +76,106 @@ export class WorkspaceViewSwitcher {
       showTimeClustering: options.showTimeClustering,
       showRoutines: options.showRoutines,
       showChat: options.showChat,
-      trailingAccessory: this.appMenu.element,
-      variant: 'floating',
+      callbacks: {
+        onIntentZoneEnter: () => this.handleIntentZoneEnter(),
+        onIntentZoneLeave: () => this.clearOpenIntentTimer(),
+        onControlsEnter: () => this.handleControlsEnter(),
+        onControlsLeave: (event) => this.handleControlsLeave(event),
+        onPeekEnter: () => this.handlePeekEnter(),
+        onPeekLeave: (event) => this.handleHandleLeave(event),
+        onHandleClick: () => this.handleHandleClick(),
+        onPinClick: () => this.handlePinClick(),
+        onInteractionCapture: (event) => this.handleInteractionCapture(event),
+        onKeyDown: (event) => this.handleKeyDown(event),
+        onFocusIn: () => this.handleFocusIn(),
+        onFocusOut: () => this.handleFocusOut(),
+      },
     });
-    this.shouldRender = this.controls.shouldRender;
-    this.autoCollapseEnabled = !this.isCoarsePointer();
-    this.pinned = this.autoCollapseEnabled
-      ? loadPersistedWorkspaceViewSwitcherPinned()
-      : false;
-    this.handleViewIcon = document.createElement('span');
-    this.handleViewIcon.style.display = 'inline-flex';
-    this.handleViewIcon.style.alignItems = 'center';
-    this.handleViewIcon.style.justifyContent = 'center';
-    this.handleViewIcon.style.width = '18px';
-    this.handleViewIcon.style.height = '18px';
-    this.handleViewIcon.style.borderRadius = '999px';
-    this.handleViewIcon.style.background = 'rgba(255, 255, 255, 0.1)';
-    this.handleViewIcon.style.transition =
-      `width ${WORKSPACE_VIEW_SWITCHER_TRANSITION_MS}ms ${WORKSPACE_VIEW_SWITCHER_TRANSITION_EASING}, ` +
-      `height ${WORKSPACE_VIEW_SWITCHER_TRANSITION_MS}ms ${WORKSPACE_VIEW_SWITCHER_TRANSITION_EASING}, ` +
-      `background-color ${WORKSPACE_VIEW_SWITCHER_TRANSITION_MS}ms ${WORKSPACE_VIEW_SWITCHER_TRANSITION_EASING}, ` +
-      `opacity ${WORKSPACE_VIEW_SWITCHER_OPACITY_TRANSITION_MS}ms ${WORKSPACE_VIEW_SWITCHER_TRANSITION_EASING}`;
-
-    this.handleChevronIcon = document.createElement('span');
-    this.handleChevronIcon.style.display = 'inline-flex';
-    this.handleChevronIcon.style.alignItems = 'center';
-    this.handleChevronIcon.style.justifyContent = 'center';
-    this.handleChevronIcon.style.transition =
-      `opacity ${WORKSPACE_VIEW_SWITCHER_OPACITY_TRANSITION_MS}ms ${WORKSPACE_VIEW_SWITCHER_TRANSITION_EASING}`;
-
-    this.pinIcon = document.createElement('span');
-    this.pinIcon.style.display = 'inline-flex';
-    this.pinIcon.style.alignItems = 'center';
-    this.pinIcon.style.justifyContent = 'center';
-
-    this.handleButton = document.createElement('button');
-    this.handleButton.type = 'button';
-    this.handleButton.dataset.role = 'workspace-view-switcher-handle';
-    this.handleButton.style.display = 'inline-flex';
-    this.handleButton.style.alignItems = 'center';
-    this.handleButton.style.justifyContent = 'center';
-    this.handleButton.style.gap = '8px';
-    this.handleButton.style.height = '28px';
-    this.handleButton.style.padding = '0 10px';
-    this.handleButton.style.border = 'none';
-    this.handleButton.style.borderRadius = '999px';
-    this.handleButton.style.background = 'rgba(15, 23, 42, 0.74)';
-    this.handleButton.style.color = '#f8fafc';
-    this.handleButton.style.boxShadow = '0 10px 24px rgba(15, 23, 42, 0.14)';
-    this.handleButton.style.cursor = 'pointer';
-    this.handleButton.style.pointerEvents = 'auto';
-    this.handleButton.style.transition =
-      `transform ${WORKSPACE_VIEW_SWITCHER_TRANSITION_MS}ms ${WORKSPACE_VIEW_SWITCHER_TRANSITION_EASING}, ` +
-      `height ${WORKSPACE_VIEW_SWITCHER_TRANSITION_MS}ms ${WORKSPACE_VIEW_SWITCHER_TRANSITION_EASING}, ` +
-      `padding ${WORKSPACE_VIEW_SWITCHER_TRANSITION_MS}ms ${WORKSPACE_VIEW_SWITCHER_TRANSITION_EASING}, ` +
-      `gap ${WORKSPACE_VIEW_SWITCHER_TRANSITION_MS}ms ${WORKSPACE_VIEW_SWITCHER_TRANSITION_EASING}, ` +
-      `background-color ${WORKSPACE_VIEW_SWITCHER_TRANSITION_MS}ms ${WORKSPACE_VIEW_SWITCHER_TRANSITION_EASING}, ` +
-      `box-shadow ${WORKSPACE_VIEW_SWITCHER_TRANSITION_MS}ms ${WORKSPACE_VIEW_SWITCHER_TRANSITION_EASING}, ` +
-      `opacity ${WORKSPACE_VIEW_SWITCHER_OPACITY_TRANSITION_MS}ms ${WORKSPACE_VIEW_SWITCHER_TRANSITION_EASING}`;
-    this.handleButton.append(this.handleViewIcon, this.handleChevronIcon);
-
-    this.pinButton = document.createElement('button');
-    this.pinButton.type = 'button';
-    this.pinButton.dataset.role = 'workspace-view-switcher-pin';
-    this.pinButton.style.display = this.autoCollapseEnabled
-      ? 'inline-flex'
-      : 'none';
-    this.pinButton.style.alignItems = 'center';
-    this.pinButton.style.justifyContent = 'center';
-    this.pinButton.style.width = '28px';
-    this.pinButton.style.height = '28px';
-    this.pinButton.style.padding = '0';
-    this.pinButton.style.border = 'none';
-    this.pinButton.style.borderRadius = '999px';
-    this.pinButton.style.background = 'rgba(15, 23, 42, 0.68)';
-    this.pinButton.style.color = '#f8fafc';
-    this.pinButton.style.boxShadow = '0 10px 24px rgba(15, 23, 42, 0.14)';
-    this.pinButton.style.cursor = 'pointer';
-    this.pinButton.style.pointerEvents = 'auto';
-    this.pinButton.style.transition =
-      `transform ${WORKSPACE_VIEW_SWITCHER_TRANSITION_MS}ms ${WORKSPACE_VIEW_SWITCHER_TRANSITION_EASING}, ` +
-      `background-color ${WORKSPACE_VIEW_SWITCHER_TRANSITION_MS}ms ${WORKSPACE_VIEW_SWITCHER_TRANSITION_EASING}, ` +
-      `color ${WORKSPACE_VIEW_SWITCHER_TRANSITION_MS}ms ${WORKSPACE_VIEW_SWITCHER_TRANSITION_EASING}, ` +
-      `opacity ${WORKSPACE_VIEW_SWITCHER_OPACITY_TRANSITION_MS}ms ${WORKSPACE_VIEW_SWITCHER_TRANSITION_EASING}`;
-    this.pinButton.append(this.pinIcon);
-
-    this.handleDock = document.createElement('div');
-    this.handleDock.dataset.role = 'workspace-view-switcher-handle-dock';
-    this.handleDock.style.position = 'absolute';
-    this.handleDock.style.left = '50%';
-    this.handleDock.style.bottom = `${WORKSPACE_VIEW_SWITCHER_HANDLE_EXPANDED_BOTTOM_OFFSET_PX}px`;
-    this.handleDock.style.transform = 'translateX(-50%)';
-    this.handleDock.style.display = 'inline-flex';
-    this.handleDock.style.alignItems = 'center';
-    this.handleDock.style.gap = '8px';
-    this.handleDock.style.pointerEvents = 'auto';
-    this.handleDock.style.transition =
-      `bottom ${WORKSPACE_VIEW_SWITCHER_TRANSITION_MS}ms ${WORKSPACE_VIEW_SWITCHER_TRANSITION_EASING}, ` +
-      `gap ${WORKSPACE_VIEW_SWITCHER_TRANSITION_MS}ms ${WORKSPACE_VIEW_SWITCHER_TRANSITION_EASING}, ` +
-      `opacity ${WORKSPACE_VIEW_SWITCHER_OPACITY_TRANSITION_MS}ms ${WORKSPACE_VIEW_SWITCHER_TRANSITION_EASING}`;
-    this.handleDock.append(this.handleButton, this.pinButton);
-    this.syncHandleVisuals();
-
+    this.shouldRender = this.view.shouldRender;
     this.windowResizeHandler = () => {
       this.updateCollapsedOffset();
     };
-    this.mouseEnterHandler = () => {
-      this.hoverWithin = true;
-      this.suppressAutoExpand = false;
-      this.expand();
-    };
-    this.mouseLeaveHandler = (event: MouseEvent) => {
-      const nextTarget = event.relatedTarget;
-      if (nextTarget instanceof Node && this.container.contains(nextTarget)) {
-        return;
-      }
-      this.hoverWithin = false;
-      this.scheduleCollapse();
-    };
-    this.focusInHandler = () => {
-      this.focusWithin = true;
-      this.suppressAutoExpand = false;
-      this.expand();
-    };
-    this.focusOutHandler = () => {
-      window.setTimeout(() => {
-        this.focusWithin = this.container.contains(document.activeElement);
-        this.scheduleCollapse();
-      }, 0);
-    };
-    this.handleClickHandler = () => {
-      if (this.expanded) {
-        this.collapseFromHandle();
-        return;
-      }
-      this.suppressAutoExpand = false;
-      this.expand();
-    };
-    this.pinClickHandler = () => {
-      this.togglePinned();
-    };
-
-    this.container = document.createElement('div');
-    this.container.id = 'workspace-view-switcher';
-    this.container.style.position = 'fixed';
-    this.container.style.bottom = '16px';
-    this.container.style.left = '50%';
-    this.container.style.transform = 'translateX(-50%)';
-    this.container.style.zIndex = '45';
-    this.container.style.pointerEvents = 'none';
-    this.container.append(this.controls.element, this.handleDock);
-    this.container.dataset.collapsed = 'false';
-    this.container.dataset.pinned = this.pinned ? 'true' : 'false';
-    this.controls.element.style.transition =
-      `transform ${WORKSPACE_VIEW_SWITCHER_TRANSITION_MS}ms ${WORKSPACE_VIEW_SWITCHER_TRANSITION_EASING}`;
-    this.controls.element.style.willChange = 'transform';
-
-    this.controls.element.addEventListener('mouseenter', this.mouseEnterHandler);
-    this.controls.element.addEventListener('mouseleave', this.mouseLeaveHandler);
-    this.handleButton.addEventListener('mouseenter', this.mouseEnterHandler);
-    this.handleButton.addEventListener('mouseleave', this.mouseLeaveHandler);
-    this.handleButton.addEventListener('click', this.handleClickHandler);
-    this.pinButton.addEventListener('mouseenter', this.mouseEnterHandler);
-    this.pinButton.addEventListener('mouseleave', this.mouseLeaveHandler);
-    this.pinButton.addEventListener('click', this.pinClickHandler);
-    this.container.addEventListener('focusin', this.focusInHandler);
-    this.container.addEventListener('focusout', this.focusOutHandler);
+    this.render();
   }
 
   public mount(parent: HTMLElement = document.body): void {
     if (!this.shouldRender) return;
-    if (this.container.parentElement) return;
-    parent.appendChild(this.container);
-    this.appMenu.mount();
-    this.controls.prime();
+    if (this.view.isMounted()) return;
+    this.view.mount(parent);
+    this.view.prime();
+    this.updateCollapsedOffset();
     this.disposeRuntimeSubscription = this.runtime.subscribe(
-      () => this.syncHandleVisuals(),
+      () => this.render(),
       { emitCurrent: true }
     );
-    this.updateCollapsedOffset();
     window.addEventListener('resize', this.windowResizeHandler);
-    if (this.autoCollapseEnabled) {
-      this.collapseImmediately();
-    }
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(() => {
         this.updateCollapsedOffset();
       });
-      this.resizeObserver.observe(this.controls.element);
+      this.resizeObserver.observe(this.view.getControlsElement());
     }
   }
 
   public unmount(): void {
     window.removeEventListener('resize', this.windowResizeHandler);
     this.clearCollapseTimer();
+    this.clearOpenIntentTimer();
+    this.resetTransientInteractionState();
     this.disposeRuntimeSubscription?.();
     this.disposeRuntimeSubscription = null;
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
-    this.controls.element.removeEventListener(
-      'mouseenter',
-      this.mouseEnterHandler
-    );
-    this.controls.element.removeEventListener(
-      'mouseleave',
-      this.mouseLeaveHandler
-    );
-    this.handleButton.removeEventListener('mouseenter', this.mouseEnterHandler);
-    this.handleButton.removeEventListener('mouseleave', this.mouseLeaveHandler);
-    this.handleButton.removeEventListener('click', this.handleClickHandler);
-    this.pinButton.removeEventListener('mouseenter', this.mouseEnterHandler);
-    this.pinButton.removeEventListener('mouseleave', this.mouseLeaveHandler);
-    this.pinButton.removeEventListener('click', this.pinClickHandler);
-    this.container.removeEventListener('focusin', this.focusInHandler);
-    this.container.removeEventListener('focusout', this.focusOutHandler);
-    this.appMenu.unmount();
-    this.controls.destroy();
-    this.container.remove();
+    this.view.unmount();
+  }
+
+  public destroy(): void {
+    this.unmount();
+    this.view.destroy();
   }
 
   public setActiveView(view: WorkspaceView): void {
     this.activeView = view;
-    this.controls.setActiveView(view);
-    this.syncHandleVisuals();
+    this.view.setActiveView(view);
+    this.render();
   }
 
   public setVisible(visible: boolean): void {
     if (!this.shouldRender) return;
     if (!visible) {
-      this.appMenu.close();
+      this.view.closeAppMenu();
       this.clearCollapseTimer();
-      this.suppressAutoExpand = false;
+      this.clearOpenIntentTimer();
+      this.resetTransientInteractionState();
     }
-    this.container.style.display = visible ? 'block' : 'none';
-    if (visible) {
-      this.updateCollapsedOffset();
-      if (this.autoCollapseEnabled) {
-        if (this.pinned) {
-          this.expand();
-        } else {
-          this.collapseImmediately();
-        }
-      }
-    }
+    this.view.setVisible(visible);
+    if (!visible) return;
+    this.updateCollapsedOffset();
+    this.setState(
+      transitionWorkspaceViewSwitcherMachineState(this.state, {
+        type: 'reset-visible',
+      })
+    );
   }
 
   public setChatOpen(open: boolean): void {
-    this.controls.setChatOpen(open);
+    this.view.setChatOpen(open);
   }
 
   public setTimeClusteringOpen(open: boolean): void {
-    this.controls.setTimeClusteringOpen(open);
+    this.view.setTimeClusteringOpen(open);
   }
 
   public setTimeClusteringLayoutMode(mode: TimeClusteringLayoutMode): void {
-    this.controls.setTimeClusteringLayoutMode(mode);
+    this.view.setTimeClusteringLayoutMode(mode);
+  }
+
+  private get expanded(): boolean {
+    return isWorkspaceViewSwitcherExpanded(this.state);
+  }
+
+  private get pinned(): boolean {
+    return isWorkspaceViewSwitcherPinned(this.state);
   }
 
   private isCoarsePointer(): boolean {
@@ -347,61 +185,156 @@ export class WorkspaceViewSwitcher {
   }
 
   private updateCollapsedOffset(): void {
-    const measuredHeight =
-      this.controls.element.getBoundingClientRect().height ||
-      WORKSPACE_VIEW_SWITCHER_FALLBACK_HEIGHT_PX;
     this.collapsedOffsetPx = Math.max(
       0,
-      measuredHeight + WORKSPACE_VIEW_SWITCHER_COLLAPSED_EXTRA_OFFSET_PX
+      this.view.measureControlsHeight() +
+        WORKSPACE_VIEW_SWITCHER_COLLAPSED_EXTRA_OFFSET_PX
     );
-    this.applyCollapsedState();
+    this.render();
   }
 
-  private expand(): void {
+  private handleIntentZoneEnter(): void {
+    if (!this.autoCollapseEnabled || this.state.mode !== 'peek') return;
+    this.clearOpenIntentTimer();
+    this.openIntentTimerId = window.setTimeout(() => {
+      this.openIntentTimerId = null;
+      if (this.state.mode !== 'peek') return;
+      this.openFromPeekTrigger();
+    }, WORKSPACE_VIEW_SWITCHER_OPEN_INTENT_DELAY_MS);
+  }
+
+  private handleControlsEnter(): void {
+    this.clearOpenIntentTimer();
+    this.controlsHovered = true;
     this.clearCollapseTimer();
-    if (!this.expanded) {
-      this.expanded = true;
-      this.applyCollapsedState();
-    }
+    this.open();
   }
 
-  private collapseImmediately(): void {
-    if (this.shouldStayExpanded()) {
-      this.expand();
+  private handlePeekEnter(): void {
+    this.clearOpenIntentTimer();
+    this.handleHovered = true;
+    this.openFromPeekTrigger();
+  }
+
+  private handleControlsLeave(event: MouseEvent): void {
+    const nextTarget = event.relatedTarget;
+    if (nextTarget instanceof Node && this.view.contains(nextTarget)) {
+      this.controlsHovered = true;
       return;
     }
-    this.clearCollapseTimer();
-    this.expanded = false;
-    this.applyCollapsedState();
+    this.controlsHovered = false;
+    this.schedulePeek();
   }
 
-  private collapseFromHandle(): void {
-    this.appMenu.close();
+  private handleHandleLeave(event: MouseEvent): void {
+    const nextTarget = event.relatedTarget;
+    this.handleHovered = false;
+    if (nextTarget instanceof Node && this.view.contains(nextTarget)) {
+      this.controlsHovered = true;
+      return;
+    }
+    this.schedulePeek();
+  }
+
+  private handleKeyDown(event: KeyboardEvent): void {
+    if (event.key !== 'Escape') return;
+    if (this.view.isAppMenuOpen()) {
+      this.view.closeAppMenu();
+    }
+    if (this.state.mode !== 'open') return;
+    event.stopPropagation();
     this.clearCollapseTimer();
-    this.suppressAutoExpand = true;
+    this.setState(
+      transitionWorkspaceViewSwitcherMachineState(this.state, { type: 'peek' })
+    );
+  }
+
+  private handleInteractionCapture(event: Event): void {
+    const target = event.target;
+    if (!(target instanceof Node)) return;
+    if (!this.view.contains(target)) return;
+    if (!this.expanded) return;
+    this.bumpInteractionHold();
+  }
+
+  private handleFocusIn(): void {
+    if (this.focusWithin) {
+      this.clearCollapseTimer();
+      return;
+    }
+    this.focusWithin = true;
+    this.clearCollapseTimer();
+    this.open();
+  }
+
+  private handleFocusOut(): void {
+    window.setTimeout(() => {
+      const focusStillWithin = this.view.contains(document.activeElement);
+      this.focusWithin = focusStillWithin;
+      if (focusStillWithin) return;
+      this.schedulePeek();
+    }, 0);
+  }
+
+  private handleHandleClick(): void {
+    this.bumpInteractionHold();
+    this.open();
+  }
+
+  private handlePinClick(): void {
+    this.bumpInteractionHold();
+    this.togglePinned();
+  }
+
+  private open(): void {
+    this.clearCollapseTimer();
+    this.clearOpenIntentTimer();
     if (this.pinned) {
-      this.pinned = false;
-      persistWorkspaceViewSwitcherPinned(false);
-    }
-    this.expanded = false;
-    this.applyCollapsedState();
-  }
-
-  private scheduleCollapse(): void {
-    if (!this.autoCollapseEnabled) return;
-    if (this.shouldStayExpanded()) {
-      this.expand();
       return;
     }
+    if (this.state.mode === 'open') {
+      return;
+    }
+    this.setState(
+      transitionWorkspaceViewSwitcherMachineState(this.state, { type: 'open' })
+    );
+  }
+
+  private openFromPeekTrigger(): void {
     this.clearCollapseTimer();
+    this.clearOpenIntentTimer();
+    if (this.pinned) {
+      return;
+    }
+    if (this.state.mode === 'open') {
+      return;
+    }
+    this.setState(
+      transitionWorkspaceViewSwitcherMachineState(this.state, { type: 'open' })
+    );
+  }
+
+  private schedulePeek(options: { includeCollapseDelay?: boolean } = {}): void {
+    if (!this.autoCollapseEnabled) return;
+    if (this.pinned) return;
+    this.clearCollapseTimer();
+    this.clearOpenIntentTimer();
+    const delay = Math.max(
+      options.includeCollapseDelay === false
+        ? 0
+        : WORKSPACE_VIEW_SWITCHER_COLLAPSE_DELAY_MS,
+      this.getRemainingHoldMs()
+    );
     this.collapseTimerId = window.setTimeout(() => {
-      if (this.shouldStayExpanded()) {
-        this.expand();
+      if (this.shouldStayOpen()) {
         return;
       }
-      this.expanded = false;
-      this.applyCollapsedState();
-    }, WORKSPACE_VIEW_SWITCHER_COLLAPSE_DELAY_MS);
+      this.setState(
+        transitionWorkspaceViewSwitcherMachineState(this.state, {
+          type: 'peek',
+        })
+      );
+    }, delay);
   }
 
   private clearCollapseTimer(): void {
@@ -410,115 +343,64 @@ export class WorkspaceViewSwitcher {
     this.collapseTimerId = null;
   }
 
-  private togglePinned(): void {
-    this.pinned = !this.pinned;
+  private clearOpenIntentTimer(): void {
+    if (this.openIntentTimerId === null) return;
+    window.clearTimeout(this.openIntentTimerId);
+    this.openIntentTimerId = null;
+  }
+
+  private resetTransientInteractionState(): void {
+    this.handleHovered = false;
+    this.controlsHovered = false;
+    this.focusWithin = false;
+    this.holdOpenUntil = 0;
+  }
+
+  private setState(nextState: WorkspaceViewSwitcherMachineState): void {
+    this.state = nextState;
     persistWorkspaceViewSwitcherPinned(this.pinned);
-    this.suppressAutoExpand = false;
+    this.render();
+  }
+
+  private togglePinned(): void {
+    this.clearCollapseTimer();
+    this.clearOpenIntentTimer();
+    this.setState(
+      transitionWorkspaceViewSwitcherMachineState(this.state, {
+        type: 'toggle-pin',
+      })
+    );
+    if (!this.pinned) {
+      this.schedulePeek();
+    }
+  }
+
+  private bumpInteractionHold(): void {
+    this.holdOpenUntil = Date.now() + WORKSPACE_VIEW_SWITCHER_INTERACTION_HOLD_MS;
+    this.clearCollapseTimer();
+  }
+
+  private getRemainingHoldMs(): number {
+    return Math.max(0, this.holdOpenUntil - Date.now());
+  }
+
+  private shouldStayOpen(): boolean {
     if (this.pinned) {
-      this.expanded = true;
-      this.applyCollapsedState();
-      return;
+      return true;
     }
-    this.applyCollapsedState();
-    this.scheduleCollapse();
+    const shouldStay =
+      this.handleHovered ||
+      this.controlsHovered ||
+      this.focusWithin ||
+      this.view.isAppMenuOpen();
+    return shouldStay;
   }
 
-  private shouldStayExpanded(): boolean {
-    if (this.pinned) return true;
-    if (this.suppressAutoExpand) {
-      return this.appMenu.isOpen();
-    }
-    return this.hoverWithin || this.focusWithin || this.appMenu.isOpen();
-  }
-
-  private applyCollapsedState(): void {
-    const offset = this.expanded ? 0 : this.collapsedOffsetPx;
-    this.controls.element.style.transform = `translateY(${offset}px)`;
-    this.controls.element.style.pointerEvents = this.expanded ? 'auto' : 'none';
-    this.container.dataset.collapsed = this.expanded ? 'false' : 'true';
-    this.container.dataset.pinned = this.pinned ? 'true' : 'false';
-    this.syncHandleVisuals();
-  }
-
-  private syncHandleVisuals(): void {
-    const peek = !this.expanded;
-    this.handleViewIcon.replaceChildren(
-      createIcon(this.getHandleViewIconName(this.activeView), {
-        size: 12,
-        strokeWidth: 1.9,
-      })
-    );
-    this.handleChevronIcon.replaceChildren(
-      createIcon(this.expanded ? 'chevron-down' : 'chevron-up', {
-        size: 12,
-        strokeWidth: 1.9,
-      })
-    );
-    this.handleButton.title = this.runtime.i18n.t(
-      this.expanded
-        ? 'workspaceControls.hideControls'
-        : 'workspaceControls.showControls'
-    );
-    this.handleButton.setAttribute('aria-label', this.handleButton.title);
-    this.handleButton.setAttribute('aria-expanded', this.expanded ? 'true' : 'false');
-    this.handleButton.style.gap = peek ? '6px' : '8px';
-    this.handleButton.style.height = peek ? '24px' : '28px';
-    this.handleButton.style.padding = peek ? '0 8px' : '0 10px';
-    this.handleButton.style.background = peek
-      ? 'rgba(15, 23, 42, 0.68)'
-      : 'rgba(15, 23, 42, 0.58)';
-    this.handleButton.style.opacity = peek ? '0.94' : '0.82';
-    this.handleButton.style.boxShadow = peek
-      ? '0 6px 16px rgba(15, 23, 42, 0.12)'
-      : '0 10px 24px rgba(15, 23, 42, 0.14)';
-    this.handleButton.style.transform = this.expanded
-      ? 'translateY(6px)'
-      : 'translateY(0px)';
-    this.handleViewIcon.style.width = peek ? '16px' : '18px';
-    this.handleViewIcon.style.height = peek ? '16px' : '18px';
-    this.handleViewIcon.style.background = peek
-      ? 'rgba(255, 255, 255, 0.08)'
-      : 'rgba(255, 255, 255, 0.1)';
-    this.handleViewIcon.style.opacity = peek ? '0.92' : '1';
-    this.handleChevronIcon.style.opacity = peek ? '0.78' : '0.92';
-    this.pinIcon.replaceChildren(
-      createIcon(this.pinned ? 'lock-closed' : 'lock-open', {
-        size: 12,
-        strokeWidth: 1.9,
-      })
-    );
-    this.pinButton.title = this.runtime.i18n.t(
-      this.pinned
-        ? 'workspaceControls.unpinControls'
-        : 'workspaceControls.pinControls'
-    );
-    this.pinButton.style.display =
-      this.autoCollapseEnabled && this.expanded ? 'inline-flex' : 'none';
-    this.pinButton.setAttribute('aria-label', this.pinButton.title);
-    this.pinButton.setAttribute('aria-pressed', this.pinned ? 'true' : 'false');
-    this.pinButton.style.background = this.pinned
-      ? 'rgba(51, 65, 85, 0.74)'
-      : 'rgba(15, 23, 42, 0.62)';
-    this.pinButton.style.color = this.pinned ? '#e2e8f0' : '#f8fafc';
-    this.pinButton.style.opacity = this.pinned ? '0.94' : '0.84';
-    this.pinButton.style.boxShadow = this.pinned
-      ? '0 10px 24px rgba(15, 23, 42, 0.14), inset 0 0 0 1px rgba(148, 163, 184, 0.24)'
-      : '0 10px 24px rgba(15, 23, 42, 0.14)';
-    this.pinButton.style.transform = this.expanded
-      ? 'translateY(6px)'
-      : 'translateY(0px)';
-    this.handleDock.style.bottom = `${
-      peek
-        ? WORKSPACE_VIEW_SWITCHER_HANDLE_PEEK_BOTTOM_OFFSET_PX
-        : WORKSPACE_VIEW_SWITCHER_HANDLE_EXPANDED_BOTTOM_OFFSET_PX
-    }px`;
-    this.handleDock.style.gap = peek ? '0px' : '8px';
-    this.handleDock.style.opacity = peek ? '0.96' : '1';
-  }
-
-  private getHandleViewIconName(view: WorkspaceView): IconName {
-    if (view === 'kanban') return 'view-columns';
-    if (view === 'learning-studio') return 'academic-cap';
-    return 'map';
+  private render(): void {
+    this.view.render({
+      activeView: this.activeView,
+      collapsedOffsetPx: this.collapsedOffsetPx,
+      mode: this.state.mode,
+    });
   }
 }

@@ -1,0 +1,489 @@
+import { WorkspaceControlsBar } from './WorkspaceControlsBar.ts';
+import { createIcon, type IconName } from '../canvas/ui/icons.ts';
+import type { WorkspaceView } from './WorkspaceView.ts';
+import type { TimeClusteringLayoutMode } from '../time-clustering/domain/types.ts';
+import { AppRuntime } from '../../app-runtime/index.ts';
+import { WorkspaceAppMenu } from './components/WorkspaceAppMenu.ts';
+import type { WallpaperService } from './services/WallpaperService.ts';
+import type { WorkspaceViewSwitcherMode } from './WorkspaceViewSwitcherMachine.ts';
+
+const WORKSPACE_VIEW_SWITCHER_PEEK_HANDLE_WIDTH_PX = 58;
+const WORKSPACE_VIEW_SWITCHER_PEEK_HANDLE_HEIGHT_PX = 28;
+const WORKSPACE_VIEW_SWITCHER_HIDDEN_HANDLE_WIDTH_PX = 52;
+const WORKSPACE_VIEW_SWITCHER_HIDDEN_HANDLE_HEIGHT_PX = 26;
+const WORKSPACE_VIEW_SWITCHER_INTENT_ZONE_PADDING_PX = 5;
+const WORKSPACE_VIEW_SWITCHER_PEEK_BOTTOM_OFFSET_PX = -8;
+const WORKSPACE_VIEW_SWITCHER_PEEK_HIDDEN_OFFSET_PX = -14;
+const WORKSPACE_VIEW_SWITCHER_FALLBACK_HEIGHT_PX = 44;
+const WORKSPACE_VIEW_SWITCHER_OPEN_TRANSFORM_MS = 320;
+const WORKSPACE_VIEW_SWITCHER_OPEN_OPACITY_MS = 260;
+const WORKSPACE_VIEW_SWITCHER_OPEN_EASING = 'cubic-bezier(0.16, 1, 0.3, 1)';
+const WORKSPACE_VIEW_SWITCHER_CLOSE_TRANSFORM_MS = 190;
+const WORKSPACE_VIEW_SWITCHER_CLOSE_OPACITY_MS = 160;
+const WORKSPACE_VIEW_SWITCHER_CLOSE_EASING = 'cubic-bezier(0.4, 0, 1, 1)';
+const WORKSPACE_VIEW_SWITCHER_PANEL_PEEK_SCALE = 0.972;
+const WORKSPACE_VIEW_SWITCHER_PANEL_PEEK_OPACITY = 0.76;
+const WORKSPACE_VIEW_SWITCHER_HANDLE_HIDE_SCALE = 0.88;
+const WORKSPACE_VIEW_SWITCHER_HANDLE_HIDE_TRANSLATE_Y_PX = 10;
+
+type WorkspaceViewSwitcherViewCallbacks = {
+  onIntentZoneEnter: () => void;
+  onIntentZoneLeave: () => void;
+  onControlsEnter: () => void;
+  onControlsLeave: (event: MouseEvent) => void;
+  onPeekEnter: () => void;
+  onPeekLeave: (event: MouseEvent) => void;
+  onHandleClick: () => void;
+  onPinClick: () => void;
+  onInteractionCapture: (event: Event) => void;
+  onKeyDown: (event: KeyboardEvent) => void;
+  onFocusIn: () => void;
+  onFocusOut: () => void;
+};
+
+type WorkspaceViewSwitcherViewOptions = {
+  runtime: AppRuntime;
+  wallpaperService?: WallpaperService;
+  initialView: WorkspaceView;
+  autoCollapseEnabled: boolean;
+  showKanban?: boolean;
+  showLearningStudio?: boolean;
+  showTimeClustering?: boolean;
+  showRoutines?: boolean;
+  showChat?: boolean;
+  initialTimeClusteringOpen?: boolean;
+  initialTimeClusteringLayoutMode?: TimeClusteringLayoutMode;
+  callbacks: WorkspaceViewSwitcherViewCallbacks;
+};
+
+export type WorkspaceViewSwitcherRenderState = {
+  activeView: WorkspaceView;
+  collapsedOffsetPx: number;
+  mode: WorkspaceViewSwitcherMode;
+};
+
+export class WorkspaceViewSwitcherView {
+  public readonly element: HTMLDivElement;
+  public readonly shouldRender: boolean;
+
+  private readonly runtime: AppRuntime;
+  private readonly callbacks: WorkspaceViewSwitcherViewCallbacks;
+  private readonly controls: WorkspaceControlsBar;
+  private readonly controlsAccessory: HTMLDivElement;
+  private readonly appMenu: WorkspaceAppMenu;
+  private readonly autoCollapseEnabled: boolean;
+  private readonly intentZone: HTMLDivElement;
+  private readonly handleDock: HTMLDivElement;
+  private readonly handleButton: HTMLButtonElement;
+  private readonly handleViewIcon: HTMLSpanElement;
+  private readonly handleChevronIcon: HTMLSpanElement;
+  private readonly pinButton: HTMLButtonElement;
+  private readonly pinIcon: HTMLSpanElement;
+
+  constructor(options: WorkspaceViewSwitcherViewOptions) {
+    this.runtime = options.runtime;
+    this.callbacks = options.callbacks;
+    this.autoCollapseEnabled = options.autoCollapseEnabled;
+    this.appMenu = new WorkspaceAppMenu(this.runtime, {
+      wallpaperService: options.wallpaperService,
+    });
+
+    this.handleViewIcon = document.createElement('span');
+    this.handleViewIcon.style.display = 'inline-flex';
+    this.handleViewIcon.style.alignItems = 'center';
+    this.handleViewIcon.style.justifyContent = 'center';
+    this.handleViewIcon.style.width = '18px';
+    this.handleViewIcon.style.height = '18px';
+    this.handleViewIcon.style.borderRadius = '999px';
+    this.handleViewIcon.style.background = 'rgba(255, 255, 255, 0.1)';
+
+    this.handleChevronIcon = document.createElement('span');
+    this.handleChevronIcon.style.display = 'inline-flex';
+    this.handleChevronIcon.style.alignItems = 'center';
+    this.handleChevronIcon.style.justifyContent = 'center';
+    this.handleChevronIcon.style.width = '12px';
+    this.handleChevronIcon.style.height = '12px';
+    this.handleChevronIcon.style.opacity = '0.76';
+
+    this.handleButton = document.createElement('button');
+    this.handleButton.type = 'button';
+    this.handleButton.dataset.role = 'workspace-view-switcher-handle';
+    this.handleButton.style.display = 'inline-flex';
+    this.handleButton.style.alignItems = 'center';
+    this.handleButton.style.justifyContent = 'center';
+    this.handleButton.style.gap = '6px';
+    this.handleButton.style.width = `${WORKSPACE_VIEW_SWITCHER_PEEK_HANDLE_WIDTH_PX}px`;
+    this.handleButton.style.height = `${WORKSPACE_VIEW_SWITCHER_PEEK_HANDLE_HEIGHT_PX}px`;
+    this.handleButton.style.padding = '0 10px';
+    this.handleButton.style.border = 'none';
+    this.handleButton.style.borderRadius = '999px';
+    this.handleButton.style.background = 'rgba(15, 23, 42, 0.76)';
+    this.handleButton.style.color = '#f8fafc';
+    this.handleButton.style.boxShadow = '0 10px 24px rgba(15, 23, 42, 0.14)';
+    this.handleButton.style.cursor = 'pointer';
+    this.handleButton.style.pointerEvents = 'auto';
+    this.handleButton.append(this.handleViewIcon, this.handleChevronIcon);
+
+    this.pinIcon = document.createElement('span');
+    this.pinIcon.style.display = 'inline-flex';
+    this.pinIcon.style.alignItems = 'center';
+    this.pinIcon.style.justifyContent = 'center';
+
+    this.pinButton = document.createElement('button');
+    this.pinButton.type = 'button';
+    this.pinButton.dataset.role = 'workspace-view-switcher-pin';
+    this.pinButton.style.display = this.autoCollapseEnabled
+      ? 'inline-flex'
+      : 'none';
+    this.pinButton.style.alignItems = 'center';
+    this.pinButton.style.justifyContent = 'center';
+    this.pinButton.style.width = '32px';
+    this.pinButton.style.height = '32px';
+    this.pinButton.style.padding = '0';
+    this.pinButton.style.border = 'none';
+    this.pinButton.style.borderRadius = '10px';
+    this.pinButton.style.background = 'rgba(15, 23, 42, 0.88)';
+    this.pinButton.style.color = '#f8fafc';
+    this.pinButton.style.boxShadow = '0 8px 18px rgba(15, 23, 42, 0.14)';
+    this.pinButton.style.cursor = 'pointer';
+    this.pinButton.style.pointerEvents = 'auto';
+    this.pinButton.append(this.pinIcon);
+
+    this.controlsAccessory = document.createElement('div');
+    this.controlsAccessory.dataset.role =
+      'workspace-view-switcher-panel-accessory';
+    this.controlsAccessory.style.display = 'inline-flex';
+    this.controlsAccessory.style.alignItems = 'center';
+    this.controlsAccessory.style.gap = '6px';
+    this.controlsAccessory.style.flexShrink = '0';
+    this.controlsAccessory.append(this.pinButton, this.appMenu.element);
+
+    this.controls = new WorkspaceControlsBar({
+      runtime: this.runtime,
+      initialView: options.initialView,
+      initialTimeClusteringOpen: options.initialTimeClusteringOpen,
+      initialTimeClusteringLayoutMode: options.initialTimeClusteringLayoutMode,
+      showKanban: options.showKanban,
+      showLearningStudio: options.showLearningStudio,
+      showTimeClustering: options.showTimeClustering,
+      showRoutines: options.showRoutines,
+      showChat: options.showChat,
+      trailingAccessory: this.controlsAccessory,
+      variant: 'floating',
+    });
+    this.shouldRender = this.controls.shouldRender;
+
+    this.intentZone = document.createElement('div');
+    this.intentZone.dataset.role = 'workspace-view-switcher-intent-zone';
+    this.intentZone.style.position = 'absolute';
+    this.intentZone.style.left = '50%';
+    this.intentZone.style.bottom = `${
+      WORKSPACE_VIEW_SWITCHER_PEEK_BOTTOM_OFFSET_PX -
+      WORKSPACE_VIEW_SWITCHER_INTENT_ZONE_PADDING_PX
+    }px`;
+    this.intentZone.style.width = `${
+      WORKSPACE_VIEW_SWITCHER_PEEK_HANDLE_WIDTH_PX +
+      WORKSPACE_VIEW_SWITCHER_INTENT_ZONE_PADDING_PX * 2
+    }px`;
+    this.intentZone.style.height = `${
+      WORKSPACE_VIEW_SWITCHER_PEEK_HANDLE_HEIGHT_PX +
+      WORKSPACE_VIEW_SWITCHER_INTENT_ZONE_PADDING_PX * 2
+    }px`;
+    this.intentZone.style.transform = 'translateX(-50%)';
+    this.intentZone.style.pointerEvents = 'auto';
+    this.intentZone.style.opacity = '0';
+    this.intentZone.style.background = 'transparent';
+
+    this.handleDock = document.createElement('div');
+    this.handleDock.dataset.role = 'workspace-view-switcher-handle-dock';
+    this.handleDock.style.position = 'absolute';
+    this.handleDock.style.left = '50%';
+    this.handleDock.style.bottom = `${WORKSPACE_VIEW_SWITCHER_PEEK_BOTTOM_OFFSET_PX}px`;
+    this.handleDock.style.transform = 'translateX(-50%) translateY(0px)';
+    this.handleDock.style.display = 'inline-flex';
+    this.handleDock.style.alignItems = 'center';
+    this.handleDock.style.justifyContent = 'center';
+    this.handleDock.style.pointerEvents = 'auto';
+    this.handleDock.append(this.handleButton);
+
+    this.element = document.createElement('div');
+    this.element.id = 'workspace-view-switcher';
+    this.element.style.position = 'fixed';
+    this.element.style.bottom = '16px';
+    this.element.style.left = '50%';
+    this.element.style.transform = 'translateX(-50%)';
+    this.element.style.zIndex = '45';
+    this.element.style.pointerEvents = 'none';
+    this.element.append(this.controls.element, this.intentZone, this.handleDock);
+    this.controls.element.style.willChange = 'transform, opacity';
+    this.controls.element.style.transformOrigin = 'center bottom';
+
+    this.controls.element.addEventListener(
+      'mouseenter',
+      this.callbacks.onControlsEnter
+    );
+    this.controls.element.addEventListener(
+      'mouseleave',
+      this.callbacks.onControlsLeave
+    );
+    this.intentZone.addEventListener(
+      'mouseenter',
+      this.callbacks.onIntentZoneEnter
+    );
+    this.intentZone.addEventListener(
+      'mouseleave',
+      this.callbacks.onIntentZoneLeave
+    );
+    this.handleButton.addEventListener('mouseenter', this.callbacks.onPeekEnter);
+    this.handleButton.addEventListener('mouseleave', this.callbacks.onPeekLeave);
+    this.handleButton.addEventListener('click', this.callbacks.onHandleClick);
+    this.pinButton.addEventListener('click', this.callbacks.onPinClick);
+    this.element.addEventListener(
+      'click',
+      this.callbacks.onInteractionCapture,
+      true
+    );
+    this.element.addEventListener('keydown', this.callbacks.onKeyDown);
+    this.element.addEventListener('focusin', this.callbacks.onFocusIn);
+    this.element.addEventListener('focusout', this.callbacks.onFocusOut);
+  }
+
+  public mount(parent: HTMLElement = document.body): void {
+    if (!this.shouldRender) return;
+    if (this.element.parentElement) return;
+    parent.appendChild(this.element);
+    this.appMenu.mount();
+  }
+
+  public unmount(): void {
+    this.appMenu.unmount();
+    this.element.remove();
+  }
+
+  public destroy(): void {
+    this.unmount();
+    this.controls.element.removeEventListener(
+      'mouseenter',
+      this.callbacks.onControlsEnter
+    );
+    this.controls.element.removeEventListener(
+      'mouseleave',
+      this.callbacks.onControlsLeave
+    );
+    this.intentZone.removeEventListener(
+      'mouseenter',
+      this.callbacks.onIntentZoneEnter
+    );
+    this.intentZone.removeEventListener(
+      'mouseleave',
+      this.callbacks.onIntentZoneLeave
+    );
+    this.handleButton.removeEventListener('mouseenter', this.callbacks.onPeekEnter);
+    this.handleButton.removeEventListener('mouseleave', this.callbacks.onPeekLeave);
+    this.handleButton.removeEventListener('click', this.callbacks.onHandleClick);
+    this.pinButton.removeEventListener('click', this.callbacks.onPinClick);
+    this.element.removeEventListener(
+      'click',
+      this.callbacks.onInteractionCapture,
+      true
+    );
+    this.element.removeEventListener('keydown', this.callbacks.onKeyDown);
+    this.element.removeEventListener('focusin', this.callbacks.onFocusIn);
+    this.element.removeEventListener('focusout', this.callbacks.onFocusOut);
+    this.controls.destroy();
+  }
+
+  public prime(): void {
+    this.controls.prime();
+  }
+
+  public render(state: WorkspaceViewSwitcherRenderState): void {
+    const peek = state.mode === 'peek';
+    const expanded = state.mode !== 'peek';
+    const pinned = state.mode === 'pinned';
+    const publicMode = pinned ? 'pinned' : expanded ? 'open' : 'peek';
+    const offset = expanded ? 0 : state.collapsedOffsetPx;
+    const scale = expanded ? 1 : WORKSPACE_VIEW_SWITCHER_PANEL_PEEK_SCALE;
+
+    this.applyMotionProfile(expanded);
+
+    this.controls.element.style.transform = `translateY(${offset}px) scale(${scale})`;
+    this.controls.element.style.opacity = expanded
+      ? '1'
+      : `${WORKSPACE_VIEW_SWITCHER_PANEL_PEEK_OPACITY}`;
+    this.controls.element.style.pointerEvents = expanded ? 'auto' : 'none';
+
+    this.element.dataset.mode = publicMode;
+    this.element.dataset.collapsed = expanded ? 'false' : 'true';
+    this.element.dataset.pinned = pinned ? 'true' : 'false';
+
+    this.handleViewIcon.replaceChildren(
+      createIcon(this.getHandleViewIconName(state.activeView), {
+        size: 12,
+        strokeWidth: 1.9,
+      })
+    );
+    this.handleChevronIcon.replaceChildren(
+      createIcon(expanded ? 'chevron-down' : 'chevron-up', {
+        size: 12,
+        strokeWidth: 1.9,
+      })
+    );
+
+    this.handleButton.title = this.runtime.i18n.t('workspaceControls.showControls');
+    this.handleButton.setAttribute('aria-label', this.handleButton.title);
+    this.handleButton.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    this.handleButton.style.width = peek
+      ? `${WORKSPACE_VIEW_SWITCHER_PEEK_HANDLE_WIDTH_PX}px`
+      : `${WORKSPACE_VIEW_SWITCHER_HIDDEN_HANDLE_WIDTH_PX}px`;
+    this.handleButton.style.height = peek
+      ? `${WORKSPACE_VIEW_SWITCHER_PEEK_HANDLE_HEIGHT_PX}px`
+      : `${WORKSPACE_VIEW_SWITCHER_HIDDEN_HANDLE_HEIGHT_PX}px`;
+    this.handleButton.style.background = peek
+      ? 'rgba(15, 23, 42, 0.76)'
+      : 'rgba(15, 23, 42, 0.7)';
+    this.handleButton.style.boxShadow = peek
+      ? '0 10px 24px rgba(15, 23, 42, 0.14)'
+      : '0 8px 20px rgba(15, 23, 42, 0.12)';
+    this.handleButton.style.pointerEvents = peek ? 'auto' : 'none';
+    this.handleButton.tabIndex = peek ? 0 : -1;
+    this.handleButton.setAttribute('aria-hidden', peek ? 'false' : 'true');
+
+    this.handleViewIcon.style.width = peek ? '18px' : '16px';
+    this.handleViewIcon.style.height = peek ? '18px' : '16px';
+    this.handleViewIcon.style.opacity = peek ? '1' : '0.88';
+
+    this.handleChevronIcon.style.opacity = peek ? '0.76' : '0.66';
+    this.handleChevronIcon.style.transform = expanded
+      ? 'translateY(1px)'
+      : 'translateY(0px)';
+
+    this.handleDock.style.bottom = `${
+      peek
+        ? WORKSPACE_VIEW_SWITCHER_PEEK_BOTTOM_OFFSET_PX
+        : WORKSPACE_VIEW_SWITCHER_PEEK_HIDDEN_OFFSET_PX
+    }px`;
+    this.handleDock.style.opacity = peek ? '1' : '0';
+    this.handleDock.style.pointerEvents = peek ? 'auto' : 'none';
+    this.handleDock.style.transform = peek
+      ? 'translateX(-50%) translateY(0px) scale(1)'
+      : `translateX(-50%) translateY(${WORKSPACE_VIEW_SWITCHER_HANDLE_HIDE_TRANSLATE_Y_PX}px) scale(${WORKSPACE_VIEW_SWITCHER_HANDLE_HIDE_SCALE})`;
+
+    this.intentZone.style.display = this.autoCollapseEnabled && peek ? 'block' : 'none';
+
+    this.pinIcon.replaceChildren(
+      createIcon(pinned ? 'lock-closed' : 'lock-open', {
+        size: 12,
+        strokeWidth: 1.9,
+      })
+    );
+    this.pinButton.title = this.runtime.i18n.t(
+      pinned
+        ? 'workspaceControls.unpinControls'
+        : 'workspaceControls.pinControls'
+    );
+    this.pinButton.setAttribute('aria-label', this.pinButton.title);
+    this.pinButton.setAttribute('aria-pressed', pinned ? 'true' : 'false');
+    this.pinButton.style.display =
+      this.autoCollapseEnabled && expanded ? 'inline-flex' : 'none';
+    this.pinButton.style.background = pinned
+      ? 'rgba(30, 41, 59, 0.96)'
+      : 'rgba(15, 23, 42, 0.88)';
+    this.pinButton.style.color = pinned ? '#e2e8f0' : '#f8fafc';
+    this.pinButton.style.opacity = pinned ? '1' : '0.92';
+    this.pinButton.style.transform = 'translateY(0px)';
+  }
+
+  public setActiveView(view: WorkspaceView): void {
+    this.controls.setActiveView(view);
+  }
+
+  public setChatOpen(open: boolean): void {
+    this.controls.setChatOpen(open);
+  }
+
+  public setTimeClusteringOpen(open: boolean): void {
+    this.controls.setTimeClusteringOpen(open);
+  }
+
+  public setTimeClusteringLayoutMode(mode: TimeClusteringLayoutMode): void {
+    this.controls.setTimeClusteringLayoutMode(mode);
+  }
+
+  public measureControlsHeight(): number {
+    return (
+      this.controls.element.getBoundingClientRect().height ||
+      WORKSPACE_VIEW_SWITCHER_FALLBACK_HEIGHT_PX
+    );
+  }
+
+  public getControlsElement(): HTMLDivElement {
+    return this.controls.element;
+  }
+
+  public contains(node: Node | null): boolean {
+    return node instanceof Node ? this.element.contains(node) : false;
+  }
+
+  public setVisible(visible: boolean): void {
+    this.element.style.display = visible ? 'block' : 'none';
+  }
+
+  public isMounted(): boolean {
+    return this.element.parentElement !== null;
+  }
+
+  public isAppMenuOpen(): boolean {
+    return this.appMenu.isOpen();
+  }
+
+  public closeAppMenu(): void {
+    this.appMenu.close();
+  }
+  private applyMotionProfile(expanded: boolean): void {
+    const transformMs = expanded
+      ? WORKSPACE_VIEW_SWITCHER_OPEN_TRANSFORM_MS
+      : WORKSPACE_VIEW_SWITCHER_CLOSE_TRANSFORM_MS;
+    const opacityMs = expanded
+      ? WORKSPACE_VIEW_SWITCHER_OPEN_OPACITY_MS
+      : WORKSPACE_VIEW_SWITCHER_CLOSE_OPACITY_MS;
+    const easing = expanded
+      ? WORKSPACE_VIEW_SWITCHER_OPEN_EASING
+      : WORKSPACE_VIEW_SWITCHER_CLOSE_EASING;
+    const handleOpacityDelayMs = expanded ? 0 : 36;
+
+    this.controls.element.style.transition =
+      `transform ${transformMs}ms ${easing}, ` +
+      `opacity ${opacityMs}ms ${easing}`;
+    this.handleDock.style.transition =
+      `bottom ${transformMs}ms ${easing}, ` +
+      `transform ${transformMs}ms ${easing}, ` +
+      `opacity ${opacityMs}ms ${easing} ${handleOpacityDelayMs}ms`;
+    this.handleButton.style.transition =
+      `transform ${transformMs}ms ${easing}, ` +
+      `width ${transformMs}ms ${easing}, ` +
+      `height ${transformMs}ms ${easing}, ` +
+      `background-color ${transformMs}ms ${easing}, ` +
+      `box-shadow ${transformMs}ms ${easing}, ` +
+      `opacity ${opacityMs}ms ${easing}`;
+    this.handleViewIcon.style.transition =
+      `width ${transformMs}ms ${easing}, ` +
+      `height ${transformMs}ms ${easing}, ` +
+      `background-color ${transformMs}ms ${easing}, ` +
+      `opacity ${opacityMs}ms ${easing}`;
+    this.handleChevronIcon.style.transition =
+      `opacity ${opacityMs}ms ${easing}, ` +
+      `transform ${transformMs}ms ${easing}`;
+    this.pinButton.style.transition =
+      `transform ${transformMs}ms ${easing}, ` +
+      `background-color ${transformMs}ms ${easing}, ` +
+      `color ${transformMs}ms ${easing}, ` +
+      `opacity ${opacityMs}ms ${easing}`;
+  }
+
+  private getHandleViewIconName(view: WorkspaceView): IconName {
+    if (view === 'kanban') return 'view-columns';
+    if (view === 'learning-studio') return 'academic-cap';
+    return 'map';
+  }
+}
