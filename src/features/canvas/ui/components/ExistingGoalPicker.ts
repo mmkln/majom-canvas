@@ -245,12 +245,10 @@ export class ExistingGoalPicker {
       suggestionsPanel.style.display =
         snapshot.suggestedTags.length > 0 ? 'block' : 'none';
 
-      stateMessage.style.display = snapshot.showStateMessage ? 'block' : 'none';
-      stateMessage.textContent = snapshot.tagsLoading
-        ? api.runtime.i18n.t('existingPicker.goalTagLoading')
-        : snapshot.tagsLoadFailed
-          ? api.runtime.i18n.t('existingPicker.goalTagLoadFailed')
-          : '';
+      stateMessage.style.display = snapshot.tagsLoadFailed ? 'block' : 'none';
+      stateMessage.textContent = snapshot.tagsLoadFailed
+        ? api.runtime.i18n.t('existingPicker.goalTagLoadFailed')
+        : '';
     };
 
     const commitSearch = (mode: 'auto' | 'explicit' = 'explicit'): void => {
@@ -415,9 +413,6 @@ export class ExistingGoalPicker {
         });
       }
       return runtime.i18n.t('existingPicker.goalQueryHashSuggestionsHint');
-    }
-    if (!snapshot.hasActiveQuery) {
-      return runtime.i18n.t('existingPicker.goalQueryHashHint');
     }
     return '';
   }

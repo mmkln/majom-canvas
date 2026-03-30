@@ -71,7 +71,6 @@ export const uk = {
   'existingPicker.goalTagSuggestions': 'Теги за запитом',
   'existingPicker.goalQueryAppliedFilters': 'Застосовано тегових фільтрів: {count}',
   'existingPicker.goalQueryClearAll': 'Очистити все',
-  'existingPicker.goalQueryHashHint': 'Введіть #тег, щоб перетворити його на фільтр цілей.',
   'existingPicker.goalQueryHashCommitHint':
     'Натисніть Enter, щоб застосувати {query} як теговий фільтр.',
   'existingPicker.goalQueryHashSuggestionsHint':

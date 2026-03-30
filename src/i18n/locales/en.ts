@@ -69,7 +69,6 @@ export const en = {
   'existingPicker.goalTagSuggestions': 'Matching tags',
   'existingPicker.goalQueryAppliedFilters': '{count} tag filters applied',
   'existingPicker.goalQueryClearAll': 'Clear all',
-  'existingPicker.goalQueryHashHint': 'Type #tag to turn it into a goal tag filter.',
   'existingPicker.goalQueryHashCommitHint':
     'Press Enter to apply {query} as a tag filter.',
   'existingPicker.goalQueryHashSuggestionsHint':

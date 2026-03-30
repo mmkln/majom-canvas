@@ -2941,8 +2941,8 @@ export class TimeClusteringRootView {
     cell.type = 'button';
     cell.dataset.selected = isSelectedDate ? 'true' : 'false';
     cell.className = isSelectedDate
-      ? 'relative rounded-lg px-3 py-1.5 text-left ring-1 ring-slate-200/80 transition-colors hover:bg-slate-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200'
-      : 'relative px-3 py-1.5 text-left transition-colors hover:bg-slate-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200';
+      ? 'relative rounded-lg bg-slate-50/70 px-3 py-1.5 text-left transition-colors hover:ring-1 hover:ring-slate-200/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200'
+      : 'relative rounded-lg px-3 py-1.5 text-left transition-colors hover:ring-1 hover:ring-slate-200/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200';
     cell.title = formatPeriodDate(this.i18n, dateKey);
     cell.setAttribute(
       'aria-label',
