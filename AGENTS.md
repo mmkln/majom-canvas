@@ -104,6 +104,16 @@
 - The assistant may create temporary self-check tests or short-lived verification harnesses while implementing a change, but they must be deleted after verification unless they clearly protect meaningful product behavior under the rules above.
 - Do not leave behind ad hoc tests, throwaway fixtures, or one-off verification files that exist only to validate the assistant's current implementation pass.
 
+### Bug-Fix Testing Workflow
+
+- Before changing code for a bug fix, first reproduce and localize the bug with tests.
+- Do not start a speculative fix until the root cause is identified with high confidence through a failing or diagnostic test at the right level (`integration` first by default, then `unit` if needed to isolate further).
+- Treat bug-fix work as a two-step process:
+  1. create or run the smallest test that reliably reproduces the bug and proves the root cause;
+  2. only then implement the fix and keep the regression protection that guards the real behavior.
+- Prefer focused integration tests for bug localization because most regressions happen at module boundaries; add unit tests only after the suspect logic is narrowed down.
+- If the cause cannot be proven through automated tests because the issue depends on external systems, browser quirks, or manual-only behavior, explicitly state that limitation before applying a fix and add the strongest reproducible test coverage that is still possible.
+
 ### Learning From Corrections
 
 - When the user corrects the assistant and that correction reveals a stable project rule, a recurring mistake, a contradiction, or an important edge case, update `AGENTS.md` in the same task unless the user explicitly says not to.
