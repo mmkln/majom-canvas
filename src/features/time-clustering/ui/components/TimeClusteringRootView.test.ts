@@ -1503,7 +1503,7 @@ describe('TimeClusteringRootView', () => {
       '[data-role="calendar-day-column"][data-date-key="2026-03-23"]'
     ) as HTMLDivElement | null;
     expect(todayColumn?.className).toContain('bg-sky-50/40');
-    expect(mondayColumn?.className).toContain('bg-slate-50/80');
+    expect(mondayColumn?.className).toContain('bg-slate-100');
 
     view.unmount();
     store.destroy();

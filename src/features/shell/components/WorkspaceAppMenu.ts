@@ -15,6 +15,7 @@ import {
   createDivider,
   createDropdownItem,
   createIconButton,
+  type IconButtonTone,
   createSurface,
 } from '../../canvas/ui/primitives/index.ts';
 import {
@@ -42,6 +43,9 @@ type ProfileSettingsWallpaperService = Pick<
 
 type WorkspaceAppMenuOptions = {
   wallpaperService?: ProfileSettingsWallpaperService;
+  triggerButtonTone?: IconButtonTone;
+  triggerButtonSize?: 'sm' | 'md' | 'lg';
+  triggerButtonClassName?: string;
 };
 
 export class WorkspaceAppMenu {
@@ -108,7 +112,9 @@ export class WorkspaceAppMenu {
 
     this.button = createIconButton({
       icon: 'ellipsis-vertical',
-      tone: 'soft',
+      tone: options.triggerButtonTone ?? 'soft',
+      size: options.triggerButtonSize ?? 'md',
+      className: options.triggerButtonClassName,
       title: this.i18n.t('header.openAppMenu'),
       ariaLabel: this.i18n.t('header.openAppMenu'),
       onClick: (event) => {

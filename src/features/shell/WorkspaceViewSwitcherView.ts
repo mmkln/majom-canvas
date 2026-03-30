@@ -3,6 +3,10 @@ import { createIcon, type IconName } from '../canvas/ui/icons.ts';
 import type { WorkspaceView } from './WorkspaceView.ts';
 import type { TimeClusteringLayoutMode } from '../time-clustering/domain/types.ts';
 import { AppRuntime } from '../../app-runtime/index.ts';
+import {
+  createIconButton,
+  setIconButtonContent,
+} from '../../ui-lib/src/hud/index.ts';
 import { WorkspaceAppMenu } from './components/WorkspaceAppMenu.ts';
 import type { WallpaperService } from './services/WallpaperService.ts';
 import type { WorkspaceViewSwitcherMode } from './WorkspaceViewSwitcherMachine.ts';
@@ -25,6 +29,8 @@ const WORKSPACE_VIEW_SWITCHER_PANEL_PEEK_SCALE = 0.972;
 const WORKSPACE_VIEW_SWITCHER_PANEL_PEEK_OPACITY = 0.76;
 const WORKSPACE_VIEW_SWITCHER_HANDLE_HIDE_SCALE = 0.88;
 const WORKSPACE_VIEW_SWITCHER_HANDLE_HIDE_TRANSLATE_Y_PX = 10;
+const WORKSPACE_VIEW_SWITCHER_ACCESSORY_BUTTON_CLASS =
+  'rounded-[9px] text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100';
 
 type WorkspaceViewSwitcherViewCallbacks = {
   onIntentZoneEnter: () => void;
@@ -78,7 +84,7 @@ export class WorkspaceViewSwitcherView {
   private readonly handleViewIcon: HTMLSpanElement;
   private readonly handleChevronIcon: HTMLSpanElement;
   private readonly pinButton: HTMLButtonElement;
-  private readonly pinIcon: HTMLSpanElement;
+  private readonly pinIndicator: HTMLSpanElement;
 
   constructor(options: WorkspaceViewSwitcherViewOptions) {
     this.runtime = options.runtime;
@@ -86,6 +92,9 @@ export class WorkspaceViewSwitcherView {
     this.autoCollapseEnabled = options.autoCollapseEnabled;
     this.appMenu = new WorkspaceAppMenu(this.runtime, {
       wallpaperService: options.wallpaperService,
+      triggerButtonTone: 'text',
+      triggerButtonSize: 'sm',
+      triggerButtonClassName: WORKSPACE_VIEW_SWITCHER_ACCESSORY_BUTTON_CLASS,
     });
 
     this.handleViewIcon = document.createElement('span');
@@ -124,30 +133,29 @@ export class WorkspaceViewSwitcherView {
     this.handleButton.style.pointerEvents = 'auto';
     this.handleButton.append(this.handleViewIcon, this.handleChevronIcon);
 
-    this.pinIcon = document.createElement('span');
-    this.pinIcon.style.display = 'inline-flex';
-    this.pinIcon.style.alignItems = 'center';
-    this.pinIcon.style.justifyContent = 'center';
-
-    this.pinButton = document.createElement('button');
-    this.pinButton.type = 'button';
+    this.pinButton = createIconButton({
+      icon: 'lock-open',
+      tone: 'text',
+      size: 'sm',
+      className: `hidden shrink-0 relative overflow-visible ${WORKSPACE_VIEW_SWITCHER_ACCESSORY_BUTTON_CLASS}`,
+    });
     this.pinButton.dataset.role = 'workspace-view-switcher-pin';
-    this.pinButton.style.display = this.autoCollapseEnabled
-      ? 'inline-flex'
-      : 'none';
-    this.pinButton.style.alignItems = 'center';
-    this.pinButton.style.justifyContent = 'center';
-    this.pinButton.style.width = '32px';
-    this.pinButton.style.height = '32px';
-    this.pinButton.style.padding = '0';
-    this.pinButton.style.border = 'none';
-    this.pinButton.style.borderRadius = '10px';
-    this.pinButton.style.background = 'rgba(15, 23, 42, 0.88)';
-    this.pinButton.style.color = '#f8fafc';
-    this.pinButton.style.boxShadow = '0 8px 18px rgba(15, 23, 42, 0.14)';
-    this.pinButton.style.cursor = 'pointer';
-    this.pinButton.style.pointerEvents = 'auto';
-    this.pinButton.append(this.pinIcon);
+    this.pinButton.style.display = this.autoCollapseEnabled ? 'inline-flex' : 'none';
+    this.pinIndicator = document.createElement('span');
+    this.pinIndicator.setAttribute('aria-hidden', 'true');
+    this.pinIndicator.style.position = 'absolute';
+    this.pinIndicator.style.left = '50%';
+    this.pinIndicator.style.bottom = '4px';
+    this.pinIndicator.style.display = 'block';
+    this.pinIndicator.style.width = '12px';
+    this.pinIndicator.style.height = '2px';
+    this.pinIndicator.style.borderRadius = '999px';
+    this.pinIndicator.style.background = '#6366f1';
+    this.pinIndicator.style.opacity = '0';
+    this.pinIndicator.style.transform = 'translateX(-50%) scaleX(0.45)';
+    this.pinIndicator.style.transition =
+      'opacity 180ms ease-out, transform 180ms ease-out';
+    this.pinButton.append(this.pinIndicator);
 
     this.controlsAccessory = document.createElement('div');
     this.controlsAccessory.dataset.role =
@@ -371,7 +379,8 @@ export class WorkspaceViewSwitcherView {
 
     this.intentZone.style.display = this.autoCollapseEnabled && peek ? 'block' : 'none';
 
-    this.pinIcon.replaceChildren(
+    setIconButtonContent(
+      this.pinButton,
       createIcon(pinned ? 'lock-closed' : 'lock-open', {
         size: 12,
         strokeWidth: 1.9,
@@ -386,12 +395,15 @@ export class WorkspaceViewSwitcherView {
     this.pinButton.setAttribute('aria-pressed', pinned ? 'true' : 'false');
     this.pinButton.style.display =
       this.autoCollapseEnabled && expanded ? 'inline-flex' : 'none';
-    this.pinButton.style.background = pinned
-      ? 'rgba(30, 41, 59, 0.96)'
-      : 'rgba(15, 23, 42, 0.88)';
-    this.pinButton.style.color = pinned ? '#e2e8f0' : '#f8fafc';
-    this.pinButton.style.opacity = pinned ? '1' : '0.92';
-    this.pinButton.style.transform = 'translateY(0px)';
+    this.pinButton.classList.toggle('bg-indigo-50', pinned);
+    this.pinButton.classList.toggle('text-indigo-700', pinned);
+    this.pinButton.classList.toggle('hover:bg-indigo-50', pinned);
+    this.pinButton.classList.toggle('hover:text-indigo-700', pinned);
+    this.pinButton.classList.toggle('active:bg-indigo-100', pinned);
+    this.pinIndicator.style.opacity = pinned ? '1' : '0';
+    this.pinIndicator.style.transform = pinned
+      ? 'translateX(-50%) scaleX(1)'
+      : 'translateX(-50%) scaleX(0.45)';
   }
 
   public setActiveView(view: WorkspaceView): void {
@@ -475,7 +487,6 @@ export class WorkspaceViewSwitcherView {
       `opacity ${opacityMs}ms ${easing}, ` +
       `transform ${transformMs}ms ${easing}`;
     this.pinButton.style.transition =
-      `transform ${transformMs}ms ${easing}, ` +
       `background-color ${transformMs}ms ${easing}, ` +
       `color ${transformMs}ms ${easing}, ` +
       `opacity ${opacityMs}ms ${easing}`;

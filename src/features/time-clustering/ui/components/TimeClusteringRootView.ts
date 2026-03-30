@@ -243,37 +243,95 @@ function createCalendarDayChip(params: {
     selected: params.selected,
     size: 'compact',
     className:
-      '!relative !h-auto min-h-[42px] w-full min-w-0 flex-col gap-0 rounded-xl px-2 py-1.5 text-center',
+      '!relative !h-auto min-h-[42px] w-full min-w-0 flex-col gap-0 rounded-xl px-2 py-2 text-center data-[selected=true]:bg-slate-100 data-[selected=true]:text-slate-900 data-[selected=true]:hover:bg-slate-200/80',
   });
   chip.onclick = params.onClick;
 
   const weekday = document.createElement('p');
-  weekday.className = params.selected
-    ? 'text-[9px] font-semibold uppercase leading-none tracking-[0.08em] text-indigo-500'
-    : params.isToday
-      ? 'text-[9px] font-semibold uppercase leading-none tracking-[0.08em] text-indigo-500'
-      : 'text-[9px] font-semibold uppercase leading-none tracking-[0.08em] text-slate-400';
+  weekday.className = `text-[9px] font-semibold uppercase leading-none tracking-[0.08em] ${getCalendarWeekdayToneClass({
+    selected: params.selected,
+    isToday: params.isToday,
+    variant: 'compact',
+  })}`;
   weekday.textContent = params.weekdayLabel;
 
   const dayNumber = document.createElement('p');
-  dayNumber.className = params.selected
-    ? 'mt-1 text-[14px] font-semibold leading-none text-indigo-700'
-    : params.isToday
-      ? 'mt-1 text-[14px] font-semibold leading-none text-indigo-700'
-      : 'mt-1 text-[14px] font-semibold leading-none text-slate-700';
+  dayNumber.className = `mt-1 text-[14px] font-semibold leading-none ${getCalendarDayNumberToneClass(
+    {
+      selected: params.selected,
+      isToday: params.isToday,
+      variant: 'compact',
+    }
+  )}`;
   dayNumber.textContent = params.dayLabel;
 
   chip.append(weekday, dayNumber);
   if (params.isToday) {
-    const marker = document.createElement('span');
-    marker.className = params.selected
-      ? 'pointer-events-none absolute right-2.5 top-2.5 block h-2 w-2 rounded-[3px] bg-indigo-600 ring-1 ring-white/90'
-      : 'pointer-events-none absolute right-2.5 top-2.5 block h-2 w-2 rounded-[3px] bg-indigo-500 ring-1 ring-white/90';
-    marker.dataset.role = 'calendar-day-chip-today-marker';
-    marker.setAttribute('aria-hidden', 'true');
-    chip.appendChild(marker);
+    chip.appendChild(
+      createCalendarTodayMarker({
+        selected: params.selected,
+        role: 'calendar-day-chip-today-marker',
+        alignment: 'center',
+      })
+    );
   }
   return chip;
+}
+
+function createCalendarTodayMarker(options: {
+  selected: boolean;
+  role: string;
+  alignment: 'start' | 'center';
+}): HTMLSpanElement {
+  const marker = document.createElement('span');
+  marker.className = [
+    'pointer-events-none mt-1 block h-[2px] w-3 rounded-full',
+    options.alignment === 'center' ? 'mx-auto' : '',
+    options.selected ? 'bg-indigo-600' : 'bg-indigo-500',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  marker.dataset.role = options.role;
+  marker.setAttribute('aria-hidden', 'true');
+  return marker;
+}
+
+function getCalendarWeekdayToneClass(options: {
+  selected: boolean;
+  isToday: boolean;
+  variant: 'compact' | 'header';
+}): string {
+  if (options.isToday) {
+    return 'text-indigo-500';
+  }
+  if (options.selected) {
+    return options.variant === 'header' ? 'text-slate-600' : 'text-slate-500';
+  }
+  return options.variant === 'header' ? 'text-slate-500' : 'text-slate-400';
+}
+
+function getCalendarDayNumberToneClass(options: {
+  selected: boolean;
+  isToday: boolean;
+  variant: 'compact' | 'header';
+}): string {
+  if (options.selected || options.isToday) {
+    return 'text-indigo-700';
+  }
+  return options.variant === 'header' ? 'text-slate-900' : 'text-slate-700';
+}
+
+function getCalendarHeaderSurfaceClass(options: {
+  isToday: boolean;
+  isSelectedDate: boolean;
+}): string {
+  if (options.isToday) {
+    return 'hover:bg-sky-100/60';
+  }
+  if (options.isSelectedDate) {
+    return 'hover:bg-slate-100/80';
+  }
+  return 'hover:bg-slate-100';
 }
 
 function formatWeekdayShort(i18n: I18nService, weekday: number): string {
@@ -2655,7 +2713,7 @@ export class TimeClusteringRootView {
     if (isToday) {
       columnClassNames.push('bg-sky-50/40');
     } else if (calendarMode === 'week' && isSelectedDate) {
-      columnClassNames.push('bg-slate-50/80');
+      columnClassNames.push('bg-slate-100');
     }
     column.className = columnClassNames.join(' ');
     column.style.height = `${HOUR_ROW_HEIGHT_PX * 24}px`;
@@ -2940,9 +2998,14 @@ export class TimeClusteringRootView {
     const cell = document.createElement('button');
     cell.type = 'button';
     cell.dataset.selected = isSelectedDate ? 'true' : 'false';
-    cell.className = isSelectedDate
-      ? 'relative rounded-lg bg-slate-50/70 px-3 py-1.5 text-left transition-colors hover:ring-1 hover:ring-slate-200/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200'
-      : 'relative rounded-lg px-3 py-1.5 text-left transition-colors hover:ring-1 hover:ring-slate-200/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200';
+    cell.className =
+      'relative rounded-xl px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200';
+    cell.classList.add(
+      ...getCalendarHeaderSurfaceClass({
+        isToday,
+        isSelectedDate,
+      }).split(' ')
+    );
     cell.title = formatPeriodDate(this.i18n, dateKey);
     cell.setAttribute(
       'aria-label',
@@ -2957,27 +3020,34 @@ export class TimeClusteringRootView {
     };
 
     const weekday = document.createElement('p');
-    weekday.className = isToday
-      ? 'text-[11px] font-semibold text-indigo-500'
-      : isSelectedDate
-        ? 'text-[11px] font-semibold text-slate-500'
-        : 'text-[11px] font-semibold';
+    weekday.className = `text-[11px] font-semibold leading-none ${getCalendarWeekdayToneClass(
+      {
+        selected: isSelectedDate,
+        isToday,
+        variant: 'header',
+      }
+    )}`;
     weekday.textContent = formatWeekdayLabel(this.i18n, dateKey);
 
     const date = document.createElement('p');
-    date.className = isToday
-      ? 'mt-0.5 text-base font-semibold text-indigo-700'
-      : 'mt-0.5 text-base font-semibold text-slate-900';
+    date.className = `mt-1 text-base font-semibold leading-none ${getCalendarDayNumberToneClass(
+      {
+        selected: isSelectedDate,
+        isToday,
+        variant: 'header',
+      }
+    )}`;
     date.textContent = formatDayNumber(this.i18n, dateKey);
 
     cell.append(weekday, date);
     if (isToday) {
-      const todayMarker = document.createElement('span');
-      todayMarker.className =
-        'pointer-events-none absolute right-2 top-2 block h-2 w-2 rounded-[3px] bg-indigo-500 ring-1 ring-white/90';
-      todayMarker.dataset.role = 'week-day-today-marker';
-      todayMarker.setAttribute('aria-hidden', 'true');
-      cell.appendChild(todayMarker);
+      cell.appendChild(
+        createCalendarTodayMarker({
+          selected: isSelectedDate,
+          role: 'week-day-today-marker',
+          alignment: 'start',
+        })
+      );
     }
     return cell;
   }
