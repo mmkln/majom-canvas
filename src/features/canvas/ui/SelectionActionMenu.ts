@@ -443,14 +443,6 @@ export class SelectionActionMenu {
         onClick: () => {},
       },
       {
-        kind: 'action',
-        id: 'goal-tags',
-        title: this.runtime.i18n.t('selectionMenu.tags'),
-        icon: 'tag',
-        variant: 'goal-tags',
-        isVisible: supportsGoalTags,
-      },
-      {
         kind: 'divider',
         id: 'divider-status',
         isVisible: (context) => isMulti(context) && supportsStatus(context),
@@ -485,6 +477,19 @@ export class SelectionActionMenu {
         title: this.runtime.i18n.t('selectionMenu.aiActions'),
         variant: 'ai',
         isVisible: supportsAi,
+      },
+      {
+        kind: 'divider',
+        id: 'divider-ai-tags',
+        isVisible: (context) => supportsAi(context) && supportsGoalTags(context),
+      },
+      {
+        kind: 'action',
+        id: 'goal-tags',
+        title: this.runtime.i18n.t('selectionMenu.tags'),
+        icon: 'tag',
+        variant: 'goal-tags',
+        isVisible: supportsGoalTags,
       },
       {
         kind: 'divider',

@@ -169,29 +169,40 @@ describe('SelectionActionMenu adapter-driven actions', () => {
     }
   });
 
-  it('places the tags action before copy for goal selections', () => {
+  it('places the tags action between AI and search for goal selections', () => {
     const scene = new Scene();
     const goal = new GoalElement({ id: 'goal-1', title: 'Goal 1' });
     scene.addElement(goal);
     scene.setSelected([goal]);
 
     const selectionMenu = createSelectionActionMenu(scene);
-    const container = document.createElement('div');
-    document.body.appendChild(container);
-    selectionMenu.mount(container);
+    const visibleActionIds = (
+      (selectionMenu as any).actionNodes as Array<{
+        kind: string;
+        id: string;
+        isVisible?: (context: unknown) => boolean;
+      }>
+    )
+      .filter(
+        (node) =>
+          node.kind === 'action' &&
+          (node.isVisible
+            ? node.isVisible({
+                elements: [goal],
+                primary: goal,
+                isMulti: false,
+              })
+            : true)
+      )
+      .map((node) => node.id);
 
-    try {
-      const labels = Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
-        .map((button) => button.getAttribute('aria-label'))
-        .filter((label): label is string => Boolean(label));
-
-      expect(labels.indexOf('Tags')).toBeGreaterThanOrEqual(0);
-      expect(labels.indexOf('Copy')).toBeGreaterThanOrEqual(0);
-      expect(labels.indexOf('Tags')).toBeLessThan(labels.indexOf('Copy'));
-    } finally {
-      selectionMenu.unmount();
-      container.remove();
-    }
+    expect(visibleActionIds.indexOf('ai-menu')).toBeGreaterThanOrEqual(0);
+    expect(visibleActionIds.indexOf('goal-tags')).toBe(
+      visibleActionIds.indexOf('ai-menu') + 1
+    );
+    expect(visibleActionIds.indexOf('add-related')).toBe(
+      visibleActionIds.indexOf('goal-tags') + 1
+    );
   });
 
   it('hides the tags action for mixed multi-selection', () => {

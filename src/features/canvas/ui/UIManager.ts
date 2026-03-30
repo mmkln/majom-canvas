@@ -160,7 +160,7 @@ export class UIManager {
     );
     const existingGoalPicker = new ExistingGoalPicker((term, page, pageSize) =>
       goalsApi
-        .fetchGoals({
+        .searchGoalsForPicker({
           page,
           pageSize,
           search: term || undefined,
