@@ -3,146 +3,8 @@ import { firstValueFrom, of } from 'rxjs';
 import { GoalsApiService } from './goals-api-service.ts';
 
 describe('GoalsApiService picker search', () => {
-  it('matches goals by tag fields when the goal title does not match', async () => {
-    const http = {
-      get: vi.fn(() =>
-        of({
-          count: 2,
-          next: null,
-          previous: null,
-          results: [
-            createGoal({
-              id: 1,
-              title: 'Ship roadmap',
-              description: 'Quarter planning',
-              tags: [
-                {
-                  id: 11,
-                  title: 'Focus',
-                  slug: 'focus',
-                  color: '#2563eb',
-                  description: 'Deep work',
-                },
-              ],
-            }),
-            createGoal({
-              id: 2,
-              title: 'Onboard team',
-              description: 'Hiring',
-              tags: [],
-            }),
-          ],
-        })
-      ),
-    };
-    const service = new GoalsApiService(http as any);
-
-    const result = await firstValueFrom(
-      service.searchGoalsForPicker({ search: 'focus', page: 1, pageSize: 30 })
-    );
-
-    expect(http.get).toHaveBeenCalledWith('/goals/?page=1&page_size=100');
-    expect(result.results.map((goal) => goal.id)).toEqual([1]);
-    expect(result.count).toBe(1);
-  });
-
-  it('paginates locally after filtering by tags', async () => {
-    const http = {
-      get: vi
-        .fn()
-        .mockReturnValueOnce(
-          of({
-            count: 3,
-            next: '/goals/?page=2&page_size=100',
-            previous: null,
-            results: [
-              createGoal({
-                id: 1,
-                title: 'A',
-                tags: [createTag({ id: 1, title: 'Focus' })],
-              }),
-              createGoal({
-                id: 2,
-                title: 'B',
-                tags: [createTag({ id: 2, title: 'Focus' })],
-              }),
-            ],
-          })
-        )
-        .mockReturnValueOnce(
-          of({
-            count: 3,
-            next: null,
-            previous: '/goals/?page=1&page_size=100',
-            results: [
-              createGoal({
-                id: 3,
-                title: 'C',
-                tags: [createTag({ id: 3, title: 'Focus' })],
-              }),
-            ],
-          })
-        )
-        .mockReturnValueOnce(
-          of({
-            count: 3,
-            next: '/goals/?page=2&page_size=100',
-            previous: null,
-            results: [
-              createGoal({
-                id: 1,
-                title: 'A',
-                tags: [createTag({ id: 1, title: 'Focus' })],
-              }),
-              createGoal({
-                id: 2,
-                title: 'B',
-                tags: [createTag({ id: 2, title: 'Focus' })],
-              }),
-            ],
-          })
-        )
-        .mockReturnValueOnce(
-          of({
-            count: 3,
-            next: null,
-            previous: '/goals/?page=1&page_size=100',
-            results: [
-              createGoal({
-                id: 3,
-                title: 'C',
-                tags: [createTag({ id: 3, title: 'Focus' })],
-              }),
-            ],
-          })
-        ),
-    };
-    const service = new GoalsApiService(http as any);
-
-    const pageOne = await firstValueFrom(
-      service.searchGoalsForPicker({ search: 'focus', page: 1, pageSize: 2 })
-    );
-    const pageTwo = await firstValueFrom(
-      service.searchGoalsForPicker({ search: 'focus', page: 2, pageSize: 2 })
-    );
-
-    expect(http.get).toHaveBeenNthCalledWith(1, '/goals/?page=1&page_size=100');
-    expect(http.get).toHaveBeenNthCalledWith(2, '/goals/?page=2&page_size=100');
-    expect(http.get).toHaveBeenNthCalledWith(3, '/goals/?page=1&page_size=100');
-    expect(http.get).toHaveBeenNthCalledWith(4, '/goals/?page=2&page_size=100');
-    expect(pageOne.results.map((goal) => goal.id)).toEqual([1, 2]);
-    expect(pageOne.next).toBe('/goals/?page=2&page_size=2&search=focus');
-    expect(pageTwo.results.map((goal) => goal.id)).toEqual([3]);
-    expect(pageTwo.previous).toBe('/goals/?page=1&page_size=2&search=focus');
-  });
-
   it('delegates blank searches to the regular paginated goal endpoint', async () => {
-    const response = {
-      count: 1,
-      next: null,
-      previous: null,
-      results: [createGoal({ id: 1, title: 'Ship roadmap' })],
-    };
+    const response = createPage([createGoal({ id: 1, title: 'Ship roadmap' })]);
     const http = {
       get: vi.fn(() => of(response)),
     };
@@ -156,7 +18,58 @@ describe('GoalsApiService picker search', () => {
     expect(http.get).toHaveBeenCalledWith('/goals/?page=2&page_size=15');
     expect(result).toBe(response);
   });
+
+  it('passes selected tag ids through picker search requests', async () => {
+    const response = createPage([createGoal({ id: 1, title: 'Ship roadmap' })]);
+    const http = {
+      get: vi.fn(() => of(response)),
+    };
+    const service = new GoalsApiService(http as any);
+
+    await firstValueFrom(
+      service.searchGoalsForPicker({
+        search: 'focus',
+        page: 1,
+        pageSize: 30,
+        tags: [12, 27],
+      })
+    );
+
+    expect(http.get).toHaveBeenCalledWith(
+      '/goals/?page=1&page_size=30&search=focus&tags=12%2C27'
+    );
+  });
+
+  it('supports explicit tag filters in the regular goals endpoint', async () => {
+    const response = createPage([]);
+    const http = {
+      get: vi.fn(() => of(response)),
+    };
+    const service = new GoalsApiService(http as any);
+
+    await firstValueFrom(
+      service.fetchGoals({
+        page: 1,
+        pageSize: 20,
+        tags: [12, 27],
+        tagSlugs: ['health', 'productivity'],
+      })
+    );
+
+    expect(http.get).toHaveBeenCalledWith(
+      '/goals/?page=1&page_size=20&tags=12%2C27&tag_slugs=health%2Cproductivity'
+    );
+  });
 });
+
+function createPage(results: any[], overrides: Partial<any> = {}) {
+  return {
+    count: overrides.count ?? results.length,
+    next: overrides.next ?? null,
+    previous: overrides.previous ?? null,
+    results,
+  };
+}
 
 function createGoal(overrides: Partial<any> = {}) {
   return {
@@ -187,16 +100,5 @@ function createGoal(overrides: Partial<any> = {}) {
       },
     tags: overrides.tags ?? [],
     tag_ids: overrides.tag_ids,
-  };
-}
-
-function createTag(overrides: Partial<any> = {}) {
-  return {
-    id: overrides.id ?? 1,
-    title: overrides.title ?? 'Tag',
-    slug: overrides.slug ?? String(overrides.title ?? 'tag').toLowerCase(),
-    color: overrides.color ?? '#2563eb',
-    description: overrides.description ?? null,
-    tasks: overrides.tasks ?? [],
   };
 }

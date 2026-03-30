@@ -158,12 +158,13 @@ export class UIManager {
       30,
       this.runtime
     );
-    const existingGoalPicker = new ExistingGoalPicker((term, page, pageSize) =>
+    const existingGoalPicker = new ExistingGoalPicker(({ term, page, pageSize, tagIds }) =>
       goalsApi
         .searchGoalsForPicker({
           page,
           pageSize,
           search: term || undefined,
+          tags: tagIds.length > 0 ? tagIds : undefined,
         })
         .pipe(
           map((res) => ({

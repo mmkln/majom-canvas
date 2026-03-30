@@ -32,8 +32,26 @@ export type ExistingEntityPickerOpenOptions<TItem> = {
   canvasChanges?: Observable<unknown>;
 };
 
+export type ExistingEntityPickerControlsApi<TItem> = {
+  runtime: AppRuntime;
+  controlsHost: HTMLDivElement;
+  list: HTMLDivElement;
+  reload: (options?: { term?: string }) => void;
+};
+
+type ExistingEntityPickerStateCard = {
+  title: string;
+  subtitle: string;
+};
+
+type ExistingEntityPickerStateContext<TItem> = {
+  term: string;
+  items: TItem[];
+};
+
 type ExistingEntityPickerConfig<TItem, TKind extends ExistingPickerKind> = {
   dragKind: TKind;
+  searchMode?: 'internal' | 'external';
   getTitle: (item: TItem) => string;
   getDescription?: (item: TItem) => string | null | undefined;
   getStatus?: (item: TItem) => unknown;
@@ -44,6 +62,15 @@ type ExistingEntityPickerConfig<TItem, TKind extends ExistingPickerKind> = {
   onCanvasLabel?: string;
   addLabel?: string;
   findLabel?: string;
+  getEmptyState?: (
+    context: ExistingEntityPickerStateContext<TItem>
+  ) => ExistingEntityPickerStateCard | null;
+  getLoadErrorState?: (
+    context: ExistingEntityPickerStateContext<TItem>
+  ) => ExistingEntityPickerStateCard | null;
+  onOpenControls?: (
+    api: ExistingEntityPickerControlsApi<TItem>
+  ) => void | (() => void);
 };
 
 export class ExistingEntityPicker<
@@ -58,6 +85,7 @@ export class ExistingEntityPicker<
   private closeBtn: HTMLButtonElement | null = null;
   private searchField: HTMLElement | null = null;
   private searchInput: HTMLInputElement | null = null;
+  private controlsHost: HTMLDivElement | null = null;
   private list: HTMLDivElement | null = null;
   private footerDivider: HTMLDivElement | null = null;
   private footer: HTMLDivElement | null = null;
@@ -101,6 +129,7 @@ export class ExistingEntityPicker<
   private compactHintEl: HTMLDivElement | null = null;
   private compactExpandBtn: HTMLButtonElement | null = null;
   private compactCloseBtn: HTMLButtonElement | null = null;
+  private controlsCleanup: (() => void) | null = null;
 
   constructor(
     private readonly loadItemsPage: (
@@ -184,17 +213,25 @@ export class ExistingEntityPicker<
     closeBtn.addEventListener('click', () => this.close());
     header.append(titleWrap, closeBtn);
 
-    const searchControl = createInput({
-      type: 'search',
-      placeholder: this.getSearchPlaceholder(),
-      leadingIcon: 'magnifying-glass',
-      className: 'mb-2',
-      inputClassName:
-        'h-11 rounded-xl border-slate-200 bg-slate-50/80 pr-4 text-[14px] shadow-none placeholder:text-slate-400 focus:border-slate-300 focus:bg-white',
-      leadingIconClassName: 'text-slate-400',
-    });
-    const searchField = searchControl.element;
-    const searchInput = searchControl.input;
+    const controlsHost = document.createElement('div');
+    controlsHost.className = 'mb-2 flex flex-col gap-2';
+
+    const usesInternalSearch = this.config.searchMode !== 'external';
+    const searchControl = usesInternalSearch
+      ? createInput({
+          type: 'search',
+          placeholder: this.getSearchPlaceholder(),
+          leadingIcon: 'magnifying-glass',
+          inputClassName:
+            'h-11 rounded-xl border-slate-200 bg-slate-50/80 pr-4 text-[14px] shadow-none placeholder:text-slate-400 focus:border-slate-300 focus:bg-white',
+          leadingIconClassName: 'text-slate-400',
+        })
+      : null;
+    const searchField = searchControl?.element ?? null;
+    const searchInput = searchControl?.input ?? null;
+    if (searchField) {
+      controlsHost.appendChild(searchField);
+    }
 
     const list = document.createElement('div');
     list.className = 'min-h-0 flex-1 overflow-auto pr-1';
@@ -243,7 +280,7 @@ export class ExistingEntityPicker<
       grabber.setAttribute('aria-hidden', 'true');
       containerParts.push(grabber);
     }
-    containerParts.push(header, searchField, list, footer, compactPanel);
+    containerParts.push(header, controlsHost, list, footer, compactPanel);
     container.append(...containerParts);
     overlayHost.appendChild(backdrop);
     overlayHost.appendChild(container);
@@ -263,6 +300,7 @@ export class ExistingEntityPicker<
     this.closeBtn = closeBtn;
     this.searchField = searchField;
     this.searchInput = searchInput;
+    this.controlsHost = controlsHost;
     this.list = list;
     this.footerDivider = footerDivider;
     this.footer = footer;
@@ -271,6 +309,23 @@ export class ExistingEntityPicker<
     this.compactHintEl = compactHint;
     this.compactExpandBtn = expandBtn;
     this.compactCloseBtn = compactCloseBtn;
+    this.controlsCleanup =
+      this.config.onOpenControls?.({
+        runtime: this.runtime,
+        controlsHost,
+        list,
+        reload: (options?: { term?: string }) => {
+          const nextTerm =
+            options?.term !== undefined
+              ? options.term.trim()
+              : (searchInput?.value ?? this.currentTerm).trim();
+          if (searchInput) {
+            searchInput.value = nextTerm;
+            this.clearSearchDebounce();
+          }
+          this.resetAndLoad(nextTerm);
+        },
+      }) ?? null;
     this.listScrollHandler = () => this.maybeAutoLoadMore();
     this.list.addEventListener('scroll', this.listScrollHandler);
     this.pendingDropCompleted = false;
@@ -283,17 +338,18 @@ export class ExistingEntityPicker<
         this.refreshRenderedItems();
       }) ?? null;
 
-    searchInput.addEventListener('input', () => {
-      if (this.searchDebounce !== null) {
-        window.clearTimeout(this.searchDebounce);
-      }
-      this.searchDebounce = window.setTimeout(() => {
-        this.resetAndLoad(searchInput.value.trim());
-      }, 250);
-    });
+    if (searchInput) {
+      searchInput.addEventListener('input', () => {
+        this.clearSearchDebounce();
+        this.searchDebounce = window.setTimeout(() => {
+          this.searchDebounce = null;
+          this.resetAndLoad(searchInput.value.trim());
+        }, 250);
+      });
+    }
 
     this.resetAndLoad('');
-    searchInput.focus();
+    searchInput?.focus();
     container.addEventListener('keydown', (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
@@ -318,16 +374,15 @@ export class ExistingEntityPicker<
   }
 
   public close(): void {
-    if (this.searchDebounce !== null) {
-      window.clearTimeout(this.searchDebounce);
-      this.searchDebounce = null;
-    }
+    this.clearSearchDebounce();
     this.loadSubscription?.unsubscribe();
     this.loadSubscription = null;
     this.canvasChangesSubscription?.unsubscribe();
     this.canvasChangesSubscription = null;
     this.disposeRuntimeSubscription?.();
     this.disposeRuntimeSubscription = null;
+    this.controlsCleanup?.();
+    this.controlsCleanup = null;
     if (this.dropCompletedHandler) {
       window.removeEventListener(
         EXISTING_PICKER_EVENT_NAMES.dropCompleted,
@@ -362,6 +417,7 @@ export class ExistingEntityPicker<
     this.closeBtn = null;
     this.searchField = null;
     this.searchInput = null;
+    this.controlsHost = null;
     this.list = null;
     this.footerDivider = null;
     this.footer = null;
@@ -380,6 +436,12 @@ export class ExistingEntityPicker<
     this.loadMoreError = false;
     this.suppressPickUntilTs = 0;
     this.mobilePresentation = false;
+  }
+
+  private clearSearchDebounce(): void {
+    if (this.searchDebounce === null) return;
+    window.clearTimeout(this.searchDebounce);
+    this.searchDebounce = null;
   }
 
   private resetAndLoad(term: string): void {
@@ -423,9 +485,7 @@ export class ExistingEntityPicker<
         this.isLoading = false;
         this.loadMoreError = true;
         if (!append) {
-          this.renderMessage(
-            this.runtime.i18n.t('existingPicker.failedToLoadItems')
-          );
+          this.renderLoadErrorState();
         }
         this.renderFooter();
       },
@@ -651,24 +711,54 @@ export class ExistingEntityPicker<
     this.list.appendChild(row);
   }
 
-  private renderEmptyState(): void {
+  private renderStateCard(card: ExistingEntityPickerStateCard): void {
     if (!this.list) return;
     this.list.innerHTML = '';
-    const card = document.createElement('div');
-    card.className =
+    const wrapper = document.createElement('div');
+    wrapper.className =
       'rounded-[1.25rem] bg-slate-50 px-5 py-8 text-center text-sm text-slate-500';
+
     const title = document.createElement('div');
     title.className = 'text-[14px] font-medium text-slate-700';
-    title.textContent = this.currentTerm
-      ? this.getEmptyStateTitle('withTerm')
-      : this.getEmptyStateTitle('withoutTerm');
+    title.textContent = card.title;
+
     const subtitle = document.createElement('div');
     subtitle.className = 'mt-2 text-[12px] leading-5 text-slate-500';
-    subtitle.textContent = this.currentTerm
-      ? this.getEmptyStateSubtitle('withTerm')
-      : this.getEmptyStateSubtitle('withoutTerm');
-    card.append(title, subtitle);
-    this.list.appendChild(card);
+    subtitle.textContent = card.subtitle;
+
+    wrapper.append(title, subtitle);
+    this.list.appendChild(wrapper);
+  }
+
+  private renderLoadErrorState(): void {
+    const customState = this.config.getLoadErrorState?.({
+      term: this.currentTerm,
+      items: [...this.items],
+    });
+    if (customState) {
+      this.renderStateCard(customState);
+      return;
+    }
+    this.renderMessage(this.runtime.i18n.t('existingPicker.failedToLoadItems'));
+  }
+
+  private renderEmptyState(): void {
+    const customState = this.config.getEmptyState?.({
+      term: this.currentTerm,
+      items: [...this.items],
+    });
+    if (customState) {
+      this.renderStateCard(customState);
+      return;
+    }
+    this.renderStateCard({
+      title: this.currentTerm
+        ? this.getEmptyStateTitle('withTerm')
+        : this.getEmptyStateTitle('withoutTerm'),
+      subtitle: this.currentTerm
+        ? this.getEmptyStateSubtitle('withTerm')
+        : this.getEmptyStateSubtitle('withoutTerm'),
+    });
   }
 
   private refreshRenderedItems(): void {
@@ -1095,7 +1185,7 @@ export class ExistingEntityPicker<
     }
     if (this.items.length === 0) {
       if (this.loadMoreError) {
-        this.renderMessage(this.runtime.i18n.t('existingPicker.failedToLoadItems'));
+        this.renderLoadErrorState();
       } else {
         this.renderEmptyState();
       }
