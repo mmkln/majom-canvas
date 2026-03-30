@@ -88,12 +88,14 @@ type ContextMenuActionItem = {
   variant?: MenuItemVariant;
   leading?: HTMLElement | null;
   trailing?: HTMLElement | null;
+  dividerAfter?: boolean;
 };
 
 type ContextMenuSubmenuItem = {
   label: string;
   submenu: ContextMenuActionItem[];
   tone?: 'danger' | 'warning';
+  dividerAfter?: boolean;
 };
 
 type ContextMenuSplitActionItem = ContextMenuActionItem & {
@@ -331,6 +333,7 @@ export class ContextMenu {
             secondaryLabel: this.runtime.i18n.t(
               'canvasContextMenu.findExistingTask'
             ),
+            dividerAfter: true,
           },
           {
             label: this.getPlanningElementLabel('habit', { capitalize: true }),
@@ -836,16 +839,12 @@ export class ContextMenu {
       section.items.forEach((item, itemIndex) => {
         if (this.isRowItem(item)) {
           this.menu.appendChild(this.createRow(item));
-          if (item.dividerAfter && itemIndex < section.items.length - 1) {
-            this.menu.appendChild(createDivider({ inset: false }));
-          }
+          this.appendItemDividerIfNeeded(item, itemIndex, section);
           return;
         }
         if (this.isControlItem(item)) {
           this.menu.appendChild(this.createControlItem(item));
-          if (item.dividerAfter && itemIndex < section.items.length - 1) {
-            this.menu.appendChild(createDivider({ inset: false }));
-          }
+          this.appendItemDividerIfNeeded(item, itemIndex, section);
           return;
         }
 
@@ -876,11 +875,13 @@ export class ContextMenu {
             this.onSubmenuTriggerKeyDown(event, item, btn);
           });
           this.menu.appendChild(btn);
+          this.appendItemDividerIfNeeded(item, itemIndex, section);
           return;
         }
 
         if (this.isSplitActionItem(item)) {
           this.menu.appendChild(this.createSplitActionRow(item));
+          this.appendItemDividerIfNeeded(item, itemIndex, section);
           return;
         }
 
@@ -892,8 +893,19 @@ export class ContextMenu {
           this.closeSubmenu();
         });
         this.menu.appendChild(btn);
+        this.appendItemDividerIfNeeded(item, itemIndex, section);
       });
     });
+  }
+
+  private appendItemDividerIfNeeded(
+    item: ContextMenuItem,
+    itemIndex: number,
+    section: ContextMenuSection
+  ): void {
+    if (!('dividerAfter' in item) || !item.dividerAfter) return;
+    if (itemIndex >= section.items.length - 1) return;
+    this.menu.appendChild(createDivider({ inset: false }));
   }
 
   private isSubmenuItem(item: ContextMenuItem): item is ContextMenuSubmenuItem {
