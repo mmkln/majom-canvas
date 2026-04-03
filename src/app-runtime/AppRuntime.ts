@@ -16,14 +16,17 @@ export type AppEnergyState = {
 
 export type AppRuntimeSnapshot = {
   locale: AppLocale;
+  theme: AppTheme;
   energy: AppEnergyState;
 };
 
 export type AppRuntimeListener = (snapshot: AppRuntimeSnapshot) => void;
+export type AppTheme = 'light' | 'dark';
 
 type AppRuntimeOptions = {
   i18n?: I18nService;
   initialLocale?: AppLocale | string | string[] | null;
+  initialTheme?: AppTheme;
   energyService?: AppEnergyService | null;
 };
 type AppRuntimeSubscribeOptions = {
@@ -35,6 +38,7 @@ export class AppRuntime {
 
   private readonly listeners = new Set<AppRuntimeListener>();
   private readonly energyService: AppEnergyService | null;
+  private theme: AppTheme;
   private energyState: AppEnergyState = {
     level: null,
     recordId: null,
@@ -52,6 +56,7 @@ export class AppRuntime {
       options.energyService === undefined
         ? new ShellEnergyService()
         : options.energyService;
+    this.theme = options.initialTheme ?? 'light';
     this.i18n.subscribe(() => {
       this.emitSnapshot();
     });
@@ -60,8 +65,13 @@ export class AppRuntime {
   public getSnapshot(): AppRuntimeSnapshot {
     return {
       locale: this.i18n.getLocale(),
+      theme: this.theme,
       energy: this.getEnergyState(),
     };
+  }
+
+  public getTheme(): AppTheme {
+    return this.theme;
   }
 
   public getEnergyState(): AppEnergyState {
@@ -85,6 +95,15 @@ export class AppRuntime {
     locale: AppLocale | string | string[] | null | undefined
   ): AppLocale {
     return this.i18n.setLocale(locale);
+  }
+
+  public setTheme(theme: AppTheme): AppTheme {
+    if (this.theme === theme) {
+      return this.theme;
+    }
+    this.theme = theme;
+    this.emitSnapshot();
+    return this.theme;
   }
 
   public async ensureEnergyLoaded(): Promise<void> {

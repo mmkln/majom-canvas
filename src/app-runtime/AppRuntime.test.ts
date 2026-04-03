@@ -14,8 +14,38 @@ describe('AppRuntime', () => {
     const runtime = createAppRuntime({ initialLocale: 'uk' });
 
     expect(runtime.getSnapshot().locale).toBe('uk');
+    expect(runtime.getSnapshot().theme).toBe('light');
     expect(runtime.getSnapshot().energy.level).toBeNull();
+    expect(runtime.getTheme()).toBe('light');
     expect(runtime.i18n.getLocale()).toBe('uk');
+  });
+
+  it('emits a snapshot when the theme changes', () => {
+    const runtime = createAppRuntime({ initialLocale: 'en' });
+    const themes: string[] = [];
+
+    runtime.subscribe((snapshot) => {
+      themes.push(snapshot.theme);
+    });
+
+    runtime.setTheme('dark');
+
+    expect(themes).toEqual(['dark']);
+    expect(runtime.getSnapshot().theme).toBe('dark');
+  });
+
+  it('does not emit duplicate snapshots when setting the same theme', () => {
+    const runtime = createAppRuntime({ initialLocale: 'en' });
+    const themes: string[] = [];
+
+    runtime.subscribe((snapshot) => {
+      themes.push(snapshot.theme);
+    });
+
+    runtime.setTheme('dark');
+    runtime.setTheme('dark');
+
+    expect(themes).toEqual(['dark']);
   });
 
   it('notifies subscribers when locale changes through runtime', () => {
