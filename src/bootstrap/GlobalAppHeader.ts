@@ -152,10 +152,6 @@ export class GlobalAppHeader {
     const initialTimeClusteringOpen = loadPersistedTimeClusteringOpen(
       TIME_CLUSTERING_DEV_ENABLED
     );
-    const initialWorkspaceView = loadPersistedWorkspaceView({
-      allowKanban: KANBAN_DEV_ENABLED,
-      allowLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
-    });
     this.routinesModal = ROUTINES_ENABLED
       ? new HabitsQuickModal(undefined, this.runtime, {
           onOpenChange: (open) => this.syncRoutinesButtonState(open),
@@ -165,7 +161,7 @@ export class GlobalAppHeader {
 
     this.controls = new WorkspaceControlsBar({
       runtime: this.runtime,
-      initialView: initialWorkspaceView,
+      initialView: 'canvas',
       initialChatOpen,
       initialTimeClusteringOpen,
       initialTimeClusteringLayoutMode: 'docked-left',
@@ -235,6 +231,12 @@ export class GlobalAppHeader {
 
   public mount(parent: HTMLElement = document.body): void {
     if (!this.element || this.element.isConnected) return;
+    this.controls?.setActiveView(
+      loadPersistedWorkspaceView({
+        allowKanban: KANBAN_DEV_ENABLED,
+        allowLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
+      })
+    );
     parent.appendChild(this.element);
     setGlobalAppSidebarOffset(GLOBAL_APP_SIDEBAR_WIDTH_PX);
     this.routinesModal?.prime();

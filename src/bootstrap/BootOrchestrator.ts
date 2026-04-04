@@ -11,6 +11,10 @@ import type { LoginSubmitResult } from '../features/canvas/ui/auth/AuthControlle
 import { LoginPage } from '../features/canvas/ui/components/LoginPage.ts';
 import { LoadingScreen } from '../features/canvas/ui/components/LoadingScreen.ts';
 import { WallpaperService } from '../features/shell/services/WallpaperService.ts';
+import {
+  clearUserPreferences,
+  initializeUserPreferences,
+} from '../features/shell/services/UserPreferencesService.ts';
 import type { BootEvent, BootState } from './BootState.ts';
 import { nextBootState } from './BootStateMachine.ts';
 import { GlobalAppHeader } from './GlobalAppHeader.ts';
@@ -184,8 +188,12 @@ export class BootOrchestrator {
       )
     );
     const [user] = await Promise.all([profilePromise, wallpaperListPromise]);
-    this.runtime.setLocale(user.language || this.i18n.getLocale());
-    this.wallpaperService.applyUserWallpaper(user);
+    const hydratedUser = await initializeUserPreferences({
+      user,
+      userApiService: this.userApi,
+    });
+    this.runtime.setLocale(hydratedUser.language || this.i18n.getLocale());
+    this.wallpaperService.applyUserWallpaper(hydratedUser);
   }
 
   private handleHardLogout(): void {
@@ -193,6 +201,7 @@ export class BootOrchestrator {
     this.logoutInProgress = true;
     this.dispatch('logout');
     this.authService.logout();
+    clearUserPreferences();
     this.runtimeHost.dispose();
     this.globalHeader.unmount();
     this.render();

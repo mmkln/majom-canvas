@@ -1,5 +1,15 @@
 import type { WorkspaceView } from './WorkspaceView.ts';
 import type { TimeClusteringLayoutMode } from '../time-clustering/domain/types.ts';
+import {
+  getTimeClusteringLayoutMode,
+  getTimeClusteringOverlapWarningsVisible,
+  getWorkspaceDefaultView,
+  getWorkspaceViewSwitcherPinned,
+  setTimeClusteringLayoutModePreference,
+  setTimeClusteringOverlapWarningsVisiblePreference,
+  setWorkspaceDefaultView,
+  setWorkspaceViewSwitcherPinned,
+} from './services/UserPreferencesService.ts';
 
 export const WORKSPACE_ACTIVE_VIEW_STORAGE_KEY = 'workspace-active-view';
 export const AI_ASSISTANT_OPEN_STORAGE_KEY = 'ai-assistant-open';
@@ -22,27 +32,16 @@ export function loadPersistedWorkspaceView(
 ): WorkspaceView {
   const allowKanban = options.allowKanban ?? true;
   const allowLearningStudio = options.allowLearningStudio ?? true;
-  try {
-    const value = localStorage.getItem(WORKSPACE_ACTIVE_VIEW_STORAGE_KEY);
-    if (value === 'kanban' && allowKanban) return 'kanban';
-    if (value === 'learning-studio' && allowLearningStudio) {
-      return 'learning-studio';
-    }
-    if (value === 'time-clustering') {
-      return 'canvas';
-    }
-  } catch {
-    // no-op
+  const value = getWorkspaceDefaultView('canvas');
+  if (value === 'kanban' && allowKanban) return 'kanban';
+  if (value === 'learning-studio' && allowLearningStudio) {
+    return 'learning-studio';
   }
   return 'canvas';
 }
 
 export function persistWorkspaceView(view: WorkspaceView): void {
-  try {
-    localStorage.setItem(WORKSPACE_ACTIVE_VIEW_STORAGE_KEY, view);
-  } catch {
-    // no-op
-  }
+  setWorkspaceDefaultView(view);
 }
 
 export function loadPersistedTimeClusteringOpen(
@@ -75,53 +74,25 @@ export function persistTimeClusteringOpen(open: boolean): void {
 export function loadPersistedTimeClusteringLayoutMode(
   defaultMode: TimeClusteringLayoutMode = 'docked-left'
 ): TimeClusteringLayoutMode {
-  try {
-    const value = localStorage.getItem(TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY);
-    if (value === 'docked-left' || value === 'fullscreen') {
-      return value;
-    }
-  } catch {
-    return defaultMode;
-  }
-  return defaultMode;
+  return getTimeClusteringLayoutMode(defaultMode);
 }
 
 export function persistTimeClusteringLayoutMode(
   mode: TimeClusteringLayoutMode
 ): void {
-  try {
-    localStorage.setItem(TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY, mode);
-  } catch {
-    // no-op
-  }
+  setTimeClusteringLayoutModePreference(mode);
 }
 
 export function loadPersistedTimeClusteringOverlapWarningsVisible(
   defaultVisible = true
 ): boolean {
-  try {
-    const value = localStorage.getItem(
-      TIME_CLUSTERING_OVERLAP_WARNINGS_VISIBLE_STORAGE_KEY
-    );
-    if (value === '1' || value === 'true') return true;
-    if (value === '0' || value === 'false') return false;
-  } catch {
-    return defaultVisible;
-  }
-  return defaultVisible;
+  return getTimeClusteringOverlapWarningsVisible(defaultVisible);
 }
 
 export function persistTimeClusteringOverlapWarningsVisible(
   visible: boolean
 ): void {
-  try {
-    localStorage.setItem(
-      TIME_CLUSTERING_OVERLAP_WARNINGS_VISIBLE_STORAGE_KEY,
-      visible ? '1' : '0'
-    );
-  } catch {
-    // no-op
-  }
+  setTimeClusteringOverlapWarningsVisiblePreference(visible);
 }
 
 export function loadPersistedAiAssistantOpen(): boolean {
@@ -144,21 +115,9 @@ export function persistAiAssistantOpen(open: boolean): void {
 }
 
 export function loadPersistedWorkspaceViewSwitcherPinned(): boolean {
-  try {
-    const value = localStorage.getItem(WORKSPACE_VIEW_SWITCHER_PINNED_STORAGE_KEY);
-    return value === '1' || value === 'true';
-  } catch {
-    return false;
-  }
+  return getWorkspaceViewSwitcherPinned(false);
 }
 
 export function persistWorkspaceViewSwitcherPinned(pinned: boolean): void {
-  try {
-    localStorage.setItem(
-      WORKSPACE_VIEW_SWITCHER_PINNED_STORAGE_KEY,
-      pinned ? '1' : '0'
-    );
-  } catch {
-    // no-op
-  }
+  setWorkspaceViewSwitcherPinned(pinned);
 }

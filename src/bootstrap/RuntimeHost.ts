@@ -115,7 +115,7 @@ export class RuntimeHost {
   private readonly wallpaperSubscription: Subscription;
   private runtimeSubscriptionDispose: (() => void) | null = null;
   private currentWallpaperUrl = '';
-  private readonly viewSwitcher: WorkspaceViewSwitcher;
+  private viewSwitcher: WorkspaceViewSwitcher | null = null;
   private readonly timeClusteringIslandRoot: HTMLDivElement;
   private readonly chatPanel: AiAssistantPanel;
   private readonly chatController: AiAssistantSessionController;
@@ -207,24 +207,8 @@ export class RuntimeHost {
     this.timeClusteringOpen = loadPersistedTimeClusteringOpen(
       TIME_CLUSTERING_DEV_ENABLED
     );
-    this.timeClusteringLayoutMode =
-      loadPersistedTimeClusteringLayoutMode('docked-left');
-    this.timeClusteringShowOverlapWarnings =
-      loadPersistedTimeClusteringOverlapWarningsVisible(true);
-    this.activeView = loadPersistedWorkspaceView({
-      allowKanban: KANBAN_DEV_ENABLED,
-      allowLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
-    });
-    this.viewSwitcher = new WorkspaceViewSwitcher(this.activeView, {
-      runtime: this.runtime,
-      wallpaperService: this.wallpaperService,
-      initialTimeClusteringOpen: this.timeClusteringOpen,
-      initialTimeClusteringLayoutMode: this.timeClusteringLayoutMode,
-      showKanban: KANBAN_DEV_ENABLED,
-      showLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
-      showTimeClustering: TIME_CLUSTERING_DEV_ENABLED,
-      showRoutines: ROUTINES_ENABLED,
-    });
+    this.timeClusteringLayoutMode = 'docked-left';
+    this.timeClusteringShowOverlapWarnings = true;
     const chatRuntime = createAiAssistantRuntime({
       resolveLiveHost: () => this.createAiAssistantToolHost(),
       runtime: this.runtime,
@@ -245,12 +229,6 @@ export class RuntimeHost {
     });
     this.chatOpen = loadPersistedAiAssistantOpen();
     this.chatPanel.setVisible(false);
-    this.viewSwitcher.setVisible(false);
-    this.viewSwitcher.setChatOpen(this.chatOpen);
-    this.viewSwitcher.setTimeClusteringOpen(this.timeClusteringOpen);
-    this.viewSwitcher.setTimeClusteringLayoutMode(
-      this.timeClusteringLayoutMode
-    );
     this.viewChangeHandler = (event: Event) => {
       const customEvent = event as CustomEvent<unknown>;
       if (!isWorkspaceViewChangeRequestDetail(customEvent.detail)) return;
@@ -398,7 +376,8 @@ export class RuntimeHost {
     );
     window.removeEventListener('resize', this.windowResizeHandler);
     this.unmountRuntimeChrome();
-    this.viewSwitcher.destroy();
+    this.viewSwitcher?.destroy();
+    this.viewSwitcher = null;
     this.shell?.dispose();
     this.shell = null;
     this.canvasModule = null;
@@ -440,6 +419,25 @@ export class RuntimeHost {
     if (this.starting) return;
     this.starting = true;
     try {
+      this.syncPersistedWorkspacePreferences();
+      if (!this.viewSwitcher) {
+        this.viewSwitcher = new WorkspaceViewSwitcher(this.activeView, {
+          runtime: this.runtime,
+          wallpaperService: this.wallpaperService,
+          initialTimeClusteringOpen: this.timeClusteringOpen,
+          initialTimeClusteringLayoutMode: this.timeClusteringLayoutMode,
+          showKanban: KANBAN_DEV_ENABLED,
+          showLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
+          showTimeClustering: TIME_CLUSTERING_DEV_ENABLED,
+          showRoutines: ROUTINES_ENABLED,
+        });
+        this.viewSwitcher.setVisible(false);
+        this.viewSwitcher.setChatOpen(this.chatOpen);
+        this.viewSwitcher.setTimeClusteringOpen(this.timeClusteringOpen);
+        this.viewSwitcher.setTimeClusteringLayoutMode(
+          this.timeClusteringLayoutMode
+        );
+      }
       if (!this.shell) {
         this.shell = new WorkspaceShell(this.workspaceRoot);
       }
@@ -475,7 +473,7 @@ export class RuntimeHost {
       }
       await this.shell.show(this.activeView);
       this.syncTimeClusteringIslandVisibility();
-      this.viewSwitcher.setActiveView(this.activeView);
+      this.viewSwitcher?.setActiveView(this.activeView);
       emitWorkspaceViewChanged(this.activeView);
       emitTimeClusteringVisibilityChanged(this.timeClusteringOpen);
       emitTimeClusteringLayoutModeChanged(this.timeClusteringLayoutMode);
@@ -545,7 +543,7 @@ export class RuntimeHost {
     if (this.timeClusteringLayoutMode === mode) return false;
     this.timeClusteringLayoutMode = mode;
     persistTimeClusteringLayoutMode(mode);
-    this.viewSwitcher.setTimeClusteringLayoutMode(mode);
+    this.viewSwitcher?.setTimeClusteringLayoutMode(mode);
     emitTimeClusteringLayoutModeChanged(mode);
     return true;
   }
@@ -561,7 +559,7 @@ export class RuntimeHost {
     if (this.timeClusteringOpen === open) return;
     this.timeClusteringOpen = open;
     persistTimeClusteringOpen(open);
-    this.viewSwitcher.setTimeClusteringOpen(open);
+    this.viewSwitcher?.setTimeClusteringOpen(open);
     emitTimeClusteringVisibilityChanged(open);
   }
 
@@ -572,7 +570,7 @@ export class RuntimeHost {
     if (this.shell) {
       await this.shell.show(view);
     }
-    this.viewSwitcher.setActiveView(view);
+    this.viewSwitcher?.setActiveView(view);
     emitWorkspaceViewChanged(view);
   }
 
@@ -619,7 +617,7 @@ export class RuntimeHost {
         canvasUiRoot.style.height = '100vh';
         canvasUiRoot.style.borderRadius = '0';
       }
-      this.viewSwitcher.setVisible(false);
+      this.viewSwitcher?.setVisible(false);
       this.chatPanel.setVisible(false);
       this.syncTimeClusteringIslandVisibility(chatWidth);
       this.syncWorkspaceWallpaper();
@@ -656,7 +654,7 @@ export class RuntimeHost {
     }
     this.syncTimeClusteringIslandVisibility(chatWidth);
     this.chatPanel.setIslandMode(this.chatOpen);
-    this.viewSwitcher.setVisible(true);
+    this.viewSwitcher?.setVisible(true);
     this.chatPanel.setVisible(this.chatOpen);
     this.syncWorkspaceWallpaper();
     if (showWorkspace) {
@@ -870,7 +868,7 @@ export class RuntimeHost {
   private setChatOpen(open: boolean): void {
     this.chatOpen = open;
     persistAiAssistantOpen(open);
-    this.viewSwitcher.setChatOpen(open);
+    this.viewSwitcher?.setChatOpen(open);
     emitAiAssistantVisibilityChanged(open);
     this.applyVisibility();
   }
@@ -878,14 +876,25 @@ export class RuntimeHost {
   private mountRuntimeChrome(): void {
     if (this.runtimeChromeMounted) return;
     this.chatPanel.mount(document.body);
-    this.viewSwitcher.mount(document.body);
+    this.viewSwitcher?.mount(document.body);
     this.runtimeChromeMounted = true;
   }
 
   private unmountRuntimeChrome(): void {
     if (!this.runtimeChromeMounted) return;
-    this.viewSwitcher.unmount();
+    this.viewSwitcher?.unmount();
     this.chatPanel.unmount();
     this.runtimeChromeMounted = false;
+  }
+
+  private syncPersistedWorkspacePreferences(): void {
+    this.timeClusteringLayoutMode =
+      loadPersistedTimeClusteringLayoutMode('docked-left');
+    this.timeClusteringShowOverlapWarnings =
+      loadPersistedTimeClusteringOverlapWarningsVisible(true);
+    this.activeView = loadPersistedWorkspaceView({
+      allowKanban: KANBAN_DEV_ENABLED,
+      allowLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
+    });
   }
 }

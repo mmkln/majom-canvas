@@ -1,4 +1,20 @@
 import { buildUserScopedStorageKey } from './UserScopedStorage.ts';
+import {
+  getCanvasAnimationsEnabled,
+  getCanvasAutosaveEnabled,
+  getCanvasContainerGuidesEnabled,
+  getCanvasMiniMapVisible,
+  getCanvasSmartGuidesEnabled,
+  getCanvasSpacingGuidesEnabled,
+  getCanvasViewportCenterGuidesEnabled,
+  setCanvasAnimationsEnabled,
+  setCanvasAutosaveEnabled,
+  setCanvasContainerGuidesEnabled,
+  setCanvasMiniMapVisible,
+  setCanvasSmartGuidesEnabled,
+  setCanvasSpacingGuidesEnabled,
+  setCanvasViewportCenterGuidesEnabled,
+} from '../../../shell/services/UserPreferencesService.ts';
 
 export type UnsyncedDraftKind =
   | 'element-patch'
@@ -23,15 +39,6 @@ type StorageEnvelope<T> = {
 const LAST_OPENED_CANVAS_KEY = 'last-opened-canvas-id';
 const DRAFTS_KEY_PREFIX = 'draft-unsynced-changes';
 const DRAFTS_TTL_MS = 1000 * 60 * 60 * 24 * 7;
-const MINI_MAP_VISIBLE_KEY = 'ui:minimap-visible';
-const CANVAS_ANIMATIONS_ENABLED_KEY = 'ui:canvas-animations-enabled';
-const CANVAS_AUTOSAVE_ENABLED_KEY = 'ui:canvas-autosave-enabled';
-const CANVAS_SMART_GUIDES_ENABLED_KEY = 'ui:canvas-smart-guides-enabled';
-const CANVAS_SPACING_GUIDES_ENABLED_KEY = 'ui:canvas-spacing-guides-enabled';
-const CANVAS_CONTAINER_GUIDES_ENABLED_KEY =
-  'ui:canvas-container-guides-enabled';
-const CANVAS_VIEWPORT_CENTER_GUIDES_ENABLED_KEY =
-  'ui:canvas-viewport-center-guides-enabled';
 
 function getDraftsKey(canvasId: string): string {
   return `${DRAFTS_KEY_PREFIX}:${canvasId}`;
@@ -84,72 +91,63 @@ function writeEnvelope<T>(
 
 export class CanvasClientStorage {
   public static getCanvasAutosaveEnabled(defaultEnabled = true): boolean {
-    const stored = readEnvelope<unknown>(CANVAS_AUTOSAVE_ENABLED_KEY);
-    return typeof stored === 'boolean' ? stored : defaultEnabled;
+    return getCanvasAutosaveEnabled(defaultEnabled);
   }
 
   public static setCanvasAutosaveEnabled(enabled: boolean): void {
-    writeEnvelope(CANVAS_AUTOSAVE_ENABLED_KEY, enabled, null);
+    setCanvasAutosaveEnabled(enabled);
   }
 
   public static getCanvasAnimationsEnabled(defaultEnabled = true): boolean {
-    const stored = readEnvelope<unknown>(CANVAS_ANIMATIONS_ENABLED_KEY);
-    return typeof stored === 'boolean' ? stored : defaultEnabled;
+    return getCanvasAnimationsEnabled(defaultEnabled);
   }
 
   public static setCanvasAnimationsEnabled(enabled: boolean): void {
-    writeEnvelope(CANVAS_ANIMATIONS_ENABLED_KEY, enabled, null);
+    setCanvasAnimationsEnabled(enabled);
   }
 
   public static getCanvasSmartGuidesEnabled(defaultEnabled = false): boolean {
-    const stored = readEnvelope<unknown>(CANVAS_SMART_GUIDES_ENABLED_KEY);
-    return typeof stored === 'boolean' ? stored : defaultEnabled;
+    return getCanvasSmartGuidesEnabled(defaultEnabled);
   }
 
   public static setCanvasSmartGuidesEnabled(enabled: boolean): void {
-    writeEnvelope(CANVAS_SMART_GUIDES_ENABLED_KEY, enabled, null);
+    setCanvasSmartGuidesEnabled(enabled);
   }
 
   public static getCanvasSpacingGuidesEnabled(defaultEnabled = true): boolean {
-    const stored = readEnvelope<unknown>(CANVAS_SPACING_GUIDES_ENABLED_KEY);
-    return typeof stored === 'boolean' ? stored : defaultEnabled;
+    return getCanvasSpacingGuidesEnabled(defaultEnabled);
   }
 
   public static setCanvasSpacingGuidesEnabled(enabled: boolean): void {
-    writeEnvelope(CANVAS_SPACING_GUIDES_ENABLED_KEY, enabled, null);
+    setCanvasSpacingGuidesEnabled(enabled);
   }
 
   public static getCanvasContainerGuidesEnabled(
     defaultEnabled = true
   ): boolean {
-    const stored = readEnvelope<unknown>(CANVAS_CONTAINER_GUIDES_ENABLED_KEY);
-    return typeof stored === 'boolean' ? stored : defaultEnabled;
+    return getCanvasContainerGuidesEnabled(defaultEnabled);
   }
 
   public static setCanvasContainerGuidesEnabled(enabled: boolean): void {
-    writeEnvelope(CANVAS_CONTAINER_GUIDES_ENABLED_KEY, enabled, null);
+    setCanvasContainerGuidesEnabled(enabled);
   }
 
   public static getCanvasViewportCenterGuidesEnabled(
     defaultEnabled = true
   ): boolean {
-    const stored = readEnvelope<unknown>(
-      CANVAS_VIEWPORT_CENTER_GUIDES_ENABLED_KEY
-    );
-    return typeof stored === 'boolean' ? stored : defaultEnabled;
+    return getCanvasViewportCenterGuidesEnabled(defaultEnabled);
   }
 
   public static setCanvasViewportCenterGuidesEnabled(enabled: boolean): void {
-    writeEnvelope(CANVAS_VIEWPORT_CENTER_GUIDES_ENABLED_KEY, enabled, null);
+    setCanvasViewportCenterGuidesEnabled(enabled);
   }
 
   public static getMiniMapVisible(defaultVisible = true): boolean {
-    const stored = readEnvelope<unknown>(MINI_MAP_VISIBLE_KEY);
-    return typeof stored === 'boolean' ? stored : defaultVisible;
+    return getCanvasMiniMapVisible(defaultVisible);
   }
 
   public static setMiniMapVisible(visible: boolean): void {
-    writeEnvelope(MINI_MAP_VISIBLE_KEY, visible, null);
+    setCanvasMiniMapVisible(visible);
   }
 
   public static getLastOpenedCanvasId(): string | null {

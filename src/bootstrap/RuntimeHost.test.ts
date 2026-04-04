@@ -68,9 +68,11 @@ vi.mock('../features/ai-assistant/services/AiAssistantCapabilities.ts', () => ({
 import { RuntimeHost } from './RuntimeHost.ts';
 import { createAppRuntime } from '../app-runtime/index.ts';
 import {
-  TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY,
-  TIME_CLUSTERING_OVERLAP_WARNINGS_VISIBLE_STORAGE_KEY,
-} from '../features/shell/workspaceUiState.ts';
+  getTimeClusteringLayoutMode,
+  getTimeClusteringOverlapWarningsVisible,
+  primeUserPreferencesForTests,
+  resetUserPreferencesForTests,
+} from '../features/shell/services/UserPreferencesService.ts';
 
 type RuntimeHostInternalAccess = {
   workspaceRoot: HTMLDivElement;
@@ -99,6 +101,7 @@ type RuntimeHostInternalAccess = {
     mode: 'docked-left' | 'fullscreen'
   ) => void;
   handleTimeClusteringOverlapWarningsChange: (show: boolean) => void;
+  syncPersistedWorkspacePreferences: () => void;
   setActiveView: (
     view: 'canvas' | 'kanban' | 'learning-studio'
   ) => Promise<void>;
@@ -165,6 +168,7 @@ describe('RuntimeHost time clustering island layout', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
     localStorage.clear();
+    resetUserPreferencesForTests();
     vi.useFakeTimers();
     Object.defineProperty(window, 'innerWidth', {
       configurable: true,
@@ -287,13 +291,16 @@ describe('RuntimeHost time clustering island layout', () => {
   it('preserves a persisted kanban base view when time clustering is already open', () => {
     localStorage.setItem('workspace-active-view', 'kanban');
     localStorage.setItem('time-clustering-open', '1');
-    localStorage.setItem(TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY, 'fullscreen');
-    localStorage.setItem(
-      TIME_CLUSTERING_OVERLAP_WARNINGS_VISIBLE_STORAGE_KEY,
-      '0'
-    );
+    primeUserPreferencesForTests({
+      workspace: { defaultView: 'kanban' },
+      timeClustering: {
+        layoutMode: 'fullscreen',
+        overlapWarningsVisible: false,
+      },
+    });
 
     const host = getRuntimeHostInternals(createRuntimeHost());
+    host['syncPersistedWorkspacePreferences']();
 
     expect(host.activeView).toBe('kanban');
     expect(host.timeClusteringOpen).toBe(true);
@@ -308,9 +315,7 @@ describe('RuntimeHost time clustering island layout', () => {
 
     host.handleTimeClusteringLayoutModeChange('fullscreen');
 
-    expect(localStorage.getItem(TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY)).toBe(
-      'fullscreen'
-    );
+    expect(getTimeClusteringLayoutMode('docked-left')).toBe('fullscreen');
     expect(host.timeClusteringLayoutMode).toBe('fullscreen');
 
     host.dispose();
@@ -321,9 +326,7 @@ describe('RuntimeHost time clustering island layout', () => {
 
     host.handleTimeClusteringOverlapWarningsChange(false);
 
-    expect(
-      localStorage.getItem(TIME_CLUSTERING_OVERLAP_WARNINGS_VISIBLE_STORAGE_KEY)
-    ).toBe('0');
+    expect(getTimeClusteringOverlapWarningsVisible(true)).toBe(false);
     expect(host.timeClusteringShowOverlapWarnings).toBe(false);
 
     host.dispose();
@@ -373,9 +376,7 @@ describe('RuntimeHost time clustering island layout', () => {
     expect(host.activeView).toBe('kanban');
     expect(host.timeClusteringOpen).toBe(false);
     expect(host.timeClusteringLayoutMode).toBe('docked-left');
-    expect(localStorage.getItem(TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY)).toBe(
-      'docked-left'
-    );
+    expect(getTimeClusteringLayoutMode('fullscreen')).toBe('docked-left');
 
     host.dispose();
   });
