@@ -3,6 +3,7 @@ import { of, throwError } from 'rxjs';
 import { CanvasApp } from './CanvasApp.ts';
 import { TaskElement } from './elements/TaskElement.ts';
 import { historyService } from './core/services/HistoryService.ts';
+import { canvasPersistenceState } from './core/services/CanvasPersistenceState.ts';
 
 vi.mock('./core/managers/CommandManager.ts', () => ({
   commandManager: {
@@ -48,6 +49,7 @@ type CanvasDuplicateHarness = {
   saveLayoutPositions: ReturnType<typeof vi.fn>;
   setCanvasTitle: ReturnType<typeof vi.fn>;
   refreshCanvasList: ReturnType<typeof vi.fn>;
+  resetCanvasPersistenceTracking: ReturnType<typeof vi.fn>;
   isLinkDecisionPending: () => boolean;
   getCurrentViewState: () => {
     scrollX: number;
@@ -117,15 +119,21 @@ async function runHandleCanvasDuplicateRequested(
 
 describe('CanvasApp.handleCanvasDuplicateRequested', () => {
   let historyResetSpy: ReturnType<typeof vi.spyOn>;
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    canvasPersistenceState.reset();
+    consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
     historyResetSpy = vi
       .spyOn(historyService, 'reset')
       .mockImplementation(() => {});
   });
 
   afterEach(() => {
+    consoleErrorSpy.mockRestore();
     historyResetSpy.mockRestore();
   });
 
@@ -178,6 +186,7 @@ describe('CanvasApp.handleCanvasDuplicateRequested', () => {
       saveLayoutPositions,
       setCanvasTitle,
       refreshCanvasList,
+      resetCanvasPersistenceTracking: vi.fn(() => canvasPersistenceState.reset()),
     });
 
     await runHandleCanvasDuplicateRequested(app);
@@ -232,6 +241,7 @@ describe('CanvasApp.handleCanvasDuplicateRequested', () => {
       saveLayoutPositions: vi.fn(() => of(true)),
       setCanvasTitle: vi.fn(),
       refreshCanvasList: vi.fn(),
+      resetCanvasPersistenceTracking: vi.fn(() => canvasPersistenceState.reset()),
     });
 
     const nextTitle = app.buildDuplicateCanvasTitle('x'.repeat(100));
@@ -284,6 +294,7 @@ describe('CanvasApp.handleCanvasDuplicateRequested', () => {
       saveLayoutPositions,
       setCanvasTitle: vi.fn(),
       refreshCanvasList: vi.fn(),
+      resetCanvasPersistenceTracking: vi.fn(() => canvasPersistenceState.reset()),
     });
 
     await runHandleCanvasDuplicateRequested(app);

@@ -163,6 +163,7 @@ export type StoryGoalLinkOptions = {
 export class CanvasDataService {
   private canvasId: string | null = null;
   private canvasName: string | null = null;
+  private canvasMeta: CanvasSummary['meta'] = null;
   private tasks$?: Observable<PlatformTask[]>;
   private stories$?: Observable<Story[]>;
   private goals$?: Observable<Goal[]>;
@@ -936,6 +937,10 @@ export class CanvasDataService {
   public readonly elementUpdateStatusChanges =
     this.elementUpdateStatus$.asObservable();
 
+  public hasUnpersistedElementUpdates(): boolean {
+    return this.pendingElementUpdates > 0 || this.failedElementUpdates;
+  }
+
   public queueElementUpdate(
     element: CanvasPlanningElement,
     patch: ElementPatch
@@ -1537,7 +1542,12 @@ export class CanvasDataService {
     }
     this.canvasId = canvas.id;
     this.canvasName = canvas.name;
+    this.canvasMeta = canvas.meta ?? null;
     CanvasClientStorage.setLastOpenedCanvasId(canvas.id);
+  }
+
+  public getActiveCanvasMeta(): CanvasSummary['meta'] {
+    return this.canvasMeta;
   }
 
   private getElementDraftId(req: ElementUpdateRequest): string {
@@ -1736,6 +1746,7 @@ export class CanvasDataService {
         if (this.canvasId !== id) return;
         this.canvasId = null;
         this.canvasName = null;
+        this.canvasMeta = null;
         this.positionRegistry.clear();
         this.positionDirtyKeys.clear();
         this.relationRegistry.clear();
@@ -1892,8 +1903,9 @@ export class CanvasDataService {
         .pipe(tap(() => this.mergePositionUpdates(normalizedChanges)));
     }
     return this.canvasApi.createCanvas().pipe(
-      switchMap(({ id }) => {
+      switchMap(({ id, meta }) => {
         this.canvasId = id;
+        this.canvasMeta = meta ?? null;
         return this.canvasApi
           .saveCanvasPositions(id, normalizedChanges)
           .pipe(tap(() => this.mergePositionUpdates(normalizedChanges)));

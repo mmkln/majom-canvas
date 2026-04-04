@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { of } from 'rxjs';
 import { Scene } from '../../core/scene/Scene.ts';
+import { historyService } from '../../core/services/HistoryService.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
 import { HabitElement } from '../../elements/HabitElement.ts';
 import { GoalElement } from '../../elements/GoalElement.ts';
@@ -14,8 +15,13 @@ const flushAsync = async (): Promise<void> => {
 };
 
 describe('EditElementModal', () => {
+  beforeEach(() => {
+    historyService.reset();
+  });
+
   afterEach(() => {
     document.body.innerHTML = '';
+    historyService.reset();
     vi.restoreAllMocks();
   });
 
@@ -192,11 +198,18 @@ describe('EditElementModal', () => {
 
     expect(goal.tagIds).toEqual([1, 2]);
     expect(goal.tags).toEqual(['Focus', 'Strategy']);
+    expect(historyService.canUndo()).toBe(true);
+    expect(historyService.hasUnsavedChanges()).toBe(false);
     expect(detailsEdited).toHaveBeenCalledTimes(1);
     const event = detailsEdited.mock.calls[0]?.[0] as CustomEvent<{
       patch: { tagIds?: number[] };
     }>;
     expect(event.detail.patch.tagIds).toEqual([1, 2]);
+
+    historyService.undo();
+
+    expect(goal.tagIds).toEqual([1]);
+    expect(goal.tags).toEqual(['Focus']);
 
     window.removeEventListener(
       'elementDetailsEdited',
@@ -260,6 +273,8 @@ describe('EditElementModal', () => {
 
     expect(goal.tagIds).toEqual([3]);
     expect(goal.tags).toEqual(['Vision']);
+    expect(historyService.canUndo()).toBe(true);
+    expect(historyService.hasUnsavedChanges()).toBe(false);
     const event = detailsEdited.mock.calls[0]?.[0] as CustomEvent<{
       patch: { tagIds?: number[] };
     }>;

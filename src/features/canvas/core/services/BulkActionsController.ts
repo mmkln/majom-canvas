@@ -1,7 +1,9 @@
 import { Scene } from '../scene/Scene.ts';
 import { historyService } from './HistoryService.ts';
+import { CompositeCommand } from '../commands/CompositeCommand.ts';
 import { CopyCommand } from '../commands/CopyCommand.ts';
 import { DeleteCommand } from '../commands/DeleteCommand.ts';
+import { PatchPlanningElementCommand } from '../commands/PatchPlanningElementCommand.ts';
 import { ElementStatus } from '../../elements/ElementStatus.ts';
 import type { PlanningElement } from './SelectionContext.ts';
 import { ConnectionCreationService } from './ConnectionCreationService.ts';
@@ -120,18 +122,13 @@ export class BulkActionsController {
     if (elements.length === 0 || !selectionSupportsLifecycleStatus(elements)) {
       return;
     }
-    // TODO: replace per-element PATCH with bulk endpoints:
-    // /tasks/bulk/, /stories/bulk/, /goals/bulk/ (ids + patch payload).
-    elements.forEach((element) => {
-      if (element.status === status) return;
-      element.status = status;
-      window.dispatchEvent(
-        new CustomEvent('elementDetailsEdited', {
-          detail: { element, patch: { status } },
-        })
+    const commands = elements
+      .filter((element) => element.status !== status)
+      .map(
+        (element) =>
+          new PatchPlanningElementCommand(this.scene, element, { status })
       );
-    });
-    this.scene.changes.next();
+    this.executePatchCommands(commands);
   }
 
   public updateGoalTags(
@@ -151,30 +148,28 @@ export class BulkActionsController {
     }
 
     const selectedTagIds = normalizeGoalTagIds(options.tagIds);
-    let changed = false;
-    goals.forEach((goal) => {
-      const currentIds = normalizeGoalTagIds(goal.tagIds);
-      const nextIds = resolveGoalTagIds(
-        currentIds,
-        selectedTagIds,
-        options.mode
+    const commands = goals
+      .map((goal) => {
+        const currentIds = normalizeGoalTagIds(goal.tagIds);
+        const nextIds = resolveGoalTagIds(
+          currentIds,
+          selectedTagIds,
+          options.mode
+        );
+        if (areGoalTagIdsEqual(currentIds, nextIds)) {
+          return null;
+        }
+        return new PatchPlanningElementCommand(this.scene, goal, {
+          tagIds: nextIds,
+          tags: resolveGoalTagTitles(goal, nextIds, options.tagCatalog),
+        });
+      })
+      .filter(
+        (
+          command
+        ): command is PatchPlanningElementCommand => command !== null
       );
-      if (areGoalTagIdsEqual(currentIds, nextIds)) {
-        return;
-      }
-      const nextTitles = resolveGoalTagTitles(goal, nextIds, options.tagCatalog);
-      goal.tagIds = [...nextIds];
-      goal.tags = nextTitles;
-      window.dispatchEvent(
-        new CustomEvent('elementDetailsEdited', {
-          detail: { element: goal, patch: { tagIds: nextIds } },
-        })
-      );
-      changed = true;
-    });
-    if (changed) {
-      this.scene.changes.next();
-    }
+    this.executePatchCommands(commands);
   }
 
   public getEligibleLinkSourcesToTarget(
@@ -377,5 +372,16 @@ export class BulkActionsController {
       source,
       elements
     );
+  }
+
+  private executePatchCommands(
+    commands: PatchPlanningElementCommand[]
+  ): void {
+    if (commands.length === 0) return;
+    if (commands.length === 1) {
+      historyService.execute(commands[0]);
+      return;
+    }
+    historyService.execute(new CompositeCommand(commands));
   }
 }

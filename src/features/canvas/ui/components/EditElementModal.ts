@@ -3,6 +3,11 @@ import { StoryElement } from '../../elements/StoryElement.ts';
 import { GoalElement, GoalScale } from '../../elements/GoalElement.ts';
 import { HabitElement } from '../../elements/HabitElement.ts';
 import { Scene } from '../../core/scene/Scene.ts';
+import { historyService } from '../../core/services/HistoryService.ts';
+import {
+  PatchPlanningElementCommand,
+  type PlanningElementPatch,
+} from '../../core/commands/PatchPlanningElementCommand.ts';
 import { firstValueFrom, Subscription } from 'rxjs';
 import { ComponentFactory } from '../../../../ui-lib/src/core/ComponentFactory.ts';
 import {
@@ -434,14 +439,7 @@ export class EditElementModal {
         return;
       }
 
-      const patch: Partial<{
-        title: string;
-        description: string;
-        status: ElementStatus;
-        priority: UiPriority;
-        dueDate: Date | null;
-        tagIds: number[];
-      }> = {};
+      const patch: PlanningElementPatch = {};
       if (normalizedTitle !== originalTitle) patch.title = normalizedTitle;
       if (tempDescription !== originalDescription) {
         patch.description = tempDescription;
@@ -451,13 +449,7 @@ export class EditElementModal {
       if (isTask && tempDueDateValue !== originalDueDateValue) {
         const nextDueDate = parseDateInputValue(tempDueDateValue);
         patch.dueDate = nextDueDate;
-        (this.element as TaskElement).dueDate = nextDueDate;
       }
-      this.element.title = normalizedTitle;
-      this.element.description = tempDescription;
-      this.element.status = tempStatus;
-      this.element.priority = tempPriority;
-      let scaleChanged = false;
       if (this.element instanceof GoalElement) {
         const nextTagIds = normalizeNumberSet(tempTagIds);
         const tagsChanged = !haveSameNumberSetMembers(
@@ -466,29 +458,17 @@ export class EditElementModal {
         );
         if (tagsChanged) {
           patch.tagIds = nextTagIds;
-          this.element.tagIds = nextTagIds;
-          this.element.tags = availableGoalTags
+          patch.tags = availableGoalTags
             .filter((tag) => tempTagIds.has(tag.id))
             .map((tag) => tag.title);
         }
         if (originalScale !== tempScale) {
-          this.element.setScale(tempScale);
-          scaleChanged = true;
+          patch.scale = tempScale;
         }
       }
-      this.scene.changes.next();
       if (Object.keys(patch).length > 0) {
-        window.dispatchEvent(
-          new CustomEvent('elementDetailsEdited', {
-            detail: { element: this.element, patch },
-          })
-        );
-      }
-      if (scaleChanged) {
-        window.dispatchEvent(
-          new CustomEvent('canvasPositionsDirty', {
-            detail: { elements: [this.element] },
-          })
+        historyService.execute(
+          new PatchPlanningElementCommand(this.scene, this.element, patch)
         );
       }
       this.close();

@@ -1,4 +1,4 @@
-import { historyService } from '../../core/services/HistoryService.ts';
+import { canvasPersistenceState } from '../../core/services/CanvasPersistenceState.ts';
 import { AuthService } from '../../../../majom-wrapper/data-access/auth-service.ts';
 import type { Subscription } from 'rxjs';
 import {
@@ -9,6 +9,11 @@ import {
   CANVAS_AUTOSAVE_TOGGLE_EVENT,
   isCanvasAutosaveToggleDetail,
 } from '../../core/canvasAutosaveLifecycle.ts';
+import {
+  CANVAS_ELEMENT_AUTOSAVE_STATUS_EVENT,
+  type CanvasElementAutosaveStatus,
+  isCanvasElementAutosaveStatusDetail,
+} from '../../core/canvasElementAutosaveLifecycle.ts';
 import { CanvasClientStorage } from '../../core/services/CanvasClientStorage.ts';
 import {
   createTextButton,
@@ -28,13 +33,16 @@ export class SaveButton {
   private readonly container: HTMLElement;
   private readonly button: TextButtonElement;
   private readonly authService = new AuthService();
-  private historySubscription: Subscription | null = null;
+  private persistenceSubscription: Subscription | null = null;
   private readonly refreshHandler: () => void;
   private readonly lifecycleHandler: (event: Event) => void;
   private readonly autosaveToggleHandler: (event: Event) => void;
+  private readonly elementAutosaveStatusHandler: (event: Event) => void;
   private disposeRuntimeSubscription: (() => void) | null = null;
   private autosaveEnabled = CanvasClientStorage.getCanvasAutosaveEnabled(true);
   private autosaveFailed = false;
+  private activeCanvasId = CanvasClientStorage.getLastOpenedCanvasId();
+  private elementAutosaveStatus: CanvasElementAutosaveStatus = 'saved';
   private manualSavesInFlight = 0;
   private autosaveSavesInFlight = 0;
   private loadingSince = 0;
@@ -58,7 +66,7 @@ export class SaveButton {
     });
     this.container.append(this.button);
 
-    this.historySubscription = historyService.changes.subscribe(() =>
+    this.persistenceSubscription = canvasPersistenceState.changes.subscribe(() =>
       this.updateUiState()
     );
     this.refreshHandler = () => this.updateUiState();
@@ -73,6 +81,12 @@ export class SaveButton {
     window.addEventListener(
       CANVAS_AUTOSAVE_TOGGLE_EVENT,
       this.autosaveToggleHandler
+    );
+    this.elementAutosaveStatusHandler = (event: Event) =>
+      this.handleElementAutosaveStatus(event);
+    window.addEventListener(
+      CANVAS_ELEMENT_AUTOSAVE_STATUS_EVENT,
+      this.elementAutosaveStatusHandler
     );
 
     this.updateUiState();
@@ -101,7 +115,7 @@ export class SaveButton {
       if (this.manualSavesInFlight === 0) {
         this.hideLoadingWithDelay();
       }
-      if (!historyService.hasUnsavedChanges()) {
+      if (this.areAllChangesSaved()) {
         this.autosaveFailed = false;
       }
       this.updateUiState();
@@ -117,7 +131,7 @@ export class SaveButton {
 
     this.autosaveSavesInFlight = Math.max(0, this.autosaveSavesInFlight - 1);
     if (this.autosaveSavesInFlight === 0) {
-      this.autosaveFailed = historyService.hasUnsavedChanges();
+      this.autosaveFailed = canvasPersistenceState.hasLayoutDirty();
     }
     this.updateUiState();
   }
@@ -170,7 +184,17 @@ export class SaveButton {
     this.updateUiState();
   }
 
+  private handleElementAutosaveStatus(event: Event): void {
+    const customEvent = event as CustomEvent<unknown>;
+    if (!isCanvasElementAutosaveStatusDetail(customEvent.detail)) return;
+    this.syncActiveCanvasId();
+    if (customEvent.detail.canvasId !== this.activeCanvasId) return;
+    this.elementAutosaveStatus = customEvent.detail.status;
+    this.updateUiState();
+  }
+
   private updateUiState(): void {
+    this.syncActiveCanvasId();
     this.updateButtonContent();
     this.updateButtonState();
   }
@@ -209,7 +233,7 @@ export class SaveButton {
     status: ReturnType<SaveButton['getAutosaveVisualStatus']>
   ): string {
     if (!this.autosaveEnabled) {
-      if (!historyService.hasUnsavedChanges()) {
+      if (this.areAllChangesSaved()) {
         return this.i18n.t('saveButton.saved');
       }
       return this.i18n.t('saveButton.save');
@@ -219,7 +243,7 @@ export class SaveButton {
   }
 
   private updateButtonState(): void {
-    const canSave = historyService.hasUnsavedChanges();
+    const canSave = canvasPersistenceState.hasManualSaveWork();
     const isLoggedIn = this.authService.isLoggedIn();
     const hasSaveInFlight =
       this.manualSavesInFlight > 0 || this.autosaveSavesInFlight > 0;
@@ -233,11 +257,44 @@ export class SaveButton {
     | 'dirty'
     | 'saved'
     | null {
+    if (
+      this.autosaveSavesInFlight > 0 ||
+      this.elementAutosaveStatus === 'saving' ||
+      canvasPersistenceState.hasRestoredReplayPending()
+    ) {
+      return 'saving';
+    }
+    if (
+      this.autosaveFailed ||
+      this.elementAutosaveStatus === 'failed' ||
+      canvasPersistenceState.hasRestoredReplayFailed()
+    ) {
+      return 'error';
+    }
+    if (
+      canvasPersistenceState.hasLayoutDirty() ||
+      this.elementAutosaveStatus === 'queued'
+    ) {
+      return 'dirty';
+    }
     if (!this.autosaveEnabled) return null;
-    if (this.autosaveSavesInFlight > 0) return 'saving';
-    if (this.autosaveFailed) return 'error';
-    if (historyService.hasUnsavedChanges()) return 'dirty';
     return 'saved';
+  }
+
+  private areAllChangesSaved(): boolean {
+    return (
+      !canvasPersistenceState.hasLayoutDirty() &&
+      !canvasPersistenceState.hasRestoredReplayPending() &&
+      !canvasPersistenceState.hasRestoredReplayFailed() &&
+      this.elementAutosaveStatus === 'saved'
+    );
+  }
+
+  private syncActiveCanvasId(): void {
+    const nextCanvasId = CanvasClientStorage.getLastOpenedCanvasId();
+    if (this.activeCanvasId === nextCanvasId) return;
+    this.activeCanvasId = nextCanvasId;
+    this.elementAutosaveStatus = 'saved';
   }
 
   private getAutosaveStatusLabel(
@@ -297,6 +354,10 @@ export class SaveButton {
       CANVAS_AUTOSAVE_TOGGLE_EVENT,
       this.autosaveToggleHandler
     );
+    window.removeEventListener(
+      CANVAS_ELEMENT_AUTOSAVE_STATUS_EVENT,
+      this.elementAutosaveStatusHandler
+    );
     if (this.hideLoadingTimer !== null) {
       window.clearTimeout(this.hideLoadingTimer);
       this.hideLoadingTimer = null;
@@ -306,8 +367,8 @@ export class SaveButton {
     this.manualSavesInFlight = 0;
     this.autosaveSavesInFlight = 0;
     this.hideLoadingNow();
-    this.historySubscription?.unsubscribe();
-    this.historySubscription = null;
+    this.persistenceSubscription?.unsubscribe();
+    this.persistenceSubscription = null;
     this.container.remove();
   }
 }

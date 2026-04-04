@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { Scene } from '../scene/Scene.ts';
 import { BulkActionsController } from './BulkActionsController.ts';
+import { historyService } from './HistoryService.ts';
 import { GoalElement } from '../../elements/GoalElement.ts';
+import { ElementStatus } from '../../elements/ElementStatus.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
 
 function collectEditedPatches(): {
@@ -25,8 +27,13 @@ function collectEditedPatches(): {
 }
 
 describe('BulkActionsController goal tags', () => {
+  beforeEach(() => {
+    historyService.reset();
+  });
+
   afterEach(() => {
     document.body.innerHTML = '';
+    historyService.reset();
   });
 
   it('adds, removes, and replaces tags for goal-only selections', () => {
@@ -85,6 +92,14 @@ describe('BulkActionsController goal tags', () => {
     expect(goalA.tags).toEqual(['Vision']);
     expect(goalB.tagIds).toEqual([3]);
     expect(patches).toHaveLength(6);
+    expect(historyService.canUndo()).toBe(true);
+    expect(historyService.hasUnsavedChanges()).toBe(false);
+
+    historyService.undo();
+
+    expect(goalA.tagIds).toEqual([2]);
+    expect(goalA.tags).toEqual(['Strategy']);
+    expect(goalB.tagIds).toEqual([2]);
 
     dispose();
   });
@@ -118,5 +133,26 @@ describe('BulkActionsController goal tags', () => {
     expect(patches).toHaveLength(0);
 
     dispose();
+  });
+
+  it('updates status through undoable commands without marking layout as dirty', () => {
+    const scene = new Scene();
+    const controller = new BulkActionsController(scene);
+    const goal = new GoalElement({
+      id: 'goal-a',
+      title: 'Goal A',
+    });
+
+    historyService.markSaved();
+
+    controller.updateStatus([goal], ElementStatus.Done);
+
+    expect(goal.status).toBe(ElementStatus.Done);
+    expect(historyService.canUndo()).toBe(true);
+    expect(historyService.hasUnsavedChanges()).toBe(false);
+
+    historyService.undo();
+
+    expect(goal.status).toBe(ElementStatus.Defined);
   });
 });

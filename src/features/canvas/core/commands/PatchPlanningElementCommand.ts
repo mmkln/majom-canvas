@@ -1,5 +1,5 @@
 import type { UiPriority } from '../../../../majom-wrapper/utils/priorityMapping.ts';
-import { GoalElement } from '../../elements/GoalElement.ts';
+import { GoalElement, type GoalScale } from '../../elements/GoalElement.ts';
 import { StoryElement } from '../../elements/StoryElement.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
 import { ElementStatus } from '../../elements/ElementStatus.ts';
@@ -13,6 +13,19 @@ export type PlanningElementPatch = Partial<{
   description: string;
   status: ElementStatus;
   priority: UiPriority;
+  dueDate: Date | null;
+  tagIds: number[];
+  tags: string[];
+  scale: GoalScale;
+}>;
+
+type PersistedPlanningElementPatch = Partial<{
+  title: string;
+  description: string;
+  status: ElementStatus;
+  priority: UiPriority;
+  dueDate: Date | null;
+  tagIds: number[];
 }>;
 
 export class PatchPlanningElementCommand extends Command {
@@ -30,6 +43,14 @@ export class PatchPlanningElementCommand extends Command {
       status: element.status,
       priority: element.priority,
     };
+    if (element instanceof TaskElement) {
+      this.previousPatch.dueDate = element.dueDate;
+    }
+    if (element instanceof GoalElement) {
+      this.previousPatch.tagIds = [...(element.tagIds ?? [])];
+      this.previousPatch.tags = [...(element.tags ?? [])];
+      this.previousPatch.scale = element.scale;
+    }
   }
 
   public execute(): void {
@@ -38,6 +59,10 @@ export class PatchPlanningElementCommand extends Command {
 
   public undo(): void {
     this.applyPatch(this.previousPatch);
+  }
+
+  public override affectsUnsavedChanges(): boolean {
+    return this.nextPatch.scale !== undefined;
   }
 
   private applyPatch(patch: PlanningElementPatch): void {
@@ -53,14 +78,65 @@ export class PatchPlanningElementCommand extends Command {
     if (patch.priority !== undefined) {
       this.element.priority = patch.priority;
     }
+    if (patch.dueDate !== undefined && this.element instanceof TaskElement) {
+      this.element.dueDate = patch.dueDate;
+    }
 
-    if (typeof window !== 'undefined') {
+    let scaleChanged = false;
+    if (this.element instanceof GoalElement) {
+      if (patch.tagIds !== undefined) {
+        this.element.tagIds = [...patch.tagIds];
+      }
+      if (patch.tags !== undefined) {
+        this.element.tags = [...patch.tags];
+      }
+      if (patch.scale !== undefined) {
+        this.element.setScale(patch.scale);
+        scaleChanged = true;
+      }
+    }
+
+    const persistedPatch = this.toPersistedPatch(patch);
+
+    if (typeof window !== 'undefined' && Object.keys(persistedPatch).length > 0) {
       window.dispatchEvent(
         new CustomEvent('elementDetailsEdited', {
-          detail: { element: this.element, patch },
+          detail: { element: this.element, patch: persistedPatch },
+        })
+      );
+    }
+    if (typeof window !== 'undefined' && scaleChanged) {
+      window.dispatchEvent(
+        new CustomEvent('canvasPositionsDirty', {
+          detail: { elements: [this.element] },
         })
       );
     }
     this.scene.changes.next();
+  }
+
+  private toPersistedPatch(
+    patch: PlanningElementPatch
+  ): PersistedPlanningElementPatch {
+    const persistedPatch: PersistedPlanningElementPatch = {};
+    if (patch.title !== undefined) {
+      persistedPatch.title = patch.title;
+    }
+    if (patch.description !== undefined) {
+      persistedPatch.description = patch.description;
+    }
+    if (patch.status !== undefined) {
+      persistedPatch.status = patch.status;
+    }
+    if (patch.priority !== undefined) {
+      persistedPatch.priority = patch.priority;
+    }
+    if (patch.dueDate !== undefined) {
+      persistedPatch.dueDate = patch.dueDate;
+    }
+    if (patch.tagIds !== undefined) {
+      persistedPatch.tagIds = [...patch.tagIds];
+    }
+    return persistedPatch;
   }
 }

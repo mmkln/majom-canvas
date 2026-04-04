@@ -21,6 +21,9 @@ import { UIManager } from './ui/UIManager.ts';
 import type { IViewState } from './core/interfaces/interfaces.ts';
 import { commandManager } from './core/managers/CommandManager.ts';
 import { historyService } from './core/services/HistoryService.ts';
+import { canvasPersistenceState } from './core/services/CanvasPersistenceState.ts';
+import { CanvasDraftRecoveryCoordinator } from './core/services/CanvasDraftRecoveryCoordinator.ts';
+import { CanvasRestoreReplayCoordinator } from './core/services/CanvasRestoreReplayCoordinator.ts';
 import { getCommandConfigs } from './core/config/commandConfigs.ts';
 import { environment } from '../../config/environment.ts';
 import { TaskElement } from './elements/TaskElement.ts';
@@ -95,6 +98,12 @@ import type {
 } from './drafts/CanvasDraftRepository.ts';
 import { CanvasDraftSerializer } from './drafts/CanvasDraftSerializer.ts';
 import { LocalStorageCanvasDraftRepository } from './drafts/LocalStorageCanvasDraftRepository.ts';
+import {
+  readCanvasMetaFingerprint,
+} from './drafts/canvasMetaFingerprint.ts';
+import {
+  type CanvasRestoreDiff,
+} from './drafts/CanvasRestoreDiff.ts';
 
 type CanvasListUiItem = {
   id: string;
@@ -124,6 +133,8 @@ export class CanvasApp {
   private readonly canvasDataService: CanvasDataService;
   private readonly draftRepository: CanvasDraftRepository;
   private readonly draftSerializer: CanvasDraftSerializer;
+  private readonly draftRecoveryCoordinator: CanvasDraftRecoveryCoordinator;
+  private readonly restoreReplayCoordinator: CanvasRestoreReplayCoordinator;
   private readonly chatCanvasActionExecutor: AiAssistantCanvasActionExecutor;
   private readonly runtime: AppRuntime;
   private readonly i18n: I18nService;
@@ -139,6 +150,7 @@ export class CanvasApp {
   private activeCanvasRelationsSubscription: Subscription | null = null;
   private viewChangesSubscription: Subscription | null = null;
   private sceneChangesSubscription: Subscription | null = null;
+  private historyChangesSubscription: Subscription | null = null;
   private elementUpdateStatusSubscription: Subscription | null = null;
   private disposeRuntimeSubscription: (() => void) | null = null;
   private draftPersistTimer: number | null = null;
@@ -216,6 +228,13 @@ export class CanvasApp {
     this.authService = new AuthService();
     this.draftRepository = new LocalStorageCanvasDraftRepository();
     this.draftSerializer = new CanvasDraftSerializer();
+    this.draftRecoveryCoordinator = new CanvasDraftRecoveryCoordinator({
+      draftRepository: this.draftRepository,
+      confirmRestore: confirmRestoreCanvasDraftModal,
+      applySnapshot: (snapshot, restoreDiff) => {
+        this.applyCanvasDraftSnapshot(snapshot, restoreDiff);
+      },
+    });
     const http = new HttpInterceptorClient(environment.apiUrl);
     this.canvasDataService = new CanvasDataService(
       new TasksApiService(http),
@@ -226,6 +245,13 @@ export class CanvasApp {
       new CanvasRelationsApiService(http),
       new GoalRelationsApiService(http)
     );
+    this.restoreReplayCoordinator = new CanvasRestoreReplayCoordinator({
+      scene: this.scene,
+      canvasDataService: this.canvasDataService,
+      onSettled: () => {
+        void this.clearActiveCanvasDraftIfSettled();
+      },
+    });
     // Створюємо компонент для авторизації
     // Використовуємо UIManager для монтування UI-компонентів
     this.uiManager = new UIManager(
@@ -244,7 +270,26 @@ export class CanvasApp {
       this.canvasDataService.elementUpdateStatusChanges.subscribe((status) => {
         if (!isCanvasElementAutosaveStatusDetail(status)) return;
         emitCanvasElementAutosaveStatus(status);
+        this.restoreReplayCoordinator.handleElementAutosaveStatus(
+          status,
+          this.canvasDataService.getActiveCanvasId()
+        );
+        if (
+          status.status === 'saved' &&
+          status.canvasId &&
+          status.canvasId === this.canvasDataService.getActiveCanvasId()
+        ) {
+          void this.clearActiveCanvasDraftIfSettled();
+        }
       });
+    this.historyChangesSubscription = historyService.changes.subscribe(() => {
+      canvasPersistenceState.syncHistoryLayoutDirty(
+        historyService.hasUnsavedChanges()
+      );
+    });
+    canvasPersistenceState.syncHistoryLayoutDirty(
+      historyService.hasUnsavedChanges()
+    );
 
     // Register commands from config
     getCommandConfigs(this.scene, this.canvasManager).forEach((cmd) => {
@@ -374,11 +419,17 @@ export class CanvasApp {
   }
 
   private handleSaveCanvasLayoutRequest(): void {
+    if (!canvasPersistenceState.hasLayoutDirty()) {
+      this.retryRestoreReplayPersistence();
+      return;
+    }
     const tokenAtStart = historyService.getStateToken();
     this.saveCanvasLayout(true).subscribe({
       next: (saved) => {
         if (saved && historyService.isTokenCurrent(tokenAtStart)) {
           historyService.markSaved(tokenAtStart);
+          canvasPersistenceState.clearRestoredLayoutDirty();
+          void this.clearActiveCanvasDraftIfSettled();
         }
       },
       error: (err) => {
@@ -461,6 +512,7 @@ export class CanvasApp {
       next: (canvas) => {
         if (isCanvasSwitched) {
           historyService.reset();
+          this.resetCanvasPersistenceTracking();
         }
         this.setCanvasTitle(canvas.name);
         this.restoreCanvasViewState(canvas.id).finally(() => {
@@ -473,6 +525,7 @@ export class CanvasApp {
         this.canvasDataService.setActiveCanvas({ id, name });
         if (isCanvasSwitched) {
           historyService.reset();
+          this.resetCanvasPersistenceTracking();
         }
         this.setCanvasTitle(name);
         this.restoreCanvasViewState(id).finally(() => {
@@ -492,6 +545,7 @@ export class CanvasApp {
     this.canvasDataService.createCanvas('New canvas').subscribe({
       next: (canvas) => {
         historyService.reset();
+        this.resetCanvasPersistenceTracking();
         this.setCanvasTitle(canvas.name);
         this.restoreCanvasViewState(canvas.id).finally(() => {
           this.refreshCanvasList(canvas.id);
@@ -548,6 +602,7 @@ export class CanvasApp {
         duplicatedCanvas.id
       );
       historyService.reset();
+      this.resetCanvasPersistenceTracking();
       notify(this.i18n.t('canvas.duplicateSuccess'), 'success');
     } catch (err) {
       console.error('Failed to duplicate canvas', err);
@@ -908,8 +963,11 @@ export class CanvasApp {
     }
     this.sceneChangesSubscription?.unsubscribe();
     this.sceneChangesSubscription = null;
+    this.historyChangesSubscription?.unsubscribe();
+    this.historyChangesSubscription = null;
     this.elementUpdateStatusSubscription?.unsubscribe();
     this.elementUpdateStatusSubscription = null;
+    this.resetCanvasPersistenceTracking();
     this.disposeRuntimeSubscription?.();
     this.disposeRuntimeSubscription = null;
     this.clearAiAssistantContext();
@@ -972,6 +1030,7 @@ export class CanvasApp {
       this.scene.clear();
       this.canvasManager.clearLoadingPlaceholders();
       historyService.reset();
+      this.resetCanvasPersistenceTracking();
       this.setCanvasTitle('New canvas');
       this.refreshCanvasList(null);
       return;
@@ -982,6 +1041,7 @@ export class CanvasApp {
     this.canvasDataService.bootstrapCanvas().subscribe({
       next: ({ canvases, activeCanvas }) => {
         historyService.reset();
+        this.resetCanvasPersistenceTracking();
         this.setCanvasTitle(activeCanvas.name);
         this.setCanvasListCache(canvases);
         this.emitCanvasList(
@@ -1207,7 +1267,11 @@ export class CanvasApp {
     }
     const canvasId = this.canvasDataService.getActiveCanvasId();
     if (!canvasId) return null;
-    return this.draftSerializer.capture(canvasId, this.scene);
+    return this.draftSerializer.capture(
+      canvasId,
+      this.scene,
+      readCanvasMetaFingerprint(this.canvasDataService.getActiveCanvasMeta())
+    );
   }
 
   private scheduleActiveCanvasDraftPersist(): void {
@@ -1235,6 +1299,25 @@ export class CanvasApp {
     await this.draftRepository.save(snapshot);
   }
 
+  private async clearActiveCanvasDraftIfSettled(): Promise<void> {
+    if (!this.authService.isLoggedIn()) return;
+    const canvasId = this.canvasDataService.getActiveCanvasId();
+    if (!canvasId) return;
+    if (canvasPersistenceState.hasLayoutDirty()) return;
+    if (canvasPersistenceState.hasRestoredReplayPending()) return;
+    if (canvasPersistenceState.hasRestoredReplayFailed()) return;
+    if (this.canvasDataService.hasUnpersistedElementUpdates()) return;
+    if (this.draftPersistTimer !== null) {
+      window.clearTimeout(this.draftPersistTimer);
+      this.draftPersistTimer = null;
+    }
+    await this.draftRepository.clear(canvasId);
+  }
+
+  private resetCanvasPersistenceTracking(): void {
+    this.restoreReplayCoordinator.reset();
+  }
+
   private async reconcileActiveCanvasDraft(): Promise<void> {
     if (!this.authService.isLoggedIn()) return;
     const canvasId = this.canvasDataService.getActiveCanvasId();
@@ -1242,35 +1325,19 @@ export class CanvasApp {
     const hydratedSnapshot = this.captureActiveCanvasDraftSnapshot();
     if (!hydratedSnapshot) return;
     const token = ++this.draftReconciliationToken;
-    const localDraft = await this.draftRepository.load(canvasId);
-    if (
-      !localDraft ||
-      token !== this.draftReconciliationToken ||
-      this.canvasDataService.getActiveCanvasId() !== canvasId
-    ) {
-      return;
-    }
-    if (localDraft.fingerprint === hydratedSnapshot.fingerprint) {
-      await this.draftRepository.clear(canvasId);
-      return;
-    }
-    const action = await confirmRestoreCanvasDraftModal({
-      savedAt: localDraft.savedAt,
+    await this.draftRecoveryCoordinator.reconcile({
+      canvasId,
+      hydratedSnapshot,
+      isStillCurrent: () =>
+        token === this.draftReconciliationToken &&
+        this.canvasDataService.getActiveCanvasId() === canvasId,
     });
-    if (
-      token !== this.draftReconciliationToken ||
-      this.canvasDataService.getActiveCanvasId() !== canvasId
-    ) {
-      return;
-    }
-    if (action === 'discard') {
-      await this.draftRepository.clear(canvasId);
-      return;
-    }
-    this.applyCanvasDraftSnapshot(localDraft);
   }
 
-  private applyCanvasDraftSnapshot(snapshot: CanvasDraftSnapshot): void {
+  private applyCanvasDraftSnapshot(
+    snapshot: CanvasDraftSnapshot,
+    restoreDiff: CanvasRestoreDiff | null = null
+  ): void {
     const restored = this.draftSerializer.materialize(snapshot);
     this.isApplyingLocalDraft = true;
     try {
@@ -1283,10 +1350,22 @@ export class CanvasApp {
       this.canvasManager.setLoadPhase('elements-ready');
       this.canvasManager.draw();
       historyService.reset();
+      if (restoreDiff?.hasStructuralChanges) {
+        const structurallyChanged = restored.elements.filter((element) =>
+          restoreDiff.structurallyChangedElementIds.includes(element.id)
+        );
+        this.canvasDataService.markPositionsDirty(structurallyChanged);
+        canvasPersistenceState.markRestoredLayoutDirty();
+      }
+      this.restoreReplayCoordinator.replay(restoreDiff);
       this.emitAiAssistantContext();
     } finally {
       this.isApplyingLocalDraft = false;
     }
+  }
+
+  private retryRestoreReplayPersistence(): void {
+    this.restoreReplayCoordinator.retry();
   }
 
   private queueUnsyncedDraft(
@@ -1328,7 +1407,7 @@ export class CanvasApp {
     if (!this.authService.isLoggedIn()) return;
     if (this.autosaveInFlight) return;
     if (this.isLinkDecisionPending()) return;
-    if (!historyService.hasUnsavedChanges()) return;
+    if (!canvasPersistenceState.hasLayoutDirty()) return;
     const tokenAtStart = historyService.getStateToken();
     this.autosaveInFlight = true;
     this.saveCanvasLayout(false)
@@ -1341,6 +1420,8 @@ export class CanvasApp {
         next: (saved) => {
           if (saved && historyService.isTokenCurrent(tokenAtStart)) {
             historyService.markSaved(tokenAtStart);
+            canvasPersistenceState.clearRestoredLayoutDirty();
+            void this.clearActiveCanvasDraftIfSettled();
           }
         },
         error: (err) => {
@@ -1565,6 +1646,7 @@ export class CanvasApp {
           this.canvasDataService.createCanvas('New canvas')
         );
         historyService.reset();
+        this.resetCanvasPersistenceTracking();
         this.setCanvasTitle(createdCanvas.name);
         await this.restoreCanvasViewState(createdCanvas.id);
         this.refreshCanvasList(createdCanvas.id);
@@ -1588,6 +1670,7 @@ export class CanvasApp {
       }
 
       historyService.reset();
+      this.resetCanvasPersistenceTracking();
       await this.restoreCanvasViewState(nextCanvas.id);
       this.refreshCanvasList(nextCanvas.id);
       this.loadActiveCanvasElements();
