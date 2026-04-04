@@ -7,6 +7,7 @@ import type { WorkspaceView } from '../WorkspaceView.ts';
 import type { TimeClusteringLayoutMode } from '../../time-clustering/domain/types.ts';
 
 type UserPreferencesApi = {
+  getUser(): Observable<User>;
   updateUserProfile(payload: UserProfileUpdate): Observable<User>;
 };
 
@@ -62,6 +63,7 @@ type UserPreferencesState = {
   preferences: UserPreferencesMeta;
   pendingPersist: UserMetaRecord | null;
   flushPromise: Promise<void> | null;
+  listeners: Set<(preferences: UserPreferencesMeta) => void>;
 };
 
 const state: UserPreferencesState = {
@@ -70,6 +72,7 @@ const state: UserPreferencesState = {
   preferences: {},
   pendingPersist: null,
   flushPromise: null,
+  listeners: new Set(),
 };
 
 export async function initializeUserPreferences(options: {
@@ -116,6 +119,7 @@ export function clearUserPreferences(): void {
   state.preferences = {};
   state.pendingPersist = null;
   state.flushPromise = null;
+  state.listeners.clear();
 }
 
 export function getWorkspaceDefaultView(
@@ -274,6 +278,32 @@ export function primeUserPreferencesForTests(meta: UserPreferencesMeta): void {
   applyUserMeta(preferencesToMetaPatch(ensurePreferencesVersion(meta)));
 }
 
+export function subscribeUserPreferences(
+  listener: (preferences: UserPreferencesMeta) => void,
+  options: { emitCurrent?: boolean } = {}
+): () => void {
+  state.listeners.add(listener);
+  if (options.emitCurrent) {
+    listener(state.preferences);
+  }
+  return () => {
+    state.listeners.delete(listener);
+  };
+}
+
+export async function refreshUserPreferencesFromServer(): Promise<User | null> {
+  if (!state.api) return null;
+  if (state.pendingPersist || state.flushPromise) return null;
+  try {
+    const user = await firstValueFrom(state.api.getUser());
+    applyUserMeta(normalizeUserMeta(user.meta));
+    return user;
+  } catch (error) {
+    console.warn('Failed to refresh user preferences from server.', error);
+    return null;
+  }
+}
+
 function updatePreferences(partial: UserPreferencesMeta): void {
   const nextMeta = mergeMetaObjects(
     state.rawMeta,
@@ -308,8 +338,12 @@ function queueMetaPersistence(nextMeta: UserMetaRecord): void {
 }
 
 function applyUserMeta(meta: UserMetaRecord): void {
+  const previous = JSON.stringify(state.preferences);
   state.rawMeta = meta;
   state.preferences = extractUserPreferencesMeta(meta);
+  if (JSON.stringify(state.preferences) !== previous) {
+    state.listeners.forEach((listener) => listener(state.preferences));
+  }
 }
 
 function preferencesToMetaPatch(preferences: UserPreferencesMeta): UserMetaRecord {

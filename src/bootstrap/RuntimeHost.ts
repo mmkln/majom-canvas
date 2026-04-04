@@ -40,6 +40,10 @@ import {
   persistTimeClusteringOpen,
   persistWorkspaceView,
 } from '../features/shell/workspaceUiState.ts';
+import {
+  subscribeUserPreferences,
+  type UserPreferencesMeta,
+} from '../features/shell/services/UserPreferencesService.ts';
 import type { WorkspaceView } from '../features/shell/WorkspaceView.ts';
 import { WorkspaceViewSwitcher } from '../features/shell/WorkspaceViewSwitcher.ts';
 import {
@@ -129,6 +133,7 @@ export class RuntimeHost {
   private runtimeChromeMounted = false;
   private layoutSyncTimer: number | null = null;
   private workspaceResizeObserver: ResizeObserver | null = null;
+  private disposePreferencesSubscription: (() => void) | null = null;
   private readonly viewChangeHandler: (event: Event) => void;
   private readonly timeClusteringToggleHandler: (event: Event) => void;
   private readonly chatToggleHandler: (event: Event) => void;
@@ -302,6 +307,12 @@ export class RuntimeHost {
       });
       this.workspaceResizeObserver.observe(this.workspaceRoot);
     }
+    this.disposePreferencesSubscription = subscribeUserPreferences(
+      (preferences) => {
+        this.applyUserPreferenceSnapshot(preferences);
+      },
+      { emitCurrent: true }
+    );
   }
 
   private syncWorkspaceWallpaper(): void {
@@ -347,6 +358,8 @@ export class RuntimeHost {
   public dispose(): void {
     this.runtimeSubscriptionDispose?.();
     this.runtimeSubscriptionDispose = null;
+    this.disposePreferencesSubscription?.();
+    this.disposePreferencesSubscription = null;
     this.wallpaperSubscription.unsubscribe();
     if (this.layoutSyncTimer !== null) {
       window.clearTimeout(this.layoutSyncTimer);
@@ -896,5 +909,54 @@ export class RuntimeHost {
       allowKanban: KANBAN_DEV_ENABLED,
       allowLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
     });
+  }
+
+  private applyUserPreferenceSnapshot(preferences: UserPreferencesMeta): void {
+    const nextLayoutMode =
+      preferences.timeClustering?.layoutMode ?? this.timeClusteringLayoutMode;
+    const nextShowOverlapWarnings =
+      preferences.timeClustering?.overlapWarningsVisible ??
+      this.timeClusteringShowOverlapWarnings;
+    const nextView = preferences.workspace?.defaultView
+      ? this.resolveAllowedWorkspaceView(preferences.workspace.defaultView)
+      : this.activeView;
+
+    const layoutModeChanged = this.timeClusteringLayoutMode !== nextLayoutMode;
+    const overlapWarningsChanged =
+      this.timeClusteringShowOverlapWarnings !== nextShowOverlapWarnings;
+    const activeViewChanged = this.activeView !== nextView;
+
+    this.timeClusteringLayoutMode = nextLayoutMode;
+    this.timeClusteringShowOverlapWarnings = nextShowOverlapWarnings;
+    this.timeClusteringModule?.setLayoutMode(nextLayoutMode);
+    this.timeClusteringModule?.setShowOverlapWarnings(nextShowOverlapWarnings);
+    this.viewSwitcher?.setTimeClusteringLayoutMode(nextLayoutMode);
+
+    if (layoutModeChanged) {
+      emitTimeClusteringLayoutModeChanged(nextLayoutMode);
+    }
+
+    if (activeViewChanged) {
+      this.activeView = nextView;
+      this.viewSwitcher?.setActiveView(nextView);
+      if (this.shell) {
+        void this.shell.show(nextView);
+      }
+      emitWorkspaceViewChanged(nextView);
+    }
+
+    if (layoutModeChanged || overlapWarningsChanged || activeViewChanged) {
+      this.applyVisibility();
+    }
+  }
+
+  private resolveAllowedWorkspaceView(view: WorkspaceView): WorkspaceView {
+    if (view === 'kanban' && !KANBAN_DEV_ENABLED) {
+      return 'canvas';
+    }
+    if (view === 'learning-studio' && !LEARNING_STUDIO_DEV_ENABLED) {
+      return 'canvas';
+    }
+    return view;
   }
 }

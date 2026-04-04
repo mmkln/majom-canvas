@@ -14,6 +14,7 @@ import { WallpaperService } from '../features/shell/services/WallpaperService.ts
 import {
   clearUserPreferences,
   initializeUserPreferences,
+  refreshUserPreferencesFromServer,
 } from '../features/shell/services/UserPreferencesService.ts';
 import type { BootEvent, BootState } from './BootState.ts';
 import { nextBootState } from './BootStateMachine.ts';
@@ -37,6 +38,8 @@ export class BootOrchestrator {
   private readonly minLoadingScreenMs: number;
   private logoutSubscription: Subscription | null = null;
   private loginSubscription: Subscription | null = null;
+  private readonly windowFocusHandler: () => void;
+  private readonly visibilityChangeHandler: () => void;
   private state: BootState = 'auth_required';
   private bootInFlight = false;
   private logoutInProgress = false;
@@ -50,10 +53,19 @@ export class BootOrchestrator {
       runtime: this.runtime,
       onSubmit: async (credentials) => this.handleLoginSubmit(credentials),
     });
+    this.windowFocusHandler = () => {
+      void this.refreshUserPreferences();
+    };
+    this.visibilityChangeHandler = () => {
+      if (document.visibilityState !== 'visible') return;
+      void this.refreshUserPreferences();
+    };
   }
 
   public start(): void {
     this.bindAuthFlow();
+    window.addEventListener('focus', this.windowFocusHandler);
+    document.addEventListener('visibilitychange', this.visibilityChangeHandler);
     this.runtimeHost.hideCanvas();
     this.dispatch('app_start');
 
@@ -199,6 +211,11 @@ export class BootOrchestrator {
   private handleHardLogout(): void {
     if (this.logoutInProgress) return;
     this.logoutInProgress = true;
+    window.removeEventListener('focus', this.windowFocusHandler);
+    document.removeEventListener(
+      'visibilitychange',
+      this.visibilityChangeHandler
+    );
     this.dispatch('logout');
     this.authService.logout();
     clearUserPreferences();
@@ -206,6 +223,14 @@ export class BootOrchestrator {
     this.globalHeader.unmount();
     this.render();
     window.location.reload();
+  }
+
+  private async refreshUserPreferences(): Promise<void> {
+    if (!this.authService.isLoggedIn()) return;
+    const user = await refreshUserPreferencesFromServer();
+    if (!user) return;
+    this.runtime.setLocale(user.language || this.i18n.getLocale());
+    this.wallpaperService.applyUserWallpaper(user);
   }
 
   private resolveMinLoadingScreenDuration(): number {
