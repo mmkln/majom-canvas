@@ -3,6 +3,7 @@ import { map } from 'rxjs/operators';
 import type {
   CanvasBootstrapResult,
   CanvasElementsLoadOptions,
+  GoalRelation,
   CanvasPositionWriteDTO,
   StoryGoalLinkOptions,
   StoryGoalLinkResult,
@@ -32,7 +33,12 @@ import {
   planningCanvasElementSemantics,
   type PlanningCanvasElement,
 } from './PlanningCanvasElementSemantics.ts';
-import type { PlanningCanvasRelationAdapter } from './PlanningCanvasRelationAdapter.ts';
+import type {
+  PlanningCanvasRelationAdapter,
+  PlanningGoalLink,
+  PlanningStoryGoalLink,
+  PlanningTaskStoryLink,
+} from './PlanningCanvasRelationAdapter.ts';
 
 type LegacyRelationalPlanningElement =
   | LegacyTaskElement
@@ -171,24 +177,50 @@ export class PlanningCanvasDataAdapter
   }
 
   public updateTaskStoryLink(
-    task: TaskElement,
-    story: StoryElement | null
+    taskStoryLink: PlanningTaskStoryLink
   ): Observable<unknown> {
     return this.port.updateTaskStoryLink(
-      task as unknown as LegacyTaskElement,
-      story as LegacyStoryElement | null
+      {
+        task: taskStoryLink.task as unknown as LegacyTaskElement,
+        story: taskStoryLink.story as LegacyStoryElement | null,
+      }
     );
   }
 
   public updateStoryGoalLink(
-    story: StoryElement,
-    goal: GoalElement,
+    storyGoalLink: PlanningStoryGoalLink,
     options: StoryGoalLinkOptions
   ): Observable<StoryGoalLinkResult> {
     return this.port.updateStoryGoalLink(
-      story as unknown as LegacyStoryElement,
-      goal as unknown as LegacyGoalElement,
+      {
+        story: storyGoalLink.story as unknown as LegacyStoryElement,
+        goal: storyGoalLink.goal as unknown as LegacyGoalElement,
+      },
       options
+    );
+  }
+
+  public createGoalRelation(
+    goalLink: PlanningGoalLink
+  ): Observable<GoalRelation> {
+    return this.port.createGoalRelation(
+      this.toLegacyGoalLinkSnapshot(goalLink)
+    );
+  }
+
+  public updateGoalRelation(
+    currentGoalLink: PlanningGoalLink,
+    nextGoalLink: PlanningGoalLink
+  ): Observable<GoalRelation> {
+    return this.port.updateGoalRelation(
+      this.toLegacyGoalLinkSnapshot(currentGoalLink),
+      this.toLegacyGoalLinkSnapshot(nextGoalLink)
+    );
+  }
+
+  public deleteGoalRelation(goalLink: PlanningGoalLink): Observable<void> {
+    return this.port.deleteGoalRelation(
+      this.toLegacyGoalLinkSnapshot(goalLink)
     );
   }
 
@@ -262,6 +294,16 @@ export class PlanningCanvasDataAdapter
 
   public refreshPositions(): Observable<void> {
     return this.port.refreshPositions();
+  }
+
+  private toLegacyGoalLinkSnapshot(
+    goalLink: PlanningGoalLink
+  ): PlanningGoalLink {
+    return {
+      fromGoal: goalLink.fromGoal as unknown as LegacyGoalElement,
+      toGoal: goalLink.toGoal as unknown as LegacyGoalElement,
+      relationType: goalLink.relationType,
+    } as PlanningGoalLink;
   }
 }
 

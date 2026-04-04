@@ -5,6 +5,7 @@ import {
   CanvasDataService,
   CanvasRelationsApiService,
   GoalsApiService,
+  GoalRelationsApiService,
   HabitsApiService,
   StoriesApiService,
   TasksApiService,
@@ -17,10 +18,12 @@ import { PlanningCanvasAppearanceAdapter } from './PlanningCanvasAppearanceAdapt
 import { PlanningCanvasDataAdapter } from './PlanningCanvasDataAdapter.ts';
 import { PlanningCanvasInteractionAdapter } from './PlanningCanvasInteractionAdapter.ts';
 import { PlanningCanvasLookupAdapter } from './PlanningCanvasLookupAdapter.ts';
+import { PlanningCanvasRelationBridge } from './PlanningCanvasRelationBridge.ts';
 import { planningCanvasElementSemantics } from './PlanningCanvasElementSemantics.ts';
 import { PlanningCanvasPersistenceAdapter } from './PlanningCanvasPersistenceAdapter.ts';
 import { PlanningCanvasUiAdapter } from './PlanningCanvasUiAdapter.ts';
 import { LocalStorageDataProvider } from '../../../canvas/core/data/LocalStorageDataProvider.ts';
+import { LocalStorageCanvasDraftRepository } from '../../drafts/LocalStorageCanvasDraftRepository.ts';
 
 function createPlanningCanvasLookupPort(): PlanningCanvasLookupPort {
   const http = new HttpInterceptorClient(environment.apiUrl);
@@ -96,7 +99,8 @@ function createPlanningCanvasDataService(): CanvasDataService {
     new GoalsApiService(http),
     new HabitsApiService(http),
     new CanvasApiService(http),
-    new CanvasRelationsApiService(http)
+    new CanvasRelationsApiService(http),
+    new GoalRelationsApiService(http)
   );
 }
 
@@ -105,18 +109,20 @@ export function createPlanningCanvasAdapters(): CanvasCoreAdapters {
   // Habit parity still lives in the legacy canvas runtime.
   const dataPort = createPlanningCanvasDataService();
   const data = new PlanningCanvasDataAdapter(dataPort);
+  const relations = new PlanningCanvasRelationBridge(dataPort);
 
   return {
     alignment: new PlanningCanvasAlignmentAdapter(),
     appearance: new PlanningCanvasAppearanceAdapter(),
     data,
+    drafts: new LocalStorageCanvasDraftRepository(),
     interaction: new PlanningCanvasInteractionAdapter(),
     lookup: new PlanningCanvasLookupAdapter(createPlanningCanvasLookupPort()),
     nodeSemantics: planningCanvasElementSemantics,
     persistence: new PlanningCanvasPersistenceAdapter(
       new LocalStorageDataProvider()
     ),
-    planningRelations: data,
+    planningRelations: relations,
     ui: new PlanningCanvasUiAdapter(),
   };
 }

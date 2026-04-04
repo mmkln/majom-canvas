@@ -4,9 +4,11 @@ import { PlanningCanvasAppearanceAdapter } from './PlanningCanvasAppearanceAdapt
 import { PlanningCanvasDataAdapter } from './PlanningCanvasDataAdapter.ts';
 import { PlanningCanvasInteractionAdapter } from './PlanningCanvasInteractionAdapter.ts';
 import { PlanningCanvasLookupAdapter } from './PlanningCanvasLookupAdapter.ts';
+import { PlanningCanvasRelationBridge } from './PlanningCanvasRelationBridge.ts';
 import { planningCanvasElementSemantics } from './PlanningCanvasElementSemantics.ts';
 import { PlanningCanvasPersistenceAdapter } from './PlanningCanvasPersistenceAdapter.ts';
 import { PlanningCanvasUiAdapter } from './PlanningCanvasUiAdapter.ts';
+import { LocalStorageCanvasDraftRepository } from '../../drafts/LocalStorageCanvasDraftRepository.ts';
 import { createPlanningCanvasAdapters } from './createPlanningCanvasAdapters.ts';
 
 describe('createPlanningCanvasAdapters', () => {
@@ -28,6 +30,7 @@ describe('createPlanningCanvasAdapters', () => {
     expect(adapters.alignment).toBeInstanceOf(PlanningCanvasAlignmentAdapter);
     expect(adapters.appearance).toBeInstanceOf(PlanningCanvasAppearanceAdapter);
     expect(adapters.data).toBeInstanceOf(PlanningCanvasDataAdapter);
+    expect(adapters.drafts).toBeInstanceOf(LocalStorageCanvasDraftRepository);
     expect(adapters.interaction).toBeInstanceOf(
       PlanningCanvasInteractionAdapter
     );
@@ -36,7 +39,9 @@ describe('createPlanningCanvasAdapters', () => {
     expect(adapters.persistence).toBeInstanceOf(
       PlanningCanvasPersistenceAdapter
     );
-    expect(adapters.planningRelations).toBe(adapters.data);
+    expect(adapters.planningRelations).toBeInstanceOf(
+      PlanningCanvasRelationBridge
+    );
     expect(adapters.ui).toBeInstanceOf(PlanningCanvasUiAdapter);
   });
 });

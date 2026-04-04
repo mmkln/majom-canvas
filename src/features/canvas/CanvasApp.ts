@@ -43,6 +43,8 @@ import { AiAssistantCanvasActionExecutor } from './core/services/AiAssistantCanv
 import {
   CANVAS_LINK_LIFECYCLE_EVENT,
   isCanvasLinkLifecycleDetail,
+  type StoryGoalLinkSnapshot,
+  type TaskStoryLinkSnapshot,
 } from './core/canvasLinkLifecycle.ts';
 import {
   emitCanvasSaveFinished,
@@ -785,8 +787,13 @@ export class CanvasApp {
       return;
     }
     if (detail.kind === 'task-story') {
+      const taskStoryLink = this.resolveTaskStoryLink(detail.taskStoryLink);
+      if (!taskStoryLink) {
+        notify('Failed to resolve task link', 'error');
+        return;
+      }
       this.canvasDataService
-        .updateTaskStoryLink(detail.task, detail.story)
+        .updateTaskStoryLink(taskStoryLink)
         .subscribe({
           error: (err) => {
             console.error('Failed to update task story link', err);
@@ -795,7 +802,15 @@ export class CanvasApp {
         });
       return;
     }
-    void this.handleStoryGoalLinkSet(detail.story, detail.goal);
+    if (detail.kind === 'goal-link') {
+      return;
+    }
+    const storyGoalLink = this.resolveStoryGoalLink(detail.storyGoalLink);
+    if (!storyGoalLink) {
+      notify('Failed to resolve story goal link', 'error');
+      return;
+    }
+    void this.handleStoryGoalLinkSet(storyGoalLink.story, storyGoalLink.goal);
   }
 
   public async init(): Promise<void> {
@@ -2101,7 +2116,7 @@ export class CanvasApp {
     }
 
     this.canvasDataService
-      .updateStoryGoalLink(story, goal, {
+      .updateStoryGoalLink({ story, goal }, {
         allowReplace: shouldConfirmReplace,
       })
       .pipe(
@@ -2179,6 +2194,96 @@ export class CanvasApp {
     const legacyId = Number(element.id);
     if (Number.isFinite(legacyId)) return legacyId;
     return null;
+  }
+
+  private resolveTaskStoryLink(
+    taskStoryLink: TaskStoryLinkSnapshot
+  ): { task: TaskElement; story: StoryElement | null } | null {
+    const task = this.findTaskByLinkRef(
+      taskStoryLink.taskRef,
+      taskStoryLink.taskUuid
+    );
+    if (!task) {
+      return null;
+    }
+    const story = taskStoryLink.storyRef
+      ? this.findStoryByLinkRef(
+          taskStoryLink.storyRef,
+          taskStoryLink.storyUuid
+        )
+      : null;
+    if (taskStoryLink.storyRef && !story) {
+      return null;
+    }
+    return { task, story };
+  }
+
+  private resolveStoryGoalLink(
+    storyGoalLink: StoryGoalLinkSnapshot
+  ): { story: StoryElement; goal: GoalElement } | null {
+    const story = this.findStoryByLinkRef(
+      storyGoalLink.storyRef,
+      storyGoalLink.storyUuid
+    );
+    const goal = this.findGoalByLinkRef(
+      storyGoalLink.goalRef,
+      storyGoalLink.goalUuid
+    );
+    if (!story || !goal) {
+      return null;
+    }
+    return { story, goal };
+  }
+
+  private findTaskByLinkRef(
+    taskRef: string,
+    taskUuid: string | null
+  ): TaskElement | null {
+    return (
+      this.scene
+        .getElements()
+        .find(
+          (element): element is TaskElement =>
+            element instanceof TaskElement &&
+            (element.id === taskRef ||
+              element.uuid === taskRef ||
+              (taskUuid !== null && element.uuid === taskUuid))
+        ) ?? null
+    );
+  }
+
+  private findStoryByLinkRef(
+    storyRef: string,
+    storyUuid: string | null
+  ): StoryElement | null {
+    return (
+      this.scene
+        .getElements()
+        .find(
+          (element): element is StoryElement =>
+            element instanceof StoryElement &&
+            (element.id === storyRef ||
+              element.uuid === storyRef ||
+              (storyUuid !== null && element.uuid === storyUuid))
+        ) ?? null
+    );
+  }
+
+  private findGoalByLinkRef(
+    goalRef: string,
+    goalUuid: string | null
+  ): GoalElement | null {
+    return (
+      this.scene
+        .getElements()
+        .find(
+          (element): element is GoalElement =>
+            element instanceof GoalElement &&
+            (element.id === goalRef ||
+              element.uuid === goalRef ||
+              (goalUuid !== null && element.uuid === goalUuid))
+        ) ?? null
+    );
   }
 
   private getStoryGoalConnections(storyRef: string): IConnection[] {

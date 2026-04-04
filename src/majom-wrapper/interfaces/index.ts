@@ -203,6 +203,27 @@ export interface TaskRelationship {
   relationship_type: TaskRelationshipType;
 }
 
+export type GoalRelationType = 'leads_to' | 'blocks' | 'relates_to';
+
+export interface GoalRelation {
+  id: string;
+  from_goal_uuid: string;
+  to_goal_uuid: string;
+  relation_type: GoalRelationType;
+  meta: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type GoalRelationCreate = Omit<
+  GoalRelation,
+  'id' | 'created_at' | 'updated_at'
+>;
+
+export type GoalRelationUpdate = Partial<
+  Pick<GoalRelation, 'from_goal_uuid' | 'to_goal_uuid' | 'relation_type' | 'meta'>
+>;
+
 export type CanvasRelationElementType =
   | 'task'
   | 'story'

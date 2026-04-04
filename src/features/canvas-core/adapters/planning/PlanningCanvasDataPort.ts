@@ -3,6 +3,7 @@ import type {
   CanvasBootstrapResult,
   CanvasElementsLoadOptions,
   CanvasElementsLoadState,
+  GoalRelation,
   CanvasPositionWriteDTO,
   StoryGoalLinkOptions,
   StoryGoalLinkResult,
@@ -13,6 +14,11 @@ import type { StoryElement } from '../../../../features/canvas/elements/StoryEle
 import type { TaskElement } from '../../../../features/canvas/elements/TaskElement.ts';
 import type { IConnection } from '../../../../features/canvas/core/interfaces/connection.ts';
 import type { CanvasPlanningElement } from '../../../../features/canvas/elements/utils/planningElementCapabilities.ts';
+import type {
+  PlanningGoalLink,
+  PlanningStoryGoalLink,
+  PlanningTaskStoryLink,
+} from './PlanningCanvasRelationAdapter.ts';
 
 export type PlanningCanvasListItem = Pick<CanvasSummary, 'id' | 'name' | 'meta'>;
 
@@ -58,15 +64,17 @@ export interface PlanningCanvasDataPort {
   ): void;
   markPositionsDirty(elements: CanvasPlanningElement[]): void;
   deleteElement(element: CanvasPlanningElement): Observable<void>;
-  updateTaskStoryLink(
-    task: TaskElement,
-    story: StoryElement | null
-  ): Observable<unknown>;
+  updateTaskStoryLink(taskStoryLink: PlanningTaskStoryLink): Observable<unknown>;
   updateStoryGoalLink(
-    story: StoryElement,
-    goal: GoalElement,
+    storyGoalLink: PlanningStoryGoalLink,
     options: StoryGoalLinkOptions
   ): Observable<StoryGoalLinkResult>;
+  createGoalRelation(goalLink: PlanningGoalLink): Observable<GoalRelation>;
+  updateGoalRelation(
+    currentGoalLink: PlanningGoalLink,
+    nextGoalLink: PlanningGoalLink
+  ): Observable<GoalRelation>;
+  deleteGoalRelation(goalLink: PlanningGoalLink): Observable<void>;
   hasRelationChanges(
     connections: IConnection[],
     elements: Array<TaskElement | StoryElement | GoalElement>

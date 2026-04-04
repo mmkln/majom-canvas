@@ -55,8 +55,12 @@ describe('ConnectionCreationService', () => {
       expect(lifecycleDetails[0]).toMatchObject({
         kind: 'story-goal',
         action: 'set',
-        story,
-        goal,
+        storyGoalLink: {
+          storyRef: story.id,
+          storyUuid: null,
+          goalRef: goal.id,
+          goalUuid: null,
+        },
       });
     } finally {
       window.removeEventListener(CANVAS_LINK_LIFECYCLE_EVENT, onLifecycle);
@@ -214,6 +218,109 @@ describe('ConnectionCreationService', () => {
       toId: goalA.id,
       relationType: ConnectionRelationType.LeadsTo,
     });
+  });
+
+  it('emits a goal-link lifecycle event for goal relations', () => {
+    const scene = new Scene();
+    const goalA = new GoalElement({ id: 'goal-a' });
+    const goalB = new GoalElement({ id: 'goal-b' });
+    scene.addElement(goalA);
+    scene.addElement(goalB);
+
+    const service = new ConnectionCreationService(scene);
+    const lifecycleDetails: CanvasLinkLifecycleDetail[] = [];
+    const onLifecycle = (event: Event): void => {
+      lifecycleDetails.push(
+        (event as CustomEvent<CanvasLinkLifecycleDetail>).detail
+      );
+    };
+
+    window.addEventListener(CANVAS_LINK_LIFECYCLE_EVENT, onLifecycle);
+    try {
+      const result = service.createWithRelationType(
+        goalA,
+        goalB,
+        ConnectionRelationType.Blocks
+      );
+      expect(result.ok).toBe(true);
+
+      expect(lifecycleDetails).toHaveLength(1);
+      const createdConnection = scene.getConnections()[0];
+      expect(lifecycleDetails[0]).toMatchObject({
+        kind: 'goal-link',
+        action: 'set',
+        goalLink: {
+          connectionId: createdConnection?.id,
+          lineType: createdConnection?.lineType,
+          fromGoalRef: goalA.id,
+          toGoalRef: goalB.id,
+          fromGoalUuid: null,
+          toGoalUuid: null,
+          relationType: ConnectionRelationType.Blocks,
+        },
+      });
+    } finally {
+      window.removeEventListener(CANVAS_LINK_LIFECYCLE_EVENT, onLifecycle);
+    }
+  });
+
+  it('emits a goal-link update lifecycle event when redirecting a goal relation', () => {
+    const scene = new Scene();
+    const goalA = new GoalElement({ id: 'goal-a' });
+    const goalB = new GoalElement({ id: 'goal-b' });
+    scene.addElement(goalA);
+    scene.addElement(goalB);
+
+    const service = new ConnectionCreationService(scene);
+    service.createWithRelationType(
+      goalA,
+      goalB,
+      ConnectionRelationType.LeadsTo
+    );
+
+    const lifecycleDetails: CanvasLinkLifecycleDetail[] = [];
+    const onLifecycle = (event: Event): void => {
+      lifecycleDetails.push(
+        (event as CustomEvent<CanvasLinkLifecycleDetail>).detail
+      );
+    };
+
+    window.addEventListener(CANVAS_LINK_LIFECYCLE_EVENT, onLifecycle);
+    try {
+      const result = service.redirectWithRelationType(
+        goalB,
+        goalA,
+        ConnectionRelationType.LeadsTo
+      );
+      expect(result.ok).toBe(true);
+
+      expect(lifecycleDetails).toHaveLength(1);
+      const redirectedConnection = scene.getConnections()[0];
+      expect(lifecycleDetails[0]).toMatchObject({
+        kind: 'goal-link',
+        action: 'update',
+        currentGoalLink: {
+          connectionId: redirectedConnection?.id,
+          lineType: redirectedConnection?.lineType,
+          fromGoalRef: goalA.id,
+          toGoalRef: goalB.id,
+          fromGoalUuid: null,
+          toGoalUuid: null,
+          relationType: ConnectionRelationType.LeadsTo,
+        },
+        nextGoalLink: {
+          connectionId: redirectedConnection?.id,
+          lineType: redirectedConnection?.lineType,
+          fromGoalRef: goalB.id,
+          toGoalRef: goalA.id,
+          fromGoalUuid: null,
+          toGoalUuid: null,
+          relationType: ConnectionRelationType.LeadsTo,
+        },
+      });
+    } finally {
+      window.removeEventListener(CANVAS_LINK_LIFECYCLE_EVENT, onLifecycle);
+    }
   });
 
   it('creates explicit non-hierarchical relations for AI-driven links', () => {

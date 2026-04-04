@@ -20,10 +20,18 @@ import { Scene } from '../scene/Scene.ts';
 import { historyService } from './HistoryService.ts';
 import { GoalPlacementService } from './GoalPlacementService.ts';
 import { StoryLayoutService } from './StoryLayoutService.ts';
-import { ConnectionCreationService } from './ConnectionCreationService.ts';
+import {
+  ConnectionCreationService,
+  type ConnectionCreationPlan,
+} from './ConnectionCreationService.ts';
 import { addTaskToStory } from '../../ui/storyTaskActions.ts';
 import {
+  type GoalLinkSnapshot,
+  emitGoalLinkRemoved,
+  emitGoalLinkSet,
+  emitGoalLinkUpdated,
   emitStoryGoalLinkSet,
+  isGoalLinkRelationType,
 } from '../canvasLinkLifecycle.ts';
 import { findConnectionForPair } from '../utils/connectionPairs.ts';
 import type {
@@ -628,6 +636,10 @@ export class AiAssistantCanvasActionExecutor {
     historyService.execute(
       new RemoveConnectionCommand(this.options.scene, connection)
     );
+    const goalLink = this.toGoalLinkSnapshot(connection);
+    if (goalLink) {
+      emitGoalLinkRemoved(goalLink);
+    }
     this.options.scene.setSelected([from, to]);
     this.options.canvasManager.draw();
     return {
@@ -696,6 +708,7 @@ export class AiAssistantCanvasActionExecutor {
       };
     }
 
+    const currentGoalLink = this.toGoalLinkSnapshot(currentConnection);
     historyService.execute(
       new UpdateConnectionCommand(this.options.scene, currentConnection, {
         fromId: from.id,
@@ -703,6 +716,12 @@ export class AiAssistantCanvasActionExecutor {
         relationType: nextRelationType,
       })
     );
+    const nextGoalLink = this.toGoalLinkSnapshot(currentConnection, {
+      relationType: nextRelationType,
+    });
+    if (currentGoalLink && nextGoalLink) {
+      emitGoalLinkUpdated(currentGoalLink, nextGoalLink);
+    }
     this.options.scene.setSelected([from, to]);
     this.options.canvasManager.draw();
     return {
@@ -840,6 +859,9 @@ export class AiAssistantCanvasActionExecutor {
       commands.push(this.buildConnectCommand(parentLinkPlan.plan));
     }
     historyService.execute(new CompositeCommand(commands));
+    if (parentLinkPlan?.ok) {
+      this.emitGoalLinkSetForPlan(parentLinkPlan.plan);
+    }
     this.options.scene.setSelected([goal]);
     this.options.canvasManager.draw();
 
@@ -855,6 +877,7 @@ export class AiAssistantCanvasActionExecutor {
     const results = new Map<number, AiAssistantActionExecutionResult>();
     const commands: Command[] = [];
     const createdGoals: GoalElement[] = [];
+    const createdGoalLinkPlans: Array<ConnectionCreationPlan | null> = [];
     const occupied = this.getPlanningRects();
     const resolvedTargets: Array<GoalElement | null> = [];
 
@@ -910,6 +933,7 @@ export class AiAssistantCanvasActionExecutor {
         ? this.connectionCreationService.plan(parentGoal, goal)
         : null;
       if (parentLinkPlan && !parentLinkPlan.ok) {
+        createdGoalLinkPlans.push(null);
         results.set(entry.index, {
           status: 'failed',
           errorMessage: 'The new goal could not be linked to the target goal.',
@@ -917,6 +941,7 @@ export class AiAssistantCanvasActionExecutor {
         return;
       }
       createdGoals.push(goal);
+      createdGoalLinkPlans.push(parentLinkPlan?.ok ? parentLinkPlan.plan : null);
       occupied.push(this.getRect(goal));
       commands.push(new AddElementCommand(this.options.scene, goal));
       if (parentGoal) {
@@ -933,6 +958,12 @@ export class AiAssistantCanvasActionExecutor {
       if (command) {
         historyService.execute(command);
       }
+      createdGoalLinkPlans.forEach((plan) => {
+        if (!plan) {
+          return;
+        }
+        this.emitGoalLinkSetForPlan(plan);
+      });
       this.options.scene.setSelected(createdGoals);
       this.options.canvasManager.draw();
     }
@@ -990,6 +1021,7 @@ export class AiAssistantCanvasActionExecutor {
         createdGoals[index],
       ])
     );
+    const goalLinkPlans: ConnectionCreationPlan[] = [];
 
     const commands: Command[] = [
       new AddElementCommand(this.options.scene, createdGoals),
@@ -1011,6 +1043,7 @@ export class AiAssistantCanvasActionExecutor {
           throw new Error('The blueprint root could not be linked to the target goal.');
         }
         commands.push(this.buildConnectCommand(targetLinkPlan.plan));
+        goalLinkPlans.push(targetLinkPlan.plan);
       });
     }
     action.goals.forEach((goalDefinition) => {
@@ -1030,6 +1063,7 @@ export class AiAssistantCanvasActionExecutor {
         throw new Error('The blueprint hierarchy could not be created on the canvas.');
       }
       commands.push(this.buildConnectCommand(hierarchyPlan.plan));
+      goalLinkPlans.push(hierarchyPlan.plan);
     });
     action.relations.forEach((relation) => {
       const fromGoal = goalByRef.get(relation.fromRef);
@@ -1046,9 +1080,13 @@ export class AiAssistantCanvasActionExecutor {
         throw new Error('The blueprint relation could not be created on the canvas.');
       }
       commands.push(this.buildConnectCommand(relationPlan.plan));
+      goalLinkPlans.push(relationPlan.plan);
     });
 
     historyService.execute(new CompositeCommand(commands));
+    goalLinkPlans.forEach((plan) => {
+      this.emitGoalLinkSetForPlan(plan);
+    });
     this.options.scene.setSelected(createdGoals);
     this.options.canvasManager.draw();
 
@@ -1092,6 +1130,71 @@ export class AiAssistantCanvasActionExecutor {
       plan.toRef,
       plan.relationType
     );
+  }
+
+  private emitGoalLinkSetForPlan(plan: {
+    from: GoalElement | StoryElement | TaskElement;
+    to: GoalElement | StoryElement | TaskElement;
+    fromRef: string;
+    toRef: string;
+    relationType: ConnectionRelationType;
+  }): void {
+    if (
+      !(plan.from instanceof GoalElement) ||
+      !(plan.to instanceof GoalElement) ||
+      !isGoalLinkRelationType(plan.relationType)
+    ) {
+      return;
+    }
+    const connection = this.findConnectionByRefsAndType(
+      plan.fromRef,
+      plan.toRef,
+      plan.relationType
+    );
+    if (!connection) {
+      return;
+    }
+    emitGoalLinkSet({
+      connectionId: connection.id,
+      lineType: connection.lineType,
+      fromGoalRef: plan.fromRef,
+      toGoalRef: plan.toRef,
+      fromGoalUuid: plan.from.uuid ?? null,
+      toGoalUuid: plan.to.uuid ?? null,
+      relationType: plan.relationType,
+    });
+  }
+
+  private toGoalLinkSnapshot(
+    connection: IConnection,
+    override?: {
+      fromGoal: GoalElement | null;
+      toGoal: GoalElement | null;
+      relationType?: ConnectionRelationType;
+    }
+  ) {
+    const relationType = override?.relationType ?? connection.relationType;
+    if (!isGoalLinkRelationType(relationType)) {
+      return null;
+    }
+    const fromGoal =
+      override?.fromGoal ??
+      this.findPlanningElementById(connection.fromId);
+    const toGoal =
+      override?.toGoal ??
+      this.findPlanningElementById(connection.toId);
+    if (!(fromGoal instanceof GoalElement) || !(toGoal instanceof GoalElement)) {
+      return null;
+    }
+    return {
+      connectionId: connection.id,
+      lineType: connection.lineType,
+      fromGoalRef: connection.fromId,
+      toGoalRef: connection.toId,
+      fromGoalUuid: fromGoal.uuid ?? null,
+      toGoalUuid: toGoal.uuid ?? null,
+      relationType,
+    } satisfies GoalLinkSnapshot;
   }
 
   private createTaskElement(
@@ -1397,6 +1500,30 @@ export class AiAssistantCanvasActionExecutor {
       fromId,
       toId
     );
+  }
+
+  private findConnectionByRefsAndType(
+    fromRef: string,
+    toRef: string,
+    relationType: ConnectionRelationType
+  ): IConnection | null {
+    const match = findConnectionForPair(
+      this.options.scene
+        .getConnections()
+        .filter((connection) => connection.relationType === relationType),
+      fromRef,
+      toRef
+    );
+    if (!match) {
+      return null;
+    }
+    if (
+      relationType !== ConnectionRelationType.RelatesTo &&
+      (match.connection.fromId !== fromRef || match.connection.toId !== toRef)
+    ) {
+      return null;
+    }
+    return match.connection;
   }
 
   private intersects(a: PlanningRect, b: PlanningRect): boolean {

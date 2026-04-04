@@ -21,6 +21,10 @@ import { StoriesApiService } from '../data-access/stories-api-service.ts';
 import { GoalsApiService } from '../data-access/goals-api-service.ts';
 import { HabitsApiService } from '../data-access/habits-api-service.ts';
 import { CanvasRelationsApiService } from '../data-access/canvas-relations-api-service.ts';
+import { GoalRelationsApiService } from '../data-access/goal-relations-api-service.ts';
+import { TaskStoryLinkSyncService } from './task-story-link-sync-service.ts';
+import { StoryGoalLinkSyncService } from './story-goal-link-sync-service.ts';
+import { GoalRelationSyncService } from './goal-relation-sync-service.ts';
 import {
   CanvasApiService,
   CanvasSummary,
@@ -43,6 +47,7 @@ import {
   CanvasRelation,
   CanvasRelationCreate,
   CanvasRelationType,
+  GoalRelation,
   PlatformTask,
   Story,
   Goal,
@@ -64,6 +69,11 @@ import {
   getPlanningElementCapabilities,
   getPlanningElementKind,
 } from '../../features/canvas/elements/utils/planningElementCapabilities.ts';
+import type {
+  PlanningGoalLink,
+  PlanningStoryGoalLink,
+  PlanningTaskStoryLink,
+} from '../../features/canvas-core/adapters/planning/PlanningCanvasRelationAdapter.ts';
 
 type ElementPatch = Partial<{
   title: string;
@@ -169,6 +179,9 @@ export class CanvasDataService {
   private readonly positionPrecision = 2;
   private readonly defaultViewportFirstThreshold = 250;
   private readonly defaultViewportBufferPx = 600;
+  private readonly taskStoryLinkSyncService: TaskStoryLinkSyncService;
+  private readonly storyGoalLinkSyncService: StoryGoalLinkSyncService;
+  private readonly goalRelationSyncService: GoalRelationSyncService;
 
   constructor(
     private tasksApi: TasksApiService,
@@ -176,8 +189,32 @@ export class CanvasDataService {
     private goalsApi: GoalsApiService,
     private habitsApi: HabitsApiService,
     private canvasApi: CanvasApiService,
-    private relationsApi: CanvasRelationsApiService
+    private relationsApi: CanvasRelationsApiService,
+    private goalRelationsApi?: GoalRelationsApiService
   ) {
+    this.taskStoryLinkSyncService = new TaskStoryLinkSyncService(this.tasksApi, {
+      ensureElementsPersisted: (elements) => this.ensureElementsPersisted(elements),
+      getBackendRef: (element) => this.getBackendRef(element),
+      getBackendId: (element) => this.getBackendId(element),
+      getCanvasId: () => this.canvasId,
+      upsertTaskCache: (task) => this.upsertTaskCache(task),
+    });
+    this.storyGoalLinkSyncService = new StoryGoalLinkSyncService(
+      this.storiesApi,
+      {
+        ensureElementsPersisted: (elements) => this.ensureElementsPersisted(elements),
+        getBackendRef: (element) => this.getBackendRef(element),
+        getBackendId: (element) => this.getBackendId(element),
+        getCanvasId: () => this.canvasId,
+        upsertStoryCache: (story) => this.upsertStoryCache(story),
+      }
+    );
+    this.goalRelationSyncService = new GoalRelationSyncService(
+      this.goalRelationsApi,
+      {
+        ensureElementsPersisted: (elements) => this.ensureElementsPersisted(elements),
+      }
+    );
     this.initElementUpdatePipeline();
   }
 
@@ -765,172 +802,43 @@ export class CanvasDataService {
   }
 
   public updateTaskStoryLink(
-    task: TaskElement,
-    story: StoryElement | null
+    taskStoryLink: PlanningTaskStoryLink
   ): Observable<void> {
-    const elementsToPersist = [task, story].filter(Boolean) as Array<
-      TaskElement | StoryElement | GoalElement
-    >;
-    return this.ensureElementsPersisted(elementsToPersist).pipe(
-      switchMap(() => {
-        const taskRef = this.getBackendRef(task);
-        if (!taskRef) return of(undefined);
-        const storyId = story ? this.getBackendId(story) : null;
-        if (story && !Number.isFinite(storyId)) return of(undefined);
-        return this.tasksApi.patchTask(taskRef, {
-          story_id: storyId ?? null,
-        } as Partial<PlatformTask>);
-      }),
-      tap((updated) => {
-        if (updated) {
-          this.upsertTaskCache(updated);
-        }
-        if (this.canvasId) {
-          CanvasClientStorage.removeUnsyncedDraft(
-            this.canvasId,
-            `task-story-link:${task.uuid ?? task.id}`
-          );
-        }
-      }),
-      catchError((err) => {
-        if (this.canvasId) {
-          CanvasClientStorage.upsertUnsyncedDraft(this.canvasId, {
-            id: `task-story-link:${task.uuid ?? task.id}`,
-            kind: 'task-story-link',
-            payload: {
-              taskId: task.id,
-              taskUuid: task.uuid ?? null,
-              storyId: story?.id ?? null,
-              storyUuid: story?.uuid ?? null,
-            },
-          });
-        }
-        return throwError(() => err);
-      }),
-      map(() => undefined)
+    return this.taskStoryLinkSyncService.updateLink(
+      taskStoryLink.task,
+      taskStoryLink.story
     );
   }
 
   public updateStoryGoalLink(
-    story: StoryElement,
-    goal: GoalElement,
+    storyGoalLink: PlanningStoryGoalLink,
     options: StoryGoalLinkOptions = {}
   ): Observable<StoryGoalLinkResult> {
-    const elementsToPersist = [story, goal].filter(Boolean) as Array<
-      TaskElement | StoryElement | GoalElement
-    >;
-    return this.ensureElementsPersisted(elementsToPersist).pipe(
-      switchMap(() => {
-        const storyRef = this.getBackendRef(story);
-        const rawGoalId = this.getBackendId(goal);
-        if (!storyRef || !Number.isFinite(rawGoalId)) {
-          return of<StoryGoalLinkResult>({ status: 'skipped' });
-        }
-        const goalId = Number(rawGoalId);
-        const currentGoalId = Number.isFinite(story.goalBackendId)
-          ? Number(story.goalBackendId)
-          : null;
-        if (
-          Number.isFinite(currentGoalId) &&
-          currentGoalId !== goalId &&
-          !options.allowReplace
-        ) {
-          return of<StoryGoalLinkResult>({
-            status: 'conflict',
-            currentGoalId: Number(currentGoalId),
-            requestedGoalId: goalId,
-          });
-        }
-        if (currentGoalId === goalId) {
-          return of<StoryGoalLinkResult>({
-            status: 'unchanged',
-            goalId,
-          });
-        }
-        return this.storiesApi
-          .patchStory(storyRef, { goal_id: goalId } as Partial<Story>)
-          .pipe(
-            tap((updated) => {
-              this.upsertStoryCache(updated);
-              story.goalBackendId =
-                updated.goal?.id ?? updated.goal_id ?? goalId;
-            }),
-            map(
-              (): StoryGoalLinkResult => ({
-                status: 'updated',
-                goalId,
-              })
-            ),
-            catchError((err) => {
-              const status = (err as { status?: number } | null)?.status;
-              if (status !== 409) {
-                return throwError(() => err);
-              }
-              const payload = err as {
-                current_goal_id?: unknown;
-                currentGoalId?: unknown;
-                goal_id?: unknown;
-                goalId?: unknown;
-                error?: {
-                  current_goal_id?: unknown;
-                  currentGoalId?: unknown;
-                  goal_id?: unknown;
-                  goalId?: unknown;
-                };
-              };
-              const currentGoalRaw =
-                payload.error?.current_goal_id ??
-                payload.error?.currentGoalId ??
-                payload.error?.goal_id ??
-                payload.error?.goalId ??
-                payload.current_goal_id ??
-                payload.currentGoalId ??
-                payload.goal_id ??
-                payload.goalId;
-              const serverGoalId =
-                typeof currentGoalRaw === 'number' &&
-                Number.isFinite(currentGoalRaw)
-                  ? currentGoalRaw
-                  : null;
-              if (Number.isFinite(serverGoalId)) {
-                story.goalBackendId = Number(serverGoalId);
-              }
-              return of<StoryGoalLinkResult>({
-                status: 'conflict',
-                currentGoalId:
-                  serverGoalId ??
-                  (Number.isFinite(currentGoalId)
-                    ? Number(currentGoalId)
-                    : goalId),
-                requestedGoalId: goalId,
-              });
-            })
-          );
-      }),
-      tap((result) => {
-        if (!this.canvasId) return;
-        if (result.status === 'conflict') return;
-        CanvasClientStorage.removeUnsyncedDraft(
-          this.canvasId,
-          `story-goal-link:${story.uuid ?? story.id}`
-        );
-      }),
-      catchError((err) => {
-        if (this.canvasId) {
-          CanvasClientStorage.upsertUnsyncedDraft(this.canvasId, {
-            id: `story-goal-link:${story.uuid ?? story.id}`,
-            kind: 'story-goal-link',
-            payload: {
-              storyId: story.id,
-              storyUuid: story.uuid ?? null,
-              goalId: goal.id,
-              goalUuid: goal.uuid ?? null,
-            },
-          });
-        }
-        return throwError(() => err);
-      })
+    return this.storyGoalLinkSyncService.updateLink(
+      storyGoalLink.story,
+      storyGoalLink.goal,
+      options
     );
+  }
+
+  public createGoalRelation(
+    goalLink: PlanningGoalLink
+  ): Observable<GoalRelation> {
+    return this.goalRelationSyncService.createRelation(goalLink);
+  }
+
+  public updateGoalRelation(
+    currentGoalLink: PlanningGoalLink,
+    nextGoalLink: PlanningGoalLink
+  ): Observable<GoalRelation> {
+    return this.goalRelationSyncService.updateRelation(
+      currentGoalLink,
+      nextGoalLink
+    );
+  }
+
+  public deleteGoalRelation(goalLink: PlanningGoalLink): Observable<void> {
+    return this.goalRelationSyncService.deleteRelation(goalLink);
   }
 
   public toggleHabitCompletionToday(
