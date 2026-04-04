@@ -1,11 +1,16 @@
 import type { WorkspaceView } from './WorkspaceView.ts';
 import type { TimeClusteringLayoutMode } from '../time-clustering/domain/types.ts';
 import {
+  getAiAssistantOpenPreference,
   getTimeClusteringLayoutMode,
+  getTimeClusteringOpenPreference,
   getTimeClusteringOverlapWarningsVisible,
   getWorkspaceDefaultView,
   getWorkspaceViewSwitcherPinned,
+  hasUserPreferencesPersistence,
+  setAiAssistantOpenPreference,
   setTimeClusteringLayoutModePreference,
+  setTimeClusteringOpenPreference,
   setTimeClusteringOverlapWarningsVisiblePreference,
   setWorkspaceDefaultView,
   setWorkspaceViewSwitcherPinned,
@@ -48,6 +53,9 @@ export function loadPersistedTimeClusteringOpen(
   allowTimeClustering = true
 ): boolean {
   if (!allowTimeClustering) return false;
+  if (hasUserPreferencesPersistence()) {
+    return getTimeClusteringOpenPreference(false);
+  }
   try {
     const value = localStorage.getItem(TIME_CLUSTERING_OPEN_STORAGE_KEY);
     if (value === '1' || value === 'true') return true;
@@ -64,6 +72,15 @@ export function loadPersistedTimeClusteringOpen(
 }
 
 export function persistTimeClusteringOpen(open: boolean): void {
+  if (hasUserPreferencesPersistence()) {
+    setTimeClusteringOpenPreference(open);
+    try {
+      localStorage.removeItem(TIME_CLUSTERING_OPEN_STORAGE_KEY);
+    } catch {
+      // no-op
+    }
+    return;
+  }
   try {
     localStorage.setItem(TIME_CLUSTERING_OPEN_STORAGE_KEY, open ? '1' : '0');
   } catch {
@@ -96,6 +113,9 @@ export function persistTimeClusteringOverlapWarningsVisible(
 }
 
 export function loadPersistedAiAssistantOpen(): boolean {
+  if (hasUserPreferencesPersistence()) {
+    return getAiAssistantOpenPreference(false);
+  }
   try {
     const value =
       localStorage.getItem(AI_ASSISTANT_OPEN_STORAGE_KEY) ??
@@ -107,6 +127,16 @@ export function loadPersistedAiAssistantOpen(): boolean {
 }
 
 export function persistAiAssistantOpen(open: boolean): void {
+  if (hasUserPreferencesPersistence()) {
+    setAiAssistantOpenPreference(open);
+    try {
+      localStorage.removeItem(AI_ASSISTANT_OPEN_STORAGE_KEY);
+      localStorage.removeItem(LEGACY_WORKSPACE_CHAT_OPEN_STORAGE_KEY);
+    } catch {
+      // no-op
+    }
+    return;
+  }
   try {
     localStorage.setItem(AI_ASSISTANT_OPEN_STORAGE_KEY, open ? '1' : '0');
   } catch {

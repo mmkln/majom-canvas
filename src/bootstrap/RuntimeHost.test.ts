@@ -80,6 +80,7 @@ type RuntimeHostInternalAccess = {
   timeClusteringIslandRoot: HTMLDivElement;
   hostVisible: boolean;
   activeView: 'canvas' | 'kanban' | 'learning-studio';
+  chatOpen: boolean;
   timeClusteringOpen: boolean;
   timeClusteringLayoutMode: 'docked-left' | 'fullscreen';
   timeClusteringShowOverlapWarnings: boolean;
@@ -306,6 +307,22 @@ describe('RuntimeHost time clustering island layout', () => {
     expect(host.timeClusteringOpen).toBe(true);
     expect(host.timeClusteringLayoutMode).toBe('fullscreen');
     expect(host.timeClusteringShowOverlapWarnings).toBe(false);
+
+    host.dispose();
+  });
+
+  it('applies chat and time clustering open state from user preferences snapshot', () => {
+    primeUserPreferencesForTests({
+      workspace: {
+        aiAssistantOpen: true,
+        timeClusteringOpen: true,
+      },
+    });
+
+    const host = getRuntimeHostInternals(createRuntimeHost());
+
+    expect(host.chatOpen).toBe(true);
+    expect(host.timeClusteringOpen).toBe(true);
 
     host.dispose();
   });

@@ -3,13 +3,16 @@ import {
   getCanvasAnimationsEnabled,
   getCanvasAutosaveEnabled,
   getCanvasContainerGuidesEnabled,
+  getLastOpenedCanvasIdPreference,
   getCanvasMiniMapVisible,
   getCanvasSmartGuidesEnabled,
   getCanvasSpacingGuidesEnabled,
   getCanvasViewportCenterGuidesEnabled,
+  hasUserPreferencesPersistence,
   setCanvasAnimationsEnabled,
   setCanvasAutosaveEnabled,
   setCanvasContainerGuidesEnabled,
+  setLastOpenedCanvasIdPreference,
   setCanvasMiniMapVisible,
   setCanvasSmartGuidesEnabled,
   setCanvasSpacingGuidesEnabled,
@@ -151,11 +154,23 @@ export class CanvasClientStorage {
   }
 
   public static getLastOpenedCanvasId(): string | null {
+    if (hasUserPreferencesPersistence()) {
+      return getLastOpenedCanvasIdPreference();
+    }
     return readEnvelope<string>(LAST_OPENED_CANVAS_KEY);
   }
 
   public static setLastOpenedCanvasId(canvasId: string): void {
     if (!canvasId) return;
+    if (hasUserPreferencesPersistence()) {
+      setLastOpenedCanvasIdPreference(canvasId);
+      try {
+        localStorage.removeItem(buildUserScopedStorageKey(LAST_OPENED_CANVAS_KEY));
+      } catch {
+        // no-op
+      }
+      return;
+    }
     writeEnvelope(LAST_OPENED_CANVAS_KEY, canvasId, null);
   }
 

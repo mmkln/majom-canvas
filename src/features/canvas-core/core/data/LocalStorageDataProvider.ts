@@ -7,6 +7,11 @@ import {
   IGoal,
 } from '../interfaces/interfaces.ts';
 import { buildUserScopedStorageKey } from '../services/UserScopedStorage.ts';
+import {
+  getCanvasViewStatePreference,
+  hasUserPreferencesPersistence,
+  setCanvasViewStatePreference,
+} from '../../../shell/services/UserPreferencesService.ts';
 
 const TASKS_KEY = 'canvas-tasks';
 const DEPS_KEY = 'canvas-dependencies';
@@ -71,6 +76,17 @@ export class LocalStorageDataProvider implements IDataProvider {
 
   /** Load saved view (scroll & zoom) */
   async loadViewState(canvasId?: string | null): Promise<IViewState> {
+    if (hasUserPreferencesPersistence()) {
+      const persisted = getCanvasViewStatePreference(canvasId);
+      if (persisted) {
+        return {
+          scrollX: persisted.scrollX,
+          scrollY: persisted.scrollY,
+          scale: persisted.scale,
+        };
+      }
+      return DEFAULT_VIEW_STATE;
+    }
     const viewKey = this.getViewKey(canvasId);
     const viewState = this.readCollection<IViewState>(
       viewKey,
@@ -88,6 +104,11 @@ export class LocalStorageDataProvider implements IDataProvider {
     canvasId?: string | null
   ): Promise<void> {
     const nextState = this.isValidViewState(state) ? state : DEFAULT_VIEW_STATE;
+    if (hasUserPreferencesPersistence()) {
+      setCanvasViewStatePreference(nextState, canvasId);
+      this.clearStoredViewState(canvasId);
+      return;
+    }
     this.writeCollection(this.getViewKey(canvasId), nextState, VIEW_TTL_MS);
     if (canvasId) {
       // Keep a global fallback view as a safe default for app bootstrap.
@@ -97,6 +118,17 @@ export class LocalStorageDataProvider implements IDataProvider {
 
   private getViewKey(canvasId?: string | null): string {
     return canvasId ? `${VIEW_KEY}:${canvasId}` : VIEW_KEY;
+  }
+
+  private clearStoredViewState(canvasId?: string | null): void {
+    try {
+      localStorage.removeItem(this.getScopedKey(VIEW_KEY));
+      if (canvasId) {
+        localStorage.removeItem(this.getScopedKey(this.getViewKey(canvasId)));
+      }
+    } catch {
+      // no-op
+    }
   }
 
   private writeCollection<T>(baseKey: string, data: T, ttlMs: number): void {

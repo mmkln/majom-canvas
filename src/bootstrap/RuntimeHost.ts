@@ -917,6 +917,10 @@ export class RuntimeHost {
     const nextShowOverlapWarnings =
       preferences.timeClustering?.overlapWarningsVisible ??
       this.timeClusteringShowOverlapWarnings;
+    const nextTimeClusteringOpen =
+      preferences.workspace?.timeClusteringOpen ?? this.timeClusteringOpen;
+    const nextChatOpen =
+      preferences.workspace?.aiAssistantOpen ?? this.chatOpen;
     const nextView = preferences.workspace?.defaultView
       ? this.resolveAllowedWorkspaceView(preferences.workspace.defaultView)
       : this.activeView;
@@ -924,16 +928,29 @@ export class RuntimeHost {
     const layoutModeChanged = this.timeClusteringLayoutMode !== nextLayoutMode;
     const overlapWarningsChanged =
       this.timeClusteringShowOverlapWarnings !== nextShowOverlapWarnings;
+    const timeClusteringOpenChanged =
+      this.timeClusteringOpen !== nextTimeClusteringOpen;
+    const chatOpenChanged = this.chatOpen !== nextChatOpen;
     const activeViewChanged = this.activeView !== nextView;
 
     this.timeClusteringLayoutMode = nextLayoutMode;
     this.timeClusteringShowOverlapWarnings = nextShowOverlapWarnings;
+    this.timeClusteringOpen = nextTimeClusteringOpen;
+    this.chatOpen = nextChatOpen;
     this.timeClusteringModule?.setLayoutMode(nextLayoutMode);
     this.timeClusteringModule?.setShowOverlapWarnings(nextShowOverlapWarnings);
     this.viewSwitcher?.setTimeClusteringLayoutMode(nextLayoutMode);
+    this.viewSwitcher?.setTimeClusteringOpen(nextTimeClusteringOpen);
+    this.viewSwitcher?.setChatOpen(nextChatOpen);
 
     if (layoutModeChanged) {
       emitTimeClusteringLayoutModeChanged(nextLayoutMode);
+    }
+    if (timeClusteringOpenChanged) {
+      emitTimeClusteringVisibilityChanged(nextTimeClusteringOpen);
+    }
+    if (chatOpenChanged) {
+      emitAiAssistantVisibilityChanged(nextChatOpen);
     }
 
     if (activeViewChanged) {
@@ -945,7 +962,13 @@ export class RuntimeHost {
       emitWorkspaceViewChanged(nextView);
     }
 
-    if (layoutModeChanged || overlapWarningsChanged || activeViewChanged) {
+    if (
+      layoutModeChanged ||
+      overlapWarningsChanged ||
+      timeClusteringOpenChanged ||
+      chatOpenChanged ||
+      activeViewChanged
+    ) {
       this.applyVisibility();
     }
   }

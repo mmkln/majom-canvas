@@ -3,6 +3,7 @@ import type {
   User,
   UserProfileUpdate,
 } from '../../../majom-wrapper/interfaces/auth-interfaces.ts';
+import { buildUserScopedStorageKey } from '../../canvas-core/core/services/UserScopedStorage.ts';
 import type { WorkspaceView } from '../WorkspaceView.ts';
 import type { TimeClusteringLayoutMode } from '../../time-clustering/domain/types.ts';
 
@@ -16,6 +17,8 @@ type UserMetaRecord = Record<string, unknown>;
 export const USER_PREFERENCES_VERSION = 1;
 
 export const LEGACY_WORKSPACE_ACTIVE_VIEW_STORAGE_KEY = 'workspace-active-view';
+export const LEGACY_AI_ASSISTANT_OPEN_STORAGE_KEY = 'ai-assistant-open';
+export const LEGACY_TIME_CLUSTERING_OPEN_STORAGE_KEY = 'time-clustering-open';
 export const LEGACY_WORKSPACE_VIEW_SWITCHER_PINNED_STORAGE_KEY =
   'workspace-view-switcher-pinned';
 export const LEGACY_TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY =
@@ -35,11 +38,23 @@ export const LEGACY_CANVAS_CONTAINER_GUIDES_ENABLED_STORAGE_KEY =
   'ui:canvas-container-guides-enabled';
 export const LEGACY_CANVAS_VIEWPORT_CENTER_GUIDES_ENABLED_STORAGE_KEY =
   'ui:canvas-viewport-center-guides-enabled';
+export const LEGACY_LAST_OPENED_CANVAS_STORAGE_KEY = 'last-opened-canvas-id';
+export const LEGACY_CANVAS_VIEW_STORAGE_KEY = 'canvas-view';
+export const LEGACY_WORKSPACE_CHAT_OPEN_STORAGE_KEY = 'workspace-chat-open';
+
+export type UserCanvasViewState = {
+  scrollX: number;
+  scrollY: number;
+  scale: number;
+  updatedAt?: number;
+};
 
 export type UserPreferencesMeta = {
   preferencesVersion?: number;
   workspace?: {
     defaultView?: WorkspaceView;
+    aiAssistantOpen?: boolean;
+    timeClusteringOpen?: boolean;
     viewSwitcherPinned?: boolean;
   };
   timeClustering?: {
@@ -54,6 +69,10 @@ export type UserPreferencesMeta = {
     spacingGuidesEnabled?: boolean;
     containerGuidesEnabled?: boolean;
     viewportCenterGuidesEnabled?: boolean;
+  };
+  canvasSession?: {
+    lastOpenedCanvasId?: string;
+    viewsByCanvasId?: Record<string, UserCanvasViewState>;
   };
 };
 
@@ -126,6 +145,30 @@ export function getWorkspaceDefaultView(
   defaultView: WorkspaceView = 'canvas'
 ): WorkspaceView {
   return state.preferences.workspace?.defaultView ?? defaultView;
+}
+
+export function getAiAssistantOpenPreference(defaultOpen = false): boolean {
+  return state.preferences.workspace?.aiAssistantOpen ?? defaultOpen;
+}
+
+export function setAiAssistantOpenPreference(open: boolean): void {
+  updatePreferences({
+    workspace: {
+      aiAssistantOpen: open,
+    },
+  });
+}
+
+export function getTimeClusteringOpenPreference(defaultOpen = false): boolean {
+  return state.preferences.workspace?.timeClusteringOpen ?? defaultOpen;
+}
+
+export function setTimeClusteringOpenPreference(open: boolean): void {
+  updatePreferences({
+    workspace: {
+      timeClusteringOpen: open,
+    },
+  });
 }
 
 export function setWorkspaceDefaultView(view: WorkspaceView): void {
@@ -270,6 +313,67 @@ export function setCanvasViewportCenterGuidesEnabled(enabled: boolean): void {
   });
 }
 
+export function hasUserPreferencesPersistence(): boolean {
+  return state.api !== null;
+}
+
+export function getLastOpenedCanvasIdPreference(): string | null {
+  return normalizeCanvasId(state.preferences.canvasSession?.lastOpenedCanvasId);
+}
+
+export function setLastOpenedCanvasIdPreference(canvasId: string): void {
+  const normalizedCanvasId = normalizeCanvasId(canvasId);
+  if (!normalizedCanvasId) return;
+  updatePreferences({
+    canvasSession: {
+      lastOpenedCanvasId: normalizedCanvasId,
+    },
+  });
+}
+
+export function getCanvasViewStatePreference(
+  canvasId?: string | null
+): UserCanvasViewState | null {
+  const normalizedCanvasId =
+    normalizeCanvasId(canvasId) ??
+    normalizeCanvasId(state.preferences.canvasSession?.lastOpenedCanvasId);
+  if (!normalizedCanvasId) return null;
+  const view =
+    state.preferences.canvasSession?.viewsByCanvasId?.[normalizedCanvasId];
+  return isValidCanvasViewState(view)
+    ? {
+        scrollX: view.scrollX,
+        scrollY: view.scrollY,
+        scale: view.scale,
+        updatedAt: view.updatedAt,
+      }
+    : null;
+}
+
+export function setCanvasViewStatePreference(
+  view: UserCanvasViewState,
+  canvasId?: string | null
+): void {
+  const normalizedCanvasId =
+    normalizeCanvasId(canvasId) ??
+    normalizeCanvasId(state.preferences.canvasSession?.lastOpenedCanvasId);
+  if (!normalizedCanvasId || !isValidCanvasViewState(view)) return;
+  const nextView: UserCanvasViewState = {
+    scrollX: view.scrollX,
+    scrollY: view.scrollY,
+    scale: view.scale,
+    updatedAt: Date.now(),
+  };
+  updatePreferences({
+    canvasSession: {
+      viewsByCanvasId: {
+        ...(state.preferences.canvasSession?.viewsByCanvasId ?? {}),
+        [normalizedCanvasId]: nextView,
+      },
+    },
+  });
+}
+
 export function resetUserPreferencesForTests(): void {
   clearUserPreferences();
 }
@@ -355,6 +459,8 @@ function readLegacyPreferencesFromLocalStorage(): UserPreferencesMeta {
   return compactPreferences({
     workspace: {
       defaultView: readLegacyWorkspaceDefaultView(),
+      aiAssistantOpen: readLegacyAiAssistantOpen(),
+      timeClusteringOpen: readLegacyTimeClusteringOpen(),
       viewSwitcherPinned: readLegacyBoolean(
         LEGACY_WORKSPACE_VIEW_SWITCHER_PINNED_STORAGE_KEY
       ),
@@ -386,12 +492,15 @@ function readLegacyPreferencesFromLocalStorage(): UserPreferencesMeta {
         LEGACY_CANVAS_VIEWPORT_CENTER_GUIDES_ENABLED_STORAGE_KEY
       ),
     },
+    canvasSession: readLegacyCanvasSessionFromLocalStorage(),
   }) ?? {};
 }
 
 function clearLegacyPreferenceStorage(): void {
   const keys = [
     LEGACY_WORKSPACE_ACTIVE_VIEW_STORAGE_KEY,
+    LEGACY_AI_ASSISTANT_OPEN_STORAGE_KEY,
+    LEGACY_TIME_CLUSTERING_OPEN_STORAGE_KEY,
     LEGACY_WORKSPACE_VIEW_SWITCHER_PINNED_STORAGE_KEY,
     LEGACY_TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY,
     LEGACY_TIME_CLUSTERING_OVERLAP_WARNINGS_VISIBLE_STORAGE_KEY,
@@ -402,6 +511,7 @@ function clearLegacyPreferenceStorage(): void {
     LEGACY_CANVAS_SPACING_GUIDES_ENABLED_STORAGE_KEY,
     LEGACY_CANVAS_CONTAINER_GUIDES_ENABLED_STORAGE_KEY,
     LEGACY_CANVAS_VIEWPORT_CENTER_GUIDES_ENABLED_STORAGE_KEY,
+    LEGACY_WORKSPACE_CHAT_OPEN_STORAGE_KEY,
   ];
   keys.forEach((key) => {
     try {
@@ -410,6 +520,7 @@ function clearLegacyPreferenceStorage(): void {
       // no-op
     }
   });
+  clearLegacyCanvasSessionStorage();
 }
 
 function normalizeUserMeta(meta: Record<string, unknown> | null | undefined): UserMetaRecord {
@@ -463,6 +574,36 @@ function readLegacyTimeClusteringLayoutMode():
   return undefined;
 }
 
+function readLegacyAiAssistantOpen(): boolean | undefined {
+  try {
+    const value =
+      localStorage.getItem(LEGACY_AI_ASSISTANT_OPEN_STORAGE_KEY) ??
+      localStorage.getItem(LEGACY_WORKSPACE_CHAT_OPEN_STORAGE_KEY);
+    if (value === '1' || value === 'true') return true;
+    if (value === '0' || value === 'false') return false;
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
+function readLegacyTimeClusteringOpen(): boolean | undefined {
+  try {
+    const value = localStorage.getItem(LEGACY_TIME_CLUSTERING_OPEN_STORAGE_KEY);
+    if (value === '1' || value === 'true') return true;
+    if (value === '0' || value === 'false') return false;
+    if (
+      localStorage.getItem(LEGACY_WORKSPACE_ACTIVE_VIEW_STORAGE_KEY) ===
+      'time-clustering'
+    ) {
+      return true;
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
 function readLegacyBoolean(key: string): boolean | undefined {
   try {
     const value = localStorage.getItem(key);
@@ -474,10 +615,114 @@ function readLegacyBoolean(key: string): boolean | undefined {
   return undefined;
 }
 
+function readLegacyCanvasSessionFromLocalStorage():
+  | UserPreferencesMeta['canvasSession']
+  | undefined {
+  const lastOpenedCanvasId = readLegacyLastOpenedCanvasId();
+  const lastView = lastOpenedCanvasId
+    ? readLegacyCanvasViewState(lastOpenedCanvasId)
+    : readLegacyCanvasViewState();
+  return compactObject({
+    lastOpenedCanvasId,
+    viewsByCanvasId:
+      lastOpenedCanvasId && lastView
+        ? {
+            [lastOpenedCanvasId]: {
+              ...lastView,
+            },
+          }
+        : undefined,
+  }) as UserPreferencesMeta['canvasSession'] | undefined;
+}
+
+function readLegacyLastOpenedCanvasId(): string | undefined {
+  const value = readLegacyScopedStorageValue<string>(
+    LEGACY_LAST_OPENED_CANVAS_STORAGE_KEY
+  );
+  return normalizeCanvasId(value) ?? undefined;
+}
+
+function readLegacyCanvasViewState(
+  canvasId?: string | null
+): UserCanvasViewState | undefined {
+  const scopedKey = normalizeCanvasId(canvasId)
+    ? `${LEGACY_CANVAS_VIEW_STORAGE_KEY}:${normalizeCanvasId(canvasId)}`
+    : LEGACY_CANVAS_VIEW_STORAGE_KEY;
+  const value = readLegacyScopedStorageValue<unknown>(scopedKey);
+  if (!isValidCanvasViewState(value)) {
+    return undefined;
+  }
+  return {
+    scrollX: value.scrollX,
+    scrollY: value.scrollY,
+    scale: value.scale,
+    updatedAt: value.updatedAt,
+  };
+}
+
+function readLegacyScopedStorageValue<T>(baseKey: string): T | undefined {
+  const storageKey = buildUserScopedStorageKey(baseKey);
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return undefined;
+    const parsed = JSON.parse(raw) as
+      | {
+          data?: T;
+          expiresAt?: number | null;
+        }
+      | T;
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      'data' in (parsed as Record<string, unknown>)
+    ) {
+      const envelope = parsed as {
+        data?: T;
+        expiresAt?: number | null;
+      };
+      if (
+        typeof envelope.expiresAt === 'number' &&
+        Number.isFinite(envelope.expiresAt) &&
+        Date.now() > envelope.expiresAt
+      ) {
+        localStorage.removeItem(storageKey);
+        return undefined;
+      }
+      return envelope.data;
+    }
+    return parsed as T;
+  } catch {
+    return undefined;
+  }
+}
+
+function clearLegacyCanvasSessionStorage(): void {
+  const keys = [
+    buildUserScopedStorageKey(LEGACY_LAST_OPENED_CANVAS_STORAGE_KEY),
+    buildUserScopedStorageKey(LEGACY_CANVAS_VIEW_STORAGE_KEY),
+  ];
+  const lastOpenedCanvasId = readLegacyLastOpenedCanvasId();
+  if (lastOpenedCanvasId) {
+    keys.push(
+      buildUserScopedStorageKey(
+        `${LEGACY_CANVAS_VIEW_STORAGE_KEY}:${lastOpenedCanvasId}`
+      )
+    );
+  }
+  keys.forEach((key) => {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // no-op
+    }
+  });
+}
+
 function extractUserPreferencesMeta(meta: UserMetaRecord): UserPreferencesMeta {
   const rawWorkspace = asObject(meta.workspace);
   const rawTimeClustering = asObject(meta.timeClustering);
   const rawCanvasPreferences = asObject(meta.canvasPreferences);
+  const rawCanvasSession = asObject(meta.canvasSession);
   const preferencesVersion =
     typeof meta.preferencesVersion === 'number'
       ? meta.preferencesVersion
@@ -491,6 +736,14 @@ function extractUserPreferencesMeta(meta: UserMetaRecord): UserPreferencesMeta {
             defaultView: isWorkspaceView(rawWorkspace.defaultView)
               ? rawWorkspace.defaultView
               : undefined,
+            aiAssistantOpen:
+              typeof rawWorkspace.aiAssistantOpen === 'boolean'
+                ? rawWorkspace.aiAssistantOpen
+                : undefined,
+            timeClusteringOpen:
+              typeof rawWorkspace.timeClusteringOpen === 'boolean'
+                ? rawWorkspace.timeClusteringOpen
+                : undefined,
             viewSwitcherPinned:
               typeof rawWorkspace.viewSwitcherPinned === 'boolean'
                 ? rawWorkspace.viewSwitcherPinned
@@ -540,6 +793,18 @@ function extractUserPreferencesMeta(meta: UserMetaRecord): UserPreferencesMeta {
                 : undefined,
           }
         : undefined,
+      canvasSession: rawCanvasSession
+        ? {
+            lastOpenedCanvasId: normalizeCanvasId(
+              rawCanvasSession.lastOpenedCanvasId
+            )
+              ? rawCanvasSession.lastOpenedCanvasId as string
+              : undefined,
+            viewsByCanvasId: extractCanvasViewsByCanvasId(
+              rawCanvasSession.viewsByCanvasId
+            ),
+          }
+        : undefined,
     }) ?? {}
   );
 }
@@ -572,6 +837,14 @@ function mergePreferences(
       ...base.canvasPreferences,
       ...patch.canvasPreferences,
     },
+    canvasSession: {
+      ...base.canvasSession,
+      ...patch.canvasSession,
+      viewsByCanvasId: {
+        ...(base.canvasSession?.viewsByCanvasId ?? {}),
+        ...(patch.canvasSession?.viewsByCanvasId ?? {}),
+      },
+    },
   }) ?? {};
 }
 
@@ -581,12 +854,60 @@ function compactPreferences(
   const workspace = compactObject(meta.workspace);
   const timeClustering = compactObject(meta.timeClustering);
   const canvasPreferences = compactObject(meta.canvasPreferences);
+  const canvasSession = compactCanvasSession(meta.canvasSession);
   return compactObject({
     preferencesVersion: meta.preferencesVersion,
     workspace,
     timeClustering,
     canvasPreferences,
+    canvasSession,
   }) as UserPreferencesMeta | undefined;
+}
+
+function compactCanvasSession(
+  canvasSession: UserPreferencesMeta['canvasSession']
+): UserPreferencesMeta['canvasSession'] | undefined {
+  const viewsByCanvasId = compactCanvasViewsByCanvasId(
+    canvasSession?.viewsByCanvasId
+  );
+  return compactObject({
+    lastOpenedCanvasId:
+      normalizeCanvasId(canvasSession?.lastOpenedCanvasId) ?? undefined,
+    viewsByCanvasId,
+  }) as UserPreferencesMeta['canvasSession'] | undefined;
+}
+
+function compactCanvasViewsByCanvasId(
+  viewsByCanvasId: UserPreferencesMeta['canvasSession'] extends infer T
+    ? T extends { viewsByCanvasId?: infer V }
+      ? V
+      : never
+    : never
+): Record<string, UserCanvasViewState> | undefined {
+  if (!viewsByCanvasId || typeof viewsByCanvasId !== 'object') {
+    return undefined;
+  }
+  const next: Record<string, UserCanvasViewState> = {};
+  Object.entries(viewsByCanvasId).forEach(([canvasId, view]) => {
+    const normalizedCanvasId = normalizeCanvasId(canvasId);
+    if (!normalizedCanvasId || !isValidCanvasViewState(view)) return;
+    next[normalizedCanvasId] = compactObject({
+      scrollX: view.scrollX,
+      scrollY: view.scrollY,
+      scale: view.scale,
+      updatedAt: view.updatedAt,
+    }) as UserCanvasViewState;
+  });
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
+function extractCanvasViewsByCanvasId(
+  value: unknown
+): Record<string, UserCanvasViewState> | undefined {
+  if (!isPlainObject(value)) {
+    return undefined;
+  }
+  return compactCanvasViewsByCanvasId(value);
 }
 
 function compactObject<T extends Record<string, unknown> | undefined>(
@@ -626,6 +947,26 @@ function isTimeClusteringLayoutMode(
   value: unknown
 ): value is TimeClusteringLayoutMode {
   return value === 'docked-left' || value === 'fullscreen';
+}
+
+function normalizeCanvasId(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function isValidCanvasViewState(value: unknown): value is UserCanvasViewState {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const candidate = value as UserCanvasViewState;
+  return (
+    Number.isFinite(candidate.scrollX) &&
+    Number.isFinite(candidate.scrollY) &&
+    Number.isFinite(candidate.scale) &&
+    candidate.scale > 0 &&
+    (candidate.updatedAt === undefined || Number.isFinite(candidate.updatedAt))
+  );
 }
 
 function areMetaEqual(left: UserMetaRecord, right: UserMetaRecord): boolean {
