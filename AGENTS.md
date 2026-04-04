@@ -192,6 +192,14 @@
 - The stored `ParentChild` relation normalizes that pair as `goal -> story`; UI affordances must not expose that storage direction as a separate reverse action.
 - A story may link to only one goal at a time; batch affordances must not offer one story -> many goals actions.
 
+### Canvas Relations vs Domain Relations Boundary
+
+- Treat canvas relations and domain relations as different systems with different responsibilities; never treat one as an alias of the other.
+- Canvas relations are visualization/runtime graph data for the canvas experience and should stay scoped to rendering-oriented interaction flows.
+- Domain relations are business-model data and must be persisted, validated, and reasoned about through explicit domain contracts.
+- Do not infer domain truth from canvas relation state, and do not use domain relation storage as a drop-in replacement for canvas visualization state.
+- If a feature needs both relation kinds, define a clear synchronization/projection contract with one declared source of truth per relation concern.
+
 ### Canvas Menu Boundaries
 
 - Treat `SelectionActionMenu` and `ContextMenu` as separate interaction systems with different UX goals and visual component needs.
