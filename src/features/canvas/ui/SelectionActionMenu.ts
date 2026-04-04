@@ -433,6 +433,8 @@ export class SelectionActionMenu {
     const isStoryOrGoal = (context: ActionContext): boolean =>
       context.primary instanceof StoryElement ||
       context.primary instanceof GoalElement;
+    const shouldShowAiDivider = (context: ActionContext): boolean =>
+      supportsAi(context) && (isMulti(context) || isStoryOrGoal(context));
     return [
       {
         kind: 'action',
@@ -494,7 +496,7 @@ export class SelectionActionMenu {
       {
         kind: 'divider',
         id: 'divider-ai',
-        isVisible: supportsAi,
+        isVisible: shouldShowAiDivider,
       },
       {
         kind: 'action',
