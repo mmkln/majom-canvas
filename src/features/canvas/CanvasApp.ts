@@ -72,7 +72,11 @@ import type {
   AiAssistantActionExecutionResult,
 } from '../ai-assistant/aiAssistantActions.ts';
 import type { I18nService } from '../../i18n/index.ts';
-import { AppRuntime, createAppRuntime } from '../../app-runtime/index.ts';
+import {
+  AppRuntime,
+  createAppRuntime,
+  type AppRuntimeSnapshot,
+} from '../../app-runtime/index.ts';
 import { Status } from '../../majom-wrapper/interfaces/index.ts';
 
 type CanvasListUiItem = {
@@ -117,6 +121,7 @@ export class CanvasApp {
   private viewChangesSubscription: Subscription | null = null;
   private sceneChangesSubscription: Subscription | null = null;
   private elementUpdateStatusSubscription: Subscription | null = null;
+  private disposeRuntimeSubscription: (() => void) | null = null;
   private destroyed = false;
   private readonly canvasListCache = new Map<string, CanvasListCacheItem>();
   private aiAssistantPreviousSnapshot: AiAssistantCanvasSnapshot | null = null;
@@ -157,6 +162,8 @@ export class CanvasApp {
     this.handleCanvasLinkLifecycle(event);
   private readonly canvasAutosaveToggledHandler = (event: Event): void =>
     this.handleCanvasAutosaveToggled(event);
+  private readonly runtimeSnapshotHandler = (snapshot: AppRuntimeSnapshot): void =>
+    this.handleRuntimeSnapshot(snapshot);
 
   constructor(
     dataProvider: IDataProvider,
@@ -177,6 +184,7 @@ export class CanvasApp {
 
     // Передаємо сцену в CanvasManager, щоб менеджер міг працювати з даними
     this.canvasManager = new CanvasManager(this.canvas, this.scene);
+    this.canvasManager.setCanvasRuntimeTheme(this.runtime.getTheme());
     // Використовуємо провайдера для створення репозиторію діаграми
     this.diagramRepository = new DiagramRepository(dataProvider);
     // Ініціалізація сервісу аутентифікації
@@ -365,6 +373,10 @@ export class CanvasApp {
       return;
     }
     this.stopAutosave();
+  }
+
+  private handleRuntimeSnapshot(snapshot: AppRuntimeSnapshot): void {
+    this.canvasManager.setCanvasRuntimeTheme(snapshot.theme);
   }
 
   private handleCanvasTitleEdited(event: Event): void {
@@ -791,6 +803,10 @@ export class CanvasApp {
       throw new Error('Cannot init destroyed App instance.');
     }
     this.canvasManager.init();
+    this.disposeRuntimeSubscription = this.runtime.subscribe(
+      this.runtimeSnapshotHandler,
+      { emitCurrent: true }
+    );
     // Restore last view state (scroll & zoom) via centralized setter
     const view: IViewState = await this.dataProvider.loadViewState();
     const panZoom = this.canvasManager.getPanZoomManager();
@@ -837,6 +853,8 @@ export class CanvasApp {
     this.sceneChangesSubscription = null;
     this.elementUpdateStatusSubscription?.unsubscribe();
     this.elementUpdateStatusSubscription = null;
+    this.disposeRuntimeSubscription?.();
+    this.disposeRuntimeSubscription = null;
     this.clearAiAssistantContext();
     this.uiManager.unmountAll();
     this.canvasManager.destroy();

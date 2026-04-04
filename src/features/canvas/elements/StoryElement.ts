@@ -4,11 +4,6 @@ import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { TaskElement } from './TaskElement.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
 import {
-  SELECT_COLOR,
-  FOCUS_COLOR,
-  HIGHLIGHT_COLOR,
-  FOCUS_STORY_FILL,
-  HIGHLIGHT_STORY_FILL,
   FONT_FAMILY,
   TITLE_FONT_SIZE,
   SMALL_FONT_SIZE,
@@ -17,7 +12,8 @@ import {
   SHOW_STORY_TEXT_SCALE,
 } from '../core/constants.ts';
 import { editElement$ } from '../core/eventBus.ts';
-import { storyStyles } from './styles/storyStyles.ts';
+import { getStoryStyle } from './styles/storyStyles.ts';
+import { DEFAULT_CANVAS_THEME } from '../theme/canvasTheme.ts';
 import { ElementStatus } from './ElementStatus.ts';
 import { v4 } from 'uuid';
 import { TextRenderer } from '../utils/TextRenderer.ts';
@@ -31,7 +27,7 @@ import { getPriorityStrokeWidth } from './utils/priorityStroke.ts';
 export class StoryElement extends PlanningElement {
   static width: number = 344;
   static height: number = 240;
-  public borderColor: string = storyStyles[ElementStatus.Defined].borderColor;
+  public borderColor: string = DEFAULT_CANVAS_THEME.nodes.story.status.defined.border;
   /** Size for resize handles (in px) */
   // Size in px for the circular resize handle (larger for better UX)
   static HANDLE_SIZE: number = 8;
@@ -78,7 +74,7 @@ export class StoryElement extends PlanningElement {
     goalBackendId?: number | null;
   }) {
     // determine style by status
-    const style = storyStyles[status];
+    const style = getStoryStyle(status, DEFAULT_CANVAS_THEME);
     super({
       id,
       x,
@@ -95,7 +91,7 @@ export class StoryElement extends PlanningElement {
     // layer ordering: draw stories below tasks
     this.zIndex = 1;
     this.status = status;
-    this.borderColor = storyStyles[status].borderColor;
+    this.borderColor = style.borderColor;
     this.priority = priority;
     this.tasks = tasks;
     this.selected = selected;
@@ -113,16 +109,17 @@ export class StoryElement extends PlanningElement {
       renderFlags?.showStoryText ?? panZoom.scale >= SHOW_STORY_TEXT_SCALE;
     const showAnim = renderFlags?.showAnim ?? panZoom.scale >= SHOW_ANIM_SCALE;
     // Apply fill and border based on status
-    const style = storyStyles[this.status];
+    const canvasTheme = panZoom.renderFlags?.canvasTheme ?? DEFAULT_CANVAS_THEME;
+    const style = getStoryStyle(this.status, canvasTheme);
     const chromeColor = this.focused
-      ? FOCUS_COLOR
+      ? canvasTheme.interaction.focus
       : this.highlighted
-        ? HIGHLIGHT_COLOR
+        ? canvasTheme.interaction.highlight
         : style.borderColor;
     const fillColor = this.focused
-      ? FOCUS_STORY_FILL
+      ? canvasTheme.interaction.storyFocusFill
       : this.highlighted
-        ? HIGHLIGHT_STORY_FILL
+        ? canvasTheme.interaction.storyHighlightFill
         : style.fillColor;
     const strokeWidth = getPriorityStrokeWidth(this.priority) / panZoom.scale;
     this.fillColor = fillColor;
@@ -137,11 +134,11 @@ export class StoryElement extends PlanningElement {
     const dashOff = 2 / panZoom.scale;
     ctx.setLineDash(this.selected ? [] : [dashOn, dashOff]);
     ctx.strokeStyle = this.focused
-      ? FOCUS_COLOR
+      ? canvasTheme.interaction.focus
       : this.highlighted
-        ? HIGHLIGHT_COLOR
+        ? canvasTheme.interaction.highlight
         : this.selected
-          ? SELECT_COLOR
+          ? canvasTheme.interaction.selection
           : style.borderColor;
     ctx.lineWidth = strokeWidth;
     ctx.stroke();
@@ -164,7 +161,7 @@ export class StoryElement extends PlanningElement {
     }
     if (showText) {
       // Title text with word wrapping
-      ctx.fillStyle = '#000000';
+      ctx.fillStyle = style.textColor;
       ctx.font = `bold ${TITLE_FONT_SIZE}px ${FONT_FAMILY}`;
       // Calculate max width for title, accounting for potential buttons
       const maxTitleWidth = this.width - 90; // Leave space for buttons on the right
@@ -192,7 +189,9 @@ export class StoryElement extends PlanningElement {
         ctx.beginPath();
         ctx.arc(h.x, h.y, size, 0, 2 * Math.PI);
 
-        ctx.fillStyle = isHandleHovered ? '#00A8FF' : SELECT_COLOR;
+        ctx.fillStyle = isHandleHovered
+          ? canvasTheme.handles.resizeHover
+          : canvasTheme.handles.resize;
         ctx.fill();
       });
     }

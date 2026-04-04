@@ -1,35 +1,20 @@
-import {
-  GOAL_STATUS_DONE_FILL,
-  GOAL_STATUS_DONE_BORDER,
-  GOAL_STATUS_IN_PROGRESS_FILL,
-  GOAL_STATUS_IN_PROGRESS_BORDER,
-  GOAL_STATUS_PENDING_FILL,
-  GOAL_STATUS_PENDING_BORDER,
-  GOAL_STATUS_DEFINED_FILL,
-  GOAL_STATUS_DEFINED_BORDER,
-} from '../constants.ts';
 import { ElementStatus } from '../ElementStatus.ts';
+import type { CanvasThemePalette } from '../../theme/canvasTheme.ts';
 
 export interface GoalStyle {
   fillColor: string;
   borderColor: string;
+  textColor: string;
 }
 
-export const goalStyles: Record<ElementStatus, GoalStyle> = {
-  done: {
-    fillColor: GOAL_STATUS_DONE_FILL,
-    borderColor: GOAL_STATUS_DONE_BORDER,
-  },
-  'in-progress': {
-    fillColor: GOAL_STATUS_IN_PROGRESS_FILL,
-    borderColor: GOAL_STATUS_IN_PROGRESS_BORDER,
-  },
-  pending: {
-    fillColor: GOAL_STATUS_PENDING_FILL,
-    borderColor: GOAL_STATUS_PENDING_BORDER,
-  },
-  defined: {
-    fillColor: GOAL_STATUS_DEFINED_FILL,
-    borderColor: GOAL_STATUS_DEFINED_BORDER,
-  },
-};
+export function getGoalStyle(
+  status: ElementStatus,
+  palette: CanvasThemePalette
+): GoalStyle {
+  const nodeStyle = palette.nodes.goal.status[status];
+  return {
+    fillColor: nodeStyle.fill,
+    borderColor: nodeStyle.border,
+    textColor: nodeStyle.text,
+  };
+}

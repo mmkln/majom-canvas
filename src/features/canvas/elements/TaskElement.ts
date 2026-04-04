@@ -2,14 +2,9 @@
 import { PlanningElement } from './PlanningElement.ts';
 import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
-import {
-  SELECT_COLOR,
-  FOCUS_COLOR,
-  HIGHLIGHT_COLOR,
-  SHOW_ANIM_SCALE,
-  SHOW_TASK_TEXT_SCALE,
-} from '../core/constants.ts';
-import { taskStyles } from './styles/taskStyles.ts';
+import { SHOW_ANIM_SCALE, SHOW_TASK_TEXT_SCALE } from '../core/constants.ts';
+import { getTaskStyle } from './styles/taskStyles.ts';
+import { DEFAULT_CANVAS_THEME } from '../theme/canvasTheme.ts';
 import { ElementStatus } from './ElementStatus.ts';
 import { editElement$ } from '../core/eventBus.ts';
 import { v4 } from 'uuid';
@@ -24,7 +19,7 @@ import { getPriorityStrokeWidth } from './utils/priorityStroke.ts';
 export class TaskElement extends PlanningElement {
   title: string;
   status: ElementStatus = ElementStatus.Defined;
-  public borderColor: string = taskStyles[ElementStatus.Defined].borderColor;
+  public borderColor: string = DEFAULT_CANVAS_THEME.nodes.task.status.defined.border;
   priority: UiPriority;
   dueDate: Date | null = null;
 
@@ -72,7 +67,7 @@ export class TaskElement extends PlanningElement {
     this.zIndex = 2;
     this.title = title;
     this.status = status;
-    this.borderColor = taskStyles[status].borderColor;
+    this.borderColor = DEFAULT_CANVAS_THEME.nodes.task.status[status].border;
     this.selected = selected;
     this.priority = priority;
     this.dueDate = dueDate ?? null;
@@ -91,11 +86,12 @@ export class TaskElement extends PlanningElement {
     const h = TaskElement.height;
     const strokeWidth = getPriorityStrokeWidth(this.priority) / panZoom.scale;
     // Background
-    const style = taskStyles[this.status];
+    const canvasTheme = panZoom.renderFlags?.canvasTheme ?? DEFAULT_CANVAS_THEME;
+    const style = getTaskStyle(this.status, canvasTheme);
     const chromeColor = this.focused
-      ? FOCUS_COLOR
+      ? canvasTheme.interaction.focus
       : this.highlighted
-        ? HIGHLIGHT_COLOR
+        ? canvasTheme.interaction.highlight
         : style.borderColor;
     this.fillColor = style.fillColor;
     this.borderColor = chromeColor;
@@ -106,11 +102,11 @@ export class TaskElement extends PlanningElement {
     ctx.roundRect(x, y, w, h, radius);
     ctx.fill();
     ctx.strokeStyle = this.focused
-      ? FOCUS_COLOR
+      ? canvasTheme.interaction.focus
       : this.highlighted
-        ? HIGHLIGHT_COLOR
+        ? canvasTheme.interaction.highlight
         : this.selected
-          ? SELECT_COLOR
+          ? canvasTheme.interaction.selection
           : style.borderColor;
     ctx.lineWidth = strokeWidth;
     ctx.lineJoin = 'round';
@@ -134,7 +130,7 @@ export class TaskElement extends PlanningElement {
     }
     if (showText) {
       // Title with word wrapping
-      ctx.fillStyle = '#000000';
+      ctx.fillStyle = style.textColor;
       ctx.font = `bold 14px Arial`;
 
       // Calculate maximum width for text with horizontal padding.
@@ -169,9 +165,11 @@ export class TaskElement extends PlanningElement {
         ctx.save();
         ctx.beginPath();
         ctx.arc(point.x, point.y, radius, 0, 2 * Math.PI);
-        ctx.fillStyle = isPortHovered ? SELECT_COLOR : '#ffffff';
+        ctx.fillStyle = isPortHovered
+          ? canvasTheme.anchors.hoverFill
+          : canvasTheme.anchors.fill;
         ctx.fill();
-        ctx.strokeStyle = '#000000';
+        ctx.strokeStyle = canvasTheme.anchors.border;
         ctx.lineWidth = 2;
         ctx.stroke();
         ctx.restore();
