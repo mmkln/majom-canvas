@@ -16,18 +16,11 @@ import {
   type IConnection,
 } from '../interfaces/connection.ts';
 import {
-  SELECT_COLOR,
-  FOCUS_COLOR,
-  HOVER_OVERLAY_FILL,
-  HOVER_OUTLINE_COLOR,
-  REGION_SELECT_BORDER_COLOR,
-  REGION_SELECT_FILL,
   SHOW_DETAILS_SCALE,
   SHOW_GOAL_TEXT_SCALE,
   SHOW_STORY_TEXT_SCALE,
   SHOW_TASK_TEXT_SCALE,
   SHOW_ANIM_SCALE,
-  TASK_DROP_PLACEHOLDER_FILL,
 } from '../constants.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
 import { GoalElement } from '../../elements/GoalElement.ts';
@@ -48,6 +41,11 @@ import type {
   CanvasLoadPhase,
   CanvasLoadingPlaceholder,
 } from '../types/canvasLoading.ts';
+import {
+  DEFAULT_CANVAS_THEME,
+  resolveCanvasTheme,
+  type CanvasThemePalette,
+} from '../../theme/canvasTheme.ts';
 
 type CanvasLoadingPlaceholderRenderState = CanvasLoadingPlaceholder & {
   isFocused: boolean;
@@ -193,6 +191,7 @@ export class CanvasManager {
   private readonly perfSnapshotSubject: Subject<CanvasPerfSnapshot> =
     new Subject<CanvasPerfSnapshot>();
   public readonly perfSnapshot$ = this.perfSnapshotSubject.asObservable();
+  private canvasTheme: CanvasThemePalette = DEFAULT_CANVAS_THEME;
   private sceneChangesSubscription: Subscription | null = null;
   private sceneFocusChangesSubscription: Subscription | null = null;
   private sceneHighlightChangesSubscription: Subscription | null = null;
@@ -436,6 +435,7 @@ export class CanvasManager {
       showAnim: this.animationsEnabled && this.panZoom.scale >= SHOW_ANIM_SCALE,
       connectionAnimDetail: 'full',
       statusAnimDetail: 'full',
+      canvasTheme: this.canvasTheme,
     };
     if (this.backgroundCtx) {
       this.renderer.drawBackground(
@@ -605,7 +605,7 @@ export class CanvasManager {
       this.interactionManager.getTaskDropPlaceholders();
     if (taskDropPlaceholders.length > 0) {
       this.ctx.save();
-      this.ctx.fillStyle = TASK_DROP_PLACEHOLDER_FILL;
+      this.ctx.fillStyle = this.canvasTheme.interaction.taskDropPlaceholderFill;
       const radius = 24;
       taskDropPlaceholders.forEach((placeholder) => {
         this.ctx.beginPath();
@@ -634,8 +634,8 @@ export class CanvasManager {
           );
           if (!overlayGeometry) return;
           this.ctx.save();
-          this.ctx.fillStyle = HOVER_OVERLAY_FILL;
-          this.ctx.strokeStyle = HOVER_OUTLINE_COLOR;
+          this.ctx.fillStyle = this.canvasTheme.interaction.hoverOverlayFill;
+          this.ctx.strokeStyle = this.canvasTheme.interaction.hoverOutline;
           this.ctx.lineWidth = 2 / this.panZoom.scale;
           if (overlayGeometry.kind === 'circle') {
             this.ctx.beginPath();
@@ -678,7 +678,7 @@ export class CanvasManager {
       this.ctx.beginPath();
       this.ctx.moveTo(tempLine.startX, tempLine.startY);
       this.ctx.lineTo(tempLine.endX, tempLine.endY);
-      this.ctx.strokeStyle = '#000000';
+      this.ctx.strokeStyle = this.canvasTheme.interaction.tempConnectionLine;
       this.ctx.lineWidth = 2;
       this.ctx.setLineDash([5, 5]);
       this.ctx.globalAlpha = 0.5;
@@ -688,9 +688,9 @@ export class CanvasManager {
       this.ctx.save();
       this.ctx.beginPath();
       this.ctx.arc(tempLine.endX, tempLine.endY, 8, 0, 2 * Math.PI);
-      this.ctx.fillStyle = SELECT_COLOR;
+      this.ctx.fillStyle = this.canvasTheme.interaction.selection;
       this.ctx.fill();
-      this.ctx.strokeStyle = '#000000';
+      this.ctx.strokeStyle = this.canvasTheme.interaction.tempConnectionLine;
       this.ctx.lineWidth = 1;
       this.ctx.stroke();
       this.ctx.restore();
@@ -728,7 +728,7 @@ export class CanvasManager {
       const { minX, minY, maxX, maxY } = getBoundingBox(points);
       this.ctx.save();
       this.ctx.setLineDash([]);
-      this.ctx.strokeStyle = REGION_SELECT_BORDER_COLOR;
+      this.ctx.strokeStyle = this.canvasTheme.interaction.regionSelectionBorder;
       this.ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
       this.ctx.restore();
     }
@@ -737,9 +737,9 @@ export class CanvasManager {
     const region = this.interactionManager.getRegionRect();
     if (region) {
       this.ctx.save();
-      this.ctx.fillStyle = REGION_SELECT_FILL;
+      this.ctx.fillStyle = this.canvasTheme.interaction.regionSelectionFill;
       this.ctx.fillRect(region.x, region.y, region.width, region.height);
-      this.ctx.strokeStyle = REGION_SELECT_BORDER_COLOR;
+      this.ctx.strokeStyle = this.canvasTheme.interaction.regionSelectionBorder;
       this.ctx.setLineDash([]);
       this.ctx.strokeRect(region.x, region.y, region.width, region.height);
       this.ctx.restore();
@@ -816,7 +816,7 @@ export class CanvasManager {
 
     if (!placeholder.isFocused) return;
     this.ctx.save();
-    this.ctx.strokeStyle = FOCUS_COLOR;
+    this.ctx.strokeStyle = this.canvasTheme.interaction.focus;
     this.ctx.lineWidth = 2 / scale;
     this.ctx.setLineDash([]);
     this.ctx.beginPath();
@@ -1662,6 +1662,19 @@ export class CanvasManager {
 
   public getCanvas(): HTMLCanvasElement {
     return this.canvas;
+  }
+
+  public setCanvasTheme(theme: CanvasThemePalette): void {
+    this.canvasTheme = theme;
+    this.requestDraw();
+  }
+
+  public setCanvasRuntimeTheme(theme: 'light' | 'dark'): void {
+    this.setCanvasTheme(resolveCanvasTheme(theme));
+  }
+
+  public getCanvasTheme(): CanvasThemePalette {
+    return this.canvasTheme;
   }
 
   public getPanZoomManager(): PanZoomManager {

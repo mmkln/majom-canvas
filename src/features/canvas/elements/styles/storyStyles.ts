@@ -1,35 +1,20 @@
-import {
-  STORY_STATUS_DONE_FILL,
-  STORY_STATUS_DONE_BORDER,
-  STORY_STATUS_IN_PROGRESS_FILL,
-  STORY_STATUS_IN_PROGRESS_BORDER,
-  STORY_STATUS_PENDING_FILL,
-  STORY_STATUS_PENDING_BORDER,
-  STORY_STATUS_DEFINED_FILL,
-  STORY_STATUS_DEFINED_BORDER,
-} from '../constants.ts';
 import { ElementStatus } from '../ElementStatus.ts';
+import type { CanvasThemePalette } from '../../theme/canvasTheme.ts';
 
 export interface StoryStyle {
   fillColor: string;
   borderColor: string;
+  textColor: string;
 }
 
-export const storyStyles: Record<ElementStatus, StoryStyle> = {
-  done: {
-    fillColor: STORY_STATUS_DONE_FILL,
-    borderColor: STORY_STATUS_DONE_BORDER,
-  },
-  'in-progress': {
-    fillColor: STORY_STATUS_IN_PROGRESS_FILL,
-    borderColor: STORY_STATUS_IN_PROGRESS_BORDER,
-  },
-  pending: {
-    fillColor: STORY_STATUS_PENDING_FILL,
-    borderColor: STORY_STATUS_PENDING_BORDER,
-  },
-  defined: {
-    fillColor: STORY_STATUS_DEFINED_FILL,
-    borderColor: STORY_STATUS_DEFINED_BORDER,
-  },
-};
+export function getStoryStyle(
+  status: ElementStatus,
+  palette: CanvasThemePalette
+): StoryStyle {
+  const nodeStyle = palette.nodes.story.status[status];
+  return {
+    fillColor: nodeStyle.fill,
+    borderColor: nodeStyle.border,
+    textColor: nodeStyle.text,
+  };
+}

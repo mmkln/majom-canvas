@@ -11,8 +11,9 @@ import {
 } from '../core/constants.ts';
 import { editElement$ } from '../core/eventBus.ts';
 import { v4 } from 'uuid';
-import { goalStyles } from './styles/goalStyles.ts';
+import { getGoalStyle } from './styles/goalStyles.ts';
 import { resolveGoalAppearance } from './styles/goalAppearance.ts';
+import { DEFAULT_CANVAS_THEME } from '../theme/canvasTheme.ts';
 import { ElementStatus } from './ElementStatus.ts';
 import { TextRenderer } from '../utils/TextRenderer.ts';
 import { drawStatusAnimationHex } from './utils/statusAnimations.ts';
@@ -38,7 +39,7 @@ export class GoalElement extends PlanningElement {
   links: string[] = [];
   progress: number = 0;
   public status: ElementStatus = ElementStatus.Defined;
-  public borderColor: string = goalStyles[ElementStatus.Defined].borderColor;
+  public borderColor: string = DEFAULT_CANVAS_THEME.nodes.goal.status.defined.border;
   public priority: UiPriority = 'low';
   public scale: GoalScale = DEFAULT_GOAL_SCALE;
 
@@ -89,7 +90,7 @@ export class GoalElement extends PlanningElement {
       y,
       width: diameter,
       height: diameter,
-      fillColor: goalStyles[status].fillColor,
+      fillColor: getGoalStyle(status, DEFAULT_CANVAS_THEME).fillColor,
       lineWidth: 2,
       title,
       tags,
@@ -99,7 +100,7 @@ export class GoalElement extends PlanningElement {
     });
     this.zIndex = 3;
     this.status = status;
-    this.borderColor = goalStyles[status].borderColor;
+    this.borderColor = getGoalStyle(status, DEFAULT_CANVAS_THEME).borderColor;
     this.priority = priority;
     this.selected = selected;
     this.description = description;
@@ -112,12 +113,13 @@ export class GoalElement extends PlanningElement {
       renderFlags?.showGoalText ?? panZoom.scale >= SHOW_GOAL_TEXT_SCALE;
     const showAnim = renderFlags?.showAnim ?? panZoom.scale >= SHOW_ANIM_SCALE;
     const { x, y, width, height, title } = this;
+    const canvasTheme = panZoom.renderFlags?.canvasTheme ?? DEFAULT_CANVAS_THEME;
     const appearance = resolveGoalAppearance({
       status: this.status,
       focused: this.focused,
       highlighted: this.highlighted,
       selected: this.selected,
-    });
+    }, canvasTheme);
     const strokeWidth = getPriorityStrokeWidth(this.priority) / panZoom.scale;
     this.fillColor = appearance.fillColor;
     this.borderColor = appearance.chromeColor;

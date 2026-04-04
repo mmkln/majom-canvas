@@ -1,6 +1,7 @@
 // managers/PanZoomManager.ts
 import { Subject } from 'rxjs';
 import type { IViewState } from '../interfaces/interfaces.ts';
+import type { CanvasThemePalette } from '../../theme/canvasTheme.ts';
 
 export type RenderFlags = {
   showDetails: boolean;
@@ -10,6 +11,7 @@ export type RenderFlags = {
   showAnim: boolean;
   connectionAnimDetail?: 'full' | 'reduced';
   statusAnimDetail?: 'full' | 'reduced';
+  canvasTheme?: CanvasThemePalette;
 };
 
 export class PanZoomManager {

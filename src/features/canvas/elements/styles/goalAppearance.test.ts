@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  FOCUS_COLOR,
-  HIGHLIGHT_COLOR,
-  SELECT_COLOR,
-} from '../../core/constants.ts';
+import { DEFAULT_CANVAS_THEME } from '../../theme/canvasTheme.ts';
 import { ElementStatus } from '../ElementStatus.ts';
 import { resolveGoalAppearance } from './goalAppearance.ts';
 
@@ -14,11 +10,11 @@ describe('resolveGoalAppearance', () => {
       focused: true,
       highlighted: false,
       selected: true,
-    });
+    }, DEFAULT_CANVAS_THEME);
 
     expect(appearance.fillColor).toBe('#a57aff');
-    expect(appearance.selectionStrokeColor).toBe(SELECT_COLOR);
-    expect(appearance.chromeColor).toBe(FOCUS_COLOR);
+    expect(appearance.selectionStrokeColor).toBe(DEFAULT_CANVAS_THEME.interaction.selection);
+    expect(appearance.chromeColor).toBe(DEFAULT_CANVAS_THEME.interaction.focus);
     expect(appearance.textColor).toBe('#f8fafc');
   });
 
@@ -28,11 +24,11 @@ describe('resolveGoalAppearance', () => {
       focused: false,
       highlighted: true,
       selected: true,
-    });
+    }, DEFAULT_CANVAS_THEME);
 
     expect(appearance.fillColor).toBe('#F2A03D');
-    expect(appearance.selectionStrokeColor).toBe(SELECT_COLOR);
-    expect(appearance.chromeColor).toBe(HIGHLIGHT_COLOR);
+    expect(appearance.selectionStrokeColor).toBe(DEFAULT_CANVAS_THEME.interaction.selection);
+    expect(appearance.chromeColor).toBe(DEFAULT_CANVAS_THEME.interaction.highlight);
     expect(appearance.textColor).toBe('#f8fafc');
   });
 
@@ -42,7 +38,7 @@ describe('resolveGoalAppearance', () => {
       focused: false,
       highlighted: false,
       selected: false,
-    });
+    }, DEFAULT_CANVAS_THEME);
 
     expect(appearance.fillColor).toBe('#5A9FF2');
     expect(appearance.selectionStrokeColor).toBeNull();

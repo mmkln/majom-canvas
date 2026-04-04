@@ -4,7 +4,7 @@ import { PanZoomManager } from '../core/managers/PanZoomManager.ts';
 import { ConnectionPoint } from '../core/interfaces/shape.ts';
 import { IPlanningElement } from './interfaces/planningElement.ts';
 import type { IConnectable } from '../core/interfaces/connectable.ts';
-import { SELECT_COLOR } from '../core/constants.ts';
+import { DEFAULT_CANVAS_THEME } from '../theme/canvasTheme.ts';
 
 export abstract class PlanningElement
   extends CanvasElement
@@ -106,8 +106,12 @@ export abstract class PlanningElement
         ctx.setLineDash([]);
         ctx.beginPath();
         ctx.arc(pt.x, pt.y, 4 / panZoom.scale, 0, 2 * Math.PI);
-        ctx.fillStyle = pt.isHovered ? SELECT_COLOR : '#ffffff';
-        ctx.strokeStyle = '#000000';
+        const canvasTheme =
+          panZoom.renderFlags?.canvasTheme ?? DEFAULT_CANVAS_THEME;
+        ctx.fillStyle = pt.isHovered
+          ? canvasTheme.anchors.hoverFill
+          : canvasTheme.anchors.fill;
+        ctx.strokeStyle = canvasTheme.anchors.border;
         ctx.lineWidth = 1 / panZoom.scale;
         ctx.fill();
         ctx.stroke();
