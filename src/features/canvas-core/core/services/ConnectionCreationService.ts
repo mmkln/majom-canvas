@@ -13,10 +13,6 @@ import {
   emitCanvasRelationLifecycle,
 } from '../canvasRelationLifecycle.ts';
 import {
-  type GoalLinkSnapshot,
-  emitGoalLinkSet,
-  emitGoalLinkUpdated,
-  isGoalLinkRelationType,
 } from '../canvasLinkLifecycle.ts';
 import {
   findConnectionForPair,
@@ -25,7 +21,6 @@ import {
 } from '../utils/connectionPairs.ts';
 import type { CanvasConnectionPolicy } from '../../adapters/CanvasConnectionPolicy.ts';
 import { PlanningCanvasConnectionPolicy } from '../../adapters/planning/PlanningCanvasConnectionPolicy.ts';
-import { GoalElement } from '../../elements/GoalElement.ts';
 
 export type ConnectionCreateSkipReason =
   | 'same-element'
@@ -542,19 +537,12 @@ export class ConnectionCreationService {
     );
 
     plans.forEach((plan) => {
-      const connection = this.findCreatedConnection(plan);
       emitCanvasRelationLifecycle({
         action: 'created',
         relationType: plan.relationType,
         from: buildCanvasRelationEndpoint(plan.from, plan.fromRef),
         to: buildCanvasRelationEndpoint(plan.to, plan.toRef),
       });
-      const goalLink = connection
-        ? this.toGoalLinkSnapshot(connection, plan)
-        : null;
-      if (connection && goalLink) {
-        emitGoalLinkSet(goalLink);
-      }
       this.connectionPolicy.onConnectionCreated?.(plan);
     });
   }
@@ -565,39 +553,6 @@ export class ConnectionCreationService {
     if (plans.length === 0) {
       return;
     }
-
-    const goalLinkUpdates = plans
-      .map((plan) => {
-        const currentGoalLink = this.toGoalLinkSnapshot(
-          plan.existingConnection,
-          {
-            from: plan.to,
-            to: plan.from,
-            relationType: plan.relationType,
-          }
-        );
-        const nextGoalLink = this.toGoalLinkSnapshot(
-          plan.existingConnection,
-          plan
-        );
-        if (!currentGoalLink || !nextGoalLink) {
-          return null;
-        }
-        return {
-          connection: plan.existingConnection,
-          currentGoalLink,
-          nextGoalLink,
-        };
-      })
-      .filter(
-        (
-          update
-        ): update is {
-          connection: IConnection;
-          currentGoalLink: GoalLinkSnapshot;
-          nextGoalLink: GoalLinkSnapshot;
-        } => Boolean(update)
-      );
 
     const commands = plans.map(
       (plan) =>
@@ -611,10 +566,6 @@ export class ConnectionCreationService {
     historyService.execute(
       commands.length === 1 ? commands[0] : new CompositeCommand(commands)
     );
-
-    goalLinkUpdates.forEach((update) => {
-      emitGoalLinkUpdated(update.currentGoalLink, update.nextGoalLink);
-    });
   }
 
   private findPairMatch(
@@ -633,43 +584,4 @@ export class ConnectionCreationService {
     return uuid ?? element.id;
   }
 
-  private findCreatedConnection(
-    plan: ConnectionCreationPlan
-  ): IConnection | null {
-    const pairMatch = this.findPairMatch(plan.fromRef, plan.toRef);
-    if (!pairMatch) return null;
-    if (pairMatch.connection.relationType !== plan.relationType) {
-      return null;
-    }
-    if (
-      isDirectionalConnectionRelation(plan.relationType) &&
-      (pairMatch.connection.fromId !== plan.fromRef ||
-        pairMatch.connection.toId !== plan.toRef)
-    ) {
-      return null;
-    }
-    return pairMatch.connection;
-  }
-
-  private toGoalLinkSnapshot(
-    connection: IConnection,
-    plan: Pick<ConnectionCreationPlan, 'from' | 'to' | 'relationType'>
-  ): GoalLinkSnapshot | null {
-    if (
-      !(plan.from instanceof GoalElement) ||
-      !(plan.to instanceof GoalElement) ||
-      !isGoalLinkRelationType(plan.relationType)
-    ) {
-      return null;
-    }
-    return {
-      connectionId: connection.id,
-      lineType: connection.lineType,
-      fromGoalRef: this.getElementRef(plan.from),
-      toGoalRef: this.getElementRef(plan.to),
-      fromGoalUuid: plan.from.uuid ?? null,
-      toGoalUuid: plan.to.uuid ?? null,
-      relationType: plan.relationType,
-    };
-  }
 }

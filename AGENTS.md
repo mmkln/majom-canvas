@@ -205,6 +205,23 @@
 - For canvas element `draw()` methods, do not introduce raw hex colors directly in rendering branches.
 - Resolve colors through `canvasTheme` roles (node status roles, interaction roles, anchors/handles/guides roles, or dedicated new roles added to the theme palette).
 
+### Canvas vs Canvas-Core Boundary
+
+- Treat `src/features/canvas` and `src/features/canvas-core` as different architecture layers with different responsibilities.
+- For product-facing canvas work, treat `src/features/canvas` as the active canvas application/runtime by default.
+- Do not assume `src/features/canvas-core` is the current canvas app entrypoint, a migration target, or a future replacement runtime unless the user explicitly says so.
+- If the request is about behavior a user sees in the current canvas UI, start from `src/features/canvas` and verify the boot/runtime path before editing `canvas-core`.
+- `src/features/canvas` must not depend on `src/features/canvas-core` as a feature-layer dependency.
+- The only acceptable exception is a small, clean, dependency-light module that is deliberately shaped as a shared leaf utility or contract and can be used independently by both `canvas` and `canvas-core` without pulling product logic across the boundary.
+- If code seems reusable but currently lives inside `canvas-core`, do not make `canvas` depend on that module by default. First decide whether it should stay engine-only, move to `canvas`, or be extracted into a neutral shared module.
+- `src/features/canvas` owns concrete planning/domain entities and product-facing behavior such as `GoalElement`, `StoryElement`, `TaskElement`, status presentation, planning-specific menus, and feature semantics.
+- `src/features/canvas-core` must be treated as the engine layer: scene graph, rendering infrastructure, generic commands, alignment, selection mechanics, primitives, and reusable canvas runtime utilities.
+- Do not answer questions about concrete canvas entities by inspecting `canvas-core` first. Start from `src/features/canvas` unless the user explicitly asks about engine internals.
+- Do not add new concrete planning entities, domain statuses, or product-specific UI semantics under `src/features/canvas-core`.
+- If work in `canvas-core` seems to require importing or editing `GoalElement`, `StoryElement`, `TaskElement`, `HabitElement`, or similar domain entities, stop and classify the task as `redesign-required` before proceeding.
+- If the requested behavior is product-level canvas workflow logic, implement it in `canvas` first. Do not place it in `canvas-core` unless the extracted part is a genuinely generic engine primitive with no `canvas` ownership baked into it.
+- When touching both layers, state explicitly which concern belongs to `canvas` and which belongs to `canvas-core`; do not merge them in one explanation or one ownership boundary.
+
 ### Canvas Menu Boundaries
 
 - Treat `SelectionActionMenu` and `ContextMenu` as separate interaction systems with different UX goals and visual component needs.
@@ -213,6 +230,13 @@
 - When adding new context-menu capabilities, design the UI against `ContextMenu` and its own primitives first, even if a superficially similar interaction already exists in `SelectionActionMenu`.
 
 ## Scenario Index
+
+### Canvas Layering
+
+- Use when the task touches both `src/features/canvas` and `src/features/canvas-core`, or when the user asks about boundaries, ownership, extraction, or architecture between them.
+- Owner: `src/features/canvas` and `src/features/canvas-core`
+- Read first: `src/features/canvas/ui/AGENTS.md` and `src/features/canvas-core/AGENTS.md`
+- Expected result: product-specific entity work stays in `canvas`, engine work stays in `canvas-core`, and the answer does not mix the two layers.
 
 ### Add Shared HUD Icon
 

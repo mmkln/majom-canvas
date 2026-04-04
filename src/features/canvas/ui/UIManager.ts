@@ -9,7 +9,10 @@ import { editElement$ } from '../core/eventBus.ts';
 import { SaveControls } from './components/SaveControls.ts';
 import { ContextMenu } from './ContextMenu.ts';
 import { SelectionActionMenu } from './SelectionActionMenu.ts';
-import { RelatedItemsPicker } from './RelatedItemsPicker.ts';
+import {
+  RelatedItemsPicker,
+  type RelatedItemsLookupPort,
+} from './RelatedItemsPicker.ts';
 import { StatusPicker } from './StatusPicker.ts';
 import { StoryQuickCreateAction } from './StoryQuickCreateAction.ts';
 import { BulkActionsController } from '../core/services/BulkActionsController.ts';
@@ -19,6 +22,7 @@ import { ExistingStoryPicker } from './components/ExistingStoryPicker.ts';
 import { ExistingHabitPicker } from './components/ExistingHabitPicker.ts';
 import { environment } from '../../../config/environment.ts';
 import { HttpInterceptorClient } from '../../../majom-wrapper/data-access/http-interceptor.ts';
+import { GoalRelationsApiService } from '../../../majom-wrapper/data-access/goal-relations-api-service.ts';
 import { TasksApiService } from '../../../majom-wrapper/data-access/tasks-api-service.ts';
 import { GoalsApiService } from '../../../majom-wrapper/data-access/goals-api-service.ts';
 import { StoriesApiService } from '../../../majom-wrapper/data-access/stories-api-service.ts';
@@ -41,6 +45,7 @@ import { CanvasPerfHud } from './CanvasPerfHud.ts';
 import { CANVAS_PERF_LOG } from '../../../config/env/index.ts';
 import { CanvasHudLayoutController } from './CanvasHudLayoutController.ts';
 import { AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
+import { GoalRelatedItemsLookupService } from '../../../majom-wrapper/services/goal-related-items-lookup-service.ts';
 import {
   EXISTING_PICKER_EVENT_NAMES,
   emitExistingPickerDropCompleted,
@@ -96,6 +101,15 @@ export class UIManager {
     const storiesApi = new StoriesApiService(http);
     const habitsApi = new HabitsApiService(http);
     const userApi = new UserApiService(http);
+    const goalRelatedItemsLookup = new GoalRelatedItemsLookupService(
+      goalsApi,
+      storiesApi,
+      new GoalRelationsApiService(http)
+    );
+    const relatedItemsLookup: RelatedItemsLookupPort = {
+      getStory: (ref) => storiesApi.getStory(ref),
+      getGoalRelatedItems: (ref) => goalRelatedItemsLookup.getRelatedItems(ref),
+    };
     const canvasMenu = new CanvasMenu(this.authService, userApi, {
       containerClassName: 'relative z-30 flex items-center',
       runtime: this.runtime,
@@ -241,6 +255,7 @@ export class UIManager {
     const relatedItemsPicker = new RelatedItemsPicker(
       this.scene,
       this.canvasManager,
+      relatedItemsLookup,
       this.runtime
     );
     const statusPicker = new StatusPicker(

@@ -87,11 +87,13 @@ type ElementPatch = Partial<{
 type RelationElementType = 'task' | 'story' | 'goal' | 'routine';
 
 type ElementUpdateStatus = {
-  status: 'saving' | 'saved' | 'failed';
+  canvasId: string | null;
+  status: 'queued' | 'saving' | 'saved' | 'failed';
   error?: unknown;
 };
 
 type ElementUpdateRequest = {
+  canvasId: string | null;
   key: string;
   element: CanvasPlanningElement;
   patch: ElementPatch;
@@ -729,14 +731,20 @@ export class CanvasDataService {
       this.failedElementUpdates = false;
     }
     this.pendingElementUpdates += 1;
-    this.elementUpdateStatus$.next({ status: 'saving' });
+    this.elementUpdateStatus$.next({
+      canvasId: req.canvasId,
+      status: 'saving',
+    });
 
     return this.ensureElementsPersisted([req.element]).pipe(
       switchMap(() => {
         const ref = this.getBackendRef(req.element);
         if (!ref) {
           this.failedElementUpdates = true;
-          this.elementUpdateStatus$.next({ status: 'failed' });
+          this.elementUpdateStatus$.next({
+            canvasId: req.canvasId,
+            status: 'failed',
+          });
           return of(undefined);
         }
     const payload = this.buildBackendPatch(req.patch);
@@ -786,7 +794,11 @@ export class CanvasDataService {
       catchError((err) => {
         this.failedElementUpdates = true;
         this.queueElementUnsyncedDraft(req, err);
-        this.elementUpdateStatus$.next({ status: 'failed', error: err });
+        this.elementUpdateStatus$.next({
+          canvasId: req.canvasId,
+          status: 'failed',
+          error: err,
+        });
         return of(undefined);
       }),
       finalize(() => {
@@ -795,7 +807,10 @@ export class CanvasDataService {
           this.pendingElementUpdates - 1
         );
         if (this.pendingElementUpdates === 0 && !this.failedElementUpdates) {
-          this.elementUpdateStatus$.next({ status: 'saved' });
+          this.elementUpdateStatus$.next({
+            canvasId: req.canvasId,
+            status: 'saved',
+          });
         }
       })
     );
@@ -926,7 +941,10 @@ export class CanvasDataService {
     patch: ElementPatch
   ): void {
     if (!patch || Object.keys(patch).length === 0) return;
+    const canvasId = this.canvasId;
+    this.elementUpdateStatus$.next({ canvasId, status: 'queued' });
     this.elementUpdate$.next({
+      canvasId,
       key: this.getElementUpdateKey(element),
       element,
       patch,

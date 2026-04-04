@@ -22,7 +22,11 @@ import { StoryLayoutService } from './StoryLayoutService.ts';
 import { ConnectionCreationService } from './ConnectionCreationService.ts';
 import { addTaskToStory } from '../../ui/storyTaskActions.ts';
 import {
+  emitGoalLinkRemoved,
+  emitGoalLinkUpdated,
   emitStoryGoalLinkSet,
+  isGoalLinkRelationType,
+  type GoalLinkSnapshot,
 } from '../canvasLinkLifecycle.ts';
 import { findConnectionForPair } from '../utils/connectionPairs.ts';
 import type {
@@ -622,9 +626,13 @@ export class AiAssistantCanvasActionExecutor {
       };
     }
 
+    const removedGoalLink = this.buildGoalLinkSnapshot(connection);
     historyService.execute(
       new RemoveConnectionCommand(this.options.scene, connection)
     );
+    if (removedGoalLink) {
+      emitGoalLinkRemoved(removedGoalLink);
+    }
     this.options.scene.setSelected([from, to]);
     this.options.canvasManager.draw();
     return {
@@ -693,6 +701,7 @@ export class AiAssistantCanvasActionExecutor {
       };
     }
 
+    const currentGoalLink = this.buildGoalLinkSnapshot(currentConnection);
     historyService.execute(
       new UpdateConnectionCommand(this.options.scene, currentConnection, {
         fromId: from.id,
@@ -700,6 +709,10 @@ export class AiAssistantCanvasActionExecutor {
         relationType: nextRelationType,
       })
     );
+    const nextGoalLink = this.buildGoalLinkSnapshot(currentConnection);
+    if (currentGoalLink && nextGoalLink) {
+      emitGoalLinkUpdated(currentGoalLink, nextGoalLink);
+    }
     this.options.scene.setSelected([from, to]);
     this.options.canvasManager.draw();
     return {
@@ -1393,6 +1406,38 @@ export class AiAssistantCanvasActionExecutor {
         .filter((connection) => connection.relationType === relationType),
       fromId,
       toId
+    );
+  }
+
+  private buildGoalLinkSnapshot(connection: IConnection): GoalLinkSnapshot | null {
+    if (!isGoalLinkRelationType(connection.relationType)) {
+      return null;
+    }
+    const fromGoal = this.findGoalByConnectionRef(connection.fromId);
+    const toGoal = this.findGoalByConnectionRef(connection.toId);
+    if (!fromGoal || !toGoal) {
+      return null;
+    }
+    return {
+      connectionId: connection.id,
+      lineType: connection.lineType,
+      fromGoalRef: connection.fromId,
+      toGoalRef: connection.toId,
+      fromGoalUuid: fromGoal.uuid ?? null,
+      toGoalUuid: toGoal.uuid ?? null,
+      relationType: connection.relationType,
+    };
+  }
+
+  private findGoalByConnectionRef(goalRef: string): GoalElement | null {
+    return (
+      this.options.scene
+        .getElements()
+        .find(
+          (element): element is GoalElement =>
+            element instanceof GoalElement &&
+            (element.id === goalRef || element.uuid === goalRef)
+        ) ?? null
     );
   }
 

@@ -1,4 +1,4 @@
-import { Subscription } from 'rxjs';
+import { Subscription, type Observable } from 'rxjs';
 import { Scene } from '../core/scene/Scene.ts';
 import type { CanvasManager } from '../core/managers/CanvasManager.ts';
 import type { ICanvasElement } from '../core/interfaces/canvasElement.ts';
@@ -10,10 +10,7 @@ import { AddElementCommand } from '../core/commands/AddElementCommand.ts';
 import { ResizeCommand } from '../core/commands/ResizeCommand.ts';
 import { AddTasksToStoryCommand } from '../core/commands/AddTasksToStoryCommand.ts';
 import { StoryLayoutService } from '../core/services/StoryLayoutService.ts';
-import { environment } from '../../../config/environment.ts';
-import { HttpInterceptorClient } from '../../../majom-wrapper/data-access/http-interceptor.ts';
-import { StoriesApiService } from '../../../majom-wrapper/data-access/stories-api-service.ts';
-import { GoalsApiService } from '../../../majom-wrapper/data-access/goals-api-service.ts';
+import type { GoalRelatedItemsLookupResult } from '../../../majom-wrapper/services/goal-related-items-lookup-service.ts';
 import { mapStatus } from '../../../majom-wrapper/utils/statusMapping.ts';
 import { normalizeUiPriority } from '../../../majom-wrapper/utils/priorityMapping.ts';
 import type {
@@ -35,9 +32,15 @@ import { AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
 
 type RelatedItem =
   | { kind: 'task'; value: PlatformTask }
-  | { kind: 'story'; value: Story };
+  | { kind: 'story'; value: Story }
+  | { kind: 'goal'; value: Goal };
 
-type GoalTab = 'tasks' | 'stories';
+type GoalTab = 'tasks' | 'stories' | 'goals';
+
+export interface RelatedItemsLookupPort {
+  getStory(ref: string): Observable<Story>;
+  getGoalRelatedItems(ref: string): Observable<GoalRelatedItemsLookupResult>;
+}
 
 export class RelatedItemsPicker {
   private readonly container: HTMLDivElement;
@@ -58,6 +61,7 @@ export class RelatedItemsPicker {
   private storyTaskItems: PlatformTask[] = [];
   private goalTaskItems: PlatformTask[] = [];
   private goalStoryItems: Story[] = [];
+  private goalGoalItems: Goal[] = [];
   private activeGoalTab: GoalTab = 'tasks';
   private subscriptions: Subscription[] = [];
   private outsideHandler: ((event: MouseEvent) => void) | null = null;
@@ -65,18 +69,12 @@ export class RelatedItemsPicker {
   private disposeRuntimeSubscription: (() => void) | null = null;
   private layoutService = new StoryLayoutService();
 
-  private readonly storiesApi: StoriesApiService;
-  private readonly goalsApi: GoalsApiService;
-
   constructor(
     private readonly scene: Scene,
     private readonly canvasManager: CanvasManager,
+    private readonly lookup: RelatedItemsLookupPort,
     private readonly runtime: AppRuntime = createAppRuntime()
   ) {
-    const http = new HttpInterceptorClient(environment.apiUrl);
-    this.storiesApi = new StoriesApiService(http);
-    this.goalsApi = new GoalsApiService(http);
-
     this.container = createSurface({
       elevated: true,
       className:
@@ -132,6 +130,11 @@ export class RelatedItemsPicker {
           id: 'related-tab-stories',
           value: 'stories',
           label: this.runtime.i18n.t('relatedItems.tab.stories'),
+        },
+        {
+          id: 'related-tab-goals',
+          value: 'goals',
+          label: this.runtime.i18n.t('relatedItems.tab.goals'),
         },
       ],
       value: this.activeGoalTab,
@@ -234,6 +237,7 @@ export class RelatedItemsPicker {
     this.storyTaskItems = [];
     this.goalTaskItems = [];
     this.goalStoryItems = [];
+    this.goalGoalItems = [];
     this.activeGoalTab = 'tasks';
     this.renderList();
     this.updateGoalTabsUi();
@@ -284,6 +288,7 @@ export class RelatedItemsPicker {
     this.storyTaskItems = [];
     this.goalTaskItems = [];
     this.goalStoryItems = [];
+    this.goalGoalItems = [];
     this.activeGoalTab = 'tasks';
     this.renderList(true);
     this.updateGoalTabsUi();
@@ -299,7 +304,7 @@ export class RelatedItemsPicker {
 
     if (this.activeElement instanceof StoryElement) {
       this.titleEl.textContent = this.runtime.i18n.t('relatedItems.title.storyTasks');
-      this.storiesApi.getStory(ref).subscribe({
+      this.lookup.getStory(ref).subscribe({
         next: (story: Story) => {
           this.loading = false;
           this.storyTaskItems = this.filterMissingTasks(story.tasks || []);
@@ -317,41 +322,14 @@ export class RelatedItemsPicker {
 
     if (this.activeElement instanceof GoalElement) {
       this.titleEl.textContent = this.runtime.i18n.t('relatedItems.title.goalRelated');
-      this.goalsApi.getGoal(ref).subscribe({
-        next: (goal: Goal) => {
-          const goalTasks = this.getGoalTasks(goal);
-          this.goalTaskItems = this.filterMissingTasks(goalTasks);
-
-          const directStories = this.getGoalStories(goal);
-          const embeddedStories = this.extractStoriesFromGoalTasks(goalTasks);
-          const knownStories = this.mergeStories(
-            directStories,
-            embeddedStories
-          );
-          const ids = this.extractStoryIdsFromGoalTasks(goalTasks);
-          const loadedIds = new Set(knownStories.map((story) => story.id));
-          const missingIds = ids.filter((id) => !loadedIds.has(id));
-
-          const applyStories = (stories: Story[]): void => {
-            this.loading = false;
-            this.goalStoryItems = this.filterMissingStories(stories);
-            this.syncItemsFromContext();
-            this.applyFilter();
-          };
-
-          if (missingIds.length === 0) {
-            applyStories(knownStories);
-            return;
-          }
-
-          this.storiesApi.fetchStoriesByIds(missingIds).subscribe({
-            next: (fetched) => {
-              applyStories(this.mergeStories(knownStories, fetched));
-            },
-            error: () => {
-              applyStories(knownStories);
-            },
-          });
+      this.lookup.getGoalRelatedItems(ref).subscribe({
+        next: (related) => {
+          this.loading = false;
+          this.goalTaskItems = this.filterMissingTasks(related.tasks);
+          this.goalStoryItems = this.filterMissingStories(related.stories);
+          this.goalGoalItems = this.filterMissingGoals(related.goals);
+          this.syncItemsFromContext();
+          this.applyFilter();
         },
         error: () => {
           this.loading = false;
@@ -365,26 +343,6 @@ export class RelatedItemsPicker {
     this.loading = false;
     this.renderEmpty(this.runtime.i18n.t('relatedItems.empty.noRelatedItems'));
     this.updateAddAllButton();
-  }
-
-  private getGoalTasks(goal: Goal): PlatformTask[] {
-    const rawTasks = (goal as any)?.tasks;
-    if (Array.isArray(rawTasks)) {
-      return rawTasks as PlatformTask[];
-    }
-    const rawItems = rawTasks?.items;
-    if (Array.isArray(rawItems)) {
-      return rawItems as PlatformTask[];
-    }
-    return [];
-  }
-
-  private getGoalStories(goal: Goal): Story[] {
-    const rawStories = (goal as any)?.stories;
-    if (Array.isArray(rawStories)) {
-      return rawStories as Story[];
-    }
-    return [];
   }
 
   private setGoalTab(tab: GoalTab): void {
@@ -404,13 +362,24 @@ export class RelatedItemsPicker {
       return;
     }
     if (this.activeElement instanceof GoalElement) {
-      this.allItems =
-        this.activeGoalTab === 'tasks'
-          ? this.goalTaskItems.map((task) => ({ kind: 'task', value: task }))
-          : this.goalStoryItems.map((story) => ({
-              kind: 'story',
-              value: story,
-            }));
+      if (this.activeGoalTab === 'tasks') {
+        this.allItems = this.goalTaskItems.map((task) => ({
+          kind: 'task',
+          value: task,
+        }));
+        return;
+      }
+      if (this.activeGoalTab === 'stories') {
+        this.allItems = this.goalStoryItems.map((story) => ({
+          kind: 'story',
+          value: story,
+        }));
+        return;
+      }
+      this.allItems = this.goalGoalItems.map((goal) => ({
+        kind: 'goal',
+        value: goal,
+      }));
       return;
     }
     this.allItems = [];
@@ -469,40 +438,6 @@ export class RelatedItemsPicker {
     });
   }
 
-  private extractStoriesFromGoalTasks(tasks: PlatformTask[]): Story[] {
-    const stories: Story[] = [];
-    const seenIds = new Set<number>();
-    tasks.forEach((task) => {
-      if (!task.story) return;
-      const storyId = task.story.id;
-      if (seenIds.has(storyId)) return;
-      seenIds.add(storyId);
-      stories.push(task.story);
-    });
-    return stories;
-  }
-
-  private extractStoryIdsFromGoalTasks(tasks: PlatformTask[]): number[] {
-    const seen = new Set<number>();
-    const ids: number[] = [];
-    tasks.forEach((task) => {
-      const id = task.story_id;
-      if (!Number.isFinite(id)) return;
-      const value = Number(id);
-      if (seen.has(value)) return;
-      seen.add(value);
-      ids.push(value);
-    });
-    return ids;
-  }
-
-  private mergeStories(primary: Story[], secondary: Story[]): Story[] {
-    const merged = new Map<number, Story>();
-    primary.forEach((story) => merged.set(story.id, story));
-    secondary.forEach((story) => merged.set(story.id, story));
-    return Array.from(merged.values());
-  }
-
   private getTaskRefKeys(task: PlatformTask): string[] {
     const keys: string[] = [];
     if (task.uuid) keys.push(`uuid:${task.uuid}`);
@@ -515,6 +450,31 @@ export class RelatedItemsPicker {
     if (story.uuid) keys.push(`uuid:${story.uuid}`);
     keys.push(`id:${story.id}`);
     return keys;
+  }
+
+  private getGoalRefKeys(goal: Goal): string[] {
+    const keys: string[] = [];
+    if (goal.uuid) keys.push(`uuid:${goal.uuid}`);
+    keys.push(`id:${goal.id}`);
+    return keys;
+  }
+
+  private filterMissingGoals(goals: Goal[]): Goal[] {
+    const existingRefs = new Set<string>();
+    this.scene
+      .getElements()
+      .filter((el) => el instanceof GoalElement)
+      .forEach((el) => {
+        const goal = el as GoalElement;
+        if (goal.uuid) existingRefs.add(`uuid:${goal.uuid}`);
+        if (Number.isFinite(goal.backendId)) {
+          existingRefs.add(`id:${String(goal.backendId)}`);
+        }
+      });
+    return goals.filter((goal) => {
+      const keys = this.getGoalRefKeys(goal);
+      return keys.every((key) => !existingRefs.has(key));
+    });
   }
 
   private renderList(loading: boolean = false): void {
@@ -545,7 +505,13 @@ export class RelatedItemsPicker {
         ? item.value.description
         : item.kind === 'task'
           ? this.runtime.i18n.t('relatedItems.meta.task', { id: item.value.id })
-          : this.runtime.i18n.t('relatedItems.meta.story', { id: item.value.id });
+          : item.kind === 'story'
+            ? this.runtime.i18n.t('relatedItems.meta.story', {
+                id: item.value.id,
+              })
+            : this.runtime.i18n.t('relatedItems.meta.goal', {
+                id: item.value.id,
+              });
       meta.className = 'truncate text-[11px] text-slate-500';
       label.appendChild(title);
       label.appendChild(meta);
@@ -577,8 +543,10 @@ export class RelatedItemsPicker {
     if (!this.activeElement) return;
     if (item.kind === 'task') {
       this.addTaskItemToCanvas(item.value, index);
-    } else {
+    } else if (item.kind === 'story') {
       this.addStoryItemToCanvas(item.value, index);
+    } else {
+      this.addGoalItemToCanvas(item.value, index);
     }
     this.removeItemFromCaches(item);
     this.syncItemsFromContext();
@@ -642,8 +610,10 @@ export class RelatedItemsPicker {
     if (this.activeElement instanceof GoalElement) {
       if (this.activeGoalTab === 'tasks') {
         this.addAllMissingGoalTasks();
-      } else {
+      } else if (this.activeGoalTab === 'stories') {
         this.addAllMissingGoalStories();
+      } else {
+        this.addAllMissingRelatedGoals();
       }
     }
   }
@@ -717,6 +687,19 @@ export class RelatedItemsPicker {
     this.applyFilter();
   }
 
+  private addAllMissingRelatedGoals(): void {
+    if (!(this.activeElement instanceof GoalElement)) return;
+    if (this.loading || this.goalGoalItems.length === 0) return;
+    const goalsToAdd = this.goalGoalItems.map((item, index) => {
+      const position = this.getGoalInsertPosition(index);
+      return this.createGoalElement(item, position.x, position.y);
+    });
+    historyService.execute(new AddElementCommand(this.scene, goalsToAdd));
+    this.goalGoalItems = [];
+    this.syncItemsFromContext();
+    this.applyFilter();
+  }
+
   private removeItemFromCaches(item: RelatedItem): void {
     const key = this.getRelatedItemKey(item);
     if (item.kind === 'task') {
@@ -733,6 +716,10 @@ export class RelatedItemsPicker {
     this.goalStoryItems = this.goalStoryItems.filter(
       (candidate) =>
         this.getRelatedItemKey({ kind: 'story', value: candidate }) !== key
+    );
+    this.goalGoalItems = this.goalGoalItems.filter(
+      (candidate) =>
+        this.getRelatedItemKey({ kind: 'goal', value: candidate }) !== key
     );
   }
 
@@ -768,6 +755,30 @@ export class RelatedItemsPicker {
     });
   }
 
+  private createGoalElement(item: Goal, x: number, y: number): GoalElement {
+    return new GoalElement({
+      id: item.uuid ?? item.id.toString(),
+      x,
+      y,
+      backendId: item.id,
+      uuid: item.uuid,
+      title: item.title,
+      description: item.description ?? '',
+      status: mapStatus(item.status),
+      priority: normalizeUiPriority(item.priority),
+      scale: item.scale ?? undefined,
+      tags: item.tags?.map((tag) => tag.title),
+      tagIds: item.tag_ids ?? item.tags?.map((tag) => tag.id),
+    });
+  }
+
+  private addGoalItemToCanvas(item: Goal, index: number): void {
+    if (!(this.activeElement instanceof GoalElement)) return;
+    const position = this.getGoalInsertPosition(index);
+    const goal = this.createGoalElement(item, position.x, position.y);
+    historyService.execute(new AddElementCommand(this.scene, goal));
+  }
+
   private getRelatedItemKey(item: RelatedItem): string {
     const ref = item.value.uuid ?? String(item.value.id);
     return `${item.kind}:${ref}`;
@@ -792,11 +803,15 @@ export class RelatedItemsPicker {
       ? this.storyTaskItems.length
       : this.activeGoalTab === 'tasks'
         ? this.goalTaskItems.length
-        : this.goalStoryItems.length;
+        : this.activeGoalTab === 'stories'
+          ? this.goalStoryItems.length
+          : this.goalGoalItems.length;
     this.addAllBtn.textContent = isGoal
       ? this.activeGoalTab === 'tasks'
         ? this.runtime.i18n.t('relatedItems.addAllMissingTasks', { count })
-        : this.runtime.i18n.t('relatedItems.addAllMissingStories', { count })
+        : this.activeGoalTab === 'stories'
+          ? this.runtime.i18n.t('relatedItems.addAllMissingStories', { count })
+          : this.runtime.i18n.t('relatedItems.addAllMissingGoals', { count })
       : this.runtime.i18n.t('relatedItems.addAllMissingTasks', { count });
     this.addAllBtn.disabled = this.loading || count === 0;
   }
@@ -826,11 +841,15 @@ export class RelatedItemsPicker {
     const buttons = this.goalTabControl.element.querySelectorAll('button');
     const tasksButton = buttons[0];
     const storiesButton = buttons[1];
+    const goalsButton = buttons[2];
     if (tasksButton) {
       tasksButton.textContent = this.runtime.i18n.t('relatedItems.tab.tasks');
     }
     if (storiesButton) {
       storiesButton.textContent = this.runtime.i18n.t('relatedItems.tab.stories');
+    }
+    if (goalsButton) {
+      goalsButton.textContent = this.runtime.i18n.t('relatedItems.tab.goals');
     }
   }
 
@@ -867,6 +886,17 @@ export class RelatedItemsPicker {
     const startY = this.activeElement.y + this.activeElement.height + 32;
     const gap = 32;
     return { x: startX, y: startY + index * (StoryElement.height + gap) };
+  }
+
+  private getGoalInsertPosition(index: number): { x: number; y: number } {
+    if (!(this.activeElement instanceof GoalElement)) return { x: 0, y: 0 };
+    const startX = this.activeElement.x + this.activeElement.width + 48;
+    const startY =
+      this.activeElement.y +
+      this.activeElement.height / 2 -
+      GoalElement.height / 2;
+    const gap = 32;
+    return { x: startX + index * (GoalElement.width + gap), y: startY };
   }
 
   private getElementBounds(element: TaskElement | StoryElement | GoalElement): {

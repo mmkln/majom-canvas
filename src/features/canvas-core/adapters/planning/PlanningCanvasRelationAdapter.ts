@@ -1,6 +1,5 @@
 import type { Observable } from 'rxjs';
 import type {
-  GoalRelation,
   StoryGoalLinkOptions,
   StoryGoalLinkResult,
 } from '../../../../majom-wrapper/index.ts';
@@ -31,10 +30,4 @@ export interface PlanningCanvasRelationAdapter {
     storyGoalLink: PlanningStoryGoalLink,
     options: StoryGoalLinkOptions
   ): Observable<StoryGoalLinkResult>;
-  createGoalRelation(goalLink: PlanningGoalLink): Observable<GoalRelation>;
-  updateGoalRelation(
-    currentGoalLink: PlanningGoalLink,
-    nextGoalLink: PlanningGoalLink
-  ): Observable<GoalRelation>;
-  deleteGoalRelation(goalLink: PlanningGoalLink): Observable<void>;
 }

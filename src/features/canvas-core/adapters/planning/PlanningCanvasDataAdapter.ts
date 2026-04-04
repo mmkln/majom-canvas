@@ -3,7 +3,6 @@ import { map } from 'rxjs/operators';
 import type {
   CanvasBootstrapResult,
   CanvasElementsLoadOptions,
-  GoalRelation,
   CanvasPositionWriteDTO,
   StoryGoalLinkOptions,
   StoryGoalLinkResult,
@@ -35,7 +34,6 @@ import {
 } from './PlanningCanvasElementSemantics.ts';
 import type {
   PlanningCanvasRelationAdapter,
-  PlanningGoalLink,
   PlanningStoryGoalLink,
   PlanningTaskStoryLink,
 } from './PlanningCanvasRelationAdapter.ts';
@@ -200,30 +198,6 @@ export class PlanningCanvasDataAdapter
     );
   }
 
-  public createGoalRelation(
-    goalLink: PlanningGoalLink
-  ): Observable<GoalRelation> {
-    return this.port.createGoalRelation(
-      this.toLegacyGoalLinkSnapshot(goalLink)
-    );
-  }
-
-  public updateGoalRelation(
-    currentGoalLink: PlanningGoalLink,
-    nextGoalLink: PlanningGoalLink
-  ): Observable<GoalRelation> {
-    return this.port.updateGoalRelation(
-      this.toLegacyGoalLinkSnapshot(currentGoalLink),
-      this.toLegacyGoalLinkSnapshot(nextGoalLink)
-    );
-  }
-
-  public deleteGoalRelation(goalLink: PlanningGoalLink): Observable<void> {
-    return this.port.deleteGoalRelation(
-      this.toLegacyGoalLinkSnapshot(goalLink)
-    );
-  }
-
   public hasRelationChanges(
     connections: IConnection[],
     records: CanvasNodeRecord[]
@@ -294,16 +268,6 @@ export class PlanningCanvasDataAdapter
 
   public refreshPositions(): Observable<void> {
     return this.port.refreshPositions();
-  }
-
-  private toLegacyGoalLinkSnapshot(
-    goalLink: PlanningGoalLink
-  ): PlanningGoalLink {
-    return {
-      fromGoal: goalLink.fromGoal as unknown as LegacyGoalElement,
-      toGoal: goalLink.toGoal as unknown as LegacyGoalElement,
-      relationType: goalLink.relationType,
-    } as PlanningGoalLink;
   }
 }
 

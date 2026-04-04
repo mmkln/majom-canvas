@@ -4,6 +4,12 @@ import { CompositeCommand } from '../commands/CompositeCommand.ts';
 import { RemoveConnectionCommand } from '../commands/RemoveConnectionCommand.ts';
 import { historyService } from './HistoryService.ts';
 import { Scene } from '../scene/Scene.ts';
+import { GoalElement } from '../../elements/GoalElement.ts';
+import {
+  emitGoalLinkRemoved,
+  type GoalLinkSnapshot,
+  isGoalLinkRelationType,
+} from '../canvasLinkLifecycle.ts';
 
 export type ConnectionBatchRemoveResult = {
   removedConnections: IConnection[];
@@ -104,6 +110,10 @@ export class ConnectionRemovalService {
       return { removedConnections: [] };
     }
 
+    const removedGoalLinks = uniqueConnections
+      .map((connection) => this.buildGoalLinkSnapshot(connection))
+      .filter((goalLink): goalLink is GoalLinkSnapshot => goalLink !== null);
+
     const commands = uniqueConnections.map(
       (connection) => new RemoveConnectionCommand(this.scene, connection)
     );
@@ -112,11 +122,47 @@ export class ConnectionRemovalService {
       commands.length === 1 ? commands[0] : new CompositeCommand(commands)
     );
 
+    removedGoalLinks.forEach((goalLink) => {
+      emitGoalLinkRemoved(goalLink);
+    });
+
     return { removedConnections: uniqueConnections };
   }
 
   private getElementRef(element: IConnectable): string {
     const uuid = (element as { uuid?: string }).uuid;
     return uuid ?? element.id;
+  }
+
+  private buildGoalLinkSnapshot(connection: IConnection): GoalLinkSnapshot | null {
+    if (!isGoalLinkRelationType(connection.relationType)) {
+      return null;
+    }
+    const fromGoal = this.findGoalByRef(connection.fromId);
+    const toGoal = this.findGoalByRef(connection.toId);
+    if (!fromGoal || !toGoal) {
+      return null;
+    }
+    return {
+      connectionId: connection.id,
+      lineType: connection.lineType,
+      fromGoalRef: connection.fromId,
+      toGoalRef: connection.toId,
+      fromGoalUuid: fromGoal.uuid ?? null,
+      toGoalUuid: toGoal.uuid ?? null,
+      relationType: connection.relationType,
+    };
+  }
+
+  private findGoalByRef(goalRef: string): GoalElement | null {
+    return (
+      this.scene
+        .getElements()
+        .find(
+          (element): element is GoalElement =>
+            element instanceof GoalElement &&
+            (element.id === goalRef || element.uuid === goalRef)
+        ) ?? null
+    );
   }
 }

@@ -128,6 +128,8 @@ export const es: AppTranslations = {
   'existingPicker.untitled.task': 'Tarea sin título',
   'relatedItems.add': 'Añadir',
   'relatedItems.addAll': 'Añadir todo',
+  'relatedItems.addAllMissingGoals':
+    'Añadir todos los objetivos faltantes ({count})',
   'relatedItems.addAllMissingStories':
     'Añadir todas las historias faltantes ({count})',
   'relatedItems.addAllMissingTasks': 'Añadir todas las tareas faltantes ({count})',
@@ -139,9 +141,11 @@ export const es: AppTranslations = {
   'relatedItems.error.loadTasks': 'No se pudieron cargar las tareas',
   'relatedItems.itemType': 'Tipo de relacionado',
   'relatedItems.loading': 'Cargando...',
+  'relatedItems.meta.goal': 'Objetivo #{id}',
   'relatedItems.meta.story': 'Historia #{id}',
   'relatedItems.meta.task': 'Tarea #{id}',
   'relatedItems.searchPlaceholder': 'Buscar...',
+  'relatedItems.tab.goals': 'Objetivos',
   'relatedItems.tab.stories': 'Historias',
   'relatedItems.tab.tasks': 'Tareas',
   'relatedItems.title.default': 'Añadir relacionados',

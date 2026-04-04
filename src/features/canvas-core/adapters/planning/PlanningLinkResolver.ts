@@ -1,9 +1,5 @@
-import {
-  ConnectionRelationType,
-  type IConnection,
-} from '../../core/interfaces/connection.ts';
+import type { IConnection } from '../../core/interfaces/connection.ts';
 import type {
-  GoalLinkSnapshot,
   StoryGoalLinkSnapshot,
   TaskStoryLinkSnapshot,
 } from '../../core/canvasLinkLifecycle.ts';
@@ -11,46 +7,12 @@ import type { Scene } from '../../core/scene/Scene.ts';
 import { GoalElement } from '../../elements/GoalElement.ts';
 import { StoryElement } from '../../elements/StoryElement.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
-import Connection from '../../core/shapes/Connection.ts';
 import type {
-  PlanningGoalLink,
   PlanningStoryGoalLink,
   PlanningTaskStoryLink,
 } from './PlanningCanvasRelationAdapter.ts';
 
 export class PlanningLinkResolver {
-  public resolveGoalLink(
-    goalLink: GoalLinkSnapshot,
-    scene: Scene
-  ): PlanningGoalLink | null {
-    const fromGoal = this.findGoalBySnapshot(
-      scene,
-      goalLink.fromGoalRef,
-      goalLink.fromGoalUuid
-    );
-    const toGoal = this.findGoalBySnapshot(
-      scene,
-      goalLink.toGoalRef,
-      goalLink.toGoalUuid
-    );
-    if (
-      !fromGoal ||
-      !toGoal ||
-      !(
-        goalLink.relationType === ConnectionRelationType.LeadsTo ||
-        goalLink.relationType === ConnectionRelationType.Blocks ||
-        goalLink.relationType === ConnectionRelationType.RelatesTo
-      )
-    ) {
-      return null;
-    }
-    return {
-      fromGoal,
-      toGoal,
-      relationType: goalLink.relationType,
-    };
-  }
-
   public resolveTaskStoryLink(
     taskStoryLink: TaskStoryLinkSnapshot,
     scene: Scene
@@ -104,16 +66,6 @@ export class PlanningLinkResolver {
       scene
         .getConnections()
         .find((connection) => connection.id === connectionId) ?? null
-    );
-  }
-
-  public createConnectionFromGoalLink(goalLink: GoalLinkSnapshot): IConnection {
-    return new Connection(
-      goalLink.fromGoalRef,
-      goalLink.toGoalRef,
-      goalLink.connectionId,
-      goalLink.lineType,
-      goalLink.relationType
     );
   }
 

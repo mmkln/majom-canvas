@@ -3,7 +3,11 @@
 ## Scope
 
 - This file stores detailed work scenarios for shared canvas UI behavior under `src/features/canvas/ui`.
+- `src/features/canvas` is the active product canvas runtime by default. When the task affects current user-visible canvas behavior, start here unless the user explicitly redirects you elsewhere.
 - If the task touches app-level locale/runtime reactivity in mounted canvas UI roots, read `src/app-runtime/AGENTS.md` first.
+- `src/features/canvas` is the product-facing layer that owns concrete planning entities and their UI semantics.
+- Do not move product canvas workflow logic into `canvas-core` for reuse. If code should be shared with `canvas-core`, extract a clean leaf module instead of creating a `canvas -> canvas-core` dependency on mixed-responsibility code.
+- If the task starts drifting into generic engine/runtime concerns, stop and check `src/features/canvas-core/AGENTS.md`.
 
 ## Scenario: Extend Context Menu
 

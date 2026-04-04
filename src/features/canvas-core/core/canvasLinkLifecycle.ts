@@ -1,20 +1,6 @@
-import {
-  ConnectionLineType,
-  ConnectionRelationType,
-} from './interfaces/connection.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
 import { TaskElement } from '../elements/TaskElement.ts';
-
-export type GoalLinkSnapshot = {
-  connectionId: string;
-  lineType: ConnectionLineType;
-  fromGoalRef: string;
-  toGoalRef: string;
-  fromGoalUuid: string | null;
-  toGoalUuid: string | null;
-  relationType: ConnectionRelationType;
-};
 
 export type TaskStoryLinkSnapshot = {
   taskRef: string;
@@ -42,43 +28,11 @@ export type StoryGoalLinkLifecycleDetail = {
   storyGoalLink: StoryGoalLinkSnapshot;
 };
 
-export type GoalLinkSetLifecycleDetail = {
-  kind: 'goal-link';
-  action: 'set';
-  goalLink: GoalLinkSnapshot;
-};
-
-export type GoalLinkUpdateLifecycleDetail = {
-  kind: 'goal-link';
-  action: 'update';
-  currentGoalLink: GoalLinkSnapshot;
-  nextGoalLink: GoalLinkSnapshot;
-};
-
-export type GoalLinkRemoveLifecycleDetail = {
-  kind: 'goal-link';
-  action: 'remove';
-  goalLink: GoalLinkSnapshot;
-};
-
 export type CanvasLinkLifecycleDetail =
   | TaskStoryLinkLifecycleDetail
-  | StoryGoalLinkLifecycleDetail
-  | GoalLinkSetLifecycleDetail
-  | GoalLinkUpdateLifecycleDetail
-  | GoalLinkRemoveLifecycleDetail;
+  | StoryGoalLinkLifecycleDetail;
 
 export const CANVAS_LINK_LIFECYCLE_EVENT = 'canvasLinkLifecycle';
-
-export function isGoalLinkRelationType(
-  relationType: ConnectionRelationType
-): boolean {
-  return (
-    relationType === ConnectionRelationType.LeadsTo ||
-    relationType === ConnectionRelationType.Blocks ||
-    relationType === ConnectionRelationType.RelatesTo
-  );
-}
 
 export function emitTaskStoryLinkSet(
   task: TaskElement,
@@ -122,61 +76,6 @@ export function emitStoryGoalLinkSet(
   );
 }
 
-export function emitGoalLinkSet(
-  goalLink: GoalLinkSnapshot
-): void {
-  if (typeof window === 'undefined') return;
-  if (!isGoalLinkRelationType(goalLink.relationType)) return;
-  window.dispatchEvent(
-    new CustomEvent<GoalLinkSetLifecycleDetail>(CANVAS_LINK_LIFECYCLE_EVENT, {
-      detail: {
-        kind: 'goal-link',
-        action: 'set',
-        goalLink,
-      },
-    })
-  );
-}
-
-export function emitGoalLinkUpdated(
-  currentGoalLink: GoalLinkSnapshot,
-  nextGoalLink: GoalLinkSnapshot
-): void {
-  if (typeof window === 'undefined') return;
-  if (
-    !isGoalLinkRelationType(currentGoalLink.relationType) ||
-    !isGoalLinkRelationType(nextGoalLink.relationType)
-  ) {
-    return;
-  }
-  window.dispatchEvent(
-    new CustomEvent<GoalLinkUpdateLifecycleDetail>(CANVAS_LINK_LIFECYCLE_EVENT, {
-      detail: {
-        kind: 'goal-link',
-        action: 'update',
-        currentGoalLink,
-        nextGoalLink,
-      },
-    })
-  );
-}
-
-export function emitGoalLinkRemoved(
-  goalLink: GoalLinkSnapshot
-): void {
-  if (typeof window === 'undefined') return;
-  if (!isGoalLinkRelationType(goalLink.relationType)) return;
-  window.dispatchEvent(
-    new CustomEvent<GoalLinkRemoveLifecycleDetail>(CANVAS_LINK_LIFECYCLE_EVENT, {
-      detail: {
-        kind: 'goal-link',
-        action: 'remove',
-        goalLink,
-      },
-    })
-  );
-}
-
 export function isCanvasLinkLifecycleDetail(
   detail: unknown
 ): detail is CanvasLinkLifecycleDetail {
@@ -210,41 +109,6 @@ export function isCanvasLinkLifecycleDetail(
       (typeof storyGoalLink?.goalUuid === 'string' ||
         storyGoalLink?.goalUuid === null)
     );
-  }
-  if (value.kind === 'goal-link') {
-    if (value.action === 'set' || value.action === 'remove') {
-      const goalLink =
-        'goalLink' in value ? value.goalLink : undefined;
-      return (
-        Boolean(goalLink) &&
-        typeof goalLink?.connectionId === 'string' &&
-        typeof goalLink?.fromGoalRef === 'string' &&
-        typeof goalLink?.toGoalRef === 'string' &&
-        (typeof goalLink?.fromGoalUuid === 'string' ||
-          goalLink?.fromGoalUuid === null) &&
-        (typeof goalLink?.toGoalUuid === 'string' ||
-          goalLink?.toGoalUuid === null) &&
-        typeof goalLink?.relationType === 'string'
-      );
-    }
-    if (value.action === 'update') {
-      const currentGoalLink =
-        'currentGoalLink' in value ? value.currentGoalLink : undefined;
-      const nextGoalLink =
-        'nextGoalLink' in value ? value.nextGoalLink : undefined;
-      return (
-        Boolean(currentGoalLink) &&
-        Boolean(nextGoalLink) &&
-        typeof currentGoalLink?.connectionId === 'string' &&
-        typeof nextGoalLink?.connectionId === 'string' &&
-        typeof currentGoalLink?.fromGoalRef === 'string' &&
-        typeof currentGoalLink?.toGoalRef === 'string' &&
-        typeof nextGoalLink?.fromGoalRef === 'string' &&
-        typeof nextGoalLink?.toGoalRef === 'string' &&
-        typeof currentGoalLink?.relationType === 'string' &&
-        typeof nextGoalLink?.relationType === 'string'
-      );
-    }
   }
   return false;
 }

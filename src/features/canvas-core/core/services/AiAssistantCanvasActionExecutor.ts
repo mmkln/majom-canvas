@@ -26,12 +26,7 @@ import {
 } from './ConnectionCreationService.ts';
 import { addTaskToStory } from '../../ui/storyTaskActions.ts';
 import {
-  type GoalLinkSnapshot,
-  emitGoalLinkRemoved,
-  emitGoalLinkSet,
-  emitGoalLinkUpdated,
   emitStoryGoalLinkSet,
-  isGoalLinkRelationType,
 } from '../canvasLinkLifecycle.ts';
 import { findConnectionForPair } from '../utils/connectionPairs.ts';
 import type {
@@ -636,10 +631,6 @@ export class AiAssistantCanvasActionExecutor {
     historyService.execute(
       new RemoveConnectionCommand(this.options.scene, connection)
     );
-    const goalLink = this.toGoalLinkSnapshot(connection);
-    if (goalLink) {
-      emitGoalLinkRemoved(goalLink);
-    }
     this.options.scene.setSelected([from, to]);
     this.options.canvasManager.draw();
     return {
@@ -708,7 +699,6 @@ export class AiAssistantCanvasActionExecutor {
       };
     }
 
-    const currentGoalLink = this.toGoalLinkSnapshot(currentConnection);
     historyService.execute(
       new UpdateConnectionCommand(this.options.scene, currentConnection, {
         fromId: from.id,
@@ -716,12 +706,6 @@ export class AiAssistantCanvasActionExecutor {
         relationType: nextRelationType,
       })
     );
-    const nextGoalLink = this.toGoalLinkSnapshot(currentConnection, {
-      relationType: nextRelationType,
-    });
-    if (currentGoalLink && nextGoalLink) {
-      emitGoalLinkUpdated(currentGoalLink, nextGoalLink);
-    }
     this.options.scene.setSelected([from, to]);
     this.options.canvasManager.draw();
     return {
@@ -859,9 +843,6 @@ export class AiAssistantCanvasActionExecutor {
       commands.push(this.buildConnectCommand(parentLinkPlan.plan));
     }
     historyService.execute(new CompositeCommand(commands));
-    if (parentLinkPlan?.ok) {
-      this.emitGoalLinkSetForPlan(parentLinkPlan.plan);
-    }
     this.options.scene.setSelected([goal]);
     this.options.canvasManager.draw();
 
@@ -958,12 +939,6 @@ export class AiAssistantCanvasActionExecutor {
       if (command) {
         historyService.execute(command);
       }
-      createdGoalLinkPlans.forEach((plan) => {
-        if (!plan) {
-          return;
-        }
-        this.emitGoalLinkSetForPlan(plan);
-      });
       this.options.scene.setSelected(createdGoals);
       this.options.canvasManager.draw();
     }
@@ -1084,9 +1059,6 @@ export class AiAssistantCanvasActionExecutor {
     });
 
     historyService.execute(new CompositeCommand(commands));
-    goalLinkPlans.forEach((plan) => {
-      this.emitGoalLinkSetForPlan(plan);
-    });
     this.options.scene.setSelected(createdGoals);
     this.options.canvasManager.draw();
 
@@ -1130,71 +1102,6 @@ export class AiAssistantCanvasActionExecutor {
       plan.toRef,
       plan.relationType
     );
-  }
-
-  private emitGoalLinkSetForPlan(plan: {
-    from: GoalElement | StoryElement | TaskElement;
-    to: GoalElement | StoryElement | TaskElement;
-    fromRef: string;
-    toRef: string;
-    relationType: ConnectionRelationType;
-  }): void {
-    if (
-      !(plan.from instanceof GoalElement) ||
-      !(plan.to instanceof GoalElement) ||
-      !isGoalLinkRelationType(plan.relationType)
-    ) {
-      return;
-    }
-    const connection = this.findConnectionByRefsAndType(
-      plan.fromRef,
-      plan.toRef,
-      plan.relationType
-    );
-    if (!connection) {
-      return;
-    }
-    emitGoalLinkSet({
-      connectionId: connection.id,
-      lineType: connection.lineType,
-      fromGoalRef: plan.fromRef,
-      toGoalRef: plan.toRef,
-      fromGoalUuid: plan.from.uuid ?? null,
-      toGoalUuid: plan.to.uuid ?? null,
-      relationType: plan.relationType,
-    });
-  }
-
-  private toGoalLinkSnapshot(
-    connection: IConnection,
-    override?: {
-      fromGoal: GoalElement | null;
-      toGoal: GoalElement | null;
-      relationType?: ConnectionRelationType;
-    }
-  ) {
-    const relationType = override?.relationType ?? connection.relationType;
-    if (!isGoalLinkRelationType(relationType)) {
-      return null;
-    }
-    const fromGoal =
-      override?.fromGoal ??
-      this.findPlanningElementById(connection.fromId);
-    const toGoal =
-      override?.toGoal ??
-      this.findPlanningElementById(connection.toId);
-    if (!(fromGoal instanceof GoalElement) || !(toGoal instanceof GoalElement)) {
-      return null;
-    }
-    return {
-      connectionId: connection.id,
-      lineType: connection.lineType,
-      fromGoalRef: connection.fromId,
-      toGoalRef: connection.toId,
-      fromGoalUuid: fromGoal.uuid ?? null,
-      toGoalUuid: toGoal.uuid ?? null,
-      relationType,
-    } satisfies GoalLinkSnapshot;
   }
 
   private createTaskElement(

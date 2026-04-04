@@ -7,7 +7,6 @@ import { notify } from '../../core/services/NotificationService.ts';
 import { confirmReplaceStoryGoalModal } from '../../ui/components/ConfirmReplaceStoryGoalModal.ts';
 import type {
   CanvasLinkLifecycleDetail,
-  GoalLinkSnapshot,
   StoryGoalLinkSnapshot,
   TaskStoryLinkSnapshot,
 } from '../../core/canvasLinkLifecycle.ts';
@@ -15,9 +14,7 @@ import type { Scene } from '../../core/scene/Scene.ts';
 import type { CanvasDataAdapter } from '../CanvasDataAdapter.ts';
 import { planningCanvasElementSemantics } from './PlanningCanvasElementSemantics.ts';
 import { PlanningLinkResolver } from './PlanningLinkResolver.ts';
-import type {
-  PlanningCanvasRelationAdapter,
-} from './PlanningCanvasRelationAdapter.ts';
+import type { PlanningCanvasRelationAdapter } from './PlanningCanvasRelationAdapter.ts';
 
 export type PlanningCanvasRelationLifecycleContext = {
   scene: Scene;
@@ -51,11 +48,6 @@ export class PlanningCanvasLinkLifecycleCoordinator {
             notify('Failed to update task link', 'error');
           },
         });
-      return;
-    }
-
-    if (detail.kind === 'goal-link') {
-      void this.handleGoalLinkLifecycle(detail, context);
       return;
     }
 
@@ -150,38 +142,6 @@ export class PlanningCanvasLinkLifecycleCoordinator {
       });
   }
 
-  private async handleGoalLinkLifecycle(
-    detail: Extract<CanvasLinkLifecycleDetail, { kind: 'goal-link' }>,
-    context: PlanningCanvasRelationLifecycleContext
-  ): Promise<void> {
-    context.beginLinkDecision();
-    const request$ = this.buildGoalLinkRequest(detail, context);
-
-    if (!request$) {
-      this.rollbackGoalLinkLifecycle(detail, context.scene);
-      notify('Failed to sync goal relation', 'error');
-      context.endLinkDecision();
-      return;
-    }
-
-    request$
-      .pipe(
-        finalize(() => {
-          context.endLinkDecision();
-        })
-      )
-      .subscribe({
-        next: () => {
-          this.syncCanvasRelations(context.scene, context.canvasDataService);
-        },
-        error: (err) => {
-          this.rollbackGoalLinkLifecycle(detail, context.scene);
-          console.error('Failed to sync goal relation', err);
-          notify('Failed to sync goal relation', 'error');
-        },
-      });
-  }
-
   private getElementRef(element: { id: string; uuid?: string }): string {
     return element.uuid ?? element.id;
   }
@@ -265,100 +225,5 @@ export class PlanningCanvasLinkLifecycleCoordinator {
     );
     if (duplicates.length === 0) return;
     scene.removeElements(duplicates);
-  }
-
-  private rollbackGoalLinkLifecycle(
-    detail: Extract<CanvasLinkLifecycleDetail, { kind: 'goal-link' }>,
-    scene: Scene
-  ): void {
-    if (detail.action === 'set') {
-      const connection = this.linkResolver.findConnectionById(
-        scene,
-        detail.goalLink.connectionId
-      );
-      if (connection) {
-        scene.removeElements([connection]);
-      }
-      return;
-    }
-    if (detail.action === 'remove') {
-      const connection = this.linkResolver.findConnectionById(
-        scene,
-        detail.goalLink.connectionId
-      );
-      if (connection) {
-        this.applyGoalLinkSnapshot(connection, detail.goalLink, scene);
-        return;
-      }
-      scene.addElement(this.linkResolver.createConnectionFromGoalLink(detail.goalLink));
-      return;
-    }
-    const connection =
-      this.linkResolver.findConnectionById(
-        scene,
-        detail.currentGoalLink.connectionId
-      ) ??
-      this.linkResolver.findConnectionById(
-        scene,
-        detail.nextGoalLink.connectionId
-      );
-    if (connection) {
-      this.applyGoalLinkSnapshot(connection, detail.currentGoalLink, scene);
-      return;
-    }
-    scene.addElement(
-      this.linkResolver.createConnectionFromGoalLink(detail.currentGoalLink)
-    );
-  }
-
-  private applyGoalLinkSnapshot(
-    connection: IConnection,
-    goalLink: GoalLinkSnapshot,
-    scene: Scene
-  ): void {
-    connection.fromId = goalLink.fromGoalRef;
-    connection.toId = goalLink.toGoalRef;
-    connection.lineType = goalLink.lineType;
-    connection.relationType = goalLink.relationType;
-    scene.changes.next();
-  }
-
-  private buildGoalLinkRequest(
-    detail: Extract<CanvasLinkLifecycleDetail, { kind: 'goal-link' }>,
-    context: PlanningCanvasRelationLifecycleContext
-  ) {
-    if (detail.action === 'set') {
-      const goalLink = this.linkResolver.resolveGoalLink(
-        detail.goalLink,
-        context.scene
-      );
-      return goalLink
-        ? context.planningRelations.createGoalRelation(goalLink)
-        : null;
-    }
-    if (detail.action === 'remove') {
-      const goalLink = this.linkResolver.resolveGoalLink(
-        detail.goalLink,
-        context.scene
-      );
-      return goalLink
-        ? context.planningRelations.deleteGoalRelation(goalLink)
-        : null;
-    }
-    const currentGoalLink = this.linkResolver.resolveGoalLink(
-      detail.currentGoalLink,
-      context.scene
-    );
-    const nextGoalLink = this.linkResolver.resolveGoalLink(
-      detail.nextGoalLink,
-      context.scene
-    );
-    if (!currentGoalLink || !nextGoalLink) {
-      return null;
-    }
-    return context.planningRelations.updateGoalRelation(
-      currentGoalLink,
-      nextGoalLink
-    );
   }
 }

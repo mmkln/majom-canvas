@@ -1,5 +1,6 @@
 import { CanvasManager } from './core/managers/CanvasManager.ts';
 import { Scene } from './core/scene/Scene.ts';
+import Connection from './core/shapes/Connection.ts';
 import { DiagramRepository } from './core/data/DiagramRepository.ts';
 import { IDataProvider } from './core/interfaces/dataProvider.ts';
 import {
@@ -8,6 +9,7 @@ import {
   TasksApiService,
   StoriesApiService,
   GoalsApiService,
+  GoalRelationsApiService,
   HabitsApiService,
   CanvasApiService,
   CanvasRelationsApiService,
@@ -42,6 +44,8 @@ import { CanvasClientStorage } from './core/services/CanvasClientStorage.ts';
 import { AiAssistantCanvasActionExecutor } from './core/services/AiAssistantCanvasActionExecutor.ts';
 import {
   CANVAS_LINK_LIFECYCLE_EVENT,
+  type CanvasLinkLifecycleDetail,
+  type GoalLinkSnapshot,
   isCanvasLinkLifecycleDetail,
   type StoryGoalLinkSnapshot,
   type TaskStoryLinkSnapshot,
@@ -52,11 +56,16 @@ import {
   type CanvasSaveSource,
 } from './core/canvasSaveLifecycle.ts';
 import {
+  emitCanvasElementAutosaveStatus,
+  isCanvasElementAutosaveStatusDetail,
+} from './core/canvasElementAutosaveLifecycle.ts';
+import {
   CANVAS_AUTOSAVE_TOGGLE_EVENT,
   isCanvasAutosaveToggleDetail,
 } from './core/canvasAutosaveLifecycle.ts';
 import { confirmReplaceStoryGoalModal } from './ui/components/ConfirmReplaceStoryGoalModal.ts';
 import { confirmDeleteCanvasModal } from './ui/components/ConfirmDeleteCanvasModal.ts';
+import { confirmRestoreCanvasDraftModal } from './ui/components/ConfirmRestoreCanvasDraftModal.ts';
 import { authFlowService } from './ui/auth/authFlowService.ts';
 import {
   emitAiAssistantContextChanged,
@@ -80,6 +89,12 @@ import {
   type AppRuntimeSnapshot,
 } from '../../app-runtime/index.ts';
 import { Status } from '../../majom-wrapper/interfaces/index.ts';
+import type {
+  CanvasDraftRepository,
+  CanvasDraftSnapshot,
+} from './drafts/CanvasDraftRepository.ts';
+import { CanvasDraftSerializer } from './drafts/CanvasDraftSerializer.ts';
+import { LocalStorageCanvasDraftRepository } from './drafts/LocalStorageCanvasDraftRepository.ts';
 
 type CanvasListUiItem = {
   id: string;
@@ -107,6 +122,8 @@ export class CanvasApp {
   private readonly authService: AuthService;
   private readonly uiManager: UIManager;
   private readonly canvasDataService: CanvasDataService;
+  private readonly draftRepository: CanvasDraftRepository;
+  private readonly draftSerializer: CanvasDraftSerializer;
   private readonly chatCanvasActionExecutor: AiAssistantCanvasActionExecutor;
   private readonly runtime: AppRuntime;
   private readonly i18n: I18nService;
@@ -124,22 +141,28 @@ export class CanvasApp {
   private sceneChangesSubscription: Subscription | null = null;
   private elementUpdateStatusSubscription: Subscription | null = null;
   private disposeRuntimeSubscription: (() => void) | null = null;
+  private draftPersistTimer: number | null = null;
+  private draftReconciliationToken = 0;
   private destroyed = false;
+  private isApplyingLocalDraft = false;
   private readonly canvasListCache = new Map<string, CanvasListCacheItem>();
   private aiAssistantPreviousSnapshot: AiAssistantCanvasSnapshot | null = null;
   private aiAssistantRecentActivity: AiAssistantRecentActivityItem[] = [];
   private aiAssistantViewportSyncTimer: number | null = null;
 
-  private readonly refreshCanvasDataHandler = (): void =>
-    this.loadCanvasFromApi();
+  private readonly refreshCanvasDataHandler = (): void => {
+    void this.handleRefreshCanvasData();
+  };
   private readonly saveCanvasLayoutHandler = (): void =>
     this.handleSaveCanvasLayoutRequest();
   private readonly canvasTitleEditedHandler = (event: Event): void =>
     this.handleCanvasTitleEdited(event);
-  private readonly canvasSelectedHandler = (event: Event): void =>
-    this.handleCanvasSelected(event);
-  private readonly canvasCreateRequestedHandler = (): void =>
-    this.handleCanvasCreateRequested();
+  private readonly canvasSelectedHandler = (event: Event): void => {
+    void this.handleCanvasSelected(event);
+  };
+  private readonly canvasCreateRequestedHandler = (): void => {
+    void this.handleCanvasCreateRequested();
+  };
   private readonly canvasDuplicateRequestedHandler = (): void => {
     void this.handleCanvasDuplicateRequested();
   };
@@ -191,6 +214,8 @@ export class CanvasApp {
     this.diagramRepository = new DiagramRepository(dataProvider);
     // Ініціалізація сервісу аутентифікації
     this.authService = new AuthService();
+    this.draftRepository = new LocalStorageCanvasDraftRepository();
+    this.draftSerializer = new CanvasDraftSerializer();
     const http = new HttpInterceptorClient(environment.apiUrl);
     this.canvasDataService = new CanvasDataService(
       new TasksApiService(http),
@@ -198,7 +223,8 @@ export class CanvasApp {
       new GoalsApiService(http),
       new HabitsApiService(http),
       new CanvasApiService(http),
-      new CanvasRelationsApiService(http)
+      new CanvasRelationsApiService(http),
+      new GoalRelationsApiService(http)
     );
     // Створюємо компонент для авторизації
     // Використовуємо UIManager для монтування UI-компонентів
@@ -216,9 +242,8 @@ export class CanvasApp {
 
     this.elementUpdateStatusSubscription =
       this.canvasDataService.elementUpdateStatusChanges.subscribe((status) => {
-        window.dispatchEvent(
-          new CustomEvent('elementAutosaveStatus', { detail: status })
-        );
+        if (!isCanvasElementAutosaveStatusDetail(status)) return;
+        emitCanvasElementAutosaveStatus(status);
       });
 
     // Register commands from config
@@ -415,7 +440,7 @@ export class CanvasApp {
     });
   }
 
-  private handleCanvasSelected(event: Event): void {
+  private async handleCanvasSelected(event: Event): Promise<void> {
     const customEvent = event as CustomEvent<{
       id?: string;
       name?: string;
@@ -429,6 +454,9 @@ export class CanvasApp {
       return;
     }
     const name = customEvent.detail?.name || 'New canvas';
+    if (isCanvasSwitched) {
+      await this.persistActiveCanvasDraftNow();
+    }
     this.canvasDataService.loadCanvasDetails(id).subscribe({
       next: (canvas) => {
         if (isCanvasSwitched) {
@@ -455,11 +483,12 @@ export class CanvasApp {
     });
   }
 
-  private handleCanvasCreateRequested(): void {
+  private async handleCanvasCreateRequested(): Promise<void> {
     if (!this.authService.isLoggedIn()) {
       authFlowService.requestLogin('canvas-access');
       return;
     }
+    await this.persistActiveCanvasDraftNow();
     this.canvasDataService.createCanvas('New canvas').subscribe({
       next: (canvas) => {
         historyService.reset();
@@ -474,6 +503,11 @@ export class CanvasApp {
         notify('Failed to create canvas', 'error');
       },
     });
+  }
+
+  private async handleRefreshCanvasData(): Promise<void> {
+    await this.persistActiveCanvasDraftNow();
+    this.loadCanvasFromApi();
   }
 
   private async handleCanvasDuplicateRequested(): Promise<void> {
@@ -799,10 +833,11 @@ export class CanvasApp {
             console.error('Failed to update task story link', err);
             notify('Failed to update task link', 'error');
           },
-        });
+      });
       return;
     }
     if (detail.kind === 'goal-link') {
+      void this.handleGoalLinkLifecycle(detail);
       return;
     }
     const storyGoalLink = this.resolveStoryGoalLink(detail.storyGoalLink);
@@ -841,8 +876,9 @@ export class CanvasApp {
     });
     // Auto-save diagram on content change
     this.sceneChangesSubscription = this.scene.changes.subscribe(() => {
-      if (this.isHydratingCanvas) return;
+      if (this.isHydratingCanvas || this.isApplyingLocalDraft) return;
       void this.diagramRepository.saveDiagram(this.scene);
+      this.scheduleActiveCanvasDraftPersist();
       this.emitAiAssistantContext();
     });
     this.emitAiAssistantContext();
@@ -851,7 +887,9 @@ export class CanvasApp {
 
   public destroy(): void {
     if (this.destroyed) return;
+    void this.persistActiveCanvasDraftNow();
     this.destroyed = true;
+    this.draftReconciliationToken += 1;
     this.unregisterWindowEvents();
     this.stopAutosave();
     this.activeCanvasElementsSubscription?.unsubscribe();
@@ -863,6 +901,10 @@ export class CanvasApp {
     if (this.aiAssistantViewportSyncTimer !== null) {
       window.clearTimeout(this.aiAssistantViewportSyncTimer);
       this.aiAssistantViewportSyncTimer = null;
+    }
+    if (this.draftPersistTimer !== null) {
+      window.clearTimeout(this.draftPersistTimer);
+      this.draftPersistTimer = null;
     }
     this.sceneChangesSubscription?.unsubscribe();
     this.sceneChangesSubscription = null;
@@ -1159,6 +1201,94 @@ export class CanvasApp {
     }
   }
 
+  private captureActiveCanvasDraftSnapshot(): CanvasDraftSnapshot | null {
+    if (!this.authService.isLoggedIn()) {
+      return null;
+    }
+    const canvasId = this.canvasDataService.getActiveCanvasId();
+    if (!canvasId) return null;
+    return this.draftSerializer.capture(canvasId, this.scene);
+  }
+
+  private scheduleActiveCanvasDraftPersist(): void {
+    if (!this.authService.isLoggedIn()) return;
+    if (this.draftPersistTimer !== null) {
+      window.clearTimeout(this.draftPersistTimer);
+    }
+    this.draftPersistTimer = window.setTimeout(() => {
+      this.draftPersistTimer = null;
+      void this.persistActiveCanvasDraftNow();
+    }, 400);
+  }
+
+  private async persistActiveCanvasDraftNow(): Promise<void> {
+    if (!this.authService.isLoggedIn()) return;
+    if (this.isHydratingCanvas || this.isApplyingLocalDraft || this.destroyed) {
+      return;
+    }
+    if (this.draftPersistTimer !== null) {
+      window.clearTimeout(this.draftPersistTimer);
+      this.draftPersistTimer = null;
+    }
+    const snapshot = this.captureActiveCanvasDraftSnapshot();
+    if (!snapshot) return;
+    await this.draftRepository.save(snapshot);
+  }
+
+  private async reconcileActiveCanvasDraft(): Promise<void> {
+    if (!this.authService.isLoggedIn()) return;
+    const canvasId = this.canvasDataService.getActiveCanvasId();
+    if (!canvasId) return;
+    const hydratedSnapshot = this.captureActiveCanvasDraftSnapshot();
+    if (!hydratedSnapshot) return;
+    const token = ++this.draftReconciliationToken;
+    const localDraft = await this.draftRepository.load(canvasId);
+    if (
+      !localDraft ||
+      token !== this.draftReconciliationToken ||
+      this.canvasDataService.getActiveCanvasId() !== canvasId
+    ) {
+      return;
+    }
+    if (localDraft.fingerprint === hydratedSnapshot.fingerprint) {
+      await this.draftRepository.clear(canvasId);
+      return;
+    }
+    const action = await confirmRestoreCanvasDraftModal({
+      savedAt: localDraft.savedAt,
+    });
+    if (
+      token !== this.draftReconciliationToken ||
+      this.canvasDataService.getActiveCanvasId() !== canvasId
+    ) {
+      return;
+    }
+    if (action === 'discard') {
+      await this.draftRepository.clear(canvasId);
+      return;
+    }
+    this.applyCanvasDraftSnapshot(localDraft);
+  }
+
+  private applyCanvasDraftSnapshot(snapshot: CanvasDraftSnapshot): void {
+    const restored = this.draftSerializer.materialize(snapshot);
+    this.isApplyingLocalDraft = true;
+    try {
+      this.scene.clear();
+      this.replacePlanningElements(restored.elements);
+      restored.connections.forEach((connection) => this.scene.addElement(connection));
+      this.scene.setFocusedElementById(restored.focusedElementId);
+      this.scene.setHighlightedElementIds(restored.highlightedElementIds);
+      this.canvasManager.clearLoadingPlaceholders();
+      this.canvasManager.setLoadPhase('elements-ready');
+      this.canvasManager.draw();
+      historyService.reset();
+      this.emitAiAssistantContext();
+    } finally {
+      this.isApplyingLocalDraft = false;
+    }
+  }
+
   private queueUnsyncedDraft(
     draftId: string,
     kind: 'layout' | 'relations',
@@ -1368,8 +1498,12 @@ export class CanvasApp {
   }
 
   private syncHydrationState(): void {
+    const wasHydrating = this.isHydratingCanvas;
     this.isHydratingCanvas =
       this.isElementsHydrating || this.isRelationsHydrating;
+    if (wasHydrating && !this.isHydratingCanvas) {
+      void this.reconcileActiveCanvasDraft();
+    }
   }
 
   private async handleCanvasDeleteRequested(event?: Event): Promise<void> {
@@ -1413,6 +1547,7 @@ export class CanvasApp {
       await firstValueFrom(
         this.canvasDataService.deleteCanvas(targetCanvas.id)
       );
+      await this.draftRepository.clear(targetCanvas.id);
       notify('Canvas deleted.', 'success');
 
       const remainingCanvases = canvases.filter(
@@ -2145,6 +2280,37 @@ export class CanvasApp {
       });
   }
 
+  private async handleGoalLinkLifecycle(
+    detail: Extract<CanvasLinkLifecycleDetail, { kind: 'goal-link' }>
+  ): Promise<void> {
+    this.beginLinkDecision();
+    const request$ = this.buildGoalLinkRequest(detail);
+
+    if (!request$) {
+      this.rollbackGoalLinkLifecycle(detail);
+      notify('Failed to sync goal relation', 'error');
+      this.endLinkDecision();
+      return;
+    }
+
+    request$
+      .pipe(
+        finalize(() => {
+          this.endLinkDecision();
+        })
+      )
+      .subscribe({
+        next: () => {
+          this.syncCanvasRelationsNow();
+        },
+        error: (err) => {
+          this.rollbackGoalLinkLifecycle(detail);
+          console.error('Failed to sync goal relation', err);
+          notify('Failed to sync goal relation', 'error');
+        },
+      });
+  }
+
   private beginLinkDecision(): void {
     this.pendingLinkDecisions += 1;
   }
@@ -2235,6 +2401,31 @@ export class CanvasApp {
     return { story, goal };
   }
 
+  private resolveGoalLink(
+    goalLink: GoalLinkSnapshot
+  ): {
+    fromGoal: GoalElement;
+    toGoal: GoalElement;
+    relationType: ConnectionRelationType;
+  } | null {
+    const fromGoal = this.findGoalByLinkRef(
+      goalLink.fromGoalRef,
+      goalLink.fromGoalUuid
+    );
+    const toGoal = this.findGoalByLinkRef(
+      goalLink.toGoalRef,
+      goalLink.toGoalUuid
+    );
+    if (!fromGoal || !toGoal) {
+      return null;
+    }
+    return {
+      fromGoal,
+      toGoal,
+      relationType: goalLink.relationType,
+    };
+  }
+
   private findTaskByLinkRef(
     taskRef: string,
     taskUuid: string | null
@@ -2283,6 +2474,95 @@ export class CanvasApp {
               element.uuid === goalRef ||
               (goalUuid !== null && element.uuid === goalUuid))
         ) ?? null
+    );
+  }
+
+  private buildGoalLinkRequest(
+    detail: Extract<CanvasLinkLifecycleDetail, { kind: 'goal-link' }>
+  ): Observable<unknown> | null {
+    if (detail.action === 'set') {
+      const goalLink = this.resolveGoalLink(detail.goalLink);
+      return goalLink
+        ? this.canvasDataService.createGoalRelation(goalLink)
+        : null;
+    }
+    if (detail.action === 'remove') {
+      const goalLink = this.resolveGoalLink(detail.goalLink);
+      return goalLink
+        ? this.canvasDataService.deleteGoalRelation(goalLink)
+        : null;
+    }
+    const currentGoalLink = this.resolveGoalLink(detail.currentGoalLink);
+    const nextGoalLink = this.resolveGoalLink(detail.nextGoalLink);
+    if (!currentGoalLink || !nextGoalLink) {
+      return null;
+    }
+    return this.canvasDataService.updateGoalRelation(
+      currentGoalLink,
+      nextGoalLink
+    );
+  }
+
+  private rollbackGoalLinkLifecycle(
+    detail: Extract<CanvasLinkLifecycleDetail, { kind: 'goal-link' }>
+  ): void {
+    if (detail.action === 'set') {
+      const connection = this.findConnectionById(detail.goalLink.connectionId);
+      if (connection) {
+        this.removeCanvasConnections([connection]);
+      }
+      return;
+    }
+    if (detail.action === 'remove') {
+      const connection = this.findConnectionById(detail.goalLink.connectionId);
+      if (connection) {
+        this.applyGoalLinkSnapshot(connection, detail.goalLink);
+        return;
+      }
+      this.scene.addElement(this.createConnectionFromGoalLink(detail.goalLink));
+      this.scene.changes.next();
+      return;
+    }
+
+    const connection =
+      this.findConnectionById(detail.currentGoalLink.connectionId) ??
+      this.findConnectionById(detail.nextGoalLink.connectionId);
+    if (connection) {
+      this.applyGoalLinkSnapshot(connection, detail.currentGoalLink);
+      return;
+    }
+    this.scene.addElement(
+      this.createConnectionFromGoalLink(detail.currentGoalLink)
+    );
+    this.scene.changes.next();
+  }
+
+  private findConnectionById(connectionId: string): IConnection | null {
+    return (
+      this.scene
+        .getConnections()
+        .find((connection) => connection.id === connectionId) ?? null
+    );
+  }
+
+  private applyGoalLinkSnapshot(
+    connection: IConnection,
+    goalLink: GoalLinkSnapshot
+  ): void {
+    connection.fromId = goalLink.fromGoalRef;
+    connection.toId = goalLink.toGoalRef;
+    connection.lineType = goalLink.lineType;
+    connection.relationType = goalLink.relationType;
+    this.scene.changes.next();
+  }
+
+  private createConnectionFromGoalLink(goalLink: GoalLinkSnapshot): IConnection {
+    return new Connection(
+      goalLink.fromGoalRef,
+      goalLink.toGoalRef,
+      goalLink.connectionId,
+      goalLink.lineType,
+      goalLink.relationType
     );
   }
 

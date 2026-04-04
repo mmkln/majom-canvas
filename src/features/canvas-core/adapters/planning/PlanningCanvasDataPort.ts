@@ -3,7 +3,6 @@ import type {
   CanvasBootstrapResult,
   CanvasElementsLoadOptions,
   CanvasElementsLoadState,
-  GoalRelation,
   CanvasPositionWriteDTO,
   StoryGoalLinkOptions,
   StoryGoalLinkResult,
@@ -15,7 +14,6 @@ import type { TaskElement } from '../../../../features/canvas/elements/TaskEleme
 import type { IConnection } from '../../../../features/canvas/core/interfaces/connection.ts';
 import type { CanvasPlanningElement } from '../../../../features/canvas/elements/utils/planningElementCapabilities.ts';
 import type {
-  PlanningGoalLink,
   PlanningStoryGoalLink,
   PlanningTaskStoryLink,
 } from './PlanningCanvasRelationAdapter.ts';
@@ -69,12 +67,6 @@ export interface PlanningCanvasDataPort {
     storyGoalLink: PlanningStoryGoalLink,
     options: StoryGoalLinkOptions
   ): Observable<StoryGoalLinkResult>;
-  createGoalRelation(goalLink: PlanningGoalLink): Observable<GoalRelation>;
-  updateGoalRelation(
-    currentGoalLink: PlanningGoalLink,
-    nextGoalLink: PlanningGoalLink
-  ): Observable<GoalRelation>;
-  deleteGoalRelation(goalLink: PlanningGoalLink): Observable<void>;
   hasRelationChanges(
     connections: IConnection[],
     elements: Array<TaskElement | StoryElement | GoalElement>

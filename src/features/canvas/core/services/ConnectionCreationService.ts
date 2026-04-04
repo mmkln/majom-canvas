@@ -12,7 +12,13 @@ import {
   buildCanvasRelationEndpoint,
   emitCanvasRelationLifecycle,
 } from '../canvasRelationLifecycle.ts';
-import { emitStoryGoalLinkSet } from '../canvasLinkLifecycle.ts';
+import {
+  emitGoalLinkSet,
+  emitGoalLinkUpdated,
+  emitStoryGoalLinkSet,
+  type GoalLinkSnapshot,
+  isGoalLinkRelationType,
+} from '../canvasLinkLifecycle.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
 import { StoryElement } from '../../elements/StoryElement.ts';
 import { GoalElement } from '../../elements/GoalElement.ts';
@@ -539,6 +545,12 @@ export class ConnectionCreationService {
         plan.to instanceof StoryElement
       ) {
         emitStoryGoalLinkSet(plan.to, plan.from);
+        return;
+      }
+
+      const goalLink = this.buildGoalLinkSnapshotForPlan(plan);
+      if (goalLink) {
+        emitGoalLinkSet(goalLink);
       }
     });
   }
@@ -549,6 +561,22 @@ export class ConnectionCreationService {
     if (plans.length === 0) {
       return;
     }
+
+    const goalLinkUpdates = plans
+      .map((plan) => ({
+        currentGoalLink: this.buildGoalLinkSnapshotFromConnection(
+          plan.existingConnection
+        ),
+        connection: plan.existingConnection,
+      }))
+      .filter(
+        (
+          entry
+        ): entry is {
+          currentGoalLink: GoalLinkSnapshot;
+          connection: IConnection;
+        } => entry.currentGoalLink !== null
+      );
 
     const commands = plans.map(
       (plan) =>
@@ -562,6 +590,12 @@ export class ConnectionCreationService {
     historyService.execute(
       commands.length === 1 ? commands[0] : new CompositeCommand(commands)
     );
+
+    goalLinkUpdates.forEach(({ currentGoalLink, connection }) => {
+      const nextGoalLink = this.buildGoalLinkSnapshotFromConnection(connection);
+      if (!nextGoalLink) return;
+      emitGoalLinkUpdated(currentGoalLink, nextGoalLink);
+    });
   }
 
   private resolveRelationType(
@@ -672,5 +706,66 @@ export class ConnectionCreationService {
   private getElementRef(element: IConnectable): string {
     const uuid = (element as { uuid?: string }).uuid;
     return uuid ?? element.id;
+  }
+
+  private buildGoalLinkSnapshotForPlan(
+    plan: ConnectionCreationPlan
+  ): GoalLinkSnapshot | null {
+    const connection = this.findLatestMatchingConnection(
+      plan.fromRef,
+      plan.toRef,
+      plan.relationType
+    );
+    if (!connection) return null;
+    return this.buildGoalLinkSnapshotFromConnection(connection);
+  }
+
+  private buildGoalLinkSnapshotFromConnection(
+    connection: IConnection
+  ): GoalLinkSnapshot | null {
+    if (!isGoalLinkRelationType(connection.relationType)) {
+      return null;
+    }
+    const fromGoal = this.findGoalByRef(connection.fromId);
+    const toGoal = this.findGoalByRef(connection.toId);
+    if (!fromGoal || !toGoal) {
+      return null;
+    }
+    return {
+      connectionId: connection.id,
+      lineType: connection.lineType,
+      fromGoalRef: connection.fromId,
+      toGoalRef: connection.toId,
+      fromGoalUuid: fromGoal.uuid ?? null,
+      toGoalUuid: toGoal.uuid ?? null,
+      relationType: connection.relationType,
+    };
+  }
+
+  private findLatestMatchingConnection(
+    fromRef: string,
+    toRef: string,
+    relationType: ConnectionRelationType
+  ): IConnection | null {
+    const connections = this.scene.getConnections();
+    for (let i = connections.length - 1; i >= 0; i -= 1) {
+      const connection = connections[i];
+      if (connection.relationType !== relationType) continue;
+      if (connection.fromId !== fromRef || connection.toId !== toRef) continue;
+      return connection;
+    }
+    return null;
+  }
+
+  private findGoalByRef(goalRef: string): GoalElement | null {
+    return (
+      this.scene
+        .getElements()
+        .find(
+          (element): element is GoalElement =>
+            element instanceof GoalElement &&
+            (element.id === goalRef || element.uuid === goalRef)
+        ) ?? null
+    );
   }
 }

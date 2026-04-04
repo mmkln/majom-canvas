@@ -5,7 +5,6 @@ import {
   CanvasDataService,
   CanvasRelationsApiService,
   GoalsApiService,
-  GoalRelationsApiService,
   HabitsApiService,
   StoriesApiService,
   TasksApiService,
@@ -99,8 +98,7 @@ function createPlanningCanvasDataService(): CanvasDataService {
     new GoalsApiService(http),
     new HabitsApiService(http),
     new CanvasApiService(http),
-    new CanvasRelationsApiService(http),
-    new GoalRelationsApiService(http)
+    new CanvasRelationsApiService(http)
   );
 }
 
