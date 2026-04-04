@@ -59,7 +59,11 @@ import { createAiAssistantRuntime } from '../features/ai-assistant/services/AiAs
 import { AiAssistantSessionController } from '../features/ai-assistant/services/AiAssistantSessionController.ts';
 import { buildAiAssistantCapabilityContext } from '../features/ai-assistant/services/AiAssistantCapabilities.ts';
 import type { TimeClusteringLayoutMode } from '../features/time-clustering/domain/types.ts';
-import { AppRuntime, createAppRuntime } from '../app-runtime/index.ts';
+import {
+  AppRuntime,
+  type AppRuntimeSnapshot,
+  createAppRuntime,
+} from '../app-runtime/index.ts';
 
 const TIME_CLUSTERING_ISLAND_WIDTH_PX = 360;
 
@@ -109,6 +113,7 @@ export class RuntimeHost {
   private readonly islandBackdropRoot: HTMLDivElement;
   private readonly wallpaperService: WallpaperService;
   private readonly wallpaperSubscription: Subscription;
+  private runtimeSubscriptionDispose: (() => void) | null = null;
   private currentWallpaperUrl = '';
   private readonly viewSwitcher: WorkspaceViewSwitcher;
   private readonly timeClusteringIslandRoot: HTMLDivElement;
@@ -191,6 +196,13 @@ export class RuntimeHost {
     );
     this.currentWallpaperUrl = this.wallpaperService.wallpaperUrl.trim();
     this.syncWorkspaceWallpaper();
+
+    this.runtimeSubscriptionDispose = this.runtime.subscribe(
+      (snapshot) => {
+        this.applyRuntimeSnapshot(snapshot);
+      },
+      { emitCurrent: true }
+    );
 
     this.timeClusteringOpen = loadPersistedTimeClusteringOpen(
       TIME_CLUSTERING_DEV_ENABLED
@@ -345,12 +357,18 @@ export class RuntimeHost {
     this.workspaceRoot.style.backgroundColor = '#e2e8f0';
   }
 
+  private applyRuntimeSnapshot(snapshot: AppRuntimeSnapshot): void {
+    document.documentElement.dataset.theme = snapshot.theme;
+  }
+
   public hideCanvas(): void {
     this.hostVisible = false;
     this.applyVisibility();
   }
 
   public dispose(): void {
+    this.runtimeSubscriptionDispose?.();
+    this.runtimeSubscriptionDispose = null;
     this.wallpaperSubscription.unsubscribe();
     if (this.layoutSyncTimer !== null) {
       window.clearTimeout(this.layoutSyncTimer);
@@ -724,11 +742,9 @@ export class RuntimeHost {
     }
 
     const workspaceLeftInset =
-      chrome.marginPx +
-      (hasLeftIsland ? leftIslandWidth + chrome.gapPx : 0);
+      chrome.marginPx + (hasLeftIsland ? leftIslandWidth + chrome.gapPx : 0);
     const workspaceRightInset =
-      chrome.marginPx +
-      (hasRightIsland ? chatWidth + chrome.gapPx : 0);
+      chrome.marginPx + (hasRightIsland ? chatWidth + chrome.gapPx : 0);
     const workspaceWidth = Math.max(
       320,
       window.innerWidth -
@@ -767,7 +783,8 @@ export class RuntimeHost {
     leftIslandWidth: number,
     chatWidth: number
   ): void {
-    const showBackdrop = showWorkspace && (leftIslandWidth > 0 || chatWidth > 0);
+    const showBackdrop =
+      showWorkspace && (leftIslandWidth > 0 || chatWidth > 0);
     this.islandBackdropRoot.style.display = showBackdrop ? 'block' : 'none';
   }
 
