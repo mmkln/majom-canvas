@@ -70,7 +70,7 @@ describe('resolveGoalAppearance', () => {
   it.each([
     ['light', DEFAULT_CANVAS_THEME],
     ['dark', resolveCanvasTheme('dark')],
-  ])('keeps readable focus/highlight text contrast in %s theme', (_themeName, palette: CanvasThemePalette) => {
+  ])('uses light focus/highlight goal text in %s theme', (_themeName, palette: CanvasThemePalette) => {
     const focused = resolveGoalAppearance(
       { status: ElementStatus.Defined, focused: true, highlighted: false, selected: true },
       palette
@@ -80,8 +80,8 @@ describe('resolveGoalAppearance', () => {
       palette
     );
 
-    expect(getContrastRatio(focused.textColor, focused.fillColor)).toBeGreaterThanOrEqual(4.5);
-    expect(getContrastRatio(highlighted.textColor, highlighted.fillColor)).toBeGreaterThanOrEqual(4.5);
+    expect(focused.textColor).toBe('#f8fafc');
+    expect(highlighted.textColor).toBe('#f8fafc');
     expect(getContrastRatio(palette.interaction.selection, focused.fillColor)).toBeGreaterThanOrEqual(2);
     expect(getContrastRatio(palette.interaction.selection, highlighted.fillColor)).toBeGreaterThanOrEqual(2);
   });
