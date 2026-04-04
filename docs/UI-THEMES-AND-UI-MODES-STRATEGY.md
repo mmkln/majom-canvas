@@ -228,3 +228,118 @@ When adding any new visual preference, decide first:
 4. Is it reusable styling policy? → semantic token + ui-lib recipe, not feature-local ad-hoc style
 
 If uncertain, default to keeping it out of feature stores and route through app runtime.
+
+---
+
+## Dark Mode Implementation Plan (Architecture-Clean)
+
+## Current baseline in this repository
+
+- `AppRuntime` currently owns `locale` and `energy` only; it does not yet expose `theme` or `uiMode` as runtime snapshot fields.
+- Global styling still contains a mix of:
+  - Tailwind theme tokens in `tailwind.config.js`;
+  - utility classes with hardcoded palette values in feature files;
+  - direct inline style assignments in runtime-created DOM surfaces.
+- This means dark mode should be implemented as a **runtime + tokenization rollout**, not as ad-hoc per-screen class toggles.
+
+## Architectural target
+
+For dark mode, use the same split defined in this document:
+
+1. `theme` in `AppRuntime` is the single app-level state owner.
+2. Root dataset attribute (`data-theme`) is the single DOM integration point.
+3. Semantic CSS tokens are the only color source consumed by ui-lib recipes and feature surfaces.
+4. Feature code composes primitives and avoids owning raw palette decisions.
+
+### Canonical values for v1
+
+- `theme`: `'light' | 'dark'` (keep small initially)
+- `uiMode`: unchanged (`comfortable | compact | focus`) and orthogonal
+
+## Clean rollout phases
+
+### Phase 0 — Contract first (no visual rewrite yet)
+
+1. Extend `AppRuntimeSnapshot` with `theme`.
+2. Add `getTheme()/setTheme()` in `AppRuntime`.
+3. Add persistence helpers (localStorage first).
+4. Initialize runtime theme on bootstrap.
+
+Exit criteria:
+- Theme can be read/set through one API and emits through runtime subscribers.
+
+### Phase 1 — Root binding
+
+1. In bootstrap host/root shell, subscribe to runtime snapshot and mirror:
+   - `document.documentElement.dataset.theme = snapshot.theme`.
+2. Ensure subscription lifecycle cleanup mirrors existing runtime subscription discipline.
+
+Exit criteria:
+- Switching theme updates root attribute live, no reload.
+
+### Phase 2 — Semantic token foundation
+
+1. Introduce semantic color variables for light and dark scopes, e.g.:
+   - `--surface-1`, `--surface-2`, `--text-primary`, `--text-secondary`,
+     `--border-subtle`, `--accent-primary`, `--danger`.
+2. Map existing Tailwind tokens/recipes to those semantics.
+3. Keep aliases so legacy classes continue to work during migration.
+
+Exit criteria:
+- ui-lib primitives can render correctly in both themes using semantic tokens only.
+
+### Phase 3 — UI-lib first migration
+
+Migrate shared primitives before feature screens:
+
+1. `Button`, `Input`, `Textarea`, `Select`, modal/surface primitives.
+2. HUD controls and dropdown/menu surfaces.
+3. Notification/toast contrast rules.
+
+Exit criteria:
+- New/updated screens built from ui-lib are dark-mode ready by default.
+
+### Phase 4 — Feature surface migration by risk
+
+Prioritize files with direct style strings and hardcoded colors:
+
+1. Runtime-created roots/overlays (inline `.style.*` colors/borders/backgrounds).
+2. High-traffic shell screens.
+3. Remaining feature-level hardcoded utility classes.
+
+Exit criteria:
+- No user-visible hardcoded light-only color remains in high-traffic paths.
+
+### Phase 5 — Settings and persistence UX
+
+1. Add Theme selector to profile/settings surface.
+2. Apply optimistic update with rollback on API failure (same pattern as locale).
+3. Add backend profile field in later phase (`theme`), preserve fallback precedence:
+   server -> local -> default.
+
+Exit criteria:
+- User can switch theme, theme survives reload, and authenticated users persist preference.
+
+## Ownership and boundaries (must keep)
+
+- **State owner:** `AppRuntime` (not feature stores).
+- **Render owner:** root dataset + semantic CSS variables.
+- **Component owner:** `src/ui-lib/src` primitives and HUD recipes.
+- **Cross-module update channel:** runtime subscription, not parallel window events.
+
+## Anti-patterns to avoid
+
+- Per-feature independent dark-mode flags.
+- Direct `prefers-color-scheme` branching sprinkled across component logic.
+- Adding parallel global event channels for theme changes when runtime already exists.
+- Solving dark mode with one-off `dark:*` utility patches without semantic tokenization.
+
+## Suggested sequencing for minimal risk
+
+1. Runtime + root binding.
+2. Token foundation.
+3. ui-lib primitives.
+4. Shell/high-traffic features.
+5. Long-tail feature migration.
+
+This order keeps behavior stable while making each next migration cheaper and more predictable.
