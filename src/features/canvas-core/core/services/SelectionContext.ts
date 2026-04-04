@@ -1,11 +1,10 @@
 import type { Scene } from '../scene/Scene.ts';
 import type { ICanvasElement } from '../interfaces/canvasElement.ts';
-import { TaskElement } from '../../elements/TaskElement.ts';
-import { StoryElement } from '../../elements/StoryElement.ts';
-import { GoalElement } from '../../elements/GoalElement.ts';
+import type { IPlanningElement } from '../../elements/interfaces/planningElement.ts';
 import { ElementStatus } from '../../elements/ElementStatus.ts';
+import { isPlanningCanvasElement } from '../../elements/utils/planningNodeSemantics.ts';
 
-export type PlanningElement = TaskElement | StoryElement | GoalElement;
+export type PlanningElement = IPlanningElement;
 
 type BoundedCanvasElement = ICanvasElement & {
   x: number;
@@ -41,11 +40,7 @@ export class SelectionContext {
   public static isPlanningElement(
     element: ICanvasElement
   ): element is PlanningElement {
-    return (
-      element instanceof TaskElement ||
-      element instanceof StoryElement ||
-      element instanceof GoalElement
-    );
+    return isPlanningCanvasElement(element);
   }
 
   public static getSelectionBounds(elements: ICanvasElement[]): {
@@ -75,9 +70,14 @@ export class SelectionContext {
     elements: PlanningElement[]
   ): ElementStatus | null {
     if (elements.length === 0) return null;
-    const statuses = new Set(elements.map((el) => el.status));
+    if (elements.some((element) => !element.status)) {
+      return null;
+    }
+    const statuses = new Set(
+      elements.map((element) => element.status as ElementStatus)
+    );
     if (statuses.size !== 1) return null;
-    return elements[0].status;
+    return elements[0].status ?? null;
   }
 
   public static isSelectionMatch(

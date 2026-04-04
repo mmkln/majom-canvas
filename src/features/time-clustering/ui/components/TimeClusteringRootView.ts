@@ -285,8 +285,10 @@ function createCalendarTodayMarker(options: {
 }): HTMLSpanElement {
   const marker = document.createElement('span');
   marker.className = [
-    'pointer-events-none mt-1 block h-[2px] w-3 rounded-full',
-    options.alignment === 'center' ? 'mx-auto' : '',
+    'pointer-events-none absolute bottom-0 block h-[2px] w-3 rounded-full',
+    options.alignment === 'center'
+      ? 'left-1/2 -translate-x-1/2'
+      : 'left-3',
     options.selected ? 'bg-indigo-600' : 'bg-indigo-500',
   ]
     .filter(Boolean)

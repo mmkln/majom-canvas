@@ -7,7 +7,7 @@ import type { PlanningElement } from './SelectionContext.ts';
 import { ConnectionCreationService } from './ConnectionCreationService.ts';
 import { ConnectionRemovalService } from './ConnectionRemovalService.ts';
 import { notify } from './NotificationService.ts';
-import { GoalElement } from '../../elements/GoalElement.ts';
+import { isGoalPlanningElement } from '../../elements/utils/planningNodeSemantics.ts';
 
 type GoalTagUpdateMode = 'add' | 'remove' | 'replace';
 type GoalTagCatalogItem = {
@@ -45,7 +45,7 @@ function resolveGoalTagIds(
 }
 
 function resolveGoalTagTitles(
-  goal: GoalElement,
+  goal: PlanningElement,
   nextIds: number[],
   tagCatalog: ReadonlyArray<GoalTagCatalogItem>
 ): string[] {
@@ -127,7 +127,7 @@ export class BulkActionsController {
   ): void {
     if (elements.length === 0) return;
     const goals = elements.filter(
-      (element): element is GoalElement => element instanceof GoalElement
+      (element) => isGoalPlanningElement(element)
     );
     if (goals.length !== elements.length) {
       return;

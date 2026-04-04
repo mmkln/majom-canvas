@@ -36,6 +36,7 @@ describe('WorkspaceViewSwitcher', () => {
     const pinButton = container?.querySelector<HTMLButtonElement>(
       'button[data-role="workspace-view-switcher-pin"]'
     );
+    const pinIndicator = pinButton?.querySelector<HTMLElement>('span[aria-hidden="true"]');
 
     expect(container).not.toBeNull();
     expect(container?.children).toHaveLength(3);
@@ -53,6 +54,7 @@ describe('WorkspaceViewSwitcher', () => {
     expect(container?.firstElementChild?.contains(pinButton as HTMLButtonElement)).toBe(
       true
     );
+    expect(pinIndicator?.style.bottom).toBe('0px');
     expect(handleDock?.contains(handle as HTMLButtonElement)).toBe(true);
     expect(handleDock?.contains(pinButton as HTMLButtonElement)).toBe(false);
 

@@ -1,31 +1,20 @@
-# Canvas UI Rules
+# Canvas-Core UI Rules
 
 ## Scope
 
-- This file stores detailed work scenarios for shared canvas UI behavior under `src/features/canvas/ui`.
-- If the task touches app-level locale/runtime reactivity in mounted canvas UI roots, read `src/app-runtime/AGENTS.md` first.
+- This file covers UI work under `src/features/canvas-core/ui`.
+- `canvas-core/ui` owns engine-level canvas UI mechanics and reusable runtime chrome, not product-specific planning semantics.
 
-## Scenario: Extend Context Menu
+## Boundary
 
-- Use this scenario when the task adds, removes, or restructures `ContextMenu` sections, item types, or item rendering behavior.
+- Keep `canvas-core/ui` focused on generic canvas runtime behavior:
+  - engine-level overlays and controls
+  - generic selection/viewport/runtime interaction mechanics
+  - reusable HUD integration that does not depend on business meaning
+- Do not add new product/domain-specific entity UI here.
+- If a UI change needs to know what a `goal`, `story`, `task`, or other product entity means, the owning implementation should live in `src/features/canvas/ui` or in a feature adapter outside `canvas-core`.
 
-### Canonical Files
+## Working Rule
 
-- `src/features/canvas/ui/ContextMenu.ts` owns the context-menu item model, section building, and rendering flow.
-- `src/features/canvas/ui/primitives/index.ts` is the canvas re-export layer for HUD primitives.
-- `src/ui-lib/src/hud` owns shared visual primitives that are reusable beyond one feature.
-
-### Workflow
-
-1. Start in `src/features/canvas/ui/ContextMenu.ts` and identify whether the change is a new item type, a new section, or a change to an existing item renderer.
-2. Keep `ContextMenu` visually independent from `SelectionActionMenu`; do not reuse its feature-level buttons or menu row UI.
-3. Reuse commands, services, state, and other non-visual logic across menus when appropriate.
-4. If the new behavior needs a reusable visual primitive for context menus, add it in `src/ui-lib/src/hud` and re-export it through `src/features/canvas/ui/primitives/index.ts`.
-5. Extend the `ContextMenuItem` union and add a dedicated renderer/helper in `ContextMenu.ts` instead of inlining ad-hoc DOM branches in section builders.
-6. Keep destructive or confirm-heavy actions explicit; compact icon rows are best for familiar, low-ambiguity actions.
-7. For selection-scoped actions, treat the right-clicked target as the anchor and exclude it from the selected peer set instead of disabling the whole selection flow when the target is already selected.
-
-### Testing
-
-- Do not add tests for purely presentational menu layout changes.
-- Verify with focused linting and, when possible, type-check the changed files. If the repo has unrelated global type errors, say so explicitly.
+- Before editing `canvas-core/ui`, ask: `Would this still make sense for a generic canvas engine with different entity types?`
+- If the answer is no, the change belongs outside `canvas-core/ui`.

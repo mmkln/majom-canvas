@@ -5,17 +5,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { CanvasManager } from '../core/managers/CanvasManager.ts';
 import type { IViewState } from '../core/interfaces/interfaces.ts';
 import { Scene } from '../core/scene/Scene.ts';
-import type { AddExistingGoalService } from '../core/services/AddExistingGoalService.ts';
-import type { AddExistingStoryService } from '../core/services/AddExistingStoryService.ts';
-import type { AddExistingTaskService } from '../core/services/AddExistingTaskService.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
-import type { ExistingGoalPicker } from './components/ExistingGoalPicker.ts';
-import type { ExistingStoryPicker } from './components/ExistingStoryPicker.ts';
-import type { ExistingTaskPicker } from './components/ExistingTaskPicker.ts';
 import { ContextMenu } from './ContextMenu.ts';
 import { createAppRuntime, type AppRuntime } from '../../../app-runtime/index.ts';
 import type { CanvasInteractionAdapter } from '../adapters/CanvasInteractionAdapter.ts';
+import type { CanvasLegacyPlanningActionsAdapter } from '../adapters/CanvasLegacyPlanningActionsAdapter.ts';
 
 afterEach(() => {
   document.body.innerHTML = '';
@@ -29,9 +24,6 @@ function createContextMenu(
 ): ContextMenu {
   type PanZoomLike = ReturnType<CanvasManager['getPanZoomManager']>;
 
-  const pickerStub = {
-    close(): void {},
-  };
   const panZoomChanges = new Subject<IViewState>();
   const panZoomStub = {
     scrollX: 0,
@@ -47,19 +39,25 @@ function createContextMenu(
       }) as unknown as HTMLCanvasElement,
     getPanZoomManager: () => panZoomStub,
   } as unknown as CanvasManager;
+  const legacyPlanningActionsStub: CanvasLegacyPlanningActionsAdapter = {
+    createElement(): void {},
+    openExisting(): void {},
+    createChild(): void {},
+    supportsRelatedItems(): boolean {
+      return true;
+    },
+    openRelatedItems(): void {},
+  };
 
   return new ContextMenu(
     scene,
     canvasManagerStub,
-    pickerStub as unknown as ExistingTaskPicker,
-    pickerStub as unknown as ExistingGoalPicker,
-    pickerStub as unknown as ExistingStoryPicker,
-    {} as unknown as AddExistingTaskService,
-    {} as unknown as AddExistingGoalService,
-    {} as unknown as AddExistingStoryService,
     interactionAdapter,
     runtime,
-    options
+    {
+      ...options,
+      legacyPlanningActionsAdapter: legacyPlanningActionsStub,
+    }
   );
 }
 

@@ -10,11 +10,14 @@ import type {
   CanvasInteractionStateScope,
   IStructuredCanvasNode,
 } from './structuredCanvasNode.ts';
+import type { ElementStatus } from '../ElementStatus.ts';
 
 /**
  * A richer canvas element representing planning constructs (Task, Story, Goal).
  */
 export interface IPlanningElement extends IStructuredCanvasNode {
+  status?: ElementStatus;
+  priority?: unknown;
   /** optional due date for this element */
   dueDate?: Date | null;
   /** optional tags/categories */

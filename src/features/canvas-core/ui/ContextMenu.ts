@@ -3,33 +3,22 @@ import { historyService } from '../core/services/HistoryService.ts';
 import { DeleteCommand } from '../core/commands/DeleteCommand.ts';
 import { CopyCommand } from '../core/commands/CopyCommand.ts';
 import { PasteCommand } from '../core/commands/PasteCommand.ts';
-import { AddElementCommand } from '../core/commands/AddElementCommand.ts';
 import { SetFocusCommand } from '../core/commands/SetFocusCommand.ts';
 import { SetHighlightCommand } from '../core/commands/SetHighlightCommand.ts';
 import { Scene } from '../core/scene/Scene.ts';
 import { clipboardService } from '../core/services/ClipboardService.ts';
 import type { CanvasManager } from '../core/managers/CanvasManager.ts';
 import type { ICanvasElement } from '../core/interfaces/canvasElement.ts';
-import { TaskElement } from '../elements/TaskElement.ts';
-import { StoryElement } from '../elements/StoryElement.ts';
-import { GoalElement } from '../elements/GoalElement.ts';
-import { StoryLayoutService } from '../core/services/StoryLayoutService.ts';
 import { positionFixedElement } from './overlayPosition.ts';
 import { BulkActionsController } from '../core/services/BulkActionsController.ts';
 import { ElementStatus } from '../elements/ElementStatus.ts';
-import { addTaskToStory } from './storyTaskActions.ts';
-import { ExistingTaskPicker } from './components/ExistingTaskPicker.ts';
-import { ExistingGoalPicker } from './components/ExistingGoalPicker.ts';
-import { ExistingStoryPicker } from './components/ExistingStoryPicker.ts';
 import { createMenuBadge } from './components/MenuBadge.ts';
-import { AddExistingTaskService } from '../core/services/AddExistingTaskService.ts';
-import { AddExistingGoalService } from '../core/services/AddExistingGoalService.ts';
-import { AddExistingStoryService } from '../core/services/AddExistingStoryService.ts';
 import type {
   CanvasActionDefinition,
   CanvasActionGroup,
   CanvasInteractionAdapter,
 } from '../adapters/CanvasInteractionAdapter.ts';
+import type { CanvasLegacyPlanningActionsAdapter } from '../adapters/CanvasLegacyPlanningActionsAdapter.ts';
 import {
   createSurface,
   createDivider,
@@ -58,6 +47,11 @@ import {
   type PlanningElement,
 } from '../core/services/SelectionContext.ts';
 import { AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
+import {
+  getPlanningElementConfirmKey,
+  hasPlanningNodeKind,
+  isPlanningCanvasElement,
+} from '../elements/utils/planningNodeSemantics.ts';
 
 type ContextMenuDetail = {
   element: ICanvasElement | null;
@@ -117,6 +111,7 @@ type ContextMenuSection = {
 
 type ContextMenuOptions = {
   enableLegacyPlanningActions?: boolean;
+  legacyPlanningActionsAdapter?: CanvasLegacyPlanningActionsAdapter | null;
 };
 
 export class ContextMenu {
@@ -131,7 +126,6 @@ export class ContextMenu {
   private lastDetail: ContextMenuDetail | null = null;
   private submenuTrigger: HTMLButtonElement | null = null;
   private submenuCloseTimeoutId: number | null = null;
-  private layoutService = new StoryLayoutService();
   private bulkActions: BulkActionsController;
   private readonly confirmTimeoutMs = 4000;
   private readonly submenuCloseDelayMs = 120;
@@ -139,12 +133,6 @@ export class ContextMenu {
   constructor(
     private scene: Scene,
     private canvasManager: CanvasManager,
-    private existingTaskPicker: ExistingTaskPicker | null,
-    private existingGoalPicker: ExistingGoalPicker | null,
-    private existingStoryPicker: ExistingStoryPicker | null,
-    private addExistingTaskService: AddExistingTaskService | null,
-    private addExistingGoalService: AddExistingGoalService | null,
-    private addExistingStoryService: AddExistingStoryService | null,
     private readonly interactionAdapter: CanvasInteractionAdapter | null = null,
     private readonly runtime: AppRuntime = createAppRuntime(),
     private readonly options: ContextMenuOptions = {}
@@ -208,9 +196,6 @@ export class ContextMenu {
     this.disposeRuntimeSubscription?.();
     this.disposeRuntimeSubscription = null;
     this.hide();
-    this.existingTaskPicker?.close();
-    this.existingGoalPicker?.close();
-    this.existingStoryPicker?.close();
     this.closeSubmenu();
     this.submenu.removeEventListener('keydown', this.onSubmenuKeyDown);
     this.submenu.remove();
@@ -306,8 +291,9 @@ export class ContextMenu {
         items: [
           {
             label: this.getPlanningElementLabel('goal', { capitalize: true }),
-            action: () => this.createGoalAt(sceneX, sceneY),
-            secondaryAction: () => this.openExistingGoalPicker(sceneX, sceneY),
+            action: () => this.createPlanningElementAt('goal', sceneX, sceneY),
+            secondaryAction: () =>
+              this.openExistingPlanningElement('goal', sceneX, sceneY),
             secondaryIcon: 'magnifying-glass',
             secondaryLabel: this.runtime.i18n.t(
               'canvasContextMenu.findExistingGoal'
@@ -315,8 +301,9 @@ export class ContextMenu {
           },
           {
             label: this.getPlanningElementLabel('story', { capitalize: true }),
-            action: () => this.createStoryAt(sceneX, sceneY),
-            secondaryAction: () => this.openExistingStoryPicker(sceneX, sceneY),
+            action: () => this.createPlanningElementAt('story', sceneX, sceneY),
+            secondaryAction: () =>
+              this.openExistingPlanningElement('story', sceneX, sceneY),
             secondaryIcon: 'magnifying-glass',
             secondaryLabel: this.runtime.i18n.t(
               'canvasContextMenu.findExistingStory'
@@ -324,8 +311,9 @@ export class ContextMenu {
           },
           {
             label: this.getPlanningElementLabel('task', { capitalize: true }),
-            action: () => this.createTaskAt(sceneX, sceneY),
-            secondaryAction: () => this.openExistingTaskPicker(sceneX, sceneY),
+            action: () => this.createPlanningElementAt('task', sceneX, sceneY),
+            secondaryAction: () =>
+              this.openExistingPlanningElement('task', sceneX, sceneY),
             secondaryIcon: 'magnifying-glass',
             secondaryLabel: this.runtime.i18n.t(
               'canvasContextMenu.findExistingTask'
@@ -336,10 +324,7 @@ export class ContextMenu {
       return sections;
     }
 
-    const isPlanningElement =
-      element instanceof TaskElement ||
-      element instanceof StoryElement ||
-      element instanceof GoalElement;
+    const isPlanningElement = isPlanningCanvasElement(element);
     const confirmKey = this.getElementConfirmKey(element);
     const isConfirming = this.isConfirmingDelete(confirmKey);
     const elementLabel = this.getElementLabel(element);
@@ -394,13 +379,13 @@ export class ContextMenu {
     }
 
     const getTitleByElement = (el: ICanvasElement): string | undefined => {
-      if (el instanceof TaskElement) {
+      if (isPlanningCanvasElement(el) && el.nodeKind === 'task') {
         return this.getPlanningElementLabel('task', { capitalize: true });
       }
-      if (el instanceof StoryElement) {
+      if (isPlanningCanvasElement(el) && el.nodeKind === 'story') {
         return this.getPlanningElementLabel('story', { capitalize: true });
       }
-      if (el instanceof GoalElement) {
+      if (isPlanningCanvasElement(el) && el.nodeKind === 'goal') {
         return this.getPlanningElementLabel('goal', { capitalize: true });
       }
       return undefined;
@@ -411,13 +396,13 @@ export class ContextMenu {
       items: actionItems,
     });
 
-    if (element instanceof StoryElement) {
+    if (isPlanningCanvasElement(element) && element.nodeKind === 'story') {
       sections.push({
         title: this.runtime.i18n.t('canvasContextMenu.addItemToStory'),
         items: [
           {
             label: this.getPlanningElementLabel('task', { capitalize: true }),
-            action: () => this.createTaskInStory(element),
+            action: () => this.createChildPlanningElement(element, 'task'),
             secondaryAction: () => {
               this.openRelatedItemsPicker(element);
             },
@@ -749,13 +734,13 @@ export class ContextMenu {
     source: PlanningElement,
     target: PlanningElement
   ): 'story-goal-forward' | 'story-goal-reverse' | 'directional' | 'undirected' {
-    if (source instanceof StoryElement && target instanceof GoalElement) {
+    if (source.nodeKind === 'story' && target.nodeKind === 'goal') {
       return 'story-goal-forward';
     }
-    if (source instanceof GoalElement && target instanceof StoryElement) {
+    if (source.nodeKind === 'goal' && target.nodeKind === 'story') {
       return 'story-goal-reverse';
     }
-    if (source instanceof GoalElement && target instanceof GoalElement) {
+    if (source.nodeKind === 'goal' && target.nodeKind === 'goal') {
       return 'directional';
     }
     return 'undirected';
@@ -796,9 +781,9 @@ export class ContextMenu {
     elements: PlanningElement[],
     options: { capitalize?: boolean } = {}
   ): string {
-    const goalCount = elements.filter((element) => element instanceof GoalElement).length;
-    const storyCount = elements.filter((element) => element instanceof StoryElement).length;
-    const taskCount = elements.filter((element) => element instanceof TaskElement).length;
+    const goalCount = elements.filter((element) => element.nodeKind === 'goal').length;
+    const storyCount = elements.filter((element) => element.nodeKind === 'story').length;
+    const taskCount = elements.filter((element) => element.nodeKind === 'task').length;
     const kinds = [
       goalCount > 0 ? 'goal' : null,
       storyCount > 0 ? 'story' : null,
@@ -959,15 +944,13 @@ export class ContextMenu {
   }
 
   private buildPlanningElementAiItems(
-    planningElement: TaskElement | StoryElement | GoalElement
+    planningElement: PlanningElement
   ): ContextMenuActionItem[] {
     const targetIds = [planningElement.id];
     const kind =
-      planningElement instanceof GoalElement
-        ? 'goal'
-        : planningElement instanceof StoryElement
-          ? 'story'
-          : 'task';
+      planningElement.nodeKind === 'goal' || planningElement.nodeKind === 'story'
+        ? planningElement.nodeKind
+        : 'task';
     const items: ContextMenuActionItem[] = [];
 
     if (kind !== 'task') {
@@ -1341,20 +1324,19 @@ export class ContextMenu {
 
   private getElementConfirmKey(element: ICanvasElement | null): string | null {
     if (!element) return null;
-    if (element instanceof TaskElement) return `task:${element.id}`;
-    if (element instanceof StoryElement) return `story:${element.id}`;
-    if (element instanceof GoalElement) return `goal:${element.id}`;
-    return null;
+    return isPlanningCanvasElement(element)
+      ? getPlanningElementConfirmKey(element)
+      : null;
   }
 
   private getElementLabel(element: ICanvasElement): string {
-    if (element instanceof TaskElement) {
+    if (isPlanningCanvasElement(element) && element.nodeKind === 'task') {
       return this.getPlanningElementLabel('task');
     }
-    if (element instanceof StoryElement) {
+    if (isPlanningCanvasElement(element) && element.nodeKind === 'story') {
       return this.getPlanningElementLabel('story');
     }
-    if (element instanceof GoalElement) {
+    if (isPlanningCanvasElement(element) && element.nodeKind === 'goal') {
       return this.getPlanningElementLabel('goal');
     }
     return this.getGenericLabel('item');
@@ -1397,101 +1379,50 @@ export class ContextMenu {
     return label.charAt(0).toUpperCase() + label.slice(1);
   }
 
-  private createTaskAt(sceneX: number, sceneY: number): void {
-    const task = new TaskElement({
-      x: sceneX - TaskElement.width / 2,
-      y: sceneY - TaskElement.height / 2,
-    });
-    historyService.execute(new AddElementCommand(this.scene, task));
-    this.scene.setSelected([task]);
-    this.canvasManager.draw();
-  }
-
-  private createTaskInStory(story: StoryElement): void {
-    addTaskToStory({
-      story,
+  private createPlanningElementAt(
+    kind: 'goal' | 'story' | 'task',
+    sceneX: number,
+    sceneY: number
+  ): void {
+    this.options.legacyPlanningActionsAdapter?.createElement(kind, {
       scene: this.scene,
       canvasManager: this.canvasManager,
-      layoutService: this.layoutService,
-    });
-  }
-
-  private openRelatedItemsPicker(element: StoryElement | GoalElement): void {
-    if (!this.addExistingStoryService && !this.addExistingGoalService) {
-      return;
-    }
-    window.dispatchEvent(
-      new CustomEvent('relatedItemsPickerRequested', {
-        detail: { element },
-      })
-    );
-  }
-
-  private createStoryAt(sceneX: number, sceneY: number): void {
-    const story = new StoryElement({
-      x: sceneX - StoryElement.width / 2,
-      y: sceneY - StoryElement.height / 2,
-    });
-    historyService.execute(new AddElementCommand(this.scene, story));
-    this.scene.setSelected([story]);
-    this.canvasManager.draw();
-  }
-
-  private createGoalAt(sceneX: number, sceneY: number): void {
-    const goal = new GoalElement({
-      x: sceneX - GoalElement.width / 2,
-      y: sceneY - GoalElement.height / 2,
-    });
-    historyService.execute(new AddElementCommand(this.scene, goal));
-    this.scene.setSelected([goal]);
-    this.canvasManager.draw();
-  }
-
-  private openExistingGoalPicker(sceneX: number, sceneY: number): void {
-    if (!this.existingGoalPicker || !this.addExistingGoalService) {
-      return;
-    }
-    const addExistingGoalService = this.addExistingGoalService;
-    this.existingGoalPicker.open({
       sceneX,
       sceneY,
-      canvasChanges: this.scene.changes,
-      isOnCanvas: (goal) => addExistingGoalService.isOnCanvas(goal),
-      onPick: (goal, goalX, goalY) => {
-        addExistingGoalService.addOrFocus(goal, goalX, goalY);
-      },
     });
   }
 
-  private openExistingTaskPicker(sceneX: number, sceneY: number): void {
-    if (!this.existingTaskPicker || !this.addExistingTaskService) {
-      return;
-    }
-    const addExistingTaskService = this.addExistingTaskService;
-    this.existingTaskPicker.open({
-      sceneX,
-      sceneY,
-      canvasChanges: this.scene.changes,
-      isOnCanvas: (task) => addExistingTaskService.isOnCanvas(task),
-      onPick: (task, taskX, taskY) => {
-        addExistingTaskService.addOrFocus(task, taskX, taskY);
-      },
+  private createChildPlanningElement(
+    parent: PlanningElement,
+    childKind: 'goal' | 'story' | 'task'
+  ): void {
+    this.options.legacyPlanningActionsAdapter?.createChild?.({
+      scene: this.scene,
+      canvasManager: this.canvasManager,
+      parent,
+      childKind,
     });
   }
 
-  private openExistingStoryPicker(sceneX: number, sceneY: number): void {
-    if (!this.existingStoryPicker || !this.addExistingStoryService) {
+  private openRelatedItemsPicker(element: PlanningElement): void {
+    if (
+      !this.options.legacyPlanningActionsAdapter?.supportsRelatedItems?.(element)
+    ) {
       return;
     }
-    const addExistingStoryService = this.addExistingStoryService;
-    this.existingStoryPicker.open({
+    this.options.legacyPlanningActionsAdapter.openRelatedItems?.(element);
+  }
+
+  private openExistingPlanningElement(
+    kind: 'goal' | 'story' | 'task',
+    sceneX: number,
+    sceneY: number
+  ): void {
+    this.options.legacyPlanningActionsAdapter?.openExisting(kind, {
+      scene: this.scene,
+      canvasManager: this.canvasManager,
       sceneX,
       sceneY,
-      canvasChanges: this.scene.changes,
-      isOnCanvas: (story) => addExistingStoryService.isOnCanvas(story),
-      onPick: (story, storyX, storyY) => {
-        addExistingStoryService.addOrFocus(story, storyX, storyY);
-      },
     });
   }
 }

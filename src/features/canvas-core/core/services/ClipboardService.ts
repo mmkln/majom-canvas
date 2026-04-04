@@ -1,7 +1,11 @@
 import { Scene } from '../scene/Scene.ts';
 import { PlanningElement } from '../../elements/PlanningElement.ts';
-import { StoryElement } from '../../elements/StoryElement.ts';
-import { TaskElement } from '../../elements/TaskElement.ts';
+import type { ICanvasLayoutContainer } from '../../elements/interfaces/canvasLayoutContainer.ts';
+import type { IStructuredCanvasNode } from '../../elements/interfaces/structuredCanvasNode.ts';
+import {
+  isCanvasLayoutContainer,
+  isStructuredCanvasNode,
+} from '../../elements/utils/typeGuards.ts';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -66,32 +70,36 @@ export class ClipboardService {
       return newClone;
     });
 
-    this.restoreStoryTaskContainment(clones);
+    this.restoreLayoutContainment(clones);
 
     return clones;
   }
 
-  private restoreStoryTaskContainment(elements: PlanningElement[]): void {
-    const stories = elements.filter(
-      (element): element is StoryElement => element instanceof StoryElement
+  private restoreLayoutContainment(elements: PlanningElement[]): void {
+    const containers = elements.filter(
+      (
+        element
+      ): element is ICanvasLayoutContainer<IStructuredCanvasNode> =>
+        isCanvasLayoutContainer(element)
     );
-    const tasks = elements.filter(
-      (element): element is TaskElement => element instanceof TaskElement
+    const nodes = elements.filter(
+      (element): element is IStructuredCanvasNode => isStructuredCanvasNode(element)
     );
 
-    if (stories.length === 0 || tasks.length === 0) {
+    if (containers.length === 0 || nodes.length === 0) {
       return;
     }
 
-    stories.forEach((story) => {
-      story.tasks = [];
-      tasks.forEach((task) => {
-        const anchorX = task.x + TaskElement.width / 2;
-        const anchorY = task.y + TaskElement.height / 2;
-        if (story.contains(anchorX, anchorY)) {
-          story.addTask(task);
+    containers.forEach((container) => {
+      const acceptedChildren = nodes.filter((node) => {
+        if (node.id === container.id || !container.acceptsLayoutChild(node)) {
+          return false;
         }
+        const anchorX = node.x + node.width / 2;
+        const anchorY = node.y + node.height / 2;
+        return container.contains(anchorX, anchorY);
       });
+      container.replaceOrderedLayoutChildren(acceptedChildren);
     });
   }
 

@@ -145,7 +145,7 @@ export class WorkspaceViewSwitcherView {
     this.pinIndicator.setAttribute('aria-hidden', 'true');
     this.pinIndicator.style.position = 'absolute';
     this.pinIndicator.style.left = '50%';
-    this.pinIndicator.style.bottom = '4px';
+    this.pinIndicator.style.bottom = '0';
     this.pinIndicator.style.display = 'block';
     this.pinIndicator.style.width = '12px';
     this.pinIndicator.style.height = '2px';

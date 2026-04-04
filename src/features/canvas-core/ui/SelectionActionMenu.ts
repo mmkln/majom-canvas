@@ -2,10 +2,6 @@ import { firstValueFrom, Subscription } from 'rxjs';
 import { Scene } from '../core/scene/Scene.ts';
 import type { ICanvasElement } from '../core/interfaces/canvasElement.ts';
 import type { CanvasManager } from '../core/managers/CanvasManager.ts';
-import { TaskElement } from '../elements/TaskElement.ts';
-import { StoryElement } from '../elements/StoryElement.ts';
-import { GoalElement } from '../elements/GoalElement.ts';
-import { StoryLayoutService } from '../core/services/StoryLayoutService.ts';
 import {
   SelectionContext,
   PlanningElement,
@@ -15,7 +11,6 @@ import { createIcon, IconName, IconOptions } from './icons.ts';
 import { ElementStatus } from '../elements/ElementStatus.ts';
 import { positionFixedElement } from './overlayPosition.ts';
 import { getViewBounds, isRectVisible } from '../core/utils/viewBounds.ts';
-import { addTaskToStory } from './storyTaskActions.ts';
 import { createIconButton, createSurface } from './primitives/index.ts';
 import { StatusSelector } from './components/StatusSelector.ts';
 import { AiActionsDropdown } from './components/AiActionsDropdown.ts';
@@ -38,6 +33,13 @@ import type {
   CanvasActionDefinition,
   CanvasInteractionAdapter,
 } from '../adapters/CanvasInteractionAdapter.ts';
+import type { CanvasRelatedItemsAdapter } from '../adapters/CanvasRelatedItemsAdapter.ts';
+import {
+  getPlanningElementConfirmKey,
+  hasPlanningNodeKind,
+  isGoalPlanningElement,
+} from '../elements/utils/planningNodeSemantics.ts';
+import { emitCanvasQuickCreateTaskRequested } from './events/quickCreateEvents.ts';
 
 type ActionContext = {
   elements: PlanningElement[];
@@ -81,14 +83,15 @@ type SelectionActionMenuOptions = {
   enableLegacyPlanningActions?: boolean;
   positionStrategy?: 'below-bounds' | 'top-right-inset';
   omitDividerForInteractionActions?: boolean;
+  relatedItemsAdapter?: CanvasRelatedItemsAdapter | null;
 };
 
 function selectionSupportsGoalTags(
   elements: PlanningElement[]
-): elements is GoalElement[] {
+): boolean {
   return (
     elements.length >= 1 &&
-    elements.every((element) => element instanceof GoalElement)
+    elements.every((element) => isGoalPlanningElement(element))
   );
 }
 
@@ -139,7 +142,6 @@ export class SelectionActionMenu {
   private goalTagsLoading = false;
   private goalTagsLoadFailed = false;
   private goalTagsSelectionKey: string | null = null;
-  private layoutService = new StoryLayoutService();
 
   constructor(
     private readonly scene: Scene,
@@ -417,10 +419,10 @@ export class SelectionActionMenu {
     const hasConnections = (context: ActionContext): boolean =>
       this.bulkActions.hasConnectionsForElements(context.elements);
     const isStory = (context: ActionContext): boolean =>
-      context.primary instanceof StoryElement;
+      hasPlanningNodeKind(context.primary, 'story');
     const isStoryOrGoal = (context: ActionContext): boolean =>
-      context.primary instanceof StoryElement ||
-      context.primary instanceof GoalElement;
+      hasPlanningNodeKind(context.primary, 'story') ||
+      hasPlanningNodeKind(context.primary, 'goal');
     const supportsGoalTags = (context: ActionContext): boolean =>
       selectionSupportsGoalTags(context.elements);
     const shouldShowAiDivider = (context: ActionContext): boolean =>
@@ -870,11 +872,9 @@ export class SelectionActionMenu {
     if (this.selectedElements.length === 1) {
       const primary = this.selectedElements[0];
       const primaryKind =
-        primary instanceof GoalElement
-          ? 'goal'
-          : primary instanceof StoryElement
-            ? 'story'
-            : 'task';
+        primary?.nodeKind === 'goal' || primary?.nodeKind === 'story'
+          ? primary.nodeKind
+          : 'task';
       if (primaryKind !== 'task') {
         items.push({
           label: this.getAiBreakdownLabel(),
@@ -925,10 +925,10 @@ export class SelectionActionMenu {
 
   private getAiBreakdownLabel(): string {
     const primary = this.selectedElements[0];
-    if (primary instanceof GoalElement) {
+    if (primary?.nodeKind === 'goal') {
       return this.runtime.i18n.t('selectionMenu.breakIntoStories');
     }
-    if (primary instanceof StoryElement) {
+    if (primary?.nodeKind === 'story') {
       return this.runtime.i18n.t('selectionMenu.breakIntoTasks');
     }
     return this.runtime.i18n.t('selectionMenu.breakDown');
@@ -955,9 +955,13 @@ export class SelectionActionMenu {
 
   private handleAddRelated(): void {
     if (!this.activeElement) return;
+    const fallbackSupported =
+      SelectionContext.isPlanningElement(this.activeElement) &&
+      (this.activeElement.nodeKind === 'story' ||
+        this.activeElement.nodeKind === 'goal');
     if (
-      !(this.activeElement instanceof StoryElement) &&
-      !(this.activeElement instanceof GoalElement)
+      !this.options.relatedItemsAdapter?.isSupportedHost(this.activeElement) &&
+      !fallbackSupported
     ) {
       return;
     }
@@ -969,13 +973,14 @@ export class SelectionActionMenu {
   }
 
   private handleCreateTask(): void {
-    if (!(this.activeElement instanceof StoryElement)) return;
-    addTaskToStory({
-      story: this.activeElement,
-      scene: this.scene,
-      canvasManager: this.canvasManager,
-      layoutService: this.layoutService,
-    });
+    if (
+      !this.activeElement ||
+      !SelectionContext.isPlanningElement(this.activeElement) ||
+      this.activeElement.nodeKind !== 'story'
+    ) {
+      return;
+    }
+    emitCanvasQuickCreateTaskRequested(this.activeElement);
   }
 
   private handleAiBreakdown(): void {
@@ -1108,10 +1113,7 @@ export class SelectionActionMenu {
   }
 
   private getElementConfirmKey(element: PlanningElement): string | null {
-    if (element instanceof TaskElement) return `task:${element.id}`;
-    if (element instanceof StoryElement) return `story:${element.id}`;
-    if (element instanceof GoalElement) return `goal:${element.id}`;
-    return null;
+    return getPlanningElementConfirmKey(element);
   }
 
   private clearDeleteConfirmTimer(): void {

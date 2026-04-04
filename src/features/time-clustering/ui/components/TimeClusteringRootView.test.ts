@@ -1550,9 +1550,49 @@ describe('TimeClusteringRootView', () => {
       '[data-role="day-switch-button"][data-date-key="2026-03-25"]'
     );
     expect(todayButton).not.toBeNull();
-    expect(
-      todayButton?.querySelector('[data-role="calendar-day-chip-today-marker"]')
-    ).not.toBeNull();
+    const todayMarker = todayButton?.querySelector<HTMLElement>(
+      '[data-role="calendar-day-chip-today-marker"]'
+    );
+    expect(todayMarker).not.toBeNull();
+    expect(todayMarker?.className).toContain('absolute');
+    expect(todayMarker?.className).toContain('bottom-0');
+
+    view.unmount();
+    store.destroy();
+  });
+
+  it('anchors today markers to the bottom edge in both compact and week headers', () => {
+    const store = new TimeClusteringStore(
+      createRepository(
+        createSnapshot({
+          selectedDateKey: '2026-03-25',
+          weekAnchorDateKey: '2026-03-23',
+        })
+      )
+    );
+    const { view } = createView(store, 'fullscreen');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    view.mount(parent);
+
+    const weekHeaderMarker = parent.querySelector<HTMLElement>(
+      '[data-role="week-day-today-marker"]'
+    );
+    expect(weekHeaderMarker).not.toBeNull();
+    expect(weekHeaderMarker?.className).toContain('absolute');
+    expect(weekHeaderMarker?.className).toContain('bottom-0');
+    expect(weekHeaderMarker?.className).toContain('left-3');
+
+    view.setLayoutMode('docked-left');
+
+    const dayChipMarker = parent.querySelector<HTMLElement>(
+      '[data-role="calendar-day-chip-today-marker"]'
+    );
+    expect(dayChipMarker).not.toBeNull();
+    expect(dayChipMarker?.className).toContain('absolute');
+    expect(dayChipMarker?.className).toContain('bottom-0');
+    expect(dayChipMarker?.className).toContain('left-1/2');
 
     view.unmount();
     store.destroy();
