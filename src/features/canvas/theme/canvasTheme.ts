@@ -23,6 +23,11 @@ export type CanvasThemePalette = {
     highlight: string;
     storyFocusFill: string;
     storyHighlightFill: string;
+    goalFocusFill: string;
+    goalHighlightFill: string;
+    goalFocusText: string;
+    goalHighlightText: string;
+    iconMuted: string;
     hoverOverlayFill: string;
     hoverOutline: string;
     regionSelectionBorder: string;
@@ -81,6 +86,11 @@ const lightPalette: CanvasThemePalette = {
     highlight: '#fa8c16',
     storyFocusFill: '#f1ecff',
     storyHighlightFill: '#fff7ed',
+    goalFocusFill: '#a57aff',
+    goalHighlightFill: '#F2A03D',
+    goalFocusText: '#0f172a',
+    goalHighlightText: '#0f172a',
+    iconMuted: '#666666',
     hoverOverlayFill: 'rgba(29,78,216,0.1)',
     hoverOutline: 'rgba(29,78,216,0.4)',
     regionSelectionBorder: '#1d4ed8',
@@ -141,6 +151,11 @@ const darkPalette: CanvasThemePalette = {
     highlight: '#fb923c',
     storyFocusFill: '#312e81',
     storyHighlightFill: '#7c2d12',
+    goalFocusFill: '#7c3aed',
+    goalHighlightFill: '#c2410c',
+    goalFocusText: '#f8fafc',
+    goalHighlightText: '#f8fafc',
+    iconMuted: '#cbd5e1',
     hoverOverlayFill: 'rgba(96,165,250,0.18)',
     hoverOutline: 'rgba(96,165,250,0.52)',
     regionSelectionBorder: '#60a5fa',
