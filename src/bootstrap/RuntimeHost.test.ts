@@ -66,6 +66,7 @@ vi.mock('../features/ai-assistant/services/AiAssistantCapabilities.ts', () => ({
 }));
 
 import { RuntimeHost } from './RuntimeHost.ts';
+import { createAppRuntime } from '../app-runtime/index.ts';
 import {
   TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY,
   TIME_CLUSTERING_OVERLAP_WARNINGS_VISIBLE_STORAGE_KEY,
@@ -108,13 +109,13 @@ type MockResizeObserverClass = {
   new (callback: ResizeObserverCallback): ResizeObserver;
 };
 
-function createRuntimeHost(): RuntimeHost {
+function createRuntimeHost(runtime = createAppRuntime()): RuntimeHost {
   const wallpaper$ = new BehaviorSubject('');
   const wallpaperService = {
     wallpaper$: wallpaper$.asObservable(),
     wallpaperUrl: '',
   } as unknown as WallpaperService;
-  return new RuntimeHost(wallpaperService);
+  return new RuntimeHost(wallpaperService, runtime);
 }
 
 function getRuntimeHostInternals(host: RuntimeHost): RuntimeHostInternalAccess {
@@ -198,6 +199,21 @@ describe('RuntimeHost time clustering island layout', () => {
     document.body.innerHTML = '';
   });
 
+  it('syncs document theme from AppRuntime snapshots and unsubscribes on dispose', () => {
+    const runtime = createAppRuntime({ initialTheme: 'dark' });
+    const host = createRuntimeHost(runtime);
+
+    expect(document.documentElement.dataset.theme).toBe('dark');
+
+    runtime.setTheme('light');
+    expect(document.documentElement.dataset.theme).toBe('light');
+
+    host.dispose();
+
+    runtime.setTheme('dark');
+    expect(document.documentElement.dataset.theme).toBe('light');
+  });
+
   it('reserves left workspace space when time clustering is docked', () => {
     const host = getRuntimeHostInternals(createRuntimeHost());
     const { canvas } = attachCanvasSurface(host);
@@ -213,9 +229,7 @@ describe('RuntimeHost time clustering island layout', () => {
     expect(host.workspaceRoot.style.right).toBe('0px');
     expect(host.workspaceRoot.style.borderRadius).toBe('28px');
     expect(host.islandBackdropRoot.style.display).toBe('block');
-    expect(host.islandBackdropRoot.style.background).toBe(
-      'rgb(244, 248, 252)'
-    );
+    expect(host.islandBackdropRoot.style.background).toBe('rgb(244, 248, 252)');
     expect(host.timeClusteringIslandRoot.style.display).toBe('block');
     expect(host.timeClusteringIslandRoot.style.left).toBe('0px');
     expect(host.timeClusteringIslandRoot.style.width).toBe('360px');
@@ -248,9 +262,9 @@ describe('RuntimeHost time clustering island layout', () => {
 
   it('opens time clustering in docked-left mode without changing the base view', () => {
     const host = getRuntimeHostInternals(createRuntimeHost());
-    const show = vi.fn<(view: string) => Promise<void>>().mockResolvedValue(
-      undefined
-    );
+    const show = vi
+      .fn<(view: string) => Promise<void>>()
+      .mockResolvedValue(undefined);
     host.shell = {
       show,
       getActiveModule: () => null,
@@ -294,9 +308,9 @@ describe('RuntimeHost time clustering island layout', () => {
 
     host.handleTimeClusteringLayoutModeChange('fullscreen');
 
-    expect(
-      localStorage.getItem(TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY)
-    ).toBe('fullscreen');
+    expect(localStorage.getItem(TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY)).toBe(
+      'fullscreen'
+    );
     expect(host.timeClusteringLayoutMode).toBe('fullscreen');
 
     host.dispose();
@@ -317,9 +331,9 @@ describe('RuntimeHost time clustering island layout', () => {
 
   it('keeps docked-left time clustering open when switching the base view', async () => {
     const host = getRuntimeHostInternals(createRuntimeHost());
-    const show = vi.fn<(view: string) => Promise<void>>().mockResolvedValue(
-      undefined
-    );
+    const show = vi
+      .fn<(view: string) => Promise<void>>()
+      .mockResolvedValue(undefined);
     host.shell = {
       show,
       getActiveModule: () => null,
@@ -341,9 +355,9 @@ describe('RuntimeHost time clustering island layout', () => {
 
   it('closes fullscreen time clustering when switching the base view', async () => {
     const host = getRuntimeHostInternals(createRuntimeHost());
-    const show = vi.fn<(view: string) => Promise<void>>().mockResolvedValue(
-      undefined
-    );
+    const show = vi
+      .fn<(view: string) => Promise<void>>()
+      .mockResolvedValue(undefined);
     host.shell = {
       show,
       getActiveModule: () => null,
@@ -359,9 +373,9 @@ describe('RuntimeHost time clustering island layout', () => {
     expect(host.activeView).toBe('kanban');
     expect(host.timeClusteringOpen).toBe(false);
     expect(host.timeClusteringLayoutMode).toBe('docked-left');
-    expect(
-      localStorage.getItem(TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY)
-    ).toBe('docked-left');
+    expect(localStorage.getItem(TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY)).toBe(
+      'docked-left'
+    );
 
     host.dispose();
   });
