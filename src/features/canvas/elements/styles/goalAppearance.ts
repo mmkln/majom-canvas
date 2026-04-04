@@ -2,9 +2,6 @@ import { ElementStatus } from '../ElementStatus.ts';
 import type { CanvasThemePalette } from '../../theme/canvasTheme.ts';
 import { getGoalStyle } from './goalStyles.ts';
 
-const GOAL_FOCUS_FILL = '#a57aff';
-const GOAL_HIGHLIGHT_FILL = '#F2A03D';
-
 export type GoalAppearanceState = {
   status: ElementStatus;
   focused: boolean;
@@ -24,11 +21,10 @@ export function resolveGoalAppearance(
   palette: CanvasThemePalette
 ): GoalAppearance {
   const style = getGoalStyle(state.status, palette);
-  const hasInteractionFill = state.focused || state.highlighted;
   const fillColor = state.focused
-    ? GOAL_FOCUS_FILL
+    ? palette.interaction.goalFocusFill
     : state.highlighted
-      ? GOAL_HIGHLIGHT_FILL
+      ? palette.interaction.goalHighlightFill
       : style.fillColor;
 
   return {
@@ -39,6 +35,10 @@ export function resolveGoalAppearance(
         ? palette.interaction.highlight
         : style.borderColor,
     selectionStrokeColor: state.selected ? palette.interaction.selection : null,
-    textColor: hasInteractionFill ? '#f8fafc' : style.textColor,
+    textColor: state.focused
+      ? palette.interaction.goalFocusText
+      : state.highlighted
+        ? palette.interaction.goalHighlightText
+        : style.textColor,
   };
 }

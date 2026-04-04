@@ -200,6 +200,11 @@
 - Do not infer domain truth from canvas relation state, and do not use domain relation storage as a drop-in replacement for canvas visualization state.
 - If a feature needs both relation kinds, define a clear synchronization/projection contract with one declared source of truth per relation concern.
 
+### Canvas Draw Color Roles
+
+- For canvas element `draw()` methods, do not introduce raw hex colors directly in rendering branches.
+- Resolve colors through `canvasTheme` roles (node status roles, interaction roles, anchors/handles/guides roles, or dedicated new roles added to the theme palette).
+
 ### Canvas Menu Boundaries
 
 - Treat `SelectionActionMenu` and `ContextMenu` as separate interaction systems with different UX goals and visual component needs.

@@ -218,8 +218,9 @@ export class StoryElement extends PlanningElement {
       ctx.fill();
     }
 
+    const canvasTheme = panZoom.renderFlags?.canvasTheme ?? DEFAULT_CANVAS_THEME;
     // Icon
-    ctx.fillStyle = '#666666';
+    ctx.fillStyle = canvasTheme.interaction.iconMuted;
     ctx.font = `${SMALL_FONT_SIZE / panZoom.scale}px ${FONT_FAMILY}`;
     ctx.fillText(icon, x + 3 / panZoom.scale, y + 16 / panZoom.scale);
   }
