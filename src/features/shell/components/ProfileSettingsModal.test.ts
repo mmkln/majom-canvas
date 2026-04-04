@@ -11,7 +11,6 @@ import { ProfileSettingsModal } from './ProfileSettingsModal.ts';
 function createUser(overrides: Partial<User> = {}): User {
   return {
     id: 'user-uuid-1',
-    uuid: 'user-uuid-1',
     email: 'user@example.com',
     username: 'mila',
     language: 'en',

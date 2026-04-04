@@ -39,7 +39,6 @@ export interface UserProfileUpdate {
  */
 export interface User {
   id: string;
-  uuid: string;
   email: string;
   username: string;
   first_name?: string;

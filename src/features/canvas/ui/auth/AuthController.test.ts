@@ -7,7 +7,6 @@ import type { UserApiService } from '../../../../majom-wrapper/data-access/user-
 
 const createUser = (overrides: Partial<User> = {}): User => ({
   id: 'user-uuid-1',
-  uuid: 'user-uuid-1',
   email: 'user@example.com',
   username: 'user',
   language: 'en',
