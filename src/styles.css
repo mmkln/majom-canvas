@@ -1,4 +1,69 @@
 @import 'tailwindcss';
+
+:root {
+  /* surface */
+  --surface-canvas: #f8fafc;
+  --surface-base: #ffffff;
+  --surface-muted: #f5f6fa;
+  --surface-overlay: rgba(255, 255, 255, 0.96);
+
+  /* text */
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --text-inverse: #ffffff;
+
+  /* border */
+  --border-default: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --border-focus: #93c5fd;
+
+  /* interactive */
+  --interactive-primary: #4a6dff;
+  --interactive-primary-hover: #6c8cff;
+  --interactive-primary-active: #3652b3;
+  --interactive-secondary: #e5e7eb;
+
+  /* status */
+  --status-danger: #ff4b4b;
+  --status-danger-hover: #ff7b7b;
+  --status-danger-active: #b91c1c;
+  --status-success: #16a34a;
+  --status-warning: #ffcb6b;
+}
+
+[data-theme='dark'] {
+  /* surface */
+  --surface-canvas: #09090b;
+  --surface-base: #0f172a;
+  --surface-muted: #1e293b;
+  --surface-overlay: rgba(15, 23, 42, 0.92);
+
+  /* text */
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-inverse: #0f172a;
+
+  /* border */
+  --border-default: #334155;
+  --border-strong: #475569;
+  --border-focus: #60a5fa;
+
+  /* interactive */
+  --interactive-primary: #6c8cff;
+  --interactive-primary-hover: #a2bfff;
+  --interactive-primary-active: #4a6dff;
+  --interactive-secondary: #334155;
+
+  /* status */
+  --status-danger: #ff7b7b;
+  --status-danger-hover: #ffc1c1;
+  --status-danger-active: #ff4b4b;
+  --status-success: #22c55e;
+  --status-warning: #ffe9b3;
+}
+
 @theme {
   --color-primary: hsl(49, 100%, 7%);
   --font-display: 'Poppins', 'sans-serif';
