@@ -923,11 +923,11 @@ export class EditElementModal {
       value: options.getValue(),
       placeholder: 'Untitled',
       displayClassName:
-        'rounded-md px-3 py-2 text-[14px] leading-6 tracking-tight text-slate-900 whitespace-pre-wrap break-words transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80',
+        'rounded-md px-3 py-2 text-[14px] leading-6 tracking-tight text-slate-900 whitespace-pre-wrap break-words transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200/80',
       emptyDisplayClassName:
-        'h-10 rounded-md px-2 py-1 text-center text-[12px] italic leading-5 text-slate-400 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80',
+        'h-10 rounded-md px-2 py-1 text-center text-[12px] italic leading-5 text-slate-400 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200/80',
       inputClassName:
-        'w-full resize-none overflow-hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[14px] leading-6 tracking-tight text-slate-900 outline-none placeholder:text-slate-300 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-200/80',
+        'w-full resize-none overflow-hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[14px] leading-6 tracking-tight text-slate-900 outline-none placeholder:text-slate-300 focus:border-indigo-300 focus:ring-2 focus:ring-inset focus:ring-indigo-200/80',
       displayAriaLabel: (hasValue) =>
         hasValue
           ? 'Title preview. Press Enter to edit.'
@@ -984,11 +984,11 @@ export class EditElementModal {
       multiline: true,
       editorRows: 6,
       displayClassName:
-        'max-h-56 overflow-y-auto rounded-md px-3 py-2 text-[13px] leading-6 tracking-[0.005em] whitespace-pre-wrap break-words text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80',
+        'max-h-56 overflow-y-auto rounded-md px-3 py-2 text-[13px] leading-6 tracking-[0.005em] whitespace-pre-wrap break-words text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200/80',
       emptyDisplayClassName:
-        'h-12 rounded-md px-3 py-2 text-center text-[12px] italic leading-5 text-slate-400 flex items-center justify-center transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80',
+        'h-12 rounded-md px-3 py-2 text-center text-[12px] italic leading-5 text-slate-400 flex items-center justify-center transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200/80',
       inputClassName:
-        'min-h-[144px] w-full resize-none overflow-hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-base leading-6 tracking-[0.005em] text-slate-800 outline-none placeholder:text-slate-300 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-200/80 md:text-[13px]',
+        'min-h-[144px] w-full resize-none overflow-hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-base leading-6 tracking-[0.005em] text-slate-800 outline-none placeholder:text-slate-300 focus:border-indigo-300 focus:ring-2 focus:ring-inset focus:ring-indigo-200/80 md:text-[13px]',
       displayAriaLabel: (hasValue) =>
         hasValue
           ? 'Description preview. Press Enter to edit.'

@@ -99,7 +99,7 @@ export function createModalShell(
     const closeButton = document.createElement('button');
     closeButton.type = 'button';
     closeButton.className =
-      'absolute right-3 top-3 inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 md:right-4 md:top-4 md:h-9 md:w-9';
+      'absolute right-3 top-3 inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200 md:right-4 md:top-4 md:h-9 md:w-9';
     closeButton.setAttribute('aria-label', 'Close dialog');
     closeButton.innerHTML =
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" class="h-4 w-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l8 8M14 6l-8 8"/></svg>';

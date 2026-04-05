@@ -104,7 +104,7 @@ export class TagPickerField {
       this.trigger = document.createElement('div');
       this.trigger.dataset.role = 'goal-tag-picker-trigger';
       this.trigger.className =
-        'flex min-h-[44px] w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-slate-300 hover:bg-slate-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80';
+        'flex min-h-[44px] w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-slate-300 hover:bg-slate-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200/80';
       this.trigger.tabIndex = 0;
       this.trigger.setAttribute('role', 'button');
       this.trigger.setAttribute('aria-haspopup', 'dialog');
@@ -428,8 +428,8 @@ export class TagPickerField {
     row.dataset.createTitle = title;
     row.className =
       this.variant === 'inline'
-        ? 'flex w-full items-center justify-between gap-3 rounded-lg border border-dashed border-indigo-200 bg-gradient-to-r from-indigo-50/90 to-white px-4 py-3 text-left transition-colors hover:border-indigo-300 hover:from-indigo-100/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80 disabled:cursor-wait disabled:opacity-70'
-        : 'flex w-full items-center justify-between gap-3 rounded-xl border border-dashed border-indigo-200 bg-gradient-to-r from-indigo-50/90 to-white px-3 py-2.5 text-left transition-colors hover:border-indigo-300 hover:from-indigo-100/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80 disabled:cursor-wait disabled:opacity-70';
+        ? 'flex w-full items-center justify-between gap-3 rounded-lg border border-dashed border-indigo-200 bg-gradient-to-r from-indigo-50/90 to-white px-4 py-3 text-left transition-colors hover:border-indigo-300 hover:from-indigo-100/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200/80 disabled:cursor-wait disabled:opacity-70'
+        : 'flex w-full items-center justify-between gap-3 rounded-xl border border-dashed border-indigo-200 bg-gradient-to-r from-indigo-50/90 to-white px-3 py-2.5 text-left transition-colors hover:border-indigo-300 hover:from-indigo-100/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200/80 disabled:cursor-wait disabled:opacity-70';
     row.disabled = this.creating;
     row.addEventListener('click', (event) => {
       event.preventDefault();
@@ -472,7 +472,7 @@ export class TagPickerField {
     const chip = document.createElement('button');
     chip.type = 'button';
     chip.className =
-      'inline-flex min-w-0 max-w-[140px] shrink-0 items-center gap-1.5 rounded-full bg-slate-100/90 px-2.5 py-1 text-[11px] font-medium leading-4 text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80';
+      'inline-flex min-w-0 max-w-[140px] shrink-0 items-center gap-1.5 rounded-full bg-slate-100/90 px-2.5 py-1 text-[11px] font-medium leading-4 text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200/80';
     chip.dataset.role = 'goal-tag-picker-selected-chip';
     chip.dataset.tagId = String(tag.id);
     chip.setAttribute('aria-label', `Remove ${tag.title}`);
