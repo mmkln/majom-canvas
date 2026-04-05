@@ -333,6 +333,7 @@ export const es: AppTranslations = {
   'header.closeRoutines': 'Cerrar rutinas',
   'header.logout': 'Cerrar sesión',
   'header.openAppMenu': 'Abrir menú de la app',
+  'header.openGlobalMenu': 'Abrir menú global',
   'header.openRoutines': 'Abrir rutinas',
   'header.routines': 'Rutinas',
   'header.timeClustering': 'Clústeres de tiempo',

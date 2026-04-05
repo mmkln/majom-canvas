@@ -32,7 +32,7 @@ import { WallpaperService } from '../services/WallpaperService.ts';
 import { ProfileSettingsModal } from './ProfileSettingsModal.ts';
 import { authFlowService } from '../../canvas/ui/auth/authFlowService.ts';
 
-const WORKSPACE_APP_MENU_Z_INDEX = 46;
+const GLOBAL_MENU_Z_INDEX = 46;
 
 type ProfileSettingsWallpaperService = Pick<
   WallpaperService,
@@ -41,14 +41,14 @@ type ProfileSettingsWallpaperService = Pick<
   readonly wallpaperList: Wallpaper[];
 };
 
-type WorkspaceAppMenuOptions = {
+type GlobalMenuOptions = {
   wallpaperService?: ProfileSettingsWallpaperService;
   triggerButtonTone?: IconButtonTone;
   triggerButtonSize?: 'sm' | 'md' | 'lg';
   triggerButtonClassName?: string;
 };
 
-export class WorkspaceAppMenu {
+export class GlobalMenu {
   public readonly element: HTMLDivElement;
   private readonly runtime: AppRuntime;
   private readonly i18n: I18nService;
@@ -74,7 +74,7 @@ export class WorkspaceAppMenu {
 
   constructor(
     runtime: AppRuntime = createAppRuntime(),
-    options: WorkspaceAppMenuOptions = {}
+    options: GlobalMenuOptions = {}
   ) {
     this.runtime = runtime;
     this.i18n = runtime.i18n;
@@ -108,15 +108,15 @@ export class WorkspaceAppMenu {
     this.element = document.createElement('div');
     this.element.className = 'relative flex items-center shrink-0';
     this.element.style.pointerEvents = 'auto';
-    this.element.style.zIndex = `${WORKSPACE_APP_MENU_Z_INDEX}`;
+    this.element.style.zIndex = `${GLOBAL_MENU_Z_INDEX}`;
 
     this.button = createIconButton({
       icon: 'ellipsis-vertical',
       tone: options.triggerButtonTone ?? 'soft',
       size: options.triggerButtonSize ?? 'md',
       className: options.triggerButtonClassName,
-      title: this.i18n.t('header.openAppMenu'),
-      ariaLabel: this.i18n.t('header.openAppMenu'),
+      title: this.i18n.t('header.openGlobalMenu'),
+      ariaLabel: this.i18n.t('header.openGlobalMenu'),
       onClick: (event) => {
         event.stopPropagation();
         this.toggleMenu();
@@ -127,7 +127,7 @@ export class WorkspaceAppMenu {
       elevated: true,
       className: 'absolute left-0 top-0 hidden min-w-[10rem] overflow-hidden',
     });
-    this.panel.style.zIndex = `${WORKSPACE_APP_MENU_Z_INDEX + 1}`;
+    this.panel.style.zIndex = `${GLOBAL_MENU_Z_INDEX + 1}`;
 
     this.controller = new AnchoredMenu({
       container: this.element,
@@ -185,8 +185,8 @@ export class WorkspaceAppMenu {
   }
 
   private refreshTranslations(): void {
-    this.button.title = this.i18n.t('header.openAppMenu');
-    this.button.setAttribute('aria-label', this.i18n.t('header.openAppMenu'));
+    this.button.title = this.i18n.t('header.openGlobalMenu');
+    this.button.setAttribute('aria-label', this.i18n.t('header.openGlobalMenu'));
     if (this.controller.isOpen()) {
       this.renderMenu();
     }
@@ -217,7 +217,7 @@ export class WorkspaceAppMenu {
       i18n: this.i18n,
       currentLocale: this.i18n.getLocale(),
       disabled: this.localePersistInFlight,
-      panelZIndex: WORKSPACE_APP_MENU_Z_INDEX + 2,
+      panelZIndex: GLOBAL_MENU_Z_INDEX + 2,
       onSelect: (locale) => {
         void this.handleLocaleChange(locale);
       },

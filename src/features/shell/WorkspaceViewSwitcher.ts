@@ -143,7 +143,7 @@ export class WorkspaceViewSwitcher {
   public setVisible(visible: boolean): void {
     if (!this.shouldRender) return;
     if (!visible) {
-      this.view.closeAppMenu();
+      this.view.closeGlobalMenu();
       this.clearCollapseTimer();
       this.clearOpenIntentTimer();
       this.resetTransientInteractionState();
@@ -238,8 +238,8 @@ export class WorkspaceViewSwitcher {
 
   private handleKeyDown(event: KeyboardEvent): void {
     if (event.key !== 'Escape') return;
-    if (this.view.isAppMenuOpen()) {
-      this.view.closeAppMenu();
+    if (this.view.isGlobalMenuOpen()) {
+      this.view.closeGlobalMenu();
     }
     if (this.state.mode !== 'open') return;
     event.stopPropagation();
@@ -392,7 +392,7 @@ export class WorkspaceViewSwitcher {
       this.handleHovered ||
       this.controlsHovered ||
       this.focusWithin ||
-      this.view.isAppMenuOpen();
+      this.view.isGlobalMenuOpen();
     return shouldStay;
   }
 

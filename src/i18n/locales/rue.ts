@@ -147,6 +147,7 @@ export const rue: AppTranslations = {
   'header.closeRoutines': 'Закрити звыкы',
   'header.logout': 'Выйти',
   'header.openAppMenu': 'Отворити меню аплікації',
+  'header.openGlobalMenu': 'Отворити глобалне меню',
   'header.openRoutines': 'Отворити звыкы',
   'header.routines': 'Звыкы',
   'header.timeClustering': 'Часовы кластеры',

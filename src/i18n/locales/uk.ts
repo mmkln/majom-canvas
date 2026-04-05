@@ -577,6 +577,7 @@ export const uk = {
   'header.aiAssistant': 'AI асистент',
   'header.logout': 'Вийти',
   'header.openAppMenu': 'Відкрити меню застосунку',
+  'header.openGlobalMenu': 'Відкрити глобальне меню',
   'header.openRoutines': 'Відкрити рутини',
   'header.routines': 'Рутини',
   'header.timeClustering': 'Кластери часу',

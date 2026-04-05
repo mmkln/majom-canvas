@@ -7,7 +7,7 @@ import {
   createIconButton,
   setIconButtonContent,
 } from '../../ui-lib/src/hud/index.ts';
-import { WorkspaceAppMenu } from './components/WorkspaceAppMenu.ts';
+import { GlobalMenu } from './components/GlobalMenu.ts';
 import type { WallpaperService } from './services/WallpaperService.ts';
 import type { WorkspaceViewSwitcherMode } from './WorkspaceViewSwitcherMachine.ts';
 
@@ -76,7 +76,7 @@ export class WorkspaceViewSwitcherView {
   private readonly callbacks: WorkspaceViewSwitcherViewCallbacks;
   private readonly controls: WorkspaceControlsBar;
   private readonly controlsAccessory: HTMLDivElement;
-  private readonly appMenu: WorkspaceAppMenu;
+  private readonly globalMenu: GlobalMenu;
   private readonly autoCollapseEnabled: boolean;
   private readonly intentZone: HTMLDivElement;
   private readonly handleDock: HTMLDivElement;
@@ -90,7 +90,7 @@ export class WorkspaceViewSwitcherView {
     this.runtime = options.runtime;
     this.callbacks = options.callbacks;
     this.autoCollapseEnabled = options.autoCollapseEnabled;
-    this.appMenu = new WorkspaceAppMenu(this.runtime, {
+    this.globalMenu = new GlobalMenu(this.runtime, {
       wallpaperService: options.wallpaperService,
       triggerButtonTone: 'text',
       triggerButtonSize: 'sm',
@@ -164,7 +164,7 @@ export class WorkspaceViewSwitcherView {
     this.controlsAccessory.style.alignItems = 'center';
     this.controlsAccessory.style.gap = '6px';
     this.controlsAccessory.style.flexShrink = '0';
-    this.controlsAccessory.append(this.pinButton, this.appMenu.element);
+    this.controlsAccessory.append(this.pinButton, this.globalMenu.element);
 
     this.controls = new WorkspaceControlsBar({
       runtime: this.runtime,
@@ -260,11 +260,11 @@ export class WorkspaceViewSwitcherView {
     if (!this.shouldRender) return;
     if (this.element.parentElement) return;
     parent.appendChild(this.element);
-    this.appMenu.mount();
+    this.globalMenu.mount();
   }
 
   public unmount(): void {
-    this.appMenu.unmount();
+    this.globalMenu.unmount();
     this.element.remove();
   }
 
@@ -445,12 +445,12 @@ export class WorkspaceViewSwitcherView {
     return this.element.parentElement !== null;
   }
 
-  public isAppMenuOpen(): boolean {
-    return this.appMenu.isOpen();
+  public isGlobalMenuOpen(): boolean {
+    return this.globalMenu.isOpen();
   }
 
-  public closeAppMenu(): void {
-    this.appMenu.close();
+  public closeGlobalMenu(): void {
+    this.globalMenu.close();
   }
   private applyMotionProfile(expanded: boolean): void {
     const transformMs = expanded

@@ -277,7 +277,7 @@ describe('WorkspaceControlsBar floating variant', () => {
     accessory.className = 'relative flex items-center shrink-0';
     const accessoryButton = document.createElement('button');
     accessoryButton.type = 'button';
-    accessoryButton.setAttribute('aria-label', 'Open app menu');
+    accessoryButton.setAttribute('aria-label', 'Open global menu');
     accessory.appendChild(accessoryButton);
 
     const bar = new WorkspaceControlsBar({
@@ -295,6 +295,20 @@ describe('WorkspaceControlsBar floating variant', () => {
     expect(bar.element.lastElementChild).toBe(accessory);
     expect(bar.element.children).toHaveLength(3);
     expect(bar.element.children[1]?.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('uses the same asymmetric floating padding as the action menu shell', () => {
+    const bar = new WorkspaceControlsBar({
+      initialView: 'canvas',
+      showKanban: true,
+      showTimeClustering: false,
+      showRoutines: false,
+      showChat: false,
+      showEnergy: false,
+      variant: 'floating',
+    });
+
+    expect(bar.element.style.padding).toBe('6px 10px 6px 6px');
   });
 
   it('renders a routines badge when today still has open habits', () => {

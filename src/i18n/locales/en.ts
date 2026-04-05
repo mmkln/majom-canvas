@@ -576,6 +576,7 @@ export const en = {
   'header.aiAssistant': 'AI Assistant',
   'header.logout': 'Logout',
   'header.openAppMenu': 'Open app menu',
+  'header.openGlobalMenu': 'Open global menu',
   'header.openRoutines': 'Open routines',
   'header.routines': 'Routines',
   'header.timeClustering': 'Time Clustering',

@@ -30,7 +30,7 @@ describe('GlobalAppHeader sidebar energy placement', () => {
     localStorage.clear();
   });
 
-  it('keeps the sidebar cluster focused on sidebar actions without the app menu button', () => {
+  it('keeps the sidebar cluster focused on sidebar actions without the global menu button', () => {
     const runtime = createAppRuntime({
       initialLocale: 'en',
       energyService: {
@@ -63,7 +63,7 @@ describe('GlobalAppHeader sidebar energy placement', () => {
       (button) => button.getAttribute('aria-label') === 'Open routines'
     );
     const menuButton = header.element?.querySelector<HTMLButtonElement>(
-      'button[aria-label="Open app menu"]'
+      'button[aria-label="Open global menu"]'
     );
 
     expect(chatButton).toBeDefined();

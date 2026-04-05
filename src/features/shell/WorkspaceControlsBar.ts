@@ -71,6 +71,8 @@ const VIEW_OPTIONS: ViewOption[] = [
   { view: 'learning-studio', icon: 'academic-cap' },
 ];
 
+const FLOATING_CONTROLS_PADDING = '6px 10px 6px 6px';
+
 const VARIANT_METRICS: Record<WorkspaceControlsBarVariant, VariantMetrics> = {
   floating: {
     rootGap: '0',
@@ -350,7 +352,7 @@ export class WorkspaceControlsBar {
     this.element.style.fontFamily = 'Poppins, sans-serif';
 
     if (this.variant === 'floating') {
-      this.element.style.padding = '4px';
+      this.element.style.padding = FLOATING_CONTROLS_PADDING;
       this.element.style.border = '1px solid rgba(203, 213, 225, 0.88)';
       this.element.style.borderRadius = '14px';
       this.element.style.background = 'rgba(255, 255, 255, 0.98)';

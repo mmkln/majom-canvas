@@ -2,14 +2,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAppRuntime } from '../../app-runtime/index.ts';
 import { WorkspaceViewSwitcher } from './WorkspaceViewSwitcher.ts';
+import { resetUserPreferencesForTests } from './services/UserPreferencesService.ts';
 
 describe('WorkspaceViewSwitcher', () => {
   afterEach(() => {
     document.body.innerHTML = '';
     localStorage.clear();
+    resetUserPreferencesForTests();
   });
 
-  it('renders the app menu and pin button inside the floating controls block', () => {
+  it('renders the global menu and pin button inside the floating controls block', () => {
     const switcher = new WorkspaceViewSwitcher('canvas', {
       runtime: createAppRuntime({ initialLocale: 'en' }),
       showKanban: true,
@@ -22,7 +24,7 @@ describe('WorkspaceViewSwitcher', () => {
 
     const container = document.getElementById('workspace-view-switcher');
     const menuButton = container?.querySelector<HTMLButtonElement>(
-      'button[aria-label="Open app menu"]'
+      'button[aria-label="Open global menu"]'
     );
     const handle = container?.querySelector<HTMLButtonElement>(
       'button[data-role="workspace-view-switcher-handle"]'
@@ -50,6 +52,9 @@ describe('WorkspaceViewSwitcher', () => {
     expect(intentZone?.style.bottom).toBe('-13px');
     expect(container?.firstElementChild?.contains(menuButton as HTMLButtonElement)).toBe(
       true
+    );
+    expect((container?.firstElementChild as HTMLElement).style.padding).toBe(
+      '6px 10px 6px 6px'
     );
     expect(container?.firstElementChild?.contains(pinButton as HTMLButtonElement)).toBe(
       true
@@ -372,7 +377,7 @@ describe('WorkspaceViewSwitcher', () => {
       'button[data-role="workspace-view-switcher-pin"]'
     ) as HTMLButtonElement;
     const menuButton = container?.querySelector(
-      'button[aria-label="Open app menu"]'
+      'button[aria-label="Open global menu"]'
     ) as HTMLButtonElement;
 
     handle.click();
