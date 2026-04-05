@@ -285,4 +285,50 @@ describe('EditElementModal', () => {
       detailsEdited as EventListener
     );
   });
+
+  it('keeps focus on Save when description editing blurs into a save click', () => {
+    const scene = new Scene();
+    const task = new TaskElement({
+      id: 'task-description-1',
+      uuid: 'task-description-uuid-1',
+      title: 'Task title',
+      description: 'Original description',
+    });
+    const modal = new EditElementModal(task, scene);
+
+    modal.show();
+
+    const descriptionPreview = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>('button')
+    ).find((button) => button.textContent?.includes('Original description'));
+    const saveButton = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>('button')
+    ).find((button) => button.textContent === 'Save');
+
+    expect(descriptionPreview).not.toBeNull();
+    expect(saveButton).not.toBeNull();
+
+    descriptionPreview?.click();
+
+    const descriptionEditor = document.body.querySelector<HTMLTextAreaElement>(
+      'textarea'
+    );
+    expect(descriptionEditor).not.toBeNull();
+
+    if (!descriptionEditor || !saveButton) {
+      throw new Error('Expected description editor and save button.');
+    }
+
+    descriptionEditor.focus();
+    descriptionEditor.value = 'Updated description';
+    descriptionEditor.dispatchEvent(new Event('input', { bubbles: true }));
+
+    saveButton.focus();
+
+    expect(document.activeElement).toBe(saveButton);
+
+    saveButton.click();
+
+    expect(task.description).toBe('Updated description');
+  });
 });

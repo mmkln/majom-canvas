@@ -10,6 +10,7 @@ import {
 } from '../../core/commands/PatchPlanningElementCommand.ts';
 import { firstValueFrom, Subscription } from 'rxjs';
 import { ComponentFactory } from '../../../../ui-lib/src/core/ComponentFactory.ts';
+import { InlineTextEditor } from '../../../../ui-lib/src/components/InlineTextEditor.ts';
 import {
   createModalActionRow,
   getModalActionButtonClass,
@@ -918,140 +919,55 @@ export class EditElementModal {
 
   private buildTitleField(options: TitleFieldOptions): TitleFieldController {
     const field = createField({ label: 'Title', required: true });
-    const input = ComponentFactory.createInput({
-      variant: 'default',
+    const editor = new InlineTextEditor({
       value: options.getValue(),
-      required: true,
-      className: 'w-full',
-    });
-    const mount = document.createElement('div');
-    input.render(mount);
-    const inputEl = input.getElement() as HTMLInputElement;
-    inputEl.dataset.inlineTitleInput = 'true';
-
-    let mode: TitleFieldMode = 'view';
-    let editOrigin = options.getValue();
-
-    const renderTitlePreview = (preview: HTMLDivElement): void => {
-      const current = options.getValue().trim();
-      if (current.length > 0) {
-        preview.textContent = current;
-        preview.className =
-          'rounded-md px-3 py-2 text-[14px] leading-6 tracking-tight text-slate-900 whitespace-pre-wrap break-words transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80';
-        preview.setAttribute(
-          'aria-label',
-          'Title preview. Press Enter to edit.'
-        );
-        return;
-      }
-      preview.textContent = 'Untitled';
-      preview.className =
-        'h-10 rounded-md px-2 py-1 text-center text-[12px] italic leading-5 text-slate-400 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80';
-      preview.setAttribute('aria-label', 'Untitled. Press Enter to add title.');
-    };
-
-    const applyEdit = (apply: boolean): void => {
-      if (mode !== 'edit') return;
-      if (apply) {
-        const nextTitle = inputEl.value.trim();
-        if (nextTitle.length > 0) {
-          options.setValue(nextTitle);
+      placeholder: 'Untitled',
+      displayClassName:
+        'rounded-md px-3 py-2 text-[14px] leading-6 tracking-tight text-slate-900 whitespace-pre-wrap break-words transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80',
+      emptyDisplayClassName:
+        'h-10 rounded-md px-2 py-1 text-center text-[12px] italic leading-5 text-slate-400 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80',
+      inputClassName:
+        'w-full resize-none overflow-hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[14px] leading-6 tracking-tight text-slate-900 outline-none placeholder:text-slate-300 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-200/80',
+      displayAriaLabel: (hasValue) =>
+        hasValue
+          ? 'Title preview. Press Enter to edit.'
+          : 'Untitled. Press Enter to add title.',
+      normalizeValue: (value) => value.trim(),
+      onInput: (value) => {
+        if (value.trim().length > 0) {
           field.setState({ invalid: false, error: undefined });
-        } else {
-          options.setValue(editOrigin);
         }
-      } else {
-        options.setValue(editOrigin);
-      }
-      setMode('view', { focus: true });
-    };
-
-    const createViewControl = (): HTMLDivElement => {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'pb-1';
-
-      const preview = document.createElement('div');
-      preview.dataset.titlePreview = 'true';
-      preview.tabIndex = 0;
-      preview.setAttribute('role', 'button');
-      renderTitlePreview(preview);
-
-      const startEdit = (): void => setMode('edit');
-      preview.addEventListener('click', startEdit);
-      preview.addEventListener('keydown', (event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        event.preventDefault();
-        event.stopPropagation();
-        startEdit();
-      });
-
-      wrapper.appendChild(preview);
-      return wrapper;
-    };
-
-    const createEditControl = (): HTMLDivElement => {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'pb-1';
-      wrapper.appendChild(inputEl);
-      return wrapper;
-    };
-
-    inputEl.addEventListener('input', () => {
-      if (inputEl.value.trim().length > 0) {
-        field.setState({ invalid: false, error: undefined });
-      }
+      },
+      onCommit: (value) => {
+        options.setValue(value);
+        if (value.trim().length > 0) {
+          field.setState({ invalid: false, error: undefined });
+        }
+      },
     });
-    inputEl.addEventListener('blur', () => applyEdit(true));
-    inputEl.addEventListener('keydown', (event: KeyboardEvent) => {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        event.stopPropagation();
-        applyEdit(true);
-      } else if (event.key === 'Escape') {
-        event.preventDefault();
-        event.stopPropagation();
-        applyEdit(false);
-      }
-    });
+    field.setControl(editor.element);
 
     function setMode(
       nextMode: TitleFieldMode,
       modeOptions: { focus?: boolean } = {}
     ): void {
-      mode = nextMode;
       const shouldFocus = modeOptions.focus ?? true;
       if (nextMode === 'edit') {
-        editOrigin = options.getValue();
-        inputEl.value = editOrigin;
-        field.setControl(createEditControl());
-        if (shouldFocus) {
-          inputEl.focus();
-          inputEl.select();
-        }
+        editor.setValue(options.getValue());
+        editor.startEditing({ focus: shouldFocus, select: true });
         return;
       }
-
-      const viewControl = createViewControl();
-      field.setControl(viewControl);
-      if (shouldFocus) {
-        viewControl
-          .querySelector<HTMLElement>('[data-title-preview="true"]')
-          ?.focus();
-      }
+      editor.setValue(options.getValue());
+      editor.showDisplay({ focus: shouldFocus });
     }
 
     return {
       field,
       setMode,
       focusInput: ({ select = false } = {}) => {
-        inputEl.focus();
-        if (select) inputEl.select();
+        editor.startEditing({ focus: true, select });
       },
-      focusPreview: () => {
-        field.element
-          .querySelector<HTMLElement>('[data-title-preview="true"]')
-          ?.focus();
-      },
+      focusPreview: () => editor.focusDisplay(),
       setRequiredError: (message: string) => {
         field.setState({ invalid: true, error: message });
       },
@@ -1062,119 +978,39 @@ export class EditElementModal {
     options: DescriptionFieldOptions
   ): DescriptionFieldController {
     const field = createField({ label: 'Description' });
-    const textarea = ComponentFactory.createTextarea({
-      variant: 'default',
+    const editor = new InlineTextEditor({
       value: options.getValue(),
-      rows: 6,
-      onInput: (value: string) => {
+      placeholder: 'No description yet.',
+      multiline: true,
+      editorRows: 6,
+      displayClassName:
+        'max-h-56 overflow-y-auto rounded-md px-3 py-2 text-[13px] leading-6 tracking-[0.005em] whitespace-pre-wrap break-words text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80',
+      emptyDisplayClassName:
+        'h-12 rounded-md px-3 py-2 text-center text-[12px] italic leading-5 text-slate-400 flex items-center justify-center transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80',
+      inputClassName:
+        'min-h-[144px] w-full resize-none overflow-hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-base leading-6 tracking-[0.005em] text-slate-800 outline-none placeholder:text-slate-300 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-200/80 md:text-[13px]',
+      displayAriaLabel: (hasValue) =>
+        hasValue
+          ? 'Description preview. Press Enter to edit.'
+          : 'No description yet. Press Enter to add description.',
+      onCommit: (value) => {
         options.setValue(value);
       },
-      className:
-        'min-h-[144px] w-full rounded-lg border-slate-200 bg-slate-50 px-3 py-2 shadow-none text-base leading-6 tracking-[0.005em] text-slate-800 md:text-[13px]',
     });
-    const mount = document.createElement('div');
-    textarea.render(mount);
-    const textareaEl = textarea.getElement() as HTMLTextAreaElement;
-    textareaEl.dataset.inlineDescriptionInput = 'true';
-    let mode: DescriptionMode = 'view';
-    let editOrigin = options.getValue();
-
-    const renderDescriptionPreview = (preview: HTMLDivElement): void => {
-      const value = options.getValue();
-      const hasText = value.trim().length > 0;
-      preview.textContent = hasText ? value : 'No description yet.';
-      preview.setAttribute(
-        'aria-label',
-        hasText
-          ? 'Description preview. Press Enter to edit.'
-          : 'No description yet. Press Enter to add description.'
-      );
-      preview.className = hasText
-        ? 'max-h-56 overflow-y-auto rounded-md px-3 py-2 text-[13px] leading-6 tracking-[0.005em] whitespace-pre-wrap break-words text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80'
-        : 'h-12 rounded-md px-3 py-2 text-center text-[12px] italic leading-5 text-slate-400 flex items-center justify-center transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80';
-    };
-
-    const applyEdit = (apply: boolean): void => {
-      if (mode !== 'edit') return;
-      if (apply) {
-        options.setValue(textareaEl.value);
-      } else {
-        options.setValue(editOrigin);
-        textareaEl.value = editOrigin;
-      }
-      setMode('view', { focus: true });
-    };
-
-    const createViewControl = (): HTMLDivElement => {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'space-y-2 pb-1';
-
-      const preview = document.createElement('div');
-      preview.dataset.descriptionPreview = 'true';
-      preview.tabIndex = 0;
-      preview.setAttribute('role', 'button');
-      renderDescriptionPreview(preview);
-
-      const switchToEdit = (): void => setMode('edit');
-      preview.addEventListener('click', switchToEdit);
-      preview.addEventListener('keydown', (event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        event.preventDefault();
-        event.stopPropagation();
-        switchToEdit();
-      });
-
-      wrapper.append(preview);
-      return wrapper;
-    };
-
-    const createEditControl = (): HTMLDivElement => {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'pb-1';
-      wrapper.appendChild(textareaEl);
-      return wrapper;
-    };
-
-    textareaEl.addEventListener('blur', () => applyEdit(true));
-    textareaEl.addEventListener('keydown', (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        event.stopPropagation();
-        applyEdit(false);
-        return;
-      }
-      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-        event.preventDefault();
-        event.stopPropagation();
-        applyEdit(true);
-      }
-    });
+    field.setControl(editor.element);
 
     function setMode(
       nextMode: DescriptionMode,
       modeOptions: { focus?: boolean } = {}
     ): void {
-      mode = nextMode;
       const shouldFocus = modeOptions.focus ?? true;
       if (nextMode === 'edit') {
-        editOrigin = options.getValue();
-        textareaEl.value = editOrigin;
-        field.setControl(createEditControl());
-        if (shouldFocus) {
-          textareaEl.focus();
-          const end = textareaEl.value.length;
-          textareaEl.setSelectionRange(end, end);
-        }
+        editor.setValue(options.getValue());
+        editor.startEditing({ focus: shouldFocus });
         return;
       }
-
-      const viewControl = createViewControl();
-      field.setControl(viewControl);
-      if (shouldFocus) {
-        viewControl
-          .querySelector<HTMLElement>('[data-description-preview="true"]')
-          ?.focus();
-      }
+      editor.setValue(options.getValue());
+      editor.showDisplay({ focus: shouldFocus });
     }
 
     return { field, setMode };
