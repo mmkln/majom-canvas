@@ -5,11 +5,13 @@ export type IconName =
   | 'map'
   | 'calendar'
   | 'academic-cap'
+  | 'book-open'
   | 'calendar-date-range'
   | 'view-columns'
   | 'archive-box'
   | 'delete'
   | 'forward'
+  | 'goal-circle'
   | 'map-pin'
   | 'lock-closed'
   | 'lock-open'
@@ -44,6 +46,7 @@ export type IconName =
   | 'link'
   | 'link-slash'
   | 'check'
+  | 'check-box'
   | 'check-circle'
   | 'exclamation-circle'
   | 'trash'
@@ -194,6 +197,15 @@ export function createIcon(
     return svg;
   }
 
+  if (name === 'book-open') {
+    svg.appendChild(
+      makePath(
+        'M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25'
+      )
+    );
+    return svg;
+  }
+
   if (name === 'calendar-date-range') {
     svg.appendChild(
       makePath(
@@ -227,6 +239,13 @@ export function createIcon(
         'M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 0 1 0 1.954l-7.108 4.061A1.125 1.125 0 0 1 3 16.811V8.69ZM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 0 1 0 1.954l-7.108 4.061a1.125 1.125 0 0 1-1.683-.977V8.69Z'
       )
     );
+    return svg;
+  }
+
+  if (name === 'goal-circle') {
+    svg.appendChild(makePath('M12 2a10 10 0 1 1 0 20a10 10 0 1 1 0-20Z'));
+    svg.appendChild(makePath('M12 6a6 6 0 1 1 0 12a6 6 0 1 1 0-12Z'));
+    svg.appendChild(makePath('M12 10a2 2 0 1 1 0 4a2 2 0 1 1 0-4Z'));
     return svg;
   }
 
@@ -510,6 +529,12 @@ export function createIcon(
 
   if (name === 'check') {
     svg.appendChild(makePath('m4.5 12.75 6 6 9-13.5'));
+    return svg;
+  }
+
+  if (name === 'check-box') {
+    svg.appendChild(makePath('M21 10.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12.5'));
+    svg.appendChild(makePath('m9 11 3 3L22 4'));
     return svg;
   }
 
