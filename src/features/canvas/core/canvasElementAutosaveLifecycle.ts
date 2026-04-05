@@ -7,6 +7,7 @@ export type CanvasElementAutosaveStatus =
 export type CanvasElementAutosaveStatusDetail = {
   canvasId: string | null;
   status: CanvasElementAutosaveStatus;
+  key?: string;
   error?: unknown;
 };
 
@@ -39,5 +40,6 @@ export function isCanvasElementAutosaveStatusDetail(
     value.status === 'failed';
   const validCanvasId =
     value.canvasId === null || typeof value.canvasId === 'string';
-  return validStatus && validCanvasId;
+  const validKey = value.key === undefined || typeof value.key === 'string';
+  return validStatus && validCanvasId && validKey;
 }

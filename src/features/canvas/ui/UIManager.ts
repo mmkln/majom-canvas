@@ -1,6 +1,8 @@
 // ui/UIManager.ts
 import { CanvasNavigationDock } from './CanvasNavigationDock.ts';
 import { EditElementModal } from './components/EditElementModal.ts';
+import { StoryDetailsModal } from './components/StoryDetailsModal.ts';
+import { GoalDetailsModal } from './components/GoalDetailsModal.ts';
 import { NotificationContainer } from './components/NotificationContainer.ts';
 import { CanvasBoardSelector } from './components/CanvasBoardSelector.ts';
 import { CanvasManager } from '../core/managers/CanvasManager.ts';
@@ -46,6 +48,7 @@ import { CANVAS_PERF_LOG } from '../../../config/env/index.ts';
 import { CanvasHudLayoutController } from './CanvasHudLayoutController.ts';
 import { AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
 import { GoalRelatedItemsLookupService } from '../../../majom-wrapper/services/goal-related-items-lookup-service.ts';
+import { CanvasPersistenceState } from '../core/services/CanvasPersistenceState.ts';
 import {
   EXISTING_PICKER_EVENT_NAMES,
   emitExistingPickerDropCompleted,
@@ -86,6 +89,8 @@ export class UIManager {
     private readonly canvasManager: CanvasManager,
     private readonly scene: Scene,
     private readonly authService: AuthService,
+    private readonly persistenceState: CanvasPersistenceState,
+    private readonly getActiveCanvasId: () => string | null,
     private readonly runtime: AppRuntime = createAppRuntime()
   ) {
     this.canvasNavigationDock = new CanvasNavigationDock(
@@ -139,7 +144,12 @@ export class UIManager {
           showViewportCenterGuides: enabled,
         }),
     });
-    const saveControls = new SaveControls(canvasMenu, this.runtime);
+    const saveControls = new SaveControls(
+      canvasMenu,
+      this.persistenceState,
+      this.getActiveCanvasId,
+      this.runtime
+    );
     this.addExistingTaskService = new AddExistingTaskService(
       this.scene,
       this.canvasManager
@@ -287,9 +297,17 @@ export class UIManager {
       this.components.push(new CanvasPerfHud(this.canvasManager));
     }
     // Show modal on edit requests via RxJS bus
-    this.editElementSubscription = editElement$.subscribe((el) =>
-      new EditElementModal(el, this.scene).show()
-    );
+    this.editElementSubscription = editElement$.subscribe((el) => {
+      if (el instanceof StoryElement) {
+        new StoryDetailsModal(el, this.scene).show();
+        return;
+      }
+      if (el instanceof GoalElement) {
+        new GoalDetailsModal(el, this.scene).show();
+        return;
+      }
+      new EditElementModal(el, this.scene).show();
+    });
   }
 
   public mountAll(parent: HTMLElement = document.body): void {

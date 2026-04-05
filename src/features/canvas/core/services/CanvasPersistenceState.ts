@@ -100,5 +100,3 @@ export class CanvasPersistenceState {
     }
   }
 }
-
-export const canvasPersistenceState = new CanvasPersistenceState();

@@ -5,6 +5,7 @@ import { CanvasMenu } from './CanvasMenu.ts';
 import { createSurface } from '../primitives/index.ts';
 import { applyCanvasHudCornerPosition } from '../canvasHudLayout.ts';
 import { AppRuntime, createAppRuntime } from '../../../../app-runtime/index.ts';
+import { CanvasPersistenceState } from '../../core/services/CanvasPersistenceState.ts';
 
 /**
  * SaveControls: wraps save and auth actions in a shared HUD layout.
@@ -21,6 +22,8 @@ export class SaveControls {
 
   constructor(
     canvasMenu: CanvasMenu,
+    persistenceState: CanvasPersistenceState,
+    getActiveCanvasId: () => string | null,
     runtime: AppRuntime = createAppRuntime()
   ) {
     this.container = document.createElement('div');
@@ -32,7 +35,11 @@ export class SaveControls {
     this.saveGroup = document.createElement('div');
     this.saveGroup.className = 'flex items-center';
     this.undoRedoControls = new UndoRedoControls(runtime);
-    this.saveButton = new SaveButton(runtime);
+    this.saveButton = new SaveButton(
+      persistenceState,
+      { getActiveCanvasId },
+      runtime
+    );
     this.canvasMenu = canvasMenu;
     this.refreshHandler = () => this.updateVisibility();
   }

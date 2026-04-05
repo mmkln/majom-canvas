@@ -89,6 +89,7 @@ type RelationElementType = 'task' | 'story' | 'goal' | 'routine';
 type ElementUpdateStatus = {
   canvasId: string | null;
   status: 'queued' | 'saving' | 'saved' | 'failed';
+  key?: string;
   error?: unknown;
 };
 
@@ -177,6 +178,7 @@ export class CanvasDataService {
   private relationRegistry: Map<string, CanvasRelation> = new Map();
   private elementUpdate$ = new Subject<ElementUpdateRequest>();
   private elementUpdateStatus$ = new Subject<ElementUpdateStatus>();
+  private queuedElementUpdateKeys = new Set<string>();
   private pendingElementUpdates = 0;
   private failedElementUpdates = false;
   private readonly positionPrecision = 2;
@@ -728,6 +730,7 @@ export class CanvasDataService {
   }
 
   private persistElementUpdate(req: ElementUpdateRequest): Observable<void> {
+    this.queuedElementUpdateKeys.delete(req.key);
     if (this.pendingElementUpdates === 0) {
       this.failedElementUpdates = false;
     }
@@ -735,6 +738,7 @@ export class CanvasDataService {
     this.elementUpdateStatus$.next({
       canvasId: req.canvasId,
       status: 'saving',
+      key: req.key,
     });
 
     return this.ensureElementsPersisted([req.element]).pipe(
@@ -745,6 +749,7 @@ export class CanvasDataService {
           this.elementUpdateStatus$.next({
             canvasId: req.canvasId,
             status: 'failed',
+            key: req.key,
           });
           return of(undefined);
         }
@@ -798,6 +803,7 @@ export class CanvasDataService {
         this.elementUpdateStatus$.next({
           canvasId: req.canvasId,
           status: 'failed',
+          key: req.key,
           error: err,
         });
         return of(undefined);
@@ -811,6 +817,7 @@ export class CanvasDataService {
           this.elementUpdateStatus$.next({
             canvasId: req.canvasId,
             status: 'saved',
+            key: req.key,
           });
         }
       })
@@ -938,22 +945,29 @@ export class CanvasDataService {
     this.elementUpdateStatus$.asObservable();
 
   public hasUnpersistedElementUpdates(): boolean {
-    return this.pendingElementUpdates > 0 || this.failedElementUpdates;
+    return (
+      this.queuedElementUpdateKeys.size > 0 ||
+      this.pendingElementUpdates > 0 ||
+      this.failedElementUpdates
+    );
   }
 
   public queueElementUpdate(
     element: CanvasPlanningElement,
     patch: ElementPatch
-  ): void {
-    if (!patch || Object.keys(patch).length === 0) return;
+  ): string | null {
+    if (!patch || Object.keys(patch).length === 0) return null;
     const canvasId = this.canvasId;
-    this.elementUpdateStatus$.next({ canvasId, status: 'queued' });
+    const key = this.getElementUpdateKey(element);
+    this.queuedElementUpdateKeys.add(key);
+    this.elementUpdateStatus$.next({ canvasId, status: 'queued', key });
     this.elementUpdate$.next({
       canvasId,
-      key: this.getElementUpdateKey(element),
+      key,
       element,
       patch,
     });
+    return key;
   }
 
   public loadCanvases(): Observable<CanvasSummary[]> {

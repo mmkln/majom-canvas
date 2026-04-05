@@ -1,4 +1,4 @@
-import { canvasPersistenceState } from '../../core/services/CanvasPersistenceState.ts';
+import { CanvasPersistenceState } from '../../core/services/CanvasPersistenceState.ts';
 import { AuthService } from '../../../../majom-wrapper/data-access/auth-service.ts';
 import type { Subscription } from 'rxjs';
 import {
@@ -14,7 +14,6 @@ import {
   type CanvasElementAutosaveStatus,
   isCanvasElementAutosaveStatusDetail,
 } from '../../core/canvasElementAutosaveLifecycle.ts';
-import { CanvasClientStorage } from '../../core/services/CanvasClientStorage.ts';
 import {
   createTextButton,
   type TextButtonElement,
@@ -23,13 +22,20 @@ import { authFlowService } from '../auth/authFlowService.ts';
 import { createIcon, type IconName } from '../icons.ts';
 import { AppRuntime, createAppRuntime } from '../../../../app-runtime/index.ts';
 import type { I18nService } from '../../../../i18n/index.ts';
+import { CanvasClientStorage } from '../../core/services/CanvasClientStorage.ts';
+
+type SaveButtonOptions = {
+  getActiveCanvasId: () => string | null;
+};
 
 /**
  * Save button with lifecycle-driven loading state.
  */
 export class SaveButton {
+  private readonly persistenceState: CanvasPersistenceState;
   private readonly runtime: AppRuntime;
   private readonly i18n: I18nService;
+  private readonly getActiveCanvasId: () => string | null;
   private readonly container: HTMLElement;
   private readonly button: TextButtonElement;
   private readonly authService = new AuthService();
@@ -41,7 +47,7 @@ export class SaveButton {
   private disposeRuntimeSubscription: (() => void) | null = null;
   private autosaveEnabled = CanvasClientStorage.getCanvasAutosaveEnabled(true);
   private autosaveFailed = false;
-  private activeCanvasId = CanvasClientStorage.getLastOpenedCanvasId();
+  private activeCanvasId: string | null = null;
   private elementAutosaveStatus: CanvasElementAutosaveStatus = 'saved';
   private manualSavesInFlight = 0;
   private autosaveSavesInFlight = 0;
@@ -49,7 +55,13 @@ export class SaveButton {
   private hideLoadingTimer: number | null = null;
   private readonly minimumLoadingMs = 700;
 
-  constructor(runtime: AppRuntime = createAppRuntime()) {
+  constructor(
+    persistenceState: CanvasPersistenceState,
+    options: SaveButtonOptions,
+    runtime: AppRuntime = createAppRuntime()
+  ) {
+    this.persistenceState = persistenceState;
+    this.getActiveCanvasId = options.getActiveCanvasId;
     this.runtime = runtime;
     this.i18n = runtime.i18n;
     this.container = document.createElement('div');
@@ -66,7 +78,7 @@ export class SaveButton {
     });
     this.container.append(this.button);
 
-    this.persistenceSubscription = canvasPersistenceState.changes.subscribe(() =>
+    this.persistenceSubscription = this.persistenceState.changes.subscribe(() =>
       this.updateUiState()
     );
     this.refreshHandler = () => this.updateUiState();
@@ -89,6 +101,7 @@ export class SaveButton {
       this.elementAutosaveStatusHandler
     );
 
+    this.activeCanvasId = this.getActiveCanvasId();
     this.updateUiState();
   }
 
@@ -131,7 +144,7 @@ export class SaveButton {
 
     this.autosaveSavesInFlight = Math.max(0, this.autosaveSavesInFlight - 1);
     if (this.autosaveSavesInFlight === 0) {
-      this.autosaveFailed = canvasPersistenceState.hasLayoutDirty();
+        this.autosaveFailed = this.persistenceState.hasLayoutDirty();
     }
     this.updateUiState();
   }
@@ -243,7 +256,7 @@ export class SaveButton {
   }
 
   private updateButtonState(): void {
-    const canSave = canvasPersistenceState.hasManualSaveWork();
+    const canSave = this.persistenceState.hasManualSaveWork();
     const isLoggedIn = this.authService.isLoggedIn();
     const hasSaveInFlight =
       this.manualSavesInFlight > 0 || this.autosaveSavesInFlight > 0;
@@ -260,19 +273,19 @@ export class SaveButton {
     if (
       this.autosaveSavesInFlight > 0 ||
       this.elementAutosaveStatus === 'saving' ||
-      canvasPersistenceState.hasRestoredReplayPending()
+      this.persistenceState.hasRestoredReplayPending()
     ) {
       return 'saving';
     }
     if (
       this.autosaveFailed ||
       this.elementAutosaveStatus === 'failed' ||
-      canvasPersistenceState.hasRestoredReplayFailed()
+      this.persistenceState.hasRestoredReplayFailed()
     ) {
       return 'error';
     }
     if (
-      canvasPersistenceState.hasLayoutDirty() ||
+      this.persistenceState.hasLayoutDirty() ||
       this.elementAutosaveStatus === 'queued'
     ) {
       return 'dirty';
@@ -283,15 +296,15 @@ export class SaveButton {
 
   private areAllChangesSaved(): boolean {
     return (
-      !canvasPersistenceState.hasLayoutDirty() &&
-      !canvasPersistenceState.hasRestoredReplayPending() &&
-      !canvasPersistenceState.hasRestoredReplayFailed() &&
+      !this.persistenceState.hasLayoutDirty() &&
+      !this.persistenceState.hasRestoredReplayPending() &&
+      !this.persistenceState.hasRestoredReplayFailed() &&
       this.elementAutosaveStatus === 'saved'
     );
   }
 
   private syncActiveCanvasId(): void {
-    const nextCanvasId = CanvasClientStorage.getLastOpenedCanvasId();
+    const nextCanvasId = this.getActiveCanvasId();
     if (this.activeCanvasId === nextCanvasId) return;
     this.activeCanvasId = nextCanvasId;
     this.elementAutosaveStatus = 'saved';

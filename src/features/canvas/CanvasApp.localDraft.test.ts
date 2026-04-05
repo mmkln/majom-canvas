@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { of } from 'rxjs';
 import { CanvasApp } from './CanvasApp.ts';
 import { Scene } from './core/scene/Scene.ts';
 import { TaskElement } from './elements/TaskElement.ts';
 import { historyService } from './core/services/HistoryService.ts';
-import { canvasPersistenceState } from './core/services/CanvasPersistenceState.ts';
+import { CanvasPersistenceState } from './core/services/CanvasPersistenceState.ts';
 import { CanvasDraftRecoveryCoordinator } from './core/services/CanvasDraftRecoveryCoordinator.ts';
 import { CanvasRestoreReplayCoordinator } from './core/services/CanvasRestoreReplayCoordinator.ts';
 import { isCanvasPlanningElement } from './elements/utils/planningElementCapabilities.ts';
@@ -37,6 +38,7 @@ type CanvasDraftHarness = Record<string, any> & {
   draftSerializer: CanvasDraftSerializer;
   draftRepository: CanvasDraftRepository;
   draftRecoveryCoordinator: CanvasDraftRecoveryCoordinator;
+  persistenceState: CanvasPersistenceState;
   authService: {
     isLoggedIn: () => boolean;
   };
@@ -90,6 +92,7 @@ function createHarness(options?: {
   app.scene = options?.scene ?? new Scene();
   app.draftSerializer = new CanvasDraftSerializer();
   app.draftRepository = repository;
+  app.persistenceState = new CanvasPersistenceState();
   app.authService = {
     isLoggedIn: () => true,
   };
@@ -106,6 +109,7 @@ function createHarness(options?: {
   app.restoreReplayCoordinator = new CanvasRestoreReplayCoordinator({
     scene: app.scene,
     canvasDataService: app.canvasDataService,
+    persistenceState: app.persistenceState,
     onSettled: vi.fn(),
   });
   app.draftRecoveryCoordinator = new CanvasDraftRecoveryCoordinator({
@@ -183,6 +187,17 @@ async function runDestroy(app: CanvasDraftHarness): Promise<void> {
   await Promise.resolve();
 }
 
+async function runHandleSaveCanvasLayoutRequest(
+  app: CanvasDraftHarness
+): Promise<void> {
+  (
+    CanvasApp.prototype as unknown as {
+      handleSaveCanvasLayoutRequest: () => void;
+    }
+  ).handleSaveCanvasLayoutRequest.call(app);
+  await Promise.resolve();
+}
+
 function createSnapshot(
   canvasId: string,
   scene: Scene,
@@ -200,7 +215,6 @@ describe('CanvasApp local draft reconciliation', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    canvasPersistenceState.reset();
     historyResetSpy = vi
       .spyOn(historyService, 'reset')
       .mockImplementation(() => {});
@@ -282,7 +296,7 @@ describe('CanvasApp local draft reconciliation', () => {
     expect(app.canvasDataService.markPositionsDirty).toHaveBeenCalledWith([
       expect.objectContaining({ id: 'task-1' }),
     ]);
-    expect(canvasPersistenceState.hasLayoutDirty()).toBe(true);
+    expect(app.persistenceState.hasLayoutDirty()).toBe(true);
     expect(historyResetSpy).toHaveBeenCalledTimes(1);
     expect(app.draftRepository.clear).not.toHaveBeenCalled();
   });
@@ -359,8 +373,8 @@ describe('CanvasApp local draft reconciliation', () => {
       expect.objectContaining({ id: 'task-1' }),
       expect.objectContaining({ title: 'Draft task' })
     );
-    expect(canvasPersistenceState.hasLayoutDirty()).toBe(false);
-    expect(canvasPersistenceState.hasRestoredReplayPending()).toBe(true);
+    expect(app.persistenceState.hasLayoutDirty()).toBe(false);
+    expect(app.persistenceState.hasRestoredReplayPending()).toBe(true);
   });
 
   it('clears the active draft when the canvas is fully persisted', async () => {
@@ -390,46 +404,64 @@ describe('CanvasApp local draft reconciliation', () => {
   it('keeps the active draft when restored replay is still pending or failed', async () => {
     const app = createHarness();
 
-    canvasPersistenceState.startRestoredReplay();
+    app.persistenceState.startRestoredReplay();
     await runClearActiveCanvasDraftIfSettled(app);
     expect(app.draftRepository.clear).not.toHaveBeenCalled();
 
-    canvasPersistenceState.markRestoredReplayFailed();
+    app.persistenceState.markRestoredReplayFailed();
     await runClearActiveCanvasDraftIfSettled(app);
     expect(app.draftRepository.clear).not.toHaveBeenCalled();
   });
 
-  it.fails(
-    're-saves the current canvas snapshot on destroy after the user keeps current version',
+  it('clears the draft after restored layout changes are saved', async () => {
+    const app = createHarness({
+      repository: {
+        clear: vi.fn(async () => {}),
+      },
+    });
+    app.saveCanvasLayout = vi.fn(() => of(true));
+    vi.spyOn(historyService, 'getStateToken').mockReturnValue({
+      branchId: 1,
+      index: 0,
+    });
+    vi.spyOn(historyService, 'isTokenCurrent').mockReturnValue(true);
+    vi.spyOn(historyService, 'markSaved').mockImplementation(() => {});
+    app.persistenceState.markRestoredLayoutDirty();
+
+    await runHandleSaveCanvasLayoutRequest(app);
+
+    expect(app.draftRepository.clear).toHaveBeenCalledWith('canvas-1');
+    expect(app.persistenceState.hasLayoutDirty()).toBe(false);
+  });
+
+  it(
+    'does not re-save the current snapshot on destroy after restored changes were saved and the draft was cleared',
     async () => {
       const scene = new Scene();
       scene.addElement(
         createTask({
           id: 'task-1',
           uuid: 'task-uuid-1',
-          title: 'Server task',
+          title: 'Restored task',
         })
       );
-      const localScene = new Scene();
-      localScene.addElement(
-        createTask({
-          id: 'task-1',
-          uuid: 'task-uuid-1',
-          title: 'Draft task',
-        })
-      );
-      const snapshot = createSnapshot('canvas-1', localScene);
-      confirmRestoreCanvasDraftModalMock.mockResolvedValue('discard');
       const app = createHarness({
         scene,
         repository: {
-          load: vi.fn(async () => snapshot),
           save: vi.fn(async () => {}),
           clear: vi.fn(async () => {}),
         },
       });
+      app.saveCanvasLayout = vi.fn(() => of(true));
+      vi.spyOn(historyService, 'getStateToken').mockReturnValue({
+        branchId: 1,
+        index: 0,
+      });
+      vi.spyOn(historyService, 'isTokenCurrent').mockReturnValue(true);
+      vi.spyOn(historyService, 'markSaved').mockImplementation(() => {});
+      app.persistenceState.markRestoredLayoutDirty();
 
-      await runReconcileActiveCanvasDraft(app);
+      await runHandleSaveCanvasLayoutRequest(app);
       await runDestroy(app);
 
       expect(app.draftRepository.clear).toHaveBeenCalledWith('canvas-1');
@@ -437,7 +469,7 @@ describe('CanvasApp local draft reconciliation', () => {
     }
   );
 
-  it('persists the current snapshot on destroy even when there are no dirty flags', async () => {
+  it('clears the draft instead of persisting a clean snapshot on destroy', async () => {
     const scene = new Scene();
     scene.addElement(
       createTask({
@@ -455,6 +487,7 @@ describe('CanvasApp local draft reconciliation', () => {
 
     await runDestroy(app);
 
-    expect(app.draftRepository.save).toHaveBeenCalledTimes(1);
+    expect(app.draftRepository.clear).toHaveBeenCalledWith('canvas-1');
+    expect(app.draftRepository.save).not.toHaveBeenCalled();
   });
 });

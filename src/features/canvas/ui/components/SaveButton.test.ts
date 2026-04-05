@@ -3,19 +3,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAppRuntime } from '../../../../app-runtime/index.ts';
 import { AuthService } from '../../../../majom-wrapper/data-access/auth-service.ts';
 import { historyService } from '../../core/services/HistoryService.ts';
-import { canvasPersistenceState } from '../../core/services/CanvasPersistenceState.ts';
-import { CanvasClientStorage } from '../../core/services/CanvasClientStorage.ts';
+import { CanvasPersistenceState } from '../../core/services/CanvasPersistenceState.ts';
 import { emitCanvasElementAutosaveStatus } from '../../core/canvasElementAutosaveLifecycle.ts';
 import { SaveButton } from './SaveButton.ts';
 
 describe('SaveButton element autosave status', () => {
   let isLoggedInSpy: ReturnType<typeof vi.spyOn>;
   let saveButton: SaveButton | null = null;
+  let persistenceState: CanvasPersistenceState;
+  let activeCanvasId: string | null;
 
   beforeEach(() => {
     localStorage.clear();
     historyService.reset();
-    canvasPersistenceState.reset();
+    persistenceState = new CanvasPersistenceState();
+    activeCanvasId = 'canvas-1';
     isLoggedInSpy = vi
       .spyOn(AuthService.prototype, 'isLoggedIn')
       .mockReturnValue(true);
@@ -28,12 +30,17 @@ describe('SaveButton element autosave status', () => {
     document.body.innerHTML = '';
     localStorage.clear();
     historyService.reset();
-    canvasPersistenceState.reset();
   });
 
   function mountSaveButton(canvasId = 'canvas-1'): HTMLButtonElement {
-    CanvasClientStorage.setLastOpenedCanvasId(canvasId);
-    saveButton = new SaveButton(createAppRuntime({ initialLocale: 'en' }));
+    activeCanvasId = canvasId;
+    saveButton = new SaveButton(
+      persistenceState,
+      {
+        getActiveCanvasId: () => activeCanvasId,
+      },
+      createAppRuntime({ initialLocale: 'en' })
+    );
     saveButton.mount(document.body);
     const button = document.body.querySelector<HTMLButtonElement>('button');
     if (!button) {
@@ -86,7 +93,7 @@ describe('SaveButton element autosave status', () => {
   it('enables manual save when restored layout changes are pending', () => {
     const button = mountSaveButton();
 
-    canvasPersistenceState.markRestoredLayoutDirty();
+    persistenceState.markRestoredLayoutDirty();
 
     expect(button.textContent).toContain('Save');
     expect(button.disabled).toBe(false);
@@ -96,7 +103,7 @@ describe('SaveButton element autosave status', () => {
   it('shows saving state while restored replay is pending', () => {
     const button = mountSaveButton();
 
-    canvasPersistenceState.startRestoredReplay();
+    persistenceState.startRestoredReplay();
 
     expect(button.disabled).toBe(true);
     expect(button.title).toContain('Autosave in progress');
@@ -105,8 +112,8 @@ describe('SaveButton element autosave status', () => {
   it('enables retry when restored replay failed', () => {
     const button = mountSaveButton();
 
-    canvasPersistenceState.startRestoredReplay();
-    canvasPersistenceState.markRestoredReplayFailed();
+    persistenceState.startRestoredReplay();
+    persistenceState.markRestoredReplayFailed();
 
     expect(button.textContent).toContain('Save');
     expect(button.disabled).toBe(false);

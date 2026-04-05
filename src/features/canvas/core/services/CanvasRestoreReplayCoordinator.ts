@@ -1,7 +1,7 @@
 import { Status } from '../../../../majom-wrapper/interfaces/index.ts';
 import type { CanvasDataService } from '../../../../majom-wrapper/index.ts';
 import type { CanvasElementAutosaveStatusDetail } from '../canvasElementAutosaveLifecycle.ts';
-import { canvasPersistenceState } from './CanvasPersistenceState.ts';
+import { CanvasPersistenceState } from './CanvasPersistenceState.ts';
 import type { CanvasRestoreDiff } from '../../drafts/CanvasRestoreDiff.ts';
 import { notify } from './NotificationService.ts';
 import { HabitElement } from '../../elements/HabitElement.ts';
@@ -19,12 +19,13 @@ type RestoreReplayCanvasDataService = Pick<
 type CanvasRestoreReplayCoordinatorOptions = {
   scene: Scene;
   canvasDataService: RestoreReplayCanvasDataService;
+  persistenceState: CanvasPersistenceState;
   onSettled: () => void;
 };
 
 export class CanvasRestoreReplayCoordinator {
   private activeDiff: CanvasRestoreDiff | null = null;
-  private pendingElementReplay = false;
+  private pendingElementReplayKeys = new Set<string>();
   private pendingHabitReplayCount = 0;
 
   constructor(
@@ -33,9 +34,9 @@ export class CanvasRestoreReplayCoordinator {
 
   public reset(): void {
     this.activeDiff = null;
-    this.pendingElementReplay = false;
+    this.pendingElementReplayKeys.clear();
     this.pendingHabitReplayCount = 0;
-    canvasPersistenceState.clearRestoredReplayState();
+    this.options.persistenceState.clearRestoredReplayState();
   }
 
   public replay(restoreDiff: CanvasRestoreDiff | null): void {
@@ -45,15 +46,15 @@ export class CanvasRestoreReplayCoordinator {
         restoreDiff.habitMutationIntents.length > 0);
 
     this.activeDiff = hasReplayableWork ? restoreDiff : null;
-    this.pendingElementReplay = false;
+    this.pendingElementReplayKeys.clear();
     this.pendingHabitReplayCount = 0;
 
     if (!restoreDiff || !hasReplayableWork) {
-      canvasPersistenceState.clearRestoredReplayState();
+      this.options.persistenceState.clearRestoredReplayState();
       return;
     }
 
-    canvasPersistenceState.startRestoredReplay();
+    this.options.persistenceState.startRestoredReplay();
 
     const elementsById = new Map(
       this.options.scene
@@ -64,8 +65,10 @@ export class CanvasRestoreReplayCoordinator {
     restoreDiff.elementPatchIntents.forEach((intent) => {
       const element = elementsById.get(intent.elementId);
       if (!element) return;
-      this.pendingElementReplay = true;
-      this.options.canvasDataService.queueElementUpdate(element, intent.patch);
+      const replayKey =
+        this.options.canvasDataService.queueElementUpdate(element, intent.patch) ??
+        `replay:${intent.elementId}`;
+      this.pendingElementReplayKeys.add(replayKey);
     });
 
     const habitsById = new Map(
@@ -95,7 +98,7 @@ export class CanvasRestoreReplayCoordinator {
           this.options.scene.changes.next();
         },
         error: (err) => {
-          canvasPersistenceState.markRestoredReplayFailed();
+          this.options.persistenceState.markRestoredReplayFailed();
           console.error('Failed to persist restored routine changes', err);
           notify('Failed to persist restored routine changes', 'error');
         },
@@ -123,25 +126,33 @@ export class CanvasRestoreReplayCoordinator {
   ): void {
     if (!status.canvasId || status.canvasId !== activeCanvasId) return;
     if (status.status === 'failed' && this.activeDiff) {
-      this.pendingElementReplay = false;
-      canvasPersistenceState.markRestoredReplayFailed();
+      this.clearPendingElementReplay(status.key);
+      this.options.persistenceState.markRestoredReplayFailed();
       return;
     }
     if (status.status === 'saved') {
-      this.pendingElementReplay = false;
+      this.clearPendingElementReplay(status.key);
       this.finishIfSettled();
     }
   }
 
   private finishIfSettled(): void {
     if (!this.activeDiff) return;
-    if (canvasPersistenceState.hasRestoredReplayFailed()) return;
-    if (this.pendingElementReplay) return;
+    if (this.options.persistenceState.hasRestoredReplayFailed()) return;
+    if (this.pendingElementReplayKeys.size > 0) return;
     if (this.pendingHabitReplayCount > 0) return;
     if (this.options.canvasDataService.hasUnpersistedElementUpdates()) return;
 
     this.activeDiff = null;
-    canvasPersistenceState.clearRestoredReplayState();
+    this.options.persistenceState.clearRestoredReplayState();
     this.options.onSettled();
+  }
+
+  private clearPendingElementReplay(key?: string): void {
+    if (key) {
+      this.pendingElementReplayKeys.delete(key);
+      return;
+    }
+    this.pendingElementReplayKeys.clear();
   }
 }

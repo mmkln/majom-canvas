@@ -5,7 +5,7 @@ import { TaskElement } from '../../elements/TaskElement.ts';
 import { HabitElement } from '../../elements/HabitElement.ts';
 import { Status } from '../../../../majom-wrapper/interfaces/index.ts';
 import { ElementStatus } from '../../elements/ElementStatus.ts';
-import { canvasPersistenceState } from './CanvasPersistenceState.ts';
+import { CanvasPersistenceState } from './CanvasPersistenceState.ts';
 import { CanvasRestoreReplayCoordinator } from './CanvasRestoreReplayCoordinator.ts';
 import type { CanvasRestoreDiff } from '../../drafts/CanvasRestoreDiff.ts';
 
@@ -17,10 +17,10 @@ vi.mock('./NotificationService.ts', () => ({
   notify: notifyMock,
 }));
 
-function createTask(): TaskElement {
+function createTask(id = 'task-1', uuid = 'task-uuid-1'): TaskElement {
   return new TaskElement({
-    id: 'task-1',
-    uuid: 'task-uuid-1',
+    id,
+    uuid,
     title: 'Task',
   });
 }
@@ -36,10 +36,11 @@ function createHabit(): HabitElement {
 
 describe('CanvasRestoreReplayCoordinator', () => {
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+  let persistenceState: CanvasPersistenceState;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    canvasPersistenceState.reset();
+    persistenceState = new CanvasPersistenceState();
     consoleErrorSpy = vi
       .spyOn(console, 'error')
       .mockImplementation(() => undefined);
@@ -61,6 +62,7 @@ describe('CanvasRestoreReplayCoordinator', () => {
         updateHabitLifecycleStatus: vi.fn(() => of(undefined)),
         hasUnpersistedElementUpdates: vi.fn(() => false),
       },
+      persistenceState,
       onSettled,
     });
     const diff: CanvasRestoreDiff = {
@@ -80,8 +82,8 @@ describe('CanvasRestoreReplayCoordinator', () => {
 
     coordinator.replay(diff);
 
-    expect(canvasPersistenceState.hasRestoredReplayPending()).toBe(true);
-    expect(canvasPersistenceState.hasRestoredReplayFailed()).toBe(false);
+    expect(persistenceState.hasRestoredReplayPending()).toBe(true);
+    expect(persistenceState.hasRestoredReplayFailed()).toBe(false);
     expect(onSettled).not.toHaveBeenCalled();
 
     coordinator.handleElementAutosaveStatus(
@@ -92,9 +94,102 @@ describe('CanvasRestoreReplayCoordinator', () => {
       'canvas-1'
     );
 
-    expect(canvasPersistenceState.hasRestoredReplayPending()).toBe(false);
-    expect(canvasPersistenceState.hasRestoredReplayFailed()).toBe(false);
+    expect(persistenceState.hasRestoredReplayPending()).toBe(false);
+    expect(persistenceState.hasRestoredReplayFailed()).toBe(false);
     expect(onSettled).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not settle replay until all replayed element keys report saved', () => {
+    const scene = new Scene();
+    scene.addElement(createTask('task-1', 'task-uuid-1'));
+    scene.addElement(createTask('task-2', 'task-uuid-2'));
+    const onSettled = vi.fn();
+    const coordinator = new CanvasRestoreReplayCoordinator({
+      scene,
+      canvasDataService: {
+        queueElementUpdate: vi
+          .fn()
+          .mockReturnValueOnce('task:task-1')
+          .mockReturnValueOnce('task:task-2'),
+        setHabitCompletionToday: vi.fn(() => of(undefined)),
+        updateHabitLifecycleStatus: vi.fn(() => of(undefined)),
+        hasUnpersistedElementUpdates: vi.fn(() => false),
+      },
+      persistenceState,
+      onSettled,
+    });
+    const diff: CanvasRestoreDiff = {
+      hasStructuralChanges: false,
+      structurallyChangedElementIds: [],
+      elementPatchIntents: [
+        { elementId: 'task-1', patch: { title: 'Updated task 1' } },
+        { elementId: 'task-2', patch: { title: 'Updated task 2' } },
+      ],
+      habitMutationIntents: [],
+    };
+
+    coordinator.replay(diff);
+    coordinator.handleElementAutosaveStatus(
+      {
+        canvasId: 'canvas-1',
+        status: 'saved',
+        key: 'task:task-1',
+      },
+      'canvas-1'
+    );
+
+    expect(persistenceState.hasRestoredReplayPending()).toBe(true);
+    expect(onSettled).not.toHaveBeenCalled();
+
+    coordinator.handleElementAutosaveStatus(
+      {
+        canvasId: 'canvas-1',
+        status: 'saved',
+        key: 'task:task-2',
+      },
+      'canvas-1'
+    );
+
+    expect(persistenceState.hasRestoredReplayPending()).toBe(false);
+    expect(onSettled).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores autosave status events for non-replay element keys', () => {
+    const scene = new Scene();
+    scene.addElement(createTask('task-1', 'task-uuid-1'));
+    const onSettled = vi.fn();
+    const coordinator = new CanvasRestoreReplayCoordinator({
+      scene,
+      canvasDataService: {
+        queueElementUpdate: vi.fn().mockReturnValue('task:task-1'),
+        setHabitCompletionToday: vi.fn(() => of(undefined)),
+        updateHabitLifecycleStatus: vi.fn(() => of(undefined)),
+        hasUnpersistedElementUpdates: vi.fn(() => false),
+      },
+      persistenceState,
+      onSettled,
+    });
+    const diff: CanvasRestoreDiff = {
+      hasStructuralChanges: false,
+      structurallyChangedElementIds: [],
+      elementPatchIntents: [
+        { elementId: 'task-1', patch: { title: 'Updated task 1' } },
+      ],
+      habitMutationIntents: [],
+    };
+
+    coordinator.replay(diff);
+    coordinator.handleElementAutosaveStatus(
+      {
+        canvasId: 'canvas-1',
+        status: 'saved',
+        key: 'task:other-task',
+      },
+      'canvas-1'
+    );
+
+    expect(persistenceState.hasRestoredReplayPending()).toBe(true);
+    expect(onSettled).not.toHaveBeenCalled();
   });
 
   it('does not get stuck pending when replay intents target missing scene elements', () => {
@@ -106,6 +201,7 @@ describe('CanvasRestoreReplayCoordinator', () => {
         updateHabitLifecycleStatus: vi.fn(() => of(undefined)),
         hasUnpersistedElementUpdates: vi.fn(() => false),
       },
+      persistenceState,
       onSettled: vi.fn(),
     });
     const diff: CanvasRestoreDiff = {
@@ -127,8 +223,8 @@ describe('CanvasRestoreReplayCoordinator', () => {
 
     coordinator.replay(diff);
 
-    expect(canvasPersistenceState.hasRestoredReplayPending()).toBe(false);
-    expect(canvasPersistenceState.hasRestoredReplayFailed()).toBe(false);
+    expect(persistenceState.hasRestoredReplayPending()).toBe(false);
+    expect(persistenceState.hasRestoredReplayFailed()).toBe(false);
   });
 
   it('marks replay as failed and allows retry for failed habit restore persistence', () => {
@@ -145,6 +241,7 @@ describe('CanvasRestoreReplayCoordinator', () => {
         updateHabitLifecycleStatus: vi.fn(() => of(undefined)),
         hasUnpersistedElementUpdates: vi.fn(() => false),
       },
+      persistenceState,
       onSettled: vi.fn(),
     });
     const diff: CanvasRestoreDiff = {
@@ -163,7 +260,7 @@ describe('CanvasRestoreReplayCoordinator', () => {
 
     coordinator.replay(diff);
 
-    expect(canvasPersistenceState.hasRestoredReplayFailed()).toBe(true);
+    expect(persistenceState.hasRestoredReplayFailed()).toBe(true);
     expect(setHabitCompletionToday).toHaveBeenCalledTimes(1);
     expect(notifyMock).toHaveBeenCalledWith(
       'Failed to persist restored routine changes',

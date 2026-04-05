@@ -3,7 +3,7 @@ import { of, throwError } from 'rxjs';
 import { CanvasApp } from './CanvasApp.ts';
 import { TaskElement } from './elements/TaskElement.ts';
 import { historyService } from './core/services/HistoryService.ts';
-import { canvasPersistenceState } from './core/services/CanvasPersistenceState.ts';
+import { CanvasPersistenceState } from './core/services/CanvasPersistenceState.ts';
 
 vi.mock('./core/managers/CommandManager.ts', () => ({
   commandManager: {
@@ -50,6 +50,8 @@ type CanvasDuplicateHarness = {
   setCanvasTitle: ReturnType<typeof vi.fn>;
   refreshCanvasList: ReturnType<typeof vi.fn>;
   resetCanvasPersistenceTracking: ReturnType<typeof vi.fn>;
+  persistenceState: CanvasPersistenceState;
+  resetHistoryAndPersistence: () => void;
   isLinkDecisionPending: () => boolean;
   getCurrentViewState: () => {
     scrollX: number;
@@ -71,7 +73,10 @@ function createTask(overrides?: { id?: string; uuid?: string }): TaskElement {
 function attachDuplicateHelpers<
   T extends Omit<
     CanvasDuplicateHarness,
-    'isLinkDecisionPending' | 'getCurrentViewState' | 'buildDuplicateCanvasTitle'
+    | 'isLinkDecisionPending'
+    | 'getCurrentViewState'
+    | 'buildDuplicateCanvasTitle'
+    | 'resetHistoryAndPersistence'
   >,
 >(app: T): CanvasDuplicateHarness {
   const target = app as T & Partial<CanvasDuplicateHarness>;
@@ -104,6 +109,13 @@ function attachDuplicateHelpers<
       }
     ).buildDuplicateCanvasTitle.call(target, title);
   };
+  target.resetHistoryAndPersistence = function (): void {
+    return (
+      CanvasApp.prototype as unknown as {
+        resetHistoryAndPersistence: () => void;
+      }
+    ).resetHistoryAndPersistence.call(target);
+  };
   return target as CanvasDuplicateHarness;
 }
 
@@ -120,10 +132,11 @@ async function runHandleCanvasDuplicateRequested(
 describe('CanvasApp.handleCanvasDuplicateRequested', () => {
   let historyResetSpy: ReturnType<typeof vi.spyOn>;
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+  let persistenceState: CanvasPersistenceState;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    canvasPersistenceState.reset();
+    persistenceState = new CanvasPersistenceState();
     consoleErrorSpy = vi
       .spyOn(console, 'error')
       .mockImplementation(() => undefined);
@@ -186,7 +199,8 @@ describe('CanvasApp.handleCanvasDuplicateRequested', () => {
       saveLayoutPositions,
       setCanvasTitle,
       refreshCanvasList,
-      resetCanvasPersistenceTracking: vi.fn(() => canvasPersistenceState.reset()),
+      resetCanvasPersistenceTracking: vi.fn(() => persistenceState.reset()),
+      persistenceState,
     });
 
     await runHandleCanvasDuplicateRequested(app);
@@ -241,7 +255,8 @@ describe('CanvasApp.handleCanvasDuplicateRequested', () => {
       saveLayoutPositions: vi.fn(() => of(true)),
       setCanvasTitle: vi.fn(),
       refreshCanvasList: vi.fn(),
-      resetCanvasPersistenceTracking: vi.fn(() => canvasPersistenceState.reset()),
+      resetCanvasPersistenceTracking: vi.fn(() => persistenceState.reset()),
+      persistenceState,
     });
 
     const nextTitle = app.buildDuplicateCanvasTitle('x'.repeat(100));
@@ -294,7 +309,8 @@ describe('CanvasApp.handleCanvasDuplicateRequested', () => {
       saveLayoutPositions,
       setCanvasTitle: vi.fn(),
       refreshCanvasList: vi.fn(),
-      resetCanvasPersistenceTracking: vi.fn(() => canvasPersistenceState.reset()),
+      resetCanvasPersistenceTracking: vi.fn(() => persistenceState.reset()),
+      persistenceState,
     });
 
     await runHandleCanvasDuplicateRequested(app);
