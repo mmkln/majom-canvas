@@ -66,4 +66,34 @@ describe('CanvasMenu', () => {
 
     menu.unmount();
   });
+
+  it('renders the canvas menu section title', () => {
+    const menu = new CanvasMenu(undefined, undefined, {
+      runtime: createAppRuntime({ initialLocale: 'en' }),
+    });
+
+    menu.mount(document.body);
+
+    expect(document.body.textContent).toContain('Canvas menu');
+
+    menu.unmount();
+  });
+
+  it('renders the guide options section title inside the submenu', () => {
+    const menu = new CanvasMenu(undefined, undefined, {
+      runtime: createAppRuntime({ initialLocale: 'en' }),
+    });
+
+    menu.mount(document.body);
+
+    const guideOptionsTrigger = document.querySelector(
+      'button[data-role="canvas-guide-options-trigger"]'
+    ) as HTMLButtonElement | null;
+
+    guideOptionsTrigger?.click();
+
+    expect(document.body.textContent).toContain('Guide settings');
+
+    menu.unmount();
+  });
 });

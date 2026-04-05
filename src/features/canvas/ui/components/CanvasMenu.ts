@@ -6,6 +6,7 @@ import {
   createDropdownItem,
   createIconButton,
   createMenuControlRow,
+  createMenuHeader,
   createSurface,
   createToggleSwitch,
   Submenu,
@@ -102,8 +103,7 @@ export class CanvasMenu {
     this.containerGuidesEnabled =
       options.initialContainerGuidesEnabled ??
       CanvasClientStorage.getCanvasContainerGuidesEnabled(true);
-    this.containerGuidesToggleHandler =
-      options.onContainerGuidesToggle ?? null;
+    this.containerGuidesToggleHandler = options.onContainerGuidesToggle ?? null;
     this.viewportCenterGuidesEnabled =
       options.initialViewportCenterGuidesEnabled ??
       CanvasClientStorage.getCanvasViewportCenterGuidesEnabled(true);
@@ -135,9 +135,12 @@ export class CanvasMenu {
     if (!this.hidden) {
       this.dropdownController.mount();
     }
-    this.disposeRuntimeSubscription = this.runtime.subscribe(() => {
-      this.refreshTranslations();
-    }, { emitCurrent: true });
+    this.disposeRuntimeSubscription = this.runtime.subscribe(
+      () => {
+        this.refreshTranslations();
+      },
+      { emitCurrent: true }
+    );
     this.mounted = true;
   }
 
@@ -157,6 +160,10 @@ export class CanvasMenu {
   private renderDropdownContent(): void {
     this.destroyGuideOptionsSubmenu();
     this.dropdownMenu.innerHTML = '';
+
+    const sectionTitle = createMenuHeader({
+      title: this.i18n.t('canvasMenu.sectionTitle'),
+    });
 
     const actions = document.createElement('div');
     const animationsToggle = createMenuControlRow({
@@ -202,6 +209,9 @@ export class CanvasMenu {
       this.i18n.t('canvasMenu.guideOptions')
     );
     guideOptionsSubmenuPanel.append(
+      createMenuHeader({
+        title: this.i18n.t('canvasMenu.guideOptionsSectionTitle'),
+      }),
       createMenuControlRow({
         control: createToggleSwitch({
           label: this.i18n.t('canvasMenu.spacingGuides'),
@@ -266,7 +276,7 @@ export class CanvasMenu {
       createDivider({ tone: 'soft' }),
       deleteCanvasButton
     );
-    this.dropdownMenu.appendChild(actions);
+    this.dropdownMenu.append(sectionTitle, actions);
     if (this.dropdownController.isOpen()) {
       this.dropdownController.reposition();
     }

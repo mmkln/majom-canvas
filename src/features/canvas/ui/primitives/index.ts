@@ -135,6 +135,8 @@ export {
   type DropdownIconAction,
   type DropdownIconActionTone,
   type DropdownIconRowOptions,
+  createMenuHeader,
+  type MenuHeaderOptions,
   createSplitDropdownItem,
   type SplitDropdownItemOptions,
   createInputBase,
