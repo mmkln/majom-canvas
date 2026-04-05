@@ -99,6 +99,30 @@ function renderMenuLabels(
   }
 }
 
+function mountContextMenu(
+  scene: Scene,
+  element: StoryElement | null,
+  runtime: AppRuntime = createAppRuntime({ initialLocale: 'en' })
+): {
+  contextMenu: ContextMenu;
+  container: HTMLDivElement;
+} {
+  const contextMenu = createContextMenu(scene, runtime);
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  contextMenu.mount(container);
+  window.dispatchEvent(
+    new CustomEvent('contextMenuRequested', {
+      detail: {
+        element,
+        sceneX: 0,
+        sceneY: 0,
+      },
+    })
+  );
+  return { contextMenu, container };
+}
+
 describe('ContextMenu selection connection actions', () => {
   it('does not show "Connect to Goals" when multiple goals are selected and the user opens a story context menu', () => {
     const scene = new Scene();
@@ -155,6 +179,27 @@ describe('ContextMenu selection connection actions', () => {
       runtime.setLocale('uk');
 
       expect(container.textContent).toContain('Ціль');
+    } finally {
+      contextMenu.unmount();
+      container.remove();
+    }
+  });
+
+  it('shows a plus icon for the story add-task primary action', () => {
+    const scene = new Scene();
+    const story = new StoryElement({ id: 'story-1' });
+    scene.addElement(story);
+    const { contextMenu, container } = mountContextMenu(scene, story);
+
+    try {
+      const addTaskButton = Array.from(
+        container.querySelectorAll<HTMLButtonElement>(
+          '[data-component="HudSplitDropdownItem"] button[role="menuitem"]'
+        )
+      ).find((button) => button.textContent?.trim() === 'Task');
+
+      expect(addTaskButton).toBeTruthy();
+      expect(addTaskButton?.querySelector('svg')).toBeTruthy();
     } finally {
       contextMenu.unmount();
       container.remove();

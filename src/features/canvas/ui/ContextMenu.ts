@@ -434,6 +434,7 @@ export class ContextMenu {
           {
             label: this.getPlanningElementLabel('task', { capitalize: true }),
             action: () => this.createTaskInStory(element),
+            leading: this.createLeadingIcon('plus'),
             secondaryAction: () => {
               this.openRelatedItemsPicker(element);
             },
