@@ -1,7 +1,6 @@
 import { Subscription } from 'rxjs';
 
 import { AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
-import { SHOW_DETAILS_SCALE } from '../core/constants.ts';
 import type { CanvasManager } from '../core/managers/CanvasManager.ts';
 import { Scene } from '../core/scene/Scene.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
@@ -11,16 +10,21 @@ import { StoryLayoutService } from '../core/services/StoryLayoutService.ts';
 import { addTaskToStory } from './storyTaskActions.ts';
 import { EditElementModal } from './components/EditElementModal.ts';
 
+const MIN_VISIBLE_SCALE = 0.2;
+
 export class StoryQuickCreateAction {
   private readonly container: HTMLDivElement;
   private readonly button: HTMLButtonElement;
   private readonly layoutService = new StoryLayoutService();
   private readonly subscriptions: Subscription[] = [];
   private disposeRuntimeSubscription: (() => void) | null = null;
-  private hoveredStory: StoryElement | null = null;
+  private activeStory: StoryElement | null = null;
   private isPointerInsideControl = false;
   private mounted = false;
   private activeInteractions = new Set<'drag' | 'resize' | 'select'>();
+  private viewportSettleTimer: number | null = null;
+  private suppressViewportUpdates = false;
+  private readonly viewportSettleMs = 140;
 
   private readonly pointerMoveHandler = (event: PointerEvent): void => {
     if (!this.mounted) return;
@@ -35,8 +39,8 @@ export class StoryQuickCreateAction {
 
     const canvas = this.canvasManager.getCanvas();
     if (!(target instanceof Node) || !canvas.contains(target)) {
-      this.hoveredStory = null;
-      this.hide();
+      this.activeStory = null;
+      this.requestUpdate();
       return;
     }
     this.requestUpdate();
@@ -44,8 +48,8 @@ export class StoryQuickCreateAction {
 
   private readonly pointerLeaveHandler = (): void => {
     if (this.isPointerInsideControl) return;
-    this.hoveredStory = null;
-    this.hide();
+    this.activeStory = null;
+    this.requestUpdate();
   };
 
   private readonly interactionStartHandler = (event: Event): void => {
@@ -121,7 +125,7 @@ export class StoryQuickCreateAction {
     this.subscriptions.push(
       this.canvasManager
         .getPanZoomManager()
-        .viewChanges.subscribe(() => this.requestUpdate())
+        .viewChanges.subscribe(() => this.handleViewChange())
     );
     this.disposeRuntimeSubscription = this.runtime.subscribe(
       () => this.refreshRuntimeUi(),
@@ -151,42 +155,72 @@ export class StoryQuickCreateAction {
     );
 
     this.container.remove();
-    this.hoveredStory = null;
+    this.activeStory = null;
     this.isPointerInsideControl = false;
     this.activeInteractions.clear();
+    this.clearViewportSettleTimer();
+    this.suppressViewportUpdates = false;
   }
 
   private requestUpdate(): void {
     const story = this.getVisibleStory();
     if (!story) {
-      this.hoveredStory = null;
+      this.activeStory = null;
       this.hide();
       return;
     }
 
-    this.hoveredStory = story;
+    this.activeStory = story;
     this.positionForStory(story);
     this.show();
   }
 
   private getVisibleStory(): StoryElement | null {
-    if (this.activeInteractions.size > 0) return null;
-    if (this.canvasManager.isDraggingElements || this.canvasManager.isResizingStory) {
-      return null;
-    }
-    if (this.scene.getSelectedElements().length > 0) {
-      return null;
+    if (!this.canShowAction()) return null;
+    return this.getSelectedStory() ?? this.getHoveredStory();
+  }
+
+  private handleViewChange(): void {
+    this.suppressViewportUpdates = true;
+    this.hide();
+    this.clearViewportSettleTimer();
+    this.viewportSettleTimer = window.setTimeout(() => {
+      this.viewportSettleTimer = null;
+      this.suppressViewportUpdates = false;
+      this.requestUpdate();
+    }, this.viewportSettleMs);
+  }
+
+  private clearViewportSettleTimer(): void {
+    if (this.viewportSettleTimer === null) return;
+    window.clearTimeout(this.viewportSettleTimer);
+    this.viewportSettleTimer = null;
+  }
+
+  private canShowAction(): boolean {
+    if (this.activeInteractions.size > 0) return false;
+    if (
+      this.suppressViewportUpdates ||
+      this.canvasManager.isDraggingElements ||
+      this.canvasManager.isResizingStory
+    ) {
+      return false;
     }
 
-    const panZoom = this.canvasManager.getPanZoomManager();
-    const showDetails =
-      panZoom.renderFlags?.showDetails ?? panZoom.scale >= SHOW_DETAILS_SCALE;
-    if (!showDetails) {
-      return null;
-    }
+    return this.canvasManager.getPanZoomManager().scale >= MIN_VISIBLE_SCALE;
+  }
 
-    if (this.isPointerInsideControl && this.hoveredStory) {
-      return this.hoveredStory;
+  private getSelectedStory(): StoryElement | null {
+    const selectedElements = this.scene.getSelectedElements();
+    return selectedElements.length === 1 &&
+      selectedElements[0] instanceof StoryElement
+      ? selectedElements[0]
+      : null;
+  }
+
+  private getHoveredStory(): StoryElement | null {
+    if (this.isPointerInsideControl && this.activeStory) {
+      return this.activeStory;
     }
 
     const stories = this.scene
@@ -222,17 +256,17 @@ export class StoryQuickCreateAction {
   }
 
   private handleCreateTask(): void {
-    if (!this.hoveredStory) return;
+    if (!this.activeStory) return;
 
     const task = addTaskToStory({
-      story: this.hoveredStory,
+      story: this.activeStory,
       scene: this.scene,
       canvasManager: this.canvasManager,
       layoutService: this.layoutService,
     });
 
     this.hide();
-    this.hoveredStory = null;
+    this.activeStory = null;
     new EditElementModal(task, this.scene).show({
       initialTitleMode: 'edit',
     });
