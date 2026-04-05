@@ -10,7 +10,6 @@ import {
 } from '../../core/commands/PatchPlanningElementCommand.ts';
 import { firstValueFrom, Subscription } from 'rxjs';
 import { ComponentFactory } from '../../../../ui-lib/src/core/ComponentFactory.ts';
-import { InlineTextEditor } from '../../../../ui-lib/src/components/InlineTextEditor.ts';
 import {
   createModalActionRow,
   getModalActionButtonClass,
@@ -52,6 +51,10 @@ import { environment } from '../../../../config/environment.ts';
 import { HttpInterceptorClient } from '../../../../majom-wrapper/data-access/http-interceptor.ts';
 import { TasksApiService } from '../../../../majom-wrapper/data-access/tasks-api-service.ts';
 import { getDefaultTagColor } from '../../../../majom-wrapper/utils/tagColor.ts';
+import {
+  buildPlanningDescriptionField,
+  buildPlanningTitleField,
+} from './planningDetailsInlineFields.ts';
 
 type DescriptionMode = 'view' | 'edit';
 
@@ -918,102 +921,25 @@ export class EditElementModal {
   }
 
   private buildTitleField(options: TitleFieldOptions): TitleFieldController {
-    const field = createField({ label: 'Title', required: true });
-    const editor = new InlineTextEditor({
-      value: options.getValue(),
+    return buildPlanningTitleField({
+      label: 'Title',
       placeholder: 'Untitled',
-      displayClassName:
-        'rounded-md px-3 py-2 text-[14px] leading-6 tracking-tight text-slate-900 whitespace-pre-wrap break-words transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200/80',
-      emptyDisplayClassName:
-        'h-10 rounded-md px-2 py-1 text-center text-[12px] italic leading-5 text-slate-400 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200/80',
-      inputClassName:
-        'w-full resize-none overflow-hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[14px] leading-6 tracking-tight text-slate-900 outline-none placeholder:text-slate-300 focus:border-indigo-300 focus:ring-2 focus:ring-inset focus:ring-indigo-200/80',
-      displayAriaLabel: (hasValue) =>
-        hasValue
-          ? 'Title preview. Press Enter to edit.'
-          : 'Untitled. Press Enter to add title.',
-      normalizeValue: (value) => value.trim(),
-      onInput: (value) => {
-        if (value.trim().length > 0) {
-          field.setState({ invalid: false, error: undefined });
-        }
-      },
-      onCommit: (value) => {
-        options.setValue(value);
-        if (value.trim().length > 0) {
-          field.setState({ invalid: false, error: undefined });
-        }
-      },
+      previewAriaLabel: 'Title preview. Press Enter to edit.',
+      emptyPreviewAriaLabel: 'Untitled. Press Enter to add title.',
+      ...options,
     });
-    field.setControl(editor.element);
-
-    function setMode(
-      nextMode: TitleFieldMode,
-      modeOptions: { focus?: boolean } = {}
-    ): void {
-      const shouldFocus = modeOptions.focus ?? true;
-      if (nextMode === 'edit') {
-        editor.setValue(options.getValue());
-        editor.startEditing({ focus: shouldFocus, select: true });
-        return;
-      }
-      editor.setValue(options.getValue());
-      editor.showDisplay({ focus: shouldFocus });
-    }
-
-    return {
-      field,
-      setMode,
-      focusInput: ({ select = false } = {}) => {
-        editor.startEditing({ focus: true, select });
-      },
-      focusPreview: () => editor.focusDisplay(),
-      setRequiredError: (message: string) => {
-        field.setState({ invalid: true, error: message });
-      },
-    };
   }
 
   private buildDescriptionField(
     options: DescriptionFieldOptions
   ): DescriptionFieldController {
-    const field = createField({ label: 'Description' });
-    const editor = new InlineTextEditor({
-      value: options.getValue(),
+    return buildPlanningDescriptionField({
+      label: 'Description',
       placeholder: 'No description yet.',
-      multiline: true,
-      editorRows: 6,
-      displayClassName:
-        'max-h-56 overflow-y-auto rounded-md px-3 py-2 text-[13px] leading-6 tracking-[0.005em] whitespace-pre-wrap break-words text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200/80',
-      emptyDisplayClassName:
-        'h-12 rounded-md px-3 py-2 text-center text-[12px] italic leading-5 text-slate-400 flex items-center justify-center transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200/80',
-      inputClassName:
-        'min-h-[144px] w-full resize-none overflow-hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-base leading-6 tracking-[0.005em] text-slate-800 outline-none placeholder:text-slate-300 focus:border-indigo-300 focus:ring-2 focus:ring-inset focus:ring-indigo-200/80 md:text-[13px]',
-      displayAriaLabel: (hasValue) =>
-        hasValue
-          ? 'Description preview. Press Enter to edit.'
-          : 'No description yet. Press Enter to add description.',
-      onCommit: (value) => {
-        options.setValue(value);
-      },
+      previewAriaLabel: 'Description preview. Press Enter to edit.',
+      emptyPreviewAriaLabel: 'No description yet. Press Enter to add description.',
+      ...options,
     });
-    field.setControl(editor.element);
-
-    function setMode(
-      nextMode: DescriptionMode,
-      modeOptions: { focus?: boolean } = {}
-    ): void {
-      const shouldFocus = modeOptions.focus ?? true;
-      if (nextMode === 'edit') {
-        editor.setValue(options.getValue());
-        editor.startEditing({ focus: shouldFocus });
-        return;
-      }
-      editor.setValue(options.getValue());
-      editor.showDisplay({ focus: shouldFocus });
-    }
-
-    return { field, setMode };
   }
 
   private close(): void {
