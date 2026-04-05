@@ -67,6 +67,8 @@ export class TagPickerField {
   private readonly triggerSummary: HTMLDivElement | null;
   private readonly triggerMeta: HTMLDivElement | null;
   private readonly panel: HTMLDivElement;
+  private readonly selectedSection: HTMLDivElement;
+  private readonly selectedSummary: HTMLDivElement;
   private readonly searchInput: HTMLInputElement;
   private readonly list: HTMLDivElement;
   private readonly menuController: AnchoredMenu | null;
@@ -148,6 +150,19 @@ export class TagPickerField {
     }
     this.panel.dataset.role = 'goal-tag-picker-panel';
 
+    this.selectedSection = document.createElement('div');
+    this.selectedSection.dataset.role = 'goal-tag-picker-selected-section';
+    this.selectedSection.className =
+      this.variant === 'inline'
+        ? 'mb-3 hidden'
+        : 'mb-2.5 hidden';
+
+    this.selectedSummary = document.createElement('div');
+    this.selectedSummary.dataset.role = 'goal-tag-picker-selected-summary';
+    this.selectedSummary.className = 'flex flex-wrap gap-2';
+
+    this.selectedSection.append(this.selectedSummary);
+
     this.searchInput = createInputBase({
       variant: 'default',
       placeholder: options.searchPlaceholder ?? 'Search tags...',
@@ -179,7 +194,7 @@ export class TagPickerField {
     this.list.className = 'max-h-60 space-y-1.5 overflow-y-auto pt-2';
     this.list.dataset.role = 'goal-tag-picker-list';
 
-    this.panel.append(this.searchInput, this.list);
+    this.panel.append(this.selectedSection, this.searchInput, this.list);
     if (this.variant === 'compact') {
       this.panel.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape') return;
@@ -206,6 +221,7 @@ export class TagPickerField {
     }
 
     this.renderTrigger();
+    this.renderSelectedSection();
     this.renderList();
   }
 
@@ -227,6 +243,7 @@ export class TagPickerField {
       this.onCreate = options.onCreate;
     }
     this.renderTrigger();
+    this.renderSelectedSection();
     this.renderList();
     if (this.menuController?.isOpen()) {
       this.menuController.reposition();
@@ -412,11 +429,29 @@ export class TagPickerField {
     });
   }
 
+  private renderSelectedSection(): void {
+    this.selectedSummary.replaceChildren();
+    const selectedItems = sortTagsForDisplay(this.items, this.selectedIds).filter(
+      (tag) => this.selectedIds.has(tag.id)
+    );
+
+    if (selectedItems.length === 0) {
+      this.selectedSection.classList.add('hidden');
+      return;
+    }
+
+    this.selectedSection.classList.remove('hidden');
+    selectedItems.forEach((tag) => {
+      this.selectedSummary.appendChild(this.createPanelSelectedChip(tag));
+    });
+  }
+
   private setTagSelected(tagId: number, selected: boolean): void {
     if (selected) this.selectedIds.add(tagId);
     else this.selectedIds.delete(tagId);
     this.createErrorMessage = null;
     this.renderTrigger();
+    this.renderSelectedSection();
     this.renderList();
     this.onChange?.(this.getSelectedIds());
   }
@@ -493,6 +528,31 @@ export class TagPickerField {
     return chip;
   }
 
+  private createPanelSelectedChip(tag: TagPickerItem): HTMLButtonElement {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className =
+      'inline-flex min-w-0 items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200/80';
+    chip.dataset.role = 'goal-tag-picker-panel-selected-chip';
+    chip.dataset.tagId = String(tag.id);
+    chip.setAttribute('aria-label', `Remove ${tag.title}`);
+    chip.title = `Remove ${tag.title}`;
+    chip.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.setTagSelected(tag.id, false);
+    });
+
+    appendTagChipContent(chip, tag);
+
+    const remove = document.createElement('span');
+    remove.className = 'shrink-0 text-slate-400';
+    remove.textContent = '×';
+    chip.appendChild(remove);
+
+    return chip;
+  }
+
   private async createTagFromQuery(): Promise<void> {
     const title = this.getCreateCandidateTitle();
     if (!title || !this.onCreate) {
@@ -522,6 +582,7 @@ export class TagPickerField {
       this.searchInput.value = '';
       this.applyFilter();
       this.renderTrigger();
+      this.renderSelectedSection();
       this.onChange?.(this.getSelectedIds());
     } catch (error) {
       this.createErrorMessage =

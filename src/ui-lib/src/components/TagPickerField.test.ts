@@ -106,6 +106,52 @@ describe('TagPickerField', () => {
     field.destroy();
   });
 
+  it('renders all selected tags as wrapped removable chips above the list', () => {
+    const onChange = vi.fn();
+    const field = new TagPickerField({
+      items: [
+        { id: 1, title: 'Focus', color: '#2563eb' },
+        { id: 2, title: 'Strategy', color: '#7c3aed' },
+        { id: 3, title: 'Vision', color: '#0f766e' },
+      ],
+      selectedIds: [1, 2, 3],
+      onChange,
+    });
+    document.body.appendChild(field.element);
+
+    const trigger = document.querySelector<HTMLElement>(
+      '[data-role="goal-tag-picker-trigger"]'
+    );
+    expect(trigger).not.toBeNull();
+    trigger?.click();
+
+    const selectedSection = document.querySelector<HTMLElement>(
+      '[data-role="goal-tag-picker-selected-section"]'
+    );
+    const chips = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        '[data-role="goal-tag-picker-panel-selected-chip"]'
+      )
+    );
+
+    expect(selectedSection).not.toBeNull();
+    expect(chips).toHaveLength(3);
+    expect(chips.map((chip) => chip.textContent ?? '')).toEqual(
+      expect.arrayContaining(['Focus×', 'Strategy×', 'Vision×'])
+    );
+
+    chips[1]?.click();
+
+    expect(onChange).toHaveBeenCalledWith([1, 3]);
+    expect(
+      document.querySelector(
+        '[data-role="goal-tag-picker-panel-selected-chip"][data-tag-id="2"]'
+      )
+    ).toBeNull();
+
+    field.destroy();
+  });
+
   it('creates and selects a new tag from search when no matches exist', async () => {
     const onCreate = vi.fn(async (title: string) => ({
       id: 3,
