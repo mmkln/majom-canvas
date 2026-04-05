@@ -114,6 +114,12 @@
   2. only then implement the fix and keep the regression protection that guards the real behavior.
 - Prefer focused integration tests for bug localization because most regressions happen at module boundaries; add unit tests only after the suspect logic is narrowed down.
 - If the cause cannot be proven through automated tests because the issue depends on external systems, browser quirks, or manual-only behavior, explicitly state that limitation before applying a fix and add the strongest reproducible test coverage that is still possible.
+- For interactive bug hunts, follow this narrowing sequence explicitly:
+  1. generate focused tests until one fails and reveals the buggy flow;
+  2. delete or avoid keeping broad exploratory tests that no longer help;
+  3. narrow the search around the failing case with smaller targeted tests until the faulty boundary is clear;
+  4. only then propose and implement the minimal fix;
+  5. rerun the focused tests and any nearby regression tests to confirm the fix.
 
 ### Architecture Escalation Rule
 
@@ -209,6 +215,8 @@
 
 - Treat `src/features/canvas` and `src/features/canvas-core` as different architecture layers with different responsibilities.
 - For product-facing canvas work, treat `src/features/canvas` as the active canvas application/runtime by default.
+- If the user says `canvas` without explicitly naming `canvas-core`, interpret that request as `src/features/canvas` only.
+- Do not edit `src/features/canvas-core` for a `canvas` request unless the user explicitly says the change belongs in `canvas-core`.
 - Do not assume `src/features/canvas-core` is the current canvas app entrypoint, a migration target, or a future replacement runtime unless the user explicitly says so.
 - If the request is about behavior a user sees in the current canvas UI, start from `src/features/canvas` and verify the boot/runtime path before editing `canvas-core`.
 - `src/features/canvas` must not depend on `src/features/canvas-core` as a feature-layer dependency.

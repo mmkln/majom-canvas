@@ -53,6 +53,7 @@ type CanvasDraftHarness = Record<string, any> & {
     clearLoadingPlaceholders: ReturnType<typeof vi.fn>;
     setLoadPhase: ReturnType<typeof vi.fn>;
     draw: ReturnType<typeof vi.fn>;
+    destroy: ReturnType<typeof vi.fn>;
   };
 };
 
@@ -125,7 +126,22 @@ function createHarness(options?: {
     clearLoadingPlaceholders: vi.fn(),
     setLoadPhase: vi.fn(),
     draw: vi.fn(),
+    destroy: vi.fn(),
   };
+  app.unregisterWindowEvents = vi.fn();
+  app.stopAutosave = vi.fn();
+  app.clearAiAssistantContext = vi.fn();
+  app.uiManager = {
+    unmountAll: vi.fn(),
+  };
+  app.activeCanvasElementsSubscription = null;
+  app.activeCanvasRelationsSubscription = null;
+  app.viewChangesSubscription = null;
+  app.sceneChangesSubscription = null;
+  app.historyChangesSubscription = null;
+  app.elementUpdateStatusSubscription = null;
+  app.disposeRuntimeSubscription = null;
+  app.aiAssistantViewportSyncTimer = null;
   app.replacePlanningElements = vi.fn((elements) => {
     app.scene.replaceElements(isCanvasPlanningElement, elements);
   });
@@ -156,6 +172,15 @@ async function runClearActiveCanvasDraftIfSettled(
       clearActiveCanvasDraftIfSettled: () => Promise<void>;
     }
   ).clearActiveCanvasDraftIfSettled.call(app);
+}
+
+async function runDestroy(app: CanvasDraftHarness): Promise<void> {
+  (
+    CanvasApp.prototype as unknown as {
+      destroy: () => void;
+    }
+  ).destroy.call(app);
+  await Promise.resolve();
 }
 
 function createSnapshot(
@@ -372,5 +397,64 @@ describe('CanvasApp local draft reconciliation', () => {
     canvasPersistenceState.markRestoredReplayFailed();
     await runClearActiveCanvasDraftIfSettled(app);
     expect(app.draftRepository.clear).not.toHaveBeenCalled();
+  });
+
+  it.fails(
+    're-saves the current canvas snapshot on destroy after the user keeps current version',
+    async () => {
+      const scene = new Scene();
+      scene.addElement(
+        createTask({
+          id: 'task-1',
+          uuid: 'task-uuid-1',
+          title: 'Server task',
+        })
+      );
+      const localScene = new Scene();
+      localScene.addElement(
+        createTask({
+          id: 'task-1',
+          uuid: 'task-uuid-1',
+          title: 'Draft task',
+        })
+      );
+      const snapshot = createSnapshot('canvas-1', localScene);
+      confirmRestoreCanvasDraftModalMock.mockResolvedValue('discard');
+      const app = createHarness({
+        scene,
+        repository: {
+          load: vi.fn(async () => snapshot),
+          save: vi.fn(async () => {}),
+          clear: vi.fn(async () => {}),
+        },
+      });
+
+      await runReconcileActiveCanvasDraft(app);
+      await runDestroy(app);
+
+      expect(app.draftRepository.clear).toHaveBeenCalledWith('canvas-1');
+      expect(app.draftRepository.save).not.toHaveBeenCalled();
+    }
+  );
+
+  it('persists the current snapshot on destroy even when there are no dirty flags', async () => {
+    const scene = new Scene();
+    scene.addElement(
+      createTask({
+        id: 'task-1',
+        uuid: 'task-uuid-1',
+        title: 'Server task',
+      })
+    );
+    const app = createHarness({
+      scene,
+      repository: {
+        save: vi.fn(async () => {}),
+      },
+    });
+
+    await runDestroy(app);
+
+    expect(app.draftRepository.save).toHaveBeenCalledTimes(1);
   });
 });

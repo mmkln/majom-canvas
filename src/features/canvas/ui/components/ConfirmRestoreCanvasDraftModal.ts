@@ -12,6 +12,24 @@ type ConfirmRestoreCanvasDraftModalOptions = {
   hasCanvasMetaChanges?: boolean;
 };
 
+export function formatCanvasDraftSavedAt(
+  savedAt: string,
+  locale?: string
+): string {
+  const parsed = new Date(savedAt);
+  if (Number.isNaN(parsed.getTime())) {
+    return savedAt;
+  }
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(parsed);
+  } catch {
+    return savedAt;
+  }
+}
+
 export function confirmRestoreCanvasDraftModal(
   options: ConfirmRestoreCanvasDraftModalOptions = {}
 ): Promise<ConfirmRestoreCanvasDraftAction> {
@@ -51,7 +69,7 @@ export function confirmRestoreCanvasDraftModal(
     if (options.savedAt) {
       const note = document.createElement('p');
       note.className = 'mt-3 text-xs text-slate-500';
-      note.textContent = `Local draft saved at ${options.savedAt}.`;
+      note.textContent = `Unsaved changes were last saved on ${formatCanvasDraftSavedAt(options.savedAt)}.`;
       body.appendChild(note);
     }
 
