@@ -178,6 +178,7 @@ export const es: AppTranslations = {
   'selectionMenu.removeTags': 'Quitar',
   'selectionMenu.removeConnections': 'Quitar conexiones',
   'selectionMenu.removeFromCanvas': 'Quitar del canvas',
+  'selectionMenu.rotateClockwise': 'Rotar 90°',
   'selectionMenu.replaceTags': 'Reemplazar',
   'selectionMenu.tags': 'Etiquetas',
   'aiAssistantHints.breakdown.goal':
@@ -223,6 +224,163 @@ export const es: AppTranslations = {
   'common.redo': 'Rehacer',
   'common.retry': 'Reintentar',
   'common.save': 'Guardar',
+  'planningDetails.description.emptyPreview':
+    'Todavía no hay descripción. Pulsa Enter para añadir una descripción.',
+  'planningDetails.description.placeholder': 'Todavía no hay descripción.',
+  'planningDetails.description.preview':
+    'Vista previa de la descripción. Pulsa Enter para editar.',
+  'planningDetails.actions.openDetails': 'Abrir detalles',
+  'planningDetails.actions.openDetailsFor': 'Abrir detalles de {title}',
+  'planningDetails.field.description': 'Descripción',
+  'planningDetails.field.priority': 'Prioridad',
+  'planningDetails.field.scale': 'Escala',
+  'planningDetails.field.status': 'Estado',
+  'planningDetails.field.tags': 'Etiquetas',
+  'planningDetails.field.title': 'Título',
+  'planningDetails.field.untitled': 'Sin título',
+  'planningDetails.goal.addRelation.chooseGoal': 'Elige un objetivo',
+  'planningDetails.goal.addRelation.clearSearch': 'Borrar búsqueda de objetivo',
+  'planningDetails.goal.addRelation.create': 'Crear relación',
+  'planningDetails.goal.addRelation.createFailed':
+    'No se pudo crear la relación.',
+  'planningDetails.goal.addRelation.currentGoal': 'Objetivo actual',
+  'planningDetails.goal.addRelation.currentGoalUnavailable':
+    'Este objetivo no está disponible para crear relaciones.',
+  'planningDetails.goal.addRelation.duplicate': 'Esta relación ya existe.',
+  'planningDetails.goal.addRelation.option.blockedBy': 'Blocked by',
+  'planningDetails.goal.addRelation.option.blockedByHint':
+    'El objetivo seleccionado impide que este objetivo avance.',
+  'planningDetails.goal.addRelation.option.blocks': 'Blocks',
+  'planningDetails.goal.addRelation.option.blocksHint':
+    'Este objetivo impide que el objetivo seleccionado avance.',
+  'planningDetails.goal.addRelation.option.follows': 'Follows',
+  'planningDetails.goal.addRelation.option.followsHint':
+    'Este objetivo va después del objetivo seleccionado.',
+  'planningDetails.goal.addRelation.option.leadsTo': 'Leads to',
+  'planningDetails.goal.addRelation.option.leadsToHint':
+    'Este objetivo va antes del objetivo seleccionado.',
+  'planningDetails.goal.addRelation.option.relatesTo': 'Relates to',
+  'planningDetails.goal.addRelation.option.relatesToHint':
+    'Estos objetivos están relacionados sin una secuencia estricta.',
+  'planningDetails.goal.addRelation.preview': 'Vista previa',
+  'planningDetails.goal.addRelation.previewText.blockedBy': 'está bloqueado por',
+  'planningDetails.goal.addRelation.previewText.blocks': 'bloquea',
+  'planningDetails.goal.addRelation.previewText.follows': 'sigue a',
+  'planningDetails.goal.addRelation.previewText.leadsTo': 'conduce a',
+  'planningDetails.goal.addRelation.previewText.relatesTo': 'se relaciona con',
+  'planningDetails.goal.addRelation.relation': 'Relación',
+  'planningDetails.goal.addRelation.searchEmpty':
+    'Ningún objetivo coincide con esta búsqueda.',
+  'planningDetails.goal.addRelation.searchFailed':
+    'No se pudieron cargar los objetivos para la búsqueda de relaciones.',
+  'planningDetails.goal.addRelation.searchHint':
+    'Busca un objetivo para relacionarlo con el actual.',
+  'planningDetails.goal.addRelation.searchLoading': 'Cargando objetivos...',
+  'planningDetails.goal.addRelation.searchPlaceholder': 'Buscar objetivos...',
+  'planningDetails.goal.addRelation.targetGoal': 'Objetivo',
+  'planningDetails.goal.addRelation.targetGoalUnavailable':
+    'El objetivo seleccionado no está disponible para crear la relación.',
+  'planningDetails.goal.addRelation.title': 'Añadir relación',
+  'planningDetails.goal.newStoryTitle': 'Nueva historia',
+  'planningDetails.goal.relatedGoals.add': 'Añadir relación',
+  'planningDetails.goal.relatedGoals.addUnavailable':
+    'Añadir relaciones desde este modal todavía no está disponible.',
+  'planningDetails.goal.relatedGoals.empty':
+    'Todavía no hay objetivos relacionados.',
+  'planningDetails.goal.relatedGoals.loadFailed':
+    'No se pudieron cargar los objetivos relacionados.',
+  'planningDetails.goal.relatedGoals.loading':
+    'Cargando objetivos relacionados...',
+  'planningDetails.goal.relatedGoals.changeRelationFor':
+    'Cambiar el tipo de relación de {title}',
+  'planningDetails.goal.relatedGoals.relation.blocks': 'Bloquea',
+  'planningDetails.goal.relatedGoals.relation.blockedBy': 'Bloqueado por',
+  'planningDetails.goal.relatedGoals.relation.follows': 'Sigue a',
+  'planningDetails.goal.relatedGoals.relation.leadsTo': 'Conduce a',
+  'planningDetails.goal.relatedGoals.relation.relatesTo': 'Se relaciona con',
+  'planningDetails.goal.relatedGoals.statusTitle':
+    'Estado del objetivo: {status}',
+  'planningDetails.goal.relatedGoals.title':
+    'Objetivos relacionados ({count})',
+  'planningDetails.goal.relatedGoals.notOnCanvas':
+    'Este objetivo no está en este canvas',
+  'planningDetails.goal.relatedGoals.updateFailed':
+    'No se pudo actualizar el tipo de relación.',
+  'planningDetails.goal.scale.large': 'Grande',
+  'planningDetails.goal.scale.largeTitle':
+    'Alcance grande. Objetivo complejo con varios hitos.',
+  'planningDetails.goal.scale.medium': 'Mediana',
+  'planningDetails.goal.scale.mediumTitle':
+    'Alcance moderado. Requiere coordinación entre varios pasos.',
+  'planningDetails.goal.scale.small': 'Pequeña',
+  'planningDetails.goal.scale.smallTitle':
+    'Alcance pequeño. Rápido de entregar con dependencias mínimas.',
+  'planningDetails.goal.stories.actions': 'Acciones de la historia',
+  'planningDetails.goal.stories.actionsFor':
+    'Acciones de la historia {title}',
+  'planningDetails.goal.stories.create': 'Crear historia',
+  'planningDetails.goal.stories.edit': 'Editar historia',
+  'planningDetails.goal.stories.empty': 'No hay historias en este objetivo.',
+  'planningDetails.goal.stories.hide': 'Ocultar historias',
+  'planningDetails.goal.stories.loadFailed':
+    'No se pudieron cargar las historias del objetivo.',
+  'planningDetails.goal.stories.loading':
+    'Cargando historias del objetivo...',
+  'planningDetails.goal.stories.new': 'Nueva historia',
+  'planningDetails.goal.stories.notOnCanvas':
+    'Esta historia no está en este canvas',
+  'planningDetails.goal.stories.selectOnCanvas': 'Seleccionar en el canvas',
+  'planningDetails.goal.stories.statusTitle':
+    'Estado de la historia: {status}',
+  'planningDetails.goal.stories.title': 'Historias',
+  'planningDetails.goal.stories.toggle':
+    'Alternar jerarquía de historias',
+  'planningDetails.goal.tags.createFailed': 'No se pudo crear la etiqueta.',
+  'planningDetails.goal.tags.loadFailed': 'No se pudieron cargar las etiquetas.',
+  'planningDetails.goal.tasks.empty': 'No hay tareas en esta historia.',
+  'planningDetails.goal.tasks.hide': 'Ocultar tareas',
+  'planningDetails.goal.tasks.loadFailed':
+    'No se pudieron cargar las tareas de la historia.',
+  'planningDetails.goal.tasks.loading':
+    'Cargando tareas de la historia...',
+  'planningDetails.goal.tasks.notOnCanvas':
+    'Esta tarea no está en este canvas',
+  'planningDetails.goal.tasks.statusTitle': 'Estado de la tarea: {status}',
+  'planningDetails.goal.tasks.title': 'Tareas',
+  'planningDetails.hierarchy.hide': 'Ocultar jerarquía',
+  'planningDetails.hierarchy.show': 'Mostrar jerarquía',
+  'planningDetails.priority.highestTitle':
+    'Prioridad máxima. Debe atenderse de inmediato.',
+  'planningDetails.priority.highTitle':
+    'Alta urgencia. Debe planificarse y completarse pronto.',
+  'planningDetails.priority.lowestTitle':
+    'Prioridad mínima. Se puede ignorar por ahora.',
+  'planningDetails.priority.lowTitle':
+    'Baja urgencia. Importante, pero no sensible al tiempo.',
+  'planningDetails.priority.mediumTitle':
+    'Prioridad equilibrada para la planificación y ejecución habituales.',
+  'planningDetails.story.newTaskTitle': 'Nueva tarea',
+  'planningDetails.story.tasks.actions': 'Acciones de la tarea',
+  'planningDetails.story.tasks.actionsFor': 'Acciones de la tarea {title}',
+  'planningDetails.story.tasks.create': 'Crear tarea',
+  'planningDetails.story.tasks.edit': 'Editar tarea',
+  'planningDetails.story.tasks.empty': 'No hay tareas en esta historia.',
+  'planningDetails.story.tasks.hide': 'Ocultar tareas',
+  'planningDetails.story.tasks.loadFailed':
+    'No se pudieron cargar las tareas de la historia.',
+  'planningDetails.story.tasks.loading': 'Cargando tareas de la historia...',
+  'planningDetails.story.tasks.new': 'Nueva tarea',
+  'planningDetails.story.tasks.notOnCanvas':
+    'Esta tarea no está en este canvas',
+  'planningDetails.story.tasks.selectOnCanvas': 'Seleccionar en el canvas',
+  'planningDetails.story.tasks.statusTitle': 'Estado de la tarea: {status}',
+  'planningDetails.story.tasks.title': 'Tareas',
+  'planningDetails.story.tasks.toggle': 'Alternar jerarquía de tareas',
+  'planningDetails.title.emptyPreview':
+    'Sin título. Pulsa Enter para añadir un título.',
+  'planningDetails.title.preview':
+    'Vista previa del título. Pulsa Enter para editar.',
+  'planningDetails.validation.titleRequired': 'El título es obligatorio',
   'common.undo': 'Deshacer',
   'common.undoToday': 'Deshacer hoy',
   'profileSettings.open': 'Configuración del perfil',

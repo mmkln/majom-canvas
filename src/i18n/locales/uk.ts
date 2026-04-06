@@ -479,6 +479,152 @@ export const uk = {
   'common.redo': 'Повторити',
   'common.retry': 'Повторити',
   'common.save': 'Зберегти',
+  'planningDetails.description.emptyPreview':
+    'Опису ще немає. Натисніть Enter, щоб додати опис.',
+  'planningDetails.description.placeholder': 'Опису ще немає.',
+  'planningDetails.description.preview':
+    'Попередній перегляд опису. Натисніть Enter, щоб редагувати.',
+  'planningDetails.actions.openDetails': 'Відкрити деталі',
+  'planningDetails.actions.openDetailsFor': 'Відкрити деталі для {title}',
+  'planningDetails.field.description': 'Опис',
+  'planningDetails.field.priority': 'Пріоритет',
+  'planningDetails.field.scale': 'Масштаб',
+  'planningDetails.field.status': 'Статус',
+  'planningDetails.field.tags': 'Теги',
+  'planningDetails.field.title': 'Назва',
+  'planningDetails.field.untitled': 'Без назви',
+  'planningDetails.goal.addRelation.chooseGoal': 'Оберіть ціль',
+  'planningDetails.goal.addRelation.clearSearch': 'Очистити пошук цілі',
+  'planningDetails.goal.addRelation.create': "Створити зв'язок",
+  'planningDetails.goal.addRelation.createFailed':
+    "Не вдалося створити зв'язок.",
+  'planningDetails.goal.addRelation.currentGoal': 'Поточна ціль',
+  'planningDetails.goal.addRelation.currentGoalUnavailable':
+    "Ця ціль недоступна для створення зв'язку.",
+  'planningDetails.goal.addRelation.duplicate':
+    "Такий зв'язок уже існує.",
+  'planningDetails.goal.addRelation.option.blockedBy': 'Blocked by',
+  'planningDetails.goal.addRelation.option.blockedByHint':
+    'Вибрана ціль заважає рухатись цій цілі.',
+  'planningDetails.goal.addRelation.option.blocks': 'Blocks',
+  'planningDetails.goal.addRelation.option.blocksHint':
+    'Ця ціль заважає рухатись вибраній цілі.',
+  'planningDetails.goal.addRelation.option.follows': 'Follows',
+  'planningDetails.goal.addRelation.option.followsHint':
+    'Ця ціль іде після вибраної цілі.',
+  'planningDetails.goal.addRelation.option.leadsTo': 'Leads to',
+  'planningDetails.goal.addRelation.option.leadsToHint':
+    'Ця ціль іде перед вибраною ціллю.',
+  'planningDetails.goal.addRelation.option.relatesTo': 'Relates to',
+  'planningDetails.goal.addRelation.option.relatesToHint':
+    "Цілі пов'язані без жорсткої послідовності.",
+  'planningDetails.goal.addRelation.preview': 'Попередній перегляд',
+  'planningDetails.goal.addRelation.previewText.blockedBy': 'залежить від',
+  'planningDetails.goal.addRelation.previewText.blocks': 'блокує',
+  'planningDetails.goal.addRelation.previewText.follows': 'йде після',
+  'planningDetails.goal.addRelation.previewText.leadsTo': 'веде до',
+  'planningDetails.goal.addRelation.previewText.relatesTo': "пов'язана з",
+  'planningDetails.goal.addRelation.relation': "Тип зв'язку",
+  'planningDetails.goal.addRelation.searchEmpty':
+    'За цим запитом цілей не знайдено.',
+  'planningDetails.goal.addRelation.searchFailed':
+    "Не вдалося завантажити цілі для пошуку зв'язку.",
+  'planningDetails.goal.addRelation.searchHint':
+    "Знайдіть ціль, яку хочете пов'язати з поточною.",
+  'planningDetails.goal.addRelation.searchLoading': 'Завантажуємо цілі...',
+  'planningDetails.goal.addRelation.searchPlaceholder': 'Шукати цілі...',
+  'planningDetails.goal.addRelation.targetGoal': 'Ціль',
+  'planningDetails.goal.addRelation.targetGoalUnavailable':
+    "Вибрана ціль недоступна для створення зв'язку.",
+  'planningDetails.goal.addRelation.title': "Додати зв'язок",
+  'planningDetails.goal.newStoryTitle': 'Нова історія',
+  'planningDetails.goal.relatedGoals.add': "Додати зв'язок",
+  'planningDetails.goal.relatedGoals.addUnavailable':
+    "Додавання зв'язків із цієї модалки поки недоступне.",
+  'planningDetails.goal.relatedGoals.empty': "Пов'язаних цілей поки немає.",
+  'planningDetails.goal.relatedGoals.loadFailed':
+    'Не вдалося завантажити пов’язані цілі.',
+  'planningDetails.goal.relatedGoals.loading':
+    'Завантажуємо пов’язані цілі...',
+  'planningDetails.goal.relatedGoals.changeRelationFor':
+    'Змінити тип зв’язку для {title}',
+  'planningDetails.goal.relatedGoals.relation.blocks': 'Блокує',
+  'planningDetails.goal.relatedGoals.relation.blockedBy': 'Заблоковано',
+  'planningDetails.goal.relatedGoals.relation.follows': 'Йде після',
+  'planningDetails.goal.relatedGoals.relation.leadsTo': 'Веде до',
+  'planningDetails.goal.relatedGoals.relation.relatesTo': "Пов'язано з",
+  'planningDetails.goal.relatedGoals.statusTitle': 'Статус цілі: {status}',
+  'planningDetails.goal.relatedGoals.title': 'Пов’язані цілі ({count})',
+  'planningDetails.goal.relatedGoals.notOnCanvas': 'Цієї цілі немає на canvas',
+  'planningDetails.goal.relatedGoals.updateFailed':
+    'Не вдалося оновити тип зв’язку.',
+  'planningDetails.goal.scale.large': 'Великий',
+  'planningDetails.goal.scale.largeTitle':
+    'Великий обсяг. Складна ціль із кількома віхами.',
+  'planningDetails.goal.scale.medium': 'Середній',
+  'planningDetails.goal.scale.mediumTitle':
+    'Середній обсяг. Потребує координації між кількома кроками.',
+  'planningDetails.goal.scale.small': 'Малий',
+  'planningDetails.goal.scale.smallTitle':
+    'Малий обсяг. Можна швидко реалізувати з мінімумом залежностей.',
+  'planningDetails.goal.stories.actions': 'Дії з історією',
+  'planningDetails.goal.stories.actionsFor': 'Дії з історією {title}',
+  'planningDetails.goal.stories.create': 'Створити історію',
+  'planningDetails.goal.stories.edit': 'Редагувати історію',
+  'planningDetails.goal.stories.empty': 'У цій цілі немає історій.',
+  'planningDetails.goal.stories.hide': 'Сховати історії',
+  'planningDetails.goal.stories.loadFailed':
+    'Не вдалося завантажити історії цілі.',
+  'planningDetails.goal.stories.loading': 'Завантажуємо історії цілі...',
+  'planningDetails.goal.stories.new': 'Нова історія',
+  'planningDetails.goal.stories.notOnCanvas': 'Цієї історії немає на canvas',
+  'planningDetails.goal.stories.selectOnCanvas': 'Вибрати на canvas',
+  'planningDetails.goal.stories.statusTitle': 'Статус історії: {status}',
+  'planningDetails.goal.stories.title': 'Історії',
+  'planningDetails.goal.stories.toggle': 'Перемкнути ієрархію історій',
+  'planningDetails.goal.tags.createFailed': 'Не вдалося створити тег.',
+  'planningDetails.goal.tags.loadFailed': 'Не вдалося завантажити теги.',
+  'planningDetails.goal.tasks.empty': 'У цій історії немає задач.',
+  'planningDetails.goal.tasks.hide': 'Сховати задачі',
+  'planningDetails.goal.tasks.loadFailed':
+    'Не вдалося завантажити задачі історії.',
+  'planningDetails.goal.tasks.loading': 'Завантажуємо задачі історії...',
+  'planningDetails.goal.tasks.notOnCanvas': 'Цієї задачі немає на canvas',
+  'planningDetails.goal.tasks.statusTitle': 'Статус задачі: {status}',
+  'planningDetails.goal.tasks.title': 'Задачі',
+  'planningDetails.hierarchy.hide': 'Сховати ієрархію',
+  'planningDetails.hierarchy.show': 'Показати ієрархію',
+  'planningDetails.priority.highestTitle':
+    'Найвищий пріоритет. Потрібно зробити негайно.',
+  'planningDetails.priority.highTitle':
+    'Висока терміновість. Варто запланувати й виконати найближчим часом.',
+  'planningDetails.priority.lowestTitle':
+    'Найнижчий пріоритет. Поки можна не чіпати.',
+  'planningDetails.priority.lowTitle':
+    'Низька терміновість. Важливо, але не терміново.',
+  'planningDetails.priority.mediumTitle':
+    'Збалансований пріоритет для звичайного планування і виконання.',
+  'planningDetails.story.newTaskTitle': 'Нова задача',
+  'planningDetails.story.tasks.actions': 'Дії із задачею',
+  'planningDetails.story.tasks.actionsFor': 'Дії із задачею {title}',
+  'planningDetails.story.tasks.create': 'Створити задачу',
+  'planningDetails.story.tasks.edit': 'Редагувати задачу',
+  'planningDetails.story.tasks.empty': 'У цій історії немає задач.',
+  'planningDetails.story.tasks.hide': 'Сховати задачі',
+  'planningDetails.story.tasks.loadFailed':
+    'Не вдалося завантажити задачі історії.',
+  'planningDetails.story.tasks.loading': 'Завантажуємо задачі історії...',
+  'planningDetails.story.tasks.new': 'Нова задача',
+  'planningDetails.story.tasks.notOnCanvas': 'Цієї задачі немає на canvas',
+  'planningDetails.story.tasks.selectOnCanvas': 'Вибрати на canvas',
+  'planningDetails.story.tasks.statusTitle': 'Статус задачі: {status}',
+  'planningDetails.story.tasks.title': 'Задачі',
+  'planningDetails.story.tasks.toggle': 'Перемкнути ієрархію задач',
+  'planningDetails.title.emptyPreview':
+    'Без назви. Натисніть Enter, щоб додати назву.',
+  'planningDetails.title.preview':
+    'Попередній перегляд назви. Натисніть Enter, щоб редагувати.',
+  'planningDetails.validation.titleRequired': "Назва є обов'язковою",
   'common.undo': 'Скасувати дію',
   'common.undoToday': 'Скасувати сьогоднішнє виконання',
   'profileSettings.open': 'Налаштування профілю',
@@ -760,6 +906,7 @@ export const uk = {
   'selectionMenu.removeTags': 'Прибрати',
   'selectionMenu.removeConnections': 'Видалити звʼязки',
   'selectionMenu.removeFromCanvas': 'Прибрати з canvas',
+  'selectionMenu.rotateClockwise': 'Повернути на 90°',
   'selectionMenu.replaceTags': 'Замінити',
   'selectionMenu.tags': 'Теги',
   'workspaceControls.aiAssistant': 'AI асистент',
