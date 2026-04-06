@@ -72,7 +72,7 @@ export function createHudMenuPreferenceGroup(
   content.className = 'flex min-w-0 flex-1 flex-col gap-0.5';
 
   const label = document.createElement('span');
-  label.className = 'truncate text-sm font-normal leading-5';
+  label.className = 'truncate text-sm font-medium leading-5';
   label.textContent = options.label;
   content.appendChild(label);
 

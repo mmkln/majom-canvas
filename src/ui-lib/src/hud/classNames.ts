@@ -1,8 +1,8 @@
 export const HUD_SURFACE_CLASS =
-  'rounded-2xl border border-slate-200/85 bg-white shadow-[0_4px_14px_rgba(15,23,42,0.08)]';
+  'rounded-xl border border-slate-200/85 bg-white shadow-[0_4px_14px_rgba(15,23,42,0.08)]';
 
 export const HUD_SURFACE_ELEVATED_CLASS =
-  'rounded-2xl border border-slate-200/90 bg-white shadow-[0_14px_32px_rgba(15,23,42,0.14)]';
+  'rounded-xl border border-slate-200/90 bg-white shadow-[0_14px_32px_rgba(15,23,42,0.14)]';
 
 export const HUD_BUTTON_BASE_CLASS =
   'inline-flex items-center justify-center gap-2 rounded-lg border border-transparent text-sm font-medium leading-5 transition-[background-color,color,border-color,box-shadow] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-300 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none';
@@ -37,6 +37,37 @@ export const HUD_DESTRUCTIVE_BUTTON_CLASS =
 
 export const HUD_DROPDOWN_CLASS = `${HUD_SURFACE_ELEVATED_CLASS} overflow-hidden`;
 
+export const HUD_SELECTION_TRIGGER_CLASS =
+  'flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white text-left transition-[background-color,border-color,color,box-shadow] duration-150 ease-out hover:border-slate-300 hover:bg-slate-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-300';
+
+export const HUD_SELECTION_TRIGGER_SM_CLASS =
+  'min-h-[40px] px-3 py-2 text-sm';
+
+export const HUD_SELECTION_TRIGGER_MD_CLASS =
+  'min-h-[48px] px-3.5 py-3 text-sm';
+
+export const HUD_SELECTION_PANEL_CLASS =
+  'overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.12)]';
+
+export const HUD_SELECTION_PANEL_HEADER_CLASS =
+  'border-b border-slate-200 p-2';
+
+export const HUD_SELECTION_PANEL_LIST_CLASS = 'max-h-72 overflow-y-auto py-1';
+
+export const HUD_SELECTION_ROW_BASE_CLASS =
+  'flex w-full items-center justify-between px-3.5 py-3 text-left text-sm leading-5 transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-inset';
+
+export const HUD_SELECTION_ROW_DEFAULT_CLASS =
+  'font-normal text-slate-700 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100';
+
+export const HUD_SELECTION_ROW_SELECTED_CLASS =
+  'bg-indigo-50/80 font-medium text-slate-900';
+
+export const HUD_SELECTION_STATE_ROW_CLASS = 'px-3.5 py-4 text-sm text-slate-500';
+
+export const HUD_SELECTION_STATE_ROW_ERROR_CLASS =
+  'px-3.5 py-4 text-sm text-rose-600';
+
 export const HUD_DIVIDER_BASE_CLASS = 'border-t';
 export const HUD_DIVIDER_DEFAULT_TONE_CLASS = 'border-slate-200';
 export const HUD_DIVIDER_SOFT_TONE_CLASS = 'border-slate-100';
@@ -44,54 +75,54 @@ export const HUD_DIVIDER_INSET_CLASS = 'mx-2';
 export const HUD_DIVIDER_SPACED_CLASS = 'my-1';
 
 export const HUD_MENU_ITEM_BASE_CLASS =
-  'flex w-full items-center justify-between px-4 py-3 text-left text-sm leading-5 transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-inset';
+  'flex w-full items-center justify-between px-3.5 py-3 text-left text-sm leading-5 transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-inset';
 
 export const HUD_MENU_ITEM_DEFAULT_CLASS =
-  'font-normal text-slate-700 hover:bg-slate-100 hover:text-slate-900 active:bg-slate-200';
+  'font-normal text-slate-700 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100';
 
 export const HUD_MENU_ITEM_EMPHASIS_CLASS =
-  'font-medium text-slate-800 hover:bg-slate-100 hover:text-slate-900 active:bg-slate-200';
+  'font-medium text-slate-800 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100';
 
 export const HUD_MENU_ITEM_SELECTED_CLASS =
-  'bg-indigo-50 font-medium text-indigo-700';
+  'bg-indigo-50/80 font-medium text-slate-900';
 
 export const HUD_MENU_ITEM_ACCENT_CREATE_CLASS =
-  'font-medium text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 active:bg-indigo-100';
+  'font-medium text-indigo-600 hover:bg-indigo-50/50 hover:text-indigo-700 active:bg-indigo-100/80';
 
 export const HUD_MENU_ITEM_DANGER_CLASS =
-  'font-medium text-rose-600 hover:bg-rose-50 hover:text-rose-700 active:bg-rose-100';
+  'font-medium text-rose-600 hover:bg-rose-50/70 hover:text-rose-700 active:bg-rose-100/80';
 
 export const HUD_MENU_ITEM_DISABLED_CLASS =
   'cursor-not-allowed text-slate-400 hover:bg-transparent hover:text-slate-400';
 export const HUD_MENU_ITEM_HINT_TRIGGER_CLASS =
   'inline-flex shrink-0 cursor-help items-center justify-center text-slate-400 transition-colors hover:text-slate-500';
 export const HUD_DISCLOSURE_ROW_BASE_CLASS =
-  'flex w-full items-center justify-between gap-3 rounded-xl px-4 py-3.5 text-left transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-inset disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none';
+  'flex w-full items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-left transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-inset disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none';
 export const HUD_DISCLOSURE_ROW_DEFAULT_CLASS =
-  'bg-slate-50/80 text-slate-700 hover:bg-slate-100 hover:text-slate-900 active:bg-slate-100';
+  'bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100';
 export const HUD_DISCLOSURE_ROW_DEFAULT_EXPANDED_CLASS =
-  'bg-indigo-50/75 text-slate-900';
+  'bg-indigo-50/70 text-slate-900';
 export const HUD_DISCLOSURE_ROW_DANGER_CLASS =
-  'bg-rose-50/72 text-rose-700 hover:bg-rose-50 hover:text-rose-800 active:bg-rose-100';
+  'bg-white text-rose-700 hover:bg-rose-50/70 hover:text-rose-800 active:bg-rose-100/80';
 export const HUD_DISCLOSURE_ROW_DANGER_EXPANDED_CLASS =
-  'bg-rose-50/88 text-rose-800';
+  'bg-rose-50/80 text-rose-800';
 export const HUD_MENU_ICON_ROW_CLASS =
   'flex w-full items-stretch';
-export const HUD_MENU_CONTROL_ROW_CLASS = 'w-full px-4 py-3';
+export const HUD_MENU_CONTROL_ROW_CLASS = 'w-full px-3.5 py-3';
 export const HUD_MENU_CONTROL_ITEM_CLASS =
-  'flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm leading-5 transition-[background-color,color,box-shadow] duration-150 ease-out';
+  'flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left text-sm leading-5 transition-[background-color,color,box-shadow] duration-150 ease-out';
 export const HUD_MENU_PREFERENCE_GROUP_CLASS =
   'w-full';
 export const HUD_MENU_PREFERENCE_GROUP_SUMMARY_CLASS =
-  'flex w-full items-center gap-3 px-4 py-3 text-left transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-inset';
+  'flex w-full items-center gap-3 px-3.5 py-3 text-left transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-inset';
 export const HUD_MENU_PREFERENCE_GROUP_SUMMARY_DEFAULT_CLASS =
-  'text-slate-700 hover:bg-slate-100 hover:text-slate-900 active:bg-slate-200';
+  'text-slate-700 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100';
 export const HUD_MENU_PREFERENCE_GROUP_SUMMARY_EXPANDED_CLASS =
-  'text-slate-900 hover:bg-slate-100 active:bg-slate-200';
+  'bg-indigo-50/70 text-slate-900 hover:bg-indigo-50/80 active:bg-indigo-100/70';
 export const HUD_MENU_PREFERENCE_GROUP_SUMMARY_DISABLED_CLASS =
   'cursor-not-allowed text-slate-400 hover:bg-transparent hover:text-slate-400';
 export const HUD_MENU_PREFERENCE_GROUP_BODY_CLASS =
-  'px-4 pb-2 pt-0';
+  'px-3.5 pb-2 pt-0';
 export const HUD_MENU_PREFERENCE_GROUP_BODY_INSET_SM_CLASS = 'pl-7';
 export const HUD_MENU_PREFERENCE_GROUP_BODY_INSET_MD_CLASS = 'pl-9';
 export const HUD_MENU_PREFERENCE_GROUP_BODY_DENSITY_DEFAULT_CLASS = 'space-y-1.5';
@@ -99,11 +130,11 @@ export const HUD_MENU_PREFERENCE_GROUP_BODY_DENSITY_COMPACT_CLASS = 'space-y-1';
 export const HUD_MENU_ICON_BUTTON_BASE_CLASS =
   'flex min-w-0 flex-1 items-center justify-center px-0 py-3 text-sm transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-inset disabled:cursor-not-allowed';
 export const HUD_MENU_ICON_BUTTON_DEFAULT_CLASS =
-  'text-slate-600 hover:bg-slate-100 hover:text-slate-800 active:bg-slate-200';
+  'text-slate-600 hover:bg-slate-50 hover:text-slate-800 active:bg-slate-100';
 export const HUD_MENU_ICON_BUTTON_WARNING_CLASS =
-  'font-medium text-amber-700 hover:bg-amber-50 hover:text-amber-800 active:bg-amber-100';
+  'font-medium text-amber-700 hover:bg-amber-50/70 hover:text-amber-800 active:bg-amber-100/80';
 export const HUD_MENU_ICON_BUTTON_DANGER_CLASS =
-  'font-medium text-rose-600 hover:bg-rose-50 hover:text-rose-700 active:bg-rose-100';
+  'font-medium text-rose-600 hover:bg-rose-50/70 hover:text-rose-700 active:bg-rose-100/80';
 
 export const HUD_MENU_HEADER_CLASS = 'px-4 pb-3 pt-3';
 export const HUD_MENU_HEADER_TITLE_CLASS =
@@ -139,7 +170,7 @@ export const HUD_INPUT_BASE_CLASS =
   'w-full outline-none transition-[background-color,border-color,color,box-shadow] duration-150 ease-out focus-visible:outline-none disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 aria-[invalid=true]:border-rose-300 aria-[invalid=true]:bg-rose-50 aria-[invalid=true]:ring-rose-100';
 
 export const HUD_INPUT_DEFAULT_CLASS =
-  'h-11 rounded-lg border border-slate-200 bg-white px-3 text-base leading-6 text-slate-900 placeholder:text-slate-400 hover:border-slate-300 focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-300 md:text-sm';
+  'h-12 rounded-xl border border-slate-200 bg-white px-3.5 text-base leading-6 text-slate-900 placeholder:text-slate-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] hover:border-slate-300 hover:bg-slate-50/40 focus-visible:border-indigo-500 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-300 md:text-sm';
 
 export const HUD_INPUT_INLINE_CLASS =
   'h-[34px] rounded-lg border border-indigo-200/80 bg-indigo-50/70 px-3 text-base font-medium leading-5 text-indigo-700 placeholder:text-indigo-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] hover:border-indigo-300 focus-visible:border-indigo-400 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200 md:text-sm';
@@ -148,7 +179,7 @@ export const HUD_TEXTAREA_BASE_CLASS =
   'w-full min-h-[88px] resize-y outline-none transition-[background-color,border-color,color,box-shadow] duration-150 ease-out focus-visible:outline-none disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 aria-[invalid=true]:border-rose-300 aria-[invalid=true]:bg-rose-50 aria-[invalid=true]:ring-rose-100';
 
 export const HUD_TEXTAREA_DEFAULT_CLASS =
-  'rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-base leading-6 text-slate-900 placeholder:text-slate-400 hover:border-slate-300 focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-300 md:text-sm';
+  'rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-base leading-6 text-slate-900 placeholder:text-slate-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] hover:border-slate-300 hover:bg-slate-50/40 focus-visible:border-indigo-500 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-300 md:text-sm';
 
 export const HUD_TEXTAREA_INLINE_CLASS =
   'rounded-lg border border-indigo-200/80 bg-indigo-50/70 px-3 py-2 text-base font-medium leading-5 text-indigo-700 placeholder:text-indigo-400 hover:border-indigo-300 focus-visible:border-indigo-400 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200 md:text-sm';
@@ -157,7 +188,7 @@ export const HUD_SELECT_BASE_CLASS =
   'w-full cursor-pointer outline-none transition-[background-color,border-color,color,box-shadow] duration-150 ease-out focus-visible:outline-none disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 aria-[invalid=true]:border-rose-300 aria-[invalid=true]:bg-rose-50 aria-[invalid=true]:ring-rose-100';
 
 export const HUD_SELECT_DEFAULT_CLASS =
-  'h-11 rounded-lg border border-slate-200 bg-white px-3 text-base leading-6 text-slate-900 hover:border-slate-300 focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-300 md:text-sm';
+  'h-12 rounded-xl border border-slate-200 bg-white px-3.5 text-base leading-6 text-slate-900 hover:border-slate-300 focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-300 md:text-sm';
 
 export const HUD_SELECT_INLINE_CLASS =
   'h-[34px] rounded-lg border border-indigo-200/80 bg-indigo-50/70 px-3 text-base font-medium leading-5 text-indigo-700 hover:border-indigo-300 focus-visible:border-indigo-400 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200 md:text-sm';

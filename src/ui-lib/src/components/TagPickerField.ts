@@ -4,6 +4,15 @@ import {
   createInputBase,
   createSurface,
 } from '../hud/index.ts';
+import {
+  HUD_SELECTION_PANEL_CLASS,
+  HUD_SELECTION_PANEL_HEADER_CLASS,
+  HUD_SELECTION_PANEL_LIST_CLASS,
+  HUD_SELECTION_STATE_ROW_CLASS,
+  HUD_SELECTION_STATE_ROW_ERROR_CLASS,
+  HUD_SELECTION_TRIGGER_CLASS,
+} from '../hud/classNames.ts';
+import { createIcon } from '../hud/icons.ts';
 import { Checkbox } from './Checkbox.ts';
 
 export type TagPickerItem = {
@@ -105,8 +114,7 @@ export class TagPickerField {
     if (this.variant === 'compact') {
       this.trigger = document.createElement('div');
       this.trigger.dataset.role = 'goal-tag-picker-trigger';
-      this.trigger.className =
-        'flex min-h-[44px] w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-slate-300 hover:bg-slate-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200/80';
+      this.trigger.className = `min-h-[48px] ${HUD_SELECTION_TRIGGER_CLASS}`;
       this.trigger.tabIndex = 0;
       this.trigger.setAttribute('role', 'button');
       this.trigger.setAttribute('aria-haspopup', 'dialog');
@@ -118,7 +126,7 @@ export class TagPickerField {
 
       this.triggerMeta = document.createElement('div');
       this.triggerMeta.className =
-        'flex shrink-0 items-center gap-2 text-slate-400';
+        'ml-auto flex shrink-0 items-center gap-2';
 
       this.trigger.append(this.triggerSummary, this.triggerMeta);
       this.trigger.addEventListener('click', (event) => {
@@ -139,23 +147,23 @@ export class TagPickerField {
         this.toggleMenu();
       });
       this.panel = createSurface({
-        className: 'hidden z-50 w-full min-w-0 p-2.5',
+        elevated: true,
+        className: `hidden z-50 w-full min-w-0 ${HUD_SELECTION_PANEL_CLASS}`,
       });
     } else {
       this.trigger = null;
       this.triggerSummary = null;
       this.triggerMeta = null;
-      this.panel = document.createElement('div');
-      this.panel.className = 'w-full min-w-0';
+      this.panel = createSurface({
+        className: `w-full min-w-0 ${HUD_SELECTION_PANEL_CLASS}`,
+      });
     }
     this.panel.dataset.role = 'goal-tag-picker-panel';
 
     this.selectedSection = document.createElement('div');
     this.selectedSection.dataset.role = 'goal-tag-picker-selected-section';
     this.selectedSection.className =
-      this.variant === 'inline'
-        ? 'mb-3 hidden'
-        : 'mb-2.5 hidden';
+      'hidden border-b border-slate-200 px-3.5 py-3';
 
     this.selectedSummary = document.createElement('div');
     this.selectedSummary.dataset.role = 'goal-tag-picker-selected-summary';
@@ -166,7 +174,7 @@ export class TagPickerField {
     this.searchInput = createInputBase({
       variant: 'default',
       placeholder: options.searchPlaceholder ?? 'Search tags...',
-      className: 'h-8.5 w-full',
+      className: 'h-9 w-full',
       onInput: (value) => {
         this.query = value;
         this.createErrorMessage = null;
@@ -189,12 +197,17 @@ export class TagPickerField {
       },
     });
     this.searchInput.dataset.goalTagSearchInput = 'true';
+    this.searchInput.classList.add('!shadow-none');
+
+    const searchWrap = document.createElement('div');
+    searchWrap.className = HUD_SELECTION_PANEL_HEADER_CLASS;
+    searchWrap.appendChild(this.searchInput);
 
     this.list = document.createElement('div');
-    this.list.className = 'max-h-60 space-y-1.5 overflow-y-auto pt-2';
+    this.list.className = HUD_SELECTION_PANEL_LIST_CLASS;
     this.list.dataset.role = 'goal-tag-picker-list';
 
-    this.panel.append(this.selectedSection, this.searchInput, this.list);
+    this.panel.append(this.selectedSection, searchWrap, this.list);
     if (this.variant === 'compact') {
       this.panel.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape') return;
@@ -304,7 +317,7 @@ export class TagPickerField {
     );
     if (selectedItems.length === 0) {
       const placeholder = document.createElement('span');
-      placeholder.className = 'text-sm leading-5 text-slate-400';
+      placeholder.className = 'min-w-0 flex-1 truncate text-sm text-slate-500';
       placeholder.textContent = this.placeholder;
       triggerSummary.appendChild(placeholder);
     } else {
@@ -323,37 +336,41 @@ export class TagPickerField {
       }
     }
 
-    const hint = document.createElement('span');
-    hint.className = 'text-xs font-medium text-slate-500';
-    hint.textContent =
-      selectedItems.length > 0 ? `${selectedItems.length} selected` : 'Browse';
-    triggerMeta.appendChild(hint);
+    if (selectedItems.length > 0) {
+      triggerMeta.appendChild(
+        createBadge({
+          label: String(selectedItems.length),
+          tone: 'neutral',
+        })
+      );
+    }
 
-    const chevron = document.createElement('span');
-    chevron.className = 'text-xs text-slate-400';
-    chevron.textContent = '▾';
+    const chevron = createIcon(
+      this.menuController?.isOpen() ? 'chevron-up' : 'chevron-down',
+      {
+      size: 16,
+      strokeWidth: 1.9,
+      }
+    );
+    chevron.className.baseVal = 'shrink-0 text-slate-400';
+    chevron.setAttribute('aria-hidden', 'true');
     triggerMeta.appendChild(chevron);
   }
 
   private renderList(): void {
     this.list.replaceChildren();
-    const isInline = this.variant === 'inline';
 
     if (this.loading) {
-      const loading = document.createElement('p');
-      loading.className = isInline
-        ? 'px-4 py-3 text-sm leading-5 text-slate-500'
-        : 'px-1 py-2 text-sm leading-5 text-slate-500';
+      const loading = document.createElement('div');
+      loading.className = HUD_SELECTION_STATE_ROW_CLASS;
       loading.textContent = 'Loading tags...';
       this.list.appendChild(loading);
       return;
     }
 
     if (this.errorMessage) {
-      const error = document.createElement('p');
-      error.className = isInline
-        ? 'px-4 py-3 text-sm leading-5 text-rose-600'
-        : 'px-1 py-2 text-sm leading-5 text-rose-600';
+      const error = document.createElement('div');
+      error.className = HUD_SELECTION_STATE_ROW_ERROR_CLASS;
       error.textContent = this.errorMessage;
       this.list.appendChild(error);
       return;
@@ -366,19 +383,15 @@ export class TagPickerField {
     }
 
     if (this.createErrorMessage) {
-      const createError = document.createElement('p');
-      createError.className = isInline
-        ? 'px-4 py-3 text-sm leading-5 text-rose-600'
-        : 'px-1 py-1.5 text-sm leading-5 text-rose-600';
+      const createError = document.createElement('div');
+      createError.className = HUD_SELECTION_STATE_ROW_ERROR_CLASS;
       createError.textContent = this.createErrorMessage;
       this.list.appendChild(createError);
     }
 
     if (this.filteredItems.length === 0 && !createCandidateTitle) {
-      const empty = document.createElement('p');
-      empty.className = isInline
-        ? 'px-4 py-3 text-sm leading-5 text-slate-500'
-        : 'px-1 py-2 text-sm leading-5 text-slate-500';
+      const empty = document.createElement('div');
+      empty.className = HUD_SELECTION_STATE_ROW_CLASS;
       empty.textContent =
         this.items.length === 0 ? 'No tags available.' : 'No matching tags.';
       this.list.appendChild(empty);
@@ -389,16 +402,14 @@ export class TagPickerField {
       const row = document.createElement('div');
       const isSelected = this.selectedIds.has(tag.id);
       row.className = [
-        isInline
-          ? 'flex items-center justify-between gap-3 rounded-lg px-4 py-3 transition-colors'
-          : 'flex items-center justify-between gap-3 rounded-xl px-3 py-2 transition-colors',
+        'flex items-center justify-between gap-3 px-3.5 py-3 transition-colors',
         isSelected
-          ? 'bg-indigo-50/70 ring-1 ring-indigo-100'
-          : 'bg-slate-50/70 hover:bg-slate-100/80',
+          ? 'bg-indigo-50/65'
+          : 'hover:bg-slate-50',
       ].join(' ');
 
       const info = document.createElement('div');
-      info.className = 'flex min-w-0 items-center gap-2';
+      info.className = 'flex min-w-0 items-center gap-2.5';
 
       const dot = document.createElement('span');
       dot.className = 'h-2.5 w-2.5 shrink-0 rounded-full';
@@ -462,9 +473,7 @@ export class TagPickerField {
     row.dataset.role = 'goal-tag-picker-create';
     row.dataset.createTitle = title;
     row.className =
-      this.variant === 'inline'
-        ? 'flex w-full items-center justify-between gap-3 rounded-lg border border-dashed border-indigo-200 bg-gradient-to-r from-indigo-50/90 to-white px-4 py-3 text-left transition-colors hover:border-indigo-300 hover:from-indigo-100/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200/80 disabled:cursor-wait disabled:opacity-70'
-        : 'flex w-full items-center justify-between gap-3 rounded-xl border border-dashed border-indigo-200 bg-gradient-to-r from-indigo-50/90 to-white px-3 py-2.5 text-left transition-colors hover:border-indigo-300 hover:from-indigo-100/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200/80 disabled:cursor-wait disabled:opacity-70';
+      'flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left transition-colors hover:bg-indigo-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200/80 disabled:cursor-wait disabled:opacity-70';
     row.disabled = this.creating;
     row.addEventListener('click', (event) => {
       event.preventDefault();
@@ -477,7 +486,7 @@ export class TagPickerField {
 
     const accent = document.createElement('span');
     accent.className =
-      'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-semibold text-indigo-600 ring-1 ring-indigo-200';
+      'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-sm font-semibold text-indigo-600';
     accent.textContent = '+';
 
     const copy = document.createElement('div');
@@ -507,7 +516,7 @@ export class TagPickerField {
     const chip = document.createElement('button');
     chip.type = 'button';
     chip.className =
-      'inline-flex min-w-0 max-w-[140px] shrink-0 items-center gap-1.5 rounded-full bg-slate-100/90 px-2.5 py-1 text-[11px] font-medium leading-4 text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200/80';
+      'inline-flex min-w-0 max-w-[140px] shrink-0 items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-1 text-[11px] font-medium leading-4 text-slate-700 transition-colors hover:bg-slate-200/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200/80';
     chip.dataset.role = 'goal-tag-picker-selected-chip';
     chip.dataset.tagId = String(tag.id);
     chip.setAttribute('aria-label', `Remove ${tag.title}`);
@@ -532,7 +541,7 @@ export class TagPickerField {
     const chip = document.createElement('button');
     chip.type = 'button';
     chip.className =
-      'inline-flex min-w-0 items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200/80';
+      'inline-flex min-w-0 items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-200/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-200/80';
     chip.dataset.role = 'goal-tag-picker-panel-selected-chip';
     chip.dataset.tagId = String(tag.id);
     chip.setAttribute('aria-label', `Remove ${tag.title}`);

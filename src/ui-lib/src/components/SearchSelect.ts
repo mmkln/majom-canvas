@@ -5,10 +5,11 @@ import { Input } from './Input.ts';
 import { ComponentFactory } from '../core/ComponentFactory.ts';
 import { EventEmitter } from '../core/EventEmitter.ts';
 import {
-  HUD_DROPDOWN_CLASS,
-  HUD_MENU_ITEM_BASE_CLASS,
-  HUD_MENU_ITEM_DEFAULT_CLASS,
-  HUD_MENU_ITEM_SELECTED_CLASS,
+  HUD_SELECTION_PANEL_CLASS,
+  HUD_SELECTION_ROW_BASE_CLASS,
+  HUD_SELECTION_ROW_DEFAULT_CLASS,
+  HUD_SELECTION_ROW_SELECTED_CLASS,
+  HUD_SELECTION_STATE_ROW_CLASS,
 } from '../hud/classNames.ts';
 
 export interface SelectItem {
@@ -53,6 +54,8 @@ export class SearchSelect extends Component<SearchSelectProps> {
       variant: 'default',
       value: initialLabel,
       placeholder: this.props.placeholder ?? 'Search items...',
+      className:
+        '!h-12 !rounded-xl !px-3.5 !text-sm !leading-5 !shadow-none',
       onInput: (value: string) => this.filterItems(value),
     });
 
@@ -75,8 +78,8 @@ export class SearchSelect extends Component<SearchSelectProps> {
 
     this.listContainer = document.createElement('ul');
     this.listContainer.className = twMerge(
-      HUD_DROPDOWN_CLASS,
-      'absolute left-0 top-full z-60 mt-2 max-h-60 w-full overflow-y-auto p-1',
+      HUD_SELECTION_PANEL_CLASS,
+      'absolute left-0 top-full z-60 mt-2 max-h-72 w-full overflow-y-auto py-1',
       this.isListVisible ? 'block' : 'hidden'
     );
     this.renderItems();
@@ -112,9 +115,7 @@ export class SearchSelect extends Component<SearchSelectProps> {
     if (this.filteredItems.length === 0) {
       const noItemsMessage = document.createElement('li');
       noItemsMessage.textContent = 'No items found';
-      noItemsMessage.className = twMerge(
-        'px-4 py-3 text-center text-sm leading-5 text-slate-500'
-      );
+      noItemsMessage.className = twMerge(HUD_SELECTION_STATE_ROW_CLASS);
       this.listContainer.appendChild(noItemsMessage);
     } else {
       this.filteredItems.forEach((item) => {
@@ -124,10 +125,10 @@ export class SearchSelect extends Component<SearchSelectProps> {
         const option = document.createElement('button');
         option.type = 'button';
         option.className = twMerge(
-          HUD_MENU_ITEM_BASE_CLASS,
+          HUD_SELECTION_ROW_BASE_CLASS,
           item.value === this.selectedValue
-            ? HUD_MENU_ITEM_SELECTED_CLASS
-            : HUD_MENU_ITEM_DEFAULT_CLASS
+            ? HUD_SELECTION_ROW_SELECTED_CLASS
+            : HUD_SELECTION_ROW_DEFAULT_CLASS
         );
         option.textContent = item.label;
         option.addEventListener('mousedown', (event) => {
@@ -158,8 +159,8 @@ export class SearchSelect extends Component<SearchSelectProps> {
 
   private updateListVisibility(): void {
     this.listContainer.className = twMerge(
-      HUD_DROPDOWN_CLASS,
-      'absolute left-0 top-full z-60 mt-2 max-h-60 w-full overflow-y-auto p-1',
+      HUD_SELECTION_PANEL_CLASS,
+      'absolute left-0 top-full z-60 mt-2 max-h-72 w-full overflow-y-auto py-1',
       this.isListVisible ? 'block' : 'hidden'
     );
   }

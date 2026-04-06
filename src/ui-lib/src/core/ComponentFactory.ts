@@ -4,7 +4,6 @@ import { Input, InputProps } from '../components/Input.ts';
 import { Textarea, TextareaProps } from '../components/Textarea.ts';
 import { Checkbox, CheckboxProps } from '../components/Checkbox.ts';
 import { SearchSelect, SearchSelectProps } from '../components/SearchSelect.ts';
-import { Select, SelectProps } from '../components/Select.ts';
 
 // TODO: Call .createElement() on each component to create the actual DOM element
 export class ComponentFactory {
@@ -26,9 +25,5 @@ export class ComponentFactory {
 
   static createSearchSelect(props: SearchSelectProps): SearchSelect {
     return new SearchSelect(props);
-  }
-
-  static createSelect(props: SelectProps): Select {
-    return new Select(props);
   }
 }

@@ -32,7 +32,10 @@ type HudAnchoredMenuOptions = {
   onOpenChange?: (open: boolean) => void;
   positioning?: HudAnchoredPositioning;
   portalTarget?: HTMLElement;
+  panelZIndex?: number;
 };
+
+const DEFAULT_VIEWPORT_PANEL_Z_INDEX = 320;
 
 type HudAnchoredMenuOpenOptions = {
   anchor: HTMLElement;
@@ -54,6 +57,7 @@ export class HudAnchoredMenu {
   private readonly onOpenChange?: (open: boolean) => void;
   private readonly positioning: HudAnchoredPositioning;
   private readonly portalTarget: HTMLElement;
+  private readonly panelZIndex?: number;
   private readonly originalParent: ParentNode | null;
   private readonly originalNextSibling: ChildNode | null;
   private readonly menuController: FloatingMenuController;
@@ -97,6 +101,12 @@ export class HudAnchoredMenu {
     this.panel = options.panel;
     this.positioning = options.positioning ?? 'container';
     this.portalTarget = options.portalTarget ?? document.body;
+    this.panelZIndex =
+      typeof options.panelZIndex === 'number'
+        ? options.panelZIndex
+        : this.positioning === 'viewport'
+          ? DEFAULT_VIEWPORT_PANEL_Z_INDEX
+          : undefined;
     this.originalParent = this.panel.parentNode;
     this.originalNextSibling = this.panel.nextSibling;
     this.container.setAttribute('data-component', 'HudAnchoredMenu');
@@ -104,6 +114,9 @@ export class HudAnchoredMenu {
     this.panel.classList.add('z-40');
     this.panel.style.position =
       this.positioning === 'viewport' ? 'fixed' : 'absolute';
+    if (typeof this.panelZIndex === 'number') {
+      this.panel.style.zIndex = `${this.panelZIndex}`;
+    }
     this.onOpenChange = options.onOpenChange;
     this.open = !this.panel.classList.contains('hidden');
     this.modernPlacement = {

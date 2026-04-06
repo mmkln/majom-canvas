@@ -5,6 +5,7 @@ export type HudBadgeOptions = {
   tone?: HudBadgeTone;
   title?: string;
   className?: string;
+  leading?: HTMLElement | SVGElement | null;
 };
 
 const HUD_BADGE_BASE_CLASS =
@@ -20,7 +21,12 @@ export function createHudBadge(options: HudBadgeOptions): HTMLSpanElement {
   badge.setAttribute('data-component', 'HudBadge');
   badge.className =
     `${HUD_BADGE_BASE_CLASS} ${HUD_BADGE_TONE_CLASS[options.tone ?? 'neutral']} ${options.className ?? ''}`.trim();
-  badge.textContent = options.label;
+  if (options.leading) {
+    badge.appendChild(options.leading);
+  }
+  const label = document.createElement('span');
+  label.textContent = options.label;
+  badge.appendChild(label);
   if (typeof options.title === 'string' && options.title.trim().length > 0) {
     badge.title = options.title;
   }

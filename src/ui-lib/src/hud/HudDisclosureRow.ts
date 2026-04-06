@@ -46,10 +46,10 @@ export function createHudDisclosureRow(
   }
 
   const content = document.createElement('span');
-  content.className = 'flex min-w-0 items-start gap-3';
+  content.className = 'flex min-w-0 items-center gap-3';
 
   if (options.leading) {
-    options.leading.classList.add('mt-0.5', 'shrink-0');
+    options.leading.classList.add('shrink-0');
     content.appendChild(options.leading);
   }
 
@@ -75,7 +75,7 @@ export function createHudDisclosureRow(
   content.appendChild(textWrap);
 
   const trailing = document.createElement('span');
-  trailing.className = 'mt-0.5 inline-flex shrink-0 items-center';
+  trailing.className = 'inline-flex shrink-0 items-center';
   const chevron = createIcon(
     options.expanded ? 'chevron-down' : 'chevron-right',
     {
