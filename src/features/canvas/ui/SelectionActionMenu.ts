@@ -11,6 +11,7 @@ import {
   PlanningElement,
 } from '../core/services/SelectionContext.ts';
 import { BulkActionsController } from '../core/services/BulkActionsController.ts';
+import { SelectionRotationService } from '../core/services/SelectionRotationService.ts';
 import { createIcon, IconName, IconOptions } from './icons.ts';
 import { ElementStatus } from '../elements/ElementStatus.ts';
 import { positionFixedElement } from './overlayPosition.ts';
@@ -428,6 +429,9 @@ export class SelectionActionMenu {
     const hasConnections = (context: ActionContext): boolean =>
       supportsRelations(context) &&
       this.bulkActions.hasConnectionsForElements(context.elements);
+    const canRotateSelection = (context: ActionContext): boolean =>
+      isMulti(context) &&
+      SelectionRotationService.canRotate(this.scene, context.elements);
     const isStory = (context: ActionContext): boolean =>
       context.primary instanceof StoryElement;
     const isStoryOrGoal = (context: ActionContext): boolean =>
@@ -497,6 +501,14 @@ export class SelectionActionMenu {
         kind: 'divider',
         id: 'divider-ai',
         isVisible: shouldShowAiDivider,
+      },
+      {
+        kind: 'action',
+        id: 'rotate-bulk',
+        title: this.runtime.i18n.t('selectionMenu.rotateClockwise'),
+        icon: 'arrow-path',
+        isVisible: canRotateSelection,
+        onClick: () => this.handleRotateClockwise(),
       },
       {
         kind: 'action',
@@ -904,6 +916,10 @@ export class SelectionActionMenu {
 
   private handleCopy(): void {
     this.bulkActions.copy(this.selectedElements);
+  }
+
+  private handleRotateClockwise(): void {
+    SelectionRotationService.rotateClockwise(this.scene, this.selectedElements);
   }
 
   private handleAddRelated(): void {

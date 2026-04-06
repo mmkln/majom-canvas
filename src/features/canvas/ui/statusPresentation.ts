@@ -23,6 +23,17 @@ export const STATUS_ICON_TONE_CLASS: Readonly<Record<ElementStatus, string>> = {
   [ElementStatus.Defined]: 'text-slate-500',
 };
 
+export const STATUS_BADGE_TONE_CLASS: Readonly<Record<ElementStatus, string>> = {
+  [ElementStatus.Done]:
+    'w-fit shrink-0 justify-start gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium tracking-normal text-emerald-700',
+  [ElementStatus.InProgress]:
+    'w-fit shrink-0 justify-start gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-medium tracking-normal text-blue-700',
+  [ElementStatus.Pending]:
+    'w-fit shrink-0 justify-start gap-1 rounded-md bg-yellow-50 px-2 py-0.5 text-[11px] font-medium tracking-normal text-yellow-700',
+  [ElementStatus.Defined]:
+    'w-fit shrink-0 justify-start gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium tracking-normal text-slate-600',
+};
+
 type StatusTranslationApi = Pick<I18nService, 't'>;
 
 export function getStatusLabel(

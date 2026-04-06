@@ -1,13 +1,14 @@
 import { firstValueFrom, type Observable } from 'rxjs';
 import { createModalShell } from '../../../ui-lib/src/components/Modal.ts';
 import {
+  createBadge,
   createField,
   createDisclosureRow,
   createFormMessage,
   createInput,
   createTextButton,
 } from '../../../ui-lib/src/hud/index.ts';
-import { Select } from '../../../ui-lib/src/components/Select.ts';
+import { StaticDropdownSelect } from '../../../ui-lib/src/components/StaticDropdownSelect.ts';
 import { notify } from '../../canvas/core/services/NotificationService.ts';
 import {
   normalizeAccountDetails,
@@ -86,7 +87,10 @@ type ProfileSettingsPasswordField =
   | 'newPassword'
   | 'confirmPassword';
 
-type ProfileSettingsPasswordDraft = Record<ProfileSettingsPasswordField, string>;
+type ProfileSettingsPasswordDraft = Record<
+  ProfileSettingsPasswordField,
+  string
+>;
 
 type SecurityFieldErrors = Partial<
   Record<ProfileSettingsPasswordField, string>
@@ -115,12 +119,13 @@ type RenderedPasswordField = {
 
 const SECTION_ACTION_BUTTON_CLASS =
   'w-full justify-center sm:w-auto sm:min-w-[5.5rem]';
-const ACCOUNT_INPUT_ROLE_BY_FIELD: Record<ProfileSettingsAccountField, string> = {
-  firstName: 'profile-settings-account-first-name-input',
-  lastName: 'profile-settings-account-last-name-input',
-  username: 'profile-settings-account-username-input',
-  email: 'profile-settings-account-email-input',
-};
+const ACCOUNT_INPUT_ROLE_BY_FIELD: Record<ProfileSettingsAccountField, string> =
+  {
+    firstName: 'profile-settings-account-first-name-input',
+    lastName: 'profile-settings-account-last-name-input',
+    username: 'profile-settings-account-username-input',
+    email: 'profile-settings-account-email-input',
+  };
 const SECURITY_INPUT_ROLE_BY_FIELD: Record<
   ProfileSettingsPasswordField,
   string
@@ -243,7 +248,9 @@ function getAccountSecondaryText(user: User | null): string {
   const email = user.email?.trim() ?? '';
   const parts = [username, email].filter(
     (value, index, source) =>
-      value.length > 0 && value !== displayName && source.indexOf(value) === index
+      value.length > 0 &&
+      value !== displayName &&
+      source.indexOf(value) === index
   );
   return parts.join(' · ');
 }
@@ -260,6 +267,19 @@ function getAccountInitials(user: User | null): string {
     return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase();
   }
   return base.slice(0, 2).toUpperCase();
+}
+
+function createLocaleCodeBadge(
+  i18n: I18nService,
+  locale: AppLocale | null
+): HTMLSpanElement | null {
+  if (!locale) return null;
+  return createBadge({
+    label: locale.toUpperCase(),
+    tone: 'neutral',
+    className: 'min-w-[2rem]',
+    title: getAppLocaleLabel(i18n, locale),
+  });
 }
 
 function firstErrorMessage(value: unknown): string | null {
@@ -284,9 +304,9 @@ export class ProfileSettingsModal {
   private readonly onUserUpdated?: (user: User) => void;
   private readonly onLogout?: () => void;
   private readonly onAccountDeleted?: () => void;
-  private readonly confirmDeleteAccount: (
-    options?: { accountLabel?: string }
-  ) => Promise<boolean>;
+  private readonly confirmDeleteAccount: (options?: {
+    accountLabel?: string;
+  }) => Promise<boolean>;
   private readonly disposeRuntimeSubscription: () => void;
   private overlay: HTMLDivElement | null = null;
   private header: HTMLDivElement | null = null;
@@ -294,7 +314,8 @@ export class ProfileSettingsModal {
   private footer: HTMLDivElement | null = null;
   private serverSnapshot: User | null = null;
   private draft: ProfileSettingsDraft | null = null;
-  private passwordDraft: ProfileSettingsPasswordDraft = createEmptyPasswordDraft();
+  private passwordDraft: ProfileSettingsPasswordDraft =
+    createEmptyPasswordDraft();
   private accountState: AccountState = createInitialAccountState();
   private languageState: SectionState = {
     saving: false,
@@ -473,7 +494,8 @@ export class ProfileSettingsModal {
     identityText.className = 'min-w-0 flex flex-col gap-0.5';
 
     const name = document.createElement('div');
-    name.className = 'truncate text-[15px] font-semibold leading-6 text-slate-900';
+    name.className =
+      'truncate text-[15px] font-semibold leading-6 text-slate-900';
     name.textContent = getAccountDisplayName(this.serverSnapshot);
 
     const secondary = getAccountSecondaryText(this.serverSnapshot);
@@ -526,7 +548,9 @@ export class ProfileSettingsModal {
 
       const intro = document.createElement('p');
       intro.className = 'text-sm leading-5 text-slate-500';
-      intro.textContent = this.i18n.t('profileSettings.account.panelDescription');
+      intro.textContent = this.i18n.t(
+        'profileSettings.account.panelDescription'
+      );
       panel.appendChild(intro);
 
       let syncAccountForm = (): void => {};
@@ -742,7 +766,10 @@ export class ProfileSettingsModal {
     }
 
     if (this.accountState.success && !this.accountExpanded) {
-      const success = createFormMessage({ tone: 'success', className: 'block' });
+      const success = createFormMessage({
+        tone: 'success',
+        className: 'block',
+      });
       success.show(this.i18n.t('profileSettings.account.saved'), 'success');
       content.appendChild(success.element);
     }
@@ -818,7 +845,8 @@ export class ProfileSettingsModal {
     const usernameMessage = firstErrorMessage(data.username);
     const emailMessage = firstErrorMessage(data.email);
     const detailMessage =
-      firstErrorMessage(data.detail) ?? firstErrorMessage(data.non_field_errors);
+      firstErrorMessage(data.detail) ??
+      firstErrorMessage(data.non_field_errors);
 
     if (firstNameMessage) {
       fieldErrors.firstName = firstNameMessage;
@@ -1053,32 +1081,43 @@ export class ProfileSettingsModal {
 
     const controlsRow = document.createElement('div');
     controlsRow.className =
-      'flex flex-col items-stretch gap-2.5 sm:flex-row sm:items-end';
+      'flex flex-col items-stretch gap-2.5 sm:flex-row sm:items-center';
 
     const controlWrap = document.createElement('div');
     controlWrap.className = 'w-full sm:max-w-[16.5rem]';
-    const control = new Select({
-      items: SUPPORTED_APP_LOCALES.map((locale) => ({
-        value: locale,
-        label: getAppLocaleLabel(this.i18n, locale),
-      })),
-      selectedValue: this.draft?.locale ?? this.runtime.i18n.getLocale(),
+    const localeOptions = SUPPORTED_APP_LOCALES.map((locale) => ({
+      value: locale,
+      label: getAppLocaleLabel(this.i18n, locale),
+    }));
+    const selectedLocale =
+      localeOptions.find(
+        (option) =>
+          option.value === (this.draft?.locale ?? this.runtime.i18n.getLocale())
+      ) ?? null;
+    const control = new StaticDropdownSelect({
+      items: localeOptions,
+      size: 'sm',
+      value: selectedLocale,
+      placeholder: this.i18n.t('profileSettings.language.appLanguage'),
       disabled: this.languageState.saving,
       className: 'w-full',
-      onChange: (value) => {
+      ariaLabel: this.i18n.t('profileSettings.language.appLanguage'),
+      getKey: (item) => item.value,
+      getLabel: (item) => item.label,
+      renderTriggerTrailing: (item) =>
+        createLocaleCodeBadge(this.i18n, item?.value ?? null),
+      renderOptionTrailing: (item) =>
+        createLocaleCodeBadge(this.i18n, item.value),
+      onSelect: (item) => {
         if (!this.draft) return;
-        this.draft.locale = normalizeAppLocale(value) ?? this.draft.locale;
+        this.draft.locale = normalizeAppLocale(item.value) ?? this.draft.locale;
         this.languageState.error = null;
         this.languageState.success = false;
         this.renderBody();
       },
-    }).getElement() as HTMLSelectElement;
-    control.dataset.role = 'profile-settings-language-control';
-    control.setAttribute(
-      'aria-label',
-      this.i18n.t('profileSettings.language.appLanguage')
-    );
-    controlWrap.appendChild(control);
+    });
+    control.element.dataset.role = 'profile-settings-language-control';
+    controlWrap.appendChild(control.element);
 
     const saveButton = createTextButton({
       text: this.i18n.t('common.save'),
@@ -1097,7 +1136,10 @@ export class ProfileSettingsModal {
     row.append(labelWrap, controlsRow);
     content.appendChild(row);
     if (this.languageState.success) {
-      const success = createFormMessage({ tone: 'success', className: 'block' });
+      const success = createFormMessage({
+        tone: 'success',
+        className: 'block',
+      });
       success.show(this.i18n.t('profileSettings.language.saved'), 'success');
       content.appendChild(success.element);
     }
@@ -1158,7 +1200,10 @@ export class ProfileSettingsModal {
     }
     content.appendChild(surface);
     if (this.wallpaperState.success) {
-      const success = createFormMessage({ tone: 'success', className: 'block' });
+      const success = createFormMessage({
+        tone: 'success',
+        className: 'block',
+      });
       success.show(this.i18n.t('profileSettings.appearance.saved'), 'success');
       content.appendChild(success.element);
     }
@@ -1215,13 +1260,14 @@ export class ProfileSettingsModal {
 
       const intro = document.createElement('p');
       intro.className = 'text-sm leading-5 text-slate-500';
-      intro.textContent = this.i18n.t('profileSettings.security.panelDescription');
+      intro.textContent = this.i18n.t(
+        'profileSettings.security.panelDescription'
+      );
       panel.appendChild(intro);
 
       let syncSecurityForm = (): void => {};
       const onSecurityInput =
-        (field: ProfileSettingsPasswordField) =>
-        (): void => {
+        (field: ProfileSettingsPasswordField) => (): void => {
           this.handleSecurityInput(field);
           syncSecurityForm();
         };
@@ -1315,7 +1361,10 @@ export class ProfileSettingsModal {
     }
 
     if (this.securityState.success && !this.securityExpanded) {
-      const success = createFormMessage({ tone: 'success', className: 'block' });
+      const success = createFormMessage({
+        tone: 'success',
+        className: 'block',
+      });
       success.show(this.i18n.t('profileSettings.security.saved'), 'success');
       content.appendChild(success.element);
     }
@@ -1371,7 +1420,10 @@ export class ProfileSettingsModal {
       }
 
       if (this.dangerState.error) {
-        const error = createFormMessage({ tone: 'error', className: 'mt-3 block' });
+        const error = createFormMessage({
+          tone: 'error',
+          className: 'mt-3 block',
+        });
         error.show(this.dangerState.error, 'error');
         panel.appendChild(error.element);
       }
@@ -1453,10 +1505,10 @@ export class ProfileSettingsModal {
       section === 'account'
         ? this.accountSuccessTimeoutId
         : section === 'language'
-        ? this.languageSuccessTimeoutId
-        : section === 'wallpaper'
-          ? this.wallpaperSuccessTimeoutId
-          : this.securitySuccessTimeoutId;
+          ? this.languageSuccessTimeoutId
+          : section === 'wallpaper'
+            ? this.wallpaperSuccessTimeoutId
+            : this.securitySuccessTimeoutId;
     if (timeoutId !== null) {
       window.clearTimeout(timeoutId);
     }
@@ -1556,9 +1608,10 @@ export class ProfileSettingsModal {
     return this.i18n.t('profileSettings.security.changePasswordDescription');
   }
 
-  private getSecurityFieldPresentation(
-    field: ProfileSettingsPasswordField
-  ): { error?: string; hint?: string } {
+  private getSecurityFieldPresentation(field: ProfileSettingsPasswordField): {
+    error?: string;
+    hint?: string;
+  } {
     const savedError = this.securityState.fieldErrors[field];
     if (savedError) {
       return { error: savedError };
@@ -1574,7 +1627,9 @@ export class ProfileSettingsModal {
       field === 'confirmPassword' &&
       this.passwordDraft.confirmPassword.length > 0
     ) {
-      if (this.passwordDraft.newPassword !== this.passwordDraft.confirmPassword) {
+      if (
+        this.passwordDraft.newPassword !== this.passwordDraft.confirmPassword
+      ) {
         return {
           error: this.i18n.t('profileSettings.security.passwordMismatch'),
         };
@@ -1645,20 +1700,20 @@ export class ProfileSettingsModal {
     saveButton: HTMLButtonElement,
     errorMessage: ReturnType<typeof createFormMessage>
   ): void {
-    (
-      Object.keys(passwordFields) as ProfileSettingsPasswordField[]
-    ).forEach((fieldName) => {
-      const presentation = this.getSecurityFieldPresentation(fieldName);
-      passwordFields[fieldName].field.setState({
-        disabled: this.securityState.saving,
-        error: presentation.error,
-        hint: presentation.hint,
-      });
-      passwordFields[fieldName].control.setState({
-        disabled: this.securityState.saving,
-        invalid: Boolean(presentation.error),
-      });
-    });
+    (Object.keys(passwordFields) as ProfileSettingsPasswordField[]).forEach(
+      (fieldName) => {
+        const presentation = this.getSecurityFieldPresentation(fieldName);
+        passwordFields[fieldName].field.setState({
+          disabled: this.securityState.saving,
+          error: presentation.error,
+          hint: presentation.hint,
+        });
+        passwordFields[fieldName].control.setState({
+          disabled: this.securityState.saving,
+          invalid: Boolean(presentation.error),
+        });
+      }
+    );
 
     saveButton.disabled =
       this.securityState.saving || !this.isSecurityReadyToSubmit();
@@ -1915,9 +1970,8 @@ export class ProfileSettingsModal {
     if (previousWallpaperId === nextWallpaperId) return;
     const previousWallpaper =
       this.wallpaperService.findWallpaperById(previousWallpaperId);
-    const nextWallpaper = this.wallpaperService.findWallpaperById(
-      nextWallpaperId
-    );
+    const nextWallpaper =
+      this.wallpaperService.findWallpaperById(nextWallpaperId);
 
     this.wallpaperState = { saving: true, error: null, success: false };
     this.renderBody();

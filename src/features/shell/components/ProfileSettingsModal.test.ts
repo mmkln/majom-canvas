@@ -94,6 +94,22 @@ function setInputValue(selector: string, value: string): void {
   }
 }
 
+function getLanguageSelectTrigger(): HTMLButtonElement | null {
+  return document.querySelector<HTMLButtonElement>(
+    '[data-role="profile-settings-language-control"] button'
+  );
+}
+
+function openLanguageSelect(): void {
+  getLanguageSelectTrigger()?.click();
+}
+
+function getLanguageOption(locale: string): HTMLButtonElement | null {
+  return document.querySelector<HTMLButtonElement>(
+    `[data-dropdown-select-item="${locale}"]`
+  );
+}
+
 describe('ProfileSettingsModal', () => {
   afterEach(() => {
     document.body.innerHTML = '';
@@ -110,18 +126,12 @@ describe('ProfileSettingsModal', () => {
 
     modal.open(createUser());
 
-    const languageControl = document.body.querySelector<HTMLSelectElement>(
-      'select[data-role="profile-settings-language-control"]'
-    );
-    const optionValues = Array.from(languageControl?.options ?? []).map(
-      (option) => option.value
-    );
-    const spanishOption = Array.from(languageControl?.options ?? []).find(
-      (option) => option.value === 'es'
-    );
+    openLanguageSelect();
 
-    expect(optionValues).toContain('es');
-    expect(spanishOption?.textContent).toBe('Spanish');
+    const spanishOption = getLanguageOption('es');
+
+    expect(getLanguageOption('es')).not.toBeNull();
+    expect(spanishOption?.textContent).toContain('Spanish');
 
     modal.destroy();
   });
@@ -135,18 +145,12 @@ describe('ProfileSettingsModal', () => {
 
     modal.open(createUser());
 
-    const languageControl = document.body.querySelector<HTMLSelectElement>(
-      'select[data-role="profile-settings-language-control"]'
-    );
-    const optionValues = Array.from(languageControl?.options ?? []).map(
-      (option) => option.value
-    );
-    const rusynOption = Array.from(languageControl?.options ?? []).find(
-      (option) => option.value === 'rue'
-    );
+    openLanguageSelect();
 
-    expect(optionValues).toContain('rue');
-    expect(rusynOption?.textContent).toBe('Rusyn');
+    const rusynOption = getLanguageOption('rue');
+
+    expect(getLanguageOption('rue')).not.toBeNull();
+    expect(rusynOption?.textContent).toContain('Rusyn');
 
     modal.destroy();
   });
@@ -412,13 +416,8 @@ describe('ProfileSettingsModal', () => {
 
     modal.open(user);
 
-    const languageControl = document.body.querySelector<HTMLSelectElement>(
-      'select[data-role="profile-settings-language-control"]'
-    );
-    if (languageControl) {
-      languageControl.value = 'uk';
-      languageControl.dispatchEvent(new Event('change', { bubbles: true }));
-    }
+    openLanguageSelect();
+    getLanguageOption('uk')?.click();
     document
       .querySelector<HTMLButtonElement>(
         'button[data-role="profile-settings-language-save"]'

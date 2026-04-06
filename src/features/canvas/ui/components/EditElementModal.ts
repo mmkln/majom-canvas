@@ -260,7 +260,7 @@ export class EditElementModal {
     formContent.appendChild(descriptionField.field.element);
 
     this.statusControl = createSegmentedControl({
-      size: 'sm',
+      size: 'md',
       fullWidth: true,
       ariaLabel: 'Status',
       options: ELEMENT_STATUS_VALUES.map((status) => ({
@@ -310,7 +310,7 @@ export class EditElementModal {
 
     if (isGoal) {
       this.scaleControl = createSegmentedControl({
-        size: 'sm',
+        size: 'md',
         fullWidth: true,
         ariaLabel: 'Scale',
         options: [
@@ -677,7 +677,7 @@ export class EditElementModal {
     const statusControl = createSegmentedControl<
       Status.Active | Status.Archived
     >({
-      size: 'sm',
+      size: 'md',
       fullWidth: true,
       ariaLabel: 'Routine status',
       options: ROUTINE_STATUS_ORDER.map((status) => ({
@@ -869,7 +869,7 @@ export class EditElementModal {
     onChange: (value: UiPriority) => void
   ): SegmentedControl<UiPriority> {
     return createSegmentedControl({
-      size: 'sm',
+      size: 'md',
       fullWidth: true,
       ariaLabel: 'Priority',
       options: [

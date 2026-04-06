@@ -299,11 +299,11 @@ export class UIManager {
     // Show modal on edit requests via RxJS bus
     this.editElementSubscription = editElement$.subscribe((el) => {
       if (el instanceof StoryElement) {
-        new StoryDetailsModal(el, this.scene).show();
+        new StoryDetailsModal(el, this.scene, this.runtime).show();
         return;
       }
       if (el instanceof GoalElement) {
-        new GoalDetailsModal(el, this.scene).show();
+        new GoalDetailsModal(el, this.scene, this.runtime).show();
         return;
       }
       new EditElementModal(el, this.scene).show();

@@ -60,9 +60,12 @@ function beginDrag(manager: InteractionManager, task: TaskElement): void {
 function beginResize(
   manager: InteractionManager,
   story: StoryElement,
-  panZoom: PanZoomManager
+  panZoom: PanZoomManager,
+  direction: 'nw' | 'ne' | 'se' | 'sw' = 'se'
 ): void {
-  const handle = story.getResizeHandles(panZoom)[0]!;
+  const handle = story
+    .getResizeHandles(panZoom)
+    .find((candidate) => candidate.direction === direction)!;
   manager.handleMouseDown(
     { button: 0, shiftKey: false } as MouseEvent,
     handle.x,
@@ -370,5 +373,25 @@ describe('InteractionManager smart guides integration', () => {
 
     expect(story.width).toBe(300);
     expect(getOverlayLines(manager, 'viewport-center')).toHaveLength(1);
+  });
+
+  it('resizes a story from the top-left handle', () => {
+    const { scene, manager, panZoom } = createStoryHarness();
+    const story = new StoryElement({
+      id: 'story',
+      x: 100,
+      y: 50,
+      width: 344,
+      height: 240,
+    });
+    scene.addElement(story);
+
+    beginResize(manager, story, panZoom, 'nw');
+    manager.handleMouseMove(81, 31);
+
+    expect(story.x).toBe(80);
+    expect(story.y).toBe(30);
+    expect(story.width).toBe(364);
+    expect(story.height).toBe(260);
   });
 });

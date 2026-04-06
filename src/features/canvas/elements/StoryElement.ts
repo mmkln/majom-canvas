@@ -364,13 +364,27 @@ export class StoryElement extends PlanningElement {
   public getResizeHandles(
     panZoom: PanZoomManager
   ): { x: number; y: number; direction: 'nw' | 'ne' | 'se' | 'sw' }[] {
-    // Single handle: bottom-right corner only, to declutter UI and simplify resizing
     const offsetFromEdge = 1;
     return [
       {
         x: this.x + this.width - offsetFromEdge,
         y: this.y + this.height - offsetFromEdge,
         direction: 'se',
+      },
+      {
+        x: this.x + this.width - offsetFromEdge,
+        y: this.y + offsetFromEdge,
+        direction: 'ne',
+      },
+      {
+        x: this.x + offsetFromEdge,
+        y: this.y + this.height - offsetFromEdge,
+        direction: 'sw',
+      },
+      {
+        x: this.x + offsetFromEdge,
+        y: this.y + offsetFromEdge,
+        direction: 'nw',
       },
     ];
   }
@@ -383,17 +397,17 @@ export class StoryElement extends PlanningElement {
     py: number,
     panZoom: PanZoomManager
   ): 'nw' | 'ne' | 'se' | 'sw' | null {
-    // clickable area: match handle size only
     const detectSize = StoryElement.HANDLE_SIZE / panZoom.scale;
     const handles = this.getResizeHandles(panZoom);
-    const handle = handles[0];
 
-    const dx = px - handle.x;
-    const dy = py - handle.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
+    for (const handle of handles) {
+      const dx = px - handle.x;
+      const dy = py - handle.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
 
-    if (distance <= detectSize) {
-      return handle.direction;
+      if (distance <= detectSize) {
+        return handle.direction;
+      }
     }
 
     return null;
