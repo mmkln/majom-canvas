@@ -30,13 +30,11 @@ function createHarness(): {
   app: SaveLayoutHarness;
   canvasDataService: {
     getRemovedPositionIds: ReturnType<typeof vi.fn>;
-    needsPositionRefresh: ReturnType<typeof vi.fn>;
     hasRelationChanges: ReturnType<typeof vi.fn>;
     filterPositionUpdates: ReturnType<typeof vi.fn>;
-    updateLayoutBatch: ReturnType<typeof vi.fn>;
-    deletePositions: ReturnType<typeof vi.fn>;
-    refreshPositions: ReturnType<typeof vi.fn>;
-    updateCanvasRelations: ReturnType<typeof vi.fn>;
+    saveCanvasSnapshot: ReturnType<typeof vi.fn>;
+    getActiveCanvasMeta: ReturnType<typeof vi.fn>;
+    getActiveCanvasRevision: ReturnType<typeof vi.fn>;
   };
   scene: {
     isFocused: ReturnType<typeof vi.fn>;
@@ -48,13 +46,11 @@ function createHarness(): {
 } {
   const canvasDataService = {
     getRemovedPositionIds: vi.fn(() => []),
-    needsPositionRefresh: vi.fn(() => false),
     hasRelationChanges: vi.fn(() => false),
     filterPositionUpdates: vi.fn(() => []),
-    updateLayoutBatch: vi.fn(() => of(undefined)),
-    deletePositions: vi.fn(() => of(undefined)),
-    refreshPositions: vi.fn(() => of(undefined)),
-    updateCanvasRelations: vi.fn(() => of(undefined)),
+    saveCanvasSnapshot: vi.fn(() => of({ revision: 2 })),
+    getActiveCanvasMeta: vi.fn(() => null),
+    getActiveCanvasRevision: vi.fn(() => 1),
   };
   const scene = {
     isFocused: vi.fn(() => false),
@@ -66,10 +62,20 @@ function createHarness(): {
   const app: SaveLayoutHarness = {
     canvasDataService,
     scene,
+    canvasTitle: 'Canvas',
     dedupeLayoutPositions: (positions: unknown[]) => positions,
     queueUnsyncedDraft,
     removeUnsyncedDraft,
+    i18n: {
+      t: (key: string) => key,
+    },
   };
+  app.isSnapshotConflictError = (error: unknown) =>
+    (
+      CanvasApp.prototype as unknown as {
+        isSnapshotConflictError: (input: unknown) => boolean;
+      }
+    ).isSnapshotConflictError.call(app, error);
   return {
     app,
     canvasDataService,
@@ -156,17 +162,25 @@ describe('CanvasApp.saveLayoutPositions', () => {
     const saved = await firstValueFrom(runSaveLayout(app, [task], true));
 
     expect(saved).toBe(true);
-    expect(canvasDataService.updateLayoutBatch).toHaveBeenCalledWith([
-      changedPosition,
-    ]);
-    expect(canvasDataService.deletePositions).toHaveBeenCalledWith([]);
-    expect(canvasDataService.updateCanvasRelations).toHaveBeenCalledTimes(1);
+    expect(canvasDataService.saveCanvasSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: 'manual-save',
+        positions: [
+          expect.objectContaining({
+            element_type: 'task',
+            element_uuid: 'task-uuid-1',
+          }),
+        ],
+        connections: [],
+        elements: [task],
+      })
+    );
     expect(removeUnsyncedDraft).toHaveBeenCalledWith('layout-sync');
     expect(removeUnsyncedDraft).toHaveBeenCalledWith('relations-sync');
     expect(notify).toHaveBeenCalledWith('Layout saved', 'success');
   });
 
-  it('deletes removed positions without layout batch update when only deletions exist', async () => {
+  it('saves a full snapshot when only deletions exist', async () => {
     const { app, canvasDataService } = createHarness();
     const task = createTask({ uuid: 'task-uuid-1' });
     canvasDataService.getRemovedPositionIds.mockReturnValue(['position-1']);
@@ -174,14 +188,10 @@ describe('CanvasApp.saveLayoutPositions', () => {
     const saved = await firstValueFrom(runSaveLayout(app, [task], false));
 
     expect(saved).toBe(true);
-    expect(canvasDataService.updateLayoutBatch).not.toHaveBeenCalled();
-    expect(canvasDataService.deletePositions).toHaveBeenCalledWith([
-      'position-1',
-    ]);
-    expect(canvasDataService.updateCanvasRelations).toHaveBeenCalledTimes(1);
+    expect(canvasDataService.saveCanvasSnapshot).toHaveBeenCalledTimes(1);
   });
 
-  it('syncs relations when only relation changes exist', async () => {
+  it('saves a full snapshot when only relation changes exist', async () => {
     const { app, canvasDataService } = createHarness();
     const task = createTask({ uuid: 'task-uuid-1' });
     canvasDataService.hasRelationChanges.mockReturnValue(true);
@@ -189,58 +199,57 @@ describe('CanvasApp.saveLayoutPositions', () => {
     const saved = await firstValueFrom(runSaveLayout(app, [task], false));
 
     expect(saved).toBe(true);
-    expect(canvasDataService.updateLayoutBatch).not.toHaveBeenCalled();
-    expect(canvasDataService.deletePositions).toHaveBeenCalledWith([]);
-    expect(canvasDataService.updateCanvasRelations).toHaveBeenCalledTimes(1);
+    expect(canvasDataService.saveCanvasSnapshot).toHaveBeenCalledTimes(1);
   });
 
-  it('refreshes positions when refresh is required', async () => {
-    const { app, canvasDataService } = createHarness();
-    const task = createTask({ uuid: 'task-uuid-1' });
-    const changedPosition = {
-      element_type: 'task',
-      element_uuid: 'task-uuid-1',
-    };
-    canvasDataService.filterPositionUpdates.mockReturnValue([changedPosition]);
-    canvasDataService.needsPositionRefresh.mockReturnValue(true);
-
-    const saved = await firstValueFrom(runSaveLayout(app, [task], false));
-
-    expect(saved).toBe(true);
-    expect(canvasDataService.refreshPositions).toHaveBeenCalledTimes(1);
-  });
-
-  it('queues drafts and propagates error when relation save fails', async () => {
+  it('queues a layout draft and propagates error when snapshot save fails', async () => {
     const { app, canvasDataService, queueUnsyncedDraft } = createHarness();
     const task = createTask({ uuid: 'task-uuid-1' });
-    const failure = new Error('relation-save-failed');
+    const failure = new Error('snapshot-save-failed');
     canvasDataService.hasRelationChanges.mockReturnValue(true);
-    canvasDataService.updateCanvasRelations.mockReturnValue(
-      throwError(() => failure)
-    );
+    canvasDataService.saveCanvasSnapshot.mockReturnValue(throwError(() => failure));
 
     await expect(firstValueFrom(runSaveLayout(app, [task], true))).rejects.toBe(
       failure
     );
 
     expect(queueUnsyncedDraft).toHaveBeenCalledWith(
-      'relations-sync',
-      'relations',
-      expect.objectContaining({
-        relationCount: 0,
-        elementCount: 1,
-      })
-    );
-    expect(queueUnsyncedDraft).toHaveBeenCalledWith(
       'layout-sync',
       'layout',
       expect.objectContaining({
-        changedPositions: [],
+        positions: [expect.objectContaining({ element_uuid: 'task-uuid-1' })],
         removedPositionIds: [],
         relationCount: 0,
+        baseRevision: 1,
       })
     );
-    expect(notify).toHaveBeenCalledWith('Failed to save relations', 'error');
     expect(notify).toHaveBeenCalledWith('Failed to save layout', 'error');
+  });
+
+  it('shows a conflict message when snapshot revision is stale', async () => {
+    const { app, canvasDataService } = createHarness();
+    const task = createTask({ uuid: 'task-uuid-1' });
+    const conflictError = { status: 409 };
+    canvasDataService.hasRelationChanges.mockReturnValue(true);
+    canvasDataService.saveCanvasSnapshot.mockReturnValue(
+      throwError(() => conflictError)
+    );
+    app.i18n = {
+      t: (key: string) =>
+        key === 'canvas.snapshotOutOfDate' ? 'Snapshot conflict.' : key,
+    };
+    app.isSnapshotConflictError = function (error: unknown): boolean {
+      return (
+        CanvasApp.prototype as unknown as {
+          isSnapshotConflictError: (input: unknown) => boolean;
+        }
+      ).isSnapshotConflictError.call(app, error);
+    };
+
+    await expect(firstValueFrom(runSaveLayout(app, [task], true))).rejects.toBe(
+      conflictError
+    );
+
+    expect(notify).toHaveBeenCalledWith('Snapshot conflict.', 'error');
   });
 });

@@ -266,12 +266,21 @@ export class CanvasMenu {
         window.dispatchEvent(new CustomEvent('canvasDuplicateRequested'));
       },
     });
+    const versionHistoryButton = createDropdownItem({
+      label: this.i18n.t('canvasMenu.versionHistory'),
+      variant: 'default',
+      onClick: () => {
+        this.setDropdownOpen(false);
+        window.dispatchEvent(new CustomEvent('canvasVersionHistoryRequested'));
+      },
+    });
     actions.append(
       animationsToggle,
       smartGuidesToggle,
       guideOptionsSubmenuTrigger,
       autosaveToggle,
       createDivider({ tone: 'soft' }),
+      versionHistoryButton,
       duplicateCanvasButton,
       createDivider({ tone: 'soft' }),
       deleteCanvasButton

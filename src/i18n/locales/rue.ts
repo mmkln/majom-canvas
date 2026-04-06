@@ -14,6 +14,7 @@ export const rue: AppTranslations = {
   'canvasMenu.containerGuides': 'Лінії контейнера',
   'canvasMenu.deleteCanvas': 'Видалити canvas',
   'canvasMenu.duplicateCanvas': 'Зробити копію',
+  'canvasMenu.versionHistory': 'Історія версій',
   'canvasMenu.guideOptions': 'Параметры ліній',
   'canvasMenu.guideOptionsSectionTitle': 'Налаштуваня ліній',
   'canvasMenu.openCanvasMenu': 'Отворити меню canvas-у',
@@ -25,6 +26,25 @@ export const rue: AppTranslations = {
   'canvas.duplicateSuccess': 'Копія canvas-у створена.',
   'canvas.finishRelationConfirmationFirst':
     'Найперше заверште підтверджіня звязи.',
+  'canvasHistory.title': 'Історія версій',
+  'canvasHistory.subtitle':
+    'Перегляньте остатнї уложены версії і верньте canvas до попереднього стану.',
+  'canvasHistory.subtitleWithCanvas':
+    'Перегляньте остатнї уложены версії для "{canvasTitle}" і верньте canvas до попереднього стану.',
+  'canvasHistory.loading': 'Загружаня уложеных версій...',
+  'canvasHistory.empty': 'Іще нема уложеных версій.',
+  'canvasHistory.loadFailed': 'Не подало ся загрузити історію версій.',
+  'canvasHistory.reload': 'Перезагрузити',
+  'canvasHistory.restore': 'Вернути',
+  'canvasHistory.restoring': 'Вертаня...',
+  'canvasHistory.restoreFailed': 'Не подало ся вернути тото версію.',
+  'canvasHistory.restoreSuccess': 'Canvas успішно вернутый.',
+  'canvasHistory.close': 'Закрити',
+  'canvasHistory.summary': '{nodes} елементів, {relations} звязей',
+  'canvasHistory.source.manualSave': 'Ручне уложіня',
+  'canvasHistory.source.autosave': 'Автозбережіня',
+  'canvasHistory.source.restore': 'Вертаня',
+  'canvasHistory.source.system': 'Система',
   'common.accountLoading': 'Рахунок ся загружать...',
   'common.actions': 'Дїї',
   'common.archive': 'Архівовати',
@@ -247,6 +267,13 @@ export const rue: AppTranslations = {
   'saveButton.saving': 'Укладає ся...',
   'saveButton.unsavedChanges': 'Неуложены зміны',
   'saveButton.allChangesSaved': 'Вшыткы зміны уложены',
+  'saveButton.waitForCanvasLoad': 'Чекайте, кідь ся canvas догрузить',
+  'canvas.waitForCanvasLoadBeforePersisting':
+    'Чекайте, кідь ся canvas догрузить, перше ніж го уложыти або здубльовати.',
+  'canvas.waitForCanvasLoadBeforeDestructiveAction':
+    'Чекайте, кідь ся canvas догрузить, перше ніж зробити деструктивны зміны.',
+  'canvas.snapshotOutOfDate':
+    'Canvas змінив ся на сервері. Перезагрузьте го перше ніж опять уложыти.',
   'status.defined': 'Описаный',
   'status.done': 'Готово',
   'status.inProgress': 'В процесі',

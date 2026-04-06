@@ -91,6 +91,10 @@ export class UIManager {
     private readonly authService: AuthService,
     private readonly persistenceState: CanvasPersistenceState,
     private readonly getActiveCanvasId: () => string | null,
+    private readonly canTriggerManualSave: () => boolean,
+    private readonly getManualSaveBlockedReason: () => string,
+    private readonly canMutateCanvasStructure: () => boolean,
+    private readonly onCanvasMutationBlocked: () => void,
     private readonly runtime: AppRuntime = createAppRuntime()
   ) {
     this.canvasNavigationDock = new CanvasNavigationDock(
@@ -148,6 +152,10 @@ export class UIManager {
       canvasMenu,
       this.persistenceState,
       this.getActiveCanvasId,
+      {
+        canTriggerManualSave: this.canTriggerManualSave,
+        getManualSaveBlockedReason: this.getManualSaveBlockedReason,
+      },
       this.runtime
     );
     this.addExistingTaskService = new AddExistingTaskService(
@@ -253,9 +261,16 @@ export class UIManager {
       this.addExistingGoalService,
       this.addExistingStoryService,
       this.addExistingHabitService,
+      {
+        canMutateCanvasStructure: this.canMutateCanvasStructure,
+        onCanvasMutationBlocked: this.onCanvasMutationBlocked,
+      },
       this.runtime
     );
-    const bulkActions = new BulkActionsController(this.scene);
+    const bulkActions = new BulkActionsController(this.scene, {
+      canMutateStructure: this.canMutateCanvasStructure,
+      onMutationBlocked: this.onCanvasMutationBlocked,
+    });
     const selectionActions = new SelectionActionMenu(
       this.scene,
       this.canvasManager,

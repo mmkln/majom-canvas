@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Scene } from '../scene/Scene.ts';
 import { BulkActionsController } from './BulkActionsController.ts';
@@ -154,5 +154,44 @@ describe('BulkActionsController goal tags', () => {
     historyService.undo();
 
     expect(goal.status).toBe(ElementStatus.Defined);
+  });
+
+  it('blocks remove-from-canvas when structural mutation is not allowed', () => {
+    const scene = new Scene();
+    const onMutationBlocked = vi.fn();
+    const controller = new BulkActionsController(scene, {
+      canMutateStructure: () => false,
+      onMutationBlocked,
+    });
+    const goal = new GoalElement({
+      id: 'goal-a',
+      title: 'Goal A',
+    });
+
+    controller.removeFromCanvas([goal]);
+
+    expect(onMutationBlocked).toHaveBeenCalledTimes(1);
+    expect(historyService.canUndo()).toBe(false);
+  });
+
+  it('blocks permanent delete when structural mutation is not allowed', () => {
+    const scene = new Scene();
+    const onMutationBlocked = vi.fn();
+    const controller = new BulkActionsController(scene, {
+      canMutateStructure: () => false,
+      onMutationBlocked,
+    });
+    const goal = new GoalElement({
+      id: 'goal-a',
+      title: 'Goal A',
+    });
+    const eventSpy = vi.fn();
+    window.addEventListener('elementDeleteRequested', eventSpy);
+
+    controller.deletePermanently([goal]);
+
+    expect(onMutationBlocked).toHaveBeenCalledTimes(1);
+    expect(eventSpy).not.toHaveBeenCalled();
+    window.removeEventListener('elementDeleteRequested', eventSpy);
   });
 });

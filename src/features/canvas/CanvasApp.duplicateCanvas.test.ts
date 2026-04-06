@@ -53,6 +53,7 @@ type CanvasDuplicateHarness = {
   persistenceState: CanvasPersistenceState;
   resetHistoryAndPersistence: () => void;
   isLinkDecisionPending: () => boolean;
+  canPersistCanvasState: () => boolean;
   getCurrentViewState: () => {
     scrollX: number;
     scrollY: number;
@@ -74,6 +75,7 @@ function attachDuplicateHelpers<
   T extends Omit<
     CanvasDuplicateHarness,
     | 'isLinkDecisionPending'
+    | 'canPersistCanvasState'
     | 'getCurrentViewState'
     | 'buildDuplicateCanvasTitle'
     | 'resetHistoryAndPersistence'
@@ -86,6 +88,9 @@ function attachDuplicateHelpers<
         isLinkDecisionPending: () => boolean;
       }
     ).isLinkDecisionPending.call(target);
+  };
+  target.canPersistCanvasState = function (): boolean {
+    return true;
   };
   target.getCurrentViewState = function (): {
     scrollX: number;
@@ -207,7 +212,7 @@ describe('CanvasApp.handleCanvasDuplicateRequested', () => {
 
     expect(createCanvas).toHaveBeenCalledWith('Copy - Roadmap');
     expect(ensureElementsPersisted).toHaveBeenCalledWith([task]);
-    expect(saveLayoutPositions).toHaveBeenCalledWith([task], false);
+    expect(saveLayoutPositions).toHaveBeenCalledWith([task], false, 'system');
     expect(saveViewState).toHaveBeenCalledWith(
       {
         scrollX: 80,

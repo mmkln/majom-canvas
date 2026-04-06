@@ -69,6 +69,7 @@ import {
 import { confirmReplaceStoryGoalModal } from './ui/components/ConfirmReplaceStoryGoalModal.ts';
 import { confirmDeleteCanvasModal } from './ui/components/ConfirmDeleteCanvasModal.ts';
 import { confirmRestoreCanvasDraftModal } from './ui/components/ConfirmRestoreCanvasDraftModal.ts';
+import { openCanvasVersionHistoryModal } from './ui/components/CanvasVersionHistoryModal.ts';
 import { authFlowService } from './ui/auth/authFlowService.ts';
 import {
   emitAiAssistantContextChanged,
@@ -121,6 +122,7 @@ type CanvasListCacheItem = {
 
 const APP_DOCUMENT_TITLE = 'Majom Canvas';
 const CANVAS_TITLE_MAX_LENGTH = 100;
+const CANVAS_UI_STATE_CHANGED_EVENT = 'canvasUiStateChanged';
 
 export class CanvasApp {
   private readonly dataProvider: IDataProvider;
@@ -187,6 +189,9 @@ export class CanvasApp {
     this.handleCanvasRenameRequested(event);
   private readonly canvasDeleteRequestedHandler = (event: Event): void => {
     void this.handleCanvasDeleteRequested(event);
+  };
+  private readonly canvasVersionHistoryRequestedHandler = (): void => {
+    void this.handleCanvasVersionHistoryRequested();
   };
   private readonly elementDetailsEditedHandler = (event: Event): void =>
     this.handleElementDetailsEdited(event);
@@ -263,6 +268,10 @@ export class CanvasApp {
       this.authService,
       this.persistenceState,
       () => this.canvasDataService.getActiveCanvasId(),
+      () => this.canTriggerManualSave(),
+      () => this.i18n.t('saveButton.waitForCanvasLoad'),
+      () => this.canMutateCanvasStructure(),
+      () => this.notifyCanvasMutationBlocked(),
       this.runtime
     );
     this.chatCanvasActionExecutor = new AiAssistantCanvasActionExecutor({
@@ -297,7 +306,10 @@ export class CanvasApp {
     );
 
     // Register commands from config
-    getCommandConfigs(this.scene, this.canvasManager).forEach((cmd) => {
+    getCommandConfigs(this.scene, this.canvasManager, {
+      canMutateStructure: () => this.canMutateCanvasStructure(),
+      onMutationBlocked: () => this.notifyCanvasMutationBlocked(),
+    }).forEach((cmd) => {
       commandManager.register(cmd.name, cmd.handler);
       cmd.keys.forEach((k) => commandManager.bindShortcut(cmd.name, k));
     });
@@ -332,6 +344,10 @@ export class CanvasApp {
     window.addEventListener(
       'canvasDeleteRequested',
       this.canvasDeleteRequestedHandler
+    );
+    window.addEventListener(
+      'canvasVersionHistoryRequested',
+      this.canvasVersionHistoryRequestedHandler
     );
     window.addEventListener(
       'elementDetailsEdited',
@@ -398,6 +414,10 @@ export class CanvasApp {
       this.canvasDeleteRequestedHandler
     );
     window.removeEventListener(
+      'canvasVersionHistoryRequested',
+      this.canvasVersionHistoryRequestedHandler
+    );
+    window.removeEventListener(
       'elementDetailsEdited',
       this.elementDetailsEditedHandler
     );
@@ -424,6 +444,10 @@ export class CanvasApp {
   }
 
   private handleSaveCanvasLayoutRequest(): void {
+    if (!this.canPersistCanvasState()) {
+      notify(this.i18n.t('canvas.waitForCanvasLoadBeforePersisting'), 'info');
+      return;
+    }
     if (!this.persistenceState.hasLayoutDirty()) {
       this.retryRestoreReplayPersistence();
       return;
@@ -555,6 +579,10 @@ export class CanvasApp {
   }
 
   private async handleCanvasDuplicateRequested(): Promise<void> {
+    if (!this.canPersistCanvasState()) {
+      notify(this.i18n.t('canvas.waitForCanvasLoadBeforePersisting'), 'info');
+      return;
+    }
     if (this.isLinkDecisionPending()) {
       notify(this.i18n.t('canvas.finishRelationConfirmationFirst'), 'info');
       return;
@@ -581,7 +609,7 @@ export class CanvasApp {
         this.canvasDataService.ensureElementsPersisted(elements)
       );
       const saved = await firstValueFrom(
-        this.saveLayoutPositions(elements, false)
+        this.saveLayoutPositions(elements, false, 'system')
       );
       if (!saved) {
         throw new Error('Canvas duplication skipped layout persistence.');
@@ -597,6 +625,44 @@ export class CanvasApp {
       console.error('Failed to duplicate canvas', err);
       notify(this.i18n.t('canvas.duplicateFailed'), 'error');
     }
+  }
+
+  private async handleCanvasVersionHistoryRequested(): Promise<void> {
+    if (!this.authService.isLoggedIn()) {
+      authFlowService.requestLogin('canvas-access');
+      return;
+    }
+    const activeCanvasId = this.canvasDataService.getActiveCanvasId();
+    if (!activeCanvasId) return;
+
+    openCanvasVersionHistoryModal({
+      canvasTitle: this.canvasTitle,
+      runtime: this.runtime,
+      loadVersions: () =>
+        firstValueFrom(this.canvasDataService.loadCanvasHistory(activeCanvasId)),
+      restoreVersion: async (versionId) => {
+        await this.persistActiveCanvasDraftNow();
+        const snapshot = await firstValueFrom(
+          this.canvasDataService.restoreCanvasHistoryVersion(
+            activeCanvasId,
+            versionId
+          )
+        );
+        this.setCanvasTitle(snapshot.canvas.name);
+        this.canvasListCache.set(activeCanvasId, {
+          id: activeCanvasId,
+          name: snapshot.canvas.name,
+          meta: snapshot.canvas.meta ?? null,
+        });
+        this.emitCanvasList(
+          this.getCanvasListUiItemsFromCache(),
+          activeCanvasId
+        );
+        this.resetHistoryAndPersistence();
+        this.loadActiveCanvasElements();
+        notify(this.i18n.t('canvasHistory.restoreSuccess'), 'success');
+      },
+    });
   }
 
   private handleCanvasFavoriteToggled(event: Event): void {
@@ -786,6 +852,10 @@ export class CanvasApp {
     }>;
     const element = customEvent.detail?.element;
     if (!element) return;
+    if (!this.canMutateCanvasStructure()) {
+      this.notifyCanvasMutationBlocked();
+      return;
+    }
     if (!this.authService.isLoggedIn()) {
       authFlowService.requestLogin('protected-action');
       return;
@@ -1024,8 +1094,6 @@ export class CanvasApp {
       return;
     }
     this.canvasDataService.clearElementCache();
-    // TODO(snapshot-cache): once snapshot endpoint is available,
-    // replace bootstrap + elements + relations chain with single snapshot hydration.
     this.canvasDataService.bootstrapCanvas().subscribe({
       next: ({ canvases, activeCanvas }) => {
         void this.activateCanvasSession(
@@ -1073,7 +1141,13 @@ export class CanvasApp {
       : 'autosave';
     emitCanvasSaveStarted(saveSource);
     return this.canvasDataService.ensureElementsPersisted(elements).pipe(
-      switchMap(() => this.saveLayoutPositions(elements, showNotifications)),
+      switchMap(() =>
+        this.saveLayoutPositions(
+          elements,
+          showNotifications,
+          saveSource === 'manual' ? 'manual-save' : 'autosave'
+        )
+      ),
       catchError((err) => {
         console.error('Failed to create elements', err);
         if (showNotifications) {
@@ -1086,7 +1160,9 @@ export class CanvasApp {
   }
   private saveLayoutPositions(
     elements: CanvasPlanningElement[],
-    showNotifications: boolean
+    showNotifications: boolean,
+    saveSource: 'manual-save' | 'autosave' | 'restore' | 'system' =
+      showNotifications ? 'manual-save' : 'autosave'
   ): Observable<boolean> {
     const positions: CanvasPositionWriteDTO[] = [];
     const missingIds: string[] = [];
@@ -1143,8 +1219,6 @@ export class CanvasApp {
     }
     const removedPositionIds =
       this.canvasDataService.getRemovedPositionIds(elements);
-    const needsPositionRefresh =
-      this.canvasDataService.needsPositionRefresh(elements);
     const relationCapableElements = elements.filter(isRelationPlanningElement);
     const hasRelationChanges = this.canvasDataService.hasRelationChanges(
       this.scene.getConnections(),
@@ -1154,7 +1228,6 @@ export class CanvasApp {
     const changedPositions =
       this.canvasDataService.filterPositionUpdates(uniquePositions);
     const layoutDraftId = 'layout-sync';
-    const relationsDraftId = 'relations-sync';
     if (
       changedPositions.length === 0 &&
       removedPositionIds.length === 0 &&
@@ -1166,46 +1239,21 @@ export class CanvasApp {
       return of(true);
     }
 
-    const save$ =
-      changedPositions.length > 0
-        ? this.canvasDataService.updateLayoutBatch(changedPositions)
-        : of(undefined);
-    return save$.pipe(
-      switchMap(() =>
-        this.canvasDataService.deletePositions(removedPositionIds)
-      ),
-      switchMap(() => {
-        if (!needsPositionRefresh) return of(undefined);
-        return this.canvasDataService.refreshPositions().pipe(
-          catchError((err) => {
-            console.error('Failed to refresh positions', err);
-            return of(undefined);
-          })
-        );
-      }),
-      switchMap(() =>
-        this.canvasDataService
-          .updateCanvasRelations(
-            this.scene.getConnections(),
-            relationCapableElements
-          )
-          .pipe(
-            catchError((err) => {
-              this.queueUnsyncedDraft(relationsDraftId, 'relations', {
-                relationCount: this.scene.getConnections().length,
-                elementCount: elements.length,
-              });
-              console.error('Failed to save relations', err);
-              if (showNotifications) {
-                notify('Failed to save relations', 'error');
-              }
-              return throwError(() => err);
-            })
-          )
-      ),
+    return this.canvasDataService
+      .saveCanvasSnapshot({
+        positions: uniquePositions,
+        connections: this.scene.getConnections(),
+        elements: relationCapableElements,
+        source: saveSource,
+        canvas: {
+          name: this.canvasTitle,
+          meta: this.canvasDataService.getActiveCanvasMeta() ?? null,
+        },
+      })
+      .pipe(
       map(() => {
         this.removeUnsyncedDraft(layoutDraftId);
-        this.removeUnsyncedDraft(relationsDraftId);
+        this.removeUnsyncedDraft('relations-sync');
         if (showNotifications) {
           notify('Layout saved', 'success');
         }
@@ -1213,17 +1261,23 @@ export class CanvasApp {
       }),
       catchError((err) => {
         this.queueUnsyncedDraft(layoutDraftId, 'layout', {
-          changedPositions,
+          positions: uniquePositions,
           removedPositionIds,
           relationCount: this.scene.getConnections().length,
+          baseRevision: this.canvasDataService.getActiveCanvasRevision(),
         });
-        console.error('Failed to save layout', err);
+        console.error('Failed to save canvas snapshot', err);
         if (showNotifications) {
-          notify('Failed to save layout', 'error');
+          notify(
+            this.isSnapshotConflictError(err)
+              ? this.i18n.t('canvas.snapshotOutOfDate')
+              : 'Failed to save layout',
+            'error'
+          );
         }
         return throwError(() => err);
       })
-    );
+      );
   }
   private dedupeLayoutPositions(
     positions: CanvasPositionWriteDTO[]
@@ -1436,6 +1490,7 @@ export class CanvasApp {
     if (!this.autosaveEnabled) return;
     if (!this.authService.isLoggedIn()) return;
     if (this.autosaveInFlight) return;
+    if (!this.canPersistCanvasState()) return;
     if (this.isLinkDecisionPending()) return;
     if (!this.persistenceState.hasLayoutDirty()) return;
     const tokenAtStart = historyService.getStateToken();
@@ -1612,12 +1667,17 @@ export class CanvasApp {
     const wasHydrating = this.isHydratingCanvas;
     this.isHydratingCanvas =
       this.isElementsHydrating || this.isRelationsHydrating;
+    window.dispatchEvent(new CustomEvent(CANVAS_UI_STATE_CHANGED_EVENT));
     if (wasHydrating && !this.isHydratingCanvas) {
       void this.reconcileActiveCanvasDraft();
     }
   }
 
   private async handleCanvasDeleteRequested(event?: Event): Promise<void> {
+    if (!this.canMutateCanvasStructure()) {
+      this.notifyCanvasMutationBlocked();
+      return;
+    }
     if (!this.authService.isLoggedIn()) {
       authFlowService.requestLogin('canvas-access');
       return;
@@ -2196,6 +2256,34 @@ export class CanvasApp {
     return activity.slice(0, 4);
   }
 
+  private canPersistCanvasState(): boolean {
+    return (
+      !this.isHydratingCanvas &&
+      this.canvasManager.getLoadPhase() === 'elements-ready'
+    );
+  }
+
+  private canTriggerManualSave(): boolean {
+    return this.canPersistCanvasState();
+  }
+
+  private canMutateCanvasStructure(): boolean {
+    return this.canPersistCanvasState();
+  }
+
+  private notifyCanvasMutationBlocked(): void {
+    notify(
+      this.i18n.t('canvas.waitForCanvasLoadBeforeDestructiveAction'),
+      'info'
+    );
+  }
+
+  private isSnapshotConflictError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    const status = (error as { status?: unknown }).status;
+    return typeof status === 'number' && status === 409;
+  }
+
   private mapCanvasListUiItem(canvas: {
     id: string;
     name: string;
@@ -2434,19 +2522,25 @@ export class CanvasApp {
 
   private syncCanvasRelationsNow(): void {
     if (!this.authService.isLoggedIn()) return;
-    const elements = this.scene
+    const planningElements = this.scene
       .getElements()
-      .filter(isRelationPlanningElement);
+      .filter(isCanvasPlanningElement) as CanvasPlanningElement[];
+    const relationElements = planningElements.filter(isRelationPlanningElement);
     if (
       !this.canvasDataService.hasRelationChanges(
         this.scene.getConnections(),
-        elements
+        relationElements
       )
     ) {
       return;
     }
     this.canvasDataService
-      .updateCanvasRelations(this.scene.getConnections(), elements)
+      .ensureElementsPersisted(planningElements)
+      .pipe(
+        switchMap(() =>
+          this.saveLayoutPositions(planningElements, false, 'system')
+        )
+      )
       .subscribe({
         error: (err) => {
           console.error('Failed to sync canvas relations', err);

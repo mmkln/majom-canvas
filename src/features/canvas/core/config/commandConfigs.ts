@@ -15,10 +15,18 @@ export interface CommandConfig {
   keys: string[];
 }
 
+type CommandConfigOptions = {
+  canMutateStructure?: () => boolean;
+  onMutationBlocked?: () => void;
+};
+
 export function getCommandConfigs(
   scene: Scene,
-  canvasManager: CanvasManager
+  canvasManager: CanvasManager,
+  options: CommandConfigOptions = {}
 ): CommandConfig[] {
+  const canMutateStructure = options.canMutateStructure ?? (() => true);
+  const onMutationBlocked = options.onMutationBlocked ?? (() => {});
   return [
     {
       name: 'undo',
@@ -43,12 +51,22 @@ export function getCommandConfigs(
     },
     {
       name: 'cut',
-      handler: () => historyService.execute(new CutCommand(scene)),
+      handler: () => {
+        if (!canMutateStructure()) {
+          onMutationBlocked();
+          return;
+        }
+        historyService.execute(new CutCommand(scene));
+      },
       keys: ['ctrl+x', 'meta+x'],
     },
     {
       name: 'delete',
       handler: () => {
+        if (!canMutateStructure()) {
+          onMutationBlocked();
+          return;
+        }
         const elems = scene.getSelectedElements();
         historyService.execute(new DeleteCommand(scene, elems));
       },

@@ -1,6 +1,5 @@
 import { Subscription } from 'rxjs';
 import { historyService } from '../core/services/HistoryService.ts';
-import { DeleteCommand } from '../core/commands/DeleteCommand.ts';
 import { CopyCommand } from '../core/commands/CopyCommand.ts';
 import { PasteCommand } from '../core/commands/PasteCommand.ts';
 import { AddElementCommand } from '../core/commands/AddElementCommand.ts';
@@ -75,6 +74,11 @@ type ContextMenuDetail = {
   element: ICanvasElement | null;
   sceneX: number;
   sceneY: number;
+};
+
+type ContextMenuOptions = {
+  canMutateCanvasStructure?: () => boolean;
+  onCanvasMutationBlocked?: () => void;
 };
 
 type MenuActionResult = 'keep-open' | void;
@@ -162,9 +166,13 @@ export class ContextMenu {
     private addExistingGoalService: AddExistingGoalService,
     private addExistingStoryService: AddExistingStoryService,
     private addExistingHabitService: AddExistingHabitService,
+    options: ContextMenuOptions = {},
     private readonly runtime: AppRuntime = createAppRuntime()
   ) {
-    this.bulkActions = new BulkActionsController(scene);
+    this.bulkActions = new BulkActionsController(scene, {
+      canMutateStructure: options.canMutateCanvasStructure,
+      onMutationBlocked: options.onCanvasMutationBlocked,
+    });
     this.menu = createSurface({
       elevated: true,
       className:
@@ -1040,8 +1048,10 @@ export class ContextMenu {
     row.push({
       icon: 'minus',
       label: this.runtime.i18n.t('canvasContextMenu.removeFromCanvas'),
-      action: () =>
-        historyService.execute(new DeleteCommand(this.scene, [element])),
+      action: () => {
+        if (!planningElement) return;
+        this.bulkActions.removeFromCanvas([planningElement]);
+      },
     });
     return {
       row,

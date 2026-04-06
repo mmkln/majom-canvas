@@ -16,6 +16,11 @@ import {
   selectionSupportsPermanentDelete,
 } from '../../elements/utils/planningElementCapabilities.ts';
 
+type BulkActionsControllerOptions = {
+  canMutateStructure?: () => boolean;
+  onMutationBlocked?: () => void;
+};
+
 type GoalTagUpdateMode = 'add' | 'remove' | 'replace';
 type GoalTagCatalogItem = {
   id: number;
@@ -78,10 +83,17 @@ function resolveGoalTagTitles(
 export class BulkActionsController {
   private readonly connectionCreationService: ConnectionCreationService;
   private readonly connectionRemovalService: ConnectionRemovalService;
+  private readonly canMutateStructure: () => boolean;
+  private readonly onMutationBlocked: () => void;
 
-  constructor(private readonly scene: Scene) {
+  constructor(
+    private readonly scene: Scene,
+    options: BulkActionsControllerOptions = {}
+  ) {
     this.connectionCreationService = new ConnectionCreationService(scene);
     this.connectionRemovalService = new ConnectionRemovalService(scene);
+    this.canMutateStructure = options.canMutateStructure ?? (() => true);
+    this.onMutationBlocked = options.onMutationBlocked ?? (() => {});
   }
 
   public copy(elements: PlanningElement[]): void {
@@ -96,11 +108,19 @@ export class BulkActionsController {
 
   public removeFromCanvas(elements: PlanningElement[]): void {
     if (elements.length === 0) return;
+    if (!this.canMutateStructure()) {
+      this.onMutationBlocked();
+      return;
+    }
     historyService.execute(new DeleteCommand(this.scene, elements));
   }
 
   public deletePermanently(elements: PlanningElement[]): void {
     if (elements.length === 0) return;
+    if (!this.canMutateStructure()) {
+      this.onMutationBlocked();
+      return;
+    }
     const removable = selectionSupportsPermanentDelete(elements) ? elements : [];
     if (removable.length === 0) {
       notify('Nothing in this selection can be deleted permanently.', 'info');

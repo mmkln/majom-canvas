@@ -446,6 +446,7 @@ export const uk = {
   'canvasMenu.containerGuides': 'Підказки контейнера',
   'canvasMenu.deleteCanvas': 'Видалити дошку',
   'canvasMenu.duplicateCanvas': 'Зробити копію',
+  'canvasMenu.versionHistory': 'Історія версій',
   'canvasMenu.guideOptions': 'Параметри підказок',
   'canvasMenu.guideOptionsSectionTitle': 'Налаштування підказок',
   'canvasMenu.openCanvasMenu': 'Відкрити меню дошки',
@@ -457,6 +458,25 @@ export const uk = {
   'canvas.duplicateSuccess': 'Копію canvas створено.',
   'canvas.finishRelationConfirmationFirst':
     'Спершу завершіть підтвердження звʼязку.',
+  'canvasHistory.title': 'Історія версій',
+  'canvasHistory.subtitle':
+    'Перегляньте останні збережені версії та відновіть canvas до попереднього стану.',
+  'canvasHistory.subtitleWithCanvas':
+    'Перегляньте останні збережені версії для "{canvasTitle}" та відновіть canvas до попереднього стану.',
+  'canvasHistory.loading': 'Завантаження збережених версій...',
+  'canvasHistory.empty': 'Збережених версій ще немає.',
+  'canvasHistory.loadFailed': 'Не вдалося завантажити історію версій.',
+  'canvasHistory.reload': 'Перезавантажити',
+  'canvasHistory.restore': 'Відновити',
+  'canvasHistory.restoring': 'Відновлення...',
+  'canvasHistory.restoreFailed': 'Не вдалося відновити цю версію.',
+  'canvasHistory.restoreSuccess': 'Canvas успішно відновлено.',
+  'canvasHistory.close': 'Закрити',
+  'canvasHistory.summary': '{nodes} елементів, {relations} звʼязків',
+  'canvasHistory.source.manualSave': 'Ручне збереження',
+  'canvasHistory.source.autosave': 'Автозбереження',
+  'canvasHistory.source.restore': 'Відновлення',
+  'canvasHistory.source.system': 'Системна подія',
   'canvas.titleTooLong': 'Назва canvas має бути не довшою за {limit} символів.',
   'canvas.updateTitleFailed': 'Не вдалося оновити назву canvas.',
   'common.accountLoading': 'Завантажуємо акаунт...',
@@ -785,6 +805,13 @@ export const uk = {
   'saveButton.saving': 'Збереження...',
   'saveButton.unsavedChanges': 'Є незбережені зміни',
   'saveButton.allChangesSaved': 'Усі зміни збережено',
+  'saveButton.waitForCanvasLoad': 'Дочекайтеся завершення завантаження canvas',
+  'canvas.waitForCanvasLoadBeforePersisting':
+    'Дочекайтеся завершення завантаження canvas перед збереженням або дублюванням.',
+  'canvas.waitForCanvasLoadBeforeDestructiveAction':
+    'Дочекайтеся завершення завантаження canvas перед деструктивними змінами.',
+  'canvas.snapshotOutOfDate':
+    'Canvas змінився на сервері. Перезавантажте його перед повторним збереженням.',
   'status.defined': 'Визначено',
   'status.done': 'Готово',
   'status.inProgress': 'У процесі',

@@ -4,6 +4,12 @@ import {
   CanvasPositionReadDTO,
   CanvasPositionWriteDTO,
 } from './canvas-position-dto.js';
+import type {
+  CanvasSnapshotDTO,
+  CanvasSnapshotVersionDetailDTO,
+  CanvasSnapshotVersionListItemDTO,
+  CanvasSnapshotWriteDTO,
+} from './canvas-snapshot-dto.ts';
 
 export type CanvasMeta = Record<string, unknown> | null;
 export type CanvasStatus = 'active' | 'archived';
@@ -13,8 +19,10 @@ export interface CanvasSummary {
   name: string;
   created_at: string;
   meta?: CanvasMeta;
+  revision?: number;
   status?: CanvasStatus;
   archived_at?: string | null;
+  updated_at?: string;
 }
 
 export class CanvasApiService {
@@ -94,5 +102,53 @@ export class CanvasApiService {
 
   public restoreCanvas(id: string): Observable<CanvasSummary> {
     return this.http.post<CanvasSummary>(`/canvas/${id}/restore/`, {});
+  }
+
+  public loadCanvasSnapshot(canvasId: string): Observable<CanvasSnapshotDTO> {
+    const encoded = encodeURIComponent(canvasId);
+    return this.http.get<CanvasSnapshotDTO>(`/canvas/${encoded}/snapshot/`);
+  }
+
+  public saveCanvasSnapshot(
+    canvasId: string,
+    payload: CanvasSnapshotWriteDTO
+  ): Observable<CanvasSnapshotDTO> {
+    const encoded = encodeURIComponent(canvasId);
+    return this.http.put<CanvasSnapshotDTO>(
+      `/canvas/${encoded}/snapshot/`,
+      payload
+    );
+  }
+
+  public loadCanvasHistory(
+    canvasId: string
+  ): Observable<CanvasSnapshotVersionListItemDTO[]> {
+    const encoded = encodeURIComponent(canvasId);
+    return this.http.get<CanvasSnapshotVersionListItemDTO[]>(
+      `/canvas/${encoded}/history/`
+    );
+  }
+
+  public loadCanvasHistoryVersion(
+    canvasId: string,
+    versionId: string
+  ): Observable<CanvasSnapshotVersionDetailDTO> {
+    const encodedCanvasId = encodeURIComponent(canvasId);
+    const encodedVersionId = encodeURIComponent(versionId);
+    return this.http.get<CanvasSnapshotVersionDetailDTO>(
+      `/canvas/${encodedCanvasId}/history/${encodedVersionId}/`
+    );
+  }
+
+  public restoreCanvasHistoryVersion(
+    canvasId: string,
+    versionId: string
+  ): Observable<CanvasSnapshotDTO> {
+    const encodedCanvasId = encodeURIComponent(canvasId);
+    const encodedVersionId = encodeURIComponent(versionId);
+    return this.http.post<CanvasSnapshotDTO>(
+      `/canvas/${encodedCanvasId}/history/${encodedVersionId}/restore/`,
+      {}
+    );
   }
 }

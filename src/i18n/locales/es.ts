@@ -13,6 +13,7 @@ export const es: AppTranslations = {
   'canvasMenu.containerGuides': 'Guías del contenedor',
   'canvasMenu.deleteCanvas': 'Eliminar canvas',
   'canvasMenu.duplicateCanvas': 'Duplicar canvas',
+  'canvasMenu.versionHistory': 'Historial de versiones',
   'canvasMenu.guideOptions': 'Opciones de guías',
   'canvasMenu.guideOptionsSectionTitle': 'Configuración de guías',
   'canvasMenu.openCanvasMenu': 'Abrir menú del canvas',
@@ -24,6 +25,25 @@ export const es: AppTranslations = {
   'canvas.duplicateSuccess': 'Canvas duplicado.',
   'canvas.finishRelationConfirmationFirst':
     'Primero termina la confirmación de relaciones.',
+  'canvasHistory.title': 'Historial de versiones',
+  'canvasHistory.subtitle':
+    'Revisa las versiones guardadas recientes y restaura el canvas a un estado anterior.',
+  'canvasHistory.subtitleWithCanvas':
+    'Revisa las versiones guardadas recientes de "{canvasTitle}" y restaura el canvas a un estado anterior.',
+  'canvasHistory.loading': 'Cargando versiones guardadas...',
+  'canvasHistory.empty': 'Todavía no hay versiones guardadas.',
+  'canvasHistory.loadFailed': 'No se pudo cargar el historial de versiones.',
+  'canvasHistory.reload': 'Recargar',
+  'canvasHistory.restore': 'Restaurar',
+  'canvasHistory.restoring': 'Restaurando...',
+  'canvasHistory.restoreFailed': 'No se pudo restaurar esta versión.',
+  'canvasHistory.restoreSuccess': 'Canvas restaurado correctamente.',
+  'canvasHistory.close': 'Cerrar',
+  'canvasHistory.summary': '{nodes} elementos, {relations} enlaces',
+  'canvasHistory.source.manualSave': 'Guardado manual',
+  'canvasHistory.source.autosave': 'Autoguardado',
+  'canvasHistory.source.restore': 'Restauración',
+  'canvasHistory.source.system': 'Sistema',
   'canvas.titleTooLong': 'El título del canvas no puede superar 100 caracteres.',
   'canvas.updateTitleFailed': 'No se pudo actualizar el título del canvas.',
   'canvasControls.goToFocus': 'Ir al foco',
@@ -593,6 +613,13 @@ export const es: AppTranslations = {
   'saveButton.saving': 'Guardando...',
   'saveButton.unsavedChanges': 'Cambios sin guardar',
   'saveButton.allChangesSaved': 'Todos los cambios guardados',
+  'saveButton.waitForCanvasLoad': 'Espera a que el canvas termine de cargar',
+  'canvas.waitForCanvasLoadBeforePersisting':
+    'Espera a que el canvas termine de cargar antes de guardarlo o duplicarlo.',
+  'canvas.waitForCanvasLoadBeforeDestructiveAction':
+    'Espera a que el canvas termine de cargar antes de hacer cambios destructivos.',
+  'canvas.snapshotOutOfDate':
+    'Este canvas cambió en el servidor. Recárgalo antes de volver a guardarlo.',
   'status.defined': 'Definido',
   'status.done': 'Hecho',
   'status.inProgress': 'En progreso',

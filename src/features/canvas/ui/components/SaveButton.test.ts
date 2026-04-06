@@ -38,6 +38,7 @@ describe('SaveButton element autosave status', () => {
       persistenceState,
       {
         getActiveCanvasId: () => activeCanvasId,
+        canTriggerManualSave: () => true,
       },
       createAppRuntime({ initialLocale: 'en' })
     );
@@ -118,5 +119,28 @@ describe('SaveButton element autosave status', () => {
     expect(button.textContent).toContain('Save');
     expect(button.disabled).toBe(false);
     expect(button.title).toContain('Autosave failed');
+  });
+
+  it('disables manual save and explains why when canvas loading blocks persistence', () => {
+    activeCanvasId = 'canvas-1';
+    saveButton = new SaveButton(
+      persistenceState,
+      {
+        getActiveCanvasId: () => activeCanvasId,
+        canTriggerManualSave: () => false,
+        getManualSaveBlockedReason: () => 'Wait for canvas to finish loading',
+      },
+      createAppRuntime({ initialLocale: 'en' })
+    );
+    saveButton.mount(document.body);
+    const button = document.body.querySelector<HTMLButtonElement>('button');
+    if (!button) {
+      throw new Error('Save button was not rendered');
+    }
+
+    persistenceState.markRestoredLayoutDirty();
+
+    expect(button.disabled).toBe(true);
+    expect(button.title).toContain('Wait for canvas to finish loading');
   });
 });

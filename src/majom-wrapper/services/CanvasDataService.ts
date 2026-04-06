@@ -29,6 +29,12 @@ import {
   CanvasApiService,
   CanvasSummary,
 } from '../data-access/canvas-api-service.ts';
+import type {
+  CanvasSnapshotDTO,
+  CanvasSnapshotVersionDetailDTO,
+  CanvasSnapshotVersionListItemDTO,
+  CanvasSnapshotRelationWriteDTO,
+} from '../data-access/canvas-snapshot-dto.ts';
 import { mapTask } from '../../features/canvas/mappers/task-mapper.ts';
 import { mapStory } from '../../features/canvas/mappers/story-mapper.ts';
 import { mapGoal } from '../../features/canvas/mappers/goal-mapper.ts';
@@ -165,6 +171,7 @@ export class CanvasDataService {
   private canvasId: string | null = null;
   private canvasName: string | null = null;
   private canvasMeta: CanvasSummary['meta'] = null;
+  private canvasRevision = 1;
   private tasks$?: Observable<PlatformTask[]>;
   private stories$?: Observable<Story[]>;
   private goals$?: Observable<Goal[]>;
@@ -181,6 +188,7 @@ export class CanvasDataService {
   private queuedElementUpdateKeys = new Set<string>();
   private pendingElementUpdates = 0;
   private failedElementUpdates = false;
+  private snapshotHydratedCanvasId: string | null = null;
   private readonly positionPrecision = 2;
   private readonly defaultViewportFirstThreshold = 250;
   private readonly defaultViewportBufferPx = 600;
@@ -254,12 +262,13 @@ export class CanvasDataService {
         focusedElementUuid: null,
       });
     }
-    return this.canvasApi.fetchCanvasPositions(canvasId).pipe(
-      tap((layout) => {
-        this.updatePositionRegistry(layout);
+    return this.canvasApi.loadCanvasSnapshot(canvasId).pipe(
+      tap((snapshot) => {
+        this.syncSnapshotState(snapshot);
       }),
       retry(2),
-      switchMap((layout) => {
+      switchMap((snapshot) => {
+        const layout = snapshot.positions;
         const layoutPlan = this.prepareViewportLayoutPlan(layout, options);
         const focusedElementUuid = this.getFocusedElementUuid();
         const layoutState: CanvasElementsLoadState = {
@@ -571,10 +580,54 @@ export class CanvasDataService {
     if (!this.canvasId) {
       return of([]);
     }
+    if (this.snapshotHydratedCanvasId === this.canvasId) {
+      return of(
+        this.mapRelationsToConnections(Array.from(this.relationRegistry.values()))
+      );
+    }
     return this.relationsApi.fetchCanvasRelations(this.canvasId).pipe(
       tap((relations) => this.updateRelationRegistry(relations)),
       map((relations) => this.mapRelationsToConnections(relations))
     );
+  }
+
+  public saveCanvasSnapshot(input: {
+    positions: CanvasPositionWriteDTO[];
+    connections: IConnection[];
+    elements: RelationPlanningElement[];
+    canvas?: {
+      name?: string;
+      meta?: CanvasSummary['meta'];
+    };
+    source?: 'manual-save' | 'autosave' | 'restore' | 'system';
+  }): Observable<CanvasSnapshotDTO> {
+    if (!this.canvasId) {
+      return throwError(() => new Error('Active canvas is not set.'));
+    }
+    const normalizedPositions = this.normalizePositionChanges(input.positions);
+    const relations = this.buildSnapshotRelations(
+      input.connections,
+      input.elements
+    );
+    return this.canvasApi
+      .saveCanvasSnapshot(this.canvasId, {
+        baseRevision: this.canvasRevision,
+        source: input.source,
+        canvas: input.canvas,
+        positions: normalizedPositions.map((position) => ({
+          element_type: position.element_type,
+          element_uuid: position.element_uuid,
+          x: position.x ?? 0,
+          y: position.y ?? 0,
+          meta: position.meta ?? null,
+        })),
+        relations,
+      })
+      .pipe(
+        tap((snapshot) => {
+          this.syncSnapshotState(snapshot);
+        })
+      );
   }
 
   public updateCanvasRelations(
@@ -974,6 +1027,30 @@ export class CanvasDataService {
     return this.canvasApi.loadCanvases();
   }
 
+  public loadCanvasHistory(
+    canvasId: string
+  ): Observable<CanvasSnapshotVersionListItemDTO[]> {
+    return this.canvasApi.loadCanvasHistory(canvasId);
+  }
+
+  public loadCanvasHistoryVersion(
+    canvasId: string,
+    versionId: string
+  ): Observable<CanvasSnapshotVersionDetailDTO> {
+    return this.canvasApi.loadCanvasHistoryVersion(canvasId, versionId);
+  }
+
+  public restoreCanvasHistoryVersion(
+    canvasId: string,
+    versionId: string
+  ): Observable<CanvasSnapshotDTO> {
+    return this.canvasApi.restoreCanvasHistoryVersion(canvasId, versionId).pipe(
+      tap((snapshot) => {
+        this.syncSnapshotState(snapshot);
+      })
+    );
+  }
+
   public bootstrapCanvas(): Observable<CanvasBootstrapResult> {
     // TODO(snapshot-cache): replace bootstrap chain with a single backend snapshot
     // endpoint and per-canvas client cache (etag/version-based invalidation).
@@ -1067,6 +1144,7 @@ export class CanvasDataService {
     this.positionRegistry.clear();
     this.positionDirtyKeys.clear();
     this.relationRegistry.clear();
+    this.snapshotHydratedCanvasId = null;
   }
 
   public markPositionsDirty(
@@ -1547,21 +1625,32 @@ export class CanvasDataService {
   }
 
   public setActiveCanvas(
-    canvas: Pick<CanvasSummary, 'id' | 'name' | 'meta'>
+    canvas: Pick<CanvasSummary, 'id' | 'name' | 'meta'> &
+      Partial<Pick<CanvasSummary, 'revision'>>
   ): void {
     if (this.canvasId !== canvas.id) {
       this.positionRegistry.clear();
       this.positionDirtyKeys.clear();
       this.relationRegistry.clear();
+      this.snapshotHydratedCanvasId = null;
     }
     this.canvasId = canvas.id;
     this.canvasName = canvas.name;
     this.canvasMeta = canvas.meta ?? null;
+    if (typeof canvas.revision === 'number' && Number.isFinite(canvas.revision)) {
+      this.canvasRevision = canvas.revision;
+    } else if (this.snapshotHydratedCanvasId !== canvas.id) {
+      this.canvasRevision = 1;
+    }
     CanvasClientStorage.setLastOpenedCanvasId(canvas.id);
   }
 
   public getActiveCanvasMeta(): CanvasSummary['meta'] {
     return this.canvasMeta;
+  }
+
+  public getActiveCanvasRevision(): number | null {
+    return this.canvasId ? this.canvasRevision : null;
   }
 
   private getElementDraftId(req: ElementUpdateRequest): string {
@@ -2054,6 +2143,14 @@ export class CanvasDataService {
     });
   }
 
+  private syncSnapshotState(snapshot: CanvasSnapshotDTO): void {
+    this.setActiveCanvas(snapshot.canvas);
+    this.canvasRevision = snapshot.revision;
+    this.updatePositionRegistry(snapshot.positions);
+    this.updateRelationRegistry(snapshot.relations);
+    this.snapshotHydratedCanvasId = snapshot.canvas.id;
+  }
+
   private updateRelationRegistry(relations: CanvasRelation[]): void {
     this.relationRegistry.clear();
     relations.forEach((relation) => {
@@ -2193,6 +2290,40 @@ export class CanvasDataService {
     map: Map<string, { uuid: string; type: RelationElementType }>
   ): { uuid: string; type: RelationElementType } | null {
     return map.get(ref) ?? null;
+  }
+
+  private buildSnapshotRelations(
+    connections: IConnection[],
+    elements: RelationPlanningElement[]
+  ): CanvasSnapshotRelationWriteDTO[] {
+    const elementRefs = this.buildElementRefMap(elements);
+    const activeKeys = new Set<string>();
+    const relations: CanvasSnapshotRelationWriteDTO[] = [];
+    connections.forEach((connection) => {
+      const relationType = this.mapRelationTypeToBackend(connection.relationType);
+      if (!relationType) return;
+      const fromRef = this.resolveElementRef(connection.fromId, elementRefs);
+      const toRef = this.resolveElementRef(connection.toId, elementRefs);
+      if (!fromRef || !toRef) return;
+      const key = this.buildRelationKey({
+        from_type: fromRef.type,
+        from_uuid: fromRef.uuid,
+        to_type: toRef.type,
+        to_uuid: toRef.uuid,
+        relation_type: relationType,
+      });
+      if (activeKeys.has(key)) return;
+      activeKeys.add(key);
+      relations.push({
+        from_type: fromRef.type,
+        from_uuid: fromRef.uuid,
+        to_type: toRef.type,
+        to_uuid: toRef.uuid,
+        relation_type: relationType,
+        meta: null,
+      });
+    });
+    return relations;
   }
 
   private getBackendId(

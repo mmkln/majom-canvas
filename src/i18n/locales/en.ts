@@ -445,6 +445,7 @@ export const en = {
   'canvasMenu.containerGuides': 'Container guides',
   'canvasMenu.deleteCanvas': 'Delete canvas',
   'canvasMenu.duplicateCanvas': 'Duplicate canvas',
+  'canvasMenu.versionHistory': 'Version history',
   'canvasMenu.guideOptions': 'Guide options',
   'canvasMenu.guideOptionsSectionTitle': 'Guide settings',
   'canvasMenu.openCanvasMenu': 'Open canvas menu',
@@ -456,6 +457,25 @@ export const en = {
   'canvas.duplicateSuccess': 'Canvas duplicated.',
   'canvas.finishRelationConfirmationFirst':
     'Please finish relation confirmation first.',
+  'canvasHistory.title': 'Version history',
+  'canvasHistory.subtitle':
+    'Review recent saved versions and restore the canvas to a previous state.',
+  'canvasHistory.subtitleWithCanvas':
+    'Review recent saved versions for "{canvasTitle}" and restore the canvas to a previous state.',
+  'canvasHistory.loading': 'Loading saved versions...',
+  'canvasHistory.empty': 'No saved versions are available yet.',
+  'canvasHistory.loadFailed': 'Failed to load version history.',
+  'canvasHistory.reload': 'Reload',
+  'canvasHistory.restore': 'Restore',
+  'canvasHistory.restoring': 'Restoring...',
+  'canvasHistory.restoreFailed': 'Failed to restore this version.',
+  'canvasHistory.restoreSuccess': 'Canvas restored successfully.',
+  'canvasHistory.close': 'Close',
+  'canvasHistory.summary': '{nodes} elements, {relations} links',
+  'canvasHistory.source.manualSave': 'Manual save',
+  'canvasHistory.source.autosave': 'Autosave',
+  'canvasHistory.source.restore': 'Restore',
+  'canvasHistory.source.system': 'System',
   'canvas.titleTooLong': 'Canvas title must be {limit} characters or less.',
   'canvas.updateTitleFailed': 'Failed to update canvas title.',
   'common.accountLoading': 'Loading account...',
@@ -775,6 +795,13 @@ export const en = {
   'saveButton.saving': 'Saving...',
   'saveButton.unsavedChanges': 'Unsaved changes',
   'saveButton.allChangesSaved': 'All changes saved',
+  'saveButton.waitForCanvasLoad': 'Wait for canvas to finish loading',
+  'canvas.waitForCanvasLoadBeforePersisting':
+    'Wait for the canvas to finish loading before saving or duplicating it.',
+  'canvas.waitForCanvasLoadBeforeDestructiveAction':
+    'Wait for the canvas to finish loading before making destructive changes.',
+  'canvas.snapshotOutOfDate':
+    'This canvas changed on the server. Reload it before saving again.',
   'status.defined': 'Defined',
   'status.done': 'Done',
   'status.inProgress': 'In progress',

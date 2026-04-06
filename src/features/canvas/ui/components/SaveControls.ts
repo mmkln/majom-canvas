@@ -7,6 +7,8 @@ import { applyCanvasHudCornerPosition } from '../canvasHudLayout.ts';
 import { AppRuntime, createAppRuntime } from '../../../../app-runtime/index.ts';
 import { CanvasPersistenceState } from '../../core/services/CanvasPersistenceState.ts';
 
+const CANVAS_UI_STATE_CHANGED_EVENT = 'canvasUiStateChanged';
+
 /**
  * SaveControls: wraps save and auth actions in a shared HUD layout.
  */
@@ -24,6 +26,10 @@ export class SaveControls {
     canvasMenu: CanvasMenu,
     persistenceState: CanvasPersistenceState,
     getActiveCanvasId: () => string | null,
+    options: {
+      canTriggerManualSave?: () => boolean;
+      getManualSaveBlockedReason?: () => string;
+    } = {},
     runtime: AppRuntime = createAppRuntime()
   ) {
     this.container = document.createElement('div');
@@ -37,7 +43,11 @@ export class SaveControls {
     this.undoRedoControls = new UndoRedoControls(runtime);
     this.saveButton = new SaveButton(
       persistenceState,
-      { getActiveCanvasId },
+      {
+        getActiveCanvasId,
+        canTriggerManualSave: options.canTriggerManualSave,
+        getManualSaveBlockedReason: options.getManualSaveBlockedReason,
+      },
       runtime
     );
     this.canvasMenu = canvasMenu;
@@ -51,12 +61,18 @@ export class SaveControls {
     this.actionsContainer.appendChild(this.saveGroup);
     this.saveButton.mount(this.saveGroup);
     this.canvasMenu.mount(this.actionsContainer);
-    window.addEventListener('refreshCanvasData', this.refreshHandler);
+    window.addEventListener(
+      CANVAS_UI_STATE_CHANGED_EVENT,
+      this.refreshHandler
+    );
     this.updateVisibility();
   }
 
   unmount(): void {
-    window.removeEventListener('refreshCanvasData', this.refreshHandler);
+    window.removeEventListener(
+      CANVAS_UI_STATE_CHANGED_EVENT,
+      this.refreshHandler
+    );
     this.undoRedoControls.unmount();
     this.saveButton.unmount();
     this.canvasMenu.unmount();

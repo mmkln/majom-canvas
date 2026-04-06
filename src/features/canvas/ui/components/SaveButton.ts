@@ -24,8 +24,12 @@ import { AppRuntime, createAppRuntime } from '../../../../app-runtime/index.ts';
 import type { I18nService } from '../../../../i18n/index.ts';
 import { CanvasClientStorage } from '../../core/services/CanvasClientStorage.ts';
 
+const CANVAS_UI_STATE_CHANGED_EVENT = 'canvasUiStateChanged';
+
 type SaveButtonOptions = {
   getActiveCanvasId: () => string | null;
+  canTriggerManualSave?: () => boolean;
+  getManualSaveBlockedReason?: () => string;
 };
 
 /**
@@ -36,6 +40,8 @@ export class SaveButton {
   private readonly runtime: AppRuntime;
   private readonly i18n: I18nService;
   private readonly getActiveCanvasId: () => string | null;
+  private readonly canTriggerManualSave: () => boolean;
+  private readonly getManualSaveBlockedReason: () => string;
   private readonly container: HTMLElement;
   private readonly button: TextButtonElement;
   private readonly authService = new AuthService();
@@ -64,6 +70,10 @@ export class SaveButton {
     this.getActiveCanvasId = options.getActiveCanvasId;
     this.runtime = runtime;
     this.i18n = runtime.i18n;
+    this.canTriggerManualSave = options.canTriggerManualSave ?? (() => true);
+    this.getManualSaveBlockedReason =
+      options.getManualSaveBlockedReason ??
+      (() => this.i18n.t('saveButton.waitForCanvasLoad'));
     this.container = document.createElement('div');
     this.container.className = 'flex items-center';
 
@@ -82,7 +92,10 @@ export class SaveButton {
       this.updateUiState()
     );
     this.refreshHandler = () => this.updateUiState();
-    window.addEventListener('refreshCanvasData', this.refreshHandler);
+    window.addEventListener(
+      CANVAS_UI_STATE_CHANGED_EVENT,
+      this.refreshHandler
+    );
 
     this.lifecycleHandler = (event: Event) =>
       this.handleSaveLifecycleEvent(event);
@@ -108,6 +121,10 @@ export class SaveButton {
   private handleClick(): void {
     if (!this.authService.isLoggedIn()) {
       authFlowService.requestLogin('save');
+      return;
+    }
+    if (!this.canTriggerManualSave()) {
+      this.updateUiState();
       return;
     }
     window.dispatchEvent(new CustomEvent('saveCanvasLayout'));
@@ -237,7 +254,12 @@ export class SaveButton {
 
     this.button.appendChild(content);
     const statusLabel = this.getAutosaveStatusLabel(status, label);
-    const aria = statusLabel ? `${label}. ${statusLabel}` : label;
+    const blockedReason =
+      this.persistenceState.hasManualSaveWork() && !this.canTriggerManualSave()
+        ? this.getManualSaveBlockedReason()
+        : '';
+    const detail = blockedReason || statusLabel;
+    const aria = detail ? `${label}. ${detail}` : label;
     this.button.setAttribute('aria-label', aria);
     this.button.title = aria;
   }
@@ -257,11 +279,16 @@ export class SaveButton {
 
   private updateButtonState(): void {
     const canSave = this.persistenceState.hasManualSaveWork();
+    const canTrigger = this.canTriggerManualSave();
     const isLoggedIn = this.authService.isLoggedIn();
     const hasSaveInFlight =
       this.manualSavesInFlight > 0 || this.autosaveSavesInFlight > 0;
     this.button.disabled =
-      this.button.loading || hasSaveInFlight || !isLoggedIn || !canSave;
+      this.button.loading ||
+      hasSaveInFlight ||
+      !isLoggedIn ||
+      !canSave ||
+      !canTrigger;
   }
 
   private getAutosaveVisualStatus():
@@ -358,7 +385,10 @@ export class SaveButton {
   }
 
   unmount(): void {
-    window.removeEventListener('refreshCanvasData', this.refreshHandler);
+    window.removeEventListener(
+      CANVAS_UI_STATE_CHANGED_EVENT,
+      this.refreshHandler
+    );
     window.removeEventListener(
       CANVAS_SAVE_LIFECYCLE_EVENT,
       this.lifecycleHandler
