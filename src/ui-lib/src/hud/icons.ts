@@ -55,6 +55,7 @@ export type IconName =
   | 'arrow-up'
   | 'arrow-left'
   | 'arrow-right'
+  | 'arrow-top-right-on-square'
   | 'cog-6-tooth'
   | 'arrow-uturn-left'
   | 'arrow-ultum-left'
@@ -174,6 +175,15 @@ export function createIcon(
     svg.appendChild(
       makePath(
         'M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z'
+      )
+    );
+    return svg;
+  }
+
+  if (name === 'arrow-top-right-on-square') {
+    svg.appendChild(
+      makePath(
+        'M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25'
       )
     );
     return svg;
