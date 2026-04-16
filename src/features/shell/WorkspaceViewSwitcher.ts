@@ -27,6 +27,7 @@ type WorkspaceViewSwitcherOptions = {
   showLearningStudio?: boolean;
   showTimeClustering?: boolean;
   showRoutines?: boolean;
+  showNotes?: boolean;
   showChat?: boolean;
   initialTimeClusteringOpen?: boolean;
   initialTimeClusteringLayoutMode?: TimeClusteringLayoutMode;
@@ -75,6 +76,7 @@ export class WorkspaceViewSwitcher {
       showLearningStudio: options.showLearningStudio,
       showTimeClustering: options.showTimeClustering,
       showRoutines: options.showRoutines,
+      showNotes: options.showNotes,
       showChat: options.showChat,
       callbacks: {
         onIntentZoneEnter: () => this.handleIntentZoneEnter(),

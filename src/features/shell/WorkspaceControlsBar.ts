@@ -1,6 +1,7 @@
 import { createIcon, type IconName } from '../canvas/ui/icons.ts';
 import { HabitsQuickModal } from './components/HabitsQuickModal.ts';
 import type { HabitsQuickStatusSnapshot } from './components/HabitsQuickModal.ts';
+import { NotesQuickModal } from './components/NotesQuickModal.ts';
 import type { WorkspaceView } from './WorkspaceView.ts';
 import type { TimeClusteringLayoutMode } from '../time-clustering/domain/types.ts';
 import { emitAiAssistantToggleRequested } from '../ai-assistant/aiAssistantEvents.ts';
@@ -38,6 +39,7 @@ type WorkspaceControlsBarOptions = {
   showLearningStudio?: boolean;
   showTimeClustering?: boolean;
   showRoutines?: boolean;
+  showNotes?: boolean;
   showChat?: boolean;
   showEnergy?: boolean;
   trailingAccessory?: HTMLElement | null;
@@ -144,8 +146,10 @@ export class WorkspaceControlsBar {
   private readonly variant: WorkspaceControlsBarVariant;
   private readonly metrics: VariantMetrics;
   private readonly routinesModal: HabitsQuickModal | null;
+  private readonly notesModal: NotesQuickModal | null;
   private readonly viewButtons = new Map<WorkspaceView, HTMLButtonElement>();
   private readonly timeClusteringButton: HTMLButtonElement | null;
+  private readonly notesButton: HTMLButtonElement | null;
   private readonly chatButton: HTMLButtonElement | null;
   private readonly energyControl: EnergySelectorControl | null;
   private viewGroup: HTMLDivElement | null = null;
@@ -154,6 +158,7 @@ export class WorkspaceControlsBar {
   private activeView: WorkspaceView;
   private chatOpen: boolean;
   private routinesOpen = false;
+  private notesOpen = false;
   private routinesStatus: HabitsQuickStatusSnapshot = {
     openCount: 0,
     completedCount: 0,
@@ -180,6 +185,7 @@ export class WorkspaceControlsBar {
     const showLearningStudio = options.showLearningStudio ?? false;
     const showTimeClustering = options.showTimeClustering ?? true;
     const showRoutines = options.showRoutines ?? true;
+    const showNotes = options.showNotes ?? true;
     const showChat = options.showChat ?? true;
     const showEnergy = options.showEnergy ?? true;
     const viewOptions = VIEW_OPTIONS.filter((option) => {
@@ -268,6 +274,26 @@ export class WorkspaceControlsBar {
       appendSection(this.routinesButton);
     }
 
+    this.notesModal = showNotes
+      ? new NotesQuickModal(undefined, this.runtime, {
+          onOpenChange: (open) => this.syncNotesButtonState(open),
+        })
+      : null;
+    this.notesButton = showNotes
+      ? this.createIconButton({
+          label: this.i18n.t('workspaceControls.openNotes'),
+          icon: 'document',
+          title: this.i18n.t('workspaceControls.notes'),
+        })
+      : null;
+    this.notesButton?.addEventListener('click', () => {
+      this.notesModal?.open();
+    });
+    if (this.notesButton) {
+      this.syncNotesButtonState(false);
+      appendSection(this.notesButton);
+    }
+
     this.energyControl = showEnergy
       ? new EnergySelectorControl({
           runtime: this.runtime,
@@ -312,6 +338,7 @@ export class WorkspaceControlsBar {
     this.disposeRuntimeSubscription = null;
     this.energyControl?.destroy();
     this.routinesModal?.destroy();
+    this.notesModal?.destroy();
   }
 
   public setActiveView(view: WorkspaceView): void {
@@ -326,6 +353,7 @@ export class WorkspaceControlsBar {
 
   public prime(): void {
     this.routinesModal?.prime();
+    this.notesModal?.prime();
   }
 
   public setTimeClusteringOpen(open: boolean): void {
@@ -507,6 +535,13 @@ export class WorkspaceControlsBar {
         this.i18n.t('workspaceControls.toggleTimeClusteringPanel')
       );
     }
+    if (this.notesButton) {
+      this.notesButton.title = this.i18n.t('workspaceControls.notes');
+      this.notesButton.setAttribute(
+        'aria-label',
+        this.i18n.t('workspaceControls.openNotes')
+      );
+    }
     if (this.chatButton) {
       this.chatButton.title = this.i18n.t('workspaceControls.aiAssistant');
       this.chatButton.setAttribute(
@@ -592,6 +627,7 @@ export class WorkspaceControlsBar {
     }
 
     this.syncRoutinesButtonState(this.routinesOpen);
+    this.syncNotesButtonState(this.notesOpen);
   }
 
   private syncRoutinesButtonState(open: boolean): void {
@@ -631,4 +667,21 @@ export class WorkspaceControlsBar {
           : 'workspace-controls-routines-badge';
     }
   }
+
+  private syncNotesButtonState(open: boolean): void {
+    this.notesOpen = open;
+    if (!this.notesButton) return;
+    if (this.variant === 'sidebar') {
+      setSidebarRailButtonActive(this.notesButton, open);
+      return;
+    }
+    this.notesButton.dataset.active = open ? 'true' : 'false';
+    this.notesButton.style.background = open
+      ? this.metrics.activeBackground
+      : 'transparent';
+    this.notesButton.style.color = open
+      ? this.metrics.activeColor
+      : this.metrics.inactiveIconColor;
+  }
+
 }

@@ -443,6 +443,7 @@ export class RuntimeHost {
           showLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
           showTimeClustering: TIME_CLUSTERING_DEV_ENABLED,
           showRoutines: ROUTINES_ENABLED,
+          showNotes: true,
         });
         this.viewSwitcher.setVisible(false);
         this.viewSwitcher.setChatOpen(this.chatOpen);

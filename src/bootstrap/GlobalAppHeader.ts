@@ -7,6 +7,7 @@ import {
 } from '../config/env/index.ts';
 import { HabitsQuickModal } from '../features/shell/components/HabitsQuickModal.ts';
 import type { HabitsQuickStatusSnapshot } from '../features/shell/components/HabitsQuickModal.ts';
+import { NotesQuickModal } from '../features/shell/components/NotesQuickModal.ts';
 import {
   createSidebarRailButton,
   setSidebarRailButtonActive,
@@ -68,7 +69,9 @@ export class GlobalAppHeader {
   private readonly element: HTMLDivElement | null;
   private readonly controls: WorkspaceControlsBar | null;
   private readonly routinesModal: HabitsQuickModal | null;
+  private readonly notesModal: NotesQuickModal | null;
   private readonly routinesButton: HTMLButtonElement | null;
+  private readonly notesButton: HTMLButtonElement | null;
   private readonly timeClusteringButton: HTMLButtonElement | null;
   private readonly chatButton: HTMLButtonElement | null;
   private readonly energyControl: EnergySelectorControl | null;
@@ -120,7 +123,9 @@ export class GlobalAppHeader {
       this.element = null;
       this.controls = null;
       this.routinesModal = null;
+      this.notesModal = null;
       this.routinesButton = null;
+      this.notesButton = null;
       this.timeClusteringButton = null;
       this.chatButton = null;
       this.energyControl = null;
@@ -158,6 +163,9 @@ export class GlobalAppHeader {
           onStatusChange: (snapshot) => this.syncRoutinesStatus(snapshot),
         })
       : null;
+    this.notesModal = new NotesQuickModal(undefined, this.runtime, {
+      onOpenChange: (open) => this.syncNotesButtonState(open),
+    });
 
     this.controls = new WorkspaceControlsBar({
       runtime: this.runtime,
@@ -169,6 +177,7 @@ export class GlobalAppHeader {
       showLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
       showTimeClustering: false,
       showRoutines: false,
+      showNotes: false,
       showChat: false,
       showEnergy: false,
       variant: 'sidebar',
@@ -190,6 +199,16 @@ export class GlobalAppHeader {
       : null;
     this.syncRoutinesButtonState(false);
     this.syncRoutinesStatus(this.routinesStatus);
+
+    this.notesButton = this.createSidebarActionButton({
+      title: this.i18n.t('header.notes'),
+      ariaLabel: this.i18n.t('header.openNotes'),
+      iconName: 'document',
+      onClick: () => {
+        this.notesModal?.open();
+      },
+    });
+    this.syncNotesButtonState(false);
 
     this.timeClusteringButton = TIME_CLUSTERING_DEV_ENABLED
       ? this.createSidebarActionButton({
@@ -221,6 +240,9 @@ export class GlobalAppHeader {
     if (this.routinesButton) {
       this.menuContainer.appendChild(this.routinesButton);
     }
+    if (this.notesButton) {
+      this.menuContainer.appendChild(this.notesButton);
+    }
     if (this.timeClusteringButton) {
       this.menuContainer.appendChild(this.timeClusteringButton);
     }
@@ -240,6 +262,7 @@ export class GlobalAppHeader {
     parent.appendChild(this.element);
     setGlobalAppSidebarOffset(GLOBAL_APP_SIDEBAR_WIDTH_PX);
     this.routinesModal?.prime();
+    this.notesModal?.prime();
     this.disposeRuntimeSubscription = this.runtime.subscribe(() => {
       this.refreshTranslations();
     }, { emitCurrent: true });
@@ -283,6 +306,7 @@ export class GlobalAppHeader {
       this.timeClusteringVisibilityChangedHandler as EventListener
     );
     this.routinesModal?.destroy();
+    this.notesModal?.destroy();
     this.controls?.destroy();
     this.energyControl?.destroy();
     this.element.remove();
@@ -303,6 +327,13 @@ export class GlobalAppHeader {
         this.i18n.t('header.toggleTimeClusteringPanel')
       );
     }
+    if (this.notesButton) {
+      this.notesButton.title = this.i18n.t('header.notes');
+      this.notesButton.setAttribute(
+        'aria-label',
+        this.i18n.t('header.openNotes')
+      );
+    }
     if (this.chatButton) {
       this.chatButton.title = this.i18n.t('header.aiAssistant');
       this.chatButton.setAttribute(
@@ -317,6 +348,8 @@ export class GlobalAppHeader {
     ariaLabel: string;
     iconName:
       | 'chat-bubble-left'
+      | 'bookmark-square'
+      | 'document'
       | 'check-circle'
       | 'rectangle-stack';
     onClick: () => void;
@@ -356,6 +389,11 @@ export class GlobalAppHeader {
     if (badge) {
       badge.dataset.role = 'global-routines-button-badge';
     }
+  }
+
+  private syncNotesButtonState(open: boolean): void {
+    if (!this.notesButton) return;
+    setSidebarRailButtonActive(this.notesButton, open);
   }
 
   private syncTimeClusteringButtonState(open: boolean): void {

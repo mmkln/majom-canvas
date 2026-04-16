@@ -314,6 +314,27 @@ export interface Habit {
 
 export type DateCompletion = [string, boolean];
 
+export type NoteStatus = 'active' | 'archived';
+
+export interface Note {
+  readonly id: string;
+  title: string;
+  body: string;
+  status: NoteStatus;
+  is_pinned: boolean;
+  meta: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NoteSummary {
+  total: number;
+  active: number;
+  archived: number;
+  pinned: number;
+  pinned_active: number;
+}
+
 export interface Routine {
   readonly id: number;
   title: string;

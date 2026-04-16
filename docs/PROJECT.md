@@ -50,6 +50,7 @@ It also unifies API interactions with automatic JWT authentication, global error
 - This shared thesis is more important than forcing the app into a single traditional category such as planner, LMS, or canvas tool.
 - Possible long-term strategic paths are tracked separately in `docs/STRATEGIC-DIRECTIONS.md`.
 - Personalization architecture and phased delivery for the Personal Development OS direction are documented in `docs/PERSONAL-DEVELOPMENT-OS-PERSONALIZATION.md`.
+- Operating-loop analysis and specifications for the newer “one dominant contour” planning direction are grouped under the `MAJOM-OPERATING-LOOP-` prefix, starting from `docs/MAJOM-OPERATING-LOOP-DOCUMENTATION-INDEX.md`.
 - Canvas sharing and template-clone direction is tracked in `docs/CANVAS-SHARING-TEMPLATES.md`.
 
 ## Architecture & Tech Stack

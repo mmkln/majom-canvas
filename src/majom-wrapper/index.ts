@@ -4,6 +4,7 @@ export { TasksApiService } from './data-access/tasks-api-service.ts';
 export { StoriesApiService } from './data-access/stories-api-service.ts';
 export { GoalsApiService } from './data-access/goals-api-service.ts';
 export { HabitsApiService } from './data-access/habits-api-service.ts';
+export { NotesApiService } from './data-access/notes-api-service.ts';
 export { CanvasApiService } from './data-access/canvas-api-service.ts';
 export { CanvasRelationsApiService } from './data-access/canvas-relations-api-service.ts';
 export { GoalRelationsApiService } from './data-access/goal-relations-api-service.ts';

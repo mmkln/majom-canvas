@@ -6,7 +6,12 @@ export type IconName =
   | 'calendar'
   | 'academic-cap'
   | 'book-open'
+  | 'bookmark'
+  | 'bookmark-solid'
+  | 'bookmark-slash'
+  | 'bookmark-square'
   | 'calendar-date-range'
+  | 'document'
   | 'view-columns'
   | 'archive-box'
   | 'delete'
@@ -216,6 +221,52 @@ export function createIcon(
     return svg;
   }
 
+  if (name === 'bookmark') {
+    svg.appendChild(
+      makePath(
+        'M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z'
+      )
+    );
+    return svg;
+  }
+
+  if (name === 'bookmark-solid') {
+    svg.appendChild(
+      makeFilledPath(
+        'M6.32 2.577a49.255 49.255 0 0 1 11.36 0c1.497.174 2.57 1.46 2.57 2.93V21a.75.75 0 0 1-1.085.67L12 18.089l-7.165 3.583A.75.75 0 0 1 3.75 21V5.507c0-1.47 1.073-2.756 2.57-2.93Z',
+        'evenodd'
+      )
+    );
+    return svg;
+  }
+
+  if (name === 'bookmark-slash') {
+    svg.appendChild(
+      makePath(
+        'm3 3 1.664 1.664M21 21l-1.5-1.5m-5.485-1.242L12 17.25 4.5 21V8.742m.164-4.078a2.15 2.15 0 0 1 1.743-1.342 48.507 48.507 0 0 1 11.186 0c1.1.128 1.907 1.077 1.907 2.185V19.5M4.664 4.664 19.5 19.5'
+      )
+    );
+    return svg;
+  }
+
+  if (name === 'bookmark-square') {
+    svg.appendChild(
+      makePath(
+        'M16.5 3.75V16.5L12 14.25 7.5 16.5V3.75m9 0H18A2.25 2.25 0 0 1 20.25 6v12A2.25 2.25 0 0 1 18 20.25H6A2.25 2.25 0 0 1 3.75 18V6A2.25 2.25 0 0 1 6 3.75h1.5m9 0h-9'
+      )
+    );
+    return svg;
+  }
+
+  if (name === 'document') {
+    svg.appendChild(
+      makePath(
+        'M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z'
+      )
+    );
+    return svg;
+  }
+
   if (name === 'calendar-date-range') {
     svg.appendChild(
       makePath(
@@ -237,7 +288,7 @@ export function createIcon(
   if (name === 'archive-box') {
     svg.appendChild(
       makePath(
-        'M3.75 7.5h16.5M6 7.5l.75 11.25A1.5 1.5 0 0 0 8.246 20.25h7.508a1.5 1.5 0 0 0 1.496-1.5L18 7.5M9.75 11.25h4.5M9 3.75h6a1.5 1.5 0 0 1 1.5 1.5V7.5h-9V5.25A1.5 1.5 0 0 1 9 3.75Z'
+        'm20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z'
       )
     );
     return svg;
