@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CanvasApp } from './CanvasApp.ts';
+import { CanvasClientStorage } from './core/services/CanvasClientStorage.ts';
 
 const { notifyMock, openCanvasVersionHistoryModalMock } = vi.hoisted(() => ({
   notifyMock: vi.fn(),
@@ -25,6 +26,9 @@ vi.mock('./core/managers/CommandManager.ts', () => ({
 type CanvasGuardHarness = Record<string, unknown> & {
   autosaveEnabled: boolean;
   autosaveInFlight: boolean;
+  startAutosave: ReturnType<typeof vi.fn>;
+  stopAutosave: ReturnType<typeof vi.fn>;
+  runAutosaveTick: ReturnType<typeof vi.fn>;
   isHydratingCanvas: boolean;
   canvasManager: {
     getLoadPhase: () =>
@@ -74,6 +78,9 @@ function createHarness(overrides: Partial<CanvasGuardHarness> = {}): CanvasGuard
   return {
     autosaveEnabled: true,
     autosaveInFlight: false,
+    startAutosave: vi.fn(),
+    stopAutosave: vi.fn(),
+    runAutosaveTick: vi.fn(),
     isHydratingCanvas: true,
     canvasManager: {
       getLoadPhase: () => 'elements-partial-ready',
@@ -235,5 +242,57 @@ describe('CanvasApp persistence guards', () => {
       window.removeEventListener('canvasUiStateChanged', uiStateChanged);
       window.removeEventListener('refreshCanvasData', refreshRequested);
     }
+  });
+
+  it('enables autosave, persists the preference, and runs an immediate autosave tick', () => {
+    const setAutosaveEnabledSpy = vi.spyOn(
+      CanvasClientStorage,
+      'setCanvasAutosaveEnabled'
+    );
+    const app = createHarness({
+      autosaveEnabled: false,
+      runAutosaveTick: vi.fn(),
+    });
+
+    (
+      CanvasApp.prototype as unknown as {
+        handleCanvasAutosaveToggled: (event: Event) => void;
+      }
+    ).handleCanvasAutosaveToggled.call(
+      app,
+      new CustomEvent('canvasAutosaveToggled', { detail: { enabled: true } })
+    );
+
+    expect(app.autosaveEnabled).toBe(true);
+    expect(setAutosaveEnabledSpy).toHaveBeenCalledWith(true);
+    expect(app.startAutosave).toHaveBeenCalledTimes(1);
+    expect(app.runAutosaveTick).toHaveBeenCalledTimes(1);
+    expect(app.stopAutosave).not.toHaveBeenCalled();
+  });
+
+  it('disables autosave, persists the preference, and stops the timer without running a tick', () => {
+    const setAutosaveEnabledSpy = vi.spyOn(
+      CanvasClientStorage,
+      'setCanvasAutosaveEnabled'
+    );
+    const app = createHarness({
+      autosaveEnabled: true,
+      runAutosaveTick: vi.fn(),
+    });
+
+    (
+      CanvasApp.prototype as unknown as {
+        handleCanvasAutosaveToggled: (event: Event) => void;
+      }
+    ).handleCanvasAutosaveToggled.call(
+      app,
+      new CustomEvent('canvasAutosaveToggled', { detail: { enabled: false } })
+    );
+
+    expect(app.autosaveEnabled).toBe(false);
+    expect(setAutosaveEnabledSpy).toHaveBeenCalledWith(false);
+    expect(app.stopAutosave).toHaveBeenCalledTimes(1);
+    expect(app.startAutosave).not.toHaveBeenCalled();
+    expect(app.runAutosaveTick).not.toHaveBeenCalled();
   });
 });

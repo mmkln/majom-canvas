@@ -3,8 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAppRuntime } from '../../../../app-runtime/index.ts';
 import { AuthService } from '../../../../majom-wrapper/data-access/auth-service.ts';
 import { historyService } from '../../core/services/HistoryService.ts';
+import { emitCanvasAutosaveToggled } from '../../core/canvasAutosaveLifecycle.ts';
 import { CanvasPersistenceState } from '../../core/services/CanvasPersistenceState.ts';
 import { emitCanvasElementAutosaveStatus } from '../../core/canvasElementAutosaveLifecycle.ts';
+import {
+  emitCanvasSaveFinished,
+  emitCanvasSaveStarted,
+} from '../../core/canvasSaveLifecycle.ts';
 import { SaveButton } from './SaveButton.ts';
 
 describe('SaveButton element autosave status', () => {
@@ -142,5 +147,34 @@ describe('SaveButton element autosave status', () => {
 
     expect(button.disabled).toBe(true);
     expect(button.title).toContain('Wait for canvas to finish loading');
+  });
+
+  it('clears autosave-in-progress UI after autosave is turned off', () => {
+    const button = mountSaveButton();
+
+    emitCanvasSaveStarted('autosave');
+    expect(button.title).toContain('Autosave in progress');
+    expect(button.disabled).toBe(true);
+
+    emitCanvasAutosaveToggled(false);
+
+    expect(button.title).not.toContain('Autosave in progress');
+    expect(button.textContent).toContain('Saved');
+    expect(button.disabled).toBe(true);
+  });
+
+  it('returns from autosave mode to manual save mode when autosave is turned off with pending layout changes', () => {
+    const button = mountSaveButton();
+
+    persistenceState.markRestoredLayoutDirty();
+    emitCanvasSaveStarted('autosave');
+    emitCanvasSaveFinished('autosave');
+    expect(button.title).toContain('Autosave failed');
+
+    emitCanvasAutosaveToggled(false);
+
+    expect(button.textContent).toContain('Save');
+    expect(button.disabled).toBe(false);
+    expect(button.title).toContain('Unsaved changes');
   });
 });

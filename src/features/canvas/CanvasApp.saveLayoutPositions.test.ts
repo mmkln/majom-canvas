@@ -1,6 +1,7 @@
 import { firstValueFrom, of, throwError } from 'rxjs';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { TaskElement } from './elements/TaskElement.ts';
+import { StoryElement } from './elements/StoryElement.ts';
 import { CanvasApp } from './CanvasApp.ts';
 import { notify } from './core/services/NotificationService.ts';
 
@@ -17,12 +18,32 @@ vi.mock('./core/managers/CommandManager.ts', () => ({
 
 type SaveLayoutHarness = Record<string, unknown>;
 
-function createTask(overrides?: { id?: string; uuid?: string }): TaskElement {
+function createTask(overrides?: {
+  id?: string;
+  uuid?: string;
+  backendId?: number;
+}): TaskElement {
   return new TaskElement({
     id: overrides?.id ?? 'task-1',
     uuid: overrides?.uuid,
+    backendId: overrides?.backendId,
     x: 120,
     y: 80,
+  });
+}
+
+function createStory(overrides?: {
+  id?: string;
+  uuid?: string;
+  height?: number;
+}): StoryElement {
+  return new StoryElement({
+    id: overrides?.id ?? 'story-1',
+    uuid: overrides?.uuid,
+    x: 100,
+    y: 120,
+    width: 760,
+    height: overrides?.height ?? 220,
   });
 }
 
@@ -70,6 +91,34 @@ function createHarness(): {
       t: (key: string) => key,
     },
   };
+  app.getLinkElementRef = function (element: {
+    id: string;
+    uuid?: string;
+    backendId?: string | number | null;
+  }): string | null {
+    return (
+      CanvasApp.prototype as unknown as {
+        getLinkElementRef: (input: {
+          id: string;
+          uuid?: string;
+          backendId?: string | number | null;
+        }) => string | null;
+      }
+    ).getLinkElementRef.call(app, element);
+  };
+  app.getLayoutPersistenceRef = function (element: {
+    uuid?: string;
+    backendId?: string | number | null;
+  }): string | null {
+    return (
+      CanvasApp.prototype as unknown as {
+        getLayoutPersistenceRef: (input: {
+          uuid?: string;
+          backendId?: string | number | null;
+        }) => string | null;
+      }
+    ).getLayoutPersistenceRef.call(app, element);
+  };
   app.isSnapshotConflictError = (error: unknown) =>
     (
       CanvasApp.prototype as unknown as {
@@ -87,13 +136,13 @@ function createHarness(): {
 
 function runSaveLayout(
   app: SaveLayoutHarness,
-  elements: TaskElement[],
+  elements: Array<TaskElement | StoryElement>,
   showNotifications: boolean
 ) {
   return (
     CanvasApp.prototype as unknown as {
       saveLayoutPositions: (
-        inputElements: TaskElement[],
+        inputElements: Array<TaskElement | StoryElement>,
         inputShowNotifications: boolean
       ) => import('rxjs').Observable<boolean>;
     }
@@ -134,12 +183,15 @@ describe('CanvasApp.saveLayoutPositions', () => {
     expect(notify).not.toHaveBeenCalled();
   });
 
-  it('returns false when an element has no backend uuid', async () => {
+  it('returns false when an element has no persisted reference at all', async () => {
     const { app, canvasDataService } = createHarness();
-    const taskWithoutUuid = createTask({ id: 'task-no-uuid' });
+    const taskWithoutRef = createTask({ id: 'task-no-ref' });
+    taskWithoutRef.id = '';
+    taskWithoutRef.uuid = undefined;
+    taskWithoutRef.backendId = undefined;
 
     const saved = await firstValueFrom(
-      runSaveLayout(app, [taskWithoutUuid], true)
+      runSaveLayout(app, [taskWithoutRef], true)
     );
 
     expect(saved).toBe(false);
@@ -148,6 +200,67 @@ describe('CanvasApp.saveLayoutPositions', () => {
       'error'
     );
     expect(canvasDataService.getRemovedPositionIds).not.toHaveBeenCalled();
+  });
+
+  it('saves layout using backend id fallback when uuid is missing', async () => {
+    const { app, canvasDataService } = createHarness();
+    const task = createTask({ id: 'task-legacy', backendId: 42 });
+    canvasDataService.filterPositionUpdates.mockReturnValue([
+      {
+        element_type: 'task',
+        element_uuid: '42',
+      },
+    ]);
+
+    const saved = await firstValueFrom(runSaveLayout(app, [task], false));
+
+    expect(saved).toBe(true);
+    expect(canvasDataService.saveCanvasSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        positions: [
+          expect.objectContaining({
+            element_type: 'task',
+            element_uuid: '42',
+          }),
+        ],
+      })
+    );
+  });
+
+  it('saves a mixed layout batch when one persisted element only has backend id', async () => {
+    const { app, canvasDataService } = createHarness();
+    const legacyTask = createTask({ id: 'task-legacy', backendId: 42 });
+    const uuidTask = createTask({ id: 'task-uuid', uuid: 'task-uuid-1' });
+    canvasDataService.filterPositionUpdates.mockReturnValue([
+      {
+        element_type: 'task',
+        element_uuid: '42',
+      },
+      {
+        element_type: 'task',
+        element_uuid: 'task-uuid-1',
+      },
+    ]);
+
+    const saved = await firstValueFrom(
+      runSaveLayout(app, [legacyTask, uuidTask], false)
+    );
+
+    expect(saved).toBe(true);
+    expect(canvasDataService.saveCanvasSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        positions: expect.arrayContaining([
+          expect.objectContaining({
+            element_type: 'task',
+            element_uuid: '42',
+          }),
+          expect.objectContaining({
+            element_type: 'task',
+            element_uuid: 'task-uuid-1',
+          }),
+        ]),
+      })
+    );
   });
 
   it('saves changed positions and marks save success', async () => {
@@ -200,6 +313,130 @@ describe('CanvasApp.saveLayoutPositions', () => {
 
     expect(saved).toBe(true);
     expect(canvasDataService.saveCanvasSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats a dropped existing layout change as no-op and skips snapshot save', async () => {
+    const { app, canvasDataService } = createHarness();
+    const story = createStory({ uuid: 'story-uuid-1', height: 320 });
+    canvasDataService.filterPositionUpdates.mockReturnValue([]);
+
+    const saved = await firstValueFrom(runSaveLayout(app, [story], true));
+
+    expect(saved).toBe(true);
+    expect(canvasDataService.saveCanvasSnapshot).not.toHaveBeenCalled();
+    expect(notify).toHaveBeenCalledWith('No changes to save.', 'info');
+  });
+
+  it('still persists the same dropped layout change when relation changes force a snapshot save', async () => {
+    const { app, canvasDataService } = createHarness();
+    const story = createStory({ uuid: 'story-uuid-1', height: 320 });
+    canvasDataService.filterPositionUpdates.mockReturnValue([]);
+    canvasDataService.hasRelationChanges.mockReturnValue(true);
+
+    const saved = await firstValueFrom(runSaveLayout(app, [story], false));
+
+    expect(saved).toBe(true);
+    expect(canvasDataService.saveCanvasSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        positions: [
+          expect.objectContaining({
+            element_type: 'story',
+            element_uuid: 'story-uuid-1',
+            meta: expect.objectContaining({
+              height: 320,
+            }),
+          }),
+        ],
+      })
+    );
+  });
+
+  it('still persists the same dropped layout change when deletions force a snapshot save', async () => {
+    const { app, canvasDataService } = createHarness();
+    const story = createStory({ uuid: 'story-uuid-1', height: 320 });
+    canvasDataService.filterPositionUpdates.mockReturnValue([]);
+    canvasDataService.getRemovedPositionIds.mockReturnValue(['position-1']);
+
+    const saved = await firstValueFrom(runSaveLayout(app, [story], false));
+
+    expect(saved).toBe(true);
+    expect(canvasDataService.saveCanvasSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        positions: [
+          expect.objectContaining({
+            element_type: 'story',
+            element_uuid: 'story-uuid-1',
+            meta: expect.objectContaining({
+              height: 320,
+            }),
+          }),
+        ],
+      })
+    );
+  });
+
+  it('treats a dropped existing task coordinate change as no-op and skips snapshot save', async () => {
+    const { app, canvasDataService } = createHarness();
+    const task = createTask({ uuid: 'task-uuid-1' });
+    task.x = 180;
+    task.y = 220;
+    canvasDataService.filterPositionUpdates.mockReturnValue([]);
+
+    const saved = await firstValueFrom(runSaveLayout(app, [task], true));
+
+    expect(saved).toBe(true);
+    expect(canvasDataService.saveCanvasSnapshot).not.toHaveBeenCalled();
+    expect(notify).toHaveBeenCalledWith('No changes to save.', 'info');
+  });
+
+  it('still persists the same dropped task coordinate change when relation changes force a snapshot save', async () => {
+    const { app, canvasDataService } = createHarness();
+    const task = createTask({ uuid: 'task-uuid-1' });
+    task.x = 180;
+    task.y = 220;
+    canvasDataService.filterPositionUpdates.mockReturnValue([]);
+    canvasDataService.hasRelationChanges.mockReturnValue(true);
+
+    const saved = await firstValueFrom(runSaveLayout(app, [task], false));
+
+    expect(saved).toBe(true);
+    expect(canvasDataService.saveCanvasSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        positions: [
+          expect.objectContaining({
+            element_type: 'task',
+            element_uuid: 'task-uuid-1',
+            x: 180,
+            y: 220,
+          }),
+        ],
+      })
+    );
+  });
+
+  it('still persists the same dropped task coordinate change when deletions force a snapshot save', async () => {
+    const { app, canvasDataService } = createHarness();
+    const task = createTask({ uuid: 'task-uuid-1' });
+    task.x = 180;
+    task.y = 220;
+    canvasDataService.filterPositionUpdates.mockReturnValue([]);
+    canvasDataService.getRemovedPositionIds.mockReturnValue(['position-1']);
+
+    const saved = await firstValueFrom(runSaveLayout(app, [task], false));
+
+    expect(saved).toBe(true);
+    expect(canvasDataService.saveCanvasSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        positions: [
+          expect.objectContaining({
+            element_type: 'task',
+            element_uuid: 'task-uuid-1',
+            x: 180,
+            y: 220,
+          }),
+        ],
+      })
+    );
   });
 
   it('queues a layout draft and propagates error when snapshot save fails', async () => {

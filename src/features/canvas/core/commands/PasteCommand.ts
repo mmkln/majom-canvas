@@ -6,6 +6,7 @@ import { CanvasManager } from '../managers/CanvasManager.ts';
 import type { PlanningElement } from '../../elements/PlanningElement.ts';
 import { StoryElement } from '../../elements/StoryElement.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
+import { isPlanningElement } from '../../elements/utils/typeGuards.ts';
 import { StoryLayoutService } from '../services/StoryLayoutService.ts';
 import { emitTaskStoryLinkSet } from '../canvasLinkLifecycle.ts';
 
@@ -58,6 +59,7 @@ export class PasteCommand extends Command {
       if (story) {
         taskIds.forEach((taskId) => story.removeTask(taskId));
         story.height = previousHeight;
+        this.notifyPositionsDirty([story]);
       }
       this.pastedIntoStory = null;
     }
@@ -89,6 +91,8 @@ export class PasteCommand extends Command {
       emitTaskStoryLinkSet(task, selectedStory);
     });
 
+    this.notifyPositionsDirty([selectedStory, ...pastedTasks]);
+
     this.pastedIntoStory = {
       storyId: selectedStory.id,
       previousHeight,
@@ -100,5 +104,16 @@ export class PasteCommand extends Command {
     const selected = this.scene.getSelectedElements();
     if (selected.length !== 1) return null;
     return selected[0] instanceof StoryElement ? selected[0] : null;
+  }
+
+  private notifyPositionsDirty(elements: PlanningElement[]): void {
+    if (typeof window === 'undefined') return;
+    const planningElements = elements.filter(isPlanningElement);
+    if (planningElements.length === 0) return;
+    window.dispatchEvent(
+      new CustomEvent('canvasPositionsDirty', {
+        detail: { elements: planningElements },
+      })
+    );
   }
 }

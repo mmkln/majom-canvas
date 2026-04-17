@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+// @vitest-environment jsdom
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CanvasManager } from '../managers/CanvasManager.ts';
 import { Scene } from '../scene/Scene.ts';
 import { PasteCommand } from './PasteCommand.ts';
@@ -65,6 +66,81 @@ describe('PasteCommand', () => {
     expect(story.height).toBe(initialHeight);
   });
 
+  it('emits layout dirty notification when paste changes selected story layout', () => {
+    const scene = new Scene();
+    const story = new StoryElement({ x: 100, y: 100, width: 760, height: 220 });
+    scene.addElement(story);
+    scene.setSelected([story]);
+
+    clipboardService.copy([new TaskElement({ x: 10, y: 10, title: 'Task A' })]);
+
+    const positionsDirty = vi.fn();
+    window.addEventListener(
+      'canvasPositionsDirty',
+      positionsDirty as EventListener
+    );
+
+    try {
+      const command = new PasteCommand(scene, createCanvasManagerStub());
+
+      command.execute();
+
+      expect(positionsDirty).toHaveBeenCalledWith(
+        expect.objectContaining({
+          detail: expect.objectContaining({
+            elements: expect.arrayContaining([
+              expect.objectContaining({ id: story.id }),
+            ]),
+          }),
+        })
+      );
+    } finally {
+      window.removeEventListener(
+        'canvasPositionsDirty',
+        positionsDirty as EventListener
+      );
+    }
+  });
+
+  it('emits layout dirty notification when undo restores the original story layout', () => {
+    const scene = new Scene();
+    const story = new StoryElement({ x: 100, y: 100, width: 760, height: 220 });
+    scene.addElement(story);
+    scene.setSelected([story]);
+
+    clipboardService.copy([new TaskElement({ x: 10, y: 10, title: 'Task A' })]);
+
+    const positionsDirty = vi.fn();
+    window.addEventListener(
+      'canvasPositionsDirty',
+      positionsDirty as EventListener
+    );
+
+    try {
+      const command = new PasteCommand(scene, createCanvasManagerStub());
+
+      command.execute();
+      positionsDirty.mockClear();
+
+      command.undo();
+
+      expect(positionsDirty).toHaveBeenCalledWith(
+        expect.objectContaining({
+          detail: expect.objectContaining({
+            elements: expect.arrayContaining([
+              expect.objectContaining({ id: story.id }),
+            ]),
+          }),
+        })
+      );
+    } finally {
+      window.removeEventListener(
+        'canvasPositionsDirty',
+        positionsDirty as EventListener
+      );
+    }
+  });
+
   it('does not attach pasted items to selected story when clipboard contains non-task elements', () => {
     const scene = new Scene();
     const targetStory = new StoryElement({
@@ -87,4 +163,3 @@ describe('PasteCommand', () => {
     expect(targetStory.tasks).toHaveLength(0);
   });
 });
-

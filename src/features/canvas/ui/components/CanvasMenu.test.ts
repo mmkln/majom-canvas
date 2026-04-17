@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAppRuntime } from '../../../../app-runtime/index.ts';
+import { CANVAS_AUTOSAVE_TOGGLE_EVENT } from '../../core/canvasAutosaveLifecycle.ts';
 import { CanvasClientStorage } from '../../core/services/CanvasClientStorage.ts';
 import { CanvasMenu } from './CanvasMenu.ts';
 
@@ -95,5 +96,43 @@ describe('CanvasMenu', () => {
     expect(document.body.textContent).toContain('Guide settings');
 
     menu.unmount();
+  });
+
+  it('persists autosave toggle changes and emits the autosave event', () => {
+    const menu = new CanvasMenu(undefined, undefined, {
+      runtime: createAppRuntime({ initialLocale: 'en' }),
+    });
+    const autosaveToggled = vi.fn();
+    window.addEventListener(
+      CANVAS_AUTOSAVE_TOGGLE_EVENT,
+      autosaveToggled as EventListener
+    );
+
+    try {
+      menu.mount(document.body);
+
+      const autosaveInput = document.querySelector(
+        'input[aria-label="Autosave"]'
+      ) as HTMLInputElement | null;
+
+      expect(autosaveInput).not.toBeNull();
+
+      autosaveInput!.checked = false;
+      autosaveInput!.dispatchEvent(new Event('change', { bubbles: true }));
+
+      expect(CanvasClientStorage.getCanvasAutosaveEnabled(true)).toBe(false);
+      expect(autosaveToggled).toHaveBeenCalledWith(
+        expect.objectContaining({
+          detail: { enabled: false },
+        })
+      );
+
+      menu.unmount();
+    } finally {
+      window.removeEventListener(
+        CANVAS_AUTOSAVE_TOGGLE_EVENT,
+        autosaveToggled as EventListener
+      );
+    }
   });
 });

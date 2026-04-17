@@ -1986,9 +1986,8 @@ export class CanvasDataService {
       const key = this.getPositionKeyFromWrite(pos);
       if (!key) return false;
       if (!this.positionRegistry.has(key)) return true;
-      if (!this.positionDirtyKeys.has(key)) return false;
       const changed = this.isLayoutEntryChanged(pos);
-      if (!changed) {
+      if (!changed && this.positionDirtyKeys.has(key)) {
         this.positionDirtyKeys.delete(key);
       }
       return changed;

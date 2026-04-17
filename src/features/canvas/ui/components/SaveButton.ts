@@ -298,14 +298,14 @@ export class SaveButton {
     | 'saved'
     | null {
     if (
-      this.autosaveSavesInFlight > 0 ||
+      (this.autosaveEnabled && this.autosaveSavesInFlight > 0) ||
       this.elementAutosaveStatus === 'saving' ||
       this.persistenceState.hasRestoredReplayPending()
     ) {
       return 'saving';
     }
     if (
-      this.autosaveFailed ||
+      (this.autosaveEnabled && this.autosaveFailed) ||
       this.elementAutosaveStatus === 'failed' ||
       this.persistenceState.hasRestoredReplayFailed()
     ) {

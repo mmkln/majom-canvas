@@ -1176,8 +1176,8 @@ export class CanvasApp {
             : el instanceof GoalElement
               ? 'goal'
               : 'habit';
-      const elementUuid = el.uuid;
-      if (!elementUuid) {
+      const elementRef = this.getLayoutPersistenceRef(el);
+      if (!elementRef) {
         missingIds.push(String((el as any).id));
         return;
       }
@@ -1201,7 +1201,7 @@ export class CanvasApp {
               };
       positions.push({
         element_type: elementType,
-        element_uuid: elementUuid,
+        element_uuid: elementRef,
         x: el.x,
         y: el.y,
         meta,
@@ -2551,6 +2551,20 @@ export class CanvasApp {
 
   private getLinkElementRef(element: { id: string; uuid?: string }): string {
     return element.uuid ?? element.id;
+  }
+
+  private getLayoutPersistenceRef(element: {
+    uuid?: string;
+    backendId?: string | number | null;
+  }): string | null {
+    if (element.uuid) return element.uuid;
+    if (typeof element.backendId === 'string' && element.backendId.length > 0) {
+      return element.backendId;
+    }
+    if (Number.isFinite(element.backendId)) {
+      return String(element.backendId);
+    }
+    return null;
   }
 
   private getLinkElementBackendId(element: {
