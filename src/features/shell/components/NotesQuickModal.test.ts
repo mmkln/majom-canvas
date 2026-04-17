@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PaginatedResponse } from '../../../majom-wrapper/data-access/paginated-response.ts';
-import type { Note, NoteSummary } from '../../../majom-wrapper/interfaces/index.ts';
+import type {
+  Note,
+  NoteSummary,
+} from '../../../majom-wrapper/interfaces/index.ts';
 import {
   NotesQuickModal,
   type NotesQuickModalService,
@@ -40,7 +43,7 @@ function makeNote(overrides: Partial<Note> = {}): Note {
     body: overrides.body ?? 'Initial body',
     status: overrides.status ?? 'active',
     is_pinned: overrides.is_pinned ?? false,
-    meta: overrides.meta ?? null,
+    meta: overrides.meta ?? {},
     created_at: overrides.created_at ?? '2026-04-16T10:00:00.000Z',
     updated_at: overrides.updated_at ?? '2026-04-16T10:00:00.000Z',
   };

@@ -131,7 +131,7 @@ function sortNotes(notes: Note[]): Note[] {
 function cloneNoteSnapshot(note: Note): Note {
   return {
     ...note,
-    meta: note.meta ? { ...note.meta } : null,
+    meta: note.meta ? { ...note.meta } : {},
   };
 }
 
@@ -213,13 +213,12 @@ export class NotesQuickModal {
       titleElement,
       actions,
       headerInner,
-    } =
-      createPaneModalShell(this.i18n.t('notes.modal.title'), {
-        onClose: () => this.close(),
-        intent: 'form',
-        presentation: this.mobilePresentation ? 'fullscreen' : undefined,
-        zIndex: 260,
-      });
+    } = createPaneModalShell(this.i18n.t('notes.modal.title'), {
+      onClose: () => this.close(),
+      intent: 'form',
+      presentation: this.mobilePresentation ? 'fullscreen' : undefined,
+      zIndex: 260,
+    });
 
     const closeButton = actions.querySelector<HTMLButtonElement>(
       'button[aria-label="Close dialog"]'
@@ -336,7 +335,9 @@ export class NotesQuickModal {
   }
 
   private hasServerStateSyncInFlight(noteId: string): boolean {
-    return this.editorSessionsByNoteId.get(noteId)?.serverStateSyncPromise !== null;
+    return (
+      this.editorSessionsByNoteId.get(noteId)?.serverStateSyncPromise !== null
+    );
   }
 
   private isNoteActionDisabled(noteId: string): boolean {
@@ -456,7 +457,9 @@ export class NotesQuickModal {
       return;
     }
 
-    this.archivedNotes = this.archivedNotes.filter((item) => item.id !== note.id);
+    this.archivedNotes = this.archivedNotes.filter(
+      (item) => item.id !== note.id
+    );
     this.activeNotes = sortNotes([...this.activeNotes, note]);
   }
 
@@ -467,12 +470,7 @@ export class NotesQuickModal {
     if (previousPinned === note.is_pinned) return;
     this.applySummaryDelta({
       pinned: note.is_pinned ? 1 : -1,
-      pinned_active:
-        note.status === 'active'
-          ? note.is_pinned
-            ? 1
-            : -1
-          : 0,
+      pinned_active: note.status === 'active' ? (note.is_pinned ? 1 : -1) : 0,
     });
   }
 
@@ -486,12 +484,7 @@ export class NotesQuickModal {
     this.applySummaryDelta({
       active: activeDelta,
       archived: archivedDelta,
-      pinned_active:
-        note.is_pinned
-          ? note.status === 'active'
-            ? 1
-            : -1
-          : 0,
+      pinned_active: note.is_pinned ? (note.status === 'active' ? 1 : -1) : 0,
     });
   }
 
@@ -603,7 +596,8 @@ export class NotesQuickModal {
 
     if (this.mobilePresentation) {
       const mobilePane = document.createElement('section');
-      mobilePane.className = 'flex h-full min-h-0 flex-col overflow-hidden bg-white';
+      mobilePane.className =
+        'flex h-full min-h-0 flex-col overflow-hidden bg-white';
       this.body.appendChild(mobilePane);
       this.mobilePane = mobilePane;
       this.mobileViewComponent = new NotesMobileFullscreenView({
@@ -1106,7 +1100,9 @@ export class NotesQuickModal {
       const iconWrap = document.createElement('div');
       iconWrap.className =
         'inline-flex h-14 w-14 items-center justify-center rounded-[1.25rem] bg-slate-100 text-slate-500';
-      iconWrap.appendChild(createIcon('document', { size: 20, strokeWidth: 1.8 }));
+      iconWrap.appendChild(
+        createIcon('document', { size: 20, strokeWidth: 1.8 })
+      );
       empty.appendChild(iconWrap);
 
       const title = document.createElement('p');
@@ -1224,7 +1220,9 @@ export class NotesQuickModal {
     options?: {
       buttonClassName?: string;
       placement?: 'bottom-end' | 'bottom-start';
-      fallbackPlacements?: Array<'bottom-start' | 'top-end' | 'top-start' | 'bottom-end'>;
+      fallbackPlacements?: Array<
+        'bottom-start' | 'top-end' | 'top-start' | 'bottom-end'
+      >;
     }
   ): HTMLElement {
     const wrap = document.createElement('div');
@@ -1311,8 +1309,11 @@ export class NotesQuickModal {
       menuController.openAt({
         anchor: menuButton,
         placement: options?.placement ?? 'bottom-end',
-        fallbackPlacements:
-          options?.fallbackPlacements ?? ['bottom-start', 'top-end', 'top-start'],
+        fallbackPlacements: options?.fallbackPlacements ?? [
+          'bottom-start',
+          'top-end',
+          'top-start',
+        ],
         gap: 6,
         margin: 8,
         lockPlacementAfterOpen: true,
@@ -1579,8 +1580,8 @@ export class NotesQuickModal {
             is_pinned: desiredPinned,
           });
           if (
-            session.serverSnapshot.status !== desiredStatus ||
-            session.serverSnapshot.is_pinned !== desiredPinned
+            session.serverSnapshot?.status !== desiredStatus ||
+            session.serverSnapshot?.is_pinned !== desiredPinned
           ) {
             void this.ensureServerStateSync(session.noteId);
           }
@@ -1760,7 +1761,7 @@ export class NotesQuickModal {
       body: '',
       status: 'active',
       is_pinned: false,
-      meta: null,
+      meta: {},
       created_at: timestamp,
       updated_at: timestamp,
     };
@@ -1873,8 +1874,10 @@ export class NotesQuickModal {
     const currentNote = this.findNoteById(note.id) ?? note;
     const session = this.editorSessionsByNoteId.get(currentNote.id) ?? null;
     const shouldHandleLocally =
-      !session?.serverSnapshot || this.hasServerStateSyncInFlight(currentNote.id);
-    if (!shouldHandleLocally && this.isNoteActionDisabled(currentNote.id)) return;
+      !session?.serverSnapshot ||
+      this.hasServerStateSyncInFlight(currentNote.id);
+    if (!shouldHandleLocally && this.isNoteActionDisabled(currentNote.id))
+      return;
     const confirmed = await confirmDeleteNoteModal({
       noteTitle: currentNote.title || this.i18n.t('notes.untitled'),
       i18n: this.i18n,

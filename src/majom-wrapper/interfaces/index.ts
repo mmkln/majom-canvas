@@ -221,7 +221,10 @@ export type GoalRelationCreate = Omit<
 >;
 
 export type GoalRelationUpdate = Partial<
-  Pick<GoalRelation, 'from_goal_uuid' | 'to_goal_uuid' | 'relation_type' | 'meta'>
+  Pick<
+    GoalRelation,
+    'from_goal_uuid' | 'to_goal_uuid' | 'relation_type' | 'meta'
+  >
 >;
 
 export type CanvasRelationElementType =
@@ -322,7 +325,7 @@ export interface Note {
   body: string;
   status: NoteStatus;
   is_pinned: boolean;
-  meta: Record<string, unknown> | null;
+  meta: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
