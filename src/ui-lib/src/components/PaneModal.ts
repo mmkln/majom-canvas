@@ -189,6 +189,15 @@ export function createPaneModalShell(
     );
 
   requestAnimationFrame(() => {
+    const active = document.activeElement as HTMLElement | null;
+    if (
+      active &&
+      active !== document.body &&
+      active !== container &&
+      container.contains(active)
+    ) {
+      return;
+    }
     const elements = getFocusableElements();
     (elements[0] ?? container).focus();
   });
