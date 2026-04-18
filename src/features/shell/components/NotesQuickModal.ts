@@ -335,9 +335,8 @@ export class NotesQuickModal {
   }
 
   private hasServerStateSyncInFlight(noteId: string): boolean {
-    return (
-      this.editorSessionsByNoteId.get(noteId)?.serverStateSyncPromise !== null
-    );
+    const session = this.editorSessionsByNoteId.get(noteId);
+    return session?.serverStateSyncPromise != null;
   }
 
   private isNoteActionDisabled(noteId: string): boolean {
@@ -532,6 +531,53 @@ export class NotesQuickModal {
     return note;
   }
 
+  private setNoteMutationPending(noteId: string, pending: boolean): void {
+    if (pending) {
+      this.mutationPendingNoteIds.add(noteId);
+    } else {
+      this.mutationPendingNoteIds.delete(noteId);
+    }
+    this.patchVisibleNoteState(noteId);
+  }
+
+  private async runServerBackedNoteMutation(
+    noteId: string,
+    options: {
+      request: () => Promise<Note>;
+      rollback: () => void;
+      errorKey: AppTranslationKey;
+    }
+  ): Promise<void> {
+    this.setNoteMutationPending(noteId, true);
+
+    try {
+      const updated = await options.request();
+      this.upsertNote(updated, { refreshSummary: false });
+      this.syncEditorSessionServerSnapshot(updated);
+    } catch (error) {
+      console.error('Failed to sync note state.', error);
+      options.rollback();
+      notify(this.i18n.t(options.errorKey), 'error');
+    } finally {
+      this.setNoteMutationPending(noteId, false);
+    }
+  }
+
+  private updateSelectionAfterNoteRemoval(noteId: string): void {
+    if (this.selectedNoteId !== noteId) {
+      return;
+    }
+
+    const next = this.firstAvailableNote;
+    this.selectedNoteId = next?.id ?? null;
+    if (this.mobilePresentation) {
+      this.mobileView = next ? 'editor' : 'list';
+    }
+    if (next) {
+      this.loadDraftFromNote(next);
+    }
+  }
+
   private refreshTranslations(): void {
     if (!this.overlay) return;
     if (this.headerTitleElement && !this.mobilePresentation) {
@@ -540,10 +586,7 @@ export class NotesQuickModal {
       this.headerTitleElement.title = title;
     }
     if (this.headerCreateButton) {
-      const label = this.i18n.t('notes.newNote');
-      this.headerCreateButton.textContent = label;
-      this.headerCreateButton.title = label;
-      this.headerCreateButton.setAttribute('aria-label', label);
+      this.syncHeaderCreateButtonContent(this.headerCreateButton);
     }
     this.renderContent();
   }
@@ -576,7 +619,7 @@ export class NotesQuickModal {
 
   private createHeaderCreateButton(): HTMLButtonElement {
     const label = this.i18n.t('notes.newNote');
-    return createTextButton({
+    const button = createTextButton({
       text: label,
       tone: 'text',
       size: 'sm',
@@ -588,6 +631,24 @@ export class NotesQuickModal {
         void this.createNote();
       },
     });
+    this.syncHeaderCreateButtonContent(button);
+    return button;
+  }
+
+  private syncHeaderCreateButtonContent(button: HTMLButtonElement): void {
+    const label = this.i18n.t('notes.newNote');
+    button.replaceChildren();
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    button.classList.add('inline-flex', 'items-center', 'gap-1.5');
+    const icon = createIcon('pencil-square', {
+      size: 14,
+      strokeWidth: 1.9,
+    });
+    icon.setAttribute('aria-hidden', 'true');
+    const text = document.createElement('span');
+    text.textContent = label;
+    button.append(icon, text);
   }
 
   private mountLayout(): void {
@@ -1854,9 +1915,18 @@ export class NotesQuickModal {
     if (!updated) {
       return;
     }
-    if (this.isNoteServerBacked(note.id)) {
-      void this.ensureServerStateSync(note.id);
+    if (!this.isNoteServerBacked(note.id)) {
+      return;
     }
+    const nextPinned = updated.is_pinned;
+    void this.runServerBackedNoteMutation(note.id, {
+      request: () =>
+        nextPinned ? this.service.pinNote(note.id) : this.service.unpinNote(note.id),
+      rollback: () => {
+        this.applyLocalPinToggle(note.id);
+      },
+      errorKey: 'notes.error.pin',
+    });
   }
 
   private async toggleArchive(note: Note): Promise<void> {
@@ -1865,16 +1935,27 @@ export class NotesQuickModal {
     if (!updated) {
       return;
     }
-    if (this.isNoteServerBacked(note.id)) {
-      void this.ensureServerStateSync(note.id);
+    if (!this.isNoteServerBacked(note.id)) {
+      return;
     }
+    const nextStatus = updated.status;
+    void this.runServerBackedNoteMutation(note.id, {
+      request: () =>
+        nextStatus === 'archived'
+          ? this.service.archiveNote(note.id)
+          : this.service.unarchiveNote(note.id),
+      rollback: () => {
+        this.applyLocalArchiveToggle(note.id);
+      },
+      errorKey: 'notes.error.archive',
+    });
   }
 
   private async deleteSelectedNote(note: Note): Promise<void> {
     const currentNote = this.findNoteById(note.id) ?? note;
     const session = this.editorSessionsByNoteId.get(currentNote.id) ?? null;
     const shouldHandleLocally =
-      !session?.serverSnapshot ||
+      !this.isNoteServerBacked(currentNote.id) ||
       this.hasServerStateSyncInFlight(currentNote.id);
     if (!shouldHandleLocally && this.isNoteActionDisabled(currentNote.id))
       return;
@@ -1890,16 +1971,7 @@ export class NotesQuickModal {
       }
       this.removeNote(currentNote.id);
       this.applySummaryForRemovedNote(currentNote);
-      if (this.selectedNoteId === currentNote.id) {
-        const next = this.firstAvailableNote;
-        this.selectedNoteId = next?.id ?? null;
-        if (this.mobilePresentation) {
-          this.mobileView = 'list';
-        }
-        if (next) {
-          this.loadDraftFromNote(next);
-        }
-      }
+      this.updateSelectionAfterNoteRemoval(currentNote.id);
       this.renderContent();
       if (session && session.serverSnapshot) {
         void this.ensureServerStateSync(currentNote.id);
@@ -1909,27 +1981,14 @@ export class NotesQuickModal {
       return;
     }
 
-    this.mutationPendingNoteIds.add(currentNote.id);
-    this.renderSidebar();
-    if (this.selectedNoteId === currentNote.id) {
-      this.renderEditor();
-    }
+    this.setNoteMutationPending(currentNote.id, true);
 
     try {
       await this.service.deleteNote(currentNote.id);
       this.removeNote(currentNote.id);
+      this.applySummaryForRemovedNote(currentNote);
       this.dropEditorSession(currentNote.id);
-      if (this.selectedNoteId === currentNote.id) {
-        const next = this.firstAvailableNote;
-        this.selectedNoteId = next?.id ?? null;
-        if (this.mobilePresentation) {
-          this.mobileView = 'list';
-        }
-        if (next) {
-          this.loadDraftFromNote(next);
-        }
-      }
-      void this.refreshSummary();
+      this.updateSelectionAfterNoteRemoval(currentNote.id);
     } catch (error) {
       console.error('Failed to delete note.', error);
       notify(this.i18n.t('notes.error.delete'), 'error');

@@ -185,6 +185,25 @@ function mockMobileViewport(): () => void {
   };
 }
 
+function getSidebarActionButton(
+  noteTitle: string,
+  ariaLabel: string
+): HTMLButtonElement {
+  const button = Array.from(
+    document.body.querySelectorAll<HTMLButtonElement>(
+      `button[aria-label="${ariaLabel}"]`
+    )
+  ).find((candidate) =>
+    candidate.parentElement?.textContent?.includes(noteTitle)
+  );
+
+  if (!button) {
+    throw new Error(`Expected ${ariaLabel} button for note "${noteTitle}".`);
+  }
+
+  return button;
+}
+
 describe('NotesQuickModal focus retention', () => {
   afterEach(() => {
     document.body.innerHTML = '';
@@ -296,6 +315,9 @@ describe('NotesQuickModal focus retention', () => {
     if (!newNoteButton) {
       throw new Error('Expected New note button.');
     }
+    expect(
+      newNoteButton.querySelector('svg')?.getAttribute('data-icon-name')
+    ).toBe('pencil-square');
 
     newNoteButton.click();
     await flushUi();
@@ -312,10 +334,11 @@ describe('NotesQuickModal focus retention', () => {
     expect(createNote).toHaveBeenCalledTimes(1);
     expect(createNote).toHaveBeenCalledWith(
       expect.objectContaining({
+        title: 'Untitled note',
         body: '',
         status: 'active',
         is_pinned: false,
-        meta: null,
+        meta: {},
       })
     );
 
@@ -437,6 +460,60 @@ describe('NotesQuickModal focus retention', () => {
     modal.destroy();
   });
 
+  it('syncs pin for an unselected note when clicking the sidebar pin button', async () => {
+    const deferredPin = createDeferred<Note>();
+    const selectedNote = makeNote({ id: 'note-selected', title: 'Selected note' });
+    const sidebarNote = makeNote({ id: 'note-sidebar', title: 'Sidebar note' });
+    const { service, pinNote } = createService({
+      activeNotes: [selectedNote, sidebarNote],
+      pinNoteImpl: async () => deferredPin.promise,
+    });
+    const modal = new NotesQuickModal(service);
+
+    modal.open();
+    await flushUi();
+
+    getSidebarActionButton('Sidebar note', 'Pin note').click();
+    await flushUi();
+
+    expect(pinNote).toHaveBeenCalledTimes(1);
+    expect(pinNote).toHaveBeenCalledWith('note-sidebar');
+
+    modal.destroy();
+  });
+
+  it('syncs unpin for an unselected note when clicking the sidebar unpin button', async () => {
+    const deferredUnpin = createDeferred<Note>();
+    const selectedNote = makeNote({
+      id: 'note-selected',
+      title: 'Selected note',
+      is_pinned: true,
+      updated_at: '2026-04-16T10:12:00.000Z',
+    });
+    const sidebarNote = makeNote({
+      id: 'note-sidebar',
+      title: 'Sidebar note',
+      is_pinned: true,
+      updated_at: '2026-04-16T10:11:00.000Z',
+    });
+    const { service } = createService({
+      activeNotes: [selectedNote, sidebarNote],
+    });
+    service.unpinNote = vi.fn(async () => deferredUnpin.promise);
+    const modal = new NotesQuickModal(service);
+
+    modal.open();
+    await flushUi();
+
+    getSidebarActionButton('Sidebar note', 'Unpin note').click();
+    await flushUi();
+
+    expect(service.unpinNote).toHaveBeenCalledTimes(1);
+    expect(service.unpinNote).toHaveBeenCalledWith('note-sidebar');
+
+    modal.destroy();
+  });
+
   it('applies archive optimistically for a server-backed note before sync resolves', async () => {
     const deferredArchive = createDeferred<Note>();
     const baseNote = makeNote({ id: 'note-archive', title: 'Archive later' });
@@ -472,6 +549,28 @@ describe('NotesQuickModal focus retention', () => {
     await flushUi();
 
     expect((modal['selectedNote'] as Note | null)?.status).toBe('archived');
+
+    modal.destroy();
+  });
+
+  it('syncs archive for an unselected note when archive is triggered outside the editor session', async () => {
+    const deferredArchive = createDeferred<Note>();
+    const selectedNote = makeNote({ id: 'note-selected', title: 'Selected note' });
+    const sidebarNote = makeNote({ id: 'note-sidebar', title: 'Sidebar note' });
+    const { service, archiveNote } = createService({
+      activeNotes: [selectedNote, sidebarNote],
+      archiveNoteImpl: async () => deferredArchive.promise,
+    });
+    const modal = new NotesQuickModal(service);
+
+    modal.open();
+    await flushUi();
+
+    await modal['toggleArchive'](sidebarNote);
+    await flushUi();
+
+    expect(archiveNote).toHaveBeenCalledTimes(1);
+    expect(archiveNote).toHaveBeenCalledWith('note-sidebar');
 
     modal.destroy();
   });
@@ -581,6 +680,31 @@ describe('NotesQuickModal focus retention', () => {
 
     expect(deleteNote).toHaveBeenCalledTimes(1);
     expect(deleteNote).toHaveBeenCalledWith('note-new');
+
+    modal.destroy();
+  });
+
+  it('syncs delete for an unselected server-backed note', async () => {
+    const confirmSpy = vi.spyOn(
+      confirmDeleteNoteModalModule,
+      'confirmDeleteNoteModal'
+    ).mockResolvedValue(true);
+    const selectedNote = makeNote({ id: 'note-selected', title: 'Selected note' });
+    const sidebarNote = makeNote({ id: 'note-sidebar', title: 'Sidebar note' });
+    const { service, deleteNote } = createService({
+      activeNotes: [selectedNote, sidebarNote],
+    });
+    const modal = new NotesQuickModal(service);
+
+    modal.open();
+    await flushUi();
+
+    await modal['deleteSelectedNote'](sidebarNote);
+    await flushUi();
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(deleteNote).toHaveBeenCalledTimes(1);
+    expect(deleteNote).toHaveBeenCalledWith('note-sidebar');
 
     modal.destroy();
   });

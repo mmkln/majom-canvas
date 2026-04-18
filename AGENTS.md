@@ -109,6 +109,8 @@
 
 - Before changing code for a bug fix, first reproduce and localize the bug with tests.
 - Do not start a speculative fix until the root cause is identified with high confidence through a failing or diagnostic test at the right level (`integration` first by default, then `unit` if needed to isolate further).
+- If the user explicitly asks to find the bug with tests first, do not implement a fix until a focused automated test fails on the buggy behavior.
+- If no test fails yet, treat the bug as not correctly identified yet; continue narrowing with tests or report that the failure has not been proven.
 - Treat bug-fix work as a two-step process:
   1. create or run the smallest test that reliably reproduces the bug and proves the root cause;
   2. only then implement the fix and keep the regression protection that guards the real behavior.
