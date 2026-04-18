@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
-import { Subject } from 'rxjs';
-import { afterEach, describe, expect, it } from 'vitest';
+import { of, Subject } from 'rxjs';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CanvasManager } from '../core/managers/CanvasManager.ts';
+import type { ICanvasElement } from '../core/interfaces/canvasElement.ts';
 import type { IViewState } from '../core/interfaces/interfaces.ts';
 import { Scene } from '../core/scene/Scene.ts';
 import type { AddExistingGoalService } from '../core/services/AddExistingGoalService.ts';
@@ -11,6 +12,7 @@ import type { AddExistingStoryService } from '../core/services/AddExistingStoryS
 import type { AddExistingTaskService } from '../core/services/AddExistingTaskService.ts';
 import { GoalElement } from '../elements/GoalElement.ts';
 import { StoryElement } from '../elements/StoryElement.ts';
+import { TaskElement } from '../elements/TaskElement.ts';
 import type { ExistingGoalPicker } from './components/ExistingGoalPicker.ts';
 import type { ExistingHabitPicker } from './components/ExistingHabitPicker.ts';
 import type { ExistingStoryPicker } from './components/ExistingStoryPicker.ts';
@@ -18,8 +20,24 @@ import type { ExistingTaskPicker } from './components/ExistingTaskPicker.ts';
 import { ContextMenu } from './ContextMenu.ts';
 import { createAppRuntime, type AppRuntime } from '../../../app-runtime/index.ts';
 
+const { backlogLoadSnapshotMock, backlogSaveSnapshotMock } = vi.hoisted(() => ({
+  backlogLoadSnapshotMock: vi.fn(),
+  backlogSaveSnapshotMock: vi.fn(),
+}));
+
+vi.mock('../../../majom-wrapper/data-access/backlog-api-service.ts', () => ({
+  BacklogApiService: class {
+    public loadSnapshot = backlogLoadSnapshotMock;
+    public saveSnapshot = backlogSaveSnapshotMock;
+  },
+}));
+
 afterEach(() => {
   document.body.innerHTML = '';
+  backlogLoadSnapshotMock.mockReset();
+  backlogSaveSnapshotMock.mockReset();
+  backlogLoadSnapshotMock.mockReturnValue(of({ taskUuids: [] }));
+  backlogSaveSnapshotMock.mockReturnValue(of({ taskUuids: [] }));
 });
 
 function createContextMenu(
@@ -58,13 +76,14 @@ function createContextMenu(
     {} as unknown as AddExistingGoalService,
     {} as unknown as AddExistingStoryService,
     {} as unknown as AddExistingHabitService,
+    {},
     runtime
   );
 }
 
 function renderMenuLabels(
   scene: Scene,
-  element: StoryElement | null,
+  element: ICanvasElement | null,
   runtime: AppRuntime = createAppRuntime({ initialLocale: 'en' })
 ): string[] {
   const contextMenu = createContextMenu(scene, runtime);
@@ -101,7 +120,7 @@ function renderMenuLabels(
 
 function mountContextMenu(
   scene: Scene,
-  element: StoryElement | null,
+  element: ICanvasElement | null,
   runtime: AppRuntime = createAppRuntime({ initialLocale: 'en' })
 ): {
   contextMenu: ContextMenu;
@@ -200,6 +219,119 @@ describe('ContextMenu selection connection actions', () => {
 
       expect(addTaskButton).toBeTruthy();
       expect(addTaskButton?.querySelector('svg')).toBeTruthy();
+    } finally {
+      contextMenu.unmount();
+      container.remove();
+    }
+  });
+
+  it('renders lifecycle statuses in described-to-done order inside the context menu', () => {
+    const scene = new Scene();
+    const task = new TaskElement({
+      id: 'task-1',
+      x: 100,
+      y: 120,
+      title: 'Task in canvas',
+    });
+    scene.addElement(task);
+
+    const { contextMenu, container } = mountContextMenu(scene, task);
+
+    try {
+      const statusButtons = Array.from(
+        container.querySelectorAll<HTMLButtonElement>('button[aria-label]')
+      ).filter((button) =>
+        ['Defined', 'Pending', 'In progress', 'Done'].includes(
+          button.getAttribute('aria-label') ?? ''
+        )
+      );
+
+      expect(statusButtons.map((button) => button.getAttribute('aria-label'))).toEqual([
+        'Defined',
+        'Pending',
+        'In progress',
+        'Done',
+      ]);
+    } finally {
+      contextMenu.unmount();
+      container.remove();
+    }
+  });
+
+  it('renders a divider between AI assist and the backlog item when both are available', () => {
+    const scene = new Scene();
+    const task = new TaskElement({
+      id: 'task-1',
+      uuid: '00000000-0000-0000-0000-000000000001',
+      x: 100,
+      y: 120,
+      title: 'Task in canvas',
+    });
+    scene.addElement(task);
+
+    const { contextMenu, container } = mountContextMenu(scene, task);
+
+    try {
+      const mainMenu = container.querySelector<HTMLElement>('[role="menu"]');
+      expect(mainMenu).not.toBeNull();
+
+      const aiAssistButton = Array.from(
+        mainMenu?.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]') ?? []
+      ).find((button) => button.textContent?.trim() === 'AI assist');
+      const backlogButton = Array.from(
+        mainMenu?.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]') ?? []
+      ).find((button) => button.textContent?.trim() === 'To backlog');
+
+      expect(aiAssistButton).not.toBeNull();
+      expect(backlogButton).not.toBeNull();
+      expect(
+        aiAssistButton?.nextElementSibling?.getAttribute('data-component')
+      ).toBe('HudDivider');
+      expect(aiAssistButton?.nextElementSibling?.nextElementSibling).toBe(
+        backlogButton
+      );
+    } finally {
+      contextMenu.unmount();
+      container.remove();
+    }
+  });
+
+  it('adds a task uuid to backlog from a dedicated context menu item', async () => {
+    const scene = new Scene();
+    const taskUuid = '00000000-0000-0000-0000-000000000001';
+    const task = new TaskElement({
+      id: taskUuid,
+      uuid: taskUuid,
+      x: 100,
+      y: 120,
+      title: 'Task in canvas',
+    });
+    scene.addElement(task);
+    backlogLoadSnapshotMock.mockReturnValue(
+      of({ taskUuids: ['00000000-0000-0000-0000-000000000002'] })
+    );
+    backlogSaveSnapshotMock.mockReturnValue(
+      of({
+        taskUuids: ['00000000-0000-0000-0000-000000000002', taskUuid],
+      })
+    );
+
+    const { contextMenu, container } = mountContextMenu(scene, task);
+
+    try {
+      const addToBacklogButton = Array.from(
+        container.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]')
+      ).find((button) => button.textContent?.trim() === 'To backlog');
+      expect(addToBacklogButton).not.toBeNull();
+
+      addToBacklogButton?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(backlogLoadSnapshotMock).toHaveBeenCalledTimes(1);
+      expect(backlogSaveSnapshotMock).toHaveBeenCalledWith({
+        taskUuids: ['00000000-0000-0000-0000-000000000002', taskUuid],
+      });
     } finally {
       contextMenu.unmount();
       container.remove();

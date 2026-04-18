@@ -65,6 +65,7 @@ export const es: AppTranslations = {
   'canvasContextMenu.confirmDelete': 'Eliminar permanentemente',
   'canvasContextMenu.connections': 'Conexiones',
   'canvasContextMenu.copy': 'Copiar',
+  'canvasContextMenu.addToBacklog': 'Al backlog',
   'canvasContextMenu.deleteElement': 'Eliminar elemento',
   'canvasContextMenu.edit': 'Editar',
   'canvasContextMenu.element': 'Elemento',

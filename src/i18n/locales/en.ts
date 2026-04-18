@@ -410,6 +410,7 @@ export const en = {
   'canvasContextMenu.confirmDelete': 'Confirm delete',
   'canvasContextMenu.connections': 'Connections',
   'canvasContextMenu.copy': 'Copy',
+  'canvasContextMenu.addToBacklog': 'To backlog',
   'canvasContextMenu.deleteElement': 'Delete {element}',
   'canvasContextMenu.edit': 'Edit',
   'canvasContextMenu.element': 'element',

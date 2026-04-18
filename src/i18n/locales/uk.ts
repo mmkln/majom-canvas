@@ -411,6 +411,7 @@ export const uk = {
   'canvasContextMenu.confirmDelete': 'Підтвердити видалення',
   'canvasContextMenu.connections': 'Звʼязки',
   'canvasContextMenu.copy': 'Копіювати',
+  'canvasContextMenu.addToBacklog': 'У беклог',
   'canvasContextMenu.deleteElement': 'Видалити {element}',
   'canvasContextMenu.edit': 'Редагувати',
   'canvasContextMenu.element': 'елемент',

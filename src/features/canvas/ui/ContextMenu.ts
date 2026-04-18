@@ -1,4 +1,4 @@
-import { Subscription } from 'rxjs';
+import { firstValueFrom, Subscription } from 'rxjs';
 import { historyService } from '../core/services/HistoryService.ts';
 import { CopyCommand } from '../core/commands/CopyCommand.ts';
 import { PasteCommand } from '../core/commands/PasteCommand.ts';
@@ -42,7 +42,6 @@ import {
   getStatusLabel,
   STATUS_ICON_MAP,
   STATUS_ICON_TONE_CLASS,
-  STATUS_ORDER,
 } from './statusPresentation.ts';
 import {
   getRoutineStatusLabel,
@@ -62,6 +61,8 @@ import {
   type PlanningElement,
 } from '../core/services/SelectionContext.ts';
 import { AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
+import { HttpInterceptorClient } from '../../../majom-wrapper/data-access/http-interceptor.js';
+import { environment } from '../../../config/environment.ts';
 import {
   getPlanningElementCapabilities,
   isHabitElement,
@@ -69,6 +70,7 @@ import {
 } from '../elements/utils/planningElementCapabilities.ts';
 import { Status } from '../../../majom-wrapper/interfaces/index.ts';
 import { Checkbox } from '../../../ui-lib/src/components/Checkbox.ts';
+import { BacklogApiService } from '../../../majom-wrapper/data-access/backlog-api-service.ts';
 
 type ContextMenuDetail = {
   element: ICanvasElement | null;
@@ -114,6 +116,9 @@ type ContextMenuRowButton = {
   action: () => MenuActionResult;
   tone?: DropdownIconActionTone;
   disabled?: boolean;
+  selected?: boolean;
+  className?: string;
+  iconClassName?: string;
 };
 
 type ContextMenuRowItem = {
@@ -138,6 +143,13 @@ type ContextMenuSection = {
   items: ContextMenuItem[];
 };
 
+const CONTEXT_MENU_LIFECYCLE_STATUS_ORDER: readonly ElementStatus[] = [
+  ElementStatus.Defined,
+  ElementStatus.Pending,
+  ElementStatus.InProgress,
+  ElementStatus.Done,
+];
+
 export class ContextMenu {
   private menu: HTMLDivElement;
   private submenu: HTMLDivElement;
@@ -152,6 +164,9 @@ export class ContextMenu {
   private submenuCloseTimeoutId: number | null = null;
   private layoutService = new StoryLayoutService();
   private bulkActions: BulkActionsController;
+  private readonly backlogApi = new BacklogApiService(
+    new HttpInterceptorClient(environment.apiUrl)
+  );
   private readonly confirmTimeoutMs = 4000;
   private readonly submenuCloseDelayMs = 120;
 
@@ -411,7 +426,12 @@ export class ContextMenu {
       actionItems.push({
         label: this.runtime.i18n.t('canvasContextMenu.aiAssist'),
         submenu: this.buildPlanningElementAiItems(planningElement),
+        dividerAfter:
+          planningElement instanceof TaskElement && Boolean(planningElement.uuid),
       });
+    }
+    if (planningElement instanceof TaskElement && planningElement.uuid) {
+      actionItems.push(this.buildAddToBacklogItem(planningElement));
     }
 
     const getTitleByElement = (el: ICanvasElement): string | undefined => {
@@ -502,24 +522,12 @@ export class ContextMenu {
     ) {
       sections.push({
         title: this.runtime.i18n.t('canvasContextMenu.setStatus'),
-        items: STATUS_ORDER.map((status) => {
-          const isCurrent = planningElement.status === status;
-          return {
-            label: getStatusLabel(status, this.runtime.i18n),
-            leading: this.createStatusIcon(status),
-            trailing: isCurrent ? this.createActiveStatusCheck() : null,
-            variant: isCurrent ? 'selected' : 'default',
-            action: () => {
-              if (isCurrent) return 'keep-open';
-              this.bulkActions.updateStatus([planningElement], status);
-            },
-          };
-        }),
+        items: [this.buildLifecycleStatusRow(planningElement)],
       });
     } else if (planningElement && isHabitElement(planningElement)) {
       sections.push({
         title: this.runtime.i18n.t('canvasContextMenu.setStatus'),
-        items: this.buildRoutineStatusItems(planningElement),
+        items: [this.buildRoutineStatusRow(planningElement)],
       });
     }
 
@@ -1059,6 +1067,16 @@ export class ContextMenu {
     };
   }
 
+  private buildAddToBacklogItem(task: TaskElement): ContextMenuActionItem {
+    return {
+      label: this.runtime.i18n.t('canvasContextMenu.addToBacklog'),
+      leading: this.createLeadingIcon('inbox'),
+      action: () => {
+        this.addTaskToBacklog(task);
+      },
+    };
+  }
+
   private buildHabitCompletionControl(
     habit: HabitElement
   ): ContextMenuControlItem {
@@ -1086,25 +1104,69 @@ export class ContextMenu {
     return { control };
   }
 
-  private buildRoutineStatusItems(
+  private buildLifecycleStatusRow(
+    planningElement: TaskElement | StoryElement | GoalElement
+  ): ContextMenuRowItem {
+    return {
+      row: CONTEXT_MENU_LIFECYCLE_STATUS_ORDER.map((status) => {
+        const isCurrent = planningElement.status === status;
+        return {
+          icon: STATUS_ICON_MAP[status],
+          label: getStatusLabel(status, this.runtime.i18n),
+          selected: isCurrent,
+          className: this.getLifecycleStatusButtonClassName(status, isCurrent),
+          action: () => {
+            if (isCurrent) return 'keep-open';
+            this.bulkActions.updateStatus([planningElement], status);
+          },
+        };
+      }),
+    };
+  }
+
+  private buildRoutineStatusRow(
     habit: HabitElement
-  ): ContextMenuActionItem[] {
-    return ROUTINE_STATUS_ORDER.map((status) => {
-      const isCurrent = habit.habitStatus === status;
-      return {
-        label: getRoutineStatusLabel(status, this.runtime.i18n),
-        leading: this.createRoutineStatusIcon(status),
-        trailing: isCurrent ? this.createActiveStatusCheck() : null,
-        variant: isCurrent ? 'selected' : 'default',
-        action: () => {
-          if (isCurrent) return 'keep-open';
-          this.emitHabitAction(
-            habit,
-            status === Status.Archived ? 'archive' : 'restore'
-          );
-        },
-      };
-    });
+  ): ContextMenuRowItem {
+    return {
+      row: ROUTINE_STATUS_ORDER.map((status) => {
+        const isCurrent = habit.habitStatus === status;
+        return {
+          icon: ROUTINE_STATUS_ICON_MAP[status],
+          label: getRoutineStatusLabel(status, this.runtime.i18n),
+          selected: isCurrent,
+          className: this.getRoutineStatusButtonClassName(status, isCurrent),
+          action: () => {
+            if (isCurrent) return 'keep-open';
+            this.emitHabitAction(
+              habit,
+              status === Status.Archived ? 'archive' : 'restore'
+            );
+          },
+        };
+      }),
+    };
+  }
+
+  private addTaskToBacklog(task: TaskElement): void {
+    const taskUuid = task.uuid;
+    if (!taskUuid) return;
+
+    void firstValueFrom(this.backlogApi.loadSnapshot())
+      .then((snapshot) => {
+        const taskUuids = Array.isArray(snapshot?.taskUuids)
+          ? snapshot.taskUuids
+          : [];
+        const nextTaskUuids = [...new Set([...taskUuids, taskUuid])];
+        if (nextTaskUuids.length === taskUuids.length) return;
+        return firstValueFrom(
+          this.backlogApi.saveSnapshot({
+            taskUuids: nextTaskUuids,
+          })
+        );
+      })
+      .catch((error) => {
+        console.warn('Failed to add task to backlog from context menu.', error);
+      });
   }
 
   private emitHabitAction(
@@ -1140,42 +1202,56 @@ export class ContextMenu {
     return `${year}-${month}-${day}`;
   }
 
-  private createStatusIcon(status: ElementStatus): HTMLSpanElement {
-    const wrap = document.createElement('span');
-    wrap.className = 'inline-flex items-center justify-center';
-    const icon = createIcon(STATUS_ICON_MAP[status], {
-      size: 14,
-      strokeWidth: 1.7,
-    });
-    icon.classList.add('shrink-0', STATUS_ICON_TONE_CLASS[status]);
-    icon.setAttribute('aria-hidden', 'true');
-    wrap.appendChild(icon);
-    return wrap;
+  private getLifecycleStatusButtonClassName(
+    status: ElementStatus,
+    isCurrent: boolean
+  ): string {
+    const baseClassName = STATUS_ICON_TONE_CLASS[status];
+    if (status === ElementStatus.Done) {
+      return `${baseClassName} ${
+        isCurrent
+          ? 'bg-emerald-50 hover:bg-emerald-50'
+          : 'hover:bg-emerald-50 hover:text-emerald-700'
+      }`;
+    }
+    if (status === ElementStatus.InProgress) {
+      return `${baseClassName} ${
+        isCurrent
+          ? 'bg-blue-50 hover:bg-blue-50'
+          : 'hover:bg-blue-50 hover:text-blue-700'
+      }`;
+    }
+    if (status === ElementStatus.Pending) {
+      return `${baseClassName} ${
+        isCurrent
+          ? 'bg-amber-50 hover:bg-amber-50'
+          : 'hover:bg-amber-50 hover:text-amber-700'
+      }`;
+    }
+    return `${baseClassName} ${
+      isCurrent
+        ? 'bg-slate-100 hover:bg-slate-100 text-slate-700'
+        : 'hover:bg-slate-100 hover:text-slate-700'
+    }`;
   }
 
-  private createActiveStatusCheck(): HTMLSpanElement {
-    const wrap = document.createElement('span');
-    wrap.className =
-      'ml-auto inline-flex items-center justify-center text-indigo-700';
-    const check = createIcon('check', { size: 14, strokeWidth: 2 });
-    check.setAttribute('aria-hidden', 'true');
-    wrap.appendChild(check);
-    return wrap;
-  }
-
-  private createRoutineStatusIcon(
-    status: Status.Active | Status.Archived
-  ): HTMLSpanElement {
-    const wrap = document.createElement('span');
-    wrap.className = 'inline-flex items-center justify-center';
-    const icon = createIcon(ROUTINE_STATUS_ICON_MAP[status], {
-      size: 14,
-      strokeWidth: 1.7,
-    });
-    icon.classList.add('shrink-0', ROUTINE_STATUS_ICON_TONE_CLASS[status]);
-    icon.setAttribute('aria-hidden', 'true');
-    wrap.appendChild(icon);
-    return wrap;
+  private getRoutineStatusButtonClassName(
+    status: Status.Active | Status.Archived,
+    isCurrent: boolean
+  ): string {
+    const baseClassName = ROUTINE_STATUS_ICON_TONE_CLASS[status];
+    if (status === Status.Active) {
+      return `${baseClassName} ${
+        isCurrent
+          ? 'bg-blue-50 hover:bg-blue-50'
+          : 'hover:bg-blue-50 hover:text-blue-700'
+      }`;
+    }
+    return `${baseClassName} ${
+      isCurrent
+        ? 'bg-slate-100 hover:bg-slate-100 text-slate-700'
+        : 'hover:bg-slate-100 hover:text-slate-700'
+    }`;
   }
 
   private createActionButton(item: ContextMenuActionItem): HTMLButtonElement {
@@ -1205,6 +1281,9 @@ export class ContextMenu {
         label: button.label,
         tone: button.tone,
         disabled: button.disabled,
+        selected: button.selected,
+        className: button.className,
+        iconClassName: button.iconClassName,
         onClick: () => this.executeItemAction(button.action),
       })),
     });

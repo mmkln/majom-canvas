@@ -21,6 +21,7 @@ export const rue: AppTranslations = {
   'canvasMenu.sectionTitle': 'Меню canvas-у',
   'canvasMenu.spacingGuides': 'Лінії розступів',
   'canvasMenu.viewportCenterGuides': 'Лінії центра viewport-у',
+  'canvasContextMenu.addToBacklog': 'До backlog-у',
   'canvas.duplicateFailed': 'Не подало ся зробити копію canvas-у.',
   'canvas.duplicatePrefix': 'Копія - ',
   'canvas.duplicateSuccess': 'Копія canvas-у створена.',

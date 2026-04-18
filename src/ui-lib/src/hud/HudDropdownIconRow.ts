@@ -15,6 +15,9 @@ export type HudDropdownIconAction = {
   label: string;
   tone?: HudDropdownIconActionTone;
   disabled?: boolean;
+  selected?: boolean;
+  className?: string;
+  iconClassName?: string;
   iconSize?: number;
   iconStrokeWidth?: number;
   onClick?: (event: MouseEvent) => void;
@@ -47,9 +50,11 @@ export function createHudDropdownIconRow(
     button.setAttribute('role', 'menuitem');
     button.title = action.label;
     button.setAttribute('aria-label', action.label);
+    button.setAttribute('aria-pressed', action.selected ? 'true' : 'false');
     button.className = [
       HUD_MENU_ICON_BUTTON_BASE_CLASS,
       classByTone[tone],
+      action.className ?? '',
       action.disabled ? HUD_MENU_ITEM_DISABLED_CLASS : '',
     ]
       .filter(Boolean)
@@ -63,6 +68,11 @@ export function createHudDropdownIconRow(
       size: action.iconSize ?? 16,
       strokeWidth: action.iconStrokeWidth ?? 1.9,
     });
+    if (action.iconClassName) {
+      icon.classList.add(
+        ...action.iconClassName.split(/\s+/).filter(Boolean)
+      );
+    }
     icon.setAttribute('aria-hidden', 'true');
     button.appendChild(icon);
 
