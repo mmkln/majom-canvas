@@ -2,6 +2,8 @@
 import { Scene } from '../scene/Scene.ts';
 import { IShape } from '../interfaces/shape.ts';
 import { CanvasManager } from './CanvasManager.ts';
+import { ConnectionRemovalService } from '../services/ConnectionRemovalService.ts';
+import { isConnection } from '../utils/typeGuards.ts';
 import { modalService } from '../../../../ui-lib/src/services/ModalService.ts';
 import { normalizeKeyboardKey } from '../utils/keyboardUtils.ts';
 
@@ -101,6 +103,15 @@ export class KeyboardManager {
       e.preventDefault();
       e.stopPropagation();
       const selectedElements = [...this.scene.getSelectedElements()];
+      if (
+        selectedElements.length > 0 &&
+        selectedElements.every((element) => isConnection(element))
+      ) {
+        new ConnectionRemovalService(this.scene).removeConnectionsBatch(
+          selectedElements
+        );
+        return;
+      }
       this.scene.removeElements(selectedElements);
     }
   }

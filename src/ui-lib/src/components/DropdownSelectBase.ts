@@ -29,6 +29,7 @@ type DropdownSelectBaseOptions<T> = {
   renderOptionLeading?: (item: T) => HTMLElement | null;
   renderOptionTrailing?: (item: T, selected: boolean) => HTMLElement | null;
   onOpenChange?: (open: boolean) => void;
+  hideChevron?: boolean;
 };
 
 type DropdownStateMessageTone = 'default' | 'error';
@@ -148,6 +149,11 @@ export class DropdownSelectBase<T> {
     this.render();
   }
 
+  public close(): void {
+    this.controller.close();
+    this.render();
+  }
+
   public destroy(): void {
     this.controller.close();
     this.controller.unmount();
@@ -172,16 +178,6 @@ export class DropdownSelectBase<T> {
       ? this.options.getLabel(this.selected)
       : this.options.placeholder;
 
-    const chevron = createIcon(
-      this.controller.isOpen() ? 'chevron-up' : 'chevron-down',
-      {
-        size: 16,
-        strokeWidth: 1.9,
-      }
-    );
-    chevron.className.baseVal = 'shrink-0 text-slate-400';
-    chevron.setAttribute('aria-hidden', 'true');
-
     const triggerTrailing =
       this.options.renderTriggerTrailing?.(this.selected) ?? null;
     if (triggerTrailing) {
@@ -191,10 +187,19 @@ export class DropdownSelectBase<T> {
     this.trigger.append(label);
     if (triggerTrailing) {
       this.trigger.appendChild(triggerTrailing);
-    } else {
+    } else if (!this.options.hideChevron) {
+      const chevron = createIcon(
+        this.controller.isOpen() ? 'chevron-up' : 'chevron-down',
+        {
+          size: 16,
+          strokeWidth: 1.9,
+        }
+      );
+      chevron.className.baseVal = 'ml-auto shrink-0 text-slate-400';
+      chevron.setAttribute('aria-hidden', 'true');
       chevron.classList.add('ml-auto');
+      this.trigger.appendChild(chevron);
     }
-    this.trigger.appendChild(chevron);
   }
 
   private renderContent(): void {

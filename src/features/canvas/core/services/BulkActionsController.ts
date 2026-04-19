@@ -7,9 +7,14 @@ import { PatchPlanningElementCommand } from '../commands/PatchPlanningElementCom
 import { ElementStatus } from '../../elements/ElementStatus.ts';
 import type { PlanningElement } from './SelectionContext.ts';
 import { ConnectionCreationService } from './ConnectionCreationService.ts';
+import { ConnectionMutationService } from './ConnectionMutationService.ts';
 import { ConnectionRemovalService } from './ConnectionRemovalService.ts';
 import { notify } from './NotificationService.ts';
 import { GoalElement } from '../../elements/GoalElement.ts';
+import type {
+  ConnectionRelationType,
+  IConnection,
+} from '../interfaces/connection.ts';
 import {
   selectionSupportsDuplication,
   selectionSupportsLifecycleStatus,
@@ -82,6 +87,7 @@ function resolveGoalTagTitles(
 
 export class BulkActionsController {
   private readonly connectionCreationService: ConnectionCreationService;
+  private readonly connectionMutationService: ConnectionMutationService;
   private readonly connectionRemovalService: ConnectionRemovalService;
   private readonly canMutateStructure: () => boolean;
   private readonly onMutationBlocked: () => void;
@@ -91,6 +97,7 @@ export class BulkActionsController {
     options: BulkActionsControllerOptions = {}
   ) {
     this.connectionCreationService = new ConnectionCreationService(scene);
+    this.connectionMutationService = new ConnectionMutationService(scene);
     this.connectionRemovalService = new ConnectionRemovalService(scene);
     this.canMutateStructure = options.canMutateStructure ?? (() => true);
     this.onMutationBlocked = options.onMutationBlocked ?? (() => {});
@@ -247,6 +254,46 @@ export class BulkActionsController {
     return this.connectionRemovalService.hasConnectionsBetweenElementAndTargets(
       source,
       elements
+    );
+  }
+
+  public removeConnection(connection: IConnection): void {
+    if (!this.canMutateStructure()) {
+      this.onMutationBlocked();
+      return;
+    }
+    this.connectionRemovalService.removeConnection(connection);
+  }
+
+  public removeConnectionFromCanvas(connection: IConnection): void {
+    if (!this.canMutateStructure()) {
+      this.onMutationBlocked();
+      return;
+    }
+    this.connectionMutationService.removeConnectionFromCanvas(connection);
+  }
+
+  public canUpdateConnectionRelationType(connection: IConnection): boolean {
+    return this.connectionMutationService.canUpdateRelationType(connection);
+  }
+
+  public getAvailableConnectionRelationTypes(
+    connection: IConnection
+  ): readonly ConnectionRelationType[] {
+    return this.connectionMutationService.getAvailableRelationTypes(connection);
+  }
+
+  public updateConnectionRelationType(
+    connection: IConnection,
+    relationType: ConnectionRelationType
+  ): boolean {
+    if (!this.canMutateStructure()) {
+      this.onMutationBlocked();
+      return false;
+    }
+    return this.connectionMutationService.updateRelationType(
+      connection,
+      relationType
     );
   }
 

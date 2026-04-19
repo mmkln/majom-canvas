@@ -18,6 +18,16 @@ export type ConnectionBatchRemoveResult = {
 export class ConnectionRemovalService {
   constructor(private readonly scene: Scene) {}
 
+  public removeConnection(connection: IConnection): ConnectionBatchRemoveResult {
+    return this.removeConnections([connection]);
+  }
+
+  public removeConnectionsBatch(
+    connections: ReadonlyArray<IConnection>
+  ): ConnectionBatchRemoveResult {
+    return this.removeConnections(connections);
+  }
+
   public hasConnectionsForElement(element: IConnectable): boolean {
     return this.findConnectionsForElement(element).length > 0;
   }

@@ -10,6 +10,7 @@ import { Scene } from '../core/scene/Scene.ts';
 import { editElement$ } from '../core/eventBus.ts';
 import { SaveControls } from './components/SaveControls.ts';
 import { ContextMenu } from './ContextMenu.ts';
+import { SelectedConnectionActionMenu } from './SelectedConnectionActionMenu.ts';
 import { SelectionActionMenu } from './SelectionActionMenu.ts';
 import {
   RelatedItemsPicker,
@@ -277,6 +278,12 @@ export class UIManager {
       bulkActions,
       this.runtime
     );
+    const selectedConnectionActions = new SelectedConnectionActionMenu(
+      this.scene,
+      this.canvasManager,
+      bulkActions,
+      this.runtime
+    );
     const relatedItemsPicker = new RelatedItemsPicker(
       this.scene,
       this.canvasManager,
@@ -300,6 +307,7 @@ export class UIManager {
       this.canvasNavigationDock,
       contextMenu,
       selectionActions,
+      selectedConnectionActions,
       storyQuickCreateAction,
       relatedItemsPicker,
       statusPicker,
