@@ -1,7 +1,11 @@
 import { createIcon } from '../../canvas/ui/icons.ts';
+import {
+  type InkstoneEditorHandle,
+} from '@majom/inkstone';
 import { createIconButton } from '../../../ui-lib/src/hud/index.ts';
 import type { I18nService } from '../../../i18n/index.ts';
 import type { Note, NoteSummary } from '../../../majom-wrapper/interfaces/index.ts';
+import { createNotesBodyEditor } from '../notes/createNotesBodyEditor.ts';
 
 type MobileMenuScope = 'sidebar' | 'editor';
 
@@ -45,6 +49,8 @@ export type NotesMobileFullscreenViewOptions = {
 };
 
 export class NotesMobileFullscreenView {
+  private bodyEditor: InkstoneEditorHandle | null = null;
+
   constructor(private readonly options: NotesMobileFullscreenViewOptions) {}
 
   public render(state: NotesMobileFullscreenViewState): void {
@@ -131,6 +137,8 @@ export class NotesMobileFullscreenView {
   }
 
   private renderBody(state: NotesMobileFullscreenViewState): void {
+    this.bodyEditor?.destroy();
+    this.bodyEditor = null;
     this.options.contentHost.replaceChildren();
     this.options.onTitleInputMount(null);
     this.options.onBodyInputMount(null);
@@ -228,8 +236,15 @@ export class NotesMobileFullscreenView {
     const createButton = document.createElement('button');
     createButton.type = 'button';
     createButton.className =
-      'inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition active:scale-[0.99] active:bg-slate-800';
-    createButton.textContent = i18n.t('notes.newNote');
+      'inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white transition active:scale-[0.99] active:bg-slate-800';
+    const createIconEl = createIcon('pencil-square', {
+      size: 18,
+      strokeWidth: 1.8,
+    });
+    createIconEl.setAttribute('aria-hidden', 'true');
+    const createLabel = document.createElement('span');
+    createLabel.textContent = i18n.t('notes.newNote');
+    createButton.append(createIconEl, createLabel);
     createButton.addEventListener('click', () => {
       this.options.onCreateNote();
     });
@@ -320,18 +335,20 @@ export class NotesMobileFullscreenView {
     scroll.appendChild(titleInput);
     this.options.onTitleInputMount(titleInput);
 
-    const bodyInput = document.createElement('textarea');
-    bodyInput.value = state.bodyValue;
-    bodyInput.placeholder = i18n.t('notes.bodyPlaceholder');
-    bodyInput.className =
-      'mt-5 min-h-[20rem] flex-1 resize-none bg-transparent p-0 text-[1rem] leading-8 text-slate-700 outline-none placeholder:text-slate-350';
-    bodyInput.style.border = 'none';
-    bodyInput.style.paddingBottom = 'max(8rem, env(safe-area-inset-bottom))';
-    bodyInput.addEventListener('input', () => {
-      this.options.onBodyInput(bodyInput.value);
+    const editorHost = document.createElement('div');
+    editorHost.className = 'mt-5 flex min-h-[20rem] flex-1';
+    scroll.appendChild(editorHost);
+
+    this.bodyEditor = createNotesBodyEditor({
+      value: state.bodyValue,
+      placeholder: i18n.t('notes.bodyPlaceholder'),
+      mobile: true,
+      onChange: (value) => {
+        this.options.onBodyInput(value);
+      },
     });
-    scroll.appendChild(bodyInput);
-    this.options.onBodyInputMount(bodyInput);
+    this.bodyEditor.mount(editorHost);
+    this.options.onBodyInputMount(this.bodyEditor.getInputElement());
 
     const metaRow = document.createElement('div');
     metaRow.className = 'mt-4 px-1 text-xs text-slate-400';

@@ -1,5 +1,6 @@
 // vite.config.ts
 import { defineConfig, loadEnv } from 'vite';
+import { fileURLToPath, URL } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig(({ mode }) => {
@@ -23,6 +24,13 @@ export default defineConfig(({ mode }) => {
       outDir: '../dist',
       // Empty out the output directory before building
       emptyOutDir: true,
+    },
+    resolve: {
+      alias: {
+        '@majom/inkstone': fileURLToPath(
+          new URL('./packages/inkstone/src/index.ts', import.meta.url)
+        ),
+      },
     },
     plugins: [tailwindcss()],
   };

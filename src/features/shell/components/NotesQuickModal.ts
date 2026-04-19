@@ -1,3 +1,6 @@
+import {
+  type InkstoneEditorHandle,
+} from '@majom/inkstone';
 import { createPaneModalShell } from '../../../ui-lib/src/components/PaneModal.ts';
 import {
   AnchoredMenu,
@@ -19,6 +22,7 @@ import {
   isMobileOverlayContext,
 } from '../../../ui-lib/src/services/overlayPolicy.ts';
 import { ShellNotesService } from '../services/ShellNotesService.ts';
+import { createNotesBodyEditor } from '../notes/createNotesBodyEditor.ts';
 import { confirmDeleteNoteModal } from './ConfirmDeleteNoteModal.ts';
 import { NotesMobileFullscreenView } from './NotesMobileFullscreenView.ts';
 
@@ -159,6 +163,7 @@ export class NotesQuickModal {
 
   private titleInput: HTMLInputElement | null = null;
   private bodyInput: HTMLTextAreaElement | null = null;
+  private bodyEditor: InkstoneEditorHandle | null = null;
   private updatedAtLabel: HTMLSpanElement | null = null;
   private sidebarRowsByNoteId = new Map<string, SidebarRowRefs>();
 
@@ -287,6 +292,8 @@ export class NotesQuickModal {
     this.mobilePane = null;
     this.mobileViewComponent = null;
     this.titleInput = null;
+    this.bodyEditor?.destroy();
+    this.bodyEditor = null;
     this.bodyInput = null;
     this.updatedAtLabel = null;
     this.sidebarRowsByNoteId.clear();
@@ -1149,6 +1156,8 @@ export class NotesQuickModal {
     this.destroyMenus('editor');
     this.editorPane.replaceChildren();
     this.titleInput = null;
+    this.bodyEditor?.destroy();
+    this.bodyEditor = null;
     this.bodyInput = null;
     this.updatedAtLabel = null;
 
@@ -1237,20 +1246,22 @@ export class NotesQuickModal {
     bodyWrap.className =
       'flex min-h-0 flex-1 flex-col gap-4 px-5 pb-5 md:px-6 md:pb-6';
 
-    const bodyInput = document.createElement('textarea');
-    bodyInput.value = session.draftBody;
-    bodyInput.placeholder = this.i18n.t('notes.bodyPlaceholder');
-    bodyInput.className =
-      'min-h-[20rem] flex-1 resize-none bg-transparent p-0 text-[0.95rem] leading-7 text-slate-700 outline-none placeholder:text-slate-350';
-    bodyInput.style.border = 'none';
-    bodyInput.addEventListener('input', () => {
-      session.draftBody = bodyInput.value;
-      session.saveState = 'queued';
-      this.patchSidebarRow(note, { useDraft: true });
-      this.requestImmediateSave();
+    const editorHost = document.createElement('div');
+    editorHost.className = 'flex min-h-0 flex-1';
+    bodyWrap.appendChild(editorHost);
+
+    this.bodyEditor = createNotesBodyEditor({
+      value: session.draftBody,
+      placeholder: this.i18n.t('notes.bodyPlaceholder'),
+      onChange: (value) => {
+        session.draftBody = value;
+        session.saveState = 'queued';
+        this.patchSidebarRow(note, { useDraft: true });
+        this.requestImmediateSave();
+      },
     });
-    bodyWrap.appendChild(bodyInput);
-    this.bodyInput = bodyInput;
+    this.bodyEditor.mount(editorHost);
+    this.bodyInput = this.bodyEditor.getInputElement();
 
     const metaRow = document.createElement('div');
     metaRow.className =

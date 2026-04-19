@@ -708,4 +708,19 @@ describe('NotesQuickModal focus retention', () => {
 
     modal.destroy();
   });
+
+  it('does not render an edit preview switch in the notes header', async () => {
+    const { service } = createService({
+      activeNotes: [makeNote({ id: 'note-layout', title: 'Layout note' })],
+    });
+    const modal = new NotesQuickModal(service);
+
+    modal.open();
+    await flushUi();
+
+    expect(document.body.textContent).not.toContain('Preview');
+    expect(document.body.textContent).not.toContain('Edit');
+
+    modal.destroy();
+  });
 });

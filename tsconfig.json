@@ -3,6 +3,10 @@
     "target": "ES6",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "baseUrl": ".",
+    "paths": {
+      "@majom/inkstone": ["packages/inkstone/src/index.ts"]
+    },
     "strict": true,
     "esModuleInterop": true,
     "allowImportingTsExtensions": true,
