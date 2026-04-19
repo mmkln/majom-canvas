@@ -317,6 +317,64 @@ export interface Habit {
 
 export type DateCompletion = [string, boolean];
 
+export interface HabitTrackerHabitSummary {
+  readonly id: string;
+  uuid: string;
+  title: string;
+  description: string;
+  created_at: string | Date;
+  priority: Priority;
+  status: Status;
+  last_checked: string | Date | null;
+  meta: Record<string, unknown> | null;
+}
+
+export interface HabitTrackerDay {
+  date: string;
+  is_today: boolean;
+}
+
+export interface HabitTrackerDayState {
+  date: string;
+  is_due: boolean;
+  is_completed: boolean;
+}
+
+export interface HabitTrackerRow {
+  habit: HabitTrackerHabitSummary;
+  day_states: HabitTrackerDayState[];
+}
+
+export interface HabitTrackerSummary {
+  date: string;
+  total: number;
+  completed: number;
+  open: number;
+}
+
+export interface HabitTrackerSnapshot {
+  start_date: string;
+  end_date: string;
+  days: HabitTrackerDay[];
+  active_habits: HabitTrackerRow[];
+  archived_habits: HabitTrackerHabitSummary[];
+  summary: {
+    today: HabitTrackerSummary;
+  };
+}
+
+export interface HabitDayRow {
+  habit: HabitTrackerHabitSummary;
+  state: HabitTrackerDayState;
+}
+
+export interface HabitDaySnapshot {
+  day: HabitTrackerDay;
+  active_habits: HabitDayRow[];
+  archived_habits: HabitTrackerHabitSummary[];
+  summary: HabitTrackerSummary;
+}
+
 export type NoteStatus = 'active' | 'archived';
 
 export interface Note {

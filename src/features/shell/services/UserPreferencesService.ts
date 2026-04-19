@@ -546,7 +546,12 @@ function mergeMetaObjects(base: UserMetaRecord, patch: UserMetaRecord): UserMeta
 function readLegacyWorkspaceDefaultView(): WorkspaceView | undefined {
   try {
     const value = localStorage.getItem(LEGACY_WORKSPACE_ACTIVE_VIEW_STORAGE_KEY);
-    if (value === 'canvas' || value === 'kanban' || value === 'learning-studio') {
+    if (
+      value === 'canvas' ||
+      value === 'kanban' ||
+      value === 'focus-board' ||
+      value === 'learning-studio'
+    ) {
       return value;
     }
     if (value === 'time-clustering') {
@@ -939,7 +944,10 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 
 function isWorkspaceView(value: unknown): value is WorkspaceView {
   return (
-    value === 'canvas' || value === 'kanban' || value === 'learning-studio'
+    value === 'canvas' ||
+    value === 'kanban' ||
+    value === 'focus-board' ||
+    value === 'learning-studio'
   );
 }
 

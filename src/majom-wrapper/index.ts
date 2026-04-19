@@ -9,6 +9,8 @@ export { CanvasApiService } from './data-access/canvas-api-service.ts';
 export { CanvasRelationsApiService } from './data-access/canvas-relations-api-service.ts';
 export { GoalRelationsApiService } from './data-access/goal-relations-api-service.ts';
 export { TimeClusteringApiService } from './data-access/time-clustering-api-service.ts';
+export { FocusBoardApiService } from './data-access/focus-board-api-service.ts';
+export { BacklogApiService } from './data-access/backlog-api-service.ts';
 export { CanvasDataService } from './services/CanvasDataService.ts';
 
 export type {

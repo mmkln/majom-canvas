@@ -215,6 +215,9 @@ describe('GoalDetailsModal', () => {
     const relationSelectors = document.querySelectorAll<HTMLButtonElement>(
       '[data-goal-related-goal-relation-selector]'
     );
+    const relatedGoalActionButtons = document.querySelectorAll<HTMLButtonElement>(
+      '[data-goal-related-goal-actions-trigger]'
+    );
     const relatedGoalOpenButtons = document.querySelectorAll<HTMLButtonElement>(
       '[data-goal-related-goal-open-details]'
     );
@@ -248,6 +251,7 @@ describe('GoalDetailsModal', () => {
     expect(relatedGoalsSection).not.toBeNull();
     expect(relatedGoalsItems).toHaveLength(2);
     expect(relationSelectors).toHaveLength(2);
+    expect(relatedGoalActionButtons).toHaveLength(2);
     expect(relatedGoalPriorityBadges).toHaveLength(2);
     expect(relatedGoalRowIcons).toHaveLength(0);
     expect(relationBadges).toHaveLength(2);
@@ -350,5 +354,182 @@ describe('GoalDetailsModal', () => {
     expect(storiesPanel?.hasAttribute('hidden')).toBe(false);
 
     storiesCreate?.click();
+  });
+
+  it('deletes a goal relation from the related goals row menu', async () => {
+    vi.spyOn(TasksApiService.prototype, 'getTags').mockReturnValue(of([]));
+    vi.spyOn(GoalsApiService.prototype, 'getGoal').mockReturnValue(
+      of({
+        id: 12,
+        uuid: 'goal-uuid-12',
+        title: 'Improve refunds',
+      } as any)
+    );
+    vi.spyOn(GoalsApiService.prototype, 'fetchGoalsByUuids').mockReturnValue(
+      of([
+        {
+          id: 901,
+          uuid: 'goal-uuid-related-1',
+          title: 'Stabilize approvals',
+          description: '',
+          created_at: '2026-04-05T00:00:00Z',
+          scale: 2,
+          tasks: [],
+          subgoals: { items: [], total_count: 0, completed_count: 0, is_draft: false },
+          priority: 'high',
+          status: 'in_progress',
+          strategies: [],
+          milestones: { items: [], total_count: 0, completed_count: 0, is_draft: false },
+          tags: [],
+        },
+      ] as any)
+    );
+    vi.spyOn(
+      GoalRelatedItemsLookupService.prototype,
+      'getRelatedItems'
+    ).mockReturnValue(
+      of({
+        tasks: [],
+        goals: [],
+        stories: [],
+      })
+    );
+    vi.spyOn(GoalRelationsApiService.prototype, 'listRelations').mockReturnValue(
+      of([
+        {
+          id: 'goal-rel-1',
+          from_goal_uuid: 'goal-uuid-12',
+          to_goal_uuid: 'goal-uuid-related-1',
+          relation_type: 'leads_to',
+          meta: null,
+          created_at: '2026-04-05T00:00:00Z',
+          updated_at: '2026-04-05T00:00:00Z',
+        },
+      ] as any)
+    );
+    const deleteRelationSpy = vi
+      .spyOn(GoalRelationsApiService.prototype, 'deleteRelation')
+      .mockReturnValue(of(void 0));
+
+    const scene = new Scene();
+    const goal = new GoalElement({
+      id: 'goal-12',
+      uuid: 'goal-uuid-12',
+      title: 'Improve refunds',
+      backendId: 12,
+    });
+    scene.addElement(goal);
+
+    const modal = new GoalDetailsModal(goal, scene);
+    modal.show();
+    await flushAsync();
+
+    const actionButton = document.querySelector<HTMLButtonElement>(
+      '[data-goal-related-goal-actions-trigger="leads_to:goal-uuid-related-1"]'
+    );
+    expect(actionButton).not.toBeNull();
+
+    actionButton?.click();
+
+    const deleteButton = document.querySelector<HTMLButtonElement>(
+      '[data-goal-related-goal-delete-relation="leads_to:goal-uuid-related-1"]'
+    );
+    expect(deleteButton).not.toBeNull();
+
+    deleteButton?.click();
+    await flushAsync();
+
+    expect(deleteRelationSpy).toHaveBeenCalledWith('goal-rel-1');
+  });
+
+  it('uses a right arrow icon for follows relation controls', async () => {
+    vi.spyOn(TasksApiService.prototype, 'getTags').mockReturnValue(of([]));
+    vi.spyOn(GoalsApiService.prototype, 'getGoal').mockReturnValue(
+      of({
+        id: 12,
+        uuid: 'goal-uuid-12',
+        title: 'Improve refunds',
+      } as any)
+    );
+    vi.spyOn(GoalsApiService.prototype, 'fetchGoalsByUuids').mockReturnValue(
+      of([
+        {
+          id: 901,
+          uuid: 'goal-uuid-related-1',
+          title: 'Stabilize approvals',
+          description: '',
+          created_at: '2026-04-05T00:00:00Z',
+          scale: 2,
+          tasks: [],
+          subgoals: { items: [], total_count: 0, completed_count: 0, is_draft: false },
+          priority: 'high',
+          status: 'in_progress',
+          strategies: [],
+          milestones: { items: [], total_count: 0, completed_count: 0, is_draft: false },
+          tags: [],
+        },
+      ] as any)
+    );
+    vi.spyOn(
+      GoalRelatedItemsLookupService.prototype,
+      'getRelatedItems'
+    ).mockReturnValue(
+      of({
+        tasks: [],
+        goals: [],
+        stories: [],
+      })
+    );
+    vi.spyOn(GoalRelationsApiService.prototype, 'listRelations').mockReturnValue(
+      of([
+        {
+          id: 'goal-rel-1',
+          from_goal_uuid: 'goal-uuid-12',
+          to_goal_uuid: 'goal-uuid-related-1',
+          relation_type: 'leads_to',
+          meta: null,
+          created_at: '2026-04-05T00:00:00Z',
+          updated_at: '2026-04-05T00:00:00Z',
+        },
+      ] as any)
+    );
+
+    const scene = new Scene();
+    const goal = new GoalElement({
+      id: 'goal-12',
+      uuid: 'goal-uuid-12',
+      title: 'Improve refunds',
+      backendId: 12,
+    });
+    scene.addElement(goal);
+
+    const modal = new GoalDetailsModal(goal, scene);
+    modal.show();
+    await flushAsync();
+
+    const relationSelector = document.querySelector<HTMLButtonElement>(
+      '[data-goal-related-goal-relation-selector="leads_to:goal-uuid-related-1"]'
+    );
+    expect(relationSelector).not.toBeNull();
+    expect(
+      relationSelector?.querySelector('[data-icon-name="arrow-right"]')
+    ).not.toBeNull();
+    expect(
+      relationSelector?.querySelector('[data-icon-name="arrow-down"]')
+    ).toBeNull();
+
+    relationSelector?.click();
+
+    const followsOption = Array.from(
+      document.querySelectorAll<HTMLButtonElement>('[data-component="HudDropdownItem"]')
+    ).find((item) => item.textContent?.includes('Follows'));
+
+    expect(followsOption).not.toBeUndefined();
+    expect(
+      followsOption?.querySelector('[data-icon-name="arrow-right"]')
+    ).not.toBeNull();
+    expect(
+      followsOption?.querySelector('[data-icon-name="arrow-down"]')
+    ).toBeNull();
   });
 });

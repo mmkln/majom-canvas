@@ -1,6 +1,7 @@
 import { Subscription } from 'rxjs';
 import { GLOBAL_APP_SIDEBAR_WIDTH_PX } from './GlobalAppHeader.ts';
 import {
+  FOCUS_BOARD_DEV_ENABLED,
   KANBAN_DEV_ENABLED,
   LEARNING_STUDIO_DEV_ENABLED,
   ROUTINES_ENABLED,
@@ -75,6 +76,12 @@ type KanbanModuleNamespace = {
   KanbanModule: new () => WorkspaceModule;
 };
 
+type FocusBoardModuleNamespace = {
+  FocusBoardModule: new (options?: {
+    runtime?: AppRuntime;
+  }) => WorkspaceModule;
+};
+
 type LearningStudioModuleNamespace = {
   LearningStudioModule: new (options?: {
     runtime?: AppRuntime;
@@ -101,6 +108,9 @@ type TimeClusteringModuleNamespace = {
 const loadKanbanModule = (): Promise<KanbanModuleNamespace> =>
   import('../features/kanban/KanbanModule.ts');
 
+const loadFocusBoardModule = (): Promise<FocusBoardModuleNamespace> =>
+  import('../features/focus-board/FocusBoardModule.ts');
+
 const loadLearningStudioModule = (): Promise<LearningStudioModuleNamespace> =>
   import('../features/learning-studio/LearningStudioModule.ts');
 
@@ -111,6 +121,7 @@ export class RuntimeHost {
   private shell: WorkspaceShell | null = null;
   private canvasModule: CanvasModule | null = null;
   private kanbanModule: WorkspaceModule | null = null;
+  private focusBoardModule: WorkspaceModule | null = null;
   private learningStudioModule: WorkspaceModule | null = null;
   private timeClusteringModule: TimeClusteringIslandModule | null = null;
   private readonly workspaceRoot: HTMLDivElement;
@@ -318,6 +329,8 @@ export class RuntimeHost {
   private syncWorkspaceWallpaper(): void {
     const isCanvasVisible = this.hostVisible && this.activeView === 'canvas';
     const isKanbanVisible = this.hostVisible && this.activeView === 'kanban';
+    const isFocusBoardVisible =
+      this.hostVisible && this.activeView === 'focus-board';
     const isLearningStudioVisible =
       this.hostVisible && this.activeView === 'learning-studio';
     if (isCanvasVisible) {
@@ -329,6 +342,12 @@ export class RuntimeHost {
     if (isLearningStudioVisible) {
       this.workspaceRoot.style.backgroundImage = '';
       this.workspaceRoot.style.backgroundColor = '#f8fafc';
+      return;
+    }
+
+    if (isFocusBoardVisible) {
+      this.workspaceRoot.style.backgroundImage = '';
+      this.workspaceRoot.style.backgroundColor = '#f4f7fb';
       return;
     }
 
@@ -395,6 +414,7 @@ export class RuntimeHost {
     this.shell = null;
     this.canvasModule = null;
     this.kanbanModule = null;
+    this.focusBoardModule = null;
     this.learningStudioModule = null;
     this.timeClusteringModule?.unmount();
     this.timeClusteringModule = null;
@@ -440,6 +460,7 @@ export class RuntimeHost {
           initialTimeClusteringOpen: this.timeClusteringOpen,
           initialTimeClusteringLayoutMode: this.timeClusteringLayoutMode,
           showKanban: KANBAN_DEV_ENABLED,
+          showFocusBoard: FOCUS_BOARD_DEV_ENABLED,
           showLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
           showTimeClustering: TIME_CLUSTERING_DEV_ENABLED,
           showRoutines: ROUTINES_ENABLED,
@@ -465,6 +486,13 @@ export class RuntimeHost {
         const { KanbanModule } = await loadKanbanModule();
         this.kanbanModule = new KanbanModule();
         this.shell.register(this.kanbanModule);
+      }
+      if (FOCUS_BOARD_DEV_ENABLED && !this.focusBoardModule) {
+        const { FocusBoardModule } = await loadFocusBoardModule();
+        this.focusBoardModule = new FocusBoardModule({
+          runtime: this.runtime,
+        });
+        this.shell.register(this.focusBoardModule);
       }
       if (LEARNING_STUDIO_DEV_ENABLED && !this.learningStudioModule) {
         const { LearningStudioModule } = await loadLearningStudioModule();
@@ -500,6 +528,7 @@ export class RuntimeHost {
 
   public async setActiveView(view: WorkspaceView): Promise<void> {
     if (view === 'kanban' && !KANBAN_DEV_ENABLED) return;
+    if (view === 'focus-board' && !FOCUS_BOARD_DEV_ENABLED) return;
     if (view === 'learning-studio' && !LEARNING_STUDIO_DEV_ENABLED) return;
     const shouldCloseTimeClustering =
       this.timeClusteringOpen && this.timeClusteringLayoutMode === 'fullscreen';
@@ -908,6 +937,7 @@ export class RuntimeHost {
       loadPersistedTimeClusteringOverlapWarningsVisible(true);
     this.activeView = loadPersistedWorkspaceView({
       allowKanban: KANBAN_DEV_ENABLED,
+      allowFocusBoard: FOCUS_BOARD_DEV_ENABLED,
       allowLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
     });
   }
@@ -976,6 +1006,9 @@ export class RuntimeHost {
 
   private resolveAllowedWorkspaceView(view: WorkspaceView): WorkspaceView {
     if (view === 'kanban' && !KANBAN_DEV_ENABLED) {
+      return 'canvas';
+    }
+    if (view === 'focus-board' && !FOCUS_BOARD_DEV_ENABLED) {
       return 'canvas';
     }
     if (view === 'learning-studio' && !LEARNING_STUDIO_DEV_ENABLED) {

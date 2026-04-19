@@ -19,6 +19,9 @@ export const CANVAS_PERF_LOG =
 export const KANBAN_DEV_ENABLED =
   IS_DEVELOPMENT_MODE &&
   (parseOptionalBoolean(import.meta.env.VITE_ENABLE_KANBAN_DEV) ?? true);
+export const FOCUS_BOARD_DEV_ENABLED =
+  IS_DEVELOPMENT_MODE &&
+  (parseOptionalBoolean(import.meta.env.VITE_ENABLE_FOCUS_BOARD_DEV) ?? true);
 export const LEARNING_STUDIO_DEV_ENABLED =
   IS_DEVELOPMENT_MODE &&
   (parseOptionalBoolean(import.meta.env.VITE_ENABLE_LEARNING_STUDIO_DEV) ??

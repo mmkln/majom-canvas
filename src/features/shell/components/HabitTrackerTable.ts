@@ -26,6 +26,13 @@ const HABIT_PRIORITY_ORDER: readonly UiPriority[] = [
   'high',
   'highest',
 ];
+const HABIT_PRIORITY_MENU_ORDER: readonly UiPriority[] = [
+  'highest',
+  'high',
+  'medium',
+  'low',
+  'lowest',
+];
 const HABIT_PRIORITY_ICON_MAP: Record<
   UiPriority,
   Parameters<typeof createIcon>[0]
@@ -82,6 +89,7 @@ type HabitTrackerTableRenderOptions = {
   ) => void;
   onArchiveHabit: (row: HabitRowState) => void;
   onDeleteHabit: (row: HabitRowState) => void;
+  onOpenDay: (day: HabitDay) => void;
 };
 
 export class HabitTrackerTable {
@@ -202,13 +210,23 @@ export class HabitTrackerTable {
       th.className = `${headerCellBaseClass} sticky top-0 z-20 text-center ${
         day.key === todayKey ? 'bg-indigo-50' : 'bg-slate-50'
       }`;
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
+      trigger.className =
+        'flex w-full flex-col items-center rounded-md px-1 py-0.5 text-center transition-colors hover:bg-slate-100/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80';
+      trigger.dataset.habitDayOpen = day.key;
+      trigger.setAttribute('aria-label', `${day.dayLabel} ${day.shortLabel}`);
+      trigger.addEventListener('click', () => {
+        options.onOpenDay(day);
+      });
       const dayLabel = document.createElement('div');
       dayLabel.className = 'text-[12px] font-semibold text-slate-600';
       dayLabel.textContent = day.dayLabel;
       const shortLabel = document.createElement('div');
       shortLabel.className = 'text-[12px] font-normal text-slate-500';
       shortLabel.textContent = day.shortLabel;
-      th.append(dayLabel, shortLabel);
+      trigger.append(dayLabel, shortLabel);
+      th.appendChild(trigger);
       headRow.appendChild(th);
     });
 
@@ -518,7 +536,7 @@ export class HabitTrackerTable {
     priorityController.mount();
     this.rowMenuControllers.add(priorityController);
 
-    HABIT_PRIORITY_ORDER.forEach((priority) => {
+    HABIT_PRIORITY_MENU_ORDER.forEach((priority) => {
       const leading = document.createElement('span');
       leading.className = 'inline-flex';
       leading.appendChild(this.createPriorityIcon(priority, 13, 1.8));

@@ -1,3 +1,5 @@
+import type { Status } from '../../../majom-wrapper/interfaces/index.ts';
+
 export const FOCUS_BOARD_CYCLE_LENGTH_OPTIONS = [3, 4, 5, 6, 7] as const;
 
 export type FocusBoardCycleLength =
@@ -36,6 +38,17 @@ export type FocusBoardTaskSearchItem = {
   completed: boolean;
 };
 
+export type FocusBoardGoalFilterOption = {
+  id: number;
+  title: string;
+};
+
+export type FocusBoardStoryFilterOption = {
+  id: number;
+  title: string;
+  goalId: number | null;
+};
+
 export type FocusBoardTaskPickerState = {
   open: boolean;
   query: string;
@@ -44,6 +57,9 @@ export type FocusBoardTaskPickerState = {
   error: string | null;
   nextPage: number | null;
   total: number;
+  status: Status | null;
+  goal: FocusBoardGoalFilterOption | null;
+  story: FocusBoardStoryFilterOption | null;
 };
 
 export type FocusBoardTaskComposerState = {

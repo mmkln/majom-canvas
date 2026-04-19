@@ -1,18 +1,17 @@
 import { createModalShell } from '../../../ui-lib/src/components/Modal.ts';
 import {
+  createField,
   createIconButton,
   createTextButton,
 } from '../../../ui-lib/src/hud/index.ts';
+import { StaticDropdownSelect } from '../../../ui-lib/src/components/StaticDropdownSelect.ts';
 import { createIcon } from '../../canvas/ui/icons.ts';
 import {
-  Priority,
   Status,
-  type DateCompletion,
   type Habit,
 } from '../../../majom-wrapper/interfaces/index.ts';
 import type { AppTranslationKey, I18nService } from '../../../i18n/index.ts';
 import { AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
-import { KANBAN_REFRESH_REQUEST_EVENT } from '../../kanban/kanbanEvents.ts';
 import { ShellHabitsService } from '../services/ShellHabitsService.ts';
 import { confirmDeleteRoutineModal } from './ConfirmDeleteRoutineModal.ts';
 import {
@@ -26,6 +25,16 @@ import {
   normalizeUiPriority,
   type UiPriority,
 } from '../../../majom-wrapper/utils/priorityMapping.ts';
+import {
+  buildHabitDay,
+  buildTrackerDays,
+  emitKanbanRefreshRequest,
+  mapArchivedSummaryToHabitRow,
+  mapTrackerRowToHabitRow,
+  parseToDate,
+  toLocalDateKey,
+} from './habitTrackerShared.ts';
+import { HabitDayModal } from './HabitDayModal.ts';
 
 const DAY_WINDOW_SIZE = 10;
 const HABIT_PRIORITY_ORDER: readonly UiPriority[] = [
@@ -35,6 +44,30 @@ const HABIT_PRIORITY_ORDER: readonly UiPriority[] = [
   'high',
   'highest',
 ];
+const HABIT_PRIORITY_MENU_ORDER: readonly UiPriority[] = [
+  'highest',
+  'high',
+  'medium',
+  'low',
+  'lowest',
+];
+const HABIT_PRIORITY_ICON_MAP: Record<
+  UiPriority,
+  Parameters<typeof createIcon>[0]
+> = {
+  lowest: 'chevron-double-down',
+  low: 'chevron-down',
+  medium: 'bars-2',
+  high: 'chevron-up',
+  highest: 'chevron-double-up',
+};
+const HABIT_PRIORITY_ICON_TONE_CLASS: Record<UiPriority, string> = {
+  lowest: 'text-sky-500',
+  low: 'text-sky-500',
+  medium: 'text-orange-500',
+  high: 'text-red-500',
+  highest: 'text-red-500',
+};
 
 export type HabitsQuickStatusSnapshot = {
   openCount: number;
@@ -51,8 +84,9 @@ type HabitsQuickModalOptions = {
 
 export type HabitsQuickModalService = Pick<
   ShellHabitsService,
-  | 'loadHabits'
-  | 'toggleHabitCompletion'
+  | 'loadTracker'
+  | 'loadDay'
+  | 'setHabitCompletion'
   | 'createHabit'
   | 'patchHabitTitle'
   | 'patchHabitPriority'
@@ -61,67 +95,22 @@ export type HabitsQuickModalService = Pick<
   | 'deleteHabit'
 >;
 
-function toLocalDateKey(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function parseToDate(value: string | Date | null | undefined): Date | null {
-  if (!value) return null;
-  if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? null : value;
-  }
-  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
-  if (dateOnly) {
-    const year = Number(dateOnly[1]);
-    const month = Number(dateOnly[2]);
-    const day = Number(dateOnly[3]);
-    const parsed = new Date(year, month - 1, day);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-  }
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
 function buildRecentDays(i18n: I18nService, size: number): HabitDay[] {
   const now = new Date();
   const days: HabitDay[] = [];
   for (let offset = 0; offset < size; offset += 1) {
-    const date = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate() - offset
+    days.push(
+      buildHabitDay(
+        new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate() - offset
+        ),
+        i18n
+      )
     );
-    days.push({
-      date,
-      key: toLocalDateKey(date),
-      dayLabel: i18n.formatDate(date, { weekday: 'short' }),
-      shortLabel: i18n.formatDate(date, {
-        month: 'short',
-        day: 'numeric',
-      }),
-    });
   }
   return days;
-}
-
-function appendCompletionEntries(
-  map: Map<string, boolean>,
-  entries: DateCompletion[] | null | undefined
-): void {
-  if (!Array.isArray(entries)) return;
-  entries.forEach(([value, completed]) => {
-    const parsed = parseToDate(value);
-    if (!parsed) return;
-    map.set(toLocalDateKey(parsed), completed === true);
-  });
-}
-
-function emitKanbanRefreshRequest(): void {
-  if (typeof window === 'undefined') return;
-  window.dispatchEvent(new CustomEvent(KANBAN_REFRESH_REQUEST_EVENT));
 }
 
 export class HabitsQuickModal {
@@ -157,13 +146,15 @@ export class HabitsQuickModal {
   private createErrorKey: AppTranslationKey | null = null;
   private refreshVersion = 0;
   private createTitle = '';
+  private createPriority: UiPriority = 'low';
   private createPending = false;
   private focusCreateInputOnRender = false;
   private readonly pendingCellKeys = new Set<string>();
   private readonly pendingHabitIds = new Set<string>();
-  private sortMode: HabitSortMode = 'title';
+  private sortMode: HabitSortMode = 'priority';
   private prioritySortDirection: HabitPrioritySortDirection = 'desc';
   private readonly disposeRuntimeSubscription: () => void;
+  private readonly dayModal: HabitDayModal;
 
   constructor(
     service: HabitsQuickModalService = new ShellHabitsService(),
@@ -175,9 +166,14 @@ export class HabitsQuickModal {
     this.i18n = runtime.i18n;
     this.onOpenChange = options.onOpenChange;
     this.onStatusChange = options.onStatusChange;
+    this.dayModal = new HabitDayModal(service, runtime, {
+      onDataChanged: async () => {
+        await this.refresh();
+      },
+    });
     this.days = buildRecentDays(this.i18n, DAY_WINDOW_SIZE);
     this.disposeRuntimeSubscription = this.runtime.subscribe(() => {
-      this.days = buildRecentDays(this.i18n, DAY_WINDOW_SIZE);
+      this.days = this.days.map((day) => buildHabitDay(day.date, this.i18n));
       this.refreshTranslations();
     });
   }
@@ -195,7 +191,6 @@ export class HabitsQuickModal {
     const { overlay, container, header, body, footer } = createModalShell(
       this.i18n.t('habits.modal.title'),
       {
-        subtitle: this.i18n.t('habits.modal.subtitle'),
         onClose: () => this.close(),
         intent: 'form',
         zIndex: 260,
@@ -239,25 +234,24 @@ export class HabitsQuickModal {
     this.errorKey = null;
     this.createErrorKey = null;
     this.createTitle = '';
+    this.createPriority = 'low';
     this.createPending = false;
     this.focusCreateInputOnRender = false;
     this.refreshVersion += 1;
     this.pendingCellKeys.clear();
     this.pendingHabitIds.clear();
+    this.dayModal.close();
     this.onOpenChange?.(false);
   }
 
   public destroy(): void {
     this.close();
+    this.dayModal.destroy();
     this.disposeRuntimeSubscription();
   }
 
   private refreshTranslations(): void {
-    this.updateModalHeader(
-      this.header,
-      this.i18n.t('habits.modal.title'),
-      this.i18n.t('habits.modal.subtitle')
-    );
+    this.updateModalHeader(this.header, this.i18n.t('habits.modal.title'));
     this.updateModalHeader(
       this.createHeader,
       this.i18n.t('habits.create.title'),
@@ -275,7 +269,7 @@ export class HabitsQuickModal {
   private updateModalHeader(
     header: HTMLDivElement | null,
     title: string,
-    subtitle: string
+    subtitle?: string
   ): void {
     if (!header) return;
     const titleElement = header.querySelector('h2');
@@ -284,7 +278,11 @@ export class HabitsQuickModal {
     }
     const subtitleElement = header.querySelector('p');
     if (subtitleElement) {
-      subtitleElement.textContent = subtitle;
+      if (subtitle) {
+        subtitleElement.textContent = subtitle;
+      } else {
+        subtitleElement.remove();
+      }
     }
   }
 
@@ -326,8 +324,16 @@ export class HabitsQuickModal {
 
   private buildCompletionMap(habit: Habit): Map<string, boolean> {
     const completionByDateKey = new Map<string, boolean>();
-    appendCompletionEntries(completionByDateKey, habit.weekly_completions);
-    appendCompletionEntries(completionByDateKey, habit.completions);
+    (habit.weekly_completions ?? []).forEach(([value, completed]) => {
+      const parsed = parseToDate(value);
+      if (!parsed) return;
+      completionByDateKey.set(toLocalDateKey(parsed), completed === true);
+    });
+    (habit.completions ?? []).forEach(([value, completed]) => {
+      const parsed = parseToDate(value);
+      if (!parsed) return;
+      completionByDateKey.set(toLocalDateKey(parsed), completed === true);
+    });
 
     const lastChecked = parseToDate(habit.last_checked);
     if (lastChecked) {
@@ -360,7 +366,7 @@ export class HabitsQuickModal {
   }
 
   private getTodayDay(): HabitDay {
-    return this.days[0];
+    return this.days[0] ?? buildHabitDay(new Date(), this.i18n);
   }
 
   private isRowCompletedOnDay(row: HabitRowState, day: HabitDay): boolean {
@@ -465,13 +471,47 @@ export class HabitsQuickModal {
     this.footer.appendChild(row);
   }
 
-  private renderQuickAddToolbar(): HTMLElement {
+  private renderQuickAddToolbar(todaySummary: {
+    completed: number;
+    open: number;
+  }): HTMLElement {
     const wrap = document.createElement('div');
-    wrap.className = 'flex items-center justify-end';
+    wrap.className = 'flex items-center justify-between gap-3 px-1 pb-1';
+
+    const summaryBadge = document.createElement('div');
+    summaryBadge.className =
+      'inline-flex min-h-9 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600';
+
+    const doneBadge = document.createElement('span');
+    doneBadge.className =
+      'inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700';
+    const doneIcon = createIcon('check-circle', { size: 14, strokeWidth: 1.9 });
+    doneIcon.setAttribute('aria-hidden', 'true');
+    doneBadge.append(
+      doneIcon,
+      this.i18n.t('habits.summary.doneCount', {
+        count: String(todaySummary.completed),
+      })
+    );
+
+    const leftBadge = document.createElement('span');
+    leftBadge.className =
+      'inline-flex items-center gap-1.5 rounded-full bg-slate-200/70 px-2.5 py-1 text-slate-700';
+    const leftIcon = createIcon('arrow-right', { size: 14, strokeWidth: 1.9 });
+    leftIcon.setAttribute('aria-hidden', 'true');
+    leftBadge.append(
+      leftIcon,
+      this.i18n.t('habits.summary.leftCount', {
+        count: String(todaySummary.open),
+      })
+    );
+
+    summaryBadge.append(doneBadge, leftBadge);
+    wrap.appendChild(summaryBadge);
 
     const newRoutineButton = createTextButton({
       text: this.i18n.t('habits.newRoutine'),
-      tone: 'secondary',
+      tone: 'text',
       size: 'sm',
       disabled: this.loading || this.createPending,
       onClick: () => {
@@ -664,6 +704,36 @@ export class HabitsQuickModal {
     });
 
     bodyWrap.appendChild(input);
+    const prioritySelect = new StaticDropdownSelect<UiPriority>({
+      size: 'sm',
+      value: this.createPriority,
+      placeholder: this.i18n.t('habits.priority'),
+      items: [...HABIT_PRIORITY_MENU_ORDER],
+      getKey: (item) => item,
+      getLabel: (item) => this.getPriorityLabel(item),
+      onSelect: (item) => {
+        this.createPriority = item;
+      },
+      disabled: this.loading || this.createPending,
+      ariaLabel: this.i18n.t('habits.priority'),
+      renderTriggerLeading: (item) =>
+        item ? this.createPriorityIcon(item, 16, 1.9) : null,
+      renderOptionLeading: (item) => this.createPriorityIcon(item, 14, 1.9),
+      renderOptionTrailing: (_item, selected) => {
+        if (!selected) return null;
+        const check = document.createElement('span');
+        check.className = 'inline-flex';
+        check.appendChild(createIcon('check', { size: 14, strokeWidth: 2 }));
+        return check;
+      },
+    });
+    prioritySelect.element.dataset.createRoutinePriority = 'true';
+    const priorityField = createField({
+      label: this.i18n.t('habits.priority'),
+      control: prioritySelect.element,
+      className: 'mb-0',
+    });
+    bodyWrap.appendChild(priorityField.element);
     this.createBody.appendChild(bodyWrap);
 
     const footerRow = document.createElement('div');
@@ -763,7 +833,12 @@ export class HabitsQuickModal {
       return;
     }
 
-    this.toolbarHost.appendChild(this.renderQuickAddToolbar());
+    if (this.rows.length > 1) {
+      this.sortRows();
+    }
+
+    const todaySummary = this.getTodaySummary(this.rows);
+    this.toolbarHost.appendChild(this.renderQuickAddToolbar(todaySummary));
 
     if (this.rows.length === 0 && this.archivedRows.length > 0) {
       const noActive = document.createElement('p');
@@ -806,6 +881,9 @@ export class HabitsQuickModal {
         onDeleteHabit: (row) => {
           void this.deleteHabit(row);
         },
+        onOpenDay: (day) => {
+          this.openDayModal(day);
+        },
       });
     } else {
       this.tableComponent?.destroy();
@@ -828,14 +906,22 @@ export class HabitsQuickModal {
     this.renderBody();
 
     try {
-      const habits = await this.service.loadHabits();
+      const today = new Date();
+      const start = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate() - (DAY_WINDOW_SIZE - 1)
+      );
+      const snapshot = await this.service.loadTracker(start, DAY_WINDOW_SIZE);
       if (refreshVersion === this.refreshVersion) {
-        this.rows = habits
-          .filter((habit) => habit.status === Status.Active)
-          .map((habit) => this.mapHabitToRow(habit));
-        this.archivedRows = habits
-          .filter((habit) => habit.status === Status.Archived)
-          .map((habit) => this.mapHabitToRow(habit));
+        this.days = buildTrackerDays(snapshot.days, this.i18n);
+        const todayKey = toLocalDateKey(today);
+        this.rows = snapshot.active_habits.map((row) =>
+          mapTrackerRowToHabitRow(row, todayKey)
+        );
+        this.archivedRows = snapshot.archived_habits.map((habit) =>
+          mapArchivedSummaryToHabitRow(habit)
+        );
         this.sortRows();
         this.sortArchivedRowsByTitle();
         if (this.archivedRows.length === 0) {
@@ -868,15 +954,20 @@ export class HabitsQuickModal {
     this.renderBody();
     this.renderCreateModal();
     try {
-      const created = await this.service.createHabit(title);
+      const created = await this.service.createHabit(
+        title,
+        this.createPriority
+      );
       if (created.status === Status.Active) {
         this.rows.push(this.mapHabitToRow(created));
         this.sortRows();
       }
       this.createTitle = '';
+      this.createPriority = 'low';
       this.closeCreateModal();
       emitKanbanRefreshRequest();
       this.emitStatusChange();
+      await this.refreshDayModalIfOpen();
     } catch {
       this.createErrorKey = 'habits.error.create';
       this.errorKey = 'habits.error.create';
@@ -921,6 +1012,7 @@ export class HabitsQuickModal {
       row.completionByDateKey = this.buildCompletionMap(updated);
       this.sortRows();
       emitKanbanRefreshRequest();
+      await this.refreshDayModalIfOpen();
     } catch {
       row.habit = {
         ...row.habit,
@@ -963,6 +1055,7 @@ export class HabitsQuickModal {
       row.habit = updated;
       row.completionByDateKey = this.buildCompletionMap(updated);
       emitKanbanRefreshRequest();
+      await this.refreshDayModalIfOpen();
     } catch {
       row.habit = {
         ...row.habit,
@@ -995,6 +1088,7 @@ export class HabitsQuickModal {
       }
       emitKanbanRefreshRequest();
       this.emitStatusChange();
+      await this.refreshDayModalIfOpen();
     } catch {
       this.errorKey = 'habits.error.archive';
     } finally {
@@ -1028,6 +1122,7 @@ export class HabitsQuickModal {
       }
       emitKanbanRefreshRequest();
       this.emitStatusChange();
+      await this.refreshDayModalIfOpen();
     } catch {
       this.errorKey = 'habits.error.archive';
     } finally {
@@ -1065,6 +1160,7 @@ export class HabitsQuickModal {
       }
       emitKanbanRefreshRequest();
       this.emitStatusChange();
+      await this.refreshDayModalIfOpen();
     } catch {
       this.errorKey = 'habits.error.delete';
     } finally {
@@ -1091,11 +1187,15 @@ export class HabitsQuickModal {
     this.renderBody();
 
     try {
-      const updated = await this.service.toggleHabitCompletion(habitUuid, day.date);
+      const updated = await this.service.setHabitCompletion(
+        habitUuid,
+        day.date,
+        !previousChecked
+      );
       row.habit = updated;
-      row.completionByDateKey = this.buildCompletionMap(updated);
       emitKanbanRefreshRequest();
       this.emitStatusChange();
+      await this.refreshDayModalIfOpen();
     } catch {
       row.completionByDateKey.set(day.key, previousChecked);
       this.errorKey = 'habits.error.toggleCompletion';
@@ -1104,5 +1204,44 @@ export class HabitsQuickModal {
       this.renderFooter();
       this.renderBody();
     }
+  }
+
+  private openDayModal(day: HabitDay): void {
+    this.dayModal.open(day);
+  }
+
+  private async refreshDayModalIfOpen(): Promise<void> {
+    if (!this.dayModal.isOpen()) return;
+    await this.dayModal.refresh();
+  }
+
+  private getPriorityLabel(priority: UiPriority): string {
+    switch (priority) {
+      case 'lowest':
+        return this.i18n.t('priority.lowest');
+      case 'high':
+        return this.i18n.t('priority.high');
+      case 'highest':
+        return this.i18n.t('priority.highest');
+      case 'medium':
+        return this.i18n.t('priority.medium');
+      case 'low':
+      default:
+        return this.i18n.t('priority.low');
+    }
+  }
+
+  private createPriorityIcon(
+    priority: UiPriority,
+    size = 12,
+    strokeWidth = 1.9
+  ): SVGElement {
+    const icon = createIcon(HABIT_PRIORITY_ICON_MAP[priority], {
+      size,
+      strokeWidth,
+    });
+    icon.classList.add('shrink-0', HABIT_PRIORITY_ICON_TONE_CLASS[priority]);
+    icon.setAttribute('aria-hidden', 'true');
+    return icon;
   }
 }

@@ -1,7 +1,7 @@
 import { from, Observable, of } from 'rxjs';
 import { map, mergeMap, toArray } from 'rxjs/operators';
 import { HttpInterceptorClient } from './http-interceptor.js';
-import { PlatformTask, Subtask, Tag } from '../interfaces/index.js';
+import { PlatformTask, Status, Subtask, Tag } from '../interfaces/index.js';
 import { PaginatedResponse } from './paginated-response.js';
 
 interface TasksFilterParams {
@@ -9,6 +9,9 @@ interface TasksFilterParams {
   project?: number;
   stage?: number;
   goal?: number;
+  story?: number;
+  status?: Status | string;
+  statuses?: Array<Status | string>;
   resolvedDateAfter?: string; // Format as 'YYYY-MM-DD'
   resolvedDateBefore?: string; // Format as 'YYYY-MM-DD'
   // TODO: add a filter param that will be used to filter tasks by flow, or return tasks that are not in any flow
@@ -154,6 +157,17 @@ export class TasksApiService {
     }
     if (params.goal !== undefined) {
       query.push(`goal=${encodeURIComponent(params.goal.toString())}`);
+    }
+    if (params.story !== undefined) {
+      query.push(`story=${encodeURIComponent(params.story.toString())}`);
+    }
+    if (params.status) {
+      query.push(`status=${encodeURIComponent(params.status.toString())}`);
+    }
+    if (params.statuses && params.statuses.length > 0) {
+      query.push(
+        `status_in=${encodeURIComponent(params.statuses.join(','))}`
+      );
     }
     if (params.resolvedDateAfter) {
       query.push(

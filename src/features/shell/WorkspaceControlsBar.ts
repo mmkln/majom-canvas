@@ -36,6 +36,7 @@ type WorkspaceControlsBarOptions = {
   initialTimeClusteringOpen?: boolean;
   initialTimeClusteringLayoutMode?: TimeClusteringLayoutMode;
   showKanban?: boolean;
+  showFocusBoard?: boolean;
   showLearningStudio?: boolean;
   showTimeClustering?: boolean;
   showRoutines?: boolean;
@@ -70,6 +71,7 @@ type VariantMetrics = {
 const VIEW_OPTIONS: ViewOption[] = [
   { view: 'canvas', icon: 'map' },
   { view: 'kanban', icon: 'view-columns' },
+  { view: 'focus-board', icon: 'view-columns' },
   { view: 'learning-studio', icon: 'academic-cap' },
 ];
 
@@ -182,6 +184,7 @@ export class WorkspaceControlsBar {
       options.initialTimeClusteringLayoutMode ?? 'docked-left';
 
     const showKanban = options.showKanban ?? true;
+    const showFocusBoard = options.showFocusBoard ?? false;
     const showLearningStudio = options.showLearningStudio ?? false;
     const showTimeClustering = options.showTimeClustering ?? true;
     const showRoutines = options.showRoutines ?? true;
@@ -190,6 +193,7 @@ export class WorkspaceControlsBar {
     const showEnergy = options.showEnergy ?? true;
     const viewOptions = VIEW_OPTIONS.filter((option) => {
       if (option.view === 'kanban') return showKanban;
+      if (option.view === 'focus-board') return showFocusBoard;
       if (option.view === 'learning-studio') return showLearningStudio;
       return true;
     });
@@ -554,6 +558,9 @@ export class WorkspaceControlsBar {
   private getViewLabel(view: WorkspaceView): string {
     if (view === 'kanban') {
       return this.i18n.t('workspaceControls.kanban');
+    }
+    if (view === 'focus-board') {
+      return this.i18n.t('workspaceControls.focusBoard');
     }
     if (view === 'learning-studio') {
       return this.i18n.t('workspaceControls.learningStudio');

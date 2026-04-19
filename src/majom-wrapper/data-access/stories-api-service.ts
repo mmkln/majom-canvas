@@ -1,7 +1,7 @@
 import { Observable, of } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { HttpInterceptorClient } from './http-interceptor.js';
-import { Story as StoryDto } from '../interfaces/index.js';
+import { Status, Story as StoryDto } from '../interfaces/index.js';
 import { PaginatedResponse } from './paginated-response.js';
 
 export class StoriesApiService {
@@ -11,6 +11,9 @@ export class StoriesApiService {
     page?: number;
     pageSize?: number;
     search?: string;
+    goal?: number;
+    status?: Status | string;
+    statuses?: Array<Status | string>;
   }): Observable<PaginatedResponse<StoryDto>> {
     const query = this.buildQuery(params);
     return this.http.get<PaginatedResponse<StoryDto>>(`/stories/${query}`);
@@ -68,6 +71,9 @@ export class StoriesApiService {
     page?: number;
     pageSize?: number;
     search?: string;
+    goal?: number;
+    status?: Status | string;
+    statuses?: Array<Status | string>;
   }): string {
     if (!params) return '';
     const query: string[] = [];
@@ -79,6 +85,15 @@ export class StoriesApiService {
     }
     if (params.search) {
       query.push(`search=${encodeURIComponent(params.search)}`);
+    }
+    if (params.goal !== undefined) {
+      query.push(`goal=${encodeURIComponent(params.goal.toString())}`);
+    }
+    if (params.status) {
+      query.push(`status=${encodeURIComponent(params.status.toString())}`);
+    }
+    if (params.statuses && params.statuses.length > 0) {
+      query.push(`status_in=${encodeURIComponent(params.statuses.join(','))}`);
     }
     return query.length ? `?${query.join('&')}` : '';
   }

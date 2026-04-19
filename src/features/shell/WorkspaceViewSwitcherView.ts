@@ -53,6 +53,7 @@ type WorkspaceViewSwitcherViewOptions = {
   initialView: WorkspaceView;
   autoCollapseEnabled: boolean;
   showKanban?: boolean;
+  showFocusBoard?: boolean;
   showLearningStudio?: boolean;
   showTimeClustering?: boolean;
   showRoutines?: boolean;
@@ -173,6 +174,7 @@ export class WorkspaceViewSwitcherView {
       initialTimeClusteringOpen: options.initialTimeClusteringOpen,
       initialTimeClusteringLayoutMode: options.initialTimeClusteringLayoutMode,
       showKanban: options.showKanban,
+      showFocusBoard: options.showFocusBoard,
       showLearningStudio: options.showLearningStudio,
       showTimeClustering: options.showTimeClustering,
       showRoutines: options.showRoutines,
@@ -496,6 +498,7 @@ export class WorkspaceViewSwitcherView {
 
   private getHandleViewIconName(view: WorkspaceView): IconName {
     if (view === 'kanban') return 'view-columns';
+    if (view === 'focus-board') return 'view-columns';
     if (view === 'learning-studio') return 'academic-cap';
     return 'map';
   }

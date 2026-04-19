@@ -1,13 +1,15 @@
 import { Observable, of } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { HttpInterceptorClient } from './http-interceptor.js';
-import { Goal } from '../interfaces/index.ts';
+import { Goal, Status } from '../interfaces/index.ts';
 import { PaginatedResponse } from './paginated-response.js';
 
 type GoalListParams = {
   page?: number;
   pageSize?: number;
   search?: string;
+  status?: Status | string;
+  statuses?: Array<Status | string>;
   tags?: number[];
   tagSlugs?: string[];
 };
@@ -80,6 +82,12 @@ export class GoalsApiService {
     }
     if (params.search) {
       query.push(`search=${encodeURIComponent(params.search)}`);
+    }
+    if (params.status) {
+      query.push(`status=${encodeURIComponent(params.status.toString())}`);
+    }
+    if (params.statuses && params.statuses.length > 0) {
+      query.push(`status_in=${encodeURIComponent(params.statuses.join(','))}`);
     }
     if (params.tags && params.tags.length > 0) {
       query.push(`tags=${encodeURIComponent(params.tags.join(','))}`);

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { BehaviorSubject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { WorkspaceView } from '../features/shell/WorkspaceView.ts';
 import type { WallpaperService } from '../features/shell/services/WallpaperService.ts';
 
 vi.mock('./GlobalAppHeader.ts', () => ({
@@ -10,6 +11,7 @@ vi.mock('./GlobalAppHeader.ts', () => ({
 vi.mock('../config/env/index.ts', () => ({
   API_URL: 'https://example.test',
   CANVAS_PERF_LOG: false,
+  FOCUS_BOARD_DEV_ENABLED: true,
   GROK_API_KEY: '',
   IS_DEVELOPMENT_MODE: true,
   KANBAN_DEV_ENABLED: true,
@@ -79,7 +81,7 @@ type RuntimeHostInternalAccess = {
   islandBackdropRoot: HTMLDivElement;
   timeClusteringIslandRoot: HTMLDivElement;
   hostVisible: boolean;
-  activeView: 'canvas' | 'kanban' | 'learning-studio';
+  activeView: WorkspaceView;
   chatOpen: boolean;
   timeClusteringOpen: boolean;
   timeClusteringLayoutMode: 'docked-left' | 'fullscreen';
@@ -103,9 +105,7 @@ type RuntimeHostInternalAccess = {
   ) => void;
   handleTimeClusteringOverlapWarningsChange: (show: boolean) => void;
   syncPersistedWorkspacePreferences: () => void;
-  setActiveView: (
-    view: 'canvas' | 'kanban' | 'learning-studio'
-  ) => Promise<void>;
+  setActiveView: (view: WorkspaceView) => Promise<void>;
   dispose: () => void;
 };
 

@@ -67,7 +67,7 @@ function createService(
   habits: Habit[],
   toggleImpl: (habitUuid: string, date: Date) => Promise<Habit>,
   options?: {
-    createImpl?: (title: string) => Promise<Habit>;
+    createImpl?: (title: string, priority: UiPriority) => Promise<Habit>;
     patchTitleImpl?: (habitUuid: string, title: string) => Promise<Habit>;
     patchPriorityImpl?: (
       habitUuid: string,
@@ -79,8 +79,9 @@ function createService(
   }
 ): {
   service: HabitsQuickModalService;
-  loadHabits: ReturnType<typeof vi.fn>;
-  toggleHabitCompletion: ReturnType<typeof vi.fn>;
+  loadTracker: ReturnType<typeof vi.fn>;
+  loadDay: ReturnType<typeof vi.fn>;
+  setHabitCompletion: ReturnType<typeof vi.fn>;
   createHabit: ReturnType<typeof vi.fn>;
   patchHabitTitle: ReturnType<typeof vi.fn>;
   patchHabitPriority: ReturnType<typeof vi.fn>;
@@ -88,12 +89,160 @@ function createService(
   restoreHabit: ReturnType<typeof vi.fn>;
   deleteHabit: ReturnType<typeof vi.fn>;
 } {
-  const loadHabits = vi.fn(async () => habits);
-  const toggleHabitCompletion = vi.fn(toggleImpl);
+  let currentHabits = [...habits];
+  const loadTracker = vi.fn(async (start: Date | string, days = 10) => {
+    const startDate =
+      typeof start === 'string'
+        ? new Date(`${start}T12:00:00`)
+        : new Date(start.getTime());
+    const dayItems = Array.from({ length: days }, (_, index) => {
+      const date = new Date(
+        startDate.getFullYear(),
+        startDate.getMonth(),
+        startDate.getDate() + index
+      );
+      return {
+        date: toLocalDateKey(date),
+        is_today: index === days - 1,
+      };
+    });
+    return {
+      start_date: dayItems[0]?.date ?? '',
+      end_date: dayItems[dayItems.length - 1]?.date ?? '',
+      days: dayItems,
+      active_habits: currentHabits
+        .filter((habit) => habit.status === Status.Active)
+        .map((habit) => ({
+          habit: {
+            id: habit.id,
+            uuid: habit.uuid,
+            title: habit.title,
+            description: habit.description,
+            created_at: habit.created_at.toISOString(),
+            priority: habit.priority,
+            status: habit.status,
+            last_checked: Number.isNaN(habit.last_checked.getTime())
+              ? null
+              : habit.last_checked.toISOString(),
+            meta: habit.meta,
+          },
+          day_states: [...dayItems].map((day) => {
+            const completed =
+              (habit.completions ?? []).find(([value]) => value === day.date)?.[1] ===
+              true;
+            return {
+              date: day.date,
+              is_due: day.is_today ? habit.is_due_today : !completed,
+              is_completed: completed,
+            };
+          }),
+        })),
+      archived_habits: currentHabits
+        .filter((habit) => habit.status === Status.Archived)
+        .map((habit) => ({
+          id: habit.id,
+          uuid: habit.uuid,
+          title: habit.title,
+          description: habit.description,
+          created_at: habit.created_at.toISOString(),
+          priority: habit.priority,
+          status: habit.status,
+          last_checked: Number.isNaN(habit.last_checked.getTime())
+            ? null
+            : habit.last_checked.toISOString(),
+          meta: habit.meta,
+        })),
+      summary: {
+        today: {
+          date: dayItems[dayItems.length - 1]?.date ?? '',
+          total: currentHabits.filter((habit) => habit.status === Status.Active).length,
+          completed: currentHabits.filter(
+            (habit) => habit.status === Status.Active && !habit.is_due_today
+          ).length,
+          open: currentHabits.filter(
+            (habit) => habit.status === Status.Active && habit.is_due_today
+          ).length,
+        },
+      },
+    };
+  });
+  const loadDay = vi.fn(async (date: Date | string) => {
+    const key =
+      typeof date === 'string'
+        ? date
+        : toLocalDateKey(date);
+    return {
+      day: {
+        date: key,
+        is_today: key === toLocalDateKey(new Date(2026, 2, 15)),
+      },
+      active_habits: currentHabits
+        .filter((habit) => habit.status === Status.Active)
+        .map((habit) => ({
+          habit: {
+            id: habit.id,
+            uuid: habit.uuid,
+            title: habit.title,
+            description: habit.description,
+            created_at: habit.created_at.toISOString(),
+            priority: habit.priority,
+            status: habit.status,
+            last_checked: Number.isNaN(habit.last_checked.getTime())
+              ? null
+              : habit.last_checked.toISOString(),
+            meta: habit.meta,
+          },
+          state: {
+            date: key,
+            is_due: habit.is_due_today,
+            is_completed:
+              (habit.completions ?? []).find(([value]) => value === key)?.[1] === true,
+          },
+        })),
+      archived_habits: currentHabits
+        .filter((habit) => habit.status === Status.Archived)
+        .map((habit) => ({
+          id: habit.id,
+          uuid: habit.uuid,
+          title: habit.title,
+          description: habit.description,
+          created_at: habit.created_at.toISOString(),
+          priority: habit.priority,
+          status: habit.status,
+          last_checked: Number.isNaN(habit.last_checked.getTime())
+            ? null
+            : habit.last_checked.toISOString(),
+          meta: habit.meta,
+        })),
+      summary: {
+        date: key,
+        total: currentHabits.filter((habit) => habit.status === Status.Active).length,
+        completed: currentHabits.filter(
+          (habit) =>
+            habit.status === Status.Active &&
+            (habit.completions ?? []).find(([value]) => value === key)?.[1] === true
+        ).length,
+        open: currentHabits.filter(
+          (habit) =>
+            habit.status === Status.Active &&
+            (habit.completions ?? []).find(([value]) => value === key)?.[1] !== true
+        ).length,
+      },
+    };
+  });
+  const setHabitCompletion = vi.fn(async (habitUuid: string, date: Date | string) => {
+    const resolvedDate =
+      typeof date === 'string' ? new Date(`${date}T12:00:00`) : date;
+    const updated = await toggleImpl(habitUuid, resolvedDate);
+    currentHabits = currentHabits.map((habit) =>
+      habit.uuid === habitUuid ? updated : habit
+    );
+    return updated;
+  });
   const createHabit = vi.fn(
     options?.createImpl ??
-      (async (title: string) =>
-        makeHabit({ id: 'habit-uuid-999', title }))
+      (async (title: string, priority: UiPriority) =>
+        makeHabit({ id: 'habit-uuid-999', title, priority: priority as Priority }))
   );
   const patchHabitTitle = vi.fn(
     options?.patchTitleImpl ??
@@ -134,9 +283,89 @@ function createService(
   const deleteHabit = vi.fn(
     options?.deleteImpl ?? (async () => Promise.resolve())
   );
+  createHabit.mockImplementation(async (title: string, priority: UiPriority) => {
+    const created = await (
+      options?.createImpl ??
+      (async (value: string, nextPriority: UiPriority) =>
+        makeHabit({
+          id: 'habit-uuid-999',
+          title: value,
+          priority: nextPriority as Priority,
+        }))
+    )(title, priority);
+    currentHabits = [...currentHabits, created];
+    return created;
+  });
+  patchHabitTitle.mockImplementation(async (habitUuid: string, title: string) => {
+    const updated = await (
+      options?.patchTitleImpl ??
+      (async (uuid: string, value: string) =>
+        makeHabit({
+          id: habitIdFromUuid(uuid),
+          uuid,
+          title: value,
+        }))
+    )(habitUuid, title);
+    currentHabits = currentHabits.map((habit) =>
+      habit.uuid === habitUuid ? updated : habit
+    );
+    return updated;
+  });
+  patchHabitPriority.mockImplementation(
+    async (habitUuid: string, priority: UiPriority) => {
+      const updated = await (
+        options?.patchPriorityImpl ??
+        (async (uuid: string, value: UiPriority) =>
+          makeHabit({
+            id: habitIdFromUuid(uuid),
+            uuid,
+            priority: value as Priority,
+          }))
+      )(habitUuid, priority);
+      currentHabits = currentHabits.map((habit) =>
+        habit.uuid === habitUuid ? updated : habit
+      );
+      return updated;
+    }
+  );
+  archiveHabit.mockImplementation(async (habitUuid: string) => {
+    const updated = await (
+      options?.archiveImpl ??
+      (async (uuid: string) =>
+        makeHabit({
+          id: habitIdFromUuid(uuid),
+          uuid,
+          status: Status.Archived,
+        }))
+    )(habitUuid);
+    currentHabits = currentHabits.map((habit) =>
+      habit.uuid === habitUuid ? updated : habit
+    );
+    return updated;
+  });
+  restoreHabit.mockImplementation(async (habitUuid: string) => {
+    const updated = await (
+      options?.restoreImpl ??
+      (async (uuid: string) =>
+        makeHabit({
+          id: habitIdFromUuid(uuid),
+          uuid,
+          status: Status.Active,
+        }))
+    )(habitUuid);
+    currentHabits = currentHabits.map((habit) =>
+      habit.uuid === habitUuid ? updated : habit
+    );
+    return updated;
+  });
+  deleteHabit.mockImplementation(async (habitUuid: string) => {
+    await (options?.deleteImpl ?? (async () => Promise.resolve()))(habitUuid);
+    currentHabits = currentHabits.filter((habit) => habit.uuid !== habitUuid);
+  });
   const service: HabitsQuickModalService = {
-    loadHabits,
-    toggleHabitCompletion,
+    loadTracker,
+    loadDay,
+    setHabitCompletion,
     createHabit,
     patchHabitTitle,
     patchHabitPriority,
@@ -146,8 +375,9 @@ function createService(
   };
   return {
     service,
-    loadHabits,
-    toggleHabitCompletion,
+    loadTracker,
+    loadDay,
+    setHabitCompletion,
     createHabit,
     patchHabitTitle,
     patchHabitPriority,
@@ -223,7 +453,7 @@ describe('HabitsQuickModal routines management', () => {
     const yesterdayKey = toLocalDateKey(yesterday);
     const baseHabit = makeHabit({}, [[todayKey, false], [yesterdayKey, false]]);
     const updatedHabit = makeHabit({}, [[todayKey, false], [yesterdayKey, true]]);
-    const { service, toggleHabitCompletion } = createService(
+    const { service, setHabitCompletion } = createService(
       [baseHabit],
       async () => updatedHabit
     );
@@ -237,8 +467,8 @@ describe('HabitsQuickModal routines management', () => {
     expect(row.completionByDateKey.get(yesterdayKey)).toBe(false);
     await modal.toggleCell(row, day, false);
 
-    expect(toggleHabitCompletion).toHaveBeenCalledTimes(1);
-    const [habitUuid, calledDate] = toggleHabitCompletion.mock.calls[0] as [
+    expect(setHabitCompletion).toHaveBeenCalledTimes(1);
+    const [habitUuid, calledDate] = setHabitCompletion.mock.calls[0] as [
       string,
       Date,
     ];
@@ -283,7 +513,7 @@ describe('HabitsQuickModal routines management', () => {
     const baseHabit = makeHabit({}, [[todayKey, false], [yesterdayKey, false]]);
     const updatedHabit = makeHabit({}, [[todayKey, false], [yesterdayKey, true]]);
     const deferred = createDeferred<Habit>();
-    const { service, toggleHabitCompletion } = createService(
+    const { service, setHabitCompletion } = createService(
       [baseHabit],
       async () => deferred.promise
     );
@@ -297,7 +527,7 @@ describe('HabitsQuickModal routines management', () => {
     const firstCall = modal.toggleCell(row, day, false);
     const secondCall = modal.toggleCell(row, day, false);
 
-    expect(toggleHabitCompletion).toHaveBeenCalledTimes(1);
+    expect(setHabitCompletion).toHaveBeenCalledTimes(1);
     deferred.resolve(updatedHabit);
     await firstCall;
     await secondCall;
@@ -306,19 +536,26 @@ describe('HabitsQuickModal routines management', () => {
   });
 
   it('creates new routine and dispatches kanban refresh', async () => {
-    const created = makeHabit({ id: 'habit-uuid-2', title: 'Workout' });
+    const created = makeHabit({
+      id: 'habit-uuid-2',
+      title: 'Workout',
+      priority: Priority.High,
+    });
     const { service, createHabit } = createService([], async () => created, {
       createImpl: async () => created,
     });
     const modal = new HabitsQuickModal(service) as any;
     modal.createTitle = 'Workout';
+    modal.createPriority = 'high';
 
     await modal.createHabit();
 
-    expect(createHabit).toHaveBeenCalledWith('Workout');
+    expect(createHabit).toHaveBeenCalledWith('Workout', 'high');
     expect(modal.rows).toHaveLength(1);
     expect(modal.rows[0].habit.title).toBe('Workout');
+    expect(modal.rows[0].habit.priority).toBe(Priority.High);
     expect(modal.createTitle).toBe('');
+    expect(modal.createPriority).toBe('low');
     const eventArg = (globalThis as any).window.dispatchEvent.mock.calls[0][0] as {
       type: string;
     };
@@ -343,6 +580,22 @@ describe('HabitsQuickModal routines management', () => {
     modal.loading = false;
     modal.createPending = true;
     expect(modal.isCreateSubmitDisabled()).toBe(true);
+  });
+
+  it('renders a priority selector in the create routine modal', () => {
+    const { service } = createService([], async () => makeHabit());
+    const modal = new HabitsQuickModal(service) as any;
+
+    modal.openCreateModal();
+
+    const prioritySelect = document.querySelector(
+      '[data-create-routine-priority="true"]'
+    ) as HTMLDivElement | null;
+    expect(prioritySelect).not.toBeNull();
+    expect(prioritySelect?.textContent).toContain('Low');
+    expect(
+      prioritySelect?.querySelector('svg[data-icon-name="chevron-down"]')
+    ).not.toBeNull();
   });
 
   it('renders the routines table with the documented table contract', () => {
@@ -403,9 +656,14 @@ describe('HabitsQuickModal routines management', () => {
     expect(priorityHeaderButton?.getAttribute('aria-label')).toBe('Priority');
     expect(
       priorityHeaderButton?.querySelector('svg')?.getAttribute('data-icon-name')
-    ).toBe('bars-2');
+    ).toBe('arrow-down');
+    expect(modal.body.textContent).toContain('0 done');
+    expect(modal.body.textContent).toContain('1 left');
 
-    const shortLabel = headers[2].children[1] as HTMLElement;
+    const dayHeaderButton = headers[2].querySelector('button') as
+      HTMLButtonElement | null;
+    expect(dayHeaderButton?.dataset.habitDayOpen).toBeTruthy();
+    const shortLabel = dayHeaderButton?.children[1] as HTMLElement;
     expect(shortLabel.className).toContain('text-[12px]');
 
     const row = modal.body.querySelector('tbody tr') as HTMLTableRowElement | null;
@@ -463,6 +721,86 @@ describe('HabitsQuickModal routines management', () => {
     expect(indicator?.style.backgroundColor).toBe('');
   });
 
+  it('opens the day modal from a day header and loads that day snapshot', async () => {
+    const habit = makeHabit({
+      completions: [['2026-03-15', true]],
+    });
+    const { service, loadDay } = createService([habit], async () => habit);
+    const modal = new HabitsQuickModal(service);
+
+    await modal.open();
+
+    expect(loadDay).not.toHaveBeenCalled();
+
+    const dayHeaderButton = modal.body.querySelector(
+      '[data-habit-day-open]'
+    ) as HTMLButtonElement | null;
+    expect(dayHeaderButton).not.toBeNull();
+
+    dayHeaderButton?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(loadDay).toHaveBeenCalledTimes(1);
+    expect(loadDay).toHaveBeenCalledWith(expect.any(Date));
+    expect(document.body.textContent).toContain('Morning Routine');
+  });
+
+  it('groups day-modal routines by priority from highest to lowest without card styling', async () => {
+    const low = makeHabit({
+      id: 'habit-low',
+      uuid: 'habit-low',
+      title: 'Low routine',
+      priority: Priority.Low,
+    });
+    const highest = makeHabit({
+      id: 'habit-highest',
+      uuid: 'habit-highest',
+      title: 'Highest routine',
+      priority: Priority.Highest,
+    });
+    const medium = makeHabit({
+      id: 'habit-medium',
+      uuid: 'habit-medium',
+      title: 'Medium routine',
+      priority: Priority.Medium,
+    });
+    const { service } = createService([low, highest, medium], async () => highest);
+    const modal = new HabitsQuickModal(service);
+
+    await modal.open();
+
+    const dayHeaderButton = modal.body.querySelector(
+      '[data-habit-day-open]'
+    ) as HTMLButtonElement | null;
+    dayHeaderButton?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const titleLabels = Array.from(
+      document.body.querySelectorAll('[data-habit-title-label]')
+    ) as HTMLButtonElement[];
+    const dayModalTitles = titleLabels.slice(-3).map((node) => node.textContent);
+    expect(dayModalTitles).toEqual([
+      'Highest routine',
+      'Medium routine',
+      'Low routine',
+    ]);
+
+    const dayModalRow = titleLabels[titleLabels.length - 1]
+      ?.parentElement
+      ?.parentElement as HTMLDivElement | null;
+    expect(dayModalRow).not.toBeNull();
+    expect(dayModalRow?.className).toContain('hover:bg-slate-100/80');
+    expect(dayModalRow?.className).not.toContain('bg-white');
+    expect(dayModalRow?.className).not.toContain('border');
+    expect(dayModalRow?.className).not.toContain('shadow');
+
+    expect(document.body.textContent).toContain('Highest');
+    expect(document.body.textContent).toContain('Medium');
+    expect(document.body.textContent).toContain('Low');
+  });
+
   it('sorts routines by priority when the priority header is clicked', () => {
     const low = makeHabit({
       id: 'habit-uuid-1',
@@ -491,6 +829,12 @@ describe('HabitsQuickModal routines management', () => {
 
     modal.renderBody();
 
+    expect(modal.rows.map((item: any) => item.habit.title)).toEqual([
+      'Highest routine',
+      'Medium routine',
+      'Low routine',
+    ]);
+
     const tableWrapBefore = modal.body.querySelector(
       'div.w-full.overflow-auto.rounded-xl.border.border-slate-200\\/80.bg-white'
     ) as HTMLDivElement | null;
@@ -508,13 +852,13 @@ describe('HabitsQuickModal routines management', () => {
 
     expect(tableWrapAfterDesc).toBe(tableWrapBefore);
     expect(modal.rows.map((item: any) => item.habit.title)).toEqual([
-      'Highest routine',
-      'Medium routine',
       'Low routine',
+      'Medium routine',
+      'Highest routine',
     ]);
     expect(
       sortedDescHeaderButton?.querySelector('svg')?.getAttribute('data-icon-name')
-    ).toBe('arrow-down');
+    ).toBe('arrow-up');
 
     sortedDescHeaderButton?.click();
 
@@ -526,14 +870,14 @@ describe('HabitsQuickModal routines management', () => {
     ) as HTMLDivElement | null;
 
     expect(modal.rows.map((item: any) => item.habit.title)).toEqual([
-      'Low routine',
-      'Medium routine',
       'Highest routine',
+      'Medium routine',
+      'Low routine',
     ]);
     expect(tableWrapAfterAsc).toBe(tableWrapBefore);
     expect(
       sortedAscHeaderButton?.querySelector('svg')?.getAttribute('data-icon-name')
-    ).toBe('arrow-up');
+    ).toBe('arrow-down');
   });
 
   it('renames routine and keeps sorted rows', async () => {

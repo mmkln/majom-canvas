@@ -4,9 +4,10 @@ import { environment } from '../../../config/environment.ts';
 import { HabitsApiService } from '../../../majom-wrapper/data-access/habits-api-service.ts';
 import { HttpInterceptorClient } from '../../../majom-wrapper/data-access/http-interceptor.ts';
 import {
-  Priority,
   Status,
+  type HabitDaySnapshot,
   type Habit,
+  type HabitTrackerSnapshot,
 } from '../../../majom-wrapper/interfaces/index.ts';
 import {
   mapPriorityToBackend,
@@ -21,6 +22,17 @@ export class ShellHabitsService {
     return firstValueFrom(this.habitsApi.getHabits().pipe(first()));
   }
 
+  public async loadTracker(
+    start: Date | string,
+    days = 10
+  ): Promise<HabitTrackerSnapshot> {
+    return firstValueFrom(this.habitsApi.getHabitTracker(start, days).pipe(first()));
+  }
+
+  public async loadDay(date: Date | string): Promise<HabitDaySnapshot> {
+    return firstValueFrom(this.habitsApi.getHabitDay(date).pipe(first()));
+  }
+
   public async toggleHabitCompletion(
     habitUuid: string,
     date: Date
@@ -30,13 +42,28 @@ export class ShellHabitsService {
     );
   }
 
-  public async createHabit(title: string): Promise<Habit> {
+  public async setHabitCompletion(
+    habitUuid: string,
+    date: Date | string,
+    completed: boolean
+  ): Promise<Habit> {
+    return firstValueFrom(
+      this.habitsApi
+        .setHabitCompletion(habitUuid, date, completed)
+        .pipe(first())
+    );
+  }
+
+  public async createHabit(
+    title: string,
+    priority: UiPriority = 'low'
+  ): Promise<Habit> {
     return firstValueFrom(
       this.habitsApi
         .createHabit({
           title,
           description: '',
-          priority: Priority.Low,
+          priority: mapPriorityToBackend(priority),
           status: Status.Active,
           meta: null,
         })

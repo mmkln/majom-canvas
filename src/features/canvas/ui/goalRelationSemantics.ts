@@ -190,7 +190,7 @@ export function getGoalRelationBadgePresentation(
   switch (relationType) {
     case 'leads_to':
       return {
-        icon: direction === 'outgoing' ? 'arrow-down' : 'arrow-up',
+        icon: direction === 'outgoing' ? 'arrow-right' : 'arrow-up',
         label:
           direction === 'outgoing'
             ? runtime.i18n.t('planningDetails.goal.relatedGoals.relation.follows')

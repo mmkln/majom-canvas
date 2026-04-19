@@ -544,6 +544,10 @@ export class GoalDetailsModal {
       async (item, relationType) => {
         await this.updateGoalRelationType(item, relationType);
         this.loadRelatedGoalsSection(relatedGoalsSection);
+      },
+      async (item) => {
+        await this.deleteGoalRelation(item);
+        this.loadRelatedGoalsSection(relatedGoalsSection);
       }
     );
     formContent.appendChild(relatedGoalsSection.element);
@@ -597,7 +601,9 @@ export class GoalDetailsModal {
     saveAndClose = () => {
       const normalizedTitle = tempTitle.trim();
       if (normalizedTitle.length === 0) {
-        titleField.setRequiredError(this.t('planningDetails.validation.titleRequired'));
+        titleField.setRequiredError(
+          this.t('planningDetails.validation.titleRequired')
+        );
         titleField.setMode('edit', { focus: true });
         titleField.focusInput({ select: true });
         return;
@@ -703,21 +709,27 @@ export class GoalDetailsModal {
       new GoalRelationsApiService(http)
     );
     this.goalStoryLoadSubscription?.unsubscribe();
-    this.goalStoryLoadSubscription = relatedLookup.getRelatedItems(ref).subscribe({
-      next: (related) => {
-        const remoteStories = Array.isArray(related.stories)
-          ? related.stories.map((story) => this.mapPlatformStoryToListItem(story))
-          : [];
-        panel.setStories(this.mergeGoalStoryItems(remoteStories, localStories));
-      },
-      error: () => {
-        if (localStories.length > 0) {
-          panel.setStories(localStories);
-          return;
-        }
-        panel.setError(this.t('planningDetails.goal.stories.loadFailed'));
-      },
-    });
+    this.goalStoryLoadSubscription = relatedLookup
+      .getRelatedItems(ref)
+      .subscribe({
+        next: (related) => {
+          const remoteStories = Array.isArray(related.stories)
+            ? related.stories.map((story) =>
+                this.mapPlatformStoryToListItem(story)
+              )
+            : [];
+          panel.setStories(
+            this.mergeGoalStoryItems(remoteStories, localStories)
+          );
+        },
+        error: () => {
+          if (localStories.length > 0) {
+            panel.setStories(localStories);
+            return;
+          }
+          panel.setError(this.t('planningDetails.goal.stories.loadFailed'));
+        },
+      });
   }
 
   private buildGoalStoriesPanel(
@@ -863,7 +875,9 @@ export class GoalDetailsModal {
             title: this.t('planningDetails.actions.openDetailsFor', {
               title: story.title,
             }),
-            unavailableTitle: this.t('planningDetails.goal.stories.notOnCanvas'),
+            unavailableTitle: this.t(
+              'planningDetails.goal.stories.notOnCanvas'
+            ),
             onOpen: story.canvasStory
               ? () => {
                   editElement$.next(story.canvasStory!);
@@ -922,9 +936,14 @@ export class GoalDetailsModal {
     this.goalStoryTaskLoadSubscription = storiesApi.getStory(ref).subscribe({
       next: (loadedStory) => {
         const remoteTasks = Array.isArray(loadedStory.tasks)
-          ? loadedStory.tasks.map((task) => this.mapPlatformTaskToListItem(task))
+          ? loadedStory.tasks.map((task) =>
+              this.mapPlatformTaskToListItem(task)
+            )
           : [];
-        panel.setTasks(story, this.mergeGoalStoryTaskItems(remoteTasks, localTasks));
+        panel.setTasks(
+          story,
+          this.mergeGoalStoryTaskItems(remoteTasks, localTasks)
+        );
       },
       error: () => {
         if (localTasks.length > 0) {
@@ -1080,11 +1099,17 @@ export class GoalDetailsModal {
               if (relatedUuids.length === 0) {
                 return of<RelatedGoalListItem[]>([]);
               }
-              return goalsApi.fetchGoalsByUuids(relatedUuids).pipe(
-                map((goals) =>
-                  this.mapRemoteRelatedGoals(relations, currentGoal.uuid ?? null, goals)
-                )
-              );
+              return goalsApi
+                .fetchGoalsByUuids(relatedUuids)
+                .pipe(
+                  map((goals) =>
+                    this.mapRemoteRelatedGoals(
+                      relations,
+                      currentGoal.uuid ?? null,
+                      goals
+                    )
+                  )
+                );
             })
           )
         )
@@ -1094,7 +1119,9 @@ export class GoalDetailsModal {
           section.setItems(items);
         },
         error: () => {
-          section.setError(this.t('planningDetails.goal.relatedGoals.loadFailed'));
+          section.setError(
+            this.t('planningDetails.goal.relatedGoals.loadFailed')
+          );
         },
       });
   }
@@ -1104,7 +1131,8 @@ export class GoalDetailsModal {
     onRelationTypeChange: (
       item: RelatedGoalListItem,
       relationType: GoalRelationType
-    ) => Promise<void>
+    ) => Promise<void>,
+    onDeleteRelation: (item: RelatedGoalListItem) => Promise<void>
   ): RelatedGoalsSectionController {
     const element = document.createElement('section');
     element.className = 'border-t border-slate-200 pt-4';
@@ -1159,77 +1187,92 @@ export class GoalDetailsModal {
     element.appendChild(list);
 
     const renderItems = (items: RelatedGoalListItem[]): void => {
-        rowMenus.splice(0).forEach((menu) => menu.unmount());
-        title.textContent = this.t('planningDetails.goal.relatedGoals.title', {
-          count: items.length,
+      rowMenus.splice(0).forEach((menu) => menu.unmount());
+      title.textContent = this.t('planningDetails.goal.relatedGoals.title', {
+        count: items.length,
+      });
+      list.innerHTML = '';
+      if (items.length === 0) {
+        list.appendChild(
+          createHierarchyEmptyState(
+            this.t('planningDetails.goal.relatedGoals.empty')
+          )
+        );
+        return;
+      }
+
+      items.forEach((item) => {
+        const row = document.createElement('div');
+        row.className =
+          'group flex items-center gap-2 rounded-lg px-3 py-2 ring-1 ring-inset ring-slate-200/80 transition-[background-color,box-shadow,border-color] bg-slate-50/70 hover:bg-white hover:ring-slate-300';
+        row.setAttribute('data-goal-related-goal-item', 'true');
+
+        const contentStack = document.createElement('div');
+        contentStack.className = 'min-w-0 flex-1 space-y-1';
+
+        const goalTitle = document.createElement('div');
+        goalTitle.className =
+          'min-w-0 truncate text-sm font-medium leading-5 text-slate-800';
+        goalTitle.textContent = item.title;
+        goalTitle.title = item.title;
+
+        const metaRow = document.createElement('div');
+        metaRow.className = 'flex min-w-0 flex-wrap items-center gap-1.5';
+
+        const priorityBadge = this.createGoalPriorityBadge(item.priority);
+        priorityBadge.setAttribute(
+          'data-goal-related-goal-priority',
+          item.priority
+        );
+
+        const statusBadge = this.createGoalStatusBadge(item.status);
+        statusBadge.setAttribute('data-goal-related-goal-status', item.status);
+
+        const relationSelector = this.createGoalRelationSelectorButton({
+          item,
+          onChange: (relationType) => onRelationTypeChange(item, relationType),
         });
-        list.innerHTML = '';
-        if (items.length === 0) {
-          list.appendChild(
-            createHierarchyEmptyState(
-              this.t('planningDetails.goal.relatedGoals.empty')
-            )
-          );
-          return;
-        }
+        rowMenus.push(relationSelector.controller);
 
-        items.forEach((item) => {
-          const row = document.createElement('div');
-          row.className =
-            'group flex items-center gap-2 rounded-lg px-3 py-2 ring-1 ring-inset ring-slate-200/80 transition-[background-color,box-shadow,border-color] bg-slate-50/70 hover:bg-white hover:ring-slate-300';
-          row.setAttribute('data-goal-related-goal-item', 'true');
-
-          const contentStack = document.createElement('div');
-          contentStack.className = 'min-w-0 flex-1 space-y-1';
-
-          const goalTitle = document.createElement('div');
-          goalTitle.className =
-            'min-w-0 truncate text-sm font-medium leading-5 text-slate-800';
-          goalTitle.textContent = item.title;
-          goalTitle.title = item.title;
-
-          const metaRow = document.createElement('div');
-          metaRow.className = 'flex min-w-0 flex-wrap items-center gap-1.5';
-
-          const priorityBadge = this.createGoalPriorityBadge(item.priority);
-          priorityBadge.setAttribute('data-goal-related-goal-priority', item.priority);
-
-          const statusBadge = this.createGoalStatusBadge(item.status);
-          statusBadge.setAttribute('data-goal-related-goal-status', item.status);
-
-          const relationSelector = this.createGoalRelationSelectorButton({
-            item,
-            onChange: (relationType) => onRelationTypeChange(item, relationType),
-          });
-          rowMenus.push(relationSelector.controller);
-
-          const openDetailsButton = this.createOpenDetailsButton({
-            dataAttribute: 'data-goal-related-goal-open-details',
-            dataValue: item.key,
-            title: this.t('planningDetails.actions.openDetailsFor', {
-              title: item.title,
-            }),
-            unavailableTitle: this.t(
-              'planningDetails.goal.relatedGoals.notOnCanvas'
-            ),
-            onOpen: item.canvasGoal
-              ? () => {
-                  editElement$.next(item.canvasGoal!);
-                }
-              : null,
-            icon: 'arrow-top-right-on-square',
-          });
-
-          const actions = document.createElement('div');
-          actions.className = 'flex shrink-0 items-center gap-1 self-start';
-          styleHierarchyActionButton(openDetailsButton);
-          actions.append(relationSelector.button, relationSelector.panel, openDetailsButton);
-
-          metaRow.append(priorityBadge, statusBadge);
-          contentStack.append(goalTitle, metaRow);
-          row.append(contentStack, actions);
-          list.appendChild(row);
+        const actionMenu = this.createGoalRelationActionMenu({
+          item,
+          onDelete: () => onDeleteRelation(item),
         });
+        rowMenus.push(actionMenu.controller);
+
+        const openDetailsButton = this.createOpenDetailsButton({
+          dataAttribute: 'data-goal-related-goal-open-details',
+          dataValue: item.key,
+          title: this.t('planningDetails.actions.openDetailsFor', {
+            title: item.title,
+          }),
+          unavailableTitle: this.t(
+            'planningDetails.goal.relatedGoals.notOnCanvas'
+          ),
+          onOpen: item.canvasGoal
+            ? () => {
+                editElement$.next(item.canvasGoal!);
+              }
+            : null,
+          icon: 'arrow-top-right-on-square',
+        });
+
+        const actions = document.createElement('div');
+        actions.className = 'flex shrink-0 items-center gap-1 self-start';
+        styleHierarchyActionButton(openDetailsButton);
+        actions.append(
+          relationSelector.button,
+          relationSelector.panel,
+          openDetailsButton,
+          actionMenu.button,
+          actionMenu.panel
+        );
+
+        metaRow.append(priorityBadge, statusBadge);
+        contentStack.append(goalTitle, metaRow);
+        row.append(contentStack, actions);
+        list.appendChild(row);
+      });
     };
 
     return {
@@ -1340,7 +1383,9 @@ export class GoalDetailsModal {
   private getLocalStoriesForGoal(): StoryElement[] {
     const localStories = this.scene
       .getElements()
-      .filter((element): element is StoryElement => element instanceof StoryElement);
+      .filter(
+        (element): element is StoryElement => element instanceof StoryElement
+      );
     const connectedStoryIds = new Set(
       this.scene
         .getConnections()
@@ -1375,7 +1420,9 @@ export class GoalDetailsModal {
     const backendRef =
       typeof task.backendId === 'number' ? `id:${task.backendId}` : null;
     return {
-      key: task.uuid ? `uuid:${task.uuid}` : backendRef ?? `canvas:${task.id}`,
+      key: task.uuid
+        ? `uuid:${task.uuid}`
+        : (backendRef ?? `canvas:${task.id}`),
       title: task.title?.trim() || this.t('existingPicker.untitled.task'),
       status: task.status,
       canvasTask: task,
@@ -1419,7 +1466,10 @@ export class GoalDetailsModal {
     if (!currentGoalUuid) return [];
     const goalByUuid = new Map(
       goals
-        .filter((goal): goal is Goal & { uuid: string } => typeof goal.uuid === 'string')
+        .filter(
+          (goal): goal is Goal & { uuid: string } =>
+            typeof goal.uuid === 'string'
+        )
         .map((goal) => [goal.uuid, goal] as const)
     );
     const items: RelatedGoalListItem[] = [];
@@ -1437,7 +1487,8 @@ export class GoalDetailsModal {
       items.push({
         relationId: relation.id,
         key: `${relation.relation_type}:${relatedGoal.uuid ?? relatedGoal.id}`,
-        title: relatedGoal.title?.trim() || this.t('existingPicker.untitled.goal'),
+        title:
+          relatedGoal.title?.trim() || this.t('existingPicker.untitled.goal'),
         status: mapStatus(relatedGoal.status),
         priority: normalizeUiPriority(relatedGoal.priority),
         relationType: relation.relation_type,
@@ -1464,7 +1515,9 @@ export class GoalDetailsModal {
     const backendRef =
       typeof story.backendId === 'number' ? `id:${story.backendId}` : null;
     return {
-      key: story.uuid ? `uuid:${story.uuid}` : backendRef ?? `canvas:${story.id}`,
+      key: story.uuid
+        ? `uuid:${story.uuid}`
+        : (backendRef ?? `canvas:${story.id}`),
       title: story.title?.trim() || this.t('existingPicker.untitled.story'),
       status: story.status,
       canvasStory: story,
@@ -1501,7 +1554,9 @@ export class GoalDetailsModal {
     return (
       this.scene
         .getElements()
-        .filter((element): element is GoalElement => element instanceof GoalElement)
+        .filter(
+          (element): element is GoalElement => element instanceof GoalElement
+        )
         .find((candidate) => {
           if (goal.uuid && candidate.uuid === goal.uuid) return true;
           if (
@@ -1574,10 +1629,25 @@ export class GoalDetailsModal {
     }
   }
 
+  private async deleteGoalRelation(item: RelatedGoalListItem): Promise<void> {
+    try {
+      const api = new GoalRelationsApiService(
+        new HttpInterceptorClient(environment.apiUrl)
+      );
+      await firstValueFrom(api.deleteRelation(item.relationId));
+    } catch {
+      notify(this.t('planningDetails.goal.relatedGoals.deleteFailed'), 'error');
+      throw new Error('Failed to delete goal relation.');
+    }
+  }
+
   private openAddRelationModal(onCreated: () => void): void {
     const goalRef = this.getGoalRef();
     if (!goalRef) {
-      notify(this.t('planningDetails.goal.addRelation.currentGoalUnavailable'), 'info');
+      notify(
+        this.t('planningDetails.goal.addRelation.currentGoalUnavailable'),
+        'info'
+      );
       return;
     }
 
@@ -1600,7 +1670,9 @@ export class GoalDetailsModal {
     page: number,
     pageSize: number
   ): Promise<AddGoalRelationSearchPage> {
-    const api = new GoalsApiService(new HttpInterceptorClient(environment.apiUrl));
+    const api = new GoalsApiService(
+      new HttpInterceptorClient(environment.apiUrl)
+    );
     const currentGoalRef = this.getGoalRef();
     const response = await firstValueFrom(
       api.searchGoalsForPicker({
@@ -1632,7 +1704,10 @@ export class GoalDetailsModal {
     targetGoal: Goal,
     semantic: GoalRelationSemanticOption
   ): Promise<void> {
-    const validationError = await this.validateGoalRelation(targetGoal, semantic);
+    const validationError = await this.validateGoalRelation(
+      targetGoal,
+      semantic
+    );
     if (validationError) {
       throw new Error(validationError);
     }
@@ -1640,7 +1715,9 @@ export class GoalDetailsModal {
     const currentGoalUuid = await this.resolveCurrentGoalUuid();
     const targetGoalUuid = targetGoal.uuid;
     if (!targetGoalUuid) {
-      throw new Error(this.t('planningDetails.goal.addRelation.targetGoalUnavailable'));
+      throw new Error(
+        this.t('planningDetails.goal.addRelation.targetGoalUnavailable')
+      );
     }
 
     const api = new GoalRelationsApiService(
@@ -1688,12 +1765,18 @@ export class GoalDetailsModal {
     if (this.goal.uuid) return this.goal.uuid;
     const goalRef = this.getGoalRef();
     if (!goalRef) {
-      throw new Error(this.t('planningDetails.goal.addRelation.currentGoalUnavailable'));
+      throw new Error(
+        this.t('planningDetails.goal.addRelation.currentGoalUnavailable')
+      );
     }
-    const api = new GoalsApiService(new HttpInterceptorClient(environment.apiUrl));
+    const api = new GoalsApiService(
+      new HttpInterceptorClient(environment.apiUrl)
+    );
     const goal = await firstValueFrom(api.getGoal(goalRef));
     if (!goal.uuid) {
-      throw new Error(this.t('planningDetails.goal.addRelation.currentGoalUnavailable'));
+      throw new Error(
+        this.t('planningDetails.goal.addRelation.currentGoalUnavailable')
+      );
     }
     return goal.uuid;
   }
@@ -1818,7 +1901,8 @@ export class GoalDetailsModal {
 
     const panel = createSurface({
       elevated: true,
-      className: 'absolute left-0 top-0 z-40 hidden min-w-[220px] overflow-hidden',
+      className:
+        'absolute left-0 top-0 z-40 hidden min-w-[220px] overflow-hidden',
     });
     panel.addEventListener('mousedown', (event) => {
       event.stopPropagation();
@@ -1947,7 +2031,10 @@ export class GoalDetailsModal {
       size: 12,
       strokeWidth: 2,
     });
-    icon.classList.add('shrink-0', iconSpec?.iconColorClassName ?? 'text-slate-500');
+    icon.classList.add(
+      'shrink-0',
+      iconSpec?.iconColorClassName ?? 'text-slate-500'
+    );
     icon.setAttribute('aria-hidden', 'true');
 
     return createBadge({
@@ -1989,8 +2076,14 @@ export class GoalDetailsModal {
         title: options.item.title,
       })
     );
-    button.setAttribute('data-goal-related-goal-relation-selector', options.item.key);
-    button.setAttribute('data-goal-related-goal-relation', options.item.relationType);
+    button.setAttribute(
+      'data-goal-related-goal-relation-selector',
+      options.item.key
+    );
+    button.setAttribute(
+      'data-goal-related-goal-relation',
+      options.item.relationType
+    );
     button.setAttribute(
       'data-goal-related-goal-direction',
       options.item.relationDirection
@@ -2021,7 +2114,8 @@ export class GoalDetailsModal {
 
     const panel = createSurface({
       elevated: true,
-      className: 'absolute left-0 top-0 z-40 hidden min-w-[200px] overflow-hidden',
+      className:
+        'absolute left-0 top-0 z-40 hidden min-w-[200px] overflow-hidden',
     });
     panel.addEventListener('mousedown', (event) => {
       event.stopPropagation();
@@ -2065,6 +2159,98 @@ export class GoalDetailsModal {
       });
       panel.appendChild(item);
     });
+
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (controller.isOpen()) {
+        controller.close();
+        return;
+      }
+      controller.openAt({
+        anchor: button,
+        placement: 'bottom-end',
+        fallbackPlacements: ['top-end', 'bottom-start', 'top-start'],
+        gap: 8,
+        margin: 12,
+        lockPlacementAfterOpen: true,
+      });
+    });
+
+    return { button, panel, controller };
+  }
+
+  private createGoalRelationActionMenu(options: {
+    item: RelatedGoalListItem;
+    onDelete: () => Promise<void>;
+  }): {
+    button: HTMLButtonElement;
+    panel: HTMLDivElement;
+    controller: AnchoredMenu;
+  } {
+    const button = createIconButton({
+      icon: 'ellipsis-vertical',
+      tone: 'text',
+      size: 'sm',
+      title: this.t('planningDetails.goal.relatedGoals.actions'),
+      ariaLabel: this.t('planningDetails.goal.relatedGoals.actionsFor', {
+        title: options.item.title,
+      }),
+      className: 'shrink-0',
+    });
+    button.setAttribute(
+      'data-goal-related-goal-actions-trigger',
+      options.item.key
+    );
+    button.setAttribute('aria-expanded', 'false');
+    button.addEventListener('mousedown', (event) => {
+      event.stopPropagation();
+    });
+
+    const panel = createSurface({
+      elevated: true,
+      className:
+        'absolute left-0 top-0 z-40 hidden min-w-[220px] overflow-hidden',
+    });
+    panel.addEventListener('mousedown', (event) => {
+      event.stopPropagation();
+    });
+
+    const controller = new AnchoredMenu({
+      container: button,
+      panel,
+      positioning: 'viewport',
+      onOpenChange: (open) => {
+        button.setAttribute('aria-expanded', open ? 'true' : 'false');
+      },
+    });
+    controller.mount();
+
+    const deleteIcon = createIcon('trash', {
+      size: 14,
+      strokeWidth: 1.8,
+    });
+    deleteIcon.classList.add('shrink-0', 'text-rose-600');
+    deleteIcon.setAttribute('aria-hidden', 'true');
+
+    const deleteItem = createDropdownItem({
+      label: this.t('planningDetails.goal.relatedGoals.delete'),
+      leading: deleteIcon,
+      tone: 'danger',
+      onClick: (event) => {
+        event.stopPropagation();
+        controller.close();
+        void options.onDelete().catch(() => {});
+      },
+    });
+    deleteItem.setAttribute(
+      'data-goal-related-goal-delete-relation',
+      options.item.key
+    );
+    deleteItem.setAttribute('role', 'menuitem');
+    deleteItem.addEventListener('mousedown', (event) => {
+      event.stopPropagation();
+    });
+    panel.appendChild(deleteItem);
 
     button.addEventListener('click', (event) => {
       event.stopPropagation();

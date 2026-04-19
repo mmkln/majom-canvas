@@ -24,6 +24,7 @@ type WorkspaceViewSwitcherOptions = {
   runtime?: AppRuntime;
   wallpaperService?: WallpaperService;
   showKanban?: boolean;
+  showFocusBoard?: boolean;
   showLearningStudio?: boolean;
   showTimeClustering?: boolean;
   showRoutines?: boolean;
@@ -73,6 +74,7 @@ export class WorkspaceViewSwitcher {
       initialTimeClusteringOpen: options.initialTimeClusteringOpen,
       initialTimeClusteringLayoutMode: options.initialTimeClusteringLayoutMode,
       showKanban: options.showKanban,
+      showFocusBoard: options.showFocusBoard,
       showLearningStudio: options.showLearningStudio,
       showTimeClustering: options.showTimeClustering,
       showRoutines: options.showRoutines,

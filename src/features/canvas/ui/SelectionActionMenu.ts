@@ -152,7 +152,7 @@ export class SelectionActionMenu {
   ) {
     this.container = createSurface({
       className:
-        'fixed z-40 hidden translate-x-0 items-center gap-1 rounded-full p-1.5 pr-2.5',
+        'fixed z-40 hidden translate-x-0 items-center gap-1 rounded-full! p-1.5 pr-2.5',
     });
 
     this.actionNodes = this.buildActionNodes();
@@ -175,9 +175,12 @@ export class SelectionActionMenu {
       this.interactionStartHandler
     );
     window.addEventListener('canvasInteractionEnd', this.interactionEndHandler);
-    this.disposeRuntimeSubscription = this.runtime.subscribe(() => {
-      this.refreshRuntimeUi();
-    }, { emitCurrent: true });
+    this.disposeRuntimeSubscription = this.runtime.subscribe(
+      () => {
+        this.refreshRuntimeUi();
+      },
+      { emitCurrent: true }
+    );
     this.requestUpdate();
   }
 
@@ -487,7 +490,8 @@ export class SelectionActionMenu {
       {
         kind: 'divider',
         id: 'divider-ai-tags',
-        isVisible: (context) => supportsAi(context) && supportsGoalTags(context),
+        isVisible: (context) =>
+          supportsAi(context) && supportsGoalTags(context),
       },
       {
         kind: 'action',
@@ -1135,7 +1139,9 @@ export class SelectionActionMenu {
     if (!selectionSupportsDailyCompletion(context.elements)) {
       return;
     }
-    const completeAll = context.elements.every((element) => element.completedToday);
+    const completeAll = context.elements.every(
+      (element) => element.completedToday
+    );
     this.routineCompletionCheckbox?.setChecked(completeAll);
     const archivedAll = context.elements.every(
       (element) => element.habitStatus === Status.Archived
@@ -1144,11 +1150,7 @@ export class SelectionActionMenu {
       (element) => element.habitStatus === Status.Active
     );
     this.routineStatusSelector?.setState(
-      archivedAll
-        ? Status.Archived
-        : activeAll
-          ? Status.Active
-          : null
+      archivedAll ? Status.Archived : activeAll ? Status.Active : null
     );
   }
 
