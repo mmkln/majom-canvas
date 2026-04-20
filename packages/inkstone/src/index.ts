@@ -11,11 +11,14 @@ export {
   type InkstoneMarkdownDocument,
   type InkstoneMarkdownEngineOptions,
   type InkstoneMarkdownInlineSegment,
+  type InkstoneMarkdownSnippet,
+  type InkstoneMarkdownSnippetItem,
 } from './InkstoneMarkdownEngine.ts';
 export {
   createInkstoneMirrorRenderer,
   InkstoneMirrorRenderer,
   type InkstoneMirrorRenderOptions,
+  type InkstoneMirrorRendererProfile,
 } from './InkstoneMirrorRenderer.ts';
 export {
   handleBackspaceInList,

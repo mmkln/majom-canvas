@@ -273,10 +273,50 @@ describe('InkstoneEditor', () => {
     expect(orderedMarker?.textContent).toBe('1.');
     expect(bulletMarker?.style.opacity).toBe('1');
     expect(orderedMarker?.style.opacity).toBe('1');
-    expect(bulletGutter?.style.height).toBe('1lh');
-    expect(orderedGutter?.style.height).toBe('1lh');
-    expect(bulletGutter?.style.alignItems).toBe('center');
-    expect(orderedGutter?.style.alignItems).toBe('center');
+    expect(bulletGutter?.style.display).toBe('inline-block');
+    expect(orderedGutter?.style.display).toBe('inline-block');
+    expect(bulletGutter?.querySelector('[aria-hidden="true"]')?.textContent).toBe('- ');
+    expect(orderedGutter?.querySelector('[aria-hidden="true"]')?.textContent).toBe('1. ');
+  });
+
+  it('does not narrow bullet list content width in editor mode, otherwise wrapped list lines drift away from the textarea caret', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const editor = createInkstoneEditor({
+      value:
+        '- покращити роботу із звязками для цілей, додати можливість видаляти звязки і обирати типи звязків на канвасі',
+    });
+
+    editor.mount(host);
+
+    const bulletLine = editor.element.querySelector<HTMLElement>(
+      '[data-inkstone-block-type="bullet_list_item"]'
+    );
+    const bulletRow = bulletLine?.firstElementChild as HTMLElement | null;
+
+    expect(bulletLine).not.toBeNull();
+    expect(bulletRow).not.toBeNull();
+    expect(bulletRow?.style.display).not.toBe('grid');
+    expect(bulletRow?.style.gridTemplateColumns).toBe('');
+  });
+
+  it('reserves the raw task syntax width in editor mode instead of using a narrower checkbox grid gutter', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const editor = createInkstoneEditor({
+      value: '- [ ] Ship inkstone',
+    });
+
+    editor.mount(host);
+
+    const checkboxGutter = editor.element.querySelector<HTMLElement>(
+      '[data-inkstone-role="task-gutter"]'
+    );
+    const reservedSyntax = checkboxGutter?.querySelector<HTMLElement>('[aria-hidden="true"]');
+
+    expect(checkboxGutter).not.toBeNull();
+    expect(checkboxGutter?.style.display).toBe('inline-block');
+    expect(reservedSyntax?.textContent).toBe('[ ] ');
   });
 
   it('renders inline markdown styling in the mirror surface', () => {
@@ -288,16 +328,40 @@ describe('InkstoneEditor', () => {
 
     editor.mount(host);
 
-    expect(editor.element.querySelector('strong')?.textContent).toBe('bold');
+    const strong = editor.element.querySelector('strong');
+    expect(strong?.textContent).toBe('bold');
+    expect(strong?.style.textDecoration).toBe('none');
     expect(editor.element.querySelector('em')?.textContent).toBe('italic');
     expect(editor.element.querySelector('code')?.textContent).toBe('code');
     expect(
       editor.element.querySelector('[data-inkstone-href="https://openai.com"]')
         ?.textContent
     ).toBe('link');
+    expect(
+      editor.element.querySelectorAll(
+        '[data-inkstone-block-type="paragraph"] [aria-hidden="true"]'
+      )
+    ).toHaveLength(0);
   });
 
-  it('applies a visible hierarchy scale across heading levels', () => {
+  it('does not reserve hidden syntax spacing for blockquotes in styled mode', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const editor = createInkstoneEditor({
+      value: '> Quoted text',
+    });
+
+    editor.mount(host);
+
+    const quoteLine = editor.element.querySelector<HTMLElement>(
+      '[data-inkstone-block-type="blockquote"]'
+    );
+
+    expect(quoteLine?.textContent).toBe('Quoted text');
+    expect(quoteLine?.querySelectorAll('[aria-hidden="true"]')).toHaveLength(0);
+  });
+
+  it('keeps heading hierarchy visually distinct without changing editor line metrics', () => {
     const host = document.createElement('div');
     document.body.appendChild(host);
     const editor = createInkstoneEditor({
@@ -311,15 +375,56 @@ describe('InkstoneEditor', () => {
     );
 
     expect(headingLines).toHaveLength(5);
-    expect(headingLines[0]?.style.fontSize).toBe('1.2em');
-    expect(headingLines[1]?.style.fontSize).toBe('1.12em');
-    expect(headingLines[2]?.style.fontSize).toBe('1.05em');
-    expect(headingLines[3]?.style.fontSize).toBe('0.98em');
-    expect(headingLines[4]?.style.fontSize).toBe('0.93em');
-    expect(headingLines[0]?.style.fontWeight).toBe('700');
-    expect(headingLines[4]?.style.fontWeight).toBe('500');
+    expect(headingLines[0]?.style.color).toBe('rgb(39, 54, 74)');
+    expect(headingLines[1]?.style.color).toBe('rgb(51, 65, 85)');
+    expect(headingLines[2]?.style.color).toBe('rgb(71, 85, 105)');
+    expect(headingLines[3]?.style.color).toBe('rgb(91, 104, 122)');
+    expect(headingLines[4]?.style.color).toBe('rgb(107, 114, 128)');
+    expect(headingLines[0]?.style.fontSize).toBe('');
+    expect(headingLines[4]?.style.fontSize).toBe('');
     expect(headingLines[0]?.style.textDecoration).toBe('none');
     expect(headingLines[4]?.style.textDecoration).toBe('none');
+  });
+
+  it('does not change heading line metrics in styled mode in a way that can desync wrapping from the textarea', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const editor = createInkstoneEditor({
+      value: '##### A heading that is close to the wrap boundary',
+    });
+
+    editor.mount(host);
+
+    const headingLine = editor.element.querySelector<HTMLElement>(
+      '[data-inkstone-block-type="heading"]'
+    );
+
+    expect(headingLine).not.toBeNull();
+    expect(headingLine?.style.fontSize).toBe('');
+    expect(headingLine?.style.letterSpacing).toBe('');
+  });
+
+  it('does not apply inline box or weight styles that can expand a single raw line into multiple visual lines', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const editor = createInkstoneEditor({
+      value: 'A line with **bold** and `code` close to wrapping',
+    });
+
+    editor.mount(host);
+
+    const strong = editor.element.querySelector<HTMLElement>('strong');
+    const code = editor.element.querySelector<HTMLElement>('code');
+
+    expect(strong).not.toBeNull();
+    expect(code).not.toBeNull();
+    expect(strong?.style.fontWeight).toBe('inherit');
+    expect(
+      window.getComputedStyle(strong as HTMLElement).fontWeight
+    ).not.toBe('700');
+    expect(code?.style.padding).toBe('');
+    expect(code?.style.borderRadius).toBe('');
+    expect(code?.style.fontFamily).toBe('inherit');
   });
 
   it('anchors task checkbox to the first line for multiline task items', () => {
@@ -339,9 +444,10 @@ describe('InkstoneEditor', () => {
     );
 
     expect(checkbox).not.toBeNull();
-    expect(checkbox?.style.position).toBe('');
-    expect(checkboxGutter?.style.height).toBe('1lh');
-    expect(checkboxGutter?.style.alignItems).toBe('center');
+    expect(checkbox?.style.position).toBe('absolute');
+    expect(checkbox?.style.top).toBe('50%');
+    expect(checkboxGutter?.style.display).toBe('inline-block');
+    expect(checkboxGutter?.style.verticalAlign).toBe('top');
   });
 
   it('toggles a task checkbox through the mirror surface', () => {

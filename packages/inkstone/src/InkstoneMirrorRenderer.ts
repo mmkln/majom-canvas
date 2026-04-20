@@ -10,37 +10,58 @@ export type InkstoneMirrorRenderOptions = {
 };
 
 export type InkstoneMirrorRenderMode = 'styled' | 'editing';
+export type InkstoneMirrorRendererProfile = 'editor' | 'preview';
 
 function applyLineStyles(
   line: HTMLDivElement,
   block: InkstoneMarkdownBlock,
-  renderMode: InkstoneMirrorRenderMode
+  renderMode: InkstoneMirrorRenderMode,
+  profile: InkstoneMirrorRendererProfile
 ): void {
   if (renderMode === 'editing') {
-    line.style.color = '#334155';
-    line.style.background = 'rgba(248, 250, 252, 0.9)';
+    line.style.color = '#475569';
+    line.style.background = 'rgba(248, 250, 252, 0.78)';
     return;
   }
 
   if (block.type === 'heading') {
     const headingLevel = block.level ?? 1;
-    const headingScale =
+    line.style.color =
       headingLevel === 1
-        ? '1.2em'
+        ? '#27364a'
         : headingLevel === 2
-          ? '1.12em'
+          ? '#334155'
           : headingLevel === 3
-            ? '1.05em'
+            ? '#475569'
             : headingLevel === 4
-              ? '0.98em'
-              : '0.93em';
-    line.style.color = headingLevel <= 2 ? '#1e293b' : '#334155';
-    line.style.fontSize = headingScale;
-    line.style.fontWeight =
-      headingLevel === 1 ? '700' : headingLevel === 2 ? '650' : headingLevel <= 4 ? '600' : '500';
-    line.style.letterSpacing =
-      headingLevel === 1 ? '-0.025em' : headingLevel === 2 ? '-0.02em' : '-0.01em';
+              ? '#5b687a'
+              : '#6b7280';
     line.style.textDecoration = 'none';
+
+    if (profile === 'preview') {
+      const headingScale =
+        headingLevel === 1
+          ? '1.2em'
+          : headingLevel === 2
+            ? '1.12em'
+            : headingLevel === 3
+              ? '1.05em'
+              : headingLevel === 4
+                ? '0.98em'
+                : '0.93em';
+      line.style.fontSize = headingScale;
+      line.style.fontWeight =
+        headingLevel === 1
+          ? '700'
+          : headingLevel === 2
+            ? '650'
+            : headingLevel <= 4
+              ? '600'
+              : '500';
+      line.style.letterSpacing =
+        headingLevel === 1 ? '-0.025em' : headingLevel === 2 ? '-0.02em' : '-0.01em';
+    }
+
     return;
   }
 
@@ -53,29 +74,29 @@ function applyLineStyles(
   }
 
   if (block.type === 'blockquote') {
-    line.style.boxShadow = 'inset 2px 0 0 rgba(148, 163, 184, 0.5)';
-    line.style.color = '#475569';
+    line.style.boxShadow = 'inset 2px 0 0 rgba(148, 163, 184, 0.42)';
+    line.style.color = '#526277';
     return;
   }
 
   if (block.type === 'code_fence') {
-    line.style.background = 'rgba(15, 23, 42, 0.08)';
-    line.style.color = '#334155';
+    line.style.background = 'rgba(226, 232, 240, 0.72)';
+    line.style.color = '#475569';
     line.style.borderRadius = '0.6rem';
     return;
   }
 
   if (block.type === 'task_list_item') {
-    line.style.color = '#334155';
+    line.style.color = '#475569';
     return;
   }
 
   if (block.type === 'bullet_list_item' || block.type === 'ordered_list_item') {
-    line.style.color = '#334155';
+    line.style.color = '#475569';
     return;
   }
 
-  line.style.color = '#334155';
+  line.style.color = '#475569';
 }
 
 function appendTextSpan(host: HTMLElement, text: string): void {
@@ -84,18 +105,10 @@ function appendTextSpan(host: HTMLElement, text: string): void {
   host.appendChild(span);
 }
 
-function appendHiddenSyntax(host: HTMLElement, text: string): void {
-  const span = document.createElement('span');
-  span.textContent = text;
-  span.setAttribute('aria-hidden', 'true');
-  span.style.opacity = '0';
-  span.style.userSelect = 'none';
-  host.appendChild(span);
-}
-
 function renderInlineSegments(
   host: HTMLElement,
-  segments: InkstoneMarkdownInlineSegment[] | undefined
+  segments: InkstoneMarkdownInlineSegment[] | undefined,
+  profile: InkstoneMirrorRendererProfile
 ): void {
   if (!segments || segments.length === 0) {
     return;
@@ -108,50 +121,46 @@ function renderInlineSegments(
     }
 
     if (segment.type === 'strong') {
-      appendHiddenSyntax(host, '**');
       const strong = document.createElement('strong');
       strong.textContent = segment.text;
-      strong.style.color = '#0f172a';
-      strong.style.textDecoration = 'underline';
-      strong.style.textDecorationColor = 'rgba(15, 23, 42, 0.22)';
+      strong.style.color = '#243447';
+      strong.style.fontWeight = profile === 'preview' ? '700' : 'inherit';
+      strong.style.textDecoration = 'none';
       host.appendChild(strong);
-      appendHiddenSyntax(host, '**');
       return;
     }
 
     if (segment.type === 'emphasis') {
-      appendHiddenSyntax(host, '_');
       const em = document.createElement('em');
       em.textContent = segment.text;
-      em.style.color = '#334155';
-      em.style.textDecoration = 'underline';
-      em.style.textDecorationStyle = 'dotted';
-      em.style.textDecorationColor = 'rgba(51, 65, 85, 0.35)';
+      em.style.color = '#526277';
+      em.style.fontStyle = profile === 'preview' ? 'italic' : 'normal';
+      em.style.textDecoration = 'none';
       host.appendChild(em);
-      appendHiddenSyntax(host, '_');
       return;
     }
 
     if (segment.type === 'code') {
-      appendHiddenSyntax(host, '`');
       const code = document.createElement('code');
       code.textContent = segment.text;
-      code.style.padding = '0.08rem 0.35rem';
-      code.style.borderRadius = '0.4rem';
-      code.style.background = 'rgba(226, 232, 240, 0.9)';
+      code.style.color = '#475569';
+      code.style.fontFamily = profile === 'preview' ? 'ui-monospace, SFMono-Regular, monospace' : 'inherit';
+      code.style.background = 'rgba(226, 232, 240, 0.82)';
+      if (profile === 'preview') {
+        code.style.padding = '0.08rem 0.35rem';
+        code.style.borderRadius = '0.4rem';
+      }
       host.appendChild(code);
-      appendHiddenSyntax(host, '`');
       return;
     }
 
-    appendHiddenSyntax(host, '[');
     const link = document.createElement('span');
     link.textContent = segment.label;
-    link.style.color = '#2563eb';
+    link.style.color = '#1d4ed8';
     link.style.textDecoration = 'underline';
+    link.style.textDecorationColor = 'rgba(29, 78, 216, 0.28)';
     link.dataset.inkstoneHref = segment.href;
     host.appendChild(link);
-    appendHiddenSyntax(host, `](${segment.href})`);
   });
 }
 
@@ -164,7 +173,7 @@ function createVisibleListMarker(block: InkstoneMarkdownBlock): HTMLElement {
   marker.style.alignItems = 'center';
   marker.style.justifyContent = 'center';
   marker.style.opacity = '1';
-  marker.style.color = 'rgba(100, 116, 139, 0.9)';
+  marker.style.color = 'rgba(100, 116, 139, 0.78)';
   marker.style.minWidth = block.type === 'ordered_list_item' ? '1.6rem' : '1rem';
 
   if (block.type === 'ordered_list_item') {
@@ -180,7 +189,101 @@ function createVisibleListMarker(block: InkstoneMarkdownBlock): HTMLElement {
   return marker;
 }
 
+function appendHiddenSyntaxSpan(host: HTMLElement, text: string): HTMLSpanElement {
+  const span = document.createElement('span');
+  span.textContent = text;
+  span.setAttribute('aria-hidden', 'true');
+  span.style.visibility = 'hidden';
+  span.style.whiteSpace = 'pre';
+  host.appendChild(span);
+  return span;
+}
+
+function createInlineSyntaxSlot(role: 'list-gutter' | 'task-gutter', rawSyntax: string): HTMLSpanElement {
+  const slot = document.createElement('span');
+  slot.dataset.inkstoneRole = role;
+  slot.style.position = 'relative';
+  slot.style.display = 'inline-block';
+  slot.style.verticalAlign = 'top';
+  slot.style.whiteSpace = 'pre';
+  appendHiddenSyntaxSpan(slot, rawSyntax);
+  return slot;
+}
+
+function appendEditorListPrefix(line: HTMLElement, block: InkstoneMarkdownBlock): void {
+  const prefixMatch = block.rawText.match(/^(\s*)(\S+\s+)/);
+  if (!prefixMatch) {
+    return;
+  }
+
+  const [, indent, markerSyntax] = prefixMatch;
+  if (indent.length > 0) {
+    appendHiddenSyntaxSpan(line, indent);
+  }
+
+  const markerSlot = createInlineSyntaxSlot('list-gutter', markerSyntax);
+  const marker = createVisibleListMarker(block);
+  marker.style.position = 'absolute';
+  marker.style.insetInline = '0';
+  marker.style.top = '50%';
+  marker.style.transform = 'translateY(-50%)';
+  marker.style.width = '100%';
+  markerSlot.appendChild(marker);
+  line.appendChild(markerSlot);
+}
+
+function appendEditorTaskPrefix(
+  line: HTMLElement,
+  block: InkstoneMarkdownBlock
+): HTMLButtonElement | null {
+  const prefixLength = Math.max(0, block.rawText.length - block.text.length);
+  const prefix = block.rawText.slice(0, prefixLength);
+  const taskPrefixMatch = prefix.match(/^(\s*(?:[-*]|\d+\.)\s+)(\[[ xX]\]\s*)$/);
+  if (!taskPrefixMatch) {
+    return null;
+  }
+
+  const [, leaderSyntax, checkboxSyntax] = taskPrefixMatch;
+  if (leaderSyntax.length > 0) {
+    appendHiddenSyntaxSpan(line, leaderSyntax);
+  }
+
+  const checkboxSlot = createInlineSyntaxSlot('task-gutter', checkboxSyntax);
+  const checkbox = document.createElement('button');
+  checkbox.type = 'button';
+  checkbox.dataset.inkstoneTaskToggle = 'true';
+  checkbox.dataset.inkstoneLineStart = String(block.lineStart);
+  checkbox.setAttribute(
+    'aria-label',
+    block.checked ? 'Mark task as incomplete' : 'Mark task as complete'
+  );
+  checkbox.style.pointerEvents = 'auto';
+  checkbox.style.position = 'absolute';
+  checkbox.style.left = '0';
+  checkbox.style.top = '50%';
+  checkbox.style.transform = 'translateY(-50%)';
+  checkbox.style.display = 'inline-flex';
+  checkbox.style.alignItems = 'center';
+  checkbox.style.justifyContent = 'center';
+  checkbox.style.width = '1rem';
+  checkbox.style.height = '1rem';
+  checkbox.style.borderRadius = '0.25rem';
+  checkbox.style.border = '1px solid rgba(148, 163, 184, 0.85)';
+  checkbox.style.background = block.checked ? '#475569' : 'transparent';
+  checkbox.style.color = '#ffffff';
+  checkbox.style.fontSize = '0.72rem';
+  checkbox.style.lineHeight = '1';
+  checkbox.textContent = block.checked ? '✓' : '';
+  checkboxSlot.appendChild(checkbox);
+  line.appendChild(checkboxSlot);
+  return checkbox;
+}
+
 export class InkstoneMirrorRenderer {
+  public constructor(
+    private readonly profile: InkstoneMirrorRendererProfile = 'editor'
+  ) {}
+
   public render(
     host: HTMLElement,
     markdownDocument: InkstoneMarkdownDocument,
@@ -192,7 +295,7 @@ export class InkstoneMirrorRenderer {
       const placeholder = document.createElement('div');
       placeholder.dataset.inkstoneRole = 'placeholder';
       placeholder.textContent = options.placeholder ?? '';
-      placeholder.style.color = 'rgba(148, 163, 184, 0.9)';
+      placeholder.style.color = 'rgba(148, 163, 184, 0.8)';
       placeholder.style.fontStyle = 'italic';
       host.appendChild(placeholder);
       return;
@@ -221,7 +324,7 @@ export class InkstoneMirrorRenderer {
     line.style.minHeight = '1lh';
     line.style.whiteSpace = 'pre-wrap';
     line.style.wordBreak = 'break-word';
-    applyLineStyles(line, block, renderMode);
+    applyLineStyles(line, block, renderMode, this.profile);
     this.renderBlock(line, block, renderMode);
     return line;
   }
@@ -253,11 +356,23 @@ export class InkstoneMirrorRenderer {
     }
 
     if (block.type === 'heading') {
-      renderInlineSegments(line, block.segments);
+      renderInlineSegments(line, block.segments, this.profile);
       return;
     }
 
     if (block.type === 'task_list_item') {
+      if (this.profile === 'editor') {
+        appendEditorTaskPrefix(line, block);
+        const text = document.createElement('span');
+        if (block.checked) {
+          text.style.textDecoration = 'line-through';
+          text.style.opacity = '0.75';
+        }
+        renderInlineSegments(text, block.segments, this.profile);
+        line.appendChild(text);
+        return;
+      }
+
       const indentSpaces = (block.marker ?? '').match(/^\s*/)?.[0].length ?? 0;
       const row = document.createElement('div');
       row.style.display = 'grid';
@@ -302,13 +417,21 @@ export class InkstoneMirrorRenderer {
         text.style.textDecoration = 'line-through';
         text.style.opacity = '0.75';
       }
-      renderInlineSegments(text, block.segments);
+      renderInlineSegments(text, block.segments, this.profile);
       row.appendChild(text);
       line.appendChild(row);
       return;
     }
 
     if (block.type === 'bullet_list_item' || block.type === 'ordered_list_item') {
+      if (this.profile === 'editor') {
+        appendEditorListPrefix(line, block);
+        const text = document.createElement('span');
+        renderInlineSegments(text, block.segments, this.profile);
+        line.appendChild(text);
+        return;
+      }
+
       const indentSpaces = (block.marker ?? '').match(/^\s*/)?.[0].length ?? 0;
       const row = document.createElement('div');
       row.style.display = 'grid';
@@ -327,15 +450,14 @@ export class InkstoneMirrorRenderer {
       row.appendChild(markerCell);
 
       const text = document.createElement('span');
-      renderInlineSegments(text, block.segments);
+      renderInlineSegments(text, block.segments, this.profile);
       row.appendChild(text);
       line.appendChild(row);
       return;
     }
 
     if (block.type === 'blockquote') {
-      appendHiddenSyntax(line, '> ');
-      renderInlineSegments(line, block.segments);
+      renderInlineSegments(line, block.segments, this.profile);
       return;
     }
 
@@ -358,10 +480,12 @@ export class InkstoneMirrorRenderer {
       return;
     }
 
-    renderInlineSegments(line, block.segments);
+    renderInlineSegments(line, block.segments, this.profile);
   }
 }
 
-export function createInkstoneMirrorRenderer(): InkstoneMirrorRenderer {
-  return new InkstoneMirrorRenderer();
+export function createInkstoneMirrorRenderer(options: {
+  profile?: InkstoneMirrorRendererProfile;
+} = {}): InkstoneMirrorRenderer {
+  return new InkstoneMirrorRenderer(options.profile);
 }

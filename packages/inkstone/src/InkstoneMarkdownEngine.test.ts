@@ -82,4 +82,44 @@ describe('InkstoneMarkdownEngine', () => {
     expect(document.stats.taskItems).toBe(2);
     expect(document.stats.orderedItems).toBe(0);
   });
+
+  it('creates a lightweight semantic snippet without raw markdown syntax', () => {
+    const engine = createInkstoneMarkdownEngine();
+    const snippet = engine.createSnippet(
+      '## Habits\n- [x] **Drink water**\n[Docs](https://example.com)',
+      { maxLength: 120 }
+    );
+
+    expect(snippet.items).toEqual([
+      { blockType: 'heading', text: 'Habits' },
+      { blockType: 'task_list_item', text: '☑ Drink water' },
+      { blockType: 'paragraph', text: 'Docs' },
+    ]);
+    expect(snippet.text).toBe('Habits · ☑ Drink water · Docs');
+    expect(snippet.text).not.toContain('##');
+    expect(snippet.text).not.toContain('[x]');
+    expect(snippet.text).not.toContain('**');
+    expect(snippet.text).not.toContain('](');
+  });
+
+  it('truncates snippet text on semantic boundaries instead of leaking raw markdown', () => {
+    const engine = createInkstoneMarkdownEngine();
+    const snippet = engine.createSnippet(
+      '- покращити роботу із звязками для цілей, додати можливість видаляти звязки і обирати типи звязків на канвасі',
+      { maxLength: 64 }
+    );
+
+    expect(snippet.items).toEqual([
+      {
+        blockType: 'bullet_list_item',
+        text:
+          '• покращити роботу із звязками для цілей, додати можливість видаляти звязки і обирати типи звязків на канвасі',
+      },
+    ]);
+    expect(snippet.text).toBe(
+      '• покращити роботу із звязками для цілей, додати можливість…'
+    );
+    expect(snippet.truncated).toBe(true);
+    expect(snippet.text).not.toContain('- ');
+  });
 });

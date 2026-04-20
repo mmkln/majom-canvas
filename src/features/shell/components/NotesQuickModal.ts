@@ -1,4 +1,5 @@
 import {
+  createInkstoneMarkdownEngine,
   type InkstoneEditorHandle,
 } from '@majom/inkstone';
 import { createPaneModalShell } from '../../../ui-lib/src/components/PaneModal.ts';
@@ -24,6 +25,7 @@ import {
 import { ShellNotesService } from '../services/ShellNotesService.ts';
 import { createNotesBodyEditor } from '../notes/createNotesBodyEditor.ts';
 import { confirmDeleteNoteModal } from './ConfirmDeleteNoteModal.ts';
+import { createNotesDesktopModalView } from './NotesDesktopModalView.ts';
 import { NotesMobileFullscreenView } from './NotesMobileFullscreenView.ts';
 
 const NOTES_PAGE_SIZE = 100;
@@ -107,10 +109,17 @@ function toStatusSnapshot(summary: NoteSummary): NotesQuickStatusSnapshot {
   };
 }
 
+const notesSnippetEngine = createInkstoneMarkdownEngine({
+  normalizeLineEndings: true,
+});
+
 function extractSnippet(note: Note): string {
   const body = note.body.trim();
   if (body) {
-    return body.length > 120 ? `${body.slice(0, 117)}...` : body;
+    return notesSnippetEngine.createSnippet(body, {
+      maxLength: 120,
+      maxItems: 3,
+    }).text;
   }
   return '';
 }
@@ -160,6 +169,10 @@ export class NotesQuickModal {
   private editorPane: HTMLElement | null = null;
   private mobilePane: HTMLElement | null = null;
   private mobileViewComponent: NotesMobileFullscreenView | null = null;
+  private sidebarTitleElement: HTMLHeadingElement | null = null;
+  private sidebarHeaderActions: HTMLDivElement | null = null;
+  private editorMetaHost: HTMLDivElement | null = null;
+  private editorActionsHost: HTMLDivElement | null = null;
 
   private titleInput: HTMLInputElement | null = null;
   private bodyInput: HTMLTextAreaElement | null = null;
@@ -214,14 +227,17 @@ export class NotesQuickModal {
       overlay,
       container,
       body,
+      header,
       titleWrap,
       titleElement,
       actions,
       headerInner,
+      divider,
     } = createPaneModalShell(this.i18n.t('notes.modal.title'), {
       onClose: () => this.close(),
       intent: 'form',
       presentation: this.mobilePresentation ? 'fullscreen' : undefined,
+      hideCloseButton: !this.mobilePresentation,
       zIndex: 260,
     });
 
@@ -249,17 +265,13 @@ export class NotesQuickModal {
       container.style.height = 'min(46rem, calc(100dvh - 2rem))';
       container.style.maxHeight = 'min(46rem, calc(100dvh - 2rem))';
       container.style.transition = 'width 180ms ease, max-width 180ms ease';
-      this.decorateHeaderTitle(titleWrap, titleElement);
+      header.className = 'sr-only';
+      divider.className = 'hidden';
     }
 
-    const createButton = this.createHeaderCreateButton();
-    if (!this.mobilePresentation) {
-      if (closeButton) {
-        actions.insertBefore(createButton, closeButton);
-      } else {
-        actions.appendChild(createButton);
-      }
-    }
+    const createButton = this.mobilePresentation
+      ? null
+      : this.createHeaderCreateButton();
 
     this.overlay = overlay;
     this.body = body;
@@ -291,6 +303,10 @@ export class NotesQuickModal {
     this.editorPane = null;
     this.mobilePane = null;
     this.mobileViewComponent = null;
+    this.sidebarTitleElement = null;
+    this.sidebarHeaderActions = null;
+    this.editorMetaHost = null;
+    this.editorActionsHost = null;
     this.titleInput = null;
     this.bodyEditor?.destroy();
     this.bodyEditor = null;
@@ -595,33 +611,13 @@ export class NotesQuickModal {
     if (this.headerCreateButton) {
       this.syncHeaderCreateButtonContent(this.headerCreateButton);
     }
+    if (this.sidebarTitleElement) {
+      const sidebarTitleLabel = this.sidebarTitleElement.querySelector('span');
+      if (sidebarTitleLabel) {
+        sidebarTitleLabel.textContent = this.i18n.t('notes.modal.title');
+      }
+    }
     this.renderContent();
-  }
-
-  private decorateHeaderTitle(
-    titleWrap: HTMLDivElement,
-    titleElement: HTMLHeadingElement
-  ): void {
-    titleElement.className =
-      'min-w-0 truncate text-base font-semibold leading-6 tracking-tight text-slate-900';
-    titleElement.title = titleElement.textContent ?? '';
-
-    const titleRow = document.createElement('div');
-    titleRow.className = 'flex min-w-0 items-center gap-3';
-
-    const iconWrap = document.createElement('div');
-    iconWrap.className =
-      'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600';
-    iconWrap.appendChild(
-      createIcon('document', {
-        size: 18,
-        strokeWidth: 1.8,
-      })
-    );
-
-    titleElement.remove();
-    titleRow.append(iconWrap, titleElement);
-    titleWrap.prepend(titleRow);
   }
 
   private createHeaderCreateButton(): HTMLButtonElement {
@@ -717,31 +713,29 @@ export class NotesQuickModal {
       });
       this.sidebarPane = null;
       this.editorPane = null;
+      this.sidebarTitleElement = null;
+      this.sidebarHeaderActions = null;
+      this.editorMetaHost = null;
+      this.editorActionsHost = null;
       return;
     }
 
-    const shell = document.createElement('div');
-    shell.className =
-      'grid h-full min-h-0 grid-cols-1 bg-white md:grid-cols-[20.5rem_1px_minmax(0,1fr)]';
+    const desktopView = createNotesDesktopModalView({
+      sidebarTitle: this.i18n.t('notes.modal.title'),
+    });
+    if (this.headerCreateButton) {
+      desktopView.sidebarHeaderActions.appendChild(this.headerCreateButton);
+    }
+    this.body.appendChild(desktopView.root);
 
-    const sidebarPane = document.createElement('section');
-    sidebarPane.className = 'flex min-h-0 flex-col overflow-hidden bg-white';
-
-    const divider = document.createElement('div');
-    divider.className = 'hidden bg-slate-200 md:block';
-    divider.setAttribute('aria-hidden', 'true');
-
-    const editorPane = document.createElement('section');
-    editorPane.className =
-      'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white';
-
-    shell.append(sidebarPane, divider, editorPane);
-    this.body.appendChild(shell);
-
-    this.sidebarPane = sidebarPane;
-    this.editorPane = editorPane;
+    this.sidebarPane = desktopView.sidebarListHost;
+    this.editorPane = desktopView.editorContentHost;
     this.mobilePane = null;
     this.mobileViewComponent = null;
+    this.sidebarTitleElement = desktopView.sidebarTitle;
+    this.sidebarHeaderActions = desktopView.sidebarHeaderActions;
+    this.editorMetaHost = desktopView.editorMetaHost;
+    this.editorActionsHost = desktopView.editorActionsHost;
   }
 
   private syncHeaderState(): void {
@@ -751,6 +745,12 @@ export class NotesQuickModal {
     }
     if (this.headerCreateButton) {
       this.headerCreateButton.disabled = false;
+      if (
+        this.sidebarHeaderActions &&
+        !this.sidebarHeaderActions.contains(this.headerCreateButton)
+      ) {
+        this.sidebarHeaderActions.replaceChildren(this.headerCreateButton);
+      }
     }
   }
 
@@ -838,11 +838,11 @@ export class NotesQuickModal {
     this.sidebarRowsByNoteId.clear();
 
     const content = document.createElement('div');
-    content.className = 'min-h-0 flex-1 overflow-y-auto px-2 pb-4 pt-4 md:px-3';
+    content.className = 'min-h-0 flex-1 overflow-y-auto py-1';
 
     if (this.loading && !this.hasAnyNotes) {
       const loading = document.createElement('p');
-      loading.className = 'px-3 py-8 text-sm text-slate-500';
+      loading.className = 'px-4 py-8 text-sm text-slate-500';
       loading.textContent = this.i18n.t('notes.loading');
       content.appendChild(loading);
       this.sidebarPane.appendChild(content);
@@ -851,7 +851,7 @@ export class NotesQuickModal {
 
     if (this.errorKey && !this.hasAnyNotes) {
       const error = document.createElement('p');
-      error.className = 'px-3 py-8 text-sm text-rose-600';
+      error.className = 'px-4 py-8 text-sm text-rose-600';
       error.textContent = this.i18n.t(this.errorKey);
       content.appendChild(error);
       this.sidebarPane.appendChild(content);
@@ -860,7 +860,7 @@ export class NotesQuickModal {
 
     if (!this.hasAnyNotes) {
       const empty = document.createElement('div');
-      empty.className = 'px-3 py-10 text-sm leading-6 text-slate-500';
+      empty.className = 'px-4 py-10 text-sm leading-6 text-slate-500';
       empty.textContent = this.i18n.t('notes.empty');
       content.appendChild(empty);
       this.sidebarPane.appendChild(content);
@@ -893,12 +893,12 @@ export class NotesQuickModal {
     emptyText: string | null = null
   ): HTMLElement {
     const section = document.createElement('section');
-    section.className = 'mb-5';
+    section.className = 'mb-0';
 
     if (title) {
       const heading = document.createElement('p');
       heading.className =
-        'px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400';
+        'px-4 pb-2 pt-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400';
       heading.textContent = title;
       section.appendChild(heading);
     }
@@ -906,7 +906,7 @@ export class NotesQuickModal {
     if (notes.length === 0) {
       if (emptyText) {
         const empty = document.createElement('p');
-        empty.className = 'px-3 text-sm leading-6 text-slate-400';
+        empty.className = 'px-4 text-sm leading-6 text-slate-400';
         empty.textContent = emptyText;
         section.appendChild(empty);
       }
@@ -921,14 +921,14 @@ export class NotesQuickModal {
 
   private renderNoteListItem(note: Note): HTMLElement {
     const wrap = document.createElement('div');
-    wrap.className = 'group relative mb-1.5';
+    wrap.className = 'group relative';
 
     const button = document.createElement('button');
     button.type = 'button';
     const selected = note.id === this.selectedNoteId;
     button.className = selected
-      ? 'flex w-full flex-col gap-2 rounded-2xl bg-slate-100 px-3 py-3 pr-11 text-left text-slate-900'
-      : 'flex w-full flex-col gap-2 rounded-2xl px-3 py-3 pr-11 text-left text-slate-700 transition hover:bg-slate-50';
+      ? 'flex w-full flex-col gap-1.5 bg-violet-50 px-4 py-3.5 pr-12 text-left text-slate-700 transition hover:bg-violet-100'
+      : 'flex w-full flex-col gap-1.5 px-4 py-3.5 pr-12 text-left text-slate-700 transition hover:bg-slate-50';
     button.addEventListener('click', () => {
       void this.selectNote(note.id);
     });
@@ -940,7 +940,7 @@ export class NotesQuickModal {
     titleWrap.className = 'min-w-0 flex-1';
 
     const title = document.createElement('p');
-    title.className = 'truncate text-sm font-semibold';
+    title.className = 'truncate text-sm font-semibold text-slate-900';
     title.textContent = note.title.trim() || this.i18n.t('notes.untitled');
     titleWrap.appendChild(title);
     top.appendChild(titleWrap);
@@ -959,8 +959,8 @@ export class NotesQuickModal {
     const pinButton = document.createElement('button');
     pinButton.type = 'button';
     pinButton.className = note.is_pinned
-      ? 'absolute right-3 top-3 inline-flex h-7 w-7 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-100 hover:text-slate-800'
-      : 'absolute right-3 top-3 inline-flex h-7 w-7 items-center justify-center rounded-xl text-slate-400 opacity-0 pointer-events-none transition hover:bg-slate-100 hover:text-slate-700 group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto';
+      ? 'absolute right-2.5 top-2.5 inline-flex h-8 w-8 items-center justify-center rounded-xl text-violet-700 transition hover:bg-violet-100 hover:text-violet-800'
+      : 'absolute right-2.5 top-2.5 inline-flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 opacity-0 pointer-events-none transition hover:bg-slate-100 hover:text-slate-700 group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto';
     pinButton.title = note.is_pinned
       ? this.i18n.t('notes.unpin')
       : this.i18n.t('notes.pin');
@@ -1087,8 +1087,8 @@ export class NotesQuickModal {
     this.sidebarRowsByNoteId.forEach((row, noteId) => {
       const selected = noteId === this.selectedNoteId;
       row.selectButton.className = selected
-        ? 'flex w-full flex-col gap-2 rounded-2xl bg-slate-100 px-3 py-3 pr-11 text-left text-slate-900'
-        : 'flex w-full flex-col gap-2 rounded-2xl px-3 py-3 pr-11 text-left text-slate-700 transition hover:bg-slate-50';
+        ? 'flex w-full flex-col gap-1.5 bg-violet-50 px-4 py-3.5 pr-12 text-left text-slate-700 transition hover:bg-violet-100'
+        : 'flex w-full flex-col gap-1.5 px-4 py-3.5 pr-12 text-left text-slate-700 transition hover:bg-slate-50';
     });
   }
 
@@ -1108,11 +1108,13 @@ export class NotesQuickModal {
         : note.body.trim();
 
     row.titleEl.textContent = titleText;
+    row.titleEl.className = 'truncate text-sm font-semibold text-slate-900';
 
     const snippet = bodyText
-      ? bodyText.length > 120
-        ? `${bodyText.slice(0, 117)}...`
-        : bodyText
+      ? notesSnippetEngine.createSnippet(bodyText, {
+          maxLength: 120,
+          maxItems: 3,
+        }).text
       : '';
 
     if (snippet) {
@@ -1137,8 +1139,8 @@ export class NotesQuickModal {
       note.is_pinned ? this.i18n.t('notes.unpin') : this.i18n.t('notes.pin')
     );
     row.pinButton.className = note.is_pinned
-      ? 'absolute right-3 top-3 inline-flex h-7 w-7 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-100 hover:text-slate-800'
-      : 'absolute right-3 top-3 inline-flex h-7 w-7 items-center justify-center rounded-xl text-slate-400 opacity-0 pointer-events-none transition hover:bg-slate-100 hover:text-slate-700 group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto';
+      ? 'absolute right-2.5 top-2.5 inline-flex h-8 w-8 items-center justify-center rounded-xl text-violet-700 transition hover:bg-violet-100 hover:text-violet-800'
+      : 'absolute right-2.5 top-2.5 inline-flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 opacity-0 pointer-events-none transition hover:bg-slate-100 hover:text-slate-700 group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto';
     row.pinButton.replaceChildren(
       createIcon(note.is_pinned ? 'bookmark-solid' : 'bookmark', {
         size: 14,
@@ -1155,14 +1157,28 @@ export class NotesQuickModal {
     if (!this.editorPane) return;
     this.destroyMenus('editor');
     this.editorPane.replaceChildren();
+    this.editorMetaHost?.replaceChildren();
+    this.editorActionsHost?.replaceChildren();
     this.titleInput = null;
     this.bodyEditor?.destroy();
     this.bodyEditor = null;
     this.bodyInput = null;
     this.updatedAtLabel = null;
 
+    const closeButton = createIconButton({
+      icon: 'x-mark',
+      tone: 'text',
+      size: 'sm',
+      title: this.i18n.t('common.close'),
+      ariaLabel: this.i18n.t('common.close'),
+      onClick: () => {
+        this.close();
+      },
+    });
+
     const note = this.selectedNote;
     if (!note) {
+      this.editorActionsHost?.appendChild(closeButton);
       const empty = document.createElement('div');
       empty.className =
         'flex min-h-[20rem] flex-1 flex-col items-center justify-center gap-4 px-6 text-center';
@@ -1190,15 +1206,14 @@ export class NotesQuickModal {
     }
 
     const session = this.ensureEditorSession(note);
-
-    const header = document.createElement('div');
-    header.className = 'px-5 pb-4 pt-5 md:px-6';
-
-    const headerTop = document.createElement('div');
-    headerTop.className = 'flex flex-wrap items-start justify-between gap-3';
-
-    const meta = document.createElement('div');
-    meta.className = 'min-w-0 flex-1';
+    const updated = document.createElement('span');
+    updated.className =
+      'block truncate text-xs font-medium uppercase tracking-[0.16em] text-slate-400';
+    updated.textContent = session.serverSnapshot
+      ? this.formatUpdatedAt(session.serverSnapshot)
+      : '';
+    this.editorMetaHost?.appendChild(updated);
+    this.updatedAtLabel = updated;
 
     const titleInput = document.createElement('input');
     titleInput.type = 'text';
@@ -1212,13 +1227,7 @@ export class NotesQuickModal {
       this.patchSidebarRow(note, { useDraft: true });
       this.requestImmediateSave();
     });
-    meta.appendChild(titleInput);
     this.titleInput = titleInput;
-
-    headerTop.appendChild(meta);
-
-    const actions = document.createElement('div');
-    actions.className = 'flex items-center gap-2';
 
     const pinButton = createIconButton({
       icon: note.is_pinned ? 'bookmark-solid' : 'bookmark',
@@ -1235,16 +1244,25 @@ export class NotesQuickModal {
         void this.togglePin(note);
       },
     });
-    actions.appendChild(pinButton);
-    actions.appendChild(this.createActionsMenu(note));
-
-    headerTop.appendChild(actions);
-    header.appendChild(headerTop);
-    this.editorPane.appendChild(header);
+    pinButton.classList.add(
+      '!text-violet-700',
+      'hover:!bg-violet-100',
+      'hover:!text-violet-800'
+    );
+    this.editorActionsHost?.append(
+      pinButton,
+      this.createActionsMenu(note),
+      closeButton
+    );
 
     const bodyWrap = document.createElement('div');
     bodyWrap.className =
-      'flex min-h-0 flex-1 flex-col gap-4 px-5 pb-5 md:px-6 md:pb-6';
+      'flex h-full min-h-0 flex-1 flex-col px-5 pb-5 pt-5 md:px-6 md:pb-6';
+
+    const titleWrap = document.createElement('div');
+    titleWrap.className = 'pb-4';
+    titleWrap.appendChild(titleInput);
+    bodyWrap.appendChild(titleWrap);
 
     const editorHost = document.createElement('div');
     editorHost.className = 'flex min-h-0 flex-1';
@@ -1262,18 +1280,6 @@ export class NotesQuickModal {
     });
     this.bodyEditor.mount(editorHost);
     this.bodyInput = this.bodyEditor.getInputElement();
-
-    const metaRow = document.createElement('div');
-    metaRow.className =
-      'flex flex-wrap items-center justify-between gap-3 px-1 text-xs text-slate-400';
-
-    const updated = document.createElement('span');
-    updated.textContent = session.serverSnapshot
-      ? this.formatUpdatedAt(session.serverSnapshot)
-      : '';
-    metaRow.appendChild(updated);
-    bodyWrap.appendChild(metaRow);
-    this.updatedAtLabel = updated;
 
     this.editorPane.appendChild(bodyWrap);
 

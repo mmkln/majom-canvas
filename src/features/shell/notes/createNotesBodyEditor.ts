@@ -8,7 +8,9 @@ import {
 const notesBodyEngine = createInkstoneMarkdownEngine({
   normalizeLineEndings: true,
 });
-const notesBodyMirrorRenderer = createInkstoneMirrorRenderer();
+const notesBodyMirrorRenderer = createInkstoneMirrorRenderer({
+  profile: 'editor',
+});
 
 export function createNotesBodyEditor(options: {
   value: string;

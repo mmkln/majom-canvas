@@ -48,6 +48,17 @@ export type InkstoneMarkdownEngineOptions = {
   normalizeLineEndings?: boolean;
 };
 
+export type InkstoneMarkdownSnippetItem = {
+  blockType: InkstoneMarkdownBlockType;
+  text: string;
+};
+
+export type InkstoneMarkdownSnippet = {
+  text: string;
+  items: InkstoneMarkdownSnippetItem[];
+  truncated: boolean;
+};
+
 function normalizeLineEndings(value: string): string {
   return value.replace(/\r\n?/g, '\n');
 }
@@ -129,6 +140,89 @@ function parseInlineSegments(text: string): InkstoneMarkdownInlineSegment[] {
   }
 
   return segments;
+}
+
+function getInlinePlainText(
+  text: string,
+  segments: InkstoneMarkdownInlineSegment[] | undefined
+): string {
+  if (!segments || segments.length === 0) {
+    return text;
+  }
+
+  return segments
+    .map((segment) => {
+      if (segment.type === 'link') {
+        return segment.label;
+      }
+      return segment.text;
+    })
+    .join('');
+}
+
+function collapseWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function formatSnippetItemText(block: InkstoneMarkdownBlock): string {
+  const plainText = collapseWhitespace(
+    getInlinePlainText(block.text, block.segments)
+  );
+
+  if (plainText.length === 0) {
+    return '';
+  }
+
+  if (block.type === 'bullet_list_item') {
+    return `• ${plainText}`;
+  }
+
+  if (block.type === 'ordered_list_item') {
+    return `${(block.marker ?? '1.').trim()} ${plainText}`;
+  }
+
+  if (block.type === 'task_list_item') {
+    return `${block.checked ? '☑' : '☐'} ${plainText}`;
+  }
+
+  if (block.type === 'blockquote') {
+    return `"${plainText}"`;
+  }
+
+  if (block.type === 'code_fence') {
+    const firstCodeLine = collapseWhitespace(
+      block.text.split('\n').find((line) => line.trim().length > 0) ?? ''
+    );
+    if (firstCodeLine.length > 0) {
+      return `Code: ${firstCodeLine}`;
+    }
+    return block.language ? `${block.language} code` : 'Code block';
+  }
+
+  return plainText;
+}
+
+function truncateSnippetText(
+  value: string,
+  maxLength: number
+): { text: string; truncated: boolean } {
+  if (value.length <= maxLength) {
+    return { text: value, truncated: false };
+  }
+
+  const sliced = value.slice(0, Math.max(0, maxLength - 1));
+  const lastBreak = Math.max(
+    sliced.lastIndexOf(' '),
+    sliced.lastIndexOf('·')
+  );
+  const base =
+    lastBreak >= Math.floor(maxLength * 0.6)
+      ? sliced.slice(0, lastBreak).trim()
+      : sliced.trim();
+  return {
+    text: `${base}…`,
+    truncated: true,
+  };
 }
 
 function parseLine(
@@ -324,6 +418,51 @@ export class InkstoneMarkdownEngine {
       normalized,
       blocks,
       stats,
+    };
+  }
+
+  public createSnippet(
+    valueOrDocument: string | InkstoneMarkdownDocument,
+    options: {
+      maxLength?: number;
+      maxItems?: number;
+    } = {}
+  ): InkstoneMarkdownSnippet {
+    const document =
+      typeof valueOrDocument === 'string'
+        ? this.parse(valueOrDocument)
+        : valueOrDocument;
+    const maxItems = Math.max(1, options.maxItems ?? 3);
+    const maxLength = Math.max(1, options.maxLength ?? 120);
+
+    const items: InkstoneMarkdownSnippetItem[] = [];
+
+    document.blocks.forEach((block) => {
+      if (items.length >= maxItems) {
+        return;
+      }
+      if (block.type === 'blank' || block.type === 'thematic_break') {
+        return;
+      }
+
+      const text = formatSnippetItemText(block);
+      if (text.length === 0) {
+        return;
+      }
+
+      items.push({
+        blockType: block.type,
+        text,
+      });
+    });
+
+    const joinedText = items.map((item) => item.text).join(' · ');
+    const truncated = truncateSnippetText(joinedText, maxLength);
+
+    return {
+      text: truncated.text,
+      items,
+      truncated: truncated.truncated,
     };
   }
 }

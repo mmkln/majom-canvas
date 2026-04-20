@@ -358,6 +358,110 @@ describe('NotesQuickModal focus retention', () => {
     modal.destroy();
   });
 
+  it('renders the desktop notes modal as a split view with sidebar create action and editor close action', async () => {
+    const { service } = createService();
+    const modal = new NotesQuickModal(service);
+
+    modal.open();
+    await flushUi();
+
+    const splitView = document.body.querySelector(
+      '[data-component="NotesDesktopModalView"]'
+    );
+    const newNoteButton = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>('button')
+    ).find((button) => button.textContent?.trim() === 'New note');
+    const closeButton = document.body.querySelector<HTMLButtonElement>(
+      'button[aria-label="Close"]'
+    );
+    const outerCloseButton = document.body.querySelector<HTMLButtonElement>(
+      'button[aria-label="Close dialog"]'
+    );
+    const updatedLabel = document.body.querySelector<HTMLElement>(
+      '[data-component="NotesDesktopEditorMeta"]'
+    );
+    const sidebarTitleIcon = document.body.querySelector(
+      '[data-component="NotesDesktopSidebarTitle"] svg[data-icon-name="document"]'
+    );
+    const editorContentHost = document.body.querySelector<HTMLElement>(
+      '[data-component="NotesDesktopEditorContent"]'
+    );
+    const editorPinButton = document.body.querySelector<HTMLButtonElement>(
+      '[data-component="NotesDesktopEditorHeader"] button[aria-label="Pin note"], [data-component="NotesDesktopEditorHeader"] button[aria-label="Unpin note"]'
+    );
+
+    expect(splitView).not.toBeNull();
+    expect(newNoteButton).not.toBeUndefined();
+    expect(
+      newNoteButton?.closest('[data-component="NotesDesktopSidebarHeader"]')
+    ).not.toBeNull();
+    expect(closeButton).not.toBeNull();
+    expect(
+      closeButton?.closest('[data-component="NotesDesktopEditorHeader"]')
+    ).not.toBeNull();
+    expect(outerCloseButton).toBeNull();
+    expect(updatedLabel?.textContent).toContain('Updated');
+    expect(sidebarTitleIcon).not.toBeNull();
+    expect(editorContentHost?.className).toContain('flex');
+    expect(editorPinButton?.className).toContain('!text-violet-700');
+
+    modal.destroy();
+  });
+
+  it('styles the selected desktop sidebar note as a full-width violet row', async () => {
+    const { service } = createService();
+    const modal = new NotesQuickModal(service);
+
+    modal.open();
+    await flushUi();
+
+    const selectedRowButton = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>(
+        '[data-component="NotesDesktopSidebarList"] button'
+      )
+    ).find((button) => button.textContent?.includes('Focus note'));
+    const selectedRowTitle = selectedRowButton?.querySelector('p');
+
+    expect(selectedRowButton).not.toBeUndefined();
+    expect(selectedRowButton?.className).toContain('bg-violet-50');
+    expect(selectedRowButton?.className).toContain('w-full');
+    expect(selectedRowButton?.className).not.toContain('rounded-2xl');
+    expect(selectedRowButton?.className).toContain('text-slate-700');
+    expect(selectedRowButton?.className).not.toContain('text-violet-700');
+    expect(selectedRowTitle?.className).toContain('text-slate-900');
+
+    modal.destroy();
+  });
+
+  it('renders sidebar snippets through the markdown snippet presenter instead of raw markdown text', async () => {
+    const { service } = createService({
+      activeNotes: [
+        makeNote({
+          body: '## Habits\n- [x] **Drink water**\n[Docs](https://example.com)',
+        }),
+      ],
+    });
+    const modal = new NotesQuickModal(service);
+
+    modal.open();
+    await flushUi();
+
+    const selectedRowButton = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>(
+        '[data-component="NotesDesktopSidebarList"] button'
+      )
+    ).find((button) => button.textContent?.includes('Focus note'));
+    const snippet = selectedRowButton?.querySelectorAll('p')[1];
+
+    expect(snippet?.textContent).toBe('Habits · ☑ Drink water · Docs');
+    expect(snippet?.textContent).not.toContain('##');
+    expect(snippet?.textContent).not.toContain('[x]');
+    expect(snippet?.textContent).not.toContain('**');
+    expect(snippet?.textContent).not.toContain('](');
+
+    modal.destroy();
+  });
+
   it('uses a fullscreen list-first mobile flow before opening the editor', async () => {
     const restoreViewport = mockMobileViewport();
     try {
