@@ -1,24 +1,24 @@
-export type WorkspaceViewSwitcherMode = 'peek' | 'open' | 'pinned';
+export type PresentationMenuMode = 'peek' | 'open' | 'pinned';
 
-export type WorkspaceViewSwitcherMachineState = {
+export type PresentationMenuMachineState = {
   autoCollapseEnabled: boolean;
-  mode: WorkspaceViewSwitcherMode;
+  mode: PresentationMenuMode;
 };
 
-export type WorkspaceViewSwitcherMachineEvent =
+export type PresentationMenuMachineEvent =
   | { type: 'open' }
   | { type: 'peek' }
   | { type: 'toggle-pin' }
   | { type: 'reset-visible' };
 
-type CreateWorkspaceViewSwitcherMachineStateOptions = {
+type CreatePresentationMenuMachineStateOptions = {
   autoCollapseEnabled: boolean;
   initiallyPinned: boolean;
 };
 
-export function createWorkspaceViewSwitcherMachineState(
-  options: CreateWorkspaceViewSwitcherMachineStateOptions
-): WorkspaceViewSwitcherMachineState {
+export function createPresentationMenuMachineState(
+  options: CreatePresentationMenuMachineStateOptions
+): PresentationMenuMachineState {
   return {
     autoCollapseEnabled: options.autoCollapseEnabled,
     mode: options.autoCollapseEnabled
@@ -29,10 +29,10 @@ export function createWorkspaceViewSwitcherMachineState(
   };
 }
 
-export function transitionWorkspaceViewSwitcherMachineState(
-  state: WorkspaceViewSwitcherMachineState,
-  event: WorkspaceViewSwitcherMachineEvent
-): WorkspaceViewSwitcherMachineState {
+export function transitionPresentationMenuMachineState(
+  state: PresentationMenuMachineState,
+  event: PresentationMenuMachineEvent
+): PresentationMenuMachineState {
   switch (event.type) {
     case 'open':
       if (state.mode === 'pinned') {
@@ -75,14 +75,14 @@ export function transitionWorkspaceViewSwitcherMachineState(
   }
 }
 
-export function isWorkspaceViewSwitcherExpanded(
-  state: WorkspaceViewSwitcherMachineState
+export function isPresentationMenuExpanded(
+  state: PresentationMenuMachineState
 ): boolean {
   return state.mode !== 'peek';
 }
 
-export function isWorkspaceViewSwitcherPinned(
-  state: WorkspaceViewSwitcherMachineState
+export function isPresentationMenuPinned(
+  state: PresentationMenuMachineState
 ): boolean {
   return state.mode === 'pinned';
 }

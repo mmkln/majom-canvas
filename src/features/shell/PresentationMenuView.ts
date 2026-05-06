@@ -9,30 +9,30 @@ import {
 } from '../../ui-lib/src/hud/index.ts';
 import { GlobalMenu } from './components/GlobalMenu.ts';
 import type { WallpaperService } from './services/WallpaperService.ts';
-import type { WorkspaceViewSwitcherMode } from './WorkspaceViewSwitcherMachine.ts';
+import type { PresentationMenuMode } from './PresentationMenuMachine.ts';
 
-const WORKSPACE_VIEW_SWITCHER_PEEK_HANDLE_WIDTH_PX = 58;
-const WORKSPACE_VIEW_SWITCHER_PEEK_HANDLE_HEIGHT_PX = 28;
-const WORKSPACE_VIEW_SWITCHER_HIDDEN_HANDLE_WIDTH_PX = 52;
-const WORKSPACE_VIEW_SWITCHER_HIDDEN_HANDLE_HEIGHT_PX = 26;
-const WORKSPACE_VIEW_SWITCHER_INTENT_ZONE_PADDING_PX = 5;
-const WORKSPACE_VIEW_SWITCHER_PEEK_BOTTOM_OFFSET_PX = -8;
-const WORKSPACE_VIEW_SWITCHER_PEEK_HIDDEN_OFFSET_PX = -14;
-const WORKSPACE_VIEW_SWITCHER_FALLBACK_HEIGHT_PX = 44;
-const WORKSPACE_VIEW_SWITCHER_OPEN_TRANSFORM_MS = 320;
-const WORKSPACE_VIEW_SWITCHER_OPEN_OPACITY_MS = 260;
-const WORKSPACE_VIEW_SWITCHER_OPEN_EASING = 'cubic-bezier(0.16, 1, 0.3, 1)';
-const WORKSPACE_VIEW_SWITCHER_CLOSE_TRANSFORM_MS = 190;
-const WORKSPACE_VIEW_SWITCHER_CLOSE_OPACITY_MS = 160;
-const WORKSPACE_VIEW_SWITCHER_CLOSE_EASING = 'cubic-bezier(0.4, 0, 1, 1)';
-const WORKSPACE_VIEW_SWITCHER_PANEL_PEEK_SCALE = 0.972;
-const WORKSPACE_VIEW_SWITCHER_PANEL_PEEK_OPACITY = 0.76;
-const WORKSPACE_VIEW_SWITCHER_HANDLE_HIDE_SCALE = 0.88;
-const WORKSPACE_VIEW_SWITCHER_HANDLE_HIDE_TRANSLATE_Y_PX = 10;
-const WORKSPACE_VIEW_SWITCHER_ACCESSORY_BUTTON_CLASS =
+const PRESENTATION_MENU_PEEK_HANDLE_WIDTH_PX = 58;
+const PRESENTATION_MENU_PEEK_HANDLE_HEIGHT_PX = 28;
+const PRESENTATION_MENU_HIDDEN_HANDLE_WIDTH_PX = 52;
+const PRESENTATION_MENU_HIDDEN_HANDLE_HEIGHT_PX = 26;
+const PRESENTATION_MENU_INTENT_ZONE_PADDING_PX = 5;
+const PRESENTATION_MENU_PEEK_BOTTOM_OFFSET_PX = -8;
+const PRESENTATION_MENU_PEEK_HIDDEN_OFFSET_PX = -14;
+const PRESENTATION_MENU_FALLBACK_HEIGHT_PX = 44;
+const PRESENTATION_MENU_OPEN_TRANSFORM_MS = 320;
+const PRESENTATION_MENU_OPEN_OPACITY_MS = 260;
+const PRESENTATION_MENU_OPEN_EASING = 'cubic-bezier(0.16, 1, 0.3, 1)';
+const PRESENTATION_MENU_CLOSE_TRANSFORM_MS = 190;
+const PRESENTATION_MENU_CLOSE_OPACITY_MS = 160;
+const PRESENTATION_MENU_CLOSE_EASING = 'cubic-bezier(0.4, 0, 1, 1)';
+const PRESENTATION_MENU_PANEL_PEEK_SCALE = 0.972;
+const PRESENTATION_MENU_PANEL_PEEK_OPACITY = 0.76;
+const PRESENTATION_MENU_HANDLE_HIDE_SCALE = 0.88;
+const PRESENTATION_MENU_HANDLE_HIDE_TRANSLATE_Y_PX = 10;
+const PRESENTATION_MENU_ACCESSORY_BUTTON_CLASS =
   'rounded-[9px] text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100';
 
-type WorkspaceViewSwitcherViewCallbacks = {
+type PresentationMenuViewCallbacks = {
   onIntentZoneEnter: () => void;
   onIntentZoneLeave: () => void;
   onControlsEnter: () => void;
@@ -47,11 +47,12 @@ type WorkspaceViewSwitcherViewCallbacks = {
   onFocusOut: () => void;
 };
 
-type WorkspaceViewSwitcherViewOptions = {
+type PresentationMenuViewOptions = {
   runtime: AppRuntime;
   wallpaperService?: WallpaperService;
   initialView: WorkspaceView;
   autoCollapseEnabled: boolean;
+  showBoards?: boolean;
   showKanban?: boolean;
   showFocusBoard?: boolean;
   showLearningStudio?: boolean;
@@ -61,21 +62,21 @@ type WorkspaceViewSwitcherViewOptions = {
   showChat?: boolean;
   initialTimeClusteringOpen?: boolean;
   initialTimeClusteringLayoutMode?: TimeClusteringLayoutMode;
-  callbacks: WorkspaceViewSwitcherViewCallbacks;
+  callbacks: PresentationMenuViewCallbacks;
 };
 
-export type WorkspaceViewSwitcherRenderState = {
+export type PresentationMenuRenderState = {
   activeView: WorkspaceView;
   collapsedOffsetPx: number;
-  mode: WorkspaceViewSwitcherMode;
+  mode: PresentationMenuMode;
 };
 
-export class WorkspaceViewSwitcherView {
+export class PresentationMenuView {
   public readonly element: HTMLDivElement;
   public readonly shouldRender: boolean;
 
   private readonly runtime: AppRuntime;
-  private readonly callbacks: WorkspaceViewSwitcherViewCallbacks;
+  private readonly callbacks: PresentationMenuViewCallbacks;
   private readonly controls: WorkspaceControlsBar;
   private readonly controlsAccessory: HTMLDivElement;
   private readonly globalMenu: GlobalMenu;
@@ -88,7 +89,7 @@ export class WorkspaceViewSwitcherView {
   private readonly pinButton: HTMLButtonElement;
   private readonly pinIndicator: HTMLSpanElement;
 
-  constructor(options: WorkspaceViewSwitcherViewOptions) {
+  constructor(options: PresentationMenuViewOptions) {
     this.runtime = options.runtime;
     this.callbacks = options.callbacks;
     this.autoCollapseEnabled = options.autoCollapseEnabled;
@@ -96,7 +97,7 @@ export class WorkspaceViewSwitcherView {
       wallpaperService: options.wallpaperService,
       triggerButtonTone: 'text',
       triggerButtonSize: 'sm',
-      triggerButtonClassName: WORKSPACE_VIEW_SWITCHER_ACCESSORY_BUTTON_CLASS,
+      triggerButtonClassName: PRESENTATION_MENU_ACCESSORY_BUTTON_CLASS,
     });
 
     this.handleViewIcon = document.createElement('span');
@@ -105,7 +106,7 @@ export class WorkspaceViewSwitcherView {
     this.handleViewIcon.style.justifyContent = 'center';
     this.handleViewIcon.style.width = '18px';
     this.handleViewIcon.style.height = '18px';
-    this.handleViewIcon.style.borderRadius = '999px';
+    this.handleViewIcon.style.borderRadius = '4px';
     this.handleViewIcon.style.background = 'rgba(255, 255, 255, 0.1)';
 
     this.handleChevronIcon = document.createElement('span');
@@ -118,13 +119,13 @@ export class WorkspaceViewSwitcherView {
 
     this.handleButton = document.createElement('button');
     this.handleButton.type = 'button';
-    this.handleButton.dataset.role = 'workspace-view-switcher-handle';
+    this.handleButton.dataset.role = 'presentation-menu-handle';
     this.handleButton.style.display = 'inline-flex';
     this.handleButton.style.alignItems = 'center';
     this.handleButton.style.justifyContent = 'center';
     this.handleButton.style.gap = '6px';
-    this.handleButton.style.width = `${WORKSPACE_VIEW_SWITCHER_PEEK_HANDLE_WIDTH_PX}px`;
-    this.handleButton.style.height = `${WORKSPACE_VIEW_SWITCHER_PEEK_HANDLE_HEIGHT_PX}px`;
+    this.handleButton.style.width = `${PRESENTATION_MENU_PEEK_HANDLE_WIDTH_PX}px`;
+    this.handleButton.style.height = `${PRESENTATION_MENU_PEEK_HANDLE_HEIGHT_PX}px`;
     this.handleButton.style.padding = '0 10px';
     this.handleButton.style.border = 'none';
     this.handleButton.style.borderRadius = '999px';
@@ -139,9 +140,9 @@ export class WorkspaceViewSwitcherView {
       icon: 'lock-open',
       tone: 'text',
       size: 'sm',
-      className: `hidden shrink-0 relative overflow-visible ${WORKSPACE_VIEW_SWITCHER_ACCESSORY_BUTTON_CLASS}`,
+      className: `hidden shrink-0 relative overflow-visible ${PRESENTATION_MENU_ACCESSORY_BUTTON_CLASS}`,
     });
-    this.pinButton.dataset.role = 'workspace-view-switcher-pin';
+    this.pinButton.dataset.role = 'presentation-menu-pin';
     this.pinButton.style.display = this.autoCollapseEnabled ? 'inline-flex' : 'none';
     this.pinIndicator = document.createElement('span');
     this.pinIndicator.setAttribute('aria-hidden', 'true');
@@ -161,7 +162,7 @@ export class WorkspaceViewSwitcherView {
 
     this.controlsAccessory = document.createElement('div');
     this.controlsAccessory.dataset.role =
-      'workspace-view-switcher-panel-accessory';
+      'presentation-menu-panel-accessory';
     this.controlsAccessory.style.display = 'inline-flex';
     this.controlsAccessory.style.alignItems = 'center';
     this.controlsAccessory.style.gap = '6px';
@@ -173,6 +174,7 @@ export class WorkspaceViewSwitcherView {
       initialView: options.initialView,
       initialTimeClusteringOpen: options.initialTimeClusteringOpen,
       initialTimeClusteringLayoutMode: options.initialTimeClusteringLayoutMode,
+      showBoards: options.showBoards,
       showKanban: options.showKanban,
       showFocusBoard: options.showFocusBoard,
       showLearningStudio: options.showLearningStudio,
@@ -186,20 +188,20 @@ export class WorkspaceViewSwitcherView {
     this.shouldRender = this.controls.shouldRender;
 
     this.intentZone = document.createElement('div');
-    this.intentZone.dataset.role = 'workspace-view-switcher-intent-zone';
+    this.intentZone.dataset.role = 'presentation-menu-intent-zone';
     this.intentZone.style.position = 'absolute';
     this.intentZone.style.left = '50%';
     this.intentZone.style.bottom = `${
-      WORKSPACE_VIEW_SWITCHER_PEEK_BOTTOM_OFFSET_PX -
-      WORKSPACE_VIEW_SWITCHER_INTENT_ZONE_PADDING_PX
+      PRESENTATION_MENU_PEEK_BOTTOM_OFFSET_PX -
+      PRESENTATION_MENU_INTENT_ZONE_PADDING_PX
     }px`;
     this.intentZone.style.width = `${
-      WORKSPACE_VIEW_SWITCHER_PEEK_HANDLE_WIDTH_PX +
-      WORKSPACE_VIEW_SWITCHER_INTENT_ZONE_PADDING_PX * 2
+      PRESENTATION_MENU_PEEK_HANDLE_WIDTH_PX +
+      PRESENTATION_MENU_INTENT_ZONE_PADDING_PX * 2
     }px`;
     this.intentZone.style.height = `${
-      WORKSPACE_VIEW_SWITCHER_PEEK_HANDLE_HEIGHT_PX +
-      WORKSPACE_VIEW_SWITCHER_INTENT_ZONE_PADDING_PX * 2
+      PRESENTATION_MENU_PEEK_HANDLE_HEIGHT_PX +
+      PRESENTATION_MENU_INTENT_ZONE_PADDING_PX * 2
     }px`;
     this.intentZone.style.transform = 'translateX(-50%)';
     this.intentZone.style.pointerEvents = 'auto';
@@ -207,10 +209,10 @@ export class WorkspaceViewSwitcherView {
     this.intentZone.style.background = 'transparent';
 
     this.handleDock = document.createElement('div');
-    this.handleDock.dataset.role = 'workspace-view-switcher-handle-dock';
+    this.handleDock.dataset.role = 'presentation-menu-handle-dock';
     this.handleDock.style.position = 'absolute';
     this.handleDock.style.left = '50%';
-    this.handleDock.style.bottom = `${WORKSPACE_VIEW_SWITCHER_PEEK_BOTTOM_OFFSET_PX}px`;
+    this.handleDock.style.bottom = `${PRESENTATION_MENU_PEEK_BOTTOM_OFFSET_PX}px`;
     this.handleDock.style.transform = 'translateX(-50%) translateY(0px)';
     this.handleDock.style.display = 'inline-flex';
     this.handleDock.style.alignItems = 'center';
@@ -219,7 +221,7 @@ export class WorkspaceViewSwitcherView {
     this.handleDock.append(this.handleButton);
 
     this.element = document.createElement('div');
-    this.element.id = 'workspace-view-switcher';
+    this.element.id = 'presentation-menu';
     this.element.style.position = 'fixed';
     this.element.style.bottom = '16px';
     this.element.style.left = '50%';
@@ -309,20 +311,20 @@ export class WorkspaceViewSwitcherView {
     this.controls.prime();
   }
 
-  public render(state: WorkspaceViewSwitcherRenderState): void {
+  public render(state: PresentationMenuRenderState): void {
     const peek = state.mode === 'peek';
     const expanded = state.mode !== 'peek';
     const pinned = state.mode === 'pinned';
     const publicMode = pinned ? 'pinned' : expanded ? 'open' : 'peek';
     const offset = expanded ? 0 : state.collapsedOffsetPx;
-    const scale = expanded ? 1 : WORKSPACE_VIEW_SWITCHER_PANEL_PEEK_SCALE;
+    const scale = expanded ? 1 : PRESENTATION_MENU_PANEL_PEEK_SCALE;
 
     this.applyMotionProfile(expanded);
 
     this.controls.element.style.transform = `translateY(${offset}px) scale(${scale})`;
     this.controls.element.style.opacity = expanded
       ? '1'
-      : `${WORKSPACE_VIEW_SWITCHER_PANEL_PEEK_OPACITY}`;
+      : `${PRESENTATION_MENU_PANEL_PEEK_OPACITY}`;
     this.controls.element.style.pointerEvents = expanded ? 'auto' : 'none';
 
     this.element.dataset.mode = publicMode;
@@ -346,11 +348,11 @@ export class WorkspaceViewSwitcherView {
     this.handleButton.setAttribute('aria-label', this.handleButton.title);
     this.handleButton.setAttribute('aria-expanded', expanded ? 'true' : 'false');
     this.handleButton.style.width = peek
-      ? `${WORKSPACE_VIEW_SWITCHER_PEEK_HANDLE_WIDTH_PX}px`
-      : `${WORKSPACE_VIEW_SWITCHER_HIDDEN_HANDLE_WIDTH_PX}px`;
+      ? `${PRESENTATION_MENU_PEEK_HANDLE_WIDTH_PX}px`
+      : `${PRESENTATION_MENU_HIDDEN_HANDLE_WIDTH_PX}px`;
     this.handleButton.style.height = peek
-      ? `${WORKSPACE_VIEW_SWITCHER_PEEK_HANDLE_HEIGHT_PX}px`
-      : `${WORKSPACE_VIEW_SWITCHER_HIDDEN_HANDLE_HEIGHT_PX}px`;
+      ? `${PRESENTATION_MENU_PEEK_HANDLE_HEIGHT_PX}px`
+      : `${PRESENTATION_MENU_HIDDEN_HANDLE_HEIGHT_PX}px`;
     this.handleButton.style.background = peek
       ? 'rgba(15, 23, 42, 0.76)'
       : 'rgba(15, 23, 42, 0.7)';
@@ -372,14 +374,14 @@ export class WorkspaceViewSwitcherView {
 
     this.handleDock.style.bottom = `${
       peek
-        ? WORKSPACE_VIEW_SWITCHER_PEEK_BOTTOM_OFFSET_PX
-        : WORKSPACE_VIEW_SWITCHER_PEEK_HIDDEN_OFFSET_PX
+        ? PRESENTATION_MENU_PEEK_BOTTOM_OFFSET_PX
+        : PRESENTATION_MENU_PEEK_HIDDEN_OFFSET_PX
     }px`;
     this.handleDock.style.opacity = peek ? '1' : '0';
     this.handleDock.style.pointerEvents = peek ? 'auto' : 'none';
     this.handleDock.style.transform = peek
       ? 'translateX(-50%) translateY(0px) scale(1)'
-      : `translateX(-50%) translateY(${WORKSPACE_VIEW_SWITCHER_HANDLE_HIDE_TRANSLATE_Y_PX}px) scale(${WORKSPACE_VIEW_SWITCHER_HANDLE_HIDE_SCALE})`;
+      : `translateX(-50%) translateY(${PRESENTATION_MENU_HANDLE_HIDE_TRANSLATE_Y_PX}px) scale(${PRESENTATION_MENU_HANDLE_HIDE_SCALE})`;
 
     this.intentZone.style.display = this.autoCollapseEnabled && peek ? 'block' : 'none';
 
@@ -429,7 +431,7 @@ export class WorkspaceViewSwitcherView {
   public measureControlsHeight(): number {
     return (
       this.controls.element.getBoundingClientRect().height ||
-      WORKSPACE_VIEW_SWITCHER_FALLBACK_HEIGHT_PX
+      PRESENTATION_MENU_FALLBACK_HEIGHT_PX
     );
   }
 
@@ -458,14 +460,14 @@ export class WorkspaceViewSwitcherView {
   }
   private applyMotionProfile(expanded: boolean): void {
     const transformMs = expanded
-      ? WORKSPACE_VIEW_SWITCHER_OPEN_TRANSFORM_MS
-      : WORKSPACE_VIEW_SWITCHER_CLOSE_TRANSFORM_MS;
+      ? PRESENTATION_MENU_OPEN_TRANSFORM_MS
+      : PRESENTATION_MENU_CLOSE_TRANSFORM_MS;
     const opacityMs = expanded
-      ? WORKSPACE_VIEW_SWITCHER_OPEN_OPACITY_MS
-      : WORKSPACE_VIEW_SWITCHER_CLOSE_OPACITY_MS;
+      ? PRESENTATION_MENU_OPEN_OPACITY_MS
+      : PRESENTATION_MENU_CLOSE_OPACITY_MS;
     const easing = expanded
-      ? WORKSPACE_VIEW_SWITCHER_OPEN_EASING
-      : WORKSPACE_VIEW_SWITCHER_CLOSE_EASING;
+      ? PRESENTATION_MENU_OPEN_EASING
+      : PRESENTATION_MENU_CLOSE_EASING;
     const handleOpacityDelayMs = expanded ? 0 : 36;
 
     this.controls.element.style.transition =
@@ -497,6 +499,7 @@ export class WorkspaceViewSwitcherView {
   }
 
   private getHandleViewIconName(view: WorkspaceView): IconName {
+    if (view === 'boards') return 'kanban';
     if (view === 'kanban') return 'view-columns';
     if (view === 'focus-board') return 'view-columns';
     if (view === 'learning-studio') return 'academic-cap';

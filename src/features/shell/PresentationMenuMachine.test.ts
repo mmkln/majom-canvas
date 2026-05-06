@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  createWorkspaceViewSwitcherMachineState,
-  transitionWorkspaceViewSwitcherMachineState,
-} from './WorkspaceViewSwitcherMachine.ts';
+  createPresentationMenuMachineState,
+  transitionPresentationMenuMachineState,
+} from './PresentationMenuMachine.ts';
 
-describe('WorkspaceViewSwitcherMachine', () => {
+describe('PresentationMenuMachine', () => {
   it('starts in peek mode for auto-collapsing switchers', () => {
-    const state = createWorkspaceViewSwitcherMachineState({
+    const state = createPresentationMenuMachineState({
       autoCollapseEnabled: true,
       initiallyPinned: false,
     });
@@ -15,12 +15,12 @@ describe('WorkspaceViewSwitcherMachine', () => {
   });
 
   it('enters open mode directly from peek', () => {
-    const initialState = createWorkspaceViewSwitcherMachineState({
+    const initialState = createPresentationMenuMachineState({
       autoCollapseEnabled: true,
       initiallyPinned: false,
     });
 
-    const openState = transitionWorkspaceViewSwitcherMachineState(initialState, {
+    const openState = transitionPresentationMenuMachineState(initialState, {
       type: 'open',
     });
 
@@ -28,13 +28,13 @@ describe('WorkspaceViewSwitcherMachine', () => {
   });
 
   it('returns to peek from open', () => {
-    const initialState = createWorkspaceViewSwitcherMachineState({
+    const initialState = createPresentationMenuMachineState({
       autoCollapseEnabled: true,
       initiallyPinned: false,
     });
 
-    const nextState = transitionWorkspaceViewSwitcherMachineState(
-      transitionWorkspaceViewSwitcherMachineState(initialState, {
+    const nextState = transitionPresentationMenuMachineState(
+      transitionPresentationMenuMachineState(initialState, {
         type: 'open',
       }),
       { type: 'peek' }
@@ -44,18 +44,18 @@ describe('WorkspaceViewSwitcherMachine', () => {
   });
 
   it('toggles pinning between pinned and open', () => {
-    const initialState = createWorkspaceViewSwitcherMachineState({
+    const initialState = createPresentationMenuMachineState({
       autoCollapseEnabled: true,
       initiallyPinned: false,
     });
 
-    const pinnedState = transitionWorkspaceViewSwitcherMachineState(
-      transitionWorkspaceViewSwitcherMachineState(initialState, {
+    const pinnedState = transitionPresentationMenuMachineState(
+      transitionPresentationMenuMachineState(initialState, {
         type: 'open',
       }),
       { type: 'toggle-pin' }
     );
-    const unpinnedState = transitionWorkspaceViewSwitcherMachineState(
+    const unpinnedState = transitionPresentationMenuMachineState(
       pinnedState,
       { type: 'toggle-pin' }
     );
@@ -65,12 +65,12 @@ describe('WorkspaceViewSwitcherMachine', () => {
   });
 
   it('restores pinned mode on reset-visible when already pinned', () => {
-    const initialState = createWorkspaceViewSwitcherMachineState({
+    const initialState = createPresentationMenuMachineState({
       autoCollapseEnabled: true,
       initiallyPinned: true,
     });
 
-    const nextState = transitionWorkspaceViewSwitcherMachineState(initialState, {
+    const nextState = transitionPresentationMenuMachineState(initialState, {
       type: 'reset-visible',
     });
 

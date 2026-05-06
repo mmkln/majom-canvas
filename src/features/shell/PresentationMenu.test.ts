@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAppRuntime } from '../../app-runtime/index.ts';
-import { WorkspaceViewSwitcher } from './WorkspaceViewSwitcher.ts';
+import { PresentationMenu } from './PresentationMenu.ts';
 import { resetUserPreferencesForTests } from './services/UserPreferencesService.ts';
 
-describe('WorkspaceViewSwitcher', () => {
+describe('PresentationMenu', () => {
   afterEach(() => {
     document.body.innerHTML = '';
     localStorage.clear();
@@ -12,7 +12,7 @@ describe('WorkspaceViewSwitcher', () => {
   });
 
   it('renders the global menu and pin button inside the floating controls block', () => {
-    const switcher = new WorkspaceViewSwitcher('canvas', {
+    const switcher = new PresentationMenu('canvas', {
       runtime: createAppRuntime({ initialLocale: 'en' }),
       showKanban: true,
       showTimeClustering: false,
@@ -22,21 +22,21 @@ describe('WorkspaceViewSwitcher', () => {
 
     switcher.mount();
 
-    const container = document.getElementById('workspace-view-switcher');
+    const container = document.getElementById('presentation-menu');
     const menuButton = container?.querySelector<HTMLButtonElement>(
       'button[aria-label="Open global menu"]'
     );
     const handle = container?.querySelector<HTMLButtonElement>(
-      'button[data-role="workspace-view-switcher-handle"]'
+      'button[data-role="presentation-menu-handle"]'
     );
     const handleDock = container?.querySelector<HTMLDivElement>(
-      'div[data-role="workspace-view-switcher-handle-dock"]'
+      'div[data-role="presentation-menu-handle-dock"]'
     );
     const intentZone = container?.querySelector<HTMLDivElement>(
-      'div[data-role="workspace-view-switcher-intent-zone"]'
+      'div[data-role="presentation-menu-intent-zone"]'
     );
     const pinButton = container?.querySelector<HTMLButtonElement>(
-      'button[data-role="workspace-view-switcher-pin"]'
+      'button[data-role="presentation-menu-pin"]'
     );
     const pinIndicator = pinButton?.querySelector<HTMLElement>('span[aria-hidden="true"]');
 
@@ -69,7 +69,7 @@ describe('WorkspaceViewSwitcher', () => {
   it('opens from the intent zone after a short hover delay', () => {
     vi.useFakeTimers();
 
-    const switcher = new WorkspaceViewSwitcher('canvas', {
+    const switcher = new PresentationMenu('canvas', {
       runtime: createAppRuntime({ initialLocale: 'en' }),
       showKanban: true,
       showTimeClustering: false,
@@ -79,9 +79,9 @@ describe('WorkspaceViewSwitcher', () => {
 
     switcher.mount();
 
-    const container = document.getElementById('workspace-view-switcher');
+    const container = document.getElementById('presentation-menu');
     const intentZone = container?.querySelector(
-      'div[data-role="workspace-view-switcher-intent-zone"]'
+      'div[data-role="presentation-menu-intent-zone"]'
     ) as HTMLDivElement;
 
     intentZone.dispatchEvent(new MouseEvent('mouseenter'));
@@ -98,7 +98,7 @@ describe('WorkspaceViewSwitcher', () => {
   it('starts in peek mode and expands from the visible trigger before peeking again', () => {
     vi.useFakeTimers();
 
-    const switcher = new WorkspaceViewSwitcher('canvas', {
+    const switcher = new PresentationMenu('canvas', {
       runtime: createAppRuntime({ initialLocale: 'en' }),
       showKanban: true,
       showTimeClustering: false,
@@ -108,15 +108,15 @@ describe('WorkspaceViewSwitcher', () => {
 
     switcher.mount();
 
-    const container = document.getElementById('workspace-view-switcher');
+    const container = document.getElementById('presentation-menu');
     const handle = container?.querySelector(
-      'button[data-role="workspace-view-switcher-handle"]'
+      'button[data-role="presentation-menu-handle"]'
     ) as HTMLButtonElement;
     const handleDock = container?.querySelector(
-      'div[data-role="workspace-view-switcher-handle-dock"]'
+      'div[data-role="presentation-menu-handle-dock"]'
     ) as HTMLDivElement;
     const pinButton = container?.querySelector(
-      'button[data-role="workspace-view-switcher-pin"]'
+      'button[data-role="presentation-menu-pin"]'
     ) as HTMLButtonElement;
 
     expect(container?.dataset.mode).toBe('peek');
@@ -159,7 +159,7 @@ describe('WorkspaceViewSwitcher', () => {
   });
 
   it('opens the controls from the peek trigger click', () => {
-    const switcher = new WorkspaceViewSwitcher('canvas', {
+    const switcher = new PresentationMenu('canvas', {
       runtime: createAppRuntime({ initialLocale: 'en' }),
       showKanban: true,
       showTimeClustering: false,
@@ -169,12 +169,12 @@ describe('WorkspaceViewSwitcher', () => {
 
     switcher.mount();
 
-    const container = document.getElementById('workspace-view-switcher');
+    const container = document.getElementById('presentation-menu');
     const handle = container?.querySelector(
-      'button[data-role="workspace-view-switcher-handle"]'
+      'button[data-role="presentation-menu-handle"]'
     ) as HTMLButtonElement;
     const pinButton = container?.querySelector(
-      'button[data-role="workspace-view-switcher-pin"]'
+      'button[data-role="presentation-menu-pin"]'
     ) as HTMLButtonElement;
 
     handle.click();
@@ -188,7 +188,7 @@ describe('WorkspaceViewSwitcher', () => {
   });
 
   it('removes the hidden handle from hit testing and tab order while expanded', () => {
-    const switcher = new WorkspaceViewSwitcher('canvas', {
+    const switcher = new PresentationMenu('canvas', {
       runtime: createAppRuntime({ initialLocale: 'en' }),
       showKanban: true,
       showTimeClustering: false,
@@ -198,12 +198,12 @@ describe('WorkspaceViewSwitcher', () => {
 
     switcher.mount();
 
-    const container = document.getElementById('workspace-view-switcher');
+    const container = document.getElementById('presentation-menu');
     const handle = container?.querySelector(
-      'button[data-role="workspace-view-switcher-handle"]'
+      'button[data-role="presentation-menu-handle"]'
     ) as HTMLButtonElement;
     const pinButton = container?.querySelector(
-      'button[data-role="workspace-view-switcher-pin"]'
+      'button[data-role="presentation-menu-pin"]'
     ) as HTMLButtonElement;
 
     expect(handle.style.pointerEvents).toBe('auto');
@@ -228,7 +228,7 @@ describe('WorkspaceViewSwitcher', () => {
   });
 
   it('can mount again after unmounting without losing its interaction state', () => {
-    const switcher = new WorkspaceViewSwitcher('canvas', {
+    const switcher = new PresentationMenu('canvas', {
       runtime: createAppRuntime({ initialLocale: 'en' }),
       showKanban: true,
       showTimeClustering: false,
@@ -240,9 +240,9 @@ describe('WorkspaceViewSwitcher', () => {
     switcher.unmount();
     switcher.mount();
 
-    const container = document.getElementById('workspace-view-switcher');
+    const container = document.getElementById('presentation-menu');
     const handle = container?.querySelector(
-      'button[data-role="workspace-view-switcher-handle"]'
+      'button[data-role="presentation-menu-handle"]'
     ) as HTMLButtonElement;
 
     expect(container?.dataset.mode).toBe('peek');
@@ -256,7 +256,7 @@ describe('WorkspaceViewSwitcher', () => {
   it('holds the panel open briefly after interaction and allows escape to return to peek', () => {
     vi.useFakeTimers();
 
-    const switcher = new WorkspaceViewSwitcher('canvas', {
+    const switcher = new PresentationMenu('canvas', {
       runtime: createAppRuntime({ initialLocale: 'en' }),
       showKanban: true,
       showTimeClustering: false,
@@ -266,9 +266,9 @@ describe('WorkspaceViewSwitcher', () => {
 
     switcher.mount();
 
-    const container = document.getElementById('workspace-view-switcher');
+    const container = document.getElementById('presentation-menu');
     const handle = container?.querySelector(
-      'button[data-role="workspace-view-switcher-handle"]'
+      'button[data-role="presentation-menu-handle"]'
     ) as HTMLButtonElement;
     const controls = container?.firstElementChild as HTMLElement;
 
@@ -293,7 +293,7 @@ describe('WorkspaceViewSwitcher', () => {
   it('keeps the controls expanded after pinning them', () => {
     vi.useFakeTimers();
 
-    const switcher = new WorkspaceViewSwitcher('canvas', {
+    const switcher = new PresentationMenu('canvas', {
       runtime: createAppRuntime({ initialLocale: 'en' }),
       showKanban: true,
       showTimeClustering: false,
@@ -303,12 +303,12 @@ describe('WorkspaceViewSwitcher', () => {
 
     switcher.mount();
 
-    const container = document.getElementById('workspace-view-switcher');
+    const container = document.getElementById('presentation-menu');
     const handle = container?.querySelector(
-      'button[data-role="workspace-view-switcher-handle"]'
+      'button[data-role="presentation-menu-handle"]'
     ) as HTMLButtonElement;
     const pinButton = container?.querySelector(
-      'button[data-role="workspace-view-switcher-pin"]'
+      'button[data-role="presentation-menu-pin"]'
     ) as HTMLButtonElement;
 
     handle.click();
@@ -328,7 +328,7 @@ describe('WorkspaceViewSwitcher', () => {
   });
 
   it('pins reliably through a single click activation path', () => {
-    const switcher = new WorkspaceViewSwitcher('canvas', {
+    const switcher = new PresentationMenu('canvas', {
       runtime: createAppRuntime({ initialLocale: 'en' }),
       showKanban: true,
       showTimeClustering: false,
@@ -338,12 +338,12 @@ describe('WorkspaceViewSwitcher', () => {
 
     switcher.mount();
 
-    const container = document.getElementById('workspace-view-switcher');
+    const container = document.getElementById('presentation-menu');
     const handle = container?.querySelector(
-      'button[data-role="workspace-view-switcher-handle"]'
+      'button[data-role="presentation-menu-handle"]'
     ) as HTMLButtonElement;
     const pinButton = container?.querySelector(
-      'button[data-role="workspace-view-switcher-pin"]'
+      'button[data-role="presentation-menu-pin"]'
     ) as HTMLButtonElement;
 
     handle.click();
@@ -359,7 +359,7 @@ describe('WorkspaceViewSwitcher', () => {
   it('does not collapse when focus moves between elements inside the switcher', () => {
     vi.useFakeTimers();
 
-    const switcher = new WorkspaceViewSwitcher('canvas', {
+    const switcher = new PresentationMenu('canvas', {
       runtime: createAppRuntime({ initialLocale: 'en' }),
       showKanban: true,
       showTimeClustering: false,
@@ -369,12 +369,12 @@ describe('WorkspaceViewSwitcher', () => {
 
     switcher.mount();
 
-    const container = document.getElementById('workspace-view-switcher');
+    const container = document.getElementById('presentation-menu');
     const handle = container?.querySelector(
-      'button[data-role="workspace-view-switcher-handle"]'
+      'button[data-role="presentation-menu-handle"]'
     ) as HTMLButtonElement;
     const pinButton = container?.querySelector(
-      'button[data-role="workspace-view-switcher-pin"]'
+      'button[data-role="presentation-menu-pin"]'
     ) as HTMLButtonElement;
     const menuButton = container?.querySelector(
       'button[aria-label="Open global menu"]'
@@ -393,7 +393,7 @@ describe('WorkspaceViewSwitcher', () => {
   });
 
   it('restores the pinned state and skips the initial peek mode', () => {
-    const switcher = new WorkspaceViewSwitcher('canvas', {
+    const switcher = new PresentationMenu('canvas', {
       runtime: createAppRuntime({ initialLocale: 'en' }),
       showKanban: true,
       showTimeClustering: false,
@@ -404,17 +404,17 @@ describe('WorkspaceViewSwitcher', () => {
     switcher.mount();
 
     const handle = document.querySelector(
-      'button[data-role="workspace-view-switcher-handle"]'
+      'button[data-role="presentation-menu-handle"]'
     ) as HTMLButtonElement;
     const pinButton = document.querySelector(
-      'button[data-role="workspace-view-switcher-pin"]'
+      'button[data-role="presentation-menu-pin"]'
     ) as HTMLButtonElement;
 
     handle.click();
     pinButton.click();
     switcher.unmount();
 
-    const restoredSwitcher = new WorkspaceViewSwitcher('canvas', {
+    const restoredSwitcher = new PresentationMenu('canvas', {
       runtime: createAppRuntime({ initialLocale: 'en' }),
       showKanban: true,
       showTimeClustering: false,
@@ -424,12 +424,12 @@ describe('WorkspaceViewSwitcher', () => {
 
     restoredSwitcher.mount();
 
-    const container = document.getElementById('workspace-view-switcher');
+    const container = document.getElementById('presentation-menu');
     const restoredHandleDock = container?.querySelector(
-      'div[data-role="workspace-view-switcher-handle-dock"]'
+      'div[data-role="presentation-menu-handle-dock"]'
     ) as HTMLDivElement;
     const restoredPinButton = container?.querySelector(
-      'button[data-role="workspace-view-switcher-pin"]'
+      'button[data-role="presentation-menu-pin"]'
     ) as HTMLButtonElement;
 
     expect(container?.dataset.mode).toBe('pinned');

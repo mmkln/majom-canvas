@@ -34,6 +34,7 @@ export type TimeClusteringLayoutModeChangedDetail = {
 export function isWorkspaceView(value: unknown): value is WorkspaceView {
   return (
     value === 'canvas' ||
+    value === 'boards' ||
     value === 'kanban' ||
     value === 'focus-board' ||
     value === 'learning-studio'

@@ -6,21 +6,21 @@ import {
   getTimeClusteringOpenPreference,
   getTimeClusteringOverlapWarningsVisible,
   getWorkspaceDefaultView,
-  getWorkspaceViewSwitcherPinned,
+  getPresentationMenuPinned,
   hasUserPreferencesPersistence,
   setAiAssistantOpenPreference,
   setTimeClusteringLayoutModePreference,
   setTimeClusteringOpenPreference,
   setTimeClusteringOverlapWarningsVisiblePreference,
   setWorkspaceDefaultView,
-  setWorkspaceViewSwitcherPinned,
+  setPresentationMenuPinned,
 } from './services/UserPreferencesService.ts';
 
 export const WORKSPACE_ACTIVE_VIEW_STORAGE_KEY = 'workspace-active-view';
 export const AI_ASSISTANT_OPEN_STORAGE_KEY = 'ai-assistant-open';
 export const TIME_CLUSTERING_OPEN_STORAGE_KEY = 'time-clustering-open';
-export const WORKSPACE_VIEW_SWITCHER_PINNED_STORAGE_KEY =
-  'workspace-view-switcher-pinned';
+export const PRESENTATION_MENU_PINNED_STORAGE_KEY =
+  'presentation-menu-pinned';
 export const TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY =
   'time-clustering-layout-mode';
 export const TIME_CLUSTERING_OVERLAP_WARNINGS_VISIBLE_STORAGE_KEY =
@@ -28,6 +28,7 @@ export const TIME_CLUSTERING_OVERLAP_WARNINGS_VISIBLE_STORAGE_KEY =
 const LEGACY_WORKSPACE_CHAT_OPEN_STORAGE_KEY = 'workspace-chat-open';
 
 type LoadPersistedWorkspaceViewOptions = {
+  allowBoards?: boolean;
   allowKanban?: boolean;
   allowFocusBoard?: boolean;
   allowLearningStudio?: boolean;
@@ -36,10 +37,12 @@ type LoadPersistedWorkspaceViewOptions = {
 export function loadPersistedWorkspaceView(
   options: LoadPersistedWorkspaceViewOptions = {}
 ): WorkspaceView {
+  const allowBoards = options.allowBoards ?? true;
   const allowKanban = options.allowKanban ?? true;
   const allowFocusBoard = options.allowFocusBoard ?? true;
   const allowLearningStudio = options.allowLearningStudio ?? true;
   const value = getWorkspaceDefaultView('canvas');
+  if (value === 'boards' && allowBoards) return 'boards';
   if (value === 'kanban' && allowKanban) return 'kanban';
   if (value === 'focus-board' && allowFocusBoard) return 'focus-board';
   if (value === 'learning-studio' && allowLearningStudio) {
@@ -147,10 +150,10 @@ export function persistAiAssistantOpen(open: boolean): void {
   }
 }
 
-export function loadPersistedWorkspaceViewSwitcherPinned(): boolean {
-  return getWorkspaceViewSwitcherPinned(false);
+export function loadPersistedPresentationMenuPinned(): boolean {
+  return getPresentationMenuPinned(false);
 }
 
-export function persistWorkspaceViewSwitcherPinned(pinned: boolean): void {
-  setWorkspaceViewSwitcherPinned(pinned);
+export function persistPresentationMenuPinned(pinned: boolean): void {
+  setPresentationMenuPinned(pinned);
 }

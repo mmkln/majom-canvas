@@ -3,26 +3,27 @@ import type { TimeClusteringLayoutMode } from '../time-clustering/domain/types.t
 import { AppRuntime, createAppRuntime } from '../../app-runtime/index.ts';
 import type { WallpaperService } from './services/WallpaperService.ts';
 import {
-  loadPersistedWorkspaceViewSwitcherPinned,
-  persistWorkspaceViewSwitcherPinned,
+  loadPersistedPresentationMenuPinned,
+  persistPresentationMenuPinned,
 } from './workspaceUiState.ts';
 import {
-  createWorkspaceViewSwitcherMachineState,
-  isWorkspaceViewSwitcherExpanded,
-  isWorkspaceViewSwitcherPinned,
-  transitionWorkspaceViewSwitcherMachineState,
-  type WorkspaceViewSwitcherMachineState,
-} from './WorkspaceViewSwitcherMachine.ts';
-import { WorkspaceViewSwitcherView } from './WorkspaceViewSwitcherView.ts';
+  createPresentationMenuMachineState,
+  isPresentationMenuExpanded,
+  isPresentationMenuPinned,
+  transitionPresentationMenuMachineState,
+  type PresentationMenuMachineState,
+} from './PresentationMenuMachine.ts';
+import { PresentationMenuView } from './PresentationMenuView.ts';
 
-const WORKSPACE_VIEW_SWITCHER_COLLAPSE_DELAY_MS = 520;
-const WORKSPACE_VIEW_SWITCHER_OPEN_INTENT_DELAY_MS = 140;
-const WORKSPACE_VIEW_SWITCHER_INTERACTION_HOLD_MS = 1600;
-const WORKSPACE_VIEW_SWITCHER_COLLAPSED_EXTRA_OFFSET_PX = 22;
+const PRESENTATION_MENU_COLLAPSE_DELAY_MS = 520;
+const PRESENTATION_MENU_OPEN_INTENT_DELAY_MS = 140;
+const PRESENTATION_MENU_INTERACTION_HOLD_MS = 1600;
+const PRESENTATION_MENU_COLLAPSED_EXTRA_OFFSET_PX = 22;
 
-type WorkspaceViewSwitcherOptions = {
+type PresentationMenuOptions = {
   runtime?: AppRuntime;
   wallpaperService?: WallpaperService;
+  showBoards?: boolean;
   showKanban?: boolean;
   showFocusBoard?: boolean;
   showLearningStudio?: boolean;
@@ -34,12 +35,12 @@ type WorkspaceViewSwitcherOptions = {
   initialTimeClusteringLayoutMode?: TimeClusteringLayoutMode;
 };
 
-export class WorkspaceViewSwitcher {
+export class PresentationMenu {
   private readonly runtime: AppRuntime;
-  private readonly view: WorkspaceViewSwitcherView;
+  private readonly view: PresentationMenuView;
   private readonly shouldRender: boolean;
   private readonly autoCollapseEnabled: boolean;
-  private state: WorkspaceViewSwitcherMachineState;
+  private state: PresentationMenuMachineState;
   private collapseTimerId: number | null = null;
   private openIntentTimerId: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
@@ -54,25 +55,26 @@ export class WorkspaceViewSwitcher {
 
   constructor(
     initialView: WorkspaceView,
-    options: WorkspaceViewSwitcherOptions = {}
+    options: PresentationMenuOptions = {}
   ) {
     this.runtime = options.runtime ?? createAppRuntime();
     this.activeView = initialView;
     this.autoCollapseEnabled = !this.isCoarsePointer();
-    this.state = createWorkspaceViewSwitcherMachineState({
+    this.state = createPresentationMenuMachineState({
       autoCollapseEnabled: this.autoCollapseEnabled,
       initiallyPinned: this.autoCollapseEnabled
-        ? loadPersistedWorkspaceViewSwitcherPinned()
+        ? loadPersistedPresentationMenuPinned()
         : false,
     });
 
-    this.view = new WorkspaceViewSwitcherView({
+    this.view = new PresentationMenuView({
       runtime: this.runtime,
       wallpaperService: options.wallpaperService,
       initialView,
       autoCollapseEnabled: this.autoCollapseEnabled,
       initialTimeClusteringOpen: options.initialTimeClusteringOpen,
       initialTimeClusteringLayoutMode: options.initialTimeClusteringLayoutMode,
+      showBoards: options.showBoards,
       showKanban: options.showKanban,
       showFocusBoard: options.showFocusBoard,
       showLearningStudio: options.showLearningStudio,
@@ -156,7 +158,7 @@ export class WorkspaceViewSwitcher {
     if (!visible) return;
     this.updateCollapsedOffset();
     this.setState(
-      transitionWorkspaceViewSwitcherMachineState(this.state, {
+      transitionPresentationMenuMachineState(this.state, {
         type: 'reset-visible',
       })
     );
@@ -175,11 +177,11 @@ export class WorkspaceViewSwitcher {
   }
 
   private get expanded(): boolean {
-    return isWorkspaceViewSwitcherExpanded(this.state);
+    return isPresentationMenuExpanded(this.state);
   }
 
   private get pinned(): boolean {
-    return isWorkspaceViewSwitcherPinned(this.state);
+    return isPresentationMenuPinned(this.state);
   }
 
   private isCoarsePointer(): boolean {
@@ -192,7 +194,7 @@ export class WorkspaceViewSwitcher {
     this.collapsedOffsetPx = Math.max(
       0,
       this.view.measureControlsHeight() +
-        WORKSPACE_VIEW_SWITCHER_COLLAPSED_EXTRA_OFFSET_PX
+        PRESENTATION_MENU_COLLAPSED_EXTRA_OFFSET_PX
     );
     this.render();
   }
@@ -204,7 +206,7 @@ export class WorkspaceViewSwitcher {
       this.openIntentTimerId = null;
       if (this.state.mode !== 'peek') return;
       this.openFromPeekTrigger();
-    }, WORKSPACE_VIEW_SWITCHER_OPEN_INTENT_DELAY_MS);
+    }, PRESENTATION_MENU_OPEN_INTENT_DELAY_MS);
   }
 
   private handleControlsEnter(): void {
@@ -249,7 +251,7 @@ export class WorkspaceViewSwitcher {
     event.stopPropagation();
     this.clearCollapseTimer();
     this.setState(
-      transitionWorkspaceViewSwitcherMachineState(this.state, { type: 'peek' })
+      transitionPresentationMenuMachineState(this.state, { type: 'peek' })
     );
   }
 
@@ -300,7 +302,7 @@ export class WorkspaceViewSwitcher {
       return;
     }
     this.setState(
-      transitionWorkspaceViewSwitcherMachineState(this.state, { type: 'open' })
+      transitionPresentationMenuMachineState(this.state, { type: 'open' })
     );
   }
 
@@ -314,7 +316,7 @@ export class WorkspaceViewSwitcher {
       return;
     }
     this.setState(
-      transitionWorkspaceViewSwitcherMachineState(this.state, { type: 'open' })
+      transitionPresentationMenuMachineState(this.state, { type: 'open' })
     );
   }
 
@@ -326,7 +328,7 @@ export class WorkspaceViewSwitcher {
     const delay = Math.max(
       options.includeCollapseDelay === false
         ? 0
-        : WORKSPACE_VIEW_SWITCHER_COLLAPSE_DELAY_MS,
+        : PRESENTATION_MENU_COLLAPSE_DELAY_MS,
       this.getRemainingHoldMs()
     );
     this.collapseTimerId = window.setTimeout(() => {
@@ -334,7 +336,7 @@ export class WorkspaceViewSwitcher {
         return;
       }
       this.setState(
-        transitionWorkspaceViewSwitcherMachineState(this.state, {
+        transitionPresentationMenuMachineState(this.state, {
           type: 'peek',
         })
       );
@@ -360,9 +362,9 @@ export class WorkspaceViewSwitcher {
     this.holdOpenUntil = 0;
   }
 
-  private setState(nextState: WorkspaceViewSwitcherMachineState): void {
+  private setState(nextState: PresentationMenuMachineState): void {
     this.state = nextState;
-    persistWorkspaceViewSwitcherPinned(this.pinned);
+    persistPresentationMenuPinned(this.pinned);
     this.render();
   }
 
@@ -370,7 +372,7 @@ export class WorkspaceViewSwitcher {
     this.clearCollapseTimer();
     this.clearOpenIntentTimer();
     this.setState(
-      transitionWorkspaceViewSwitcherMachineState(this.state, {
+      transitionPresentationMenuMachineState(this.state, {
         type: 'toggle-pin',
       })
     );
@@ -380,7 +382,7 @@ export class WorkspaceViewSwitcher {
   }
 
   private bumpInteractionHold(): void {
-    this.holdOpenUntil = Date.now() + WORKSPACE_VIEW_SWITCHER_INTERACTION_HOLD_MS;
+    this.holdOpenUntil = Date.now() + PRESENTATION_MENU_INTERACTION_HOLD_MS;
     this.clearCollapseTimer();
   }
 

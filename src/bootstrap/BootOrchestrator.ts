@@ -46,7 +46,9 @@ export class BootOrchestrator {
 
   constructor() {
     this.globalHeader = new GlobalAppHeader(this.runtime);
-    this.runtimeHost = new RuntimeHost(this.wallpaperService, this.runtime);
+    this.runtimeHost = new RuntimeHost(this.wallpaperService, this.runtime, {
+      userApiService: this.userApi,
+    });
     this.loadingScreen = new LoadingScreen({ runtime: this.runtime });
     this.minLoadingScreenMs = this.resolveMinLoadingScreenDuration();
     this.loginPage = new LoginPage({

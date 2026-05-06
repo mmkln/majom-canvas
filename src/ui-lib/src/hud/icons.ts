@@ -15,6 +15,7 @@ export type IconName =
   | 'calendar-date-range'
   | 'document'
   | 'view-columns'
+  | 'kanban'
   | 'archive-box'
   | 'delete'
   | 'forward'
@@ -40,9 +41,11 @@ export type IconName =
   | 'plus'
   | 'magnifying-glass'
   | 'chat-bubble-left'
+  | 'chat-bubble-bottom-center-text'
   | 'chevron-double-down'
   | 'chevron-down'
   | 'bars-2'
+  | 'bars-3-bottom-left'
   | 'chevron-up'
   | 'chevron-double-up'
   | 'chevron-left'
@@ -68,6 +71,7 @@ export type IconName =
   | 'arrow-uturn-left'
   | 'arrow-ultum-left'
   | 'arrow-ultum-right'
+  | 'palette'
   | 'light-bulb'
   | 'shield-exclamation'
   | 'bolt'
@@ -197,7 +201,9 @@ export function createIcon(
 
   if (name === 'arrows-right-left') {
     svg.appendChild(
-      makePath('M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5')
+      makePath(
+        'M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5'
+      )
     );
     return svg;
   }
@@ -321,6 +327,20 @@ export function createIcon(
     svg.appendChild(
       makePath(
         'M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125Z'
+      )
+    );
+    return svg;
+  }
+
+  if (name === 'kanban') {
+    svg.appendChild(
+      makePath(
+        'M9.6 4H4.4C3.6268 4 3 4.6268 3 5.4V19.6C3 20.3732 3.6268 21 4.4 21H9.6C10.3732 21 11 20.3732 11 19.6V5.4C11 4.6268 10.3732 4 9.6 4Z'
+      )
+    );
+    svg.appendChild(
+      makePath(
+        'M19.6 4H15.4C14.6268 4 14 4.6268 14 5.4V14.6C14 15.3732 14.6268 16 15.4 16H19.6C20.3732 16 21 15.3732 21 14.6V5.4C21 4.6268 20.3732 4 19.6 4Z'
       )
     );
     return svg;
@@ -497,18 +517,34 @@ export function createIcon(
     return svg;
   }
 
+  if (name === 'chat-bubble-bottom-center-text') {
+    svg.appendChild(
+      makePath(
+        'M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z'
+      )
+    );
+    return svg;
+  }
+
   if (name === 'chevron-down') {
     svg.appendChild(makePath('m19.5 8.25-7.5 7.5-7.5-7.5'));
     return svg;
   }
 
   if (name === 'chevron-double-down') {
-    svg.appendChild(makePath('m4.5 5.25 7.5 7.5 7.5-7.5m-15 6 7.5 7.5 7.5-7.5'));
+    svg.appendChild(
+      makePath('m4.5 5.25 7.5 7.5 7.5-7.5m-15 6 7.5 7.5 7.5-7.5')
+    );
     return svg;
   }
 
   if (name === 'bars-2') {
     svg.appendChild(makePath('M3.75 9h16.5m-16.5 6.75h16.5'));
+    return svg;
+  }
+
+  if (name === 'bars-3-bottom-left') {
+    svg.appendChild(makePath('M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12'));
     return svg;
   }
 
@@ -635,7 +671,9 @@ export function createIcon(
   }
 
   if (name === 'check-box') {
-    svg.appendChild(makePath('M21 10.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12.5'));
+    svg.appendChild(
+      makePath('M21 10.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12.5')
+    );
     svg.appendChild(makePath('m9 11 3 3L22 4'));
     return svg;
   }
@@ -693,6 +731,19 @@ export function createIcon(
     svg.appendChild(
       makePath('m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z')
     );
+    return svg;
+  }
+
+  if (name === 'palette') {
+    svg.appendChild(
+      makePath(
+        'M12 22a10 10 0 1 1 10-10 4 4 0 0 1-4 4h-1.5a1.5 1.5 0 0 0-1.5 1.5v.5a4 4 0 0 1-4 4Z'
+      )
+    );
+    svg.appendChild(makePath('M7.5 10.5h.01'));
+    svg.appendChild(makePath('M10.5 7.5h.01'));
+    svg.appendChild(makePath('M14.5 7.5h.01'));
+    svg.appendChild(makePath('M16.5 11.5h.01'));
     return svg;
   }
 

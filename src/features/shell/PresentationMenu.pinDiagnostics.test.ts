@@ -1,16 +1,17 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAppRuntime } from '../../app-runtime/index.ts';
-import { WorkspaceViewSwitcher } from './WorkspaceViewSwitcher.ts';
+import { clearUserPreferences } from './services/UserPreferencesService.ts';
+import { PresentationMenu } from './PresentationMenu.ts';
 
 function mountSwitcher(): {
-  switcher: WorkspaceViewSwitcher;
+  switcher: PresentationMenu;
   container: HTMLElement;
   handle: HTMLButtonElement;
   pinButton: HTMLButtonElement;
   controls: HTMLElement;
 } {
-  const switcher = new WorkspaceViewSwitcher('canvas', {
+  const switcher = new PresentationMenu('canvas', {
     runtime: createAppRuntime({ initialLocale: 'en' }),
     showKanban: true,
     showTimeClustering: false,
@@ -20,23 +21,28 @@ function mountSwitcher(): {
 
   switcher.mount();
 
-  const container = document.getElementById('workspace-view-switcher');
+  const container = document.getElementById('presentation-menu');
   const handle = container?.querySelector(
-    'button[data-role="workspace-view-switcher-handle"]'
+    'button[data-role="presentation-menu-handle"]'
   ) as HTMLButtonElement;
   const pinButton = container?.querySelector(
-    'button[data-role="workspace-view-switcher-pin"]'
+    'button[data-role="presentation-menu-pin"]'
   ) as HTMLButtonElement;
   const controls = container?.firstElementChild as HTMLElement;
 
   if (!container) {
-    throw new Error('WorkspaceViewSwitcher container not mounted.');
+    throw new Error('PresentationMenu container not mounted.');
   }
 
   return { switcher, container, handle, pinButton, controls };
 }
 
-describe('WorkspaceViewSwitcher pin diagnostics', () => {
+describe('PresentationMenu pin diagnostics', () => {
+  beforeEach(() => {
+    clearUserPreferences();
+    localStorage.clear();
+  });
+
   afterEach(() => {
     if (typeof vi.isFakeTimers === 'function' && vi.isFakeTimers()) {
       vi.runOnlyPendingTimers();
@@ -44,6 +50,7 @@ describe('WorkspaceViewSwitcher pin diagnostics', () => {
     vi.useRealTimers();
     document.body.innerHTML = '';
     localStorage.clear();
+    clearUserPreferences();
   });
 
   it('pins correctly when opened by handle click and clicked immediately', () => {

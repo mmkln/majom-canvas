@@ -13,9 +13,20 @@ const parseOptionalString = (value?: string): string | null => {
   return trimmed.length > 0 ? trimmed : null;
 };
 
+export const resolveBoardsFeatureFlag = (
+  value?: string,
+  legacyDevValue?: string
+): boolean =>
+  parseOptionalBoolean(value) ?? parseOptionalBoolean(legacyDevValue) ?? true;
+
 export const IS_DEVELOPMENT_MODE = __DEV_BUILD__;
 export const CANVAS_PERF_LOG =
   parseOptionalBoolean(import.meta.env.VITE_CANVAS_PERF_LOG) ?? false;
+export const BOARDS_ENABLED = resolveBoardsFeatureFlag(
+  import.meta.env.VITE_ENABLE_BOARDS,
+  import.meta.env.VITE_ENABLE_BOARDS_DEV
+);
+export const BOARDS_DEV_ENABLED = BOARDS_ENABLED;
 export const KANBAN_DEV_ENABLED =
   IS_DEVELOPMENT_MODE &&
   (parseOptionalBoolean(import.meta.env.VITE_ENABLE_KANBAN_DEV) ?? true);

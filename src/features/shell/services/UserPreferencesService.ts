@@ -19,7 +19,8 @@ export const USER_PREFERENCES_VERSION = 1;
 export const LEGACY_WORKSPACE_ACTIVE_VIEW_STORAGE_KEY = 'workspace-active-view';
 export const LEGACY_AI_ASSISTANT_OPEN_STORAGE_KEY = 'ai-assistant-open';
 export const LEGACY_TIME_CLUSTERING_OPEN_STORAGE_KEY = 'time-clustering-open';
-export const LEGACY_WORKSPACE_VIEW_SWITCHER_PINNED_STORAGE_KEY =
+// Keep the old key so existing users retain their pinned presentation menu state.
+export const LEGACY_PRESENTATION_MENU_PINNED_STORAGE_KEY =
   'workspace-view-switcher-pinned';
 export const LEGACY_TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY =
   'time-clustering-layout-mode';
@@ -55,6 +56,7 @@ export type UserPreferencesMeta = {
     defaultView?: WorkspaceView;
     aiAssistantOpen?: boolean;
     timeClusteringOpen?: boolean;
+    presentationMenuPinned?: boolean;
     viewSwitcherPinned?: boolean;
   };
   timeClustering?: {
@@ -179,14 +181,18 @@ export function setWorkspaceDefaultView(view: WorkspaceView): void {
   });
 }
 
-export function getWorkspaceViewSwitcherPinned(defaultPinned = false): boolean {
-  return state.preferences.workspace?.viewSwitcherPinned ?? defaultPinned;
+export function getPresentationMenuPinned(defaultPinned = false): boolean {
+  return (
+    state.preferences.workspace?.presentationMenuPinned ??
+    state.preferences.workspace?.viewSwitcherPinned ??
+    defaultPinned
+  );
 }
 
-export function setWorkspaceViewSwitcherPinned(pinned: boolean): void {
+export function setPresentationMenuPinned(pinned: boolean): void {
   updatePreferences({
     workspace: {
-      viewSwitcherPinned: pinned,
+      presentationMenuPinned: pinned,
     },
   });
 }
@@ -461,9 +467,7 @@ function readLegacyPreferencesFromLocalStorage(): UserPreferencesMeta {
       defaultView: readLegacyWorkspaceDefaultView(),
       aiAssistantOpen: readLegacyAiAssistantOpen(),
       timeClusteringOpen: readLegacyTimeClusteringOpen(),
-      viewSwitcherPinned: readLegacyBoolean(
-        LEGACY_WORKSPACE_VIEW_SWITCHER_PINNED_STORAGE_KEY
-      ),
+      presentationMenuPinned: readLegacyPresentationMenuPinned(),
     },
     timeClustering: {
       layoutMode: readLegacyTimeClusteringLayoutMode(),
@@ -501,7 +505,7 @@ function clearLegacyPreferenceStorage(): void {
     LEGACY_WORKSPACE_ACTIVE_VIEW_STORAGE_KEY,
     LEGACY_AI_ASSISTANT_OPEN_STORAGE_KEY,
     LEGACY_TIME_CLUSTERING_OPEN_STORAGE_KEY,
-    LEGACY_WORKSPACE_VIEW_SWITCHER_PINNED_STORAGE_KEY,
+    LEGACY_PRESENTATION_MENU_PINNED_STORAGE_KEY,
     LEGACY_TIME_CLUSTERING_LAYOUT_MODE_STORAGE_KEY,
     LEGACY_TIME_CLUSTERING_OVERLAP_WARNINGS_VISIBLE_STORAGE_KEY,
     LEGACY_MINI_MAP_VISIBLE_STORAGE_KEY,
@@ -618,6 +622,10 @@ function readLegacyBoolean(key: string): boolean | undefined {
     return undefined;
   }
   return undefined;
+}
+
+function readLegacyPresentationMenuPinned(): boolean | undefined {
+  return readLegacyBoolean(LEGACY_PRESENTATION_MENU_PINNED_STORAGE_KEY);
 }
 
 function readLegacyCanvasSessionFromLocalStorage():
@@ -749,10 +757,12 @@ function extractUserPreferencesMeta(meta: UserMetaRecord): UserPreferencesMeta {
               typeof rawWorkspace.timeClusteringOpen === 'boolean'
                 ? rawWorkspace.timeClusteringOpen
                 : undefined,
-            viewSwitcherPinned:
-              typeof rawWorkspace.viewSwitcherPinned === 'boolean'
-                ? rawWorkspace.viewSwitcherPinned
-                : undefined,
+            presentationMenuPinned:
+              typeof rawWorkspace.presentationMenuPinned === 'boolean'
+                ? rawWorkspace.presentationMenuPinned
+                : typeof rawWorkspace.viewSwitcherPinned === 'boolean'
+                  ? rawWorkspace.viewSwitcherPinned
+                  : undefined,
           }
         : undefined,
       timeClustering: rawTimeClustering
@@ -945,6 +955,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 function isWorkspaceView(value: unknown): value is WorkspaceView {
   return (
     value === 'canvas' ||
+    value === 'boards' ||
     value === 'kanban' ||
     value === 'focus-board' ||
     value === 'learning-studio'

@@ -10,6 +10,7 @@ vi.mock('./GlobalAppHeader.ts', () => ({
 
 vi.mock('../config/env/index.ts', () => ({
   API_URL: 'https://example.test',
+  BOARDS_DEV_ENABLED: false,
   CANVAS_PERF_LOG: false,
   FOCUS_BOARD_DEV_ENABLED: true,
   GROK_API_KEY: '',
@@ -20,8 +21,8 @@ vi.mock('../config/env/index.ts', () => ({
   TIME_CLUSTERING_DEV_ENABLED: true,
 }));
 
-vi.mock('../features/shell/WorkspaceViewSwitcher.ts', () => ({
-  WorkspaceViewSwitcher: class {
+vi.mock('../features/shell/PresentationMenu.ts', () => ({
+  PresentationMenu: class {
     public mount(): void {}
     public unmount(): void {}
     public destroy(): void {}
@@ -86,6 +87,7 @@ type RuntimeHostInternalAccess = {
   timeClusteringOpen: boolean;
   timeClusteringLayoutMode: 'docked-left' | 'fullscreen';
   timeClusteringShowOverlapWarnings: boolean;
+  currentWallpaperUrl: string;
   timeClusteringModule: {
     mount: (parent: HTMLElement) => void;
     unmount: () => void;
@@ -261,6 +263,38 @@ describe('RuntimeHost time clustering island layout', () => {
     expect(host.timeClusteringIslandRoot.style.width).toBe('auto');
     expect(canvas.style.display).toBe('none');
     expect(canvasUiRoot.style.display).toBe('none');
+
+    host.dispose();
+  });
+
+  it('applies the workspace wallpaper behind the focus board', () => {
+    const host = getRuntimeHostInternals(createRuntimeHost());
+    host.hostVisible = true;
+    host.activeView = 'focus-board';
+    host.currentWallpaperUrl = 'https://example.test/wallpaper.webp';
+
+    host.applyVisibility();
+
+    expect(host.workspaceRoot.style.backgroundImage).toBe(
+      'url("https://example.test/wallpaper.webp")'
+    );
+    expect(host.workspaceRoot.style.backgroundColor).toBe('rgb(244, 247, 251)');
+
+    host.dispose();
+  });
+
+  it('applies the workspace wallpaper behind boards', () => {
+    const host = getRuntimeHostInternals(createRuntimeHost());
+    host.hostVisible = true;
+    host.activeView = 'boards';
+    host.currentWallpaperUrl = 'https://example.test/wallpaper.webp';
+
+    host.applyVisibility();
+
+    expect(host.workspaceRoot.style.backgroundImage).toBe(
+      'url("https://example.test/wallpaper.webp")'
+    );
+    expect(host.workspaceRoot.style.backgroundColor).toBe('rgb(244, 247, 251)');
 
     host.dispose();
   });

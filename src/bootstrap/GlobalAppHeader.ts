@@ -1,4 +1,5 @@
 import {
+  BOARDS_DEV_ENABLED,
   IS_DEVELOPMENT_MODE,
   KANBAN_DEV_ENABLED,
   LEARNING_STUDIO_DEV_ENABLED,
@@ -173,6 +174,7 @@ export class GlobalAppHeader {
       initialChatOpen,
       initialTimeClusteringOpen,
       initialTimeClusteringLayoutMode: 'docked-left',
+      showBoards: BOARDS_DEV_ENABLED,
       showKanban: KANBAN_DEV_ENABLED,
       showLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
       showTimeClustering: false,
@@ -255,6 +257,7 @@ export class GlobalAppHeader {
     if (!this.element || this.element.isConnected) return;
     this.controls?.setActiveView(
       loadPersistedWorkspaceView({
+        allowBoards: BOARDS_DEV_ENABLED,
         allowKanban: KANBAN_DEV_ENABLED,
         allowLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
       })

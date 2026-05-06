@@ -1,6 +1,7 @@
-import { Subscription } from 'rxjs';
+import { firstValueFrom, Subscription } from 'rxjs';
 import { GLOBAL_APP_SIDEBAR_WIDTH_PX } from './GlobalAppHeader.ts';
 import {
+  BOARDS_DEV_ENABLED,
   FOCUS_BOARD_DEV_ENABLED,
   KANBAN_DEV_ENABLED,
   LEARNING_STUDIO_DEV_ENABLED,
@@ -8,7 +9,10 @@ import {
   TIME_CLUSTERING_DEV_ENABLED,
 } from '../config/env/index.ts';
 import { CanvasModule } from '../features/canvas/CanvasModule.ts';
-import { WallpaperService } from '../features/shell/services/WallpaperService.ts';
+import {
+  resolveWallpaperUrl,
+  WallpaperService,
+} from '../features/shell/services/WallpaperService.ts';
 import type { WorkspaceModule } from '../features/shell/WorkspaceModule.ts';
 import { WorkspaceShell } from '../features/shell/WorkspaceShell.ts';
 import {
@@ -46,7 +50,7 @@ import {
   type UserPreferencesMeta,
 } from '../features/shell/services/UserPreferencesService.ts';
 import type { WorkspaceView } from '../features/shell/WorkspaceView.ts';
-import { WorkspaceViewSwitcher } from '../features/shell/WorkspaceViewSwitcher.ts';
+import { PresentationMenu } from '../features/shell/PresentationMenu.ts';
 import {
   FULL_BLEED_ISLAND_CHROME,
   MULTI_ISLAND_CHROME,
@@ -69,6 +73,9 @@ import {
   type AppRuntimeSnapshot,
   createAppRuntime,
 } from '../app-runtime/index.ts';
+import type { UserApiService } from '../majom-wrapper/data-access/user-api-service.ts';
+import type { Wallpaper } from '../majom-wrapper/interfaces/auth-interfaces.ts';
+import { openWallpaperPickerModal } from '../features/shell/components/WallpaperPickerModal.ts';
 
 const TIME_CLUSTERING_ISLAND_WIDTH_PX = 360;
 
@@ -76,10 +83,21 @@ type KanbanModuleNamespace = {
   KanbanModule: new () => WorkspaceModule;
 };
 
+type BoardsModuleNamespace = {
+  BoardsModule: new (options?: {
+    runtime?: AppRuntime;
+  }) => WorkspaceModule;
+};
+
 type FocusBoardModuleNamespace = {
   FocusBoardModule: new (options?: {
     runtime?: AppRuntime;
+    onOpenWallpaperPicker?: () => void;
   }) => WorkspaceModule;
+};
+
+type RuntimeHostOptions = {
+  userApiService?: Pick<UserApiService, 'setUserWallpaper'>;
 };
 
 type LearningStudioModuleNamespace = {
@@ -108,6 +126,9 @@ type TimeClusteringModuleNamespace = {
 const loadKanbanModule = (): Promise<KanbanModuleNamespace> =>
   import('../features/kanban/KanbanModule.ts');
 
+const loadBoardsModule = (): Promise<BoardsModuleNamespace> =>
+  import('../features/boards/BoardsModule.ts');
+
 const loadFocusBoardModule = (): Promise<FocusBoardModuleNamespace> =>
   import('../features/focus-board/FocusBoardModule.ts');
 
@@ -120,6 +141,7 @@ const loadTimeClusteringModule = (): Promise<TimeClusteringModuleNamespace> =>
 export class RuntimeHost {
   private shell: WorkspaceShell | null = null;
   private canvasModule: CanvasModule | null = null;
+  private boardsModule: WorkspaceModule | null = null;
   private kanbanModule: WorkspaceModule | null = null;
   private focusBoardModule: WorkspaceModule | null = null;
   private learningStudioModule: WorkspaceModule | null = null;
@@ -130,7 +152,12 @@ export class RuntimeHost {
   private readonly wallpaperSubscription: Subscription;
   private runtimeSubscriptionDispose: (() => void) | null = null;
   private currentWallpaperUrl = '';
-  private viewSwitcher: WorkspaceViewSwitcher | null = null;
+  private wallpaperPickerOpen = false;
+  private readonly userApiService: Pick<
+    UserApiService,
+    'setUserWallpaper'
+  > | null;
+  private presentationMenu: PresentationMenu | null = null;
   private readonly timeClusteringIslandRoot: HTMLDivElement;
   private readonly chatPanel: AiAssistantPanel;
   private readonly chatController: AiAssistantSessionController;
@@ -154,9 +181,11 @@ export class RuntimeHost {
 
   constructor(
     wallpaperService: WallpaperService,
-    private readonly runtime: AppRuntime = createAppRuntime()
+    private readonly runtime: AppRuntime = createAppRuntime(),
+    options: RuntimeHostOptions = {}
   ) {
     this.wallpaperService = wallpaperService;
+    this.userApiService = options.userApiService ?? null;
     this.workspaceRoot = document.createElement('div');
     this.workspaceRoot.id = 'workspace-modules-root';
     this.workspaceRoot.style.position = 'fixed';
@@ -328,6 +357,7 @@ export class RuntimeHost {
 
   private syncWorkspaceWallpaper(): void {
     const isCanvasVisible = this.hostVisible && this.activeView === 'canvas';
+    const isBoardsVisible = this.hostVisible && this.activeView === 'boards';
     const isKanbanVisible = this.hostVisible && this.activeView === 'kanban';
     const isFocusBoardVisible =
       this.hostVisible && this.activeView === 'focus-board';
@@ -345,9 +375,13 @@ export class RuntimeHost {
       return;
     }
 
+    if (isBoardsVisible) {
+      this.applyWorkspaceImageWallpaper('#f4f7fb');
+      return;
+    }
+
     if (isFocusBoardVisible) {
-      this.workspaceRoot.style.backgroundImage = '';
-      this.workspaceRoot.style.backgroundColor = '#f4f7fb';
+      this.applyWorkspaceImageWallpaper('#f4f7fb');
       return;
     }
 
@@ -357,12 +391,73 @@ export class RuntimeHost {
       return;
     }
 
+    this.applyWorkspaceImageWallpaper('#e2e8f0');
+  }
+
+  private applyWorkspaceImageWallpaper(fallbackColor: string): void {
     if (this.currentWallpaperUrl.length > 0) {
       this.workspaceRoot.style.backgroundImage = `url("${this.currentWallpaperUrl}")`;
     } else {
       this.workspaceRoot.style.backgroundImage = '';
     }
-    this.workspaceRoot.style.backgroundColor = '#e2e8f0';
+    this.workspaceRoot.style.backgroundColor = fallbackColor;
+  }
+
+  private resolveCurrentWallpaperId(): string | null {
+    const currentUrl = this.currentWallpaperUrl.trim();
+    if (!currentUrl) return null;
+    const currentWallpaper = this.wallpaperService.wallpaperList.find(
+      (wallpaper) => resolveWallpaperUrl(wallpaper.image_file) === currentUrl
+    );
+    return currentWallpaper ? String(currentWallpaper.id) : null;
+  }
+
+  private setWorkspaceWallpaper(wallpaper: Wallpaper | null): void {
+    this.wallpaperService.setDefaultWallpaper(wallpaper);
+  }
+
+  private async openWorkspaceWallpaperPicker(): Promise<void> {
+    if (this.wallpaperPickerOpen) return;
+    if (!this.userApiService) {
+      console.warn('Wallpaper picker requested without user API service.');
+      return;
+    }
+
+    this.wallpaperPickerOpen = true;
+    const previousWallpaperId = this.resolveCurrentWallpaperId();
+    const previousWallpaper =
+      this.wallpaperService.findWallpaperById(previousWallpaperId);
+
+    try {
+      const nextWallpaperId = await openWallpaperPickerModal({
+        i18n: this.runtime.i18n,
+        wallpapers: this.wallpaperService.wallpaperList,
+        currentWallpaperId: previousWallpaperId,
+        selectedWallpaperId: previousWallpaperId,
+      });
+      if (nextWallpaperId === null || nextWallpaperId === previousWallpaperId) {
+        return;
+      }
+
+      const nextWallpaper =
+        this.wallpaperService.findWallpaperById(nextWallpaperId);
+      this.setWorkspaceWallpaper(nextWallpaper);
+
+      try {
+        const updatedUser = await firstValueFrom(
+          this.userApiService.setUserWallpaper(nextWallpaperId)
+        );
+        this.setWorkspaceWallpaper(
+          updatedUser.wallpaper ??
+            this.wallpaperService.findWallpaperById(updatedUser.wallpaper_id)
+        );
+      } catch (error) {
+        console.warn('Failed to persist workspace wallpaper.', error);
+        this.setWorkspaceWallpaper(previousWallpaper);
+      }
+    } finally {
+      this.wallpaperPickerOpen = false;
+    }
   }
 
   private applyRuntimeSnapshot(snapshot: AppRuntimeSnapshot): void {
@@ -408,11 +503,12 @@ export class RuntimeHost {
     );
     window.removeEventListener('resize', this.windowResizeHandler);
     this.unmountRuntimeChrome();
-    this.viewSwitcher?.destroy();
-    this.viewSwitcher = null;
+    this.presentationMenu?.destroy();
+    this.presentationMenu = null;
     this.shell?.dispose();
     this.shell = null;
     this.canvasModule = null;
+    this.boardsModule = null;
     this.kanbanModule = null;
     this.focusBoardModule = null;
     this.learningStudioModule = null;
@@ -453,12 +549,13 @@ export class RuntimeHost {
     this.starting = true;
     try {
       this.syncPersistedWorkspacePreferences();
-      if (!this.viewSwitcher) {
-        this.viewSwitcher = new WorkspaceViewSwitcher(this.activeView, {
+      if (!this.presentationMenu) {
+        this.presentationMenu = new PresentationMenu(this.activeView, {
           runtime: this.runtime,
           wallpaperService: this.wallpaperService,
           initialTimeClusteringOpen: this.timeClusteringOpen,
           initialTimeClusteringLayoutMode: this.timeClusteringLayoutMode,
+          showBoards: BOARDS_DEV_ENABLED,
           showKanban: KANBAN_DEV_ENABLED,
           showFocusBoard: FOCUS_BOARD_DEV_ENABLED,
           showLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
@@ -466,10 +563,10 @@ export class RuntimeHost {
           showRoutines: ROUTINES_ENABLED,
           showNotes: true,
         });
-        this.viewSwitcher.setVisible(false);
-        this.viewSwitcher.setChatOpen(this.chatOpen);
-        this.viewSwitcher.setTimeClusteringOpen(this.timeClusteringOpen);
-        this.viewSwitcher.setTimeClusteringLayoutMode(
+        this.presentationMenu.setVisible(false);
+        this.presentationMenu.setChatOpen(this.chatOpen);
+        this.presentationMenu.setTimeClusteringOpen(this.timeClusteringOpen);
+        this.presentationMenu.setTimeClusteringLayoutMode(
           this.timeClusteringLayoutMode
         );
       }
@@ -482,6 +579,13 @@ export class RuntimeHost {
         });
         this.shell.register(this.canvasModule);
       }
+      if (BOARDS_DEV_ENABLED && !this.boardsModule) {
+        const { BoardsModule } = await loadBoardsModule();
+        this.boardsModule = new BoardsModule({
+          runtime: this.runtime,
+        });
+        this.shell.register(this.boardsModule);
+      }
       if (KANBAN_DEV_ENABLED && !this.kanbanModule) {
         const { KanbanModule } = await loadKanbanModule();
         this.kanbanModule = new KanbanModule();
@@ -491,6 +595,9 @@ export class RuntimeHost {
         const { FocusBoardModule } = await loadFocusBoardModule();
         this.focusBoardModule = new FocusBoardModule({
           runtime: this.runtime,
+          onOpenWallpaperPicker: () => {
+            void this.openWorkspaceWallpaperPicker();
+          },
         });
         this.shell.register(this.focusBoardModule);
       }
@@ -515,7 +622,7 @@ export class RuntimeHost {
       }
       await this.shell.show(this.activeView);
       this.syncTimeClusteringIslandVisibility();
-      this.viewSwitcher?.setActiveView(this.activeView);
+      this.presentationMenu?.setActiveView(this.activeView);
       emitWorkspaceViewChanged(this.activeView);
       emitTimeClusteringVisibilityChanged(this.timeClusteringOpen);
       emitTimeClusteringLayoutModeChanged(this.timeClusteringLayoutMode);
@@ -527,6 +634,7 @@ export class RuntimeHost {
   }
 
   public async setActiveView(view: WorkspaceView): Promise<void> {
+    if (view === 'boards' && !BOARDS_DEV_ENABLED) return;
     if (view === 'kanban' && !KANBAN_DEV_ENABLED) return;
     if (view === 'focus-board' && !FOCUS_BOARD_DEV_ENABLED) return;
     if (view === 'learning-studio' && !LEARNING_STUDIO_DEV_ENABLED) return;
@@ -586,7 +694,7 @@ export class RuntimeHost {
     if (this.timeClusteringLayoutMode === mode) return false;
     this.timeClusteringLayoutMode = mode;
     persistTimeClusteringLayoutMode(mode);
-    this.viewSwitcher?.setTimeClusteringLayoutMode(mode);
+    this.presentationMenu?.setTimeClusteringLayoutMode(mode);
     emitTimeClusteringLayoutModeChanged(mode);
     return true;
   }
@@ -602,7 +710,7 @@ export class RuntimeHost {
     if (this.timeClusteringOpen === open) return;
     this.timeClusteringOpen = open;
     persistTimeClusteringOpen(open);
-    this.viewSwitcher?.setTimeClusteringOpen(open);
+    this.presentationMenu?.setTimeClusteringOpen(open);
     emitTimeClusteringVisibilityChanged(open);
   }
 
@@ -613,7 +721,7 @@ export class RuntimeHost {
     if (this.shell) {
       await this.shell.show(view);
     }
-    this.viewSwitcher?.setActiveView(view);
+    this.presentationMenu?.setActiveView(view);
     emitWorkspaceViewChanged(view);
   }
 
@@ -660,7 +768,7 @@ export class RuntimeHost {
         canvasUiRoot.style.height = '100vh';
         canvasUiRoot.style.borderRadius = '0';
       }
-      this.viewSwitcher?.setVisible(false);
+      this.presentationMenu?.setVisible(false);
       this.chatPanel.setVisible(false);
       this.syncTimeClusteringIslandVisibility(chatWidth);
       this.syncWorkspaceWallpaper();
@@ -697,7 +805,7 @@ export class RuntimeHost {
     }
     this.syncTimeClusteringIslandVisibility(chatWidth);
     this.chatPanel.setIslandMode(this.chatOpen);
-    this.viewSwitcher?.setVisible(true);
+    this.presentationMenu?.setVisible(true);
     this.chatPanel.setVisible(this.chatOpen);
     this.syncWorkspaceWallpaper();
     if (showWorkspace) {
@@ -911,7 +1019,7 @@ export class RuntimeHost {
   private setChatOpen(open: boolean): void {
     this.chatOpen = open;
     persistAiAssistantOpen(open);
-    this.viewSwitcher?.setChatOpen(open);
+    this.presentationMenu?.setChatOpen(open);
     emitAiAssistantVisibilityChanged(open);
     this.applyVisibility();
   }
@@ -919,13 +1027,13 @@ export class RuntimeHost {
   private mountRuntimeChrome(): void {
     if (this.runtimeChromeMounted) return;
     this.chatPanel.mount(document.body);
-    this.viewSwitcher?.mount(document.body);
+    this.presentationMenu?.mount(document.body);
     this.runtimeChromeMounted = true;
   }
 
   private unmountRuntimeChrome(): void {
     if (!this.runtimeChromeMounted) return;
-    this.viewSwitcher?.unmount();
+    this.presentationMenu?.unmount();
     this.chatPanel.unmount();
     this.runtimeChromeMounted = false;
   }
@@ -936,6 +1044,7 @@ export class RuntimeHost {
     this.timeClusteringShowOverlapWarnings =
       loadPersistedTimeClusteringOverlapWarningsVisible(true);
     this.activeView = loadPersistedWorkspaceView({
+      allowBoards: BOARDS_DEV_ENABLED,
       allowKanban: KANBAN_DEV_ENABLED,
       allowFocusBoard: FOCUS_BOARD_DEV_ENABLED,
       allowLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
@@ -970,9 +1079,9 @@ export class RuntimeHost {
     this.chatOpen = nextChatOpen;
     this.timeClusteringModule?.setLayoutMode(nextLayoutMode);
     this.timeClusteringModule?.setShowOverlapWarnings(nextShowOverlapWarnings);
-    this.viewSwitcher?.setTimeClusteringLayoutMode(nextLayoutMode);
-    this.viewSwitcher?.setTimeClusteringOpen(nextTimeClusteringOpen);
-    this.viewSwitcher?.setChatOpen(nextChatOpen);
+    this.presentationMenu?.setTimeClusteringLayoutMode(nextLayoutMode);
+    this.presentationMenu?.setTimeClusteringOpen(nextTimeClusteringOpen);
+    this.presentationMenu?.setChatOpen(nextChatOpen);
 
     if (layoutModeChanged) {
       emitTimeClusteringLayoutModeChanged(nextLayoutMode);
@@ -986,7 +1095,7 @@ export class RuntimeHost {
 
     if (activeViewChanged) {
       this.activeView = nextView;
-      this.viewSwitcher?.setActiveView(nextView);
+      this.presentationMenu?.setActiveView(nextView);
       if (this.shell) {
         void this.shell.show(nextView);
       }
@@ -1005,6 +1114,9 @@ export class RuntimeHost {
   }
 
   private resolveAllowedWorkspaceView(view: WorkspaceView): WorkspaceView {
+    if (view === 'boards' && !BOARDS_DEV_ENABLED) {
+      return 'canvas';
+    }
     if (view === 'kanban' && !KANBAN_DEV_ENABLED) {
       return 'canvas';
     }
