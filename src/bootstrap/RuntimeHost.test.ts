@@ -73,9 +73,11 @@ import { createAppRuntime } from '../app-runtime/index.ts';
 import {
   getTimeClusteringLayoutMode,
   getTimeClusteringOverlapWarningsVisible,
+  getWorkspaceDefaultView,
   primeUserPreferencesForTests,
   resetUserPreferencesForTests,
 } from '../features/shell/services/UserPreferencesService.ts';
+import { WORKSPACE_SESSION_ACTIVE_VIEW_STORAGE_KEY } from '../features/shell/workspaceUiState.ts';
 
 type RuntimeHostInternalAccess = {
   workspaceRoot: HTMLDivElement;
@@ -171,6 +173,7 @@ describe('RuntimeHost time clustering island layout', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
     localStorage.clear();
+    sessionStorage.clear();
     resetUserPreferencesForTests();
     vi.useFakeTimers();
     Object.defineProperty(window, 'innerWidth', {
@@ -403,6 +406,57 @@ describe('RuntimeHost time clustering island layout', () => {
     expect(host.activeView).toBe('kanban');
     expect(host.timeClusteringOpen).toBe(true);
     expect(host.timeClusteringLayoutMode).toBe('docked-left');
+    expect(
+      sessionStorage.getItem(WORKSPACE_SESSION_ACTIVE_VIEW_STORAGE_KEY)
+    ).toBe('kanban');
+    expect(getWorkspaceDefaultView('canvas')).toBe('canvas');
+
+    host.dispose();
+  });
+
+  it('does not persist a failed workspace switch into the tab session', async () => {
+    const host = getRuntimeHostInternals(createRuntimeHost());
+    const show = vi
+      .fn<(view: string) => Promise<void>>()
+      .mockRejectedValue(new Error('module failed'));
+    host.shell = {
+      show,
+      getActiveModule: () => null,
+      dispose(): void {},
+    };
+    host.activeView = 'canvas';
+
+    await expect(host.setActiveView('kanban')).rejects.toThrow('module failed');
+
+    expect(show).toHaveBeenCalledWith('kanban');
+    expect(host.activeView).toBe('canvas');
+    expect(
+      sessionStorage.getItem(WORKSPACE_SESSION_ACTIVE_VIEW_STORAGE_KEY)
+    ).toBe(null);
+
+    host.dispose();
+  });
+
+  it('does not switch the current tab when profile default view changes', () => {
+    const host = getRuntimeHostInternals(createRuntimeHost());
+    const show = vi
+      .fn<(view: string) => Promise<void>>()
+      .mockResolvedValue(undefined);
+    host.shell = {
+      show,
+      getActiveModule: () => null,
+      dispose(): void {},
+    };
+    host.activeView = 'canvas';
+
+    primeUserPreferencesForTests({
+      workspace: {
+        defaultView: 'kanban',
+      },
+    });
+
+    expect(host.activeView).toBe('canvas');
+    expect(show).not.toHaveBeenCalled();
 
     host.dispose();
   });

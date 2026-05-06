@@ -1,5 +1,6 @@
 import {
   BOARDS_DEV_ENABLED,
+  FOCUS_BOARD_DEV_ENABLED,
   IS_DEVELOPMENT_MODE,
   KANBAN_DEV_ENABLED,
   LEARNING_STUDIO_DEV_ENABLED,
@@ -19,8 +20,8 @@ import { WorkspaceControlsBar } from '../features/shell/WorkspaceControlsBar.ts'
 import { EnergySelectorControl } from '../features/shell/components/EnergySelectorControl.ts';
 import {
   loadPersistedAiAssistantOpen,
+  loadInitialWorkspaceView,
   loadPersistedTimeClusteringOpen,
-  loadPersistedWorkspaceView,
 } from '../features/shell/workspaceUiState.ts';
 import {
   emitAiAssistantToggleRequested,
@@ -256,9 +257,10 @@ export class GlobalAppHeader {
   public mount(parent: HTMLElement = document.body): void {
     if (!this.element || this.element.isConnected) return;
     this.controls?.setActiveView(
-      loadPersistedWorkspaceView({
+      loadInitialWorkspaceView({
         allowBoards: BOARDS_DEV_ENABLED,
         allowKanban: KANBAN_DEV_ENABLED,
+        allowFocusBoard: FOCUS_BOARD_DEV_ENABLED,
         allowLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
       })
     );
@@ -266,9 +268,12 @@ export class GlobalAppHeader {
     setGlobalAppSidebarOffset(GLOBAL_APP_SIDEBAR_WIDTH_PX);
     this.routinesModal?.prime();
     this.notesModal?.prime();
-    this.disposeRuntimeSubscription = this.runtime.subscribe(() => {
-      this.refreshTranslations();
-    }, { emitCurrent: true });
+    this.disposeRuntimeSubscription = this.runtime.subscribe(
+      () => {
+        this.refreshTranslations();
+      },
+      { emitCurrent: true }
+    );
     window.addEventListener(
       WORKSPACE_VIEW_CHANGED_EVENT,
       this.viewChangedHandler as EventListener

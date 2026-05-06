@@ -78,6 +78,15 @@
 - Use global `window` custom events primarily for cross-module/app-shell integration, not as the default internal module state channel.
 - Avoid duplicate parallel channels for the same state transition; prefer one authoritative reactive path per concern.
 
+### Workspace Session State
+
+- Treat the current workspace view as tab/window-scoped runtime state, not as a global user profile preference.
+- Persist per-tab active workspace restore through `sessionStorage`, so reload returns the same tab to its own workspace without affecting other windows.
+- Do not write routine workspace switches into `user.meta.workspace.defaultView`; reserve that field for an explicit long-lived start/default preference.
+- When restoring a workspace view, prefer tab session state first, then the explicit profile default, then `canvas`, and always validate the result against feature availability.
+- Persist a session workspace view only after the target workspace has mounted successfully.
+- Do not let profile preference refreshes live-switch an already open tab's current workspace view.
+
 ### App Runtime And Translations
 
 - `src/app-runtime/AppRuntime.ts` is the authoritative app-level reactive container for locale and future shell-wide runtime preferences.

@@ -35,15 +35,15 @@ import {
 } from '../features/ai-assistant/aiAssistantEvents.ts';
 import {
   loadPersistedAiAssistantOpen,
+  loadInitialWorkspaceView,
   loadPersistedTimeClusteringLayoutMode,
   loadPersistedTimeClusteringOverlapWarningsVisible,
   loadPersistedTimeClusteringOpen,
-  loadPersistedWorkspaceView,
   persistAiAssistantOpen,
+  persistWorkspaceSessionView,
   persistTimeClusteringLayoutMode,
   persistTimeClusteringOverlapWarningsVisible,
   persistTimeClusteringOpen,
-  persistWorkspaceView,
 } from '../features/shell/workspaceUiState.ts';
 import {
   subscribeUserPreferences,
@@ -84,9 +84,7 @@ type KanbanModuleNamespace = {
 };
 
 type BoardsModuleNamespace = {
-  BoardsModule: new (options?: {
-    runtime?: AppRuntime;
-  }) => WorkspaceModule;
+  BoardsModule: new (options?: { runtime?: AppRuntime }) => WorkspaceModule;
 };
 
 type FocusBoardModuleNamespace = {
@@ -621,6 +619,7 @@ export class RuntimeHost {
         });
       }
       await this.shell.show(this.activeView);
+      persistWorkspaceSessionView(this.activeView);
       this.syncTimeClusteringIslandVisibility();
       this.presentationMenu?.setActiveView(this.activeView);
       emitWorkspaceViewChanged(this.activeView);
@@ -716,11 +715,11 @@ export class RuntimeHost {
 
   private async activateBaseView(view: WorkspaceView): Promise<void> {
     if (this.activeView === view) return;
-    this.activeView = view;
-    persistWorkspaceView(view);
     if (this.shell) {
       await this.shell.show(view);
     }
+    this.activeView = view;
+    persistWorkspaceSessionView(view);
     this.presentationMenu?.setActiveView(view);
     emitWorkspaceViewChanged(view);
   }
@@ -1043,7 +1042,7 @@ export class RuntimeHost {
       loadPersistedTimeClusteringLayoutMode('docked-left');
     this.timeClusteringShowOverlapWarnings =
       loadPersistedTimeClusteringOverlapWarningsVisible(true);
-    this.activeView = loadPersistedWorkspaceView({
+    this.activeView = loadInitialWorkspaceView({
       allowBoards: BOARDS_DEV_ENABLED,
       allowKanban: KANBAN_DEV_ENABLED,
       allowFocusBoard: FOCUS_BOARD_DEV_ENABLED,
@@ -1061,17 +1060,12 @@ export class RuntimeHost {
       preferences.workspace?.timeClusteringOpen ?? this.timeClusteringOpen;
     const nextChatOpen =
       preferences.workspace?.aiAssistantOpen ?? this.chatOpen;
-    const nextView = preferences.workspace?.defaultView
-      ? this.resolveAllowedWorkspaceView(preferences.workspace.defaultView)
-      : this.activeView;
-
     const layoutModeChanged = this.timeClusteringLayoutMode !== nextLayoutMode;
     const overlapWarningsChanged =
       this.timeClusteringShowOverlapWarnings !== nextShowOverlapWarnings;
     const timeClusteringOpenChanged =
       this.timeClusteringOpen !== nextTimeClusteringOpen;
     const chatOpenChanged = this.chatOpen !== nextChatOpen;
-    const activeViewChanged = this.activeView !== nextView;
 
     this.timeClusteringLayoutMode = nextLayoutMode;
     this.timeClusteringShowOverlapWarnings = nextShowOverlapWarnings;
@@ -1093,39 +1087,13 @@ export class RuntimeHost {
       emitAiAssistantVisibilityChanged(nextChatOpen);
     }
 
-    if (activeViewChanged) {
-      this.activeView = nextView;
-      this.presentationMenu?.setActiveView(nextView);
-      if (this.shell) {
-        void this.shell.show(nextView);
-      }
-      emitWorkspaceViewChanged(nextView);
-    }
-
     if (
       layoutModeChanged ||
       overlapWarningsChanged ||
       timeClusteringOpenChanged ||
-      chatOpenChanged ||
-      activeViewChanged
+      chatOpenChanged
     ) {
       this.applyVisibility();
     }
-  }
-
-  private resolveAllowedWorkspaceView(view: WorkspaceView): WorkspaceView {
-    if (view === 'boards' && !BOARDS_DEV_ENABLED) {
-      return 'canvas';
-    }
-    if (view === 'kanban' && !KANBAN_DEV_ENABLED) {
-      return 'canvas';
-    }
-    if (view === 'focus-board' && !FOCUS_BOARD_DEV_ENABLED) {
-      return 'canvas';
-    }
-    if (view === 'learning-studio' && !LEARNING_STUDIO_DEV_ENABLED) {
-      return 'canvas';
-    }
-    return view;
   }
 }
