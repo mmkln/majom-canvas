@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAppRuntime } from '../../app-runtime/index.ts';
 import { FocusBoardApp } from './FocusBoardApp.ts';
 import type { FocusBoardRepository } from './data/FocusBoardRepository.ts';
@@ -28,7 +28,10 @@ afterEach(() => {
 
 describe('FocusBoardApp', () => {
   it('formats day column dates through app i18n and refreshes when locale changes', async () => {
-    const runtime = createAppRuntime({ initialLocale: 'uk', energyService: null });
+    const runtime = createAppRuntime({
+      initialLocale: 'uk',
+      energyService: null,
+    });
     const snapshot = {
       ...createInitialFocusBoardSnapshot(),
       hasActiveCycle: true as const,
@@ -72,7 +75,10 @@ describe('FocusBoardApp', () => {
   });
 
   it('renders focus-board day habits grouped by priority without card styling', async () => {
-    const runtime = createAppRuntime({ initialLocale: 'uk', energyService: null });
+    const runtime = createAppRuntime({
+      initialLocale: 'uk',
+      energyService: null,
+    });
     const snapshot = {
       ...createInitialFocusBoardSnapshot(),
       hasActiveCycle: true as const,
@@ -124,7 +130,8 @@ describe('FocusBoardApp', () => {
     await Promise.resolve();
 
     try {
-      const trigger = document.querySelector<HTMLButtonElement>('.fb-habit-stack');
+      const trigger =
+        document.querySelector<HTMLButtonElement>('.fb-habit-stack');
       expect(trigger).not.toBeNull();
 
       trigger?.click();
@@ -160,8 +167,117 @@ describe('FocusBoardApp', () => {
     }
   });
 
+  it('opens the injected wallpaper picker from the focus board header', async () => {
+    const runtime = createAppRuntime({
+      initialLocale: 'uk',
+      energyService: null,
+    });
+    const onOpenWallpaperPicker = vi.fn();
+    const repository: FocusBoardRepository = {
+      load: () => ({
+        ...createInitialFocusBoardSnapshot(),
+        hasActiveCycle: true,
+        goal: 'Launch MVP',
+      }),
+      save: () => undefined,
+      searchTasks: () => ({ items: [], nextPage: null, total: 0 }),
+      searchGoals: () => ({ items: [], nextPage: null }),
+      searchStories: () => ({ items: [], nextPage: null }),
+      createTask: (title) => ({
+        id: `task-${title}`,
+        text: title,
+        completed: false,
+        isFocus: false,
+      }),
+      setTaskCompleted: () => undefined,
+      toggleHabitCompletion: () => undefined,
+    };
+    const app = new FocusBoardApp(runtime, repository, {
+      onOpenWallpaperPicker,
+    });
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+
+    app.mount(root);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    try {
+      expect(
+        document.querySelector<HTMLInputElement>(
+          '[data-role="focus-board-cycle-goal-input"]'
+        )?.value
+      ).toBe('Launch MVP');
+
+      document
+        .querySelector<HTMLButtonElement>(
+          'button[data-action="open-wallpaper-picker"]'
+        )
+        ?.click();
+
+      expect(onOpenWallpaperPicker).toHaveBeenCalledTimes(1);
+    } finally {
+      app.unmount();
+    }
+  });
+
+  it('saves cycle goal changes from the native header input', async () => {
+    const runtime = createAppRuntime({
+      initialLocale: 'uk',
+      energyService: null,
+    });
+    const save = vi.fn();
+    const repository: FocusBoardRepository = {
+      load: () => ({
+        ...createInitialFocusBoardSnapshot(),
+        hasActiveCycle: true,
+        goal: 'Old goal',
+      }),
+      save,
+      searchTasks: () => ({ items: [], nextPage: null, total: 0 }),
+      searchGoals: () => ({ items: [], nextPage: null }),
+      searchStories: () => ({ items: [], nextPage: null }),
+      createTask: (title) => ({
+        id: `task-${title}`,
+        text: title,
+        completed: false,
+        isFocus: false,
+      }),
+      setTaskCompleted: () => undefined,
+      toggleHabitCompletion: () => undefined,
+    };
+    const app = new FocusBoardApp(runtime, repository);
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+
+    app.mount(root);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    try {
+      const input = document.querySelector<HTMLInputElement>(
+        '[data-role="focus-board-cycle-goal-input"]'
+      );
+      expect(input).not.toBeNull();
+
+      input!.value = 'New goal';
+      input!.dispatchEvent(new FocusEvent('blur'));
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(save).toHaveBeenCalledWith(
+        expect.objectContaining({ goal: 'New goal' })
+      );
+    } finally {
+      app.unmount();
+    }
+  });
+
   it('renders task-picker filters in the backlog modal', async () => {
-    const runtime = createAppRuntime({ initialLocale: 'uk', energyService: null });
+    const runtime = createAppRuntime({
+      initialLocale: 'uk',
+      energyService: null,
+    });
     const snapshot = {
       ...createInitialFocusBoardSnapshot(),
       backlogOpen: true as const,

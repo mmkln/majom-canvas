@@ -60,7 +60,7 @@ These should remain as the technical foundation:
   - `src/bootstrap/GlobalAppHeader.ts`
   - `src/features/shell/WorkspaceControlsBar.ts`
   - `src/features/shell/WorkspaceView.ts`
-  - `src/features/shell/WorkspaceViewSwitcher.ts`
+  - `src/features/shell/PresentationMenu.ts`
   - `src/features/shell/workspaceUiState.ts`
   - `src/features/shell/workspaceEvents.ts`
 - dev flag wiring in:

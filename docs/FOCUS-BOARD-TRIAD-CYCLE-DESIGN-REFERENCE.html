@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тріада — Простір Фокусу</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
+                    borderRadius: { '4xl': '2rem', '5xl': '2.5rem' },
+                    colors: {
+                        glass: 'rgba(255, 255, 255, 0.7)',
+                        'glass-dark': 'rgba(255, 255, 255, 0.4)'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            transition: background-image 0.8s ease;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            color: #1e293b;
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px) saturate(160%);
+            -webkit-backdrop-filter: blur(20px) saturate(160%);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+
+        .sidebar-glass {
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border-left: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 10px; }
+
+        .modal-overlay {
+            background: rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        .modal-overlay.active { display: flex; }
+
+        .task-card {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .task-card:hover { transform: translateY(-2px); }
+
+        input::placeholder { color: #94a3b8; }
+    </style>
+</head>
+<body class="flex flex-col">
+
+    <!-- Top Navigation Area -->
+    <nav class="w-full px-8 py-6 flex justify-between items-center z-10">
+        <div class="flex items-center gap-4">
+            <div class="glass p-3 rounded-2xl flex items-center gap-3 shadow-sm cursor-pointer hover:bg-white/80 transition-all" onclick="openModal('cycle-settings')">
+                <div class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
+                <span id="cycle-label" class="font-bold text-sm text-slate-700">Цикл: 3 дні</span>
+                <i data-lucide="settings-2" class="w-4 h-4 text-slate-400"></i>
+            </div>
+            <div class="glass p-3 rounded-2xl flex items-center gap-3 shadow-sm border-indigo-200">
+                <i data-lucide="trophy" class="w-4 h-4 text-amber-500"></i>
+                <input id="global-goal" type="text" placeholder="Головна мета циклу..." class="bg-transparent font-bold text-sm outline-none w-48 lg:w-64" onchange="updateGlobalGoal(this.value)">
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <button onclick="cycleBg()" class="glass w-11 h-11 flex items-center justify-center rounded-2xl hover:bg-white transition-all shadow-sm">
+                <i data-lucide="palette" class="w-5 h-5 text-slate-600"></i>
+            </button>
+            <button onclick="toggleBacklog()" class="glass px-5 py-3 flex items-center gap-2 rounded-2xl font-bold text-slate-700 hover:bg-white transition-all shadow-sm">
+                <i data-lucide="inbox" class="w-5 h-5 text-indigo-500"></i>
+                <span>Беклог</span>
+                <span id="backlog-count" class="bg-indigo-100 text-indigo-600 text-[10px] px-1.5 py-0.5 rounded-md">0</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Content Arena -->
+    <main class="flex-1 flex px-8 gap-6 overflow-hidden pb-32">
+        <div id="days-container" class="flex-1 flex gap-6 min-w-0">
+            <!-- Дні будуть тут -->
+        </div>
+    </main>
+
+    <!-- Backlog Sidebar -->
+    <aside id="backlog-sidebar" class="fixed top-0 right-0 h-full w-80 sidebar-glass transform translate-x-full transition-transform duration-500 ease-in-out z-50 flex flex-col p-6">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-800 text-slate-800">Беклог</h2>
+            <button onclick="toggleBacklog()" class="p-2 hover:bg-white/50 rounded-xl transition-all">
+                <i data-lucide="x" class="w-5 h-5 text-slate-400"></i>
+            </button>
+        </div>
+        <div class="flex-1 overflow-y-auto custom-scrollbar space-y-3" id="backlog-list">
+            <!-- Список ідей -->
+        </div>
+        <div class="mt-4">
+            <input type="text" id="backlog-input" placeholder="Нова ідея..." class="w-full glass p-4 rounded-2xl outline-none font-medium text-sm focus:bg-white transition-all shadow-inner" onkeydown="if(event.key==='Enter') addBacklogTask()">
+        </div>
+    </aside>
+
+    <!-- Habits Bar -->
+    <div class="fixed bottom-8 left-1/2 -translate-x-1/2 z-20">
+        <div class="glass px-8 py-4 rounded-5xl flex items-center gap-4 shadow-2xl border-t-white">
+            <div class="flex gap-2" id="habits-list"></div>
+            <div class="w-px h-8 bg-slate-200 mx-2"></div>
+            <button onclick="addHabit()" class="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-500 hover:bg-indigo-500 hover:text-white transition-all">
+                <i data-lucide="plus" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Cycle Settings Modal -->
+    <div id="cycle-settings" class="modal-overlay fixed inset-0">
+        <div class="glass p-8 rounded-4xl w-full max-w-sm shadow-2xl border-white">
+            <h3 class="text-xl font-800 mb-6 text-center">Тривалість циклу</h3>
+            <div class="flex gap-3 mb-8">
+                <button onclick="setCycle(3)" class="flex-1 p-4 rounded-2xl glass font-bold text-indigo-600 border-2 border-indigo-200">3</button>
+                <button onclick="setCycle(5)" class="flex-1 p-4 rounded-2xl glass font-bold text-slate-400">5</button>
+                <button onclick="setCycle(7)" class="flex-1 p-4 rounded-2xl glass font-bold text-slate-400">7</button>
+            </div>
+            <button onclick="closeModal('cycle-settings')" class="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold shadow-lg">Зберегти</button>
+        </div>
+    </div>
+
+    <script>
+        let state = {
+            cycleLength: 3,
+            globalGoal: "",
+            bgIndex: 0,
+            backgrounds: [
+                'https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?auto=format&fit=crop&q=80&w=2000',
+                'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80&w=2000',
+                'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&q=80&w=2000'
+            ],
+            tasks: {
+                1: { focus: "Дизайн-система", items: [{ id: 101, text: "Колірна палітра", done: true }] },
+                2: { focus: "Розробка", items: [] },
+                3: { focus: "Тестування", items: [] }
+            },
+            backlog: [],
+            habits: [
+                { id: 1, icon: "droplet", color: "text-blue-500", done: false },
+                { id: 2, icon: "wind", color: "text-purple-500", done: true }
+            ]
+        };
+
+        function init() {
+            document.body.style.backgroundImage = `url('${state.backgrounds[state.bgIndex]}')`;
+            render();
+        }
+
+        function cycleBg() {
+            state.bgIndex = (state.bgIndex + 1) % state.backgrounds.length;
+            document.body.style.backgroundImage = `url('${state.backgrounds[state.bgIndex]}')`;
+        }
+
+        function toggleBacklog() {
+            const sidebar = document.getElementById('backlog-sidebar');
+            sidebar.classList.toggle('translate-x-full');
+        }
+
+        function setCycle(len) {
+            state.cycleLength = len;
+            for(let i=1; i<=len; i++) if(!state.tasks[i]) state.tasks[i] = { focus: "", items: [] };
+            document.getElementById('cycle-label').innerText = `Цикл: ${len} дні`;
+            render();
+        }
+
+        function updateGlobalGoal(val) { state.globalGoal = val; }
+        function updateDayFocus(day, val) { state.tasks[day].focus = val; }
+
+        function addTask(day) {
+            const input = document.getElementById(`input-day-${day}`);
+            if(!input.value.trim()) return;
+            state.tasks[day].items.push({ id: Date.now(), text: input.value.trim(), done: false });
+            input.value = "";
+            render();
+        }
+
+        function addBacklogTask() {
+            const input = document.getElementById('backlog-input');
+            if(!input.value.trim()) return;
+            state.backlog.push({ id: Date.now(), text: input.value.trim() });
+            input.value = "";
+            render();
+        }
+
+        function toggleTask(day, id) {
+            const task = state.tasks[day].items.find(t => t.id === id);
+            task.done = !task.done;
+            render();
+        }
+
+        function deleteBacklog(id) {
+            state.backlog = state.backlog.filter(b => b.id !== id);
+            render();
+        }
+
+        function openModal(id) { document.getElementById(id).classList.add('active'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+        function render() {
+            // Days rendering
+            const container = document.getElementById('days-container');
+            container.innerHTML = "";
+            
+            for(let i=1; i<=state.cycleLength; i++) {
+                const dayData = state.tasks[i];
+                const isToday = i === 1;
+                
+                const dayEl = document.createElement('div');
+                dayEl.className = `flex-1 min-w-[300px] flex flex-col gap-4 ${isToday ? 'scale-100 opacity-100' : 'scale-95 opacity-80'}`;
+                dayEl.innerHTML = `
+                    <div class="glass p-6 rounded-4xl flex-1 flex flex-col shadow-sm border-white/50 ${isToday ? 'ring-2 ring-indigo-500/20 shadow-indigo-100' : ''}">
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">${isToday ? 'Сьогодні' : 'День '+i}</span>
+                            <span class="w-8 h-8 rounded-xl bg-white/50 flex items-center justify-center font-bold text-xs text-indigo-600">${dayData.items.length}</span>
+                        </div>
+                        
+                        <input type="text" value="${dayData.focus}" 
+                            class="bg-transparent text-xl font-800 text-slate-800 outline-none mb-6 placeholder:text-slate-300"
+                            placeholder="Фокус дня..."
+                            onchange="updateDayFocus(${i}, this.value)">
+                        
+                        <div class="flex-1 overflow-y-auto custom-scrollbar space-y-3 mb-4">
+                            ${dayData.items.map(t => `
+                                <div onclick="toggleTask(${i}, ${t.id})" class="task-card p-4 rounded-2xl bg-white/60 border border-white hover:bg-white cursor-pointer flex items-center gap-3">
+                                    <div class="w-5 h-5 rounded-full border-2 border-indigo-400 flex items-center justify-center transition-all ${t.done ? 'bg-indigo-500 border-indigo-500' : ''}">
+                                        ${t.done ? '<i data-lucide="check" class="w-3 h-3 text-white"></i>' : ''}
+                                    </div>
+                                    <span class="text-sm font-bold ${t.done ? 'line-through text-slate-400' : 'text-slate-700'}">${t.text}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        <div class="relative">
+                            <input type="text" id="input-day-${i}" 
+                                placeholder="Додати ціль..." 
+                                class="w-full p-4 rounded-2xl bg-white/40 outline-none font-bold text-sm focus:bg-white transition-all"
+                                onkeydown="if(event.key==='Enter') addTask(${i})">
+                        </div>
+                    </div>
+                `;
+                container.appendChild(dayEl);
+            }
+
+            // Backlog rendering
+            const backlogList = document.getElementById('backlog-list');
+            document.getElementById('backlog-count').innerText = state.backlog.length;
+            backlogList.innerHTML = state.backlog.map(b => `
+                <div class="glass p-4 rounded-2xl flex justify-between items-center group">
+                    <span class="text-sm font-bold text-slate-700">${b.text}</span>
+                    <button onclick="deleteBacklog(${b.id})" class="opacity-0 group-hover:opacity-100 p-1 hover:text-rose-500 transition-all">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            `).join('');
+
+            // Habits rendering
+            const habitList = document.getElementById('habits-list');
+            habitList.innerHTML = state.habits.map(h => `
+                <div onclick="h.done = !h.done; render();" class="w-12 h-12 rounded-2xl flex items-center justify-center cursor-pointer transition-all ${h.done ? 'bg-indigo-600 shadow-lg shadow-indigo-200' : 'bg-white hover:bg-slate-50'}">
+                    <i data-lucide="${h.icon}" class="w-6 h-6 ${h.done ? 'text-white' : h.color}"></i>
+                </div>
+            `).join('');
+
+            lucide.createIcons();
+        }
+
+        init();
+    </script>
+</body>
+</html>

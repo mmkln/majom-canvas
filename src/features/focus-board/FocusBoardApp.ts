@@ -13,6 +13,10 @@ import { AppRuntime, createAppRuntime } from '../../app-runtime/index.ts';
 import type { FocusBoardRepository } from './data/FocusBoardRepository.ts';
 import { ApiFocusBoardRepository } from './data/ApiFocusBoardRepository.ts';
 
+type FocusBoardAppOptions = {
+  onOpenWallpaperPicker?: () => void;
+};
+
 export class FocusBoardApp {
   private root: HTMLDivElement | null = null;
   private store: FocusBoardStore | null = null;
@@ -33,7 +37,8 @@ export class FocusBoardApp {
           habitsApi: new HabitsApiService(http),
         };
       })()
-    )
+    ),
+    private readonly options: FocusBoardAppOptions = {}
   ) {}
 
   public mount(parent: HTMLElement): void {
@@ -48,41 +53,52 @@ export class FocusBoardApp {
     const store = new FocusBoardStore(undefined, this.repository);
     this.store = store;
 
-    const view = new FocusBoardView(root, {
-      onToggleBacklog: () => store.toggleBacklog(),
-      onCloseBacklog: () => store.closeBacklog(),
-      onOpenGoalModal: () => store.openGoalModal(),
-      onCloseGoalModal: () => store.closeGoalModal(),
-      onSetGoalModalDraft: (goal, cycleLength) =>
-        store.setGoalModalDraft(goal, cycleLength),
-      onSaveGoalAndCycle: (goal) => store.saveGoalAndCycle(goal),
-      onOpenHabitDay: (dayIndex) => store.openHabitDay(dayIndex),
-      onCloseHabitDay: () => store.closeHabitDay(),
-      onUpdateDailyGoal: (dayIndex, goal) => store.updateDailyGoal(dayIndex, goal),
-      onToggleTask: (containerId, taskId) => store.toggleTask(containerId, taskId),
-      onMoveTask: (sourceId, targetId, taskId) =>
-        store.moveTask(sourceId, targetId, taskId),
-      onToggleHabit: (dayIndex, habitId) => store.toggleHabit(dayIndex, habitId),
-      onSetBacklogSearchQuery: (query) => store.setBacklogSearchQuery(query),
-      onOpenTaskPicker: () => store.openTaskPicker(),
-      onCloseTaskPicker: () => store.closeTaskPicker(),
-      onSetTaskPickerQuery: (query) => store.setTaskPickerQuery(query),
-      onSetTaskPickerStatus: (status) => store.setTaskPickerStatus(status),
-      onSetTaskPickerGoal: (goal) => store.setTaskPickerGoal(goal),
-      onSetTaskPickerStory: (story) => store.setTaskPickerStory(story),
-      onLoadMoreTaskPicker: () => store.loadMoreTaskPicker(),
-      onAddTaskToBacklog: (taskId) => store.addTaskToBacklog(taskId),
-      searchTaskPickerGoals: (params) => this.repository.searchGoals(params),
-      searchTaskPickerStories: (params) =>
-        this.repository.searchStories(params),
-      onOpenTaskComposer: (target) => store.openTaskComposer(target),
-      onCloseTaskComposer: () => store.closeTaskComposer(),
-      onSetTaskComposerTitle: (title) => store.setTaskComposerTitle(title),
-      onSubmitTaskComposer: () => store.submitTaskComposer(),
-    }, this.runtime);
+    const view = new FocusBoardView(
+      root,
+      {
+        onToggleBacklog: () => store.toggleBacklog(),
+        onCloseBacklog: () => store.closeBacklog(),
+        onOpenGoalModal: () => store.openGoalModal(),
+        onCloseGoalModal: () => store.closeGoalModal(),
+        onSetGoalModalDraft: (goal, cycleLength) =>
+          store.setGoalModalDraft(goal, cycleLength),
+        onSaveGoalAndCycle: (goal) => store.saveGoalAndCycle(goal),
+        onOpenHabitDay: (dayIndex) => store.openHabitDay(dayIndex),
+        onCloseHabitDay: () => store.closeHabitDay(),
+        onUpdateDailyGoal: (dayIndex, goal) =>
+          store.updateDailyGoal(dayIndex, goal),
+        onToggleTask: (containerId, taskId) =>
+          store.toggleTask(containerId, taskId),
+        onMoveTask: (sourceId, targetId, taskId) =>
+          store.moveTask(sourceId, targetId, taskId),
+        onToggleHabit: (dayIndex, habitId) =>
+          store.toggleHabit(dayIndex, habitId),
+        onSetBacklogSearchQuery: (query) => store.setBacklogSearchQuery(query),
+        onOpenTaskPicker: () => store.openTaskPicker(),
+        onCloseTaskPicker: () => store.closeTaskPicker(),
+        onSetTaskPickerQuery: (query) => store.setTaskPickerQuery(query),
+        onSetTaskPickerStatus: (status) => store.setTaskPickerStatus(status),
+        onSetTaskPickerGoal: (goal) => store.setTaskPickerGoal(goal),
+        onSetTaskPickerStory: (story) => store.setTaskPickerStory(story),
+        onLoadMoreTaskPicker: () => store.loadMoreTaskPicker(),
+        onAddTaskToBacklog: (taskId) => store.addTaskToBacklog(taskId),
+        searchTaskPickerGoals: (params) => this.repository.searchGoals(params),
+        searchTaskPickerStories: (params) =>
+          this.repository.searchStories(params),
+        onOpenTaskComposer: (target) => store.openTaskComposer(target),
+        onCloseTaskComposer: () => store.closeTaskComposer(),
+        onSetTaskComposerTitle: (title) => store.setTaskComposerTitle(title),
+        onSubmitTaskComposer: () => store.submitTaskComposer(),
+        onOpenWallpaperPicker: this.options.onOpenWallpaperPicker ?? (() => {}),
+        onUpdateCycleGoal: (goal) => store.updateCycleGoal(goal),
+      },
+      this.runtime
+    );
     this.view = view;
 
-    this.subscriptions.add(store.state$.subscribe((state) => view.render(state)));
+    this.subscriptions.add(
+      store.state$.subscribe((state) => view.render(state))
+    );
     this.subscriptions.add(
       this.runtime.subscribe(() => {
         view.render(store.getSnapshot());

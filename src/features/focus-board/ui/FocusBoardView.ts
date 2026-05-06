@@ -13,6 +13,7 @@ import {
   createIconButton,
   createSegmentedControl,
   createSurface,
+  createTextButton,
   type SegmentedControl,
 } from '../../../ui-lib/src/hud/index.ts';
 import {
@@ -87,6 +88,8 @@ type FocusBoardViewOptions = {
   onCloseTaskComposer: () => void;
   onSetTaskComposerTitle: (title: string) => void;
   onSubmitTaskComposer: () => void;
+  onOpenWallpaperPicker: () => void;
+  onUpdateCycleGoal: (goal: string) => void;
 };
 
 type DragPayload = {
@@ -224,6 +227,12 @@ function getTaskPickerStatusOption(
   );
 }
 
+function getCycleLengthLabel(cycleLength: FocusBoardCycleLength): string {
+  return cycleLength <= 4
+    ? `Цикл: ${cycleLength} дні`
+    : `Цикл: ${cycleLength} днів`;
+}
+
 export class FocusBoardView {
   private snapshot: FocusBoardSnapshot | null = null;
   private draggedTask: DragPayload | null = null;
@@ -294,21 +303,7 @@ export class FocusBoardView {
     );
     this.root.innerHTML = `
       <div class="fb-page">
-        <header class="fb-header">
-          <div class="fb-header-actions">
-            <button type="button" class="fb-header-btn" data-action="open-goal-modal">
-              Цикл та мета
-            </button>
-          </div>
-
-          <div class="fb-header-side fb-header-side-right">
-            <button type="button" class="fb-header-btn" data-action="toggle-backlog">
-              <span class="fb-btn-icon" data-icon-name="inbox"></span>
-              Беклог
-              <span class="fb-badge">${state.backlog.length}</span>
-            </button>
-          </div>
-        </header>
+        <header class="fb-header" data-focus-board-header-root="true"></header>
 
         <main class="fb-board-main">
           ${
@@ -370,6 +365,7 @@ export class FocusBoardView {
     this.syncHabitDayModal(state);
     this.syncTaskPickerModal(state);
     this.syncTaskComposerModal(state);
+    this.hydrateHeader(state);
     this.hydrateUiLibPrimitives();
     this.populateIcons();
   }
@@ -569,6 +565,9 @@ export class FocusBoardView {
       case 'open-goal-modal':
         this.options.onOpenGoalModal();
         return;
+      case 'open-wallpaper-picker':
+        this.options.onOpenWallpaperPicker();
+        return;
       case 'open-habit-day': {
         const dayIndex = Number(actionElement.dataset.dayIndex);
         if (!Number.isInteger(dayIndex) || dayIndex < 1) return;
@@ -709,6 +708,100 @@ export class FocusBoardView {
 
   private dateKeyFromOffset(dateKey: string, offsetDays = 0): string {
     return this.dateKeyFromDate(this.dateFromDateKey(dateKey, offsetDays));
+  }
+
+  private hydrateHeader(state: FocusBoardSnapshot): void {
+    const header = this.root.querySelector<HTMLElement>(
+      '[data-focus-board-header-root]'
+    );
+    if (!header) return;
+
+    const cycleSurface = createSurface({
+      className: 'inline-flex items-center p-1.5',
+    });
+    const goalSurface = createSurface({
+      className: 'fb-goal-surface inline-flex min-w-0 items-center gap-2 p-1.5',
+    });
+    const wallpaperSurface = createSurface({
+      className: 'fb-wallpaper-surface inline-flex items-center p-1.5',
+    });
+    const backlogSurface = createSurface({
+      className: 'inline-flex items-center p-1.5',
+    });
+
+    const cycleButton = createTextButton({
+      tone: 'text',
+      size: 'lg',
+      text: getCycleLengthLabel(state.cycleLength),
+      title: 'Налаштування циклу',
+      ariaLabel: 'Налаштування циклу',
+    });
+    cycleButton.dataset.action = 'open-goal-modal';
+    const cycleIcon = createIcon('cog-6-tooth', { size: 16, strokeWidth: 1.8 });
+    cycleIcon.setAttribute('aria-hidden', 'true');
+    cycleButton.append(cycleIcon);
+
+    const goalIcon = createIcon('star', { size: 16, strokeWidth: 1.8 });
+    goalIcon.setAttribute('aria-hidden', 'true');
+    const goalInput = new Input({
+      value: state.goal,
+      placeholder: 'Головна мета циклу...',
+      variant: 'inline',
+      className: 'min-w-0',
+    }).getElement() as HTMLInputElement;
+    goalInput.dataset.role = 'focus-board-cycle-goal-input';
+    goalInput.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      this.commitHeaderGoalInput(goalInput);
+      goalInput.blur();
+    });
+    goalInput.addEventListener('blur', () => {
+      this.commitHeaderGoalInput(goalInput);
+    });
+    goalSurface.append(goalIcon, goalInput);
+
+    const wallpaperButton = createIconButton({
+      icon: 'palette',
+      size: 'lg',
+      tone: 'text',
+      title: this.runtime.i18n.t('profileSettings.appearance.change'),
+      ariaLabel: this.runtime.i18n.t('profileSettings.appearance.change'),
+    });
+    wallpaperButton.dataset.action = 'open-wallpaper-picker';
+
+    const backlogButton = createTextButton({
+      tone: 'text',
+      size: 'lg',
+      text: 'Беклог',
+      title: 'Беклог',
+    });
+    backlogButton.dataset.action = 'toggle-backlog';
+    const backlogIcon = createIcon('inbox', { size: 16, strokeWidth: 1.8 });
+    backlogIcon.setAttribute('aria-hidden', 'true');
+    const backlogBadge = createBadge({
+      label: String(state.backlog.length),
+      tone: 'accent',
+    });
+    backlogButton.prepend(backlogIcon);
+    backlogButton.append(backlogBadge);
+
+    cycleSurface.appendChild(cycleButton);
+    wallpaperSurface.appendChild(wallpaperButton);
+    backlogSurface.appendChild(backlogButton);
+    header.replaceChildren(
+      cycleSurface,
+      goalSurface,
+      wallpaperSurface,
+      backlogSurface
+    );
+  }
+
+  private commitHeaderGoalInput(input: HTMLInputElement): void {
+    const nextGoal = input.value.trim();
+    const currentGoal = this.snapshot?.goal ?? '';
+    if (nextGoal === currentGoal) return;
+    this.options.onUpdateCycleGoal(nextGoal);
   }
 
   private populateIcons(): void {

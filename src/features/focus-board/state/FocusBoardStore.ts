@@ -403,6 +403,22 @@ export class FocusBoardStore {
     this.enqueueSave(nextSnapshot);
   }
 
+  public updateCycleGoal(goal: string): void {
+    const current = this.getSnapshot();
+    const nextGoal = goal.trim();
+    if (current.goal === nextGoal) return;
+    if (!current.hasActiveCycle && nextGoal.length === 0) return;
+
+    const nextSnapshot = {
+      ...current,
+      hasActiveCycle: true,
+      goal: nextGoal,
+      tempGoal: current.goalModalOpen ? current.tempGoal : nextGoal,
+    };
+    this.stateSubject.next(nextSnapshot);
+    this.enqueueSave(nextSnapshot);
+  }
+
   public openHabitManager(): void {
     const current = this.getSnapshot();
     this.stateSubject.next({
