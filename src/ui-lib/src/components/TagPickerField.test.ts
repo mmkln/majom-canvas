@@ -197,4 +197,72 @@ describe('TagPickerField', () => {
 
     field.destroy();
   });
+
+  it('renders the labels variant with swatches and edit actions', () => {
+    const onChange = vi.fn();
+    const field = new TagPickerField({
+      variant: 'labels',
+      items: [
+        { id: 1, title: 'Focus', color: '#4bce97' },
+        { id: 2, title: 'Strategy', color: '#fea362' },
+      ],
+      selectedIds: [1],
+      onChange,
+    });
+    document.body.appendChild(field.element);
+
+    const rows = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-testid="clickable-checkbox"]')
+    );
+    const labels = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-testid="card-label"]')
+    );
+
+    expect(rows).toHaveLength(2);
+    expect(labels.map((label) => label.textContent)).toEqual([
+      'Focus',
+      'Strategy',
+    ]);
+
+    rows[1]?.click();
+
+    expect(onChange).toHaveBeenCalledWith([1, 2]);
+    field.destroy();
+  });
+
+  it('edits an existing label from the labels variant editor', async () => {
+    const onUpdate = vi.fn(async (id: number, patch: { title?: string; color?: string }) => ({
+      id,
+      title: patch.title ?? 'Focus',
+      color: patch.color ?? '#4bce97',
+    }));
+    const field = new TagPickerField({
+      variant: 'labels',
+      items: [{ id: 1, title: 'Focus', color: '#4bce97' }],
+      selectedIds: [1],
+      onUpdate,
+    });
+    document.body.appendChild(field.element);
+
+    document.querySelector<HTMLButtonElement>('[data-testid="card-label-edit-button"]')?.click();
+    const input = document.querySelector<HTMLInputElement>('#edit-label-title-input');
+    input!.value = 'Updated';
+    input?.dispatchEvent(new Event('input', { bubbles: true }));
+    document.querySelector<HTMLButtonElement>('button[data-testid="color-tile-fea362"]')?.click();
+    const save = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(
+      (button) => button.textContent === 'Save'
+    );
+    save?.click();
+
+    await flushAsync();
+
+    expect(onUpdate).toHaveBeenCalledWith(1, {
+      title: 'Updated',
+      color: '#fea362',
+    });
+    expect(document.querySelector('[data-testid="card-label"]')?.textContent).toBe(
+      'Updated'
+    );
+    field.destroy();
+  });
 });

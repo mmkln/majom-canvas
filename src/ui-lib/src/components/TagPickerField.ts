@@ -21,19 +21,124 @@ export type TagPickerItem = {
   color: string;
 };
 
+export type TagPickerItemPatch = {
+  title?: string;
+  color?: string;
+};
+
+export type TagPickerFieldCopy = {
+  title?: string;
+  editTitle?: string;
+  createTitle?: string;
+  searchPlaceholder?: string;
+  labelsLegend?: string;
+  createButton?: string;
+  colorblindButton?: string;
+  titleLabel?: string;
+  colorLegend?: string;
+  removeColor?: string;
+  save?: string;
+  delete?: string;
+  close?: string;
+  back?: string;
+};
+
 export type TagPickerFieldOptions = {
   items?: TagPickerItem[];
   selectedIds?: number[];
   loading?: boolean;
   errorMessage?: string | null;
-  variant?: 'compact' | 'inline';
+  variant?: 'compact' | 'inline' | 'labels';
   placeholder?: string;
   searchPlaceholder?: string;
-  onCreate?: (title: string) => Promise<TagPickerItem | null> | TagPickerItem | null;
+  copy?: TagPickerFieldCopy;
+  onCreate?: (
+    title: string,
+    color?: string
+  ) => Promise<TagPickerItem | null> | TagPickerItem | null;
+  onUpdate?: (
+    id: number,
+    patch: TagPickerItemPatch
+  ) => Promise<TagPickerItem | null> | TagPickerItem | null;
+  onDelete?: (id: number) => Promise<void> | void;
+  onRequestClose?: () => void;
   onChange?: (selectedIds: number[]) => void;
 };
 
 const MAX_VISIBLE_TRIGGER_CHIPS = 2;
+const LABEL_PICKER_DEFAULT_COLOR = '#4bce97';
+const LABEL_PICKER_COLOR_PALETTE = [
+  '#baf3db',
+  '#f8e6a0',
+  '#fddcaa',
+  '#ffd2cc',
+  '#dfd8fd',
+  '#4bce97',
+  '#f5cd47',
+  '#fea362',
+  '#f87168',
+  '#c97cf4',
+  '#1f845a',
+  '#946f00',
+  '#c25100',
+  '#c9372c',
+  '#9f5fcb',
+  '#cce0ff',
+  '#c6edfb',
+  '#d3f1a7',
+  '#fdd0ec',
+  '#dcdfe4',
+  '#579dff',
+  '#6cc3e0',
+  '#94c748',
+  '#e774bb',
+  '#8590a2',
+  '#0c66e4',
+  '#227d9b',
+  '#5b7f24',
+  '#ae4787',
+  '#626f86',
+] as const;
+
+const LABEL_PICKER_COPY_REQUIRED: Required<TagPickerFieldCopy> = {
+  title: 'Labels',
+  editTitle: 'Edit label',
+  createTitle: 'Create label',
+  searchPlaceholder: 'Search labels...',
+  labelsLegend: 'Labels',
+  createButton: 'Create a new label',
+  colorblindButton: 'Enable colorblind friendly mode',
+  titleLabel: 'Title',
+  colorLegend: 'Select a color',
+  removeColor: 'Remove color',
+  save: 'Save',
+  delete: 'Delete',
+  close: 'Close popover',
+  back: 'Return to previous screen',
+};
+
+const LABEL_PICKER_HEADER_CLASS =
+  'grid grid-cols-[28px_1fr_28px] items-center gap-2 border-b border-slate-200 px-3 py-2';
+const LABEL_PICKER_ICON_BUTTON_CLASS =
+  'inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-600 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70';
+const LABEL_PICKER_TITLE_CLASS =
+  'm-0 text-center text-sm font-semibold leading-5 text-slate-700';
+const LABEL_PICKER_BODY_CLASS = 'max-h-[min(640px,calc(100vh-64px))] overflow-y-auto p-3';
+const LABEL_PICKER_LABEL_CLASS =
+  'm-0 mb-2 text-sm font-semibold leading-5 text-slate-600';
+const LABEL_PICKER_BUTTON_CLASS =
+  'inline-flex h-9 w-full items-center justify-center rounded-md bg-white px-3 text-sm font-semibold text-slate-600 shadow-[inset_0_0_0_1px_rgba(9,30,66,0.16)] transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 disabled:cursor-not-allowed disabled:opacity-60';
+const LABEL_PICKER_ROW_CLASS =
+  'grid grid-cols-[24px_1fr_28px] items-center gap-2 py-1.5';
+const LABEL_PICKER_CHECK_CLASS =
+  'h-[18px] w-[18px] rounded border border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500/70';
+const LABEL_PICKER_SWATCH_CLASS =
+  'flex h-8 min-w-0 items-center rounded px-3 text-left text-sm font-medium leading-5';
+const LABEL_PICKER_EDIT_BUTTON_CLASS =
+  'inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-600 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70';
+const LABEL_PICKER_PALETTE_CLASS = 'grid grid-cols-5 gap-2';
+const LABEL_PICKER_COLOR_TILE_CLASS =
+  'relative h-8 rounded-md shadow-[inset_0_0_0_1px_rgba(9,30,66,0.16)] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70';
 
 function normalizeSelectedIds(selectedIds: Iterable<number>): number[] {
   return [...new Set(selectedIds)].sort((left, right) => left - right);
@@ -51,6 +156,30 @@ function sortTagsForDisplay(
     }
     return left.title.localeCompare(right.title);
   });
+}
+
+function resolveTagPickerCopy(
+  copy: TagPickerFieldCopy | undefined,
+  searchPlaceholder: string | undefined
+): Required<TagPickerFieldCopy> {
+  return {
+    ...LABEL_PICKER_COPY_REQUIRED,
+    ...copy,
+    searchPlaceholder:
+      searchPlaceholder ?? copy?.searchPlaceholder ?? LABEL_PICKER_COPY_REQUIRED.searchPlaceholder,
+  };
+}
+
+function getReadableTextColor(color: string): string {
+  const hex = color.trim().replace(/^#/, '');
+  if (!/^[0-9a-f]{6}$/i.test(hex)) {
+    return '#172b4d';
+  }
+  const red = parseInt(hex.slice(0, 2), 16);
+  const green = parseInt(hex.slice(2, 4), 16);
+  const blue = parseInt(hex.slice(4, 6), 16);
+  const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
+  return luminance > 0.58 ? '#172b4d' : '#ffffff';
 }
 
 function appendTagChipContent(
@@ -71,7 +200,7 @@ function appendTagChipContent(
 export class TagPickerField {
   public readonly element: HTMLDivElement;
 
-  private readonly variant: 'compact' | 'inline';
+  private readonly variant: 'compact' | 'inline' | 'labels';
   private readonly trigger: HTMLDivElement | null;
   private readonly triggerSummary: HTMLDivElement | null;
   private readonly triggerMeta: HTMLDivElement | null;
@@ -82,16 +211,28 @@ export class TagPickerField {
   private readonly list: HTMLDivElement;
   private readonly menuController: AnchoredMenu | null;
   private readonly placeholder: string;
+  private readonly copy: Required<TagPickerFieldCopy>;
   private onCreate?: (
-    title: string
+    title: string,
+    color?: string
   ) => Promise<TagPickerItem | null> | TagPickerItem | null;
+  private onUpdate?: (
+    id: number,
+    patch: TagPickerItemPatch
+  ) => Promise<TagPickerItem | null> | TagPickerItem | null;
+  private onDelete?: (id: number) => Promise<void> | void;
+  private readonly onRequestClose?: () => void;
   private items: TagPickerItem[] = [];
   private filteredItems: TagPickerItem[] = [];
   private selectedIds = new Set<number>();
   private loading = false;
   private creating = false;
+  private saving = false;
+  private editingTag: TagPickerItem | null = null;
+  private editingIsCreate = false;
   private errorMessage: string | null = null;
   private createErrorMessage: string | null = null;
+  private editErrorMessage: string | null = null;
   private query = '';
   private readonly onChange?: (selectedIds: number[]) => void;
 
@@ -104,7 +245,11 @@ export class TagPickerField {
     this.errorMessage = options.errorMessage ?? null;
     this.onChange = options.onChange;
     this.onCreate = options.onCreate;
+    this.onUpdate = options.onUpdate;
+    this.onDelete = options.onDelete;
+    this.onRequestClose = options.onRequestClose;
     this.placeholder = options.placeholder ?? 'Select tags';
+    this.copy = resolveTagPickerCopy(options.copy, options.searchPlaceholder);
 
     this.element = document.createElement('div');
     this.element.className =
@@ -155,7 +300,10 @@ export class TagPickerField {
       this.triggerSummary = null;
       this.triggerMeta = null;
       this.panel = createSurface({
-        className: `w-full min-w-0 ${HUD_SELECTION_PANEL_CLASS}`,
+        className:
+          this.variant === 'labels'
+            ? 'w-full min-w-0 bg-white'
+            : `w-full min-w-0 ${HUD_SELECTION_PANEL_CLASS}`,
       });
     }
     this.panel.dataset.role = 'goal-tag-picker-panel';
@@ -173,7 +321,10 @@ export class TagPickerField {
 
     this.searchInput = createInputBase({
       variant: 'default',
-      placeholder: options.searchPlaceholder ?? 'Search tags...',
+      placeholder:
+        this.variant === 'labels'
+          ? this.copy.searchPlaceholder
+          : options.searchPlaceholder ?? 'Search tags...',
       className: 'h-9 w-full',
       onInput: (value) => {
         this.query = value;
@@ -191,6 +342,10 @@ export class TagPickerField {
         if (event.key === 'Escape') {
           event.preventDefault();
           event.stopPropagation();
+          if (this.variant === 'labels') {
+            this.requestClose();
+            return;
+          }
           this.menuController?.close();
           this.trigger?.focus();
         }
@@ -207,7 +362,11 @@ export class TagPickerField {
     this.list.className = HUD_SELECTION_PANEL_LIST_CLASS;
     this.list.dataset.role = 'goal-tag-picker-list';
 
-    this.panel.append(this.selectedSection, searchWrap, this.list);
+    if (this.variant === 'labels') {
+      this.renderLabelsScreen();
+    } else {
+      this.panel.append(this.selectedSection, searchWrap, this.list);
+    }
     if (this.variant === 'compact') {
       this.panel.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape') return;
@@ -255,8 +414,18 @@ export class TagPickerField {
     if (options.onCreate !== undefined) {
       this.onCreate = options.onCreate;
     }
+    if (options.onUpdate !== undefined) {
+      this.onUpdate = options.onUpdate;
+    }
+    if (options.onDelete !== undefined) {
+      this.onDelete = options.onDelete;
+    }
     this.renderTrigger();
     this.renderSelectedSection();
+    if (this.variant === 'labels') {
+      this.renderLabelsScreen();
+      return;
+    }
     this.renderList();
     if (this.menuController?.isOpen()) {
       this.menuController.reposition();
@@ -360,6 +529,11 @@ export class TagPickerField {
   private renderList(): void {
     this.list.replaceChildren();
 
+    if (this.variant === 'labels') {
+      this.renderLabelRows();
+      return;
+    }
+
     if (this.loading) {
       const loading = document.createElement('div');
       loading.className = HUD_SELECTION_STATE_ROW_CLASS;
@@ -441,6 +615,9 @@ export class TagPickerField {
   }
 
   private renderSelectedSection(): void {
+    if (this.variant === 'labels') {
+      return;
+    }
     this.selectedSummary.replaceChildren();
     const selectedItems = sortTagsForDisplay(this.items, this.selectedIds).filter(
       (tag) => this.selectedIds.has(tag.id)
@@ -455,6 +632,422 @@ export class TagPickerField {
     selectedItems.forEach((tag) => {
       this.selectedSummary.appendChild(this.createPanelSelectedChip(tag));
     });
+  }
+
+  private renderLabelsScreen(): void {
+    this.editingTag = null;
+    this.editingIsCreate = false;
+    this.editErrorMessage = null;
+    this.panel.replaceChildren();
+
+    const header = this.createLabelPickerHeader({
+      title: this.copy.title,
+      showBack: false,
+    });
+    const body = document.createElement('div');
+    body.className = LABEL_PICKER_BODY_CLASS;
+
+    this.searchInput.placeholder = this.copy.searchPlaceholder;
+    const searchWrap = document.createElement('div');
+    searchWrap.className = 'mb-3';
+    searchWrap.append(this.searchInput);
+
+    const fieldset = document.createElement('fieldset');
+    fieldset.className = 'm-0 border-0 p-0';
+    const legend = document.createElement('legend');
+    legend.className = LABEL_PICKER_LABEL_CLASS;
+    legend.textContent = this.copy.labelsLegend;
+    fieldset.append(legend, this.list);
+
+    body.append(searchWrap, fieldset);
+    if (this.onCreate) {
+      const createButton = document.createElement('button');
+      createButton.type = 'button';
+      createButton.className = `${LABEL_PICKER_BUTTON_CLASS} mt-2`;
+      createButton.textContent = this.copy.createButton;
+      createButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.openCreateLabelEditor();
+      });
+      body.append(createButton);
+    }
+
+    const divider = document.createElement('hr');
+    divider.className = 'my-3 border-0 border-t border-slate-200';
+
+    const colorblindButton = document.createElement('button');
+    colorblindButton.type = 'button';
+    colorblindButton.className = LABEL_PICKER_BUTTON_CLASS;
+    colorblindButton.textContent = this.copy.colorblindButton;
+    body.append(divider, colorblindButton);
+
+    this.panel.append(header, body);
+    this.applyFilter();
+    this.renderList();
+  }
+
+  private renderLabelRows(): void {
+    if (this.loading) {
+      const loading = document.createElement('div');
+      loading.className = 'py-3 text-sm text-slate-500';
+      loading.textContent = 'Loading tags...';
+      this.list.appendChild(loading);
+      return;
+    }
+
+    if (this.errorMessage) {
+      const error = document.createElement('div');
+      error.className = 'py-3 text-sm font-medium text-red-600';
+      error.textContent = this.errorMessage;
+      this.list.appendChild(error);
+      return;
+    }
+
+    if (this.createErrorMessage) {
+      const createError = document.createElement('div');
+      createError.className = 'py-2 text-sm font-medium text-red-600';
+      createError.textContent = this.createErrorMessage;
+      this.list.appendChild(createError);
+    }
+
+    if (this.filteredItems.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'py-3 text-sm text-slate-500';
+      empty.textContent =
+        this.items.length === 0 ? 'No tags available.' : 'No matching tags.';
+      this.list.appendChild(empty);
+      return;
+    }
+
+    const rows = document.createElement('ul');
+    rows.className = 'm-0 list-none p-0';
+
+    sortTagsForDisplay(this.filteredItems, this.selectedIds).forEach((tag) => {
+      const item = document.createElement('li');
+      const row = document.createElement('label');
+      row.className = LABEL_PICKER_ROW_CLASS;
+      row.setAttribute('data-testid', 'clickable-checkbox');
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = LABEL_PICKER_CHECK_CLASS;
+      checkbox.checked = this.selectedIds.has(tag.id);
+      checkbox.setAttribute('aria-label', tag.title || this.copy.labelsLegend);
+      checkbox.addEventListener('change', () => {
+        this.setTagSelected(tag.id, checkbox.checked);
+      });
+
+      const swatch = document.createElement('span');
+      swatch.className = LABEL_PICKER_SWATCH_CLASS;
+      swatch.style.backgroundColor = tag.color;
+      swatch.style.color = getReadableTextColor(tag.color);
+      swatch.setAttribute('data-testid', 'card-label');
+      swatch.dataset.color = tag.color;
+      swatch.textContent = tag.title;
+
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = LABEL_PICKER_EDIT_BUTTON_CLASS;
+      edit.setAttribute('aria-label', `Edit ${tag.title || this.copy.labelsLegend}`);
+      edit.setAttribute('data-testid', 'card-label-edit-button');
+      edit.append(createIcon('pencil-square', { size: 18, strokeWidth: 1.9 }));
+      edit.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.openEditLabelEditor(tag);
+      });
+
+      row.append(checkbox, swatch, edit);
+      item.append(row);
+      rows.append(item);
+    });
+
+    this.list.append(rows);
+  }
+
+  private createLabelPickerHeader(options: {
+    title: string;
+    showBack: boolean;
+  }): HTMLElement {
+    const header = document.createElement('header');
+    header.className = LABEL_PICKER_HEADER_CLASS;
+
+    const start = document.createElement('div');
+    if (options.showBack) {
+      const back = document.createElement('button');
+      back.type = 'button';
+      back.className = LABEL_PICKER_ICON_BUTTON_CLASS;
+      back.setAttribute('aria-label', this.copy.back);
+      back.append(createIcon('chevron-left', { size: 22, strokeWidth: 2 }));
+      back.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.renderLabelsScreen();
+      });
+      start.append(back);
+    }
+
+    const title = document.createElement('h2');
+    title.className = LABEL_PICKER_TITLE_CLASS;
+    title.textContent = options.title;
+
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = LABEL_PICKER_ICON_BUTTON_CLASS;
+    close.setAttribute('aria-label', this.copy.close);
+    close.append(createIcon('x-mark', { size: 20, strokeWidth: 2 }));
+    close.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.requestClose();
+    });
+
+    header.append(start, title, close);
+    return header;
+  }
+
+  private openCreateLabelEditor(): void {
+    this.editingIsCreate = true;
+    this.editingTag = {
+      id: -1,
+      title: this.query.trim(),
+      color: LABEL_PICKER_DEFAULT_COLOR,
+    };
+    this.renderLabelEditorScreen();
+  }
+
+  private openEditLabelEditor(tag: TagPickerItem): void {
+    this.editingIsCreate = false;
+    this.editingTag = { ...tag };
+    this.renderLabelEditorScreen();
+  }
+
+  private renderLabelEditorScreen(): void {
+    const draft = this.editingTag;
+    if (!draft) return;
+
+    this.panel.replaceChildren();
+    const header = this.createLabelPickerHeader({
+      title: this.editingIsCreate ? this.copy.createTitle : this.copy.editTitle,
+      showBack: true,
+    });
+    const body = document.createElement('div');
+    body.className = LABEL_PICKER_BODY_CLASS;
+
+    const preview = document.createElement('div');
+    preview.className = 'mb-4 rounded bg-slate-100 px-5 py-6';
+    const previewSwatch = document.createElement('div');
+    previewSwatch.className = `${LABEL_PICKER_SWATCH_CLASS} w-full`;
+    previewSwatch.style.backgroundColor = draft.color;
+    previewSwatch.style.color = getReadableTextColor(draft.color);
+    previewSwatch.setAttribute('data-testid', 'card-label-edit-preview');
+    previewSwatch.textContent = draft.title;
+    preview.append(previewSwatch);
+
+    const titleLabel = document.createElement('label');
+    titleLabel.className = LABEL_PICKER_LABEL_CLASS;
+    titleLabel.htmlFor = 'edit-label-title-input';
+    titleLabel.textContent = this.copy.titleLabel;
+
+    const titleInput = createInputBase({
+      variant: 'default',
+      value: draft.title,
+      className: 'mb-3 h-10 w-full',
+      onInput: (value) => {
+        draft.title = value;
+        previewSwatch.textContent = value;
+      },
+    });
+    titleInput.id = 'edit-label-title-input';
+
+    const colorFieldset = document.createElement('fieldset');
+    colorFieldset.className = 'm-0 border-0 p-0';
+    const colorLegend = document.createElement('legend');
+    colorLegend.className = LABEL_PICKER_LABEL_CLASS;
+    colorLegend.textContent = this.copy.colorLegend;
+    const palette = this.createColorPalette(draft, previewSwatch);
+    const removeColor = document.createElement('button');
+    removeColor.type = 'button';
+    removeColor.className = `${LABEL_PICKER_BUTTON_CLASS} mt-3`;
+    removeColor.append(createIcon('x-mark', { size: 18, strokeWidth: 2 }));
+    const removeText = document.createElement('span');
+    removeText.className = 'ml-2';
+    removeText.textContent = this.copy.removeColor;
+    removeColor.append(removeText);
+    removeColor.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      draft.color = '#dcdfe4';
+      previewSwatch.style.backgroundColor = draft.color;
+      previewSwatch.style.color = getReadableTextColor(draft.color);
+      this.renderLabelEditorScreen();
+    });
+    colorFieldset.append(colorLegend, palette, removeColor);
+
+    body.append(preview, titleLabel, titleInput, colorFieldset);
+
+    if (this.editErrorMessage) {
+      const error = document.createElement('div');
+      error.className = 'mt-3 text-sm font-medium text-red-600';
+      error.textContent = this.editErrorMessage;
+      body.append(error);
+    }
+
+    const divider = document.createElement('hr');
+    divider.className = 'my-4 border-0 border-t border-slate-200';
+    const actions = document.createElement('div');
+    actions.className = 'flex items-center justify-between gap-3';
+
+    const save = document.createElement('button');
+    save.type = 'button';
+    save.className =
+      'inline-flex h-9 items-center rounded-md bg-blue-600 px-3.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 disabled:cursor-wait disabled:opacity-70';
+    save.textContent = this.copy.save;
+    save.disabled = this.saving || draft.title.trim().length === 0;
+    save.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void this.saveLabelEditorDraft();
+    });
+    actions.append(save);
+
+    if (!this.editingIsCreate && this.onDelete) {
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.className =
+        'inline-flex h-9 items-center rounded-md bg-red-600 px-3.5 text-sm font-semibold text-white transition-colors hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/70 disabled:cursor-wait disabled:opacity-70';
+      deleteButton.textContent = this.copy.delete;
+      deleteButton.disabled = this.saving;
+      deleteButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        void this.deleteEditingLabel();
+      });
+      actions.append(deleteButton);
+    }
+
+    body.append(divider, actions);
+    this.panel.append(header, body);
+    window.requestAnimationFrame(() => {
+      titleInput.focus();
+      titleInput.select();
+    });
+  }
+
+  private createColorPalette(
+    draft: TagPickerItem,
+    preview: HTMLElement
+  ): HTMLElement {
+    const group = document.createElement('div');
+    group.className = LABEL_PICKER_PALETTE_CLASS;
+    group.setAttribute('role', 'radiogroup');
+    group.setAttribute('data-testid', 'color-palette');
+
+    LABEL_PICKER_COLOR_PALETTE.forEach((color) => {
+      const tile = document.createElement('button');
+      tile.type = 'button';
+      tile.className = LABEL_PICKER_COLOR_TILE_CLASS;
+      tile.style.backgroundColor = color;
+      tile.setAttribute('role', 'radio');
+      tile.setAttribute('aria-label', color);
+      tile.setAttribute('aria-checked', draft.color === color ? 'true' : 'false');
+      tile.setAttribute('data-testid', `color-tile-${color.replace('#', '')}`);
+      if (draft.color === color) {
+        const check = createIcon('check', { size: 22, strokeWidth: 2.4 });
+        check.style.color = getReadableTextColor(color);
+        tile.append(check);
+      }
+      tile.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        draft.color = color;
+        preview.style.backgroundColor = color;
+        preview.style.color = getReadableTextColor(color);
+        this.renderLabelEditorScreen();
+      });
+      group.append(tile);
+    });
+
+    return group;
+  }
+
+  private async saveLabelEditorDraft(): Promise<void> {
+    const draft = this.editingTag;
+    if (!draft || this.saving) return;
+    const title = draft.title.trim();
+    if (!title) return;
+
+    this.saving = true;
+    this.editErrorMessage = null;
+    this.renderLabelEditorScreen();
+    try {
+      const saved = this.editingIsCreate
+        ? await this.onCreate?.(title, draft.color)
+        : await this.onUpdate?.(draft.id, { title, color: draft.color });
+      if (saved) {
+        this.upsertLocalItem(saved);
+        if (this.editingIsCreate) {
+          this.selectedIds.add(saved.id);
+          this.onChange?.(this.getSelectedIds());
+        }
+      }
+      this.query = '';
+      this.searchInput.value = '';
+      this.applyFilter();
+      this.saving = false;
+      this.renderLabelsScreen();
+    } catch (error) {
+      this.editErrorMessage =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Failed to save label.';
+      this.saving = false;
+      this.renderLabelEditorScreen();
+    } finally {
+      this.saving = false;
+    }
+  }
+
+  private async deleteEditingLabel(): Promise<void> {
+    const draft = this.editingTag;
+    if (!draft || !this.onDelete || this.saving) return;
+    this.saving = true;
+    this.editErrorMessage = null;
+    this.renderLabelEditorScreen();
+    try {
+      await this.onDelete(draft.id);
+      this.items = this.items.filter((tag) => tag.id !== draft.id);
+      this.selectedIds.delete(draft.id);
+      this.applyFilter();
+      this.onChange?.(this.getSelectedIds());
+      this.saving = false;
+      this.renderLabelsScreen();
+    } catch (error) {
+      this.editErrorMessage =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Failed to delete label.';
+      this.saving = false;
+      this.renderLabelEditorScreen();
+    } finally {
+      this.saving = false;
+    }
+  }
+
+  private upsertLocalItem(item: TagPickerItem): void {
+    const index = this.items.findIndex((tag) => tag.id === item.id);
+    if (index >= 0) {
+      this.items = this.items.map((tag) => (tag.id === item.id ? item : tag));
+      return;
+    }
+    this.items = [...this.items, item];
+  }
+
+  private requestClose(): void {
+    this.onRequestClose?.();
+    this.menuController?.close();
+    this.trigger?.focus();
   }
 
   private setTagSelected(tagId: number, selected: boolean): void {

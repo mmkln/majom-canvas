@@ -1,0 +1,2909 @@
+import { AppRuntime, createAppRuntime } from '../../../app-runtime/index.ts';
+import {
+  createModalActionRow,
+  createModalShell,
+  getModalActionButtonClass,
+} from '../../../ui-lib/src/components/Modal.ts';
+import { createPaneModalShell } from '../../../ui-lib/src/components/PaneModal.ts';
+import {
+  TagPickerField,
+  type TagPickerItem,
+} from '../../../ui-lib/src/components/TagPickerField.ts';
+import type {
+  Board,
+  BoardColumn,
+  Card,
+  CardPlacement,
+  Tag,
+} from '../../../majom-wrapper/interfaces/index.ts';
+import {
+  AnchoredMenu,
+  MenuButton,
+  createSurface,
+  createInputBase,
+  createIconButton,
+  createTextButton,
+  createFormMessage,
+} from '../../../ui-lib/src/hud/index.ts';
+import { createIcon, type IconName } from '../../../ui-lib/src/hud/icons.ts';
+import type {
+  BoardCardPlacementTarget,
+  BoardTagCatalogPort,
+  BoardsIntentHandlers,
+  BoardsState,
+} from '../domain/types.ts';
+import { getCardPlacementId } from '../domain/cardIdentity.ts';
+import {
+  getBoardCardTagIds,
+  haveSameBoardCardTagIds,
+  normalizeBoardCardTagIds,
+} from '../domain/cardTags.ts';
+import { resolveCardPlacementTarget } from '../domain/placementTargetResolver.ts';
+import { BoardDragController } from './BoardDragController.ts';
+import {
+  boardsModalClassNames,
+  boardsViewClassNames,
+  installBoardsViewStyles,
+} from './boardsViewStyles.ts';
+
+type BoardsViewOptions = {
+  runtime?: AppRuntime;
+  tagCatalog?: BoardTagCatalogPort;
+  handlers: BoardsIntentHandlers;
+};
+
+type CardDraft = {
+  title: HTMLTextAreaElement;
+};
+
+type CardLocation = {
+  board: Board;
+  column: BoardColumn;
+  card: Card;
+  placementId: CardPlacement['id'];
+};
+
+type MoveCardPopoverController = {
+  menu: AnchoredMenu;
+  panel: HTMLElement;
+  trigger: HTMLButtonElement;
+};
+
+type ListActionsPopoverController = {
+  menu: AnchoredMenu;
+  panel: HTMLElement;
+  trigger: HTMLButtonElement;
+};
+
+type CardActionsPopoverController = {
+  menu: AnchoredMenu;
+  panel: HTMLElement;
+  trigger: HTMLButtonElement;
+};
+
+type CardLabelsPopoverController = {
+  menu: AnchoredMenu;
+  panel: HTMLElement;
+  picker: TagPickerField;
+  trigger: HTMLButtonElement;
+};
+
+type CardWithOptionalFrontMetadata = Card & {
+  commentCount?: number;
+  commentsCount?: number;
+  comments_count?: number;
+  comments?: unknown[];
+};
+
+type PlacementTargetSelection = BoardCardPlacementTarget & {
+  column: BoardColumn['id'];
+};
+
+type TagCatalogStatus = 'idle' | 'loading' | 'ready' | 'error';
+
+const CARD_BACK_TITLE_EDITOR_ROWS = 1;
+const CARD_BACK_TITLE_MAX_LENGTH = 16384;
+
+const QUICK_CARD_EDITOR_GEOMETRY = {
+  formWidth: 256,
+  actionsWidth: 220,
+  actionsGap: 8,
+  viewportMargin: 12,
+  minVisibleHeight: 220,
+} as const;
+
+function isMirrorCard(card: Card): boolean {
+  return card.mirror_source != null;
+}
+
+function prependButtonIcon(button: HTMLButtonElement, icon: IconName): void {
+  const label = button.textContent ?? '';
+  button.textContent = '';
+  const iconElement = createIcon(icon, { size: 16, strokeWidth: 2 });
+  iconElement.setAttribute('aria-hidden', 'true');
+  const text = document.createElement('span');
+  text.textContent = label;
+  button.append(iconElement, text);
+}
+
+function setMenuButtonIconOnly(
+  menu: MenuButton,
+  icon: IconName,
+  label: string
+): void {
+  const button = menu.getButtonElement();
+  const iconElement = createIcon(icon, { size: 16, strokeWidth: 2 });
+  iconElement.setAttribute('aria-hidden', 'true');
+  button.replaceChildren(iconElement);
+  button.title = label;
+  button.setAttribute('aria-label', label);
+}
+
+function getCardCommentCount(card: Card): number {
+  const candidate = card as CardWithOptionalFrontMetadata;
+  const count =
+    candidate.commentsCount ??
+    candidate.commentCount ??
+    candidate.comments_count ??
+    candidate.comments?.length ??
+    0;
+  return Number.isFinite(count) && count > 0 ? count : 0;
+}
+
+function mapTagToPickerItem(tag: Tag): TagPickerItem {
+  return {
+    id: tag.id,
+    title: tag.title,
+    color: tag.color,
+  };
+}
+
+function getCardLabelTextColor(color: string): string {
+  const hex = color.trim().replace(/^#/, '');
+  if (!/^[0-9a-f]{6}$/i.test(hex)) return '#172b4d';
+  const red = parseInt(hex.slice(0, 2), 16);
+  const green = parseInt(hex.slice(2, 4), 16);
+  const blue = parseInt(hex.slice(4, 6), 16);
+  const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
+  return luminance > 0.58 ? '#172b4d' : '#ffffff';
+}
+
+export class BoardsView {
+  private readonly runtime: AppRuntime;
+  private readonly tagCatalog: BoardTagCatalogPort | null;
+  private readonly handlers: BoardsIntentHandlers;
+  private readonly disposeRuntimeSubscription: () => void;
+  private state: BoardsState | null = null;
+  private columnTitleTextarea: HTMLTextAreaElement | null = null;
+  private expandedCardComposerColumnId: BoardColumn['id'] | null = null;
+  private isColumnComposerExpanded = false;
+  private editingBoardTitleId: Board['id'] | null = null;
+  private boardTitleEditInput: HTMLInputElement | null = null;
+  private editingColumnTitleId: BoardColumn['id'] | null = null;
+  private columnTitleEditInput: HTMLInputElement | null = null;
+  private headerMenu: MenuButton | null = null;
+  private quickEditorOverlay: HTMLDivElement | null = null;
+  private activeCardPlacementId: CardPlacement['id'] | null = null;
+  private cardModalOverlay: HTMLDivElement | null = null;
+  private moveCardPopover: MoveCardPopoverController | null = null;
+  private listActionsPopover: ListActionsPopoverController | null = null;
+  private cardActionsPopover: CardActionsPopoverController | null = null;
+  private cardLabelsPopover: CardLabelsPopoverController | null = null;
+  private cardModalDraftTagIds: number[] | null = null;
+  private cardModalRequestedTagIds: number[] | null = null;
+  private cardModalLabelsHost: HTMLDivElement | null = null;
+  private cardModalQuickActionList: HTMLUListElement | null = null;
+  private tagItems: TagPickerItem[] = [];
+  private tagCatalogStatus: TagCatalogStatus = 'idle';
+  private readonly dragController: BoardDragController;
+  private readonly cardDrafts = new Map<BoardColumn['id'], CardDraft>();
+
+  constructor(
+    private readonly root: HTMLElement,
+    options: BoardsViewOptions
+  ) {
+    installBoardsViewStyles();
+    this.runtime = options.runtime ?? createAppRuntime();
+    this.tagCatalog = options.tagCatalog ?? null;
+    this.handlers = options.handlers;
+    this.dragController = new BoardDragController({
+      root: this.root,
+      getState: () => this.state,
+      onDrop: (placementId, target) =>
+        this.handlers.onPatchCardPlacement(placementId, target),
+      onDragStart: () => this.closeTransientBoardOverlays(),
+    });
+    this.dragController.mount();
+    this.disposeRuntimeSubscription = this.runtime.subscribe(
+      () => this.refreshFromRuntime(),
+      { emitCurrent: false }
+    );
+    this.root.className = boardsViewClassNames.root;
+  }
+
+  public render(state: BoardsState): void {
+    this.state = state;
+    this.ensureTagCatalogLoaded();
+    this.dragController.cancelDrag();
+    this.cardDrafts.clear();
+    this.unmountHeaderMenu();
+    this.closeListActionsPopover();
+    this.closeCardActionsPopover();
+    this.closeMoveCardPopover();
+    this.closeQuickCardEditor();
+    this.root.replaceChildren(this.renderShell(state));
+    this.syncCardModal(state);
+  }
+
+  public destroy(): void {
+    this.disposeRuntimeSubscription();
+    this.dragController.unmount();
+    this.unmountHeaderMenu();
+    this.closeCardLabelsPopover();
+    this.closeListActionsPopover();
+    this.closeCardActionsPopover();
+    this.closeMoveCardPopover();
+    this.closeQuickCardEditor();
+    this.closeCardModal();
+    this.cardDrafts.clear();
+    this.root.replaceChildren();
+  }
+
+  private refreshFromRuntime(): void {
+    if (!this.state) return;
+    this.render(this.state);
+  }
+
+  private closeTransientBoardOverlays(): void {
+    this.closeListActionsPopover();
+    this.closeCardActionsPopover();
+    this.closeCardLabelsPopover();
+    this.closeMoveCardPopover();
+    this.closeQuickCardEditor();
+  }
+
+  private ensureTagCatalogLoaded(): void {
+    if (!this.tagCatalog || this.tagCatalogStatus !== 'idle') return;
+    this.tagCatalogStatus = 'loading';
+    void this.tagCatalog
+      .loadTags()
+      .then((tags) => {
+        this.tagItems = tags.map(mapTagToPickerItem);
+        this.tagCatalogStatus = 'ready';
+        this.rerenderCurrentState();
+      })
+      .catch(() => {
+        this.tagItems = [];
+        this.tagCatalogStatus = 'error';
+        this.rerenderCurrentState();
+      });
+  }
+
+  private getTagPickerErrorMessage(): string | null {
+    return this.tagCatalogStatus === 'error'
+      ? this.runtime.i18n.t('boards.cardBack.tagsLoadFailed')
+      : null;
+  }
+
+  private renderShell(state: BoardsState): HTMLElement {
+    const shell = document.createElement('section');
+    shell.className = boardsViewClassNames.shell;
+    shell.append(this.renderHeader(state));
+    if (state.error) {
+      shell.append(this.renderError(state.error));
+    }
+
+    if (state.status === 'loading' && state.boards.length === 0) {
+      shell.append(this.renderMessage(this.runtime.i18n.t('boards.loading')));
+      return shell;
+    }
+
+    if (state.boards.length === 0) {
+      shell.append(this.renderEmptyState());
+      return shell;
+    }
+
+    const selectedBoard = this.getSelectedBoard(state);
+    shell.append(
+      selectedBoard
+        ? this.renderBoard(selectedBoard, state)
+        : this.renderMessage(this.runtime.i18n.t('boards.empty'))
+    );
+    return shell;
+  }
+
+  private renderHeader(state: BoardsState): HTMLElement {
+    const header = document.createElement('header');
+    header.className = boardsViewClassNames.header;
+    const selectedBoard = this.getSelectedBoard(state);
+
+    const titleBlock = document.createElement('div');
+    titleBlock.className = boardsViewClassNames.titleBlock;
+    titleBlock.append(this.renderBoardTitle(selectedBoard, state));
+    if (state.boards.length > 1) {
+      titleBlock.append(this.renderBoardTabs(state));
+    }
+
+    const actions = document.createElement('div');
+    actions.className = boardsViewClassNames.headerActions;
+    actions.append(this.renderHeaderMenu(selectedBoard, state));
+
+    header.append(titleBlock, actions);
+    return header;
+  }
+
+  private renderBoardTitle(
+    board: Board | null,
+    state: BoardsState
+  ): HTMLElement {
+    const title = document.createElement('h1');
+    title.className = boardsViewClassNames.title;
+    if (!board || this.editingBoardTitleId !== board.id) {
+      const titleButton = document.createElement('button');
+      titleButton.type = 'button';
+      titleButton.className = boardsViewClassNames.titleButton;
+      titleButton.textContent =
+        board?.title ?? this.runtime.i18n.t('boards.title');
+      titleButton.disabled = !board || state.status === 'saving';
+      titleButton.title = this.runtime.i18n.t('boards.actions.renameBoard');
+      titleButton.setAttribute(
+        'aria-label',
+        this.runtime.i18n.t('boards.actions.renameBoard')
+      );
+      titleButton.addEventListener('click', () => {
+        if (!board) return;
+        this.startBoardTitleEdit(board.id);
+      });
+      title.append(titleButton);
+      return title;
+    }
+
+    this.boardTitleEditInput = createInputBase({
+      variant: 'inline',
+      type: 'text',
+      value: board.title,
+      autoComplete: 'off',
+      maxLength: 512,
+      className: boardsViewClassNames.titleEditInput,
+      onKeyDown: (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          this.finishBoardTitleEdit(board, true);
+          return;
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          this.finishBoardTitleEdit(board, false);
+        }
+      },
+    });
+    this.boardTitleEditInput.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('boards.boardTitlePlaceholder')
+    );
+    this.boardTitleEditInput.addEventListener('blur', () => {
+      this.finishBoardTitleEdit(board, true);
+    });
+    title.append(this.boardTitleEditInput);
+    requestAnimationFrame(() => {
+      this.boardTitleEditInput?.focus();
+      this.boardTitleEditInput?.select();
+    });
+    return title;
+  }
+
+  private renderHeaderMenu(
+    board: Board | null,
+    state: BoardsState
+  ): HTMLElement {
+    const menu = new MenuButton({
+      label: this.runtime.i18n.t('boards.actions.menu'),
+      ariaLabel: this.runtime.i18n.t('boards.actions.menu'),
+      title: this.runtime.i18n.t('boards.actions.menu'),
+      variant: 'plain',
+      size: 'md',
+      buttonClassName: boardsViewClassNames.headerMenuButton,
+      placement: 'bottom-end',
+      fallbackPlacements: ['bottom-start', 'top-end', 'top-start'],
+      items: [
+        {
+          id: 'create-board',
+          label: this.runtime.i18n.t('boards.actions.createBoard'),
+          disabled: state.status === 'saving',
+          onSelect: () => {
+            this.handlers.onCreateBoard(
+              this.runtime.i18n.t('boards.defaultBoardTitle')
+            );
+          },
+        },
+        {
+          id: 'delete-board',
+          label: this.runtime.i18n.t('boards.actions.deleteBoard'),
+          disabled: !board || state.status === 'saving',
+          onSelect: () => {
+            if (!board) return;
+            this.handlers.onDeleteBoard(board.id);
+          },
+        },
+      ],
+    });
+    setMenuButtonIconOnly(
+      menu,
+      'ellipsis-vertical',
+      this.runtime.i18n.t('boards.actions.menu')
+    );
+    this.headerMenu = menu;
+    menu.mount();
+    return menu.element;
+  }
+
+  private renderBoard(board: Board, state: BoardsState): HTMLElement {
+    const body = document.createElement('div');
+    body.className = boardsViewClassNames.body;
+
+    const canvas = document.createElement('div');
+    canvas.className = boardsViewClassNames.canvas;
+    canvas.setAttribute('aria-label', board.title);
+    canvas.dataset.boardCanvas = 'true';
+
+    board.columns.forEach((column) => {
+      canvas.append(this.renderColumn(board, column, state));
+    });
+    canvas.append(this.renderColumnComposer(board, state));
+
+    body.append(canvas);
+    return body;
+  }
+
+  private renderBoardTabs(state: BoardsState): HTMLElement {
+    const tabs = document.createElement('div');
+    tabs.className = boardsViewClassNames.tabs;
+    state.boards.forEach((board) => {
+      const selected = board.id === state.selectedBoardId;
+      tabs.append(
+        createTextButton({
+          text: board.title,
+          tone: 'text',
+          size: 'sm',
+          className: selected
+            ? boardsViewClassNames.boardTabSelected
+            : boardsViewClassNames.boardTab,
+          onClick: () => this.handlers.onSelectBoard(board.id),
+        })
+      );
+    });
+    return tabs;
+  }
+
+  private renderColumn(
+    board: Board,
+    column: BoardColumn,
+    state: BoardsState
+  ): HTMLElement {
+    const section = document.createElement('section');
+    section.className = boardsViewClassNames.column;
+    section.dataset.boardColumnId = String(column.id);
+
+    const header = document.createElement('header');
+    header.className = boardsViewClassNames.columnHeader;
+    header.append(this.renderColumnTitle(column, state));
+
+    const menuButton = createIconButton({
+      icon: 'ellipsis-vertical',
+      tone: 'text',
+      size: 'sm',
+      className: `${boardsViewClassNames.iconButton} ${boardsViewClassNames.columnMenuButton}`,
+      title: this.runtime.i18n.t('boards.listActions.title'),
+      ariaLabel: this.runtime.i18n.t('boards.listActions.title'),
+      disabled: state.status === 'saving',
+    });
+    menuButton.setAttribute('aria-haspopup', 'dialog');
+    menuButton.setAttribute('aria-expanded', 'false');
+    menuButton.setAttribute('data-testid', 'list-actions-menu-button');
+    menuButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (this.listActionsPopover?.trigger === menuButton) {
+        this.closeListActionsPopover();
+        return;
+      }
+      this.openListActionsPopover(menuButton, column);
+    });
+    header.append(menuButton);
+
+    const cards = document.createElement('div');
+    cards.className = boardsViewClassNames.cards;
+    cards.dataset.boardCardsContainer = 'true';
+    column.cards.forEach((card) => cards.append(this.renderCard(card)));
+
+    section.append(header, cards, this.renderCardComposer(column, state));
+    return section;
+  }
+
+  private renderColumnTitle(
+    column: BoardColumn,
+    state: BoardsState
+  ): HTMLElement {
+    if (this.editingColumnTitleId === column.id) {
+      this.columnTitleEditInput = document.createElement('input');
+      this.columnTitleEditInput.className =
+        boardsViewClassNames.columnTitleInput;
+      this.columnTitleEditInput.type = 'text';
+      this.columnTitleEditInput.value = column.title;
+      this.columnTitleEditInput.maxLength = 512;
+      this.columnTitleEditInput.autocomplete = 'off';
+      this.columnTitleEditInput.setAttribute(
+        'aria-label',
+        this.runtime.i18n.t('boards.columnTitlePlaceholder')
+      );
+      this.columnTitleEditInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          this.finishColumnTitleEdit(column, true);
+          return;
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          this.finishColumnTitleEdit(column, false);
+        }
+      });
+      this.columnTitleEditInput.addEventListener('blur', () => {
+        this.finishColumnTitleEdit(column, true);
+      });
+      requestAnimationFrame(() => {
+        this.columnTitleEditInput?.focus();
+        this.columnTitleEditInput?.select();
+      });
+      return this.columnTitleEditInput;
+    }
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = boardsViewClassNames.columnTitleButton;
+    button.disabled = state.status === 'saving';
+    button.title = this.runtime.i18n.t('boards.actions.renameColumn');
+    button.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('boards.actions.renameColumn')
+    );
+    button.addEventListener('click', () =>
+      this.startColumnTitleEdit(column.id)
+    );
+    const title = document.createElement('span');
+    title.className = boardsViewClassNames.columnTitle;
+    title.textContent = column.title;
+    button.append(title);
+    return button;
+  }
+
+  private openListActionsPopover(
+    trigger: HTMLButtonElement,
+    column: BoardColumn
+  ): void {
+    this.closeListActionsPopover();
+
+    const panel = createSurface({
+      elevated: true,
+      className: `${boardsModalClassNames.listActionsPopover} hidden`,
+    });
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'false');
+    panel.setAttribute('aria-labelledby', 'list-actions-menu');
+    panel.setAttribute('data-testid', 'list-actions-popover');
+    panel.addEventListener('mousedown', (event) => event.stopPropagation());
+
+    const header = document.createElement('header');
+    header.className = boardsModalClassNames.listActionsHeader;
+    const title = document.createElement('h2');
+    title.id = 'list-actions-menu';
+    title.className = boardsModalClassNames.listActionsTitle;
+    title.textContent = this.runtime.i18n.t('boards.listActions.title');
+    const close = createIconButton({
+      icon: 'x-mark',
+      tone: 'text',
+      size: 'sm',
+      className: boardsModalClassNames.iconButton,
+      ariaLabel: this.runtime.i18n.t('common.close'),
+      title: this.runtime.i18n.t('common.close'),
+      onClick: () => this.closeListActionsPopover(),
+    });
+    header.append(title, close);
+
+    const body = document.createElement('div');
+    body.className = boardsModalClassNames.listActionsBody;
+
+    body.append(
+      this.renderListActionList([
+        this.createListActionButton({
+          labelKey: 'boards.listActions.addCard',
+          testId: 'list-actions-add-card-button',
+          onClick: () => {
+            this.closeListActionsPopover();
+            this.expandCardComposer(column.id);
+          },
+        }),
+        this.createListActionButton({
+          labelKey: 'boards.listActions.copyList',
+          testId: 'list-actions-copy-list-button',
+          disabled: true,
+        }),
+        this.createListActionButton({
+          labelKey: 'boards.listActions.moveList',
+          testId: 'list-actions-move-list-button',
+          disabled: true,
+        }),
+        this.createListActionButton({
+          labelKey: 'boards.listActions.moveAllCards',
+          testId: 'list-actions-move-all-cards-button',
+          disabled: true,
+        }),
+        this.createListActionButton({
+          labelKey: 'boards.listActions.sortBy',
+          disabled: true,
+        }),
+        this.createListActionButton({
+          labelKey: 'boards.listActions.watch',
+          testId: 'list-actions-watch-list-button',
+          disabled: true,
+        }),
+      ]),
+      this.renderListActionsDivider(),
+      this.renderListActionsColorSection(),
+      this.renderListActionsDivider(),
+      this.renderListActionsAutomationSection(),
+      this.renderListActionsDivider(),
+      this.renderListActionList([
+        this.createListActionButton({
+          labelKey: 'boards.listActions.archiveList',
+          testId: 'list-actions-archive-list-button',
+          onClick: () => {
+            this.closeListActionsPopover();
+            this.handlers.onDeleteColumn(column.id);
+          },
+        }),
+        this.createListActionButton({
+          labelKey: 'boards.listActions.archiveAllCards',
+          disabled: true,
+        }),
+      ])
+    );
+    panel.append(header, body);
+
+    let menu!: AnchoredMenu;
+    menu = new AnchoredMenu({
+      container: trigger,
+      panel,
+      positioning: 'viewport',
+      panelZIndex: 290,
+      onOpenChange: (open) => {
+        trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (!open && this.listActionsPopover?.menu === menu) {
+          this.closeListActionsPopover();
+        }
+      },
+    });
+    menu.mount();
+    this.listActionsPopover = { menu, panel, trigger };
+    menu.openAt({
+      anchor: trigger,
+      placement: 'bottom-end',
+      fallbackPlacements: ['bottom-start', 'top-end', 'top-start'],
+      gap: 8,
+      margin: 12,
+      lockPlacementAfterOpen: true,
+    });
+  }
+
+  private renderListActionList(buttons: HTMLButtonElement[]): HTMLElement {
+    const list = document.createElement('ul');
+    list.className = boardsModalClassNames.listActionsList;
+    buttons.forEach((button) => {
+      const item = document.createElement('li');
+      item.className = boardsModalClassNames.listActionsItem;
+      item.append(button);
+      list.append(item);
+    });
+    return list;
+  }
+
+  private createListActionButton(options: {
+    labelKey: string;
+    testId?: string;
+    disabled?: boolean;
+    onClick?: () => void;
+  }): HTMLButtonElement {
+    const button = createTextButton({
+      text: this.runtime.i18n.t(options.labelKey),
+      tone: 'text',
+      size: 'md',
+      className: boardsModalClassNames.listActionsButton,
+      disabled: options.disabled,
+      onClick: options.onClick,
+    });
+    if (options.testId) button.setAttribute('data-testid', options.testId);
+    return button;
+  }
+
+  private renderListActionsDivider(): HTMLElement {
+    const divider = document.createElement('div');
+    divider.className = boardsModalClassNames.listActionsDivider;
+    divider.setAttribute('role', 'separator');
+    return divider;
+  }
+
+  private renderListActionsColorSection(): HTMLElement {
+    const section = document.createElement('section');
+    section.className = boardsModalClassNames.listActionsSection;
+    const button = createTextButton({
+      text: this.runtime.i18n.t('boards.listActions.changeListColor'),
+      tone: 'text',
+      size: 'md',
+      className: boardsModalClassNames.listActionsSectionButton,
+      disabled: true,
+    });
+    const chevron = createIcon('chevron-up', { size: 16, strokeWidth: 2 });
+    chevron.setAttribute('aria-hidden', 'true');
+    button.append(chevron);
+    const upgrade = document.createElement('div');
+    upgrade.className = boardsModalClassNames.listActionsUpgrade;
+    const title = document.createElement('p');
+    title.className = boardsModalClassNames.listActionsUpgradeTitle;
+    title.textContent = this.runtime.i18n.t(
+      'boards.listActions.colorUpgradeTitle'
+    );
+    const copy = document.createElement('p');
+    copy.className = boardsModalClassNames.listActionsUpgradeCopy;
+    copy.textContent = this.runtime.i18n.t(
+      'boards.listActions.colorUpgradeBody'
+    );
+    upgrade.append(title, copy);
+    section.append(button, upgrade);
+    return section;
+  }
+
+  private renderListActionsAutomationSection(): HTMLElement {
+    const section = document.createElement('section');
+    section.className = boardsModalClassNames.listActionsSection;
+    const header = createTextButton({
+      text: this.runtime.i18n.t('boards.listActions.automation'),
+      tone: 'text',
+      size: 'md',
+      className: boardsModalClassNames.listActionsSectionButton,
+      disabled: true,
+    });
+    const chevron = createIcon('chevron-up', { size: 16, strokeWidth: 2 });
+    chevron.setAttribute('aria-hidden', 'true');
+    header.append(chevron);
+    section.append(
+      header,
+      this.renderListActionList([
+        this.createListActionButton({
+          labelKey: 'boards.listActions.whenCardAdded',
+          disabled: true,
+        }),
+        this.createListActionButton({
+          labelKey: 'boards.listActions.everyDaySort',
+          disabled: true,
+        }),
+        this.createListActionButton({
+          labelKey: 'boards.listActions.everyMondaySort',
+          disabled: true,
+        }),
+        this.createListActionButton({
+          labelKey: 'boards.listActions.createRule',
+          disabled: true,
+        }),
+      ])
+    );
+    return section;
+  }
+
+  private renderCard(card: Card): HTMLElement {
+    const placementId = getCardPlacementId(card);
+    const article = document.createElement('article');
+    article.className = isMirrorCard(card)
+      ? `${boardsViewClassNames.card} ${boardsViewClassNames.cardMirror}`
+      : boardsViewClassNames.card;
+    article.dataset.boardCardId = String(card.id);
+    article.dataset.boardCardPlacementId = String(placementId);
+    article.dataset.boardCardDraggable = 'true';
+    article.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.openQuickCardEditor(placementId, article.getBoundingClientRect());
+    });
+
+    const openButton = document.createElement('button');
+    openButton.type = 'button';
+    openButton.className = boardsViewClassNames.cardOpenButton;
+    openButton.dataset.boardCardOpen = String(placementId);
+    openButton.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('boards.actions.openCard')
+    );
+    openButton.addEventListener('click', () => this.openCardModal(placementId));
+
+    const title = document.createElement('h3');
+    title.className = boardsViewClassNames.cardTitle;
+    title.textContent = card.title;
+    const sourceLabel = this.renderCardMirrorSourceLabel(
+      card,
+      boardsViewClassNames.cardSourceLabel
+    );
+    const tags = this.renderCardFrontTags(card);
+    if (sourceLabel) openButton.append(sourceLabel);
+    if (tags) openButton.append(tags);
+    openButton.append(title);
+
+    const badges = this.renderCardFrontBadges(card);
+    if (badges) {
+      openButton.append(badges);
+    }
+
+    article.append(openButton);
+    return article;
+  }
+
+  private renderCardFrontTags(card: Card): HTMLElement | null {
+    if (!card.tags?.length) return null;
+    const tags = document.createElement('div');
+    tags.className = boardsViewClassNames.cardTags;
+    tags.setAttribute('data-testid', 'board-card-tags');
+    card.tags.forEach((tag) => {
+      tags.append(this.createCardTagChip(tag, boardsViewClassNames.cardTag));
+    });
+    return tags;
+  }
+
+  private createCardTagChip(tag: Tag, className: string): HTMLElement {
+    const chip = document.createElement('span');
+    chip.className = className;
+    chip.title = tag.title;
+    chip.setAttribute('aria-label', tag.title);
+    chip.setAttribute('role', 'img');
+    chip.setAttribute('data-testid', 'compact-card-label');
+    chip.style.backgroundColor = tag.color;
+    return chip;
+  }
+
+  private renderCardFrontBadges(card: Card): HTMLElement | null {
+    const badges = document.createElement('div');
+    badges.className = boardsViewClassNames.cardBadges;
+
+    if (card.description.trim()) {
+      badges.append(
+        this.createCardFrontBadge(
+          'bars-3-bottom-left',
+          this.runtime.i18n.t('boards.cardDescriptionLabel')
+        )
+      );
+    }
+
+    const commentCount = getCardCommentCount(card);
+    if (commentCount > 0) {
+      badges.append(
+        this.createCardFrontBadge(
+          'chat-bubble-bottom-center-text',
+          this.runtime.i18n.t('boards.cardBack.comments'),
+          String(commentCount)
+        )
+      );
+    }
+
+    return badges.childElementCount > 0 ? badges : null;
+  }
+
+  private renderCardMirrorSourceLabel(
+    card: Card,
+    className: string
+  ): HTMLElement | null {
+    if (!card.mirror_source) return null;
+    const source = card.mirror_source;
+    const sourceText = this.runtime.i18n.t(
+      'boards.cardMirror.sourceLocation',
+      {
+        board: source.board_title,
+        list: source.column_title,
+      }
+    );
+    const label = document.createElement('span');
+    label.className = className;
+    label.setAttribute('data-testid', 'card-mirror-source-label');
+    label.textContent = sourceText;
+    label.title = this.runtime.i18n.t('boards.cardMirror.sourceLabel', {
+      source: sourceText,
+    });
+    label.setAttribute('aria-label', label.title);
+    return label;
+  }
+
+  private createCardFrontBadge(
+    icon: IconName,
+    label: string,
+    text?: string
+  ): HTMLElement {
+    const badge = document.createElement('span');
+    badge.className = boardsViewClassNames.cardBadge;
+    badge.title = label;
+    badge.setAttribute('aria-label', text ? `${label}: ${text}` : label);
+    const badgeIcon = createIcon(icon, { size: 16, strokeWidth: 2 });
+    badgeIcon.setAttribute('aria-hidden', 'true');
+    badge.append(badgeIcon);
+    if (text) {
+      const count = document.createElement('span');
+      count.textContent = text;
+      badge.append(count);
+    }
+    return badge;
+  }
+
+  private renderCardComposer(
+    column: BoardColumn,
+    state: BoardsState
+  ): HTMLElement {
+    const container = document.createElement('div');
+    container.className = boardsViewClassNames.cardComposer;
+
+    if (this.expandedCardComposerColumnId !== column.id) {
+      const addButton = createTextButton({
+        text: this.runtime.i18n.t('boards.actions.createCard'),
+        tone: 'text',
+        size: 'md',
+        fullWidth: true,
+        className: boardsViewClassNames.cardComposerCollapsed,
+        disabled: state.status === 'saving',
+        onClick: () => this.expandCardComposer(column.id),
+      });
+      container.append(addButton);
+      return container;
+    }
+
+    const form = document.createElement('form');
+    form.className = boardsViewClassNames.cardComposerExpanded;
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      this.submitCard(column.id);
+    });
+
+    const title = document.createElement('textarea');
+    title.className = boardsViewClassNames.cardComposerTextarea;
+    title.placeholder = this.runtime.i18n.t('boards.cardComposerPlaceholder');
+    title.dir = 'auto';
+    title.rows = 2;
+    title.setAttribute('data-testid', 'list-card-composer-textarea');
+    title.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('boards.cardTitleLabel')
+    );
+    title.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' || event.shiftKey) return;
+      event.preventDefault();
+      this.submitCard(column.id);
+    });
+
+    this.cardDrafts.set(column.id, { title });
+    const actions = document.createElement('div');
+    actions.className = boardsViewClassNames.composerActions;
+    actions.append(
+      createTextButton({
+        text: this.runtime.i18n.t('boards.actions.createCard'),
+        tone: 'primary',
+        size: 'sm',
+        type: 'submit',
+        className: boardsViewClassNames.primaryButton,
+        disabled: state.status === 'saving',
+      }),
+      createIconButton({
+        icon: 'x-mark',
+        tone: 'text',
+        size: 'md',
+        type: 'button',
+        title: this.runtime.i18n.t('boards.actions.cancelNewCard'),
+        ariaLabel: this.runtime.i18n.t('boards.actions.cancelNewCard'),
+        className: boardsViewClassNames.composerCancelButton,
+        onClick: () => this.collapseCardComposer(),
+      })
+    );
+
+    form.append(title, actions);
+    container.append(form);
+    requestAnimationFrame(() => title.focus());
+    return container;
+  }
+
+  private renderColumnComposer(board: Board, state: BoardsState): HTMLElement {
+    const panel = document.createElement('aside');
+    panel.className = this.isColumnComposerExpanded
+      ? boardsViewClassNames.columnComposerExpandedPanel
+      : boardsViewClassNames.columnComposerCollapsedPanel;
+
+    if (!this.isColumnComposerExpanded) {
+      const addButton = createTextButton({
+        text: this.runtime.i18n.t('boards.addColumnPanelTitle'),
+        tone: 'text',
+        size: 'md',
+        fullWidth: true,
+        className: boardsViewClassNames.columnComposerCollapsed,
+        disabled: state.status === 'saving',
+        onClick: () => this.expandColumnComposer(),
+      });
+      addButton.setAttribute('data-testid', 'list-composer-button');
+      addButton.setAttribute('data-drag-scroll-disabled', 'true');
+      prependButtonIcon(addButton, 'plus');
+      panel.append(addButton);
+      return panel;
+    }
+
+    const form = document.createElement('form');
+    form.className = boardsViewClassNames.columnComposerExpanded;
+    form.setAttribute('data-focus-lock-disabled', 'false');
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      this.submitColumnTitle(board.id);
+    });
+
+    this.columnTitleTextarea = document.createElement('textarea');
+    this.columnTitleTextarea.className =
+      boardsViewClassNames.listComposerTextarea;
+    this.columnTitleTextarea.placeholder = this.runtime.i18n.t(
+      'boards.columnTitlePlaceholder'
+    );
+    this.columnTitleTextarea.name = this.runtime.i18n.t(
+      'boards.columnTitlePlaceholder'
+    );
+    this.columnTitleTextarea.dir = 'auto';
+    this.columnTitleTextarea.rows = 1;
+    this.columnTitleTextarea.maxLength = 512;
+    this.columnTitleTextarea.spellcheck = false;
+    this.columnTitleTextarea.setAttribute('data-testid', 'list-name-textarea');
+    this.columnTitleTextarea.setAttribute('autocomplete', 'off');
+    this.columnTitleTextarea.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('boards.columnTitlePlaceholder')
+    );
+    this.columnTitleTextarea.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' || event.shiftKey) return;
+      event.preventDefault();
+      this.submitColumnTitle(board.id);
+    });
+
+    const actions = document.createElement('div');
+    actions.className = boardsViewClassNames.composerActions;
+    actions.append(
+      createTextButton({
+        text: this.runtime.i18n.t('boards.actions.createColumn'),
+        tone: 'primary',
+        size: 'sm',
+        type: 'submit',
+        className: boardsViewClassNames.primaryButton,
+        disabled: state.status === 'saving',
+      }),
+      createIconButton({
+        icon: 'x-mark',
+        tone: 'text',
+        size: 'md',
+        type: 'button',
+        title: this.runtime.i18n.t('boards.actions.cancelNewColumn'),
+        ariaLabel: this.runtime.i18n.t('boards.actions.cancelNewColumn'),
+        className: boardsViewClassNames.composerCancelButton,
+        onClick: () => this.collapseColumnComposer(),
+      })
+    );
+
+    form.append(this.columnTitleTextarea, actions);
+    panel.append(form);
+    requestAnimationFrame(() => this.columnTitleTextarea?.focus());
+    return panel;
+  }
+
+  private renderEmptyState(): HTMLElement {
+    const empty = document.createElement('div');
+    empty.className = boardsViewClassNames.empty;
+    const content = document.createElement('div');
+    content.className = boardsViewClassNames.emptyContent;
+    const title = document.createElement('h2');
+    title.className = boardsViewClassNames.emptyTitle;
+    title.textContent = this.runtime.i18n.t('boards.emptyTitle');
+    const copy = document.createElement('p');
+    copy.className = boardsViewClassNames.emptyCopy;
+    copy.textContent = this.runtime.i18n.t('boards.emptyBody');
+    content.append(title, copy);
+    empty.append(content);
+    return empty;
+  }
+
+  private renderMessage(message: string): HTMLElement {
+    const wrapper = document.createElement('div');
+    wrapper.className = boardsViewClassNames.messageWrapper;
+    const label = document.createElement('p');
+    label.className = boardsViewClassNames.messageLabel;
+    label.textContent = message;
+    wrapper.append(label);
+    return wrapper;
+  }
+
+  private renderError(messageKey: string): HTMLElement {
+    const banner = document.createElement('div');
+    banner.className = boardsViewClassNames.error;
+    banner.textContent = this.runtime.i18n.t(messageKey);
+    return banner;
+  }
+
+  private openQuickCardEditor(
+    placementId: CardPlacement['id'],
+    anchorRect: DOMRect
+  ): void {
+    if (!this.state) return;
+    const location = this.findCardLocation(placementId, this.state);
+    if (!location) return;
+
+    this.closeQuickCardEditor();
+    const overlay = document.createElement('div');
+    overlay.className = boardsModalClassNames.quickEditorOverlay;
+    overlay.addEventListener('pointerdown', (event) => {
+      if (event.target === overlay) this.closeQuickCardEditor();
+    });
+    overlay.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        this.closeQuickCardEditor();
+      }
+    });
+
+    const editor = this.renderQuickCardEditor(location);
+    this.positionQuickCardEditor(editor, anchorRect);
+    overlay.append(editor);
+    document.body.append(overlay);
+    this.quickEditorOverlay = overlay;
+
+    requestAnimationFrame(() => {
+      editor
+        .querySelector<HTMLTextAreaElement>(
+          '[data-testid="quick-card-editor-card-title"]'
+        )
+        ?.focus();
+    });
+  }
+
+  private renderQuickCardEditor(location: CardLocation): HTMLElement {
+    const { card } = location;
+    const editor = document.createElement('div');
+    editor.className = boardsModalClassNames.quickEditor;
+    editor.setAttribute('data-elevation', '1');
+    editor.addEventListener('pointerdown', (event) => event.stopPropagation());
+
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('boards.quickEditor.menuLabel')
+    );
+    dialog.setAttribute('data-testid', 'quick-card-editor-menu');
+
+    const form = document.createElement('form');
+    form.className = boardsModalClassNames.quickEditorForm;
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      this.saveQuickCardEditor(card, title);
+    });
+
+    const cardFront = createSurface({
+      elevated: true,
+      className: isMirrorCard(card)
+        ? `${boardsModalClassNames.quickEditorCard} ${boardsModalClassNames.quickEditorCardMirror}`
+        : boardsModalClassNames.quickEditorCard,
+    });
+    cardFront.setAttribute('data-testid', 'quick-card-editor-card-front');
+    const cardInner = document.createElement('div');
+    cardInner.className = boardsModalClassNames.quickEditorCardInner;
+
+    const title = document.createElement('textarea');
+    title.className = boardsModalClassNames.quickEditorTitle;
+    title.setAttribute('data-testid', 'quick-card-editor-card-title');
+    title.dir = 'auto';
+    title.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('boards.quickEditor.editCardName')
+    );
+    title.value = card.title;
+    title.rows = 2;
+    title.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' || event.shiftKey) return;
+      event.preventDefault();
+      this.saveQuickCardEditor(card, title);
+    });
+
+    const badges = this.renderCardFrontBadges(card);
+    const sourceLabel = this.renderCardMirrorSourceLabel(
+      card,
+      boardsViewClassNames.cardSourceLabel
+    );
+    if (sourceLabel) cardInner.append(sourceLabel);
+    cardInner.append(title);
+    if (badges) cardInner.append(badges);
+    cardFront.append(cardInner);
+
+    const save = createTextButton({
+      text: this.runtime.i18n.t('common.save'),
+      tone: 'primary',
+      size: 'md',
+      className: `${boardsViewClassNames.primaryButton} ${boardsModalClassNames.quickEditorSave}`,
+      type: 'submit',
+    });
+    const validate = (): void => {
+      save.disabled = title.value.trim().length === 0;
+    };
+    title.addEventListener('input', validate);
+    validate();
+    form.append(cardFront, save);
+
+    dialog.append(form, this.renderQuickCardEditorActions(location));
+    editor.append(dialog);
+    return editor;
+  }
+
+  private renderQuickCardEditorActions(location: CardLocation): HTMLElement {
+    const { board, column, card, placementId } = location;
+    const menuWrap = document.createElement('div');
+    menuWrap.className = boardsModalClassNames.quickEditorActions;
+    const list = document.createElement('ul');
+    list.className = boardsModalClassNames.quickEditorButtons;
+    list.setAttribute('data-testid', 'quick-card-editor-buttons');
+
+    const items: Array<{
+      testId: string;
+      labelKey: string;
+      icon: IconName;
+      onClick?: (event: MouseEvent) => void;
+      disabled?: boolean;
+      badgeText?: string;
+      danger?: boolean;
+    }> = [
+      {
+        testId: 'quick-card-editor-open-card',
+        labelKey: 'boards.quickEditor.openCard',
+        icon: 'rectangle-stack',
+        onClick: () => {
+          this.closeQuickCardEditor();
+          this.openCardModal(placementId);
+        },
+      },
+      {
+        testId: 'quick-card-editor-edit-labels',
+        labelKey: 'boards.quickEditor.editLabels',
+        icon: 'tag',
+        onClick: () => {
+          this.closeQuickCardEditor();
+          this.openCardModal(placementId);
+        },
+      },
+      {
+        testId: 'quick-card-editor-change-members',
+        labelKey: 'boards.quickEditor.changeMembers',
+        icon: 'plus',
+        disabled: true,
+      },
+      {
+        testId: 'quick-card-editor-change-cover',
+        labelKey: 'boards.quickEditor.changeCover',
+        icon: 'document',
+        disabled: true,
+      },
+      {
+        testId: 'quick-card-editor-edit-dates',
+        labelKey: 'boards.quickEditor.editDates',
+        icon: 'calendar',
+        disabled: true,
+      },
+      {
+        testId: 'quick-card-editor-move',
+        labelKey: 'boards.quickEditor.move',
+        icon: 'arrow-right',
+        onClick: (event) => {
+          this.openMoveCardPopover(
+            event.currentTarget as HTMLButtonElement,
+            board,
+            column,
+            card,
+            'move'
+          );
+        },
+      },
+      {
+        testId: 'quick-card-editor-create-jira-work-item',
+        labelKey: 'boards.quickEditor.createJiraWorkItem',
+        icon: 'check-box',
+        disabled: true,
+        badgeText: this.runtime.i18n.t('boards.quickEditor.newBadge'),
+      },
+      {
+        testId: 'quick-card-editor-copy',
+        labelKey: 'boards.quickEditor.copyCard',
+        icon: 'square-2-stack',
+        disabled: true,
+      },
+      {
+        testId: 'quick-card-editor-copy-link',
+        labelKey: 'boards.quickEditor.copyLink',
+        icon: 'link',
+        disabled: true,
+      },
+      {
+        testId: 'mirror-new-button',
+        labelKey: 'boards.quickEditor.mirror',
+        icon: 'rectangle-stack',
+        onClick: (event) => {
+          this.openMoveCardPopover(
+            event.currentTarget as HTMLButtonElement,
+            board,
+            column,
+            card,
+            'mirror'
+          );
+        },
+      },
+      {
+        testId: 'quick-card-editor-archive',
+        labelKey: isMirrorCard(card)
+          ? 'boards.quickEditor.removeFromBoard'
+          : 'boards.quickEditor.archive',
+        icon: 'archive-box',
+        onClick: () => {
+          this.closeQuickCardEditor();
+          this.archiveOrRemoveCard(card, placementId);
+        },
+      },
+      {
+        testId: 'quick-card-editor-delete-card',
+        labelKey: 'boards.actions.deleteCard',
+        icon: 'trash',
+        danger: true,
+        onClick: () => void this.deleteSharedCardFromQuickEditor(card),
+      },
+    ];
+
+    items.forEach((item) => {
+      const li = document.createElement('li');
+      if (item.danger) {
+        li.className = boardsModalClassNames.quickEditorDangerItem;
+      }
+      const button = createTextButton({
+        text: this.runtime.i18n.t(item.labelKey),
+        tone: item.danger ? 'danger' : 'text',
+        size: 'md',
+        className: item.danger
+          ? `${boardsModalClassNames.quickEditorButton} ${boardsModalClassNames.quickEditorDangerButton}`
+          : boardsModalClassNames.quickEditorButton,
+        disabled: item.disabled,
+        onClick: item.onClick,
+      });
+      button.setAttribute('data-testid', item.testId);
+      prependButtonIcon(button, item.icon);
+      if (item.badgeText) {
+        const badge = document.createElement('span');
+        badge.className = boardsModalClassNames.quickEditorNewBadge;
+        badge.textContent = item.badgeText;
+        button.append(badge);
+      }
+      li.append(button);
+      list.append(li);
+    });
+
+    menuWrap.append(list);
+    return menuWrap;
+  }
+
+  private positionQuickCardEditor(
+    editor: HTMLElement,
+    anchorRect: DOMRect
+  ): void {
+    const {
+      formWidth,
+      actionsWidth,
+      actionsGap,
+      viewportMargin,
+      minVisibleHeight,
+    } = QUICK_CARD_EDITOR_GEOMETRY;
+    const left = Math.min(
+      Math.max(anchorRect.left, viewportMargin),
+      Math.max(
+        viewportMargin,
+        window.innerWidth -
+          formWidth -
+          actionsWidth -
+          actionsGap -
+          viewportMargin
+      )
+    );
+    const top = Math.min(
+      Math.max(anchorRect.top, viewportMargin),
+      Math.max(
+        viewportMargin,
+        window.innerHeight - minVisibleHeight - viewportMargin
+      )
+    );
+    editor.style.left = `${left}px`;
+    editor.style.top = `${top}px`;
+  }
+
+  private saveQuickCardEditor(
+    card: Card,
+    titleInput: HTMLTextAreaElement
+  ): void {
+    const nextTitle = titleInput.value.trim();
+    if (!nextTitle) return;
+    this.closeQuickCardEditor();
+    if (nextTitle !== card.title) {
+      this.handlers.onPatchCard(card.id, { title: nextTitle });
+    }
+  }
+
+  private openCardModal(placementId: CardPlacement['id']): void {
+    if (!this.state) return;
+    const location = this.findCardLocation(placementId, this.state);
+    if (!location) return;
+    this.activeCardPlacementId = placementId;
+    this.cardModalDraftTagIds = getBoardCardTagIds(location.card);
+    this.cardModalRequestedTagIds = [...this.cardModalDraftTagIds];
+    this.renderCardModal(location);
+  }
+
+  private syncCardModal(state: BoardsState): void {
+    if (this.activeCardPlacementId === null) return;
+    const location = this.findCardLocation(this.activeCardPlacementId, state);
+    if (!location) {
+      this.closeCardModal();
+      return;
+    }
+    this.renderCardModal(location);
+  }
+
+  private renderCardModal(location: CardLocation): void {
+    this.closeCardLabelsPopover();
+    this.closeMoveCardPopover();
+    this.cardModalOverlay?.remove();
+    this.cardModalOverlay = null;
+    this.cardModalLabelsHost = null;
+    this.cardModalQuickActionList = null;
+
+    const { board, column, card } = location;
+    if (this.cardModalDraftTagIds === null) {
+      this.cardModalDraftTagIds = getBoardCardTagIds(card);
+    }
+    if (this.cardModalRequestedTagIds === null) {
+      this.cardModalRequestedTagIds = getBoardCardTagIds(card);
+    }
+    const { overlay, container, header, divider, body } = createPaneModalShell(
+      card.title,
+      {
+        onClose: () => this.closeCardModal(),
+        hideCloseButton: true,
+        intent: 'form',
+        presentation: 'dialog',
+        zIndex: 270,
+      }
+    );
+
+    header.classList.add(boardsModalClassNames.hiddenShellPart);
+    divider.classList.add(boardsModalClassNames.hiddenShellPart);
+
+    container.classList.add(boardsModalClassNames.container);
+    container.addEventListener('keydown', (event: KeyboardEvent) => {
+      event.stopPropagation();
+    });
+    body.className = boardsModalClassNames.body;
+
+    const titleInput = document.createElement('textarea');
+    titleInput.className = boardsModalClassNames.titleEditor;
+    titleInput.dataset.boardCardModalTitle = 'true';
+    titleInput.dir = 'auto';
+    titleInput.rows = CARD_BACK_TITLE_EDITOR_ROWS;
+    titleInput.maxLength = CARD_BACK_TITLE_MAX_LENGTH;
+    titleInput.value = card.title;
+    titleInput.setAttribute('aria-label', card.title);
+
+    const description = document.createElement('textarea');
+    description.className = boardsModalClassNames.descriptionEditor;
+    description.dataset.boardCardModalDescription = 'true';
+    description.value = card.description;
+    description.placeholder = this.runtime.i18n.t(
+      'boards.cardDescriptionPlaceholder'
+    );
+    description.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('boards.cardDescriptionLabel')
+    );
+
+    const cardBack = document.createElement('div');
+    cardBack.className = boardsModalClassNames.cardBack;
+    cardBack.append(
+      this.renderCardBackTopbar(board, column, card),
+      this.renderCardBackLayout(board, column, card, titleInput, description)
+    );
+    body.append(cardBack);
+    container.setAttribute('aria-labelledby', 'card-back-name');
+    container.setAttribute('data-focus-lock', 'cardback');
+
+    this.cardModalOverlay = overlay;
+  }
+
+  private renderCardBackTopbar(
+    board: Board,
+    column: BoardColumn,
+    card: Card
+  ): HTMLElement {
+    const topbar = document.createElement('header');
+    topbar.className = boardsModalClassNames.topbar;
+
+    const start = document.createElement('div');
+    start.className = boardsModalClassNames.topbarStart;
+    const listBadge = document.createElement('button');
+    listBadge.type = 'button';
+    listBadge.className = boardsModalClassNames.listBadge;
+    listBadge.setAttribute('data-testid', 'card-back-list-button');
+    listBadge.title = column.title;
+    listBadge.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('boards.cardBack.changeList', {
+        column: column.title,
+      })
+    );
+    listBadge.setAttribute('aria-haspopup', 'dialog');
+    listBadge.setAttribute('aria-expanded', 'false');
+    listBadge.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (this.moveCardPopover?.trigger === listBadge) {
+        this.closeMoveCardPopover();
+        return;
+      }
+      this.openMoveCardPopover(listBadge, board, column, card);
+    });
+    const listLabel = document.createElement('span');
+    listLabel.textContent = column.title;
+    const chevron = createIcon('chevron-down', { size: 14, strokeWidth: 2 });
+    chevron.setAttribute('aria-hidden', 'true');
+    listBadge.append(listLabel, chevron);
+    start.append(listBadge);
+    const sourceLabel = this.renderCardMirrorSourceLabel(
+      card,
+      boardsModalClassNames.sourceLabel
+    );
+    if (sourceLabel) start.append(sourceLabel);
+
+    const actions = document.createElement('div');
+    actions.className = boardsModalClassNames.topbarActions;
+    const actionsButton = createIconButton({
+      icon: 'ellipsis-vertical',
+      tone: 'text',
+      size: 'md',
+      className: boardsModalClassNames.iconButton,
+      ariaLabel: this.runtime.i18n.t('boards.cardBack.actions'),
+      title: this.runtime.i18n.t('boards.cardBack.actions'),
+    });
+    actionsButton.setAttribute('aria-haspopup', 'dialog');
+    actionsButton.setAttribute('aria-expanded', 'false');
+    actionsButton.setAttribute('data-testid', 'card-back-actions-button');
+    actionsButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (this.cardActionsPopover?.trigger === actionsButton) {
+        this.closeCardActionsPopover();
+        return;
+      }
+      this.openCardActionsPopover(actionsButton, board, column, card);
+    });
+
+    actions.append(
+      actionsButton,
+      createIconButton({
+        icon: 'x-mark',
+        tone: 'text',
+        size: 'md',
+        className: boardsModalClassNames.iconButton,
+        ariaLabel: this.runtime.i18n.t('common.close'),
+        title: this.runtime.i18n.t('common.close'),
+        onClick: () => this.closeCardModal(),
+      })
+    );
+
+    topbar.append(start, actions);
+    return topbar;
+  }
+
+  private openCardActionsPopover(
+    trigger: HTMLButtonElement,
+    board: Board,
+    column: BoardColumn,
+    card: Card
+  ): void {
+    this.closeCardActionsPopover();
+
+    const panel = createSurface({
+      elevated: true,
+      className: `${boardsModalClassNames.cardActionsPopover} hidden`,
+    });
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'false');
+    panel.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('boards.cardBack.actions')
+    );
+    panel.setAttribute('data-testid', 'card-back-actions-popover');
+    panel.addEventListener('mousedown', (event) => event.stopPropagation());
+
+    const body = document.createElement('div');
+    body.className = boardsModalClassNames.cardActionsBody;
+    const list = document.createElement('ul');
+    list.className = boardsModalClassNames.cardActionsList;
+    list.append(
+      this.renderCardActionItem({
+        testId: 'card-back-move-card-button',
+        labelKey: 'boards.quickEditor.move',
+        icon: 'arrow-right',
+        disabled: true,
+      }),
+      this.renderCardActionItem({
+        testId: 'card-back-copy-card-button',
+        labelKey: 'boards.quickEditor.copyCard',
+        icon: 'square-2-stack',
+        disabled: true,
+      }),
+      this.renderCardActionItem({
+        testId: 'card-back-mirror-card-button',
+        labelKey: 'boards.quickEditor.mirror',
+        icon: 'rectangle-stack',
+        onClick: () => {
+          this.closeCardActionsPopover();
+          this.openMoveCardPopover(trigger, board, column, card, 'mirror');
+        },
+      }),
+      this.renderCardActionsDivider(),
+      this.renderCardActionItem({
+        testId: 'card-back-archive-button',
+        labelKey: isMirrorCard(card)
+          ? 'boards.quickEditor.removeFromBoard'
+          : 'boards.quickEditor.archive',
+        icon: 'archive-box',
+        onClick: () => {
+          this.closeCardActionsPopover();
+          this.closeCardModal();
+          this.archiveOrRemoveCard(card, getCardPlacementId(card));
+        },
+      }),
+      this.renderCardActionItem({
+        testId: 'card-back-delete-card-button',
+        labelKey: 'boards.actions.deleteCard',
+        icon: 'trash',
+        onClick: () => void this.deleteSharedCardFromDetails(card),
+      })
+    );
+    body.append(list);
+    panel.append(body);
+
+    let menu!: AnchoredMenu;
+    menu = new AnchoredMenu({
+      container: trigger,
+      panel,
+      positioning: 'viewport',
+      panelZIndex: 300,
+      onOpenChange: (open) => {
+        trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (!open && this.cardActionsPopover?.menu === menu) {
+          this.closeCardActionsPopover();
+        }
+      },
+    });
+    menu.mount();
+    this.cardActionsPopover = { menu, panel, trigger };
+    menu.openAt({
+      anchor: trigger,
+      placement: 'bottom-end',
+      fallbackPlacements: ['bottom-start', 'top-end', 'top-start'],
+      gap: 8,
+      margin: 12,
+      lockPlacementAfterOpen: true,
+    });
+  }
+
+  private renderCardActionItem(options: {
+    testId: string;
+    labelKey: string;
+    icon: IconName;
+    disabled?: boolean;
+    onClick?: () => void;
+  }): HTMLLIElement {
+    const item = document.createElement('li');
+    item.className = boardsModalClassNames.cardActionsItem;
+    const button = createTextButton({
+      text: this.runtime.i18n.t(options.labelKey),
+      tone: 'text',
+      size: 'md',
+      className: boardsModalClassNames.cardActionsButton,
+      disabled: options.disabled,
+      onClick: options.onClick,
+    });
+    button.setAttribute('data-testid', options.testId);
+    prependButtonIcon(button, options.icon);
+    item.append(button);
+    return item;
+  }
+
+  private renderCardActionsDivider(): HTMLLIElement {
+    const item = document.createElement('li');
+    item.className = boardsModalClassNames.cardActionsDivider;
+    item.setAttribute('role', 'separator');
+    return item;
+  }
+
+  private archiveOrRemoveCard(
+    card: Card,
+    placementId: CardPlacement['id']
+  ): void {
+    if (isMirrorCard(card)) {
+      this.handlers.onDeleteCardPlacement(placementId);
+      return;
+    }
+    this.handlers.onDeleteCard(card.id);
+  }
+
+  private createPlacementTargetFromPosition(
+    column: BoardColumn,
+    position: number,
+    movingPlacementId?: CardPlacement['id']
+  ): PlacementTargetSelection {
+    return resolveCardPlacementTarget({
+      columnId: column.id,
+      cards: column.cards,
+      movingPlacementId: movingPlacementId ?? '',
+      insertionIndex: position - 1,
+    }) as PlacementTargetSelection;
+  }
+
+  private openMoveCardPopover(
+    trigger: HTMLButtonElement,
+    currentBoard: Board,
+    currentColumn: BoardColumn,
+    card: Card,
+    mode: 'move' | 'mirror' = 'move'
+  ): void {
+    const boards = this.state?.boards ?? [currentBoard];
+    const placementId = getCardPlacementId(card);
+    let selectedBoardId = currentBoard.id;
+    let selectedColumnId = currentColumn.id;
+    let selectedPosition = currentColumn.cards.findIndex(
+      (candidate) => getCardPlacementId(candidate) === placementId
+    );
+    selectedPosition = selectedPosition >= 0 ? selectedPosition + 1 : 1;
+    const titleKey =
+      mode === 'mirror' ? 'boards.cardMirror.title' : 'boards.cardMove.title';
+    const actionKey =
+      mode === 'mirror' ? 'boards.cardMirror.create' : 'boards.cardMove.move';
+
+    this.closeMoveCardPopover();
+
+    const panel = createSurface({
+      elevated: true,
+      className: `${boardsModalClassNames.movePopover} hidden`,
+    });
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'false');
+    panel.setAttribute('aria-labelledby', 'move-card-popover');
+    panel.setAttribute('data-testid', 'move-card-popover');
+    panel.addEventListener('mousedown', (event) => event.stopPropagation());
+
+    const header = document.createElement('header');
+    header.className = boardsModalClassNames.movePopoverHeader;
+    const title = document.createElement('h2');
+    title.id = 'move-card-popover';
+    title.className = boardsModalClassNames.movePopoverTitle;
+    title.textContent = this.runtime.i18n.t(titleKey);
+    const close = createIconButton({
+      icon: 'x-mark',
+      tone: 'text',
+      size: 'sm',
+      className: boardsModalClassNames.iconButton,
+      ariaLabel: this.runtime.i18n.t('common.close'),
+      title: this.runtime.i18n.t('common.close'),
+      onClick: () => this.closeMoveCardPopover(),
+    });
+    header.append(title, close);
+
+    const body = document.createElement('div');
+    body.className = boardsModalClassNames.movePopoverBody;
+    const content = document.createElement('div');
+    content.className = boardsModalClassNames.movePopoverContent;
+
+    const tabs = document.createElement('div');
+    tabs.className = boardsModalClassNames.moveTabs;
+    tabs.setAttribute('role', 'tablist');
+    tabs.append(
+      this.renderMoveCardTab('boards.cardMove.inbox', false),
+      this.renderMoveCardTab('boards.cardMove.board', true)
+    );
+
+    const sectionTitle = document.createElement('h3');
+    sectionTitle.className = boardsModalClassNames.moveSectionTitle;
+    sectionTitle.textContent = this.runtime.i18n.t(
+      'boards.cardMove.selectDestination'
+    );
+
+    const fields = document.createElement('div');
+    fields.className = boardsModalClassNames.moveFields;
+
+    const boardSelect = this.createMoveSelectField({
+      id: 'move-card-board-select',
+      label: this.runtime.i18n.t('boards.cardMove.board'),
+    });
+    const listSelect = this.createMoveSelectField({
+      id: 'move-card-list-select',
+      label: this.runtime.i18n.t('boards.cardMove.list'),
+    });
+    const positionSelect = this.createMoveSelectField({
+      id: 'move-card-board-list-position-select',
+      label: this.runtime.i18n.t('boards.cardMove.position'),
+    });
+
+    const selectedBoard = (): Board | null =>
+      boards.find((board) => board.id === selectedBoardId) ?? null;
+    const selectedColumn = (): BoardColumn | null =>
+      selectedBoard()?.columns.find(
+        (column) => column.id === selectedColumnId
+      ) ?? null;
+    const hasExistingMirrorInSelectedColumn = (): boolean => {
+      if (mode !== 'mirror') return false;
+      return (
+        selectedColumn()?.cards.some((candidate) => candidate.id === card.id) ??
+        false
+      );
+    };
+    const getPositionCount = (): number => {
+      const column = selectedColumn();
+      if (!column) return 0;
+      if (mode === 'mirror') return column.cards.length + 1;
+      return column.id === currentColumn.id
+        ? column.cards.length
+        : column.cards.length + 1;
+    };
+    let moveButton!: HTMLButtonElement;
+    const renderSelectOptions = (): void => {
+      boardSelect.select.replaceChildren(
+        ...boards.map((board) =>
+          this.createSelectOption(
+            board.id,
+            board.title,
+            board.id === selectedBoardId
+          )
+        )
+      );
+
+      const board = selectedBoard();
+      const columns = board?.columns ?? [];
+      if (!columns.some((column) => column.id === selectedColumnId)) {
+        selectedColumnId = columns[0]?.id ?? '';
+      }
+      listSelect.select.replaceChildren(
+        ...columns.map((column) =>
+          this.createSelectOption(
+            column.id,
+            column.title,
+            column.id === selectedColumnId
+          )
+        )
+      );
+
+      const positionCount = getPositionCount();
+      selectedPosition = Math.min(
+        Math.max(selectedPosition, 1),
+        positionCount || 1
+      );
+      positionSelect.select.replaceChildren(
+        ...Array.from({ length: positionCount }, (_, index) =>
+          this.createSelectOption(
+            index + 1,
+            String(index + 1),
+            index + 1 === selectedPosition
+          )
+        )
+      );
+      if (hasExistingMirrorInSelectedColumn()) {
+        statusMessage.show(
+          this.runtime.i18n.t('boards.cardMirror.duplicateDestination'),
+          'warning'
+        );
+      } else if (!selectedColumn()) {
+        statusMessage.show(
+          this.runtime.i18n.t('boards.cardMirror.noDestination'),
+          'error'
+        );
+      } else {
+        statusMessage.clear();
+      }
+      moveButton.disabled = !selectedColumn();
+    };
+    const statusMessage = createFormMessage({
+      tone: 'error',
+      className: 'mb-3',
+    });
+
+    boardSelect.select.addEventListener('change', () => {
+      selectedBoardId = boardSelect.select.value;
+      selectedColumnId =
+        boards.find((board) => board.id === selectedBoardId)?.columns[0]?.id ??
+        '';
+      selectedPosition = 1;
+      renderSelectOptions();
+    });
+    listSelect.select.addEventListener('change', () => {
+      selectedColumnId = listSelect.select.value;
+      selectedPosition =
+        selectedColumnId === currentColumn.id ? selectedPosition : 1;
+      renderSelectOptions();
+    });
+    positionSelect.select.addEventListener('change', () => {
+      selectedPosition = Number(positionSelect.select.value);
+    });
+
+    moveButton = createTextButton({
+      text: this.runtime.i18n.t(actionKey),
+      tone: 'primary',
+      size: 'md',
+      className: boardsModalClassNames.moveButton,
+      onClick: () => {
+        const column = selectedColumn();
+        if (!column) return;
+        const target = this.createPlacementTargetFromPosition(
+          column,
+          selectedPosition,
+          mode === 'move' ? placementId : undefined
+        );
+        const currentOrder = currentColumn.cards.findIndex(
+          (candidate) => getCardPlacementId(candidate) === placementId
+        );
+        this.closeMoveCardPopover();
+        if (mode === 'mirror') {
+          this.closeQuickCardEditor();
+          const { column: targetColumn, ...placementTarget } = target;
+          this.handlers.onCreateCardMirror(card.id, targetColumn, placementTarget);
+          return;
+        }
+        if (column.id === currentColumn.id && selectedPosition - 1 === currentOrder) {
+          this.closeQuickCardEditor();
+          return;
+        }
+        this.closeQuickCardEditor();
+        this.handlers.onPatchCardPlacement(placementId, target);
+      },
+    });
+    moveButton.setAttribute('data-testid', 'move-card-popover-move-button');
+
+    const actions = document.createElement('div');
+    actions.className = boardsModalClassNames.moveActions;
+    actions.append(moveButton);
+
+    fields.append(boardSelect.field, listSelect.field, positionSelect.field);
+    content.append(tabs, sectionTitle, fields, statusMessage.element);
+    body.append(content, actions);
+    panel.append(header, body);
+
+    let menu!: AnchoredMenu;
+    menu = new AnchoredMenu({
+      container: trigger,
+      panel,
+      positioning: 'viewport',
+      panelZIndex: 300,
+      onOpenChange: (open) => {
+        trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (!open && this.moveCardPopover?.menu === menu) {
+          this.closeMoveCardPopover();
+        }
+      },
+    });
+    menu.mount();
+    this.moveCardPopover = { menu, panel, trigger };
+    renderSelectOptions();
+    menu.openAt({
+      anchor: trigger,
+      placement: 'bottom-start',
+      fallbackPlacements: ['bottom-end', 'top-start', 'top-end'],
+      gap: 8,
+      margin: 12,
+      lockPlacementAfterOpen: true,
+    });
+  }
+
+  private renderMoveCardTab(labelKey: string, selected: boolean): HTMLElement {
+    const tab = document.createElement('button');
+    tab.type = 'button';
+    tab.className = selected
+      ? boardsModalClassNames.moveTabSelected
+      : boardsModalClassNames.moveTab;
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-selected', selected ? 'true' : 'false');
+    tab.disabled = !selected;
+    tab.textContent = this.runtime.i18n.t(labelKey);
+    return tab;
+  }
+
+  private createMoveSelectField(options: { id: string; label: string }): {
+    field: HTMLElement;
+    select: HTMLSelectElement;
+  } {
+    const field = document.createElement('label');
+    field.className = boardsModalClassNames.moveField;
+    field.htmlFor = options.id;
+    const label = document.createElement('span');
+    label.className = boardsModalClassNames.moveLabel;
+    label.textContent = options.label;
+    const select = document.createElement('select');
+    select.id = options.id;
+    select.className = boardsModalClassNames.moveSelect;
+    select.setAttribute('data-testid', `${options.id}-select`);
+    field.append(label, select);
+    return { field, select };
+  }
+
+  private createSelectOption(
+    value: string | number,
+    label: string,
+    selected: boolean
+  ): HTMLOptionElement {
+    const option = document.createElement('option');
+    option.value = String(value);
+    option.textContent = label;
+    option.selected = selected;
+    return option;
+  }
+
+  private renderCardBackLayout(
+    board: Board,
+    column: BoardColumn,
+    card: Card,
+    titleInput: HTMLTextAreaElement,
+    description: HTMLTextAreaElement
+  ): HTMLElement {
+    const layout = document.createElement('div');
+    layout.className = boardsModalClassNames.layout;
+
+    const main = document.createElement('main');
+    main.className = boardsModalClassNames.main;
+    main.setAttribute('data-auto-scrollable', 'true');
+    main.append(
+      this.renderCardBackTitleSection(card, titleInput),
+      this.renderCardBackQuickActions(card),
+      this.renderCardBackLabelsHost(card),
+      this.renderCardBackDescriptionSection(card, titleInput, description),
+      this.renderCardBackAttachmentsSection()
+    );
+
+    const aside = this.renderCardBackAside(board, column);
+    layout.append(main, aside);
+    return layout;
+  }
+
+  private renderCardBackTitleSection(
+    card: Card,
+    titleInput: HTMLTextAreaElement
+  ): HTMLElement {
+    const section = document.createElement('section');
+    section.className = `${boardsModalClassNames.section} ${boardsModalClassNames.titleSection}`;
+    section.setAttribute('data-testid', 'card-back-header');
+
+    const iconWrap = document.createElement('div');
+    iconWrap.className = boardsModalClassNames.sectionIcon;
+    const doneButton = document.createElement('button');
+    doneButton.type = 'button';
+    doneButton.className = boardsModalClassNames.doneButton;
+    doneButton.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('boards.cardBack.markComplete', {
+        title: card.title,
+      })
+    );
+    doneButton.disabled = true;
+    doneButton.append(createIcon('check-circle', { size: 20, strokeWidth: 2 }));
+    iconWrap.append(doneButton);
+
+    const main = document.createElement('div');
+    main.className = boardsModalClassNames.sectionMain;
+    const hgroup = document.createElement('hgroup');
+    const title = document.createElement('h2');
+    title.id = 'card-back-name';
+    title.className = boardsModalClassNames.hiddenShellPart;
+    title.textContent = card.title;
+    hgroup.append(title, titleInput);
+    main.append(hgroup);
+
+    section.append(iconWrap, main);
+    return section;
+  }
+
+  private renderCardBackQuickActions(card: Card): HTMLElement {
+    const section = document.createElement('section');
+    section.className = `${boardsModalClassNames.section} ${boardsModalClassNames.quickActions}`;
+    const spacer = document.createElement('div');
+    spacer.className = boardsModalClassNames.sectionIcon;
+    const main = document.createElement('div');
+    main.className = boardsModalClassNames.sectionMain;
+
+    const list = document.createElement('ul');
+    list.className = boardsModalClassNames.quickActionList;
+    this.cardModalQuickActionList = list;
+    this.populateCardBackQuickActions(list, card);
+    main.append(list);
+    section.append(spacer, main);
+    return section;
+  }
+
+  private populateCardBackQuickActions(
+    list: HTMLUListElement,
+    card: Card
+  ): void {
+    list.replaceChildren();
+    const actionItems: Array<
+      | { labelKey: string; icon: IconName; disabled: true }
+      | {
+          labelKey: string;
+          icon: IconName;
+          disabled?: false;
+          onClick: (button: HTMLButtonElement) => void;
+        }
+    > = [
+      { labelKey: 'boards.cardBack.add', icon: 'plus', disabled: true },
+    ];
+    if (this.getCardModalDraftTagItems(card).length === 0) {
+      actionItems.push({
+        labelKey: 'boards.cardBack.labels',
+        icon: 'tag',
+        onClick: (button) => this.openCardLabelsPopover(button, card),
+      });
+    }
+    actionItems.push(
+      { labelKey: 'boards.cardBack.dates', icon: 'calendar', disabled: true },
+      {
+        labelKey: 'boards.cardBack.checklist',
+        icon: 'check-box',
+        disabled: true,
+      },
+      { labelKey: 'boards.cardBack.members', icon: 'plus', disabled: true }
+    );
+
+    actionItems.forEach((action) => {
+      const item = document.createElement('li');
+      const button =
+        action.disabled === true
+          ? this.createUnavailableCardBackButton(action.labelKey, action.icon)
+          : this.createAvailableCardBackButton({
+              labelKey: action.labelKey,
+              icon: action.icon,
+              onClick: action.onClick,
+            });
+      item.append(button);
+      list.append(item);
+    });
+  }
+
+  private renderCardBackLabelsHost(card: Card): HTMLDivElement {
+    const host = document.createElement('div');
+    host.className = boardsModalClassNames.labelsHost;
+    host.setAttribute('data-testid', 'card-back-labels-host');
+    this.cardModalLabelsHost = host;
+    this.populateCardBackLabelsHost(host, card);
+    return host;
+  }
+
+  private populateCardBackLabelsHost(host: HTMLElement, card: Card): void {
+    host.replaceChildren();
+    const tags = this.getCardModalDraftTagItems(card);
+    if (tags.length === 0) return;
+
+    const section = document.createElement('section');
+    section.className = boardsModalClassNames.labelsSection;
+    section.setAttribute('aria-labelledby', 'card-back-labels-title');
+
+    const title = document.createElement('h3');
+    title.id = 'card-back-labels-title';
+    title.className = boardsModalClassNames.labelsTitle;
+    title.textContent = this.runtime.i18n.t('boards.cardBack.labels');
+
+    const group = document.createElement('div');
+    group.setAttribute('role', 'group');
+    group.setAttribute('aria-labelledby', title.id);
+
+    const labels = document.createElement('div');
+    labels.className = boardsModalClassNames.labelsList;
+    labels.setAttribute('data-testid', 'card-back-labels-container');
+    tags.forEach((tag) => {
+      labels.append(this.createCardBackLabelSwatch(tag));
+    });
+    labels.append(this.createCardBackAddLabelButton(card));
+
+    group.append(labels);
+    section.append(title, group);
+    host.append(section);
+  }
+
+  private createCardBackLabelSwatch(tag: TagPickerItem): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = boardsModalClassNames.labelSwatch;
+    button.style.backgroundColor = tag.color;
+    button.style.color = getCardLabelTextColor(tag.color);
+    button.textContent = tag.title;
+    button.title = tag.title;
+    button.setAttribute('aria-label', tag.title);
+    button.setAttribute('data-testid', 'card-label');
+    button.dataset.tagId = String(tag.id);
+    return button;
+  }
+
+  private createCardBackAddLabelButton(card: Card): HTMLButtonElement {
+    const button = createIconButton({
+      icon: 'plus',
+      tone: 'text',
+      size: 'md',
+      className: boardsModalClassNames.labelAddButton,
+      ariaLabel: this.runtime.i18n.t('boards.cardBack.addLabel'),
+      title: this.runtime.i18n.t('boards.cardBack.addLabel'),
+      onClick: () => this.openCardLabelsPopover(button, card),
+    });
+    button.setAttribute('data-testid', 'card-back-add-label-button');
+    button.dataset.role = 'goal-tag-picker-trigger';
+    button.setAttribute('aria-haspopup', 'dialog');
+    button.setAttribute('aria-expanded', 'false');
+    return button;
+  }
+
+  private createAvailableCardBackButton(options: {
+    labelKey: string;
+    icon: IconName;
+    onClick: (button: HTMLButtonElement) => void;
+  }): HTMLButtonElement {
+    const button = createTextButton({
+      text: this.runtime.i18n.t(options.labelKey),
+      tone: 'text',
+      size: 'md',
+      className: boardsModalClassNames.quickActionButton,
+      onClick: () => options.onClick(button),
+    });
+    button.setAttribute('aria-haspopup', 'dialog');
+    button.setAttribute('aria-expanded', 'false');
+    prependButtonIcon(button, options.icon);
+    return button;
+  }
+
+  private getCardModalDraftTagIds(card: Card): number[] {
+    if (this.cardModalDraftTagIds === null) {
+      this.cardModalDraftTagIds = getBoardCardTagIds(card);
+    }
+    return this.cardModalDraftTagIds;
+  }
+
+  private getCardModalDraftTagItems(card: Card): TagPickerItem[] {
+    const draftIds = this.getCardModalDraftTagIds(card);
+    const draftIdSet = new Set(draftIds);
+    const knownTags = new Map<number, TagPickerItem>();
+    card.tags?.forEach((tag) => knownTags.set(tag.id, mapTagToPickerItem(tag)));
+    this.tagItems.forEach((tag) => knownTags.set(tag.id, tag));
+    return draftIds
+      .map((id) => knownTags.get(id))
+      .filter((tag): tag is TagPickerItem => Boolean(tag) && draftIdSet.has(tag.id));
+  }
+
+  private refreshCardModalLabelControls(card: Card): void {
+    if (this.cardModalLabelsHost) {
+      this.populateCardBackLabelsHost(this.cardModalLabelsHost, card);
+    }
+    if (this.cardModalQuickActionList) {
+      this.populateCardBackQuickActions(this.cardModalQuickActionList, card);
+    }
+  }
+
+  private patchCardModalTagIds(card: Card, selectedIds: number[]): void {
+    const nextTagIds = normalizeBoardCardTagIds(selectedIds);
+    const requestedTagIds =
+      this.cardModalRequestedTagIds ?? getBoardCardTagIds(card);
+    if (haveSameBoardCardTagIds(nextTagIds, requestedTagIds)) return;
+    this.cardModalRequestedTagIds = nextTagIds;
+    this.handlers.onPatchCard(card.id, { tag_ids: nextTagIds });
+  }
+
+  private openCardLabelsPopover(
+    trigger: HTMLButtonElement,
+    card: Card
+  ): void {
+    this.closeCardLabelsPopover();
+
+    const panel = createSurface({
+      elevated: true,
+      className: `${boardsModalClassNames.labelPickerPopover} hidden`,
+    });
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'false');
+    panel.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('boards.cardBack.labels')
+    );
+    panel.setAttribute('data-testid', 'card-back-label-picker-popover');
+    panel.addEventListener('mousedown', (event) => event.stopPropagation());
+
+    const picker = new TagPickerField({
+      variant: 'labels',
+      items: this.tagItems,
+      selectedIds: this.getCardModalDraftTagIds(card),
+      loading: this.tagCatalogStatus === 'loading',
+      errorMessage: this.getTagPickerErrorMessage(),
+      placeholder: this.runtime.i18n.t('boards.cardBack.tagsPlaceholder'),
+      searchPlaceholder: this.runtime.i18n.t(
+        'boards.cardBack.tagsSearchPlaceholder'
+      ),
+      copy: {
+        title: this.runtime.i18n.t('boards.cardBack.labels'),
+        editTitle: this.runtime.i18n.t('boards.cardBack.editLabel'),
+        createTitle: this.runtime.i18n.t('boards.cardBack.createLabel'),
+        searchPlaceholder: this.runtime.i18n.t(
+          'boards.cardBack.tagsSearchPlaceholder'
+        ),
+        labelsLegend: this.runtime.i18n.t('boards.cardBack.labels'),
+        createButton: this.runtime.i18n.t('boards.cardBack.createNewLabel'),
+        colorblindButton: this.runtime.i18n.t(
+          'boards.cardBack.enableColorblindMode'
+        ),
+        titleLabel: this.runtime.i18n.t('boards.cardBack.labelTitle'),
+        colorLegend: this.runtime.i18n.t('boards.cardBack.selectColor'),
+        removeColor: this.runtime.i18n.t('boards.cardBack.removeColor'),
+        save: this.runtime.i18n.t('common.save'),
+        delete: this.runtime.i18n.t('common.delete'),
+        close: this.runtime.i18n.t('boards.cardBack.closeLabelsPopover'),
+        back: this.runtime.i18n.t('boards.cardBack.returnToLabels'),
+      },
+      onRequestClose: () => this.closeCardLabelsPopover(),
+      onCreate: (title, color) => this.createTagFromCardBack(title, color),
+      onUpdate: (id, patch) => this.updateTagFromCardBack(id, patch),
+      onDelete: (id) => this.deleteTagFromCardBack(id),
+      onChange: (selectedIds) => {
+        this.cardModalDraftTagIds = selectedIds;
+        this.refreshCardModalLabelControls(card);
+        this.patchCardModalTagIds(card, selectedIds);
+      },
+    });
+    picker.element.setAttribute('data-testid', 'card-back-tag-picker');
+    panel.append(picker.element);
+
+    let menu!: AnchoredMenu;
+    menu = new AnchoredMenu({
+      container: trigger,
+      panel,
+      positioning: 'viewport',
+      panelZIndex: 310,
+      onOpenChange: (open) => {
+        trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (!open && this.cardLabelsPopover?.menu === menu) {
+          this.closeCardLabelsPopover();
+        }
+      },
+    });
+    menu.mount();
+    this.cardLabelsPopover = { menu, panel, picker, trigger };
+    menu.openAt({
+      anchor: trigger,
+      placement: 'bottom-start',
+      fallbackPlacements: ['bottom-end', 'top-start', 'top-end'],
+      gap: 8,
+      margin: 12,
+      lockPlacementAfterOpen: true,
+    });
+    window.requestAnimationFrame(() => picker.focusSearch());
+  }
+
+  private async createTagFromCardBack(
+    title: string,
+    color?: string
+  ): Promise<TagPickerItem | null> {
+    if (!this.tagCatalog) return null;
+    try {
+      const tag = await this.tagCatalog.createTag(title, color);
+      const item = mapTagToPickerItem(tag);
+      this.upsertTagItem(item);
+      return item;
+    } catch {
+      throw new Error(this.runtime.i18n.t('boards.cardBack.tagsCreateFailed'));
+    }
+  }
+
+  private async updateTagFromCardBack(
+    id: number,
+    patch: { title?: string; color?: string }
+  ): Promise<TagPickerItem | null> {
+    if (!this.tagCatalog) return null;
+    try {
+      const tag = await this.tagCatalog.updateTag(id, patch);
+      const item = mapTagToPickerItem(tag);
+      this.upsertTagItem(item);
+      return item;
+    } catch {
+      throw new Error(this.runtime.i18n.t('boards.cardBack.tagsUpdateFailed'));
+    }
+  }
+
+  private async deleteTagFromCardBack(id: number): Promise<void> {
+    if (!this.tagCatalog) return;
+    try {
+      await this.tagCatalog.deleteTag(id);
+      this.tagItems = this.tagItems.filter((tag) => tag.id !== id);
+      const { card } = this.findActiveCardLocation();
+      this.cardModalDraftTagIds = this.getCardModalDraftTagIds(card).filter(
+        (tagId) => tagId !== id
+      );
+    } catch {
+      throw new Error(this.runtime.i18n.t('boards.cardBack.tagsDeleteFailed'));
+    }
+  }
+
+  private upsertTagItem(item: TagPickerItem): void {
+    const index = this.tagItems.findIndex((tag) => tag.id === item.id);
+    if (index >= 0) {
+      this.tagItems = this.tagItems.map((tag) =>
+        tag.id === item.id ? item : tag
+      );
+      return;
+    }
+    this.tagItems = [...this.tagItems, item];
+  }
+
+  private renderCardBackDescriptionSection(
+    card: Card,
+    titleInput: HTMLTextAreaElement,
+    description: HTMLTextAreaElement
+  ): HTMLElement {
+    const section = this.createCardBackSection(
+      'document',
+      this.runtime.i18n.t('boards.cardDescriptionLabel')
+    );
+    const main = section.querySelector<HTMLElement>(
+      `.${boardsModalClassNames.sectionMain}`
+    );
+    if (!main) return section;
+
+    main.append(description);
+
+    const actions = document.createElement('div');
+    actions.className = boardsModalClassNames.editorActions;
+    const saveButton = createTextButton({
+      text: this.runtime.i18n.t('common.save'),
+      tone: 'primary',
+      size: 'md',
+      className: boardsViewClassNames.primaryButton,
+      onClick: () => this.saveCardModal(card, titleInput, description),
+    });
+    const validate = (): void => {
+      saveButton.disabled = titleInput.value.trim().length === 0;
+    };
+    titleInput.addEventListener('input', validate);
+    validate();
+    actions.append(
+      createTextButton({
+        text: this.runtime.i18n.t('common.cancel'),
+        tone: 'text',
+        size: 'md',
+        className: boardsViewClassNames.quietButton,
+        onClick: () => this.closeCardModal(),
+      }),
+      saveButton
+    );
+    main.append(actions);
+    return section;
+  }
+
+  private async deleteSharedCardFromQuickEditor(card: Card): Promise<void> {
+    await this.deleteSharedCard(card, () => this.closeQuickCardEditor());
+  }
+
+  private async deleteSharedCardFromDetails(card: Card): Promise<void> {
+    await this.deleteSharedCard(card, () => {
+      this.closeCardActionsPopover();
+      this.closeCardModal();
+    });
+  }
+
+  private async deleteSharedCard(
+    card: Card,
+    onConfirmed: () => void
+  ): Promise<void> {
+    if (!(await this.confirmSharedCardDeletion())) return;
+    onConfirmed();
+    this.handlers.onDeleteCard(card.id);
+  }
+
+  private confirmSharedCardDeletion(): Promise<boolean> {
+    return this.openDeleteCardConfirmationDialog();
+  }
+
+  private openDeleteCardConfirmationDialog(): Promise<boolean> {
+    return new Promise((resolve) => {
+      let settled = false;
+      const settle = (confirmed: boolean): void => {
+        if (settled) return;
+        settled = true;
+        resolve(confirmed);
+      };
+      const close = (): void => overlay.remove();
+
+      const { overlay, container, body, footer } = createModalShell(
+        this.runtime.i18n.t('boards.actions.deleteCard'),
+        {
+          intent: 'confirm',
+          zIndex: 360,
+          onClose: () => {
+            settle(false);
+            close();
+          },
+        }
+      );
+
+      const message = document.createElement('p');
+      message.className = 'text-sm leading-relaxed text-slate-600';
+      message.id = `delete-card-confirm-message-${Math.random()
+        .toString(36)
+        .slice(2, 9)}`;
+      message.textContent = this.runtime.i18n.t(
+        'boards.cardMirror.deleteSharedConfirm'
+      );
+      container.setAttribute('aria-describedby', message.id);
+      body.append(message);
+
+      const row = createModalActionRow({ variant: 'confirm' });
+      const cancelButton = createTextButton({
+        text: this.runtime.i18n.t('common.cancel'),
+        tone: 'text',
+        size: 'md',
+        className: getModalActionButtonClass('default'),
+        onClick: () => {
+          settle(false);
+          close();
+        },
+      });
+      cancelButton.setAttribute('data-testid', 'delete-card-cancel-button');
+      row.append(cancelButton);
+
+      const deleteButton = createTextButton({
+        text: this.runtime.i18n.t('boards.actions.deleteCard'),
+        tone: 'destructive',
+        size: 'md',
+        className: getModalActionButtonClass('wide'),
+        onClick: () => {
+          settle(true);
+          close();
+        },
+      });
+      deleteButton.setAttribute('data-testid', 'delete-card-confirm-button');
+      row.append(deleteButton);
+
+      footer.append(row);
+      container.addEventListener('keydown', (event: KeyboardEvent) => {
+        event.stopPropagation();
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          settle(false);
+          close();
+        }
+      });
+    });
+  }
+
+  private renderCardBackAttachmentsSection(): HTMLElement {
+    const section = this.createCardBackSection(
+      'link',
+      this.runtime.i18n.t('boards.cardBack.attachments'),
+      createTextButton({
+        text: this.runtime.i18n.t('boards.cardBack.add'),
+        tone: 'text',
+        size: 'sm',
+        className: boardsViewClassNames.quietButton,
+        disabled: true,
+      })
+    );
+    const main = section.querySelector<HTMLElement>(
+      `.${boardsModalClassNames.sectionMain}`
+    );
+    if (!main) return section;
+    const panel = document.createElement('div');
+    panel.className = boardsModalClassNames.placeholderPanel;
+    panel.textContent = this.runtime.i18n.t('boards.cardBack.noAttachments');
+    main.append(panel);
+    return section;
+  }
+
+  private renderCardBackAside(board: Board, column: BoardColumn): HTMLElement {
+    const aside = document.createElement('aside');
+    aside.className = boardsModalClassNames.aside;
+    aside.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('boards.cardBack.comments')
+    );
+
+    const section = this.createCardBackSection(
+      'chat-bubble-left',
+      this.runtime.i18n.t('boards.cardBack.comments'),
+      createTextButton({
+        text: this.runtime.i18n.t('boards.cardBack.showDetails'),
+        tone: 'text',
+        size: 'sm',
+        className: boardsViewClassNames.quietButton,
+        disabled: true,
+      })
+    );
+    const main = section.querySelector<HTMLElement>(
+      `.${boardsModalClassNames.sectionMain}`
+    );
+    if (!main) return aside;
+
+    main.append(
+      createTextButton({
+        text: this.runtime.i18n.t('boards.cardBack.writeComment'),
+        tone: 'text',
+        size: 'md',
+        className: boardsModalClassNames.activityInput,
+        disabled: true,
+      })
+    );
+
+    const activityList = document.createElement('ul');
+    activityList.className = boardsModalClassNames.activityList;
+    const item = document.createElement('li');
+    item.className = boardsModalClassNames.activityItem;
+    const avatar = document.createElement('span');
+    avatar.className = boardsModalClassNames.avatar;
+    avatar.textContent = 'M';
+    avatar.setAttribute('aria-hidden', 'true');
+    const copy = document.createElement('span');
+    copy.textContent = this.runtime.i18n.t('boards.cardBack.activityCreated', {
+      board: board.title,
+      column: column.title,
+    });
+    item.append(avatar, copy);
+    activityList.append(item);
+    main.append(activityList);
+    aside.append(section);
+    return aside;
+  }
+
+  private createCardBackSection(
+    icon: IconName,
+    titleText: string,
+    action?: HTMLElement
+  ): HTMLElement {
+    const section = document.createElement('section');
+    section.className = boardsModalClassNames.section;
+
+    const iconWrap = document.createElement('div');
+    iconWrap.className = boardsModalClassNames.sectionIcon;
+    const iconElement = createIcon(icon, { size: 20, strokeWidth: 2 });
+    iconElement.setAttribute('aria-hidden', 'true');
+    iconWrap.append(iconElement);
+
+    const main = document.createElement('div');
+    main.className = boardsModalClassNames.sectionMain;
+    const header = document.createElement('div');
+    header.className = boardsModalClassNames.sectionHeader;
+    const title = document.createElement('h3');
+    title.className = boardsModalClassNames.sectionTitle;
+    title.textContent = titleText;
+    const actions = document.createElement('div');
+    actions.className = boardsModalClassNames.sectionActions;
+    if (action) actions.append(action);
+    header.append(title, actions);
+    main.append(header);
+    section.append(iconWrap, main);
+    return section;
+  }
+
+  private createUnavailableCardBackButton(
+    labelKey: string,
+    icon: IconName
+  ): HTMLButtonElement {
+    const button = createTextButton({
+      text: this.runtime.i18n.t(labelKey),
+      tone: 'text',
+      size: 'md',
+      className: boardsModalClassNames.quickActionButton,
+      disabled: true,
+    });
+    prependButtonIcon(button, icon);
+    return button;
+  }
+
+  private saveCardModal(
+    card: Card,
+    titleInput: HTMLTextAreaElement,
+    descriptionInput: HTMLTextAreaElement
+  ): void {
+    const nextTitle = titleInput.value.trim();
+    if (!nextTitle) return;
+    const nextDescription = descriptionInput.value;
+    const nextTagIds = this.getCardModalDraftTagIds(card);
+    const patch: { title?: string; description?: string; tag_ids?: number[] } =
+      {};
+    if (nextTitle !== card.title) patch.title = nextTitle;
+    if (nextDescription !== card.description)
+      patch.description = nextDescription;
+    const requestedTagIds =
+      this.cardModalRequestedTagIds ?? getBoardCardTagIds(card);
+    if (
+      !haveSameBoardCardTagIds(nextTagIds, requestedTagIds)
+    ) {
+      patch.tag_ids = nextTagIds;
+    }
+    this.closeCardModal();
+    if (
+      patch.title !== undefined ||
+      patch.description !== undefined ||
+      patch.tag_ids !== undefined
+    ) {
+      this.handlers.onPatchCard(card.id, patch);
+    }
+  }
+
+  private closeCardModal(): void {
+    this.closeCardActionsPopover();
+    this.closeCardLabelsPopover();
+    this.closeMoveCardPopover();
+    this.cardModalDraftTagIds = null;
+    this.cardModalRequestedTagIds = null;
+    this.cardModalLabelsHost = null;
+    this.cardModalQuickActionList = null;
+    this.activeCardPlacementId = null;
+    this.cardModalOverlay?.remove();
+    this.cardModalOverlay = null;
+  }
+
+  private closeCardLabelsPopover(): void {
+    const popover = this.cardLabelsPopover;
+    if (!popover) return;
+    this.cardLabelsPopover = null;
+    popover.trigger.setAttribute('aria-expanded', 'false');
+    popover.menu.close();
+    popover.menu.unmount();
+    popover.picker.destroy();
+    popover.panel.remove();
+  }
+
+  private closeMoveCardPopover(): void {
+    const popover = this.moveCardPopover;
+    if (!popover) return;
+    this.moveCardPopover = null;
+    popover.trigger.setAttribute('aria-expanded', 'false');
+    popover.menu.close();
+    popover.menu.unmount();
+    popover.panel.remove();
+  }
+
+  private closeCardActionsPopover(): void {
+    const popover = this.cardActionsPopover;
+    if (!popover) return;
+    this.cardActionsPopover = null;
+    popover.trigger.setAttribute('aria-expanded', 'false');
+    popover.menu.close();
+    popover.menu.unmount();
+    popover.panel.remove();
+  }
+
+  private closeListActionsPopover(): void {
+    const popover = this.listActionsPopover;
+    if (!popover) return;
+    this.listActionsPopover = null;
+    popover.trigger.setAttribute('aria-expanded', 'false');
+    popover.menu.close();
+    popover.menu.unmount();
+    popover.panel.remove();
+  }
+
+  private closeQuickCardEditor(): void {
+    this.quickEditorOverlay?.remove();
+    this.quickEditorOverlay = null;
+  }
+
+  private getSelectedBoard(state: BoardsState): Board | null {
+    return (
+      state.boards.find((board) => board.id === state.selectedBoardId) ??
+      state.boards[0] ??
+      null
+    );
+  }
+
+  private findCardLocation(
+    placementId: CardPlacement['id'],
+    state: BoardsState
+  ): CardLocation | null {
+    for (const board of state.boards) {
+      for (const column of board.columns) {
+        const card = column.cards.find(
+          (candidate) => getCardPlacementId(candidate) === placementId
+        );
+        if (card) return { board, column, card, placementId };
+      }
+    }
+    return null;
+  }
+
+  private submitColumnTitle(boardId: Board['id']): void {
+    const title = this.columnTitleTextarea?.value.trim() ?? '';
+    if (!title) return;
+    this.handlers.onCreateColumn(boardId, title);
+    if (this.columnTitleTextarea) this.columnTitleTextarea.value = '';
+    this.isColumnComposerExpanded = false;
+  }
+
+  private startBoardTitleEdit(boardId: Board['id']): void {
+    this.editingBoardTitleId = boardId;
+    this.rerenderCurrentState();
+  }
+
+  private finishBoardTitleEdit(board: Board, apply: boolean): void {
+    if (this.editingBoardTitleId !== board.id) return;
+    const nextTitle = this.boardTitleEditInput?.value.trim() ?? '';
+    this.editingBoardTitleId = null;
+    this.boardTitleEditInput = null;
+    if (apply && nextTitle.length > 0 && nextTitle !== board.title) {
+      this.handlers.onPatchBoard(board.id, { title: nextTitle });
+      return;
+    }
+    this.rerenderCurrentState();
+  }
+
+  private startColumnTitleEdit(columnId: BoardColumn['id']): void {
+    this.editingColumnTitleId = columnId;
+    this.rerenderCurrentState();
+  }
+
+  private finishColumnTitleEdit(column: BoardColumn, apply: boolean): void {
+    if (this.editingColumnTitleId !== column.id) return;
+    const nextTitle = this.columnTitleEditInput?.value.trim() ?? '';
+    this.editingColumnTitleId = null;
+    this.columnTitleEditInput = null;
+    if (apply && nextTitle.length > 0 && nextTitle !== column.title) {
+      this.handlers.onPatchColumn(column.id, { title: nextTitle });
+      return;
+    }
+    this.rerenderCurrentState();
+  }
+
+  private expandCardComposer(columnId: BoardColumn['id']): void {
+    this.expandedCardComposerColumnId = columnId;
+    this.rerenderCurrentState();
+  }
+
+  private collapseCardComposer(): void {
+    this.expandedCardComposerColumnId = null;
+    this.rerenderCurrentState();
+  }
+
+  private expandColumnComposer(): void {
+    this.isColumnComposerExpanded = true;
+    this.rerenderCurrentState();
+  }
+
+  private collapseColumnComposer(): void {
+    this.isColumnComposerExpanded = false;
+    this.rerenderCurrentState();
+  }
+
+  private submitCard(columnId: BoardColumn['id']): void {
+    const draft = this.cardDrafts.get(columnId);
+    if (!draft) return;
+    const title = draft.title.value.trim();
+    if (!title) return;
+    this.handlers.onCreateCard(columnId, title, '');
+    draft.title.value = '';
+    this.expandedCardComposerColumnId = null;
+    this.rerenderCurrentState();
+  }
+
+  private rerenderCurrentState(): void {
+    if (!this.state) return;
+    this.render(this.state);
+  }
+
+  private unmountHeaderMenu(): void {
+    this.headerMenu?.unmount();
+    this.headerMenu = null;
+  }
+}

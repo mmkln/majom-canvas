@@ -1,23 +1,54 @@
+export type BoardEntityId = string;
+
 export interface Board {
-  id: number;
+  id: BoardEntityId;
   title: string;
   columns: BoardColumn[];
 }
 
 export interface BoardColumn {
-  id: number;
+  id: BoardEntityId;
   title: string;
   order: number;
   cards: Card[];
   board: Board['id'];
 }
 
+export interface CardMirrorSource {
+  board_id: BoardEntityId;
+  board_title: string;
+  column_id: BoardEntityId;
+  column_title: string;
+  placement_id: BoardEntityId;
+  archived: boolean;
+}
+
 export interface Card {
-  id: number;
+  id: BoardEntityId;
+  placement_id?: BoardEntityId | null;
   title: string;
   description: string;
-  order: number;
+  pos?: string | number | null;
+  order?: number;
   column: BoardColumn['id'];
+  tags?: Tag[];
+  tag_ids?: number[];
+  mirror_source?: CardMirrorSource | null;
+  version?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CardPlacement {
+  id: BoardEntityId;
+  card: Card['id'];
+  column: BoardColumn['id'];
+  pos?: string | number | null;
+  order?: number;
+  archived: boolean;
+  mirror_source?: CardMirrorSource | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface CalendarEvent {

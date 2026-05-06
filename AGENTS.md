@@ -31,6 +31,9 @@
 2. Reuse the existing component directly, or wrap/compose it if the screen needs a thin specialization.
 3. Add a new component only if no suitable primitive exists after that search.
 
+- When replacing existing controls with `HudSurface` or ui-lib primitives, preserve the existing control grouping and page structure unless the user explicitly asks for a structural redesign.
+- Do not extend shared ui-lib primitive APIs for a single feature-local composition need unless the user explicitly asks for a reusable primitive change.
+
 ### UI Composition Standard
 
 - For any request about UI component structure, styling strategy, or templating, read `docs/UI-ARCHITECTURE.md` first.
@@ -286,6 +289,20 @@
 - Owner: `docs` + `src/ui-lib` + non-canvas feature modules
 - Read first: `docs/UI-STYLE-GUIDELINES.md`
 - Expected result: maintain one practical style policy for new work, identify divergence hotspots, and prioritize incremental convergence to shared ui-lib/hud primitives.
+
+### Refine Boards Trello-Like UI
+
+- Use when the request changes the Boards feature card fronts, board header, list/card composers, or card details modal.
+- Owner: `src/features/boards`
+- Read first: `src/features/boards/AGENTS.md`
+- Expected result: preserve Trello-like interaction semantics, including card fronts that open details and expose badges instead of destructive actions.
+
+### Implement Boards Card Drag And Drop
+
+- Use when the request changes card drag/drop, placement ordering, or reorder/move interactions in the Boards feature.
+- Owner: `src/features/boards`
+- Read first: `src/features/boards/AGENTS.md`
+- Expected result: keep gesture lifecycle in `BoardDragController`, target resolution in pure domain helpers, and send semantic placement targets instead of frontend-owned numeric ranks.
 
 ### Align Reactive UI Channels
 

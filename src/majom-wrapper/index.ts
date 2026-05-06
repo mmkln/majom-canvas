@@ -11,6 +11,7 @@ export { GoalRelationsApiService } from './data-access/goal-relations-api-servic
 export { TimeClusteringApiService } from './data-access/time-clustering-api-service.ts';
 export { FocusBoardApiService } from './data-access/focus-board-api-service.ts';
 export { BacklogApiService } from './data-access/backlog-api-service.ts';
+export { BoardsApiService } from './data-access/boards-api-service.ts';
 export { CanvasDataService } from './services/CanvasDataService.ts';
 
 export type {

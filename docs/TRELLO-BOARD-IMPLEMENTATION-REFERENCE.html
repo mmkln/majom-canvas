@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Trello Board Implementation Reference</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg-a: #0f172a;
+        --bg-b: #1a1040;
+        --panel: #f1f2f4;
+        --card: #ffffff;
+        --text: #111827;
+        --muted: #6b7280;
+        --line: #e5e7eb;
+        --blue: #3b82f6;
+        --purple: #8b5cf6;
+        --green: #10b981;
+        --yellow: #f59e0b;
+        --red: #ef4444;
+        --cyan: #06b6d4;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        background:
+          radial-gradient(circle, rgba(255, 255, 255, 0.027) 1px, transparent 1px)
+            0 0 / 28px 28px,
+          linear-gradient(135deg, var(--bg-a) 0%, var(--bg-b) 45%, var(--bg-a) 100%);
+        color: white;
+      }
+
+      .reference-note {
+        position: fixed;
+        left: 16px;
+        bottom: 16px;
+        z-index: 5;
+        max-width: 420px;
+        padding: 10px 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.92);
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 12px;
+        line-height: 1.5;
+        backdrop-filter: blur(12px);
+      }
+
+      .board-shell {
+        display: flex;
+        min-height: 100vh;
+        flex-direction: column;
+      }
+
+      .board-header {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 56px;
+        padding: 12px 16px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(8px);
+      }
+
+      .brand-block,
+      .header-actions,
+      .avatars,
+      .search,
+      .filter-button,
+      .share-button {
+        display: flex;
+        align-items: center;
+      }
+
+      .brand-block {
+        gap: 10px;
+        min-width: 0;
+      }
+
+      .brand-icon {
+        display: grid;
+        width: 28px;
+        height: 28px;
+        flex: 0 0 auto;
+        place-items: center;
+        border-radius: 8px;
+        background: linear-gradient(135deg, var(--blue), var(--purple));
+        font-size: 14px;
+        font-weight: 800;
+      }
+
+      .title-stack {
+        min-width: 0;
+      }
+
+      .title-stack h1 {
+        margin: 0;
+        overflow: hidden;
+        color: white;
+        font-size: 14px;
+        font-weight: 650;
+        line-height: 1.3;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .title-stack p {
+        margin: 1px 0 0;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 11px;
+      }
+
+      .spacer {
+        flex: 1 1 auto;
+      }
+
+      .chip {
+        padding: 2px 8px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 7px;
+        background: rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 12px;
+      }
+
+      .divider {
+        width: 1px;
+        height: 20px;
+        background: rgba(255, 255, 255, 0.2);
+      }
+
+      .avatars {
+        margin-right: 4px;
+        padding-left: 6px;
+      }
+
+      .avatar {
+        display: grid;
+        width: 28px;
+        height: 28px;
+        margin-left: -8px;
+        place-items: center;
+        border: 2px solid #0f172a;
+        border-radius: 999px;
+        color: white;
+        font-size: 10px;
+        font-weight: 750;
+      }
+
+      .search {
+        position: relative;
+      }
+
+      .search input {
+        width: 160px;
+        height: 32px;
+        padding: 0 12px 0 30px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 9px;
+        outline: none;
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        font-size: 13px;
+      }
+
+      .search span {
+        position: absolute;
+        left: 10px;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 13px;
+      }
+
+      .filter-button,
+      .share-button {
+        height: 32px;
+        gap: 6px;
+        border: 0;
+        border-radius: 9px;
+        padding: 0 12px;
+        color: rgba(255, 255, 255, 0.82);
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .filter-button {
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .share-button {
+        background: var(--blue);
+        color: white;
+      }
+
+      .board-scroll {
+        display: flex;
+        height: calc(100vh - 56px);
+        align-items: flex-start;
+        gap: 12px;
+        overflow: auto hidden;
+        padding: 20px;
+        scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+        scrollbar-width: thin;
+      }
+
+      .list {
+        display: flex;
+        width: 272px;
+        max-height: calc(100vh - 80px);
+        flex: 0 0 272px;
+        flex-direction: column;
+        border-radius: 12px;
+        background: var(--panel);
+        color: var(--text);
+      }
+
+      .list-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 12px 8px;
+      }
+
+      .list-dot {
+        width: 8px;
+        height: 8px;
+        flex: 0 0 auto;
+        border-radius: 999px;
+      }
+
+      .list-title {
+        flex: 1 1 auto;
+        overflow: hidden;
+        border: 0;
+        background: transparent;
+        color: #374151;
+        font-size: 14px;
+        font-weight: 700;
+        text-align: left;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .count {
+        color: #9ca3af;
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      .mirror-count {
+        margin: 0 12px 4px;
+        width: fit-content;
+        border-radius: 999px;
+        padding: 2px 8px;
+        background: #ede9fe;
+        color: #7c3aed;
+        font-size: 12px;
+      }
+
+      .cards {
+        min-height: 48px;
+        flex: 1 1 auto;
+        overflow-y: auto;
+        padding: 0 8px 8px;
+        scrollbar-color: #d1d5db transparent;
+        scrollbar-width: thin;
+      }
+
+      .card {
+        position: relative;
+        margin-bottom: 6px;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: var(--card);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+        cursor: pointer;
+      }
+
+      .card.mirror {
+        border-color: #c4b5fd;
+        border-left-width: 3px;
+      }
+
+      .labels {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-bottom: 8px;
+      }
+
+      .label {
+        display: block;
+        width: 32px;
+        height: 6px;
+        border-radius: 999px;
+      }
+
+      .card-title {
+        margin: 0;
+        color: #1f2937;
+        font-size: 14px;
+        font-weight: 550;
+        line-height: 1.35;
+      }
+
+      .card.mirror .card-title {
+        padding-right: 56px;
+      }
+
+      .mirror-badge {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        border-radius: 6px;
+        padding: 2px 6px;
+        background: var(--purple);
+        color: white;
+        font-size: 10px;
+        font-weight: 650;
+      }
+
+      .from {
+        margin: 4px 0 0;
+        color: #9ca3af;
+        font-size: 11px;
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .priority,
+      .date,
+      .checklist {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        color: #9ca3af;
+        font-size: 11px;
+      }
+
+      .priority::before {
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: currentColor;
+        content: "";
+      }
+
+      .date {
+        border-radius: 5px;
+        padding: 2px 6px;
+        background: #f0fdf4;
+        color: #16a34a;
+      }
+
+      .add-card {
+        margin: 0 8px 8px;
+        border: 0;
+        border-radius: 9px;
+        padding: 9px 8px;
+        background: transparent;
+        color: #6b7280;
+        font-size: 14px;
+        text-align: left;
+      }
+
+      .add-card:hover {
+        background: #e5e7eb;
+        color: #374151;
+      }
+
+      .add-list {
+        width: 272px;
+        flex: 0 0 272px;
+        border: 1.5px dashed rgba(255, 255, 255, 0.22);
+        border-radius: 12px;
+        padding: 12px 16px;
+        background: rgba(255, 255, 255, 0.09);
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 14px;
+        font-weight: 650;
+        text-align: left;
+      }
+
+      .legend {
+        position: fixed;
+        right: 20px;
+        bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 8px 12px;
+        background: rgba(15, 23, 42, 0.92);
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 12px;
+        backdrop-filter: blur(12px);
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+      }
+
+      @media (max-width: 780px) {
+        .board-header {
+          flex-wrap: wrap;
+        }
+
+        .spacer {
+          display: none;
+        }
+
+        .search input {
+          width: min(56vw, 220px);
+        }
+
+        .reference-note {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <aside class="reference-note">
+      Reference saved from the provided Figma Sites/Trello clone page. Key cues:
+      translucent dark top bar, dense horizontal list layout, light Trello-style
+      lists, compact white cards, colored labels, priority/due/checklist metadata,
+      mirror-card badge and source text.
+    </aside>
+
+    <main class="board-shell">
+      <header class="board-header">
+        <div class="brand-block">
+          <div class="brand-icon">▦</div>
+          <div class="title-stack">
+            <h1>Product Roadmap - Q2 2026</h1>
+            <p>14 cards · 2 mirrors</p>
+          </div>
+          <button class="filter-button" title="Star board">☆</button>
+          <span class="divider"></span>
+          <span class="chip">Engineering</span>
+        </div>
+
+        <div class="spacer"></div>
+
+        <div class="avatars" aria-label="Members">
+          <span class="avatar" style="background: var(--blue)">AC</span>
+          <span class="avatar" style="background: var(--green)">JK</span>
+          <span class="avatar" style="background: var(--yellow)">SR</span>
+          <span class="avatar" style="background: var(--purple)">ML</span>
+        </div>
+        <span class="divider"></span>
+        <label class="search">
+          <span>⌕</span>
+          <input value="" placeholder="Search cards..." />
+        </label>
+        <button class="filter-button">Filter ▾</button>
+        <button class="share-button">Share</button>
+      </header>
+
+      <section class="board-scroll" aria-label="Trello board implementation reference">
+        <article class="list">
+          <header class="list-header">
+            <span class="list-dot" style="background: var(--red)"></span>
+            <button class="list-title">Backlog</button>
+            <span class="count">5</span>
+          </header>
+          <div class="cards">
+            <section class="card">
+              <div class="labels">
+                <span class="label" style="background: var(--purple)"></span>
+                <span class="label" style="background: var(--green)"></span>
+              </div>
+              <p class="card-title">Redesign onboarding flow</p>
+              <div class="meta">
+                <span class="priority" style="color: var(--yellow)">high</span>
+                <span class="date">2026-05-20</span>
+                <span class="checklist">☑ 2/4</span>
+              </div>
+            </section>
+            <section class="card">
+              <div class="labels">
+                <span class="label" style="background: var(--blue)"></span>
+              </div>
+              <p class="card-title">API rate limiting v2</p>
+              <div class="meta">
+                <span class="priority" style="color: var(--blue)">medium</span>
+              </div>
+            </section>
+            <section class="card">
+              <div class="labels">
+                <span class="label" style="background: var(--red)"></span>
+                <span class="label" style="background: #f97316"></span>
+              </div>
+              <p class="card-title">Investigate memory leak in worker pool</p>
+              <div class="meta">
+                <span class="priority" style="color: var(--red)">critical</span>
+                <span class="date">2026-05-10</span>
+                <span class="checklist">☑ 0/2</span>
+              </div>
+            </section>
+          </div>
+          <button class="add-card">+ Add a card</button>
+        </article>
+
+        <article class="list">
+          <header class="list-header">
+            <span class="list-dot" style="background: var(--yellow)"></span>
+            <button class="list-title">In Progress</button>
+            <span class="count">3</span>
+          </header>
+          <div class="cards">
+            <section class="card">
+              <div class="labels">
+                <span class="label" style="background: var(--blue)"></span>
+                <span class="label" style="background: var(--green)"></span>
+              </div>
+              <p class="card-title">OAuth 2.0 integration - Google & GitHub</p>
+              <div class="meta">
+                <span class="priority" style="color: var(--yellow)">high</span>
+                <span class="date">2026-05-15</span>
+                <span class="checklist">☑ 1/4</span>
+              </div>
+            </section>
+            <section class="card">
+              <div class="labels">
+                <span class="label" style="background: #eab308"></span>
+                <span class="label" style="background: var(--green)"></span>
+              </div>
+              <p class="card-title">Dashboard performance optimization</p>
+              <div class="meta">
+                <span class="priority" style="color: var(--yellow)">high</span>
+                <span class="checklist">☑ 1/2</span>
+              </div>
+            </section>
+          </div>
+          <button class="add-card">+ Add a card</button>
+        </article>
+
+        <article class="list">
+          <header class="list-header">
+            <span class="list-dot" style="background: var(--green)"></span>
+            <button class="list-title">In Review</button>
+            <span class="count">3</span>
+          </header>
+          <span class="mirror-count">🔗 1 mirror</span>
+          <div class="cards">
+            <section class="card">
+              <div class="labels">
+                <span class="label" style="background: var(--purple)"></span>
+                <span class="label" style="background: var(--green)"></span>
+              </div>
+              <p class="card-title">Billing upgrade modal redesign</p>
+              <div class="meta">
+                <span class="priority" style="color: var(--yellow)">high</span>
+                <span class="date">2026-05-12</span>
+                <span class="checklist">☑ 2/3</span>
+              </div>
+            </section>
+            <section class="card mirror">
+              <span class="mirror-badge">🔗 Mirror</span>
+              <div class="labels">
+                <span class="label" style="background: var(--red)"></span>
+                <span class="label" style="background: #f97316"></span>
+              </div>
+              <p class="card-title">Investigate memory leak in worker pool</p>
+              <p class="from">From: <span style="color: var(--purple)">Backlog</span></p>
+              <div class="meta">
+                <span class="priority" style="color: var(--red)">critical</span>
+                <span class="date">2026-05-10</span>
+                <span class="checklist">☑ 0/2</span>
+              </div>
+            </section>
+          </div>
+          <button class="add-card">+ Add a card</button>
+        </article>
+
+        <article class="list">
+          <header class="list-header">
+            <span class="list-dot" style="background: var(--blue)"></span>
+            <button class="list-title">Staging</button>
+            <span class="count">2</span>
+          </header>
+          <span class="mirror-count">🔗 1 mirror</span>
+          <div class="cards">
+            <section class="card">
+              <div class="labels">
+                <span class="label" style="background: var(--green)"></span>
+              </div>
+              <p class="card-title">CSV export for reports</p>
+              <div class="meta">
+                <span class="priority" style="color: var(--blue)">medium</span>
+                <span class="checklist">☑ 2/3</span>
+              </div>
+            </section>
+            <section class="card mirror">
+              <span class="mirror-badge">🔗 Mirror</span>
+              <div class="labels">
+                <span class="label" style="background: var(--purple)"></span>
+                <span class="label" style="background: var(--green)"></span>
+              </div>
+              <p class="card-title">Billing upgrade modal redesign</p>
+              <p class="from">From: <span style="color: var(--purple)">In Review</span></p>
+              <div class="meta">
+                <span class="priority" style="color: var(--yellow)">high</span>
+                <span class="date">2026-05-12</span>
+                <span class="checklist">☑ 2/3</span>
+              </div>
+            </section>
+          </div>
+          <button class="add-card">+ Add a card</button>
+        </article>
+
+        <article class="list">
+          <header class="list-header">
+            <span class="list-dot" style="background: #ec4899"></span>
+            <button class="list-title">Done</button>
+            <span class="count">3</span>
+          </header>
+          <div class="cards">
+            <section class="card">
+              <div class="labels">
+                <span class="label" style="background: var(--blue)"></span>
+              </div>
+              <p class="card-title">Two-factor authentication (TOTP)</p>
+              <div class="meta">
+                <span class="priority" style="color: var(--red)">critical</span>
+              </div>
+            </section>
+            <section class="card">
+              <div class="labels">
+                <span class="label" style="background: var(--green)"></span>
+              </div>
+              <p class="card-title">Team invitation flow</p>
+              <div class="meta">
+                <span class="priority" style="color: var(--blue)">medium</span>
+              </div>
+            </section>
+          </div>
+          <button class="add-card">+ Add a card</button>
+        </article>
+
+        <button class="add-list">+ Add another list</button>
+      </section>
+    </main>
+
+    <footer class="legend">
+      <span>🔗 Mirror card - synced with original</span>
+      <span class="divider"></span>
+      <span>14 cards · 2 mirrors</span>
+    </footer>
+  </body>
+</html>

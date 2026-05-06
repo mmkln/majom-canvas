@@ -1,0 +1,224 @@
+/*
+  Trello real board style reference.
+  Source: browser DevTools style excerpt supplied by the user.
+  Note: this is a captured reference, not production CSS for the app.
+  The Atlassian design token block below is partial because DevTools collapsed
+  additional properties in the supplied excerpt.
+*/
+
+element.style {
+  --dynamic-button: transparent;
+  --dynamic-button-hovered: rgba(0, 0, 0, 0.16);
+  --dynamic-button-pressed: rgba(0, 0, 0, 0.16);
+  --dynamic-button-pressed-hovered: rgba(0, 0, 0, 0.16);
+  --dynamic-button-pressed-text: #172B4D;
+  --dynamic-button-primary: rgba(0, 0, 0, 0.16);
+  --dynamic-button-primary-text: var(--dynamic-text);
+  --dynamic-button-primary-hovered: rgba(0, 0, 0, 0.32);
+  --dynamic-button-primary-pressed: rgba(0, 0, 0, 0.32);
+  --dynamic-button-highlighted: rgba(0, 0, 0, 0.5);
+  --dynamic-button-highlighted-text: #FFFFFF;
+  --dynamic-button-highlighted-hovered: rgba(0, 0, 0, 0.6);
+  --dynamic-icon: #42526E;
+  --dynamic-text: #172B4D;
+  --dynamic-text-transparent: hsla(218, 54%, 19.6%, 0.16);
+  --dynamic-background: hsl(32, 30%, 85.4%);
+  --dynamic-star: var(--dynamic-icon);
+  --dynamic-background-transparent: hsla(32, 30%, 80.4%, 0.9);
+}
+
+.board-wrapper {
+  top: var(--ds-space-0, 0);
+  right: var(--ds-space-0, 0);
+  bottom: var(--ds-space-0, 0);
+  left: var(--ds-space-0, 0);
+  position: absolute;
+  overflow: hidden;
+}
+
+/* User agent stylesheet excerpt. */
+div {
+  display: block;
+  unicode-bidi: isolate;
+}
+
+.body-light-board-background {
+  --board-header-background-color: rgba(255, 255, 255, .24);
+}
+
+body,
+input,
+select,
+textarea,
+button {
+  color: var(--ds-text, #172b4d);
+  font: var(--ds-font-body);
+  font-display: swap;
+}
+
+html[data-color-mode="light"][data-theme~="light:light"],
+[data-subtree-theme][data-color-mode="light"][data-theme~="light:light"],
+html[data-color-mode="dark"][data-theme~="dark:light"],
+[data-subtree-theme][data-color-mode="dark"][data-theme~="dark:light"] {
+  color-scheme: light;
+  --ds-text: #292A2E;
+  --ds-text-accent-lime: #4C6B1F;
+  --ds-text-accent-lime-bolder: #37471F;
+  --ds-text-accent-red: #AE2E24;
+  --ds-text-accent-red-bolder: #5D1F1A;
+  --ds-text-accent-orange: #9E4C00;
+  --ds-text-accent-orange-bolder: #693200;
+  --ds-text-accent-yellow: #7F5F01;
+  --ds-text-accent-yellow-bolder: #533F04;
+  --ds-text-accent-green: #216E4E;
+  --ds-text-accent-green-bolder: #164B35;
+  --ds-text-accent-teal: #206A83;
+  --ds-text-accent-teal-bolder: #164555;
+  --ds-text-accent-blue: #1558BC;
+  --ds-text-accent-blue-bolder: #123263;
+  --ds-text-accent-purple: #803FA5;
+  --ds-text-accent-purple-bolder: #48245D;
+  --ds-text-accent-magenta: #943D73;
+  --ds-text-accent-magenta-bolder: #50253F;
+  --ds-text-accent-gray: #505258;
+  --ds-text-accent-gray-bolder: #1E1F21;
+  --ds-text-disabled: #080F214A;
+  --ds-text-inverse: #FFFFFF;
+  --ds-text-selected: #1868DB;
+  --ds-text-brand: #1868DB;
+  --ds-text-danger: #AE2E24;
+  --ds-text-danger-bolder: #5D1F1A;
+  --ds-text-warning: #9E4C00;
+  --ds-text-warning-inverse: #292A2E;
+  --ds-text-warning-bolder: #693200;
+  --ds-text-success: #4C6B1F;
+  --ds-text-success-bolder: #37471F;
+  --ds-text-discovery: #803FA5;
+  --ds-text-discovery-bolder: #48245D;
+  --ds-text-information: #1558BC;
+  --ds-text-information-bolder: #123263;
+  --ds-text-subtlest: #6B6E76;
+  --ds-text-subtle: #505258;
+  --ds-link: #1868DB;
+  --ds-link-pressed: #1558BC;
+  --ds-link-visited: #803FA5;
+  --ds-link-visited-pressed: #48245D;
+  --ds-icon: #292A2E;
+  --ds-icon-accent-lime: #6A9A23;
+  --ds-icon-accent-red: #C9372C;
+  --ds-icon-accent-orange: #E06C00;
+  --ds-icon-accent-yellow: #B38600;
+  --ds-icon-accent-green: #22A06B;
+  --ds-icon-accent-teal: #2898BD;
+
+  /*
+    DevTools source note:
+    "Show all properties (361 more)"
+  */
+}
+
+html[data-theme~="spacing:spacing"],
+[data-subtree-theme][data-theme~="spacing:spacing"] {
+  --ds-space-0: 0rem;
+  --ds-space-025: 0.125rem;
+  --ds-space-050: 0.25rem;
+  --ds-space-075: 0.375rem;
+  --ds-space-100: 0.5rem;
+  --ds-space-150: 0.75rem;
+  --ds-space-200: 1rem;
+  --ds-space-250: 1.25rem;
+  --ds-space-300: 1.5rem;
+  --ds-space-400: 2rem;
+  --ds-space-500: 2.5rem;
+  --ds-space-600: 3rem;
+  --ds-space-800: 4rem;
+  --ds-space-1000: 5rem;
+  --ds-space-negative-025: -0.125rem;
+  --ds-space-negative-050: -0.25rem;
+  --ds-space-negative-075: -0.375rem;
+  --ds-space-negative-100: -0.5rem;
+  --ds-space-negative-150: -0.75rem;
+  --ds-space-negative-200: -1rem;
+  --ds-space-negative-250: -1.25rem;
+  --ds-space-negative-300: -1.5rem;
+  --ds-space-negative-400: -2rem;
+}
+
+html[data-theme~="typography:typography"],
+[data-subtree-theme][data-theme~="typography:typography"] {
+  --ds-font-heading-xxlarge: normal 653 2rem / 2.25rem "Atlassian Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, "Helvetica Neue", sans-serif;
+  --ds-font-heading-xlarge: normal 653 1.75rem / 2rem "Atlassian Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, "Helvetica Neue", sans-serif;
+  --ds-font-heading-large: normal 653 1.5rem / 1.75rem "Atlassian Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, "Helvetica Neue", sans-serif;
+  --ds-font-heading-medium: normal 653 1.25rem / 1.5rem "Atlassian Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, "Helvetica Neue", sans-serif;
+  --ds-font-heading-small: normal 653 1rem / 1.25rem "Atlassian Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, "Helvetica Neue", sans-serif;
+  --ds-font-heading-xsmall: normal 653 0.875rem / 1.25rem "Atlassian Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, "Helvetica Neue", sans-serif;
+  --ds-font-heading-xxsmall: normal 653 0.75rem / 1rem "Atlassian Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, "Helvetica Neue", sans-serif;
+  --ds-font-body-large: normal 400 1rem / 1.5rem "Atlassian Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, "Helvetica Neue", sans-serif;
+  --ds-font-body: normal 400 0.875rem / 1.25rem "Atlassian Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, "Helvetica Neue", sans-serif;
+  --ds-font-body-small: normal 400 0.75rem / 1rem "Atlassian Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, "Helvetica Neue", sans-serif;
+  --ds-font-body-UNSAFE_small: normal 400 0.75rem / 1rem "Atlassian Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, "Helvetica Neue", sans-serif;
+  --ds-font-metric-large: normal 653 1.75rem / 2rem "Atlassian Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, "Helvetica Neue", sans-serif;
+  --ds-font-metric-medium: normal 653 1.5rem / 1.75rem "Atlassian Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, "Helvetica Neue", sans-serif;
+  --ds-font-metric-small: normal 653 1rem / 1.25rem "Atlassian Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, "Helvetica Neue", sans-serif;
+  --ds-font-code: normal 400 0.875em / 1 "Atlassian Mono", ui-monospace, Menlo, "Segoe UI Mono", "Ubuntu Mono", monospace;
+  --ds-font-weight-regular: 400;
+  --ds-font-weight-medium: 500;
+  --ds-font-weight-semibold: 600;
+  --ds-font-weight-bold: 653;
+  --ds-font-family-heading: "Atlassian Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, "Helvetica Neue", sans-serif;
+  --ds-font-family-body: "Atlassian Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, "Helvetica Neue", sans-serif;
+  --ds-font-family-code: "Atlassian Mono", ui-monospace, Menlo, "Segoe UI Mono", "Ubuntu Mono", monospace;
+  --ds-font-family-brand-heading: "Charlie Display", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, "Helvetica Neue", sans-serif;
+  --ds-font-family-brand-body: "Charlie Text", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, "Helvetica Neue", sans-serif;
+}
+
+html[data-theme~="shape:shape"],
+[data-subtree-theme][data-theme~="shape:shape"] {
+  --ds-radius-xsmall: 0.125rem;
+  --ds-radius-small: 0.25rem;
+  --ds-radius-medium: 0.375rem;
+  --ds-radius-large: 0.5rem;
+  --ds-radius-xlarge: 0.75rem;
+  --ds-radius-xxlarge: 1rem;
+  --ds-radius-full: 624.9375rem;
+  --ds-radius-tile: 25%;
+  --ds-border-width: 0.0625rem;
+  --ds-border-width-selected: 0.125rem;
+  --ds-border-width-focused: 0.125rem;
+}
+
+html {
+  --tr-background-list: #f1f2f4;
+  --tr-icon-star: #e2b203;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  font-family: sans-serif;
+}
+
+html {
+  font-size: 16px;
+}
+
+@font-face {
+  font-family: "Atlassian Sans";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("https://ds-cdn.prod-east.frontend.public.atl-paas.net/assets/fonts/atlassian-sans/v4/AtlassianSans-cyrillic-ext.woff2") format("woff2");
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+
+@property --shimmer-transparency {
+  syntax: "<percentage>";
+  initial-value: 20%;
+  inherits: false;
+}
+
+@property --gradient-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 270deg;
+}

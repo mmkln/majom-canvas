@@ -74,7 +74,8 @@ export const en = {
   'existingPicker.goalQueryHashSuggestionsHint':
     'Choose a tag suggestion or keep typing.',
   'existingPicker.goalQueryNoMatchingTags': 'No goal tag matches {query}.',
-  'existingPicker.goalQueryConvertTagSuggestion': 'Convert the current query into a tag filter',
+  'existingPicker.goalQueryConvertTagSuggestion':
+    'Convert the current query into a tag filter',
   'existingPicker.goalQueryUseTag': 'Use tag',
   'existingPicker.goalSummaryClearTags': 'Clear tags',
   'existingPicker.goalSummaryClearText': 'Clear text',
@@ -316,8 +317,7 @@ export const en = {
   'aiChat.placeholder.noContext': 'Ask without canvas context',
   'aiChat.placeholder.selectItems': 'Select items to ask about them',
   'aiChat.placeholder.selection': 'Ask about the selected items',
-  'aiChat.placeholder.unavailableInView':
-    'AI chat is unavailable in this view',
+  'aiChat.placeholder.unavailableInView': 'AI chat is unavailable in this view',
   'aiChat.placeholder.viewport': 'Ask about the visible area',
   'aiChat.priorityBadgeTitle': '{label} priority',
   'aiChat.progress.analyzingRequestDetail': 'Choosing the next steps.',
@@ -521,8 +521,7 @@ export const en = {
   'planningDetails.goal.addRelation.currentGoal': 'Current goal',
   'planningDetails.goal.addRelation.currentGoalUnavailable':
     'This goal is not available for relation creation.',
-  'planningDetails.goal.addRelation.duplicate':
-    'This relation already exists.',
+  'planningDetails.goal.addRelation.duplicate': 'This relation already exists.',
   'planningDetails.goal.addRelation.option.blockedBy': 'Blocked by',
   'planningDetails.goal.addRelation.option.blockedByHint':
     'The selected goal prevents this goal from moving forward.',
@@ -561,12 +560,14 @@ export const en = {
   'planningDetails.goal.relatedGoals.addUnavailable':
     'Adding relations from this modal is not available yet.',
   'planningDetails.goal.relatedGoals.empty': 'No related goals yet.',
-  'planningDetails.goal.relatedGoals.loadFailed': 'Failed to load related goals.',
+  'planningDetails.goal.relatedGoals.loadFailed':
+    'Failed to load related goals.',
   'planningDetails.goal.relatedGoals.loading': 'Loading related goals...',
   'planningDetails.goal.relatedGoals.changeRelationFor':
     'Change relation type for {title}',
   'planningDetails.goal.relatedGoals.actions': 'Relation actions',
-  'planningDetails.goal.relatedGoals.actionsFor': 'Relation actions for {title}',
+  'planningDetails.goal.relatedGoals.actionsFor':
+    'Relation actions for {title}',
   'planningDetails.goal.relatedGoals.delete': 'Delete relation',
   'planningDetails.goal.relatedGoals.relation.blocks': 'Blocks',
   'planningDetails.goal.relatedGoals.relation.blockedBy': 'Blocked by',
@@ -685,8 +686,7 @@ export const en = {
   'profileSettings.security.saveError': 'Could not update password.',
   'profileSettings.security.oldPasswordRequired':
     'Current password is required.',
-  'profileSettings.security.newPasswordRequired':
-    'New password is required.',
+  'profileSettings.security.newPasswordRequired': 'New password is required.',
   'profileSettings.security.confirmPasswordRequired':
     'Please confirm the new password.',
   'profileSettings.security.passwordMinLength':
@@ -731,8 +731,7 @@ export const en = {
   'profileSettings.danger.delete': 'Request account deletion',
   'profileSettings.danger.deleteRequested':
     'Account deletion was already requested on {date}.',
-  'profileSettings.danger.deleteError':
-    'Could not request account deletion.',
+  'profileSettings.danger.deleteError': 'Could not request account deletion.',
   'profileSettings.delete.confirmTitle': 'Request account deletion?',
   'profileSettings.delete.confirmMessage':
     'Are you sure you want to request deletion for "{account}"? This action affects the whole account.',
@@ -793,7 +792,8 @@ export const en = {
   'notes.error.pin': 'Failed to update note pin.',
   'notes.error.save': 'Failed to save note.',
   'notes.loading': 'Loading notes...',
-  'notes.modal.subtitle': 'Quick capture and editing without leaving the current page',
+  'notes.modal.subtitle':
+    'Quick capture and editing without leaving the current page',
   'notes.modal.title': 'Notes',
   'notes.newNote': 'New note',
   'notes.noSelectionBody':
@@ -978,6 +978,7 @@ export const en = {
   'selectionMenu.replaceTags': 'Replace',
   'selectionMenu.tags': 'Tags',
   'workspaceControls.aiAssistant': 'AI Assistant',
+  'workspaceControls.boards': 'Boards',
   'workspaceControls.canvas': 'Canvas',
   'workspaceControls.energyCurrent': 'Energy: {level}',
   'workspaceControls.energyHigh': "It's rolling",
@@ -1003,9 +1004,121 @@ export const en = {
   'workspaceControls.showControls': 'Show workspace controls',
   'workspaceControls.timeClustering': 'Time Clustering',
   'workspaceControls.toggleAiAssistantPanel': 'Toggle AI assistant panel',
-  'workspaceControls.toggleTimeClusteringPanel':
-    'Toggle time clustering panel',
+  'workspaceControls.toggleTimeClusteringPanel': 'Toggle time clustering panel',
   'workspaceControls.unpinControls': 'Unpin workspace controls',
+  'boards.actions.createBoard': 'New board',
+  'boards.actions.createCard': 'Add card',
+  'boards.actions.createColumn': 'Add list',
+  'boards.actions.deleteBoard': 'Delete board',
+  'boards.actions.deleteCard': 'Delete card',
+  'boards.actions.deleteColumn': 'Delete column',
+  'boards.actions.cancelNewCard': 'Cancel new card',
+  'boards.actions.cancelNewColumn': 'Cancel list editing',
+  'boards.actions.menu': 'Board menu',
+  'boards.actions.openCard': 'Open card',
+  'boards.actions.renameBoard': 'Rename board',
+  'boards.actions.renameColumn': 'Rename list',
+  'boards.addColumnPanelTitle': 'Add another list',
+  'boards.boardTitlePlaceholder': 'Board title',
+  'boards.cardBack.actions': 'Actions',
+  'boards.cardBack.activityCreated': 'Card is in {column} on {board}.',
+  'boards.cardBack.add': 'Add',
+  'boards.cardBack.addLabel': 'Add a label',
+  'boards.cardBack.attachments': 'Attachments',
+  'boards.cardBack.changeList':
+    'Change list for this card, currently in {column}',
+  'boards.cardBack.checklist': 'Checklist',
+  'boards.cardBack.closeLabelsPopover': 'Close labels popover',
+  'boards.cardBack.comments': 'Comments and activity',
+  'boards.cardBack.cover': 'Cover',
+  'boards.cardBack.createLabel': 'Create label',
+  'boards.cardBack.createNewLabel': 'Create a new label',
+  'boards.cardBack.dates': 'Dates',
+  'boards.cardBack.editLabel': 'Edit label',
+  'boards.cardBack.enableColorblindMode': 'Enable colorblind friendly mode',
+  'boards.cardBack.labels': 'Labels',
+  'boards.cardBack.labelTitle': 'Title',
+  'boards.cardBack.markComplete': 'Mark this card complete ({title})',
+  'boards.cardBack.members': 'Members',
+  'boards.cardBack.noAttachments':
+    'No attachments yet. Attachment controls are ready for the API.',
+  'boards.cardBack.removeColor': 'Remove color',
+  'boards.cardBack.returnToLabels': 'Return to labels',
+  'boards.cardBack.selectColor': 'Select a color',
+  'boards.cardBack.showDetails': 'Show details',
+  'boards.cardBack.tagsCreateFailed': 'Failed to create label.',
+  'boards.cardBack.tagsDeleteFailed': 'Failed to delete label.',
+  'boards.cardBack.tagsLoadFailed': 'Failed to load labels.',
+  'boards.cardBack.tagsPlaceholder': 'Select labels',
+  'boards.cardBack.tagsSearchPlaceholder': 'Search labels...',
+  'boards.cardBack.tagsUpdateFailed': 'Failed to update label.',
+  'boards.cardBack.writeComment': 'Write a comment...',
+  'boards.cardComposerPlaceholder': 'Enter a title or paste a link',
+  'boards.quickEditor.archive': 'Archive',
+  'boards.quickEditor.changeCover': 'Change cover',
+  'boards.quickEditor.changeMembers': 'Change members',
+  'boards.quickEditor.copyCard': 'Copy card',
+  'boards.quickEditor.copyLink': 'Copy link',
+  'boards.quickEditor.createJiraWorkItem': 'Create Jira work item',
+  'boards.quickEditor.editCardName': 'Edit card name',
+  'boards.quickEditor.editDates': 'Edit dates',
+  'boards.quickEditor.editLabels': 'Edit labels',
+  'boards.quickEditor.menuLabel': 'Edit card options',
+  'boards.quickEditor.mirror': 'Mirror',
+  'boards.quickEditor.move': 'Move',
+  'boards.quickEditor.newBadge': 'NEW',
+  'boards.quickEditor.openCard': 'Open card',
+  'boards.quickEditor.removeFromBoard': 'Remove from this board',
+  'boards.cardMove.board': 'Board',
+  'boards.cardMove.inbox': 'Inbox',
+  'boards.cardMove.list': 'List',
+  'boards.cardMove.move': 'Move',
+  'boards.cardMove.position': 'Position',
+  'boards.cardMove.selectDestination': 'Select destination',
+  'boards.cardMove.title': 'Move card',
+  'boards.cardMirror.create': 'Mirror',
+  'boards.cardMirror.deleteSharedConfirm':
+    'Delete this card from every board and list where it appears?',
+  'boards.cardMirror.duplicateDestination':
+    'This list already has this mirrored card.',
+  'boards.cardMirror.noDestination': 'Select a list before mirroring.',
+  'boards.cardMirror.sourceLabel': 'Mirrored from {source}',
+  'boards.cardMirror.sourceLocation': '{board} / {list}',
+  'boards.cardMirror.title': 'Mirror card',
+  'boards.cardModalHint': 'Card changes are saved to this board.',
+  'boards.cardModalSubtitle': '{board} / {column}',
+  'boards.cardDescriptionLabel': 'Card description',
+  'boards.cardDescriptionPlaceholder': 'Description',
+  'boards.cardTitleLabel': 'Card title',
+  'boards.cardTitlePlaceholder': 'Card title',
+  'boards.columnTitlePlaceholder': 'Enter list name...',
+  'boards.listActions.addCard': 'Add card',
+  'boards.listActions.archiveAllCards': 'Archive all cards in this list',
+  'boards.listActions.archiveList': 'Archive this list',
+  'boards.listActions.automation': 'Automation',
+  'boards.listActions.changeListColor': 'Change list color',
+  'boards.listActions.colorUpgradeBody':
+    'List colors can help organize your board visually.',
+  'boards.listActions.colorUpgradeTitle': 'Upgrade to change list colors',
+  'boards.listActions.copyList': 'Copy list',
+  'boards.listActions.createRule': 'Create a rule',
+  'boards.listActions.everyDaySort': 'Every day, sort list by',
+  'boards.listActions.everyMondaySort': 'Every Monday, sort list by',
+  'boards.listActions.moveAllCards': 'Move all cards in this list',
+  'boards.listActions.moveList': 'Move list',
+  'boards.listActions.sortBy': 'Sort by',
+  'boards.listActions.title': 'List actions',
+  'boards.listActions.watch': 'Watch',
+  'boards.listActions.whenCardAdded': 'When a card is added to the list',
+  'boards.defaultBoardTitle': 'New board',
+  'boards.empty': 'No board selected.',
+  'boards.emptyBody': 'Create a board, then add lists and cards.',
+  'boards.emptyTitle': 'No boards yet',
+  'boards.errors.load': 'Could not load boards.',
+  'boards.errors.save': 'Could not save board changes.',
+  'boards.loading': 'Loading boards...',
+  'boards.subtitle': 'API-backed boards with columns and cards.',
+  'boards.title': 'Boards',
   'energyStats.chartAriaLabel': 'Energy trend over the last {days} days',
   'energyStats.empty': 'No energy entries yet.',
   'energyStats.error': 'Failed to load energy stats.',
@@ -1229,8 +1342,7 @@ export const en = {
   'learningStudio.overview.nextTitle': 'Next step',
   'learningStudio.overview.readinessReadyBody':
     'The structure is complete enough to open Preview and validate the learner flow.',
-  'learningStudio.overview.readinessReadyTitle':
-    'Ready for learner validation',
+  'learningStudio.overview.readinessReadyTitle': 'Ready for learner validation',
   'learningStudio.overview.readinessTitle': 'Readiness',
   'learningStudio.overview.footerUpdatedAt': 'Last updated {date}',
   'learningStudio.overview.saveCta': 'Save basics',
@@ -1248,7 +1360,8 @@ export const en = {
   'learningStudio.lesson.defaultExerciseTitle': 'Exercise',
   'learningStudio.lesson.defaultLessonTitle': 'Lesson',
   'learningStudio.module.defaultTitle': 'Module',
-  'learningStudio.canvasHost.unavailable': 'Canvas is unavailable in this environment.',
+  'learningStudio.canvasHost.unavailable':
+    'Canvas is unavailable in this environment.',
   'learningStudio.canvasHost.mountError': 'Canvas failed to load.',
   'learningStudio.nav.authoring': 'Authoring',
   'learningStudio.nav.build': 'Build',
@@ -1268,7 +1381,8 @@ export const en = {
   'learningStudio.stage.backHome': 'Back to library',
   'learningStudio.stage.previewBody':
     'Validate the course flow in a read-only sandbox before building learner runtime.',
-  'learningStudio.stage.previewEmphasis': 'Preview stays sandbox-only in this phase.',
+  'learningStudio.stage.previewEmphasis':
+    'Preview stays sandbox-only in this phase.',
   'learningStudio.stage.previewTitle': 'Preview',
   'learningStudio.build.courseDescriptionsReady':
     'Descriptions are in place for the current units.',
@@ -1337,21 +1451,19 @@ export const en = {
   'learningStudio.preview.warningsTitle': 'Warnings',
   'learningStudio.placeholders.courseDescription':
     'Describe the promise, scope, and tone of the course.',
-  'learningStudio.placeholders.courseTitle':
-    'Name the course draft',
+  'learningStudio.placeholders.courseTitle': 'Name the course draft',
   'learningStudio.placeholders.lessonDescription':
     'Add learner-facing notes, exercise instructions, or checkpoint criteria.',
-  'learningStudio.placeholders.lessonTitle':
-    'Name the lesson card',
-  'learningStudio.placeholders.moduleTitle':
-    'Name the module container',
+  'learningStudio.placeholders.lessonTitle': 'Name the lesson card',
+  'learningStudio.placeholders.moduleTitle': 'Name the module container',
   'learningStudio.progress.available': 'Available',
   'learningStudio.progress.completed': 'Completed',
   'learningStudio.progress.inProgress': 'In progress',
   'learningStudio.progress.locked': 'Locked',
   'learningStudio.progress.review': 'Review',
   'learningStudio.redesign.badge': 'Redesign in progress',
-  'learningStudio.redesign.title': 'Learning Studio is temporarily hidden while the experience is being redesigned.',
+  'learningStudio.redesign.title':
+    'Learning Studio is temporarily hidden while the experience is being redesigned.',
   'learningStudio.redesign.body':
     'The current prototype has been removed from the page so a stronger end-to-end course experience can be designed before implementation resumes.',
   'learningStudio.redesign.noteJourney':
@@ -1370,7 +1482,8 @@ export const en = {
   'learningStudio.subtitle':
     'A structured local prototype for course design and learner flows inside the workspace shell.',
   'learningStudio.summary.courses': 'Courses',
-  'learningStudio.summary.coursesHint': 'Draft and published local course records.',
+  'learningStudio.summary.coursesHint':
+    'Draft and published local course records.',
   'learningStudio.summary.lessons': 'Lessons',
   'learningStudio.summary.lessonsHint':
     'Lesson, exercise, and checkpoint cards stored in the local prototype.',
