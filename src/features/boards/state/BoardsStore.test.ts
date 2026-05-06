@@ -23,7 +23,7 @@ function createBoard(overrides: Partial<Board> = {}): Board {
 }
 
 describe('BoardsStore', () => {
-  it('normalizes loaded board columns and cards by order before publishing state', async () => {
+  it('normalizes loaded board columns by position and cards by placement rank before publishing state', async () => {
     const api = {
       getBoards: vi.fn(() =>
         of([
@@ -33,14 +33,16 @@ describe('BoardsStore', () => {
                 id: COLUMN_DONE,
                 board: BOARD_ID,
                 title: 'Done',
-                order: 2,
+                order: 1,
+                pos: '2048.000000000000000',
                 cards: [],
               },
               {
                 id: COLUMN_TODO,
                 board: BOARD_ID,
                 title: 'Todo',
-                order: 1,
+                order: 2,
+                pos: '1024.000000000000000',
                 cards: [
                   {
                     id: CARD_NEW,

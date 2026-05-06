@@ -10,6 +10,7 @@ export interface BoardColumn {
   id: BoardEntityId;
   title: string;
   order: number;
+  pos?: string | number | null;
   cards: Card[];
   board: Board['id'];
 }

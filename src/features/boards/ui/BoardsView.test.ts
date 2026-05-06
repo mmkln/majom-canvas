@@ -918,6 +918,51 @@ describe('BoardsView', () => {
     view.destroy();
   });
 
+  it('drags a list and emits a semantic column target', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const board = createBoard();
+    board.columns.push({
+      id: COLUMN_READING,
+      board: BOARD_ID,
+      title: 'Reading',
+      order: 1,
+      cards: [],
+    });
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState(board));
+
+    const canvas = root.querySelector<HTMLElement>('[data-board-canvas="true"]')!;
+    const columns = root.querySelectorAll<HTMLElement>(
+      '[data-board-column-draggable="true"]'
+    );
+    setRect(canvas, { left: 0, top: 0, width: 620, height: 500 });
+    setRect(columns[0]!, { left: 0, top: 0, width: 272, height: 500 });
+    setRect(columns[1]!, { left: 300, top: 0, width: 272, height: 500 });
+
+    dispatchPointerEvent(columns[0]!, 'pointerdown', {
+      clientX: 40,
+      clientY: 24,
+    });
+    dispatchPointerEvent(window, 'pointermove', {
+      clientX: 500,
+      clientY: 28,
+    });
+    dispatchPointerEvent(window, 'pointerup', {
+      clientX: 500,
+      clientY: 28,
+    });
+
+    expect(handlers.onPatchColumn).toHaveBeenCalledWith(COLUMN_TODO, {
+      before_column: COLUMN_READING,
+    });
+    view.destroy();
+  });
+
   it('uses the native confirmation dialog before deleting a card that has mirrored placements', async () => {
     const root = document.createElement('div');
     document.body.append(root);

@@ -87,6 +87,14 @@
 - Persist a session workspace view only after the target workspace has mounted successfully.
 - Do not let profile preference refreshes live-switch an already open tab's current workspace view.
 
+### Canvas Tab Session State
+
+- Treat the active canvas id and canvas viewport view state as tab/window-scoped session state when the behavior represents where the user is working right now.
+- Persist per-tab active canvas and pan/zoom through `sessionStorage`, so reload returns each tab to its own canvas and viewport without affecting other windows.
+- Do not write routine canvas selection or viewport changes as the source of truth for `user.meta.canvasSession.lastOpenedCanvasId`; reserve profile canvas session fields for migration, fallback, and explicit long-lived defaults.
+- When restoring a canvas, prefer tab session active canvas first, then profile fallback, then the first available canvas, and validate restored ids against the canvases returned by the API.
+- Keep `CanvasDataService.setActiveCanvas(...)` as a runtime state setter without hidden profile persistence side effects; persist tab session state from the canvas activation lifecycle after the session is accepted.
+
 ### App Runtime And Translations
 
 - `src/app-runtime/AppRuntime.ts` is the authoritative app-level reactive container for locale and future shell-wide runtime preferences.
@@ -312,6 +320,13 @@
 - Owner: `src/features/boards`
 - Read first: `src/features/boards/AGENTS.md`
 - Expected result: keep gesture lifecycle in `BoardDragController`, target resolution in pure domain helpers, and send semantic placement targets instead of frontend-owned numeric ranks.
+
+### Implement Boards Column Drag And Drop
+
+- Use when the request changes list/column drag/drop, column ordering, or board list reorder interactions in the Boards feature.
+- Owner: `src/features/boards` + backend board column API
+- Read first: `src/features/boards/AGENTS.md`
+- Expected result: keep gesture lifecycle in `BoardColumnDragController`, target resolution in `columnTargetResolver`, and send semantic column targets instead of frontend-owned numeric ranks.
 
 ### Align Reactive UI Channels
 

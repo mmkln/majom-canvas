@@ -480,6 +480,33 @@ const BOARDS_VIEW_CSS = `
   cursor: grabbing;
 }
 
+.majom-boards__column.is-dragging {
+  opacity: 0.32;
+}
+
+.majom-boards__column-drag-preview {
+  position: fixed;
+  z-index: 350;
+  pointer-events: none;
+  transform: rotate(1deg);
+  opacity: 0.96;
+  box-shadow:
+    0 16px 32px rgba(9, 30, 66, 0.28),
+    0 0 0 1px rgba(9, 30, 66, 0.08);
+}
+
+.majom-boards__column-drag-placeholder {
+  flex: 0 0 auto;
+  border-radius: 12px;
+  background: rgba(9, 30, 66, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(9, 30, 66, 0.08);
+}
+
+.majom-boards.is-column-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
 .majom-boards__card-source-label {
   display: inline-flex;
   max-width: 100%;

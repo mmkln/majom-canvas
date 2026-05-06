@@ -26,21 +26,29 @@ const INITIAL_STATE: BoardsState = {
   error: null,
 };
 
-function byOrderThenId<T extends { id: string; order: number }>(
-  left: T,
-  right: T
-): number {
-  return left.order - right.order || left.id.localeCompare(right.id);
+function toSortablePosition(value: string | number | null | undefined): number {
+  const numeric = Number(value ?? 0);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function compareColumnsByPosition(left: BoardColumn, right: BoardColumn): number {
+  const leftPos = left.pos ?? left.order ?? 0;
+  const rightPos = right.pos ?? right.order ?? 0;
+  const positionDelta =
+    toSortablePosition(leftPos) - toSortablePosition(rightPos);
+  return positionDelta || left.id.localeCompare(right.id);
 }
 
 function normalizeBoards(boards: Board[]): Board[] {
   return boards
     .map((board) => ({
       ...board,
-      columns: [...(board.columns ?? [])].sort(byOrderThenId).map((column) => ({
-        ...column,
-        cards: [...(column.cards ?? [])].sort(compareCardsByPlacementPos),
-      })),
+      columns: [...(board.columns ?? [])]
+        .sort(compareColumnsByPosition)
+        .map((column) => ({
+          ...column,
+          cards: [...(column.cards ?? [])].sort(compareCardsByPlacementPos),
+        })),
     }))
     .sort((left, right) => left.id.localeCompare(right.id));
 }
@@ -128,7 +136,7 @@ export class BoardsStore {
         this.api.createColumn({
           board: boardId,
           title: normalizedTitle,
-          order: board.columns.length,
+          position: 'end',
         })
       );
       await this.reload(boardId);

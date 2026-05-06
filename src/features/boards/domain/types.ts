@@ -30,6 +30,9 @@ export type BoardCardPlacementTarget = Pick<
 export type BoardColumnPatch = {
   title?: string;
   order?: number;
+  before_column?: BoardColumn['id'] | null;
+  after_column?: BoardColumn['id'] | null;
+  position?: 'start' | 'end';
 };
 
 export type BoardsState = {

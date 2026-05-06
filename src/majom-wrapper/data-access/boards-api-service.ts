@@ -13,10 +13,17 @@ export type BoardCreatePayload = Pick<Board, 'title'>;
 export type BoardUpdatePayload = Partial<BoardCreatePayload>;
 
 export type BoardColumnCreatePayload = Pick<BoardColumn, 'board' | 'title'> &
-  Partial<Pick<BoardColumn, 'order'>>;
+  Partial<Pick<BoardColumn, 'order'>> &
+  BoardColumnTargetPayload;
 export type BoardColumnUpdatePayload = Partial<
   Pick<BoardColumn, 'board' | 'title' | 'order'>
->;
+> &
+  BoardColumnTargetPayload;
+export type BoardColumnTargetPayload = {
+  before_column?: BoardColumn['id'] | null;
+  after_column?: BoardColumn['id'] | null;
+  position?: 'start' | 'end';
+};
 
 export type BoardCardCreatePayload = Pick<Card, 'column' | 'title'> &
   Partial<Pick<Card, 'description' | 'tag_ids'>> &

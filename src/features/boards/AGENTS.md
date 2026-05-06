@@ -33,3 +33,10 @@
 - Keep conversion from visual insertion position to backend payload in pure domain helpers such as `placementTargetResolver`.
 - `BoardsView` should only provide stable DOM data attributes, mount/unmount the controller, and route drop intents to `onPatchCardPlacement`.
 - Drag/drop should emit semantic placement targets and must not calculate or persist numeric `pos` values on the frontend.
+
+## Column Drag And Drop
+
+- Keep board column drag/drop gesture state in `BoardColumnDragController`, separate from card drag/drop.
+- Keep conversion from horizontal insertion position to backend payload in pure domain helpers such as `columnTargetResolver`.
+- Frontend should send semantic column targets (`before_column`, `after_column`, or `position`) instead of calculating or persisting numeric ranks.
+- Backend owns column `pos` values and legacy `order` normalization.

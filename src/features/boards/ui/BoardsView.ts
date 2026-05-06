@@ -39,6 +39,7 @@ import {
   normalizeBoardCardTagIds,
 } from '../domain/cardTags.ts';
 import { resolveCardPlacementTarget } from '../domain/placementTargetResolver.ts';
+import { BoardColumnDragController } from './BoardColumnDragController.ts';
 import { BoardDragController } from './BoardDragController.ts';
 import {
   boardsModalClassNames,
@@ -196,6 +197,7 @@ export class BoardsView {
   private tagItems: TagPickerItem[] = [];
   private tagCatalogStatus: TagCatalogStatus = 'idle';
   private readonly dragController: BoardDragController;
+  private readonly columnDragController: BoardColumnDragController;
   private readonly cardDrafts = new Map<BoardColumn['id'], CardDraft>();
 
   constructor(
@@ -213,7 +215,15 @@ export class BoardsView {
         this.handlers.onPatchCardPlacement(placementId, target),
       onDragStart: () => this.closeTransientBoardOverlays(),
     });
+    this.columnDragController = new BoardColumnDragController({
+      root: this.root,
+      getState: () => this.state,
+      onDrop: (columnId, target) =>
+        this.handlers.onPatchColumn(columnId, target),
+      onDragStart: () => this.closeTransientBoardOverlays(),
+    });
     this.dragController.mount();
+    this.columnDragController.mount();
     this.disposeRuntimeSubscription = this.runtime.subscribe(
       () => this.refreshFromRuntime(),
       { emitCurrent: false }
@@ -225,6 +235,7 @@ export class BoardsView {
     this.state = state;
     this.ensureTagCatalogLoaded();
     this.dragController.cancelDrag();
+    this.columnDragController.cancelDrag();
     this.cardDrafts.clear();
     this.unmountHeaderMenu();
     this.closeListActionsPopover();
@@ -238,6 +249,7 @@ export class BoardsView {
   public destroy(): void {
     this.disposeRuntimeSubscription();
     this.dragController.unmount();
+    this.columnDragController.unmount();
     this.unmountHeaderMenu();
     this.closeCardLabelsPopover();
     this.closeListActionsPopover();
@@ -483,6 +495,7 @@ export class BoardsView {
     const section = document.createElement('section');
     section.className = boardsViewClassNames.column;
     section.dataset.boardColumnId = String(column.id);
+    section.dataset.boardColumnDraggable = 'true';
 
     const header = document.createElement('header');
     header.className = boardsViewClassNames.columnHeader;
@@ -500,6 +513,7 @@ export class BoardsView {
     menuButton.setAttribute('aria-haspopup', 'dialog');
     menuButton.setAttribute('aria-expanded', 'false');
     menuButton.setAttribute('data-testid', 'list-actions-menu-button');
+    menuButton.dataset.boardDragIgnore = 'true';
     menuButton.addEventListener('click', (event) => {
       event.stopPropagation();
       if (this.listActionsPopover?.trigger === menuButton) {
@@ -1015,6 +1029,7 @@ export class BoardsView {
     panel.className = this.isColumnComposerExpanded
       ? boardsViewClassNames.columnComposerExpandedPanel
       : boardsViewClassNames.columnComposerCollapsedPanel;
+    panel.dataset.boardColumnComposer = 'true';
 
     if (!this.isColumnComposerExpanded) {
       const addButton = createTextButton({
