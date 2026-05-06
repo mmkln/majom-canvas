@@ -71,7 +71,9 @@ type CanvasGuardHarness = Record<string, unknown> & {
   emitCanvasList: ReturnType<typeof vi.fn>;
   getCanvasListUiItemsFromCache: ReturnType<typeof vi.fn>;
   resetHistoryAndPersistence: ReturnType<typeof vi.fn>;
+  restoreCanvasViewState: ReturnType<typeof vi.fn>;
   loadActiveCanvasElements: ReturnType<typeof vi.fn>;
+  refreshCanvasList: ReturnType<typeof vi.fn>;
 };
 
 function createHarness(overrides: Partial<CanvasGuardHarness> = {}): CanvasGuardHarness {
@@ -127,7 +129,9 @@ function createHarness(overrides: Partial<CanvasGuardHarness> = {}): CanvasGuard
     emitCanvasList: vi.fn(),
     getCanvasListUiItemsFromCache: vi.fn(() => []),
     resetHistoryAndPersistence: vi.fn(),
+    restoreCanvasViewState: vi.fn(() => Promise.resolve()),
     loadActiveCanvasElements: vi.fn(),
+    refreshCanvasList: vi.fn(),
     ...overrides,
   } as CanvasGuardHarness;
 }
@@ -135,6 +139,7 @@ function createHarness(overrides: Partial<CanvasGuardHarness> = {}): CanvasGuard
 describe('CanvasApp persistence guards', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
   });
 
   it('blocks manual save while canvas hydration is incomplete', () => {
@@ -294,5 +299,26 @@ describe('CanvasApp persistence guards', () => {
     expect(app.stopAutosave).toHaveBeenCalledTimes(1);
     expect(app.startAutosave).not.toHaveBeenCalled();
     expect(app.runAutosaveTick).not.toHaveBeenCalled();
+  });
+
+  it('persists the active canvas only after activating the tab canvas session', async () => {
+    const app = createHarness();
+
+    await (
+      CanvasApp.prototype as unknown as {
+        activateCanvasSession: (
+          canvas: { id: string; name: string },
+          options?: Record<string, unknown>
+        ) => Promise<void>;
+      }
+    ).activateCanvasSession.call(app, {
+      id: 'canvas-1',
+      name: 'Canvas 1',
+    });
+
+    expect(CanvasClientStorage.readCanvasSessionActiveCanvasId()).toBe(
+      'canvas-1'
+    );
+    expect(app.restoreCanvasViewState).toHaveBeenCalledWith('canvas-1');
   });
 });

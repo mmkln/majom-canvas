@@ -12,6 +12,7 @@ import {
   hasUserPreferencesPersistence,
   setCanvasViewStatePreference,
 } from '../../../shell/services/UserPreferencesService.ts';
+import { CanvasClientStorage } from '../services/CanvasClientStorage.ts';
 
 const TASKS_KEY = 'canvas-tasks';
 const DEPS_KEY = 'canvas-dependencies';
@@ -76,8 +77,15 @@ export class LocalStorageDataProvider implements IDataProvider {
 
   /** Load saved view (scroll & zoom) */
   async loadViewState(canvasId?: string | null): Promise<IViewState> {
+    const viewCanvasId =
+      canvasId ?? CanvasClientStorage.readCanvasSessionActiveCanvasId();
+    const sessionViewState =
+      CanvasClientStorage.readCanvasSessionViewState(viewCanvasId);
+    if (sessionViewState) {
+      return sessionViewState;
+    }
     if (hasUserPreferencesPersistence()) {
-      const persisted = getCanvasViewStatePreference(canvasId);
+      const persisted = getCanvasViewStatePreference(viewCanvasId);
       if (persisted) {
         return {
           scrollX: persisted.scrollX,
@@ -87,7 +95,7 @@ export class LocalStorageDataProvider implements IDataProvider {
       }
       return DEFAULT_VIEW_STATE;
     }
-    const viewKey = this.getViewKey(canvasId);
+    const viewKey = this.getViewKey(viewCanvasId);
     const viewState = this.readCollection<IViewState>(
       viewKey,
       DEFAULT_VIEW_STATE
@@ -103,14 +111,17 @@ export class LocalStorageDataProvider implements IDataProvider {
     state: IViewState,
     canvasId?: string | null
   ): Promise<void> {
+    const viewCanvasId =
+      canvasId ?? CanvasClientStorage.readCanvasSessionActiveCanvasId();
     const nextState = this.isValidViewState(state) ? state : DEFAULT_VIEW_STATE;
+    CanvasClientStorage.persistCanvasSessionViewState(nextState, viewCanvasId);
     if (hasUserPreferencesPersistence()) {
-      setCanvasViewStatePreference(nextState, canvasId);
-      this.clearStoredViewState(canvasId);
+      setCanvasViewStatePreference(nextState, viewCanvasId);
+      this.clearStoredViewState(viewCanvasId);
       return;
     }
-    this.writeCollection(this.getViewKey(canvasId), nextState, VIEW_TTL_MS);
-    if (canvasId) {
+    this.writeCollection(this.getViewKey(viewCanvasId), nextState, VIEW_TTL_MS);
+    if (viewCanvasId) {
       // Keep a global fallback view as a safe default for app bootstrap.
       this.writeCollection(VIEW_KEY, nextState, VIEW_TTL_MS);
     }

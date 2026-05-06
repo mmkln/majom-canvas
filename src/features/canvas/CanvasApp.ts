@@ -1394,6 +1394,7 @@ export class CanvasApp {
     this.setCanvasTitle(canvas.name);
     beforeLoad?.();
     await this.restoreCanvasViewState(canvas.id);
+    CanvasClientStorage.persistCanvasSessionActiveCanvasId(canvas.id);
     if (options.loadElements !== false) {
       this.loadActiveCanvasElements();
     }

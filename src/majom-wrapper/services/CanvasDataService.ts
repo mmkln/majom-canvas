@@ -1057,7 +1057,9 @@ export class CanvasDataService {
     return this.canvasApi.loadCanvases().pipe(
       switchMap((canvases) => {
         if (canvases.length > 0) {
-          const preferredCanvasId = CanvasClientStorage.getLastOpenedCanvasId();
+          const preferredCanvasId = CanvasClientStorage.resolveInitialCanvasId(
+            canvases.map((canvas) => canvas.id)
+          );
           const selectedCanvas =
             canvases.find((canvas) => canvas.id === preferredCanvasId) ??
             canvases[0];
@@ -1642,7 +1644,6 @@ export class CanvasDataService {
     } else if (this.snapshotHydratedCanvasId !== canvas.id) {
       this.canvasRevision = 1;
     }
-    CanvasClientStorage.setLastOpenedCanvasId(canvas.id);
   }
 
   public getActiveCanvasMeta(): CanvasSummary['meta'] {

@@ -18,6 +18,7 @@ import {
   setCanvasSpacingGuidesEnabled,
   setCanvasViewportCenterGuidesEnabled,
 } from '../../../shell/services/UserPreferencesService.ts';
+import type { IViewState } from '../interfaces/interfaces.ts';
 
 export type UnsyncedDraftKind =
   | 'element-patch'
@@ -40,8 +41,14 @@ type StorageEnvelope<T> = {
 };
 
 const LAST_OPENED_CANVAS_KEY = 'last-opened-canvas-id';
+const CANVAS_TAB_SESSION_KEY = 'canvas-tab-session';
 const DRAFTS_KEY_PREFIX = 'draft-unsynced-changes';
 const DRAFTS_TTL_MS = 1000 * 60 * 60 * 24 * 7;
+
+type CanvasTabSessionState = {
+  activeCanvasId?: string;
+  viewsByCanvasId?: Record<string, IViewState>;
+};
 
 function getDraftsKey(canvasId: string): string {
   return `${DRAFTS_KEY_PREFIX}:${canvasId}`;
@@ -90,6 +97,75 @@ function writeEnvelope<T>(
     buildUserScopedStorageKey(baseKey),
     JSON.stringify(envelope)
   );
+}
+
+function normalizeCanvasId(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const text = value.trim();
+  return text.length > 0 ? text : null;
+}
+
+function isValidViewState(value: unknown): value is IViewState {
+  const state = value as IViewState;
+  return (
+    state !== null &&
+    typeof state === 'object' &&
+    Number.isFinite(state.scrollX) &&
+    Number.isFinite(state.scrollY) &&
+    Number.isFinite(state.scale) &&
+    state.scale > 0
+  );
+}
+
+function cloneViewState(state: IViewState): IViewState {
+  return {
+    scrollX: state.scrollX,
+    scrollY: state.scrollY,
+    scale: state.scale,
+  };
+}
+
+function getCanvasTabSessionStorageKey(): string {
+  return buildUserScopedStorageKey(CANVAS_TAB_SESSION_KEY);
+}
+
+function readCanvasTabSessionState(): CanvasTabSessionState {
+  try {
+    const raw = sessionStorage.getItem(getCanvasTabSessionStorageKey());
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as CanvasTabSessionState;
+    if (!parsed || typeof parsed !== 'object') return {};
+    const activeCanvasId =
+      normalizeCanvasId(parsed.activeCanvasId) ?? undefined;
+    const viewsByCanvasId: Record<string, IViewState> = {};
+    const rawViews =
+      parsed.viewsByCanvasId && typeof parsed.viewsByCanvasId === 'object'
+        ? parsed.viewsByCanvasId
+        : {};
+    for (const [canvasId, view] of Object.entries(rawViews)) {
+      const normalizedCanvasId = normalizeCanvasId(canvasId);
+      if (!normalizedCanvasId || !isValidViewState(view)) continue;
+      viewsByCanvasId[normalizedCanvasId] = cloneViewState(view);
+    }
+    return {
+      activeCanvasId,
+      viewsByCanvasId:
+        Object.keys(viewsByCanvasId).length > 0 ? viewsByCanvasId : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+function writeCanvasTabSessionState(state: CanvasTabSessionState): void {
+  try {
+    sessionStorage.setItem(
+      getCanvasTabSessionStorageKey(),
+      JSON.stringify(state)
+    );
+  } catch {
+    // no-op
+  }
 }
 
 export class CanvasClientStorage {
@@ -154,10 +230,10 @@ export class CanvasClientStorage {
   }
 
   public static getLastOpenedCanvasId(): string | null {
-    if (hasUserPreferencesPersistence()) {
-      return getLastOpenedCanvasIdPreference();
-    }
-    return readEnvelope<string>(LAST_OPENED_CANVAS_KEY);
+    return (
+      getLastOpenedCanvasIdPreference() ??
+      readEnvelope<string>(LAST_OPENED_CANVAS_KEY)
+    );
   }
 
   public static setLastOpenedCanvasId(canvasId: string): void {
@@ -172,6 +248,72 @@ export class CanvasClientStorage {
       return;
     }
     writeEnvelope(LAST_OPENED_CANVAS_KEY, canvasId, null);
+  }
+
+  public static readCanvasSessionActiveCanvasId(): string | null {
+    return normalizeCanvasId(readCanvasTabSessionState().activeCanvasId);
+  }
+
+  public static persistCanvasSessionActiveCanvasId(canvasId: string): void {
+    const normalizedCanvasId = normalizeCanvasId(canvasId);
+    if (!normalizedCanvasId) return;
+    writeCanvasTabSessionState({
+      ...readCanvasTabSessionState(),
+      activeCanvasId: normalizedCanvasId,
+    });
+  }
+
+  public static resolveInitialCanvasId(
+    availableCanvasIds: readonly string[]
+  ): string | null {
+    const availableCanvasIdSet = new Set(
+      availableCanvasIds
+        .map((canvasId) => normalizeCanvasId(canvasId))
+        .filter((canvasId): canvasId is string => canvasId !== null)
+    );
+    if (availableCanvasIdSet.size === 0) return null;
+
+    const sessionCanvasId = this.readCanvasSessionActiveCanvasId();
+    if (sessionCanvasId && availableCanvasIdSet.has(sessionCanvasId)) {
+      return sessionCanvasId;
+    }
+
+    const fallbackCanvasId = this.getLastOpenedCanvasId();
+    if (fallbackCanvasId && availableCanvasIdSet.has(fallbackCanvasId)) {
+      return fallbackCanvasId;
+    }
+
+    return availableCanvasIdSet.values().next().value ?? null;
+  }
+
+  public static readCanvasSessionViewState(
+    canvasId?: string | null
+  ): IViewState | null {
+    const state = readCanvasTabSessionState();
+    const normalizedCanvasId =
+      normalizeCanvasId(canvasId) ?? normalizeCanvasId(state.activeCanvasId);
+    if (!normalizedCanvasId) return null;
+    const view = state.viewsByCanvasId?.[normalizedCanvasId];
+    return isValidViewState(view) ? cloneViewState(view) : null;
+  }
+
+  public static persistCanvasSessionViewState(
+    view: IViewState,
+    canvasId?: string | null
+  ): void {
+    if (!isValidViewState(view)) return;
+    const currentState = readCanvasTabSessionState();
+    const normalizedCanvasId =
+      normalizeCanvasId(canvasId) ??
+      normalizeCanvasId(currentState.activeCanvasId);
+    if (!normalizedCanvasId) return;
+    writeCanvasTabSessionState({
+      ...currentState,
+      viewsByCanvasId: {
+        ...(currentState.viewsByCanvasId ?? {}),
+        [normalizedCanvasId]: cloneViewState(view),
+      },
+    });
   }
 
   public static listUnsyncedDrafts(canvasId: string): UnsyncedDraftChange[] {
