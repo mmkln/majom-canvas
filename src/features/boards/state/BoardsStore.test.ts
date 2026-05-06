@@ -1,10 +1,16 @@
+// @vitest-environment jsdom
 import { of } from 'rxjs';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BoardsApiService } from '../../../majom-wrapper/data-access/boards-api-service.ts';
 import type { Board } from '../../../majom-wrapper/interfaces/index.ts';
 import { BoardsStore } from './BoardsStore.ts';
+import {
+  persistBoardsSessionSelectedBoardId,
+  readBoardsSessionSelectedBoardId,
+} from './boardsSessionState.ts';
 
 const BOARD_ID = '00000000-0000-4000-8000-000000000001';
+const SECOND_BOARD_ID = '00000000-0000-4000-8000-000000000002';
 const COLUMN_TODO = '00000000-0000-4000-8000-000000000010';
 const COLUMN_DONE = '00000000-0000-4000-8000-000000000011';
 const CARD_EXISTING = '00000000-0000-4000-8000-000000000020';
@@ -23,6 +29,86 @@ function createBoard(overrides: Partial<Board> = {}): Board {
 }
 
 describe('BoardsStore', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+
+  it('restores the selected board from the current tab session on first load', async () => {
+    persistBoardsSessionSelectedBoardId(SECOND_BOARD_ID);
+    const api = {
+      getBoards: vi.fn(() =>
+        of([
+          createBoard(),
+          createBoard({ id: SECOND_BOARD_ID, title: 'Second Board' }),
+        ])
+      ),
+    } as unknown as BoardsApiService;
+    const store = new BoardsStore(api);
+
+    await store.load();
+
+    expect(store.snapshot.selectedBoardId).toBe(SECOND_BOARD_ID);
+    store.destroy();
+  });
+
+  it('falls back from a deleted tab session board and rewrites the session selection', async () => {
+    persistBoardsSessionSelectedBoardId(SECOND_BOARD_ID);
+    const api = {
+      getBoards: vi.fn(() => of([createBoard()])),
+    } as unknown as BoardsApiService;
+    const store = new BoardsStore(api);
+
+    await store.load();
+
+    expect(store.snapshot.selectedBoardId).toBe(BOARD_ID);
+    expect(readBoardsSessionSelectedBoardId()).toBe(BOARD_ID);
+    store.destroy();
+  });
+
+  it('persists explicit board selection in the current tab session', async () => {
+    const api = {
+      getBoards: vi.fn(() =>
+        of([
+          createBoard(),
+          createBoard({ id: SECOND_BOARD_ID, title: 'Second Board' }),
+        ])
+      ),
+    } as unknown as BoardsApiService;
+    const store = new BoardsStore(api);
+    await store.load();
+
+    store.selectBoard(SECOND_BOARD_ID);
+
+    expect(store.snapshot.selectedBoardId).toBe(SECOND_BOARD_ID);
+    expect(readBoardsSessionSelectedBoardId()).toBe(SECOND_BOARD_ID);
+    store.destroy();
+  });
+
+  it('persists a newly created board as the current tab selection', async () => {
+    const api = {
+      getBoards: vi
+        .fn()
+        .mockReturnValueOnce(of([createBoard()]))
+        .mockReturnValueOnce(
+          of([
+            createBoard(),
+            createBoard({ id: SECOND_BOARD_ID, title: 'Second Board' }),
+          ])
+        ),
+      createBoard: vi.fn(() =>
+        of(createBoard({ id: SECOND_BOARD_ID, title: 'Second Board' }))
+      ),
+    } as unknown as BoardsApiService;
+    const store = new BoardsStore(api);
+    await store.load();
+
+    await store.createBoard('Second Board');
+
+    expect(store.snapshot.selectedBoardId).toBe(SECOND_BOARD_ID);
+    expect(readBoardsSessionSelectedBoardId()).toBe(SECOND_BOARD_ID);
+    store.destroy();
+  });
+
   it('normalizes loaded board columns by position and cards by placement rank before publishing state', async () => {
     const api = {
       getBoards: vi.fn(() =>

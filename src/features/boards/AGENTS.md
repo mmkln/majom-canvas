@@ -1,5 +1,13 @@
 # Boards Feature
 
+## Board Selection Session State
+
+- Treat the selected board as tab/window-scoped runtime state owned by `BoardsStore`.
+- Persist per-tab selected board restore through `sessionStorage`, so reload returns each tab to its own board without affecting other windows.
+- Do not write routine board selection into `user.meta`; reserve profile-backed board defaults for an explicit user-facing default-board preference if one is introduced later.
+- Resolve board selection through validated available boards: explicit runtime/preferred board first, then tab session board, then the first available board.
+- Keep `BoardsView` free of selected-board persistence; it should emit selection intents and render store state only.
+
 ## Trello-Like Card Fronts
 
 - Card fronts should open card details; do not place delete actions directly on the card front.

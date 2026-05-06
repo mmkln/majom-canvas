@@ -18,6 +18,10 @@ import {
   compareCardsByPlacementPos,
   getCardPlacementId,
 } from '../domain/cardIdentity.ts';
+import {
+  persistBoardsSessionSelectedBoardId,
+  resolveSelectedBoardId,
+} from './boardsSessionState.ts';
 
 const INITIAL_STATE: BoardsState = {
   boards: [],
@@ -53,16 +57,6 @@ function normalizeBoards(boards: Board[]): Board[] {
     .sort((left, right) => left.id.localeCompare(right.id));
 }
 
-function resolveSelectedBoardId(
-  boards: Board[],
-  currentBoardId: Board['id'] | null
-): Board['id'] | null {
-  if (currentBoardId && boards.some((board) => board.id === currentBoardId)) {
-    return currentBoardId;
-  }
-  return boards[0]?.id ?? null;
-}
-
 export class BoardsStore {
   private readonly stateSubject = new BehaviorSubject<BoardsState>(
     INITIAL_STATE
@@ -81,6 +75,7 @@ export class BoardsStore {
 
   public selectBoard(boardId: Board['id']): void {
     if (!this.snapshot.boards.some((board) => board.id === boardId)) return;
+    persistBoardsSessionSelectedBoardId(boardId);
     this.patchState({ selectedBoardId: boardId, error: null });
   }
 
@@ -259,9 +254,11 @@ export class BoardsStore {
 
   private async reload(preferredBoardId: Board['id'] | null): Promise<void> {
     const boards = normalizeBoards(await firstValueFrom(this.api.getBoards()));
+    const selectedBoardId = resolveSelectedBoardId(boards, preferredBoardId);
+    persistBoardsSessionSelectedBoardId(selectedBoardId);
     this.patchState({
       boards,
-      selectedBoardId: resolveSelectedBoardId(boards, preferredBoardId),
+      selectedBoardId,
     });
   }
 
