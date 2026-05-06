@@ -457,6 +457,7 @@ const BOARDS_VIEW_CSS = `
   position: fixed;
   z-index: 360;
   pointer-events: none;
+  background: var(--mb-card);
   transform: rotate(2deg);
   opacity: 0.94;
   box-shadow:

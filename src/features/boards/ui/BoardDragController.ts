@@ -249,7 +249,24 @@ export class BoardDragController {
       movingPlacementId: active.placementId,
       insertionIndex,
     });
+    if (!this.hasActiveTargetChanged(active)) {
+      active.placeholder.remove();
+      return;
+    }
     this.placePlaceholder(container, active, insertionIndex);
+  }
+
+  private hasActiveTargetChanged(active: ActiveDrag): boolean {
+    if (!active.target || active.targetColumnId === null) return false;
+    const sameColumn = active.targetColumnId === active.sourceColumnId;
+    return (
+      !sameColumn ||
+      hasCardPlacementTargetChanged(
+        active.sourceColumnCards,
+        active.placementId,
+        active.target
+      )
+    );
   }
 
   private findTargetColumn(clientX: number): HTMLElement | null {
@@ -353,15 +370,9 @@ export class BoardDragController {
     this.suppressNextClick = true;
 
     if (!commit || !active.target || active.targetColumnId === null) return;
-    const sameColumn = active.targetColumnId === active.sourceColumnId;
-    const changed =
-      !sameColumn ||
-      hasCardPlacementTargetChanged(
-        active.sourceColumnCards,
-        active.placementId,
-        active.target
-      );
-    if (changed) this.options.onDrop(active.placementId, active.target);
+    if (this.hasActiveTargetChanged(active)) {
+      this.options.onDrop(active.placementId, active.target);
+    }
   }
 
   private addWindowListeners(win: Window): void {

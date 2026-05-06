@@ -201,7 +201,22 @@ export class BoardColumnDragController {
       movingColumnId: active.columnId,
       insertionIndex,
     });
+    if (!this.hasActiveTargetChanged(active)) {
+      active.placeholder.remove();
+      return;
+    }
     this.placePlaceholder(active, insertionIndex);
+  }
+
+  private hasActiveTargetChanged(active: ActiveDrag): boolean {
+    return Boolean(
+      active.target &&
+        hasColumnTargetChanged(
+          active.sourceColumns,
+          active.columnId,
+          active.target
+        )
+    );
   }
 
   private resolveInsertionIndex(
@@ -260,11 +275,7 @@ export class BoardColumnDragController {
     this.options.root.classList.remove('is-column-dragging');
     this.suppressNextClick = true;
 
-    if (
-      commit &&
-      active.target &&
-      hasColumnTargetChanged(active.sourceColumns, active.columnId, active.target)
-    ) {
+    if (commit && this.hasActiveTargetChanged(active)) {
       this.options.onDrop(active.columnId, active.target);
     }
   }

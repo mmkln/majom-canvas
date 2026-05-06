@@ -918,6 +918,59 @@ describe('BoardsView', () => {
     view.destroy();
   });
 
+  it('does not show a card placeholder when dragging over the original slot', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const board = createBoard();
+    board.columns[0]!.cards.push({
+      id: CARD_MIRROR,
+      placement_id: PLACEMENT_MIRROR,
+      column: COLUMN_TODO,
+      title: 'Second card',
+      description: '',
+      order: 1,
+    });
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState(board));
+
+    const canvas = root.querySelector<HTMLElement>('[data-board-canvas="true"]')!;
+    const column = root.querySelector<HTMLElement>('[data-board-column-id]')!;
+    const sourceCard = root.querySelector<HTMLElement>(
+      `[data-board-card-placement-id="${PLACEMENT_BOOK}"]`
+    )!;
+    const secondCard = root.querySelector<HTMLElement>(
+      `[data-board-card-placement-id="${PLACEMENT_MIRROR}"]`
+    )!;
+    setRect(canvas, { left: 0, top: 0, width: 620, height: 500 });
+    setRect(column, { left: 0, top: 0, width: 272, height: 500 });
+    setRect(sourceCard, { left: 8, top: 50, width: 256, height: 64 });
+    setRect(secondCard, { left: 8, top: 122, width: 256, height: 64 });
+
+    dispatchPointerEvent(sourceCard, 'pointerdown', {
+      clientX: 40,
+      clientY: 70,
+    });
+    dispatchPointerEvent(window, 'pointermove', {
+      clientX: 48,
+      clientY: 74,
+    });
+
+    expect(
+      root.querySelector('.majom-boards__card-drag-placeholder')
+    ).toBeNull();
+    expect(handlers.onPatchCardPlacement).not.toHaveBeenCalled();
+
+    dispatchPointerEvent(window, 'pointerup', {
+      clientX: 48,
+      clientY: 74,
+    });
+    view.destroy();
+  });
+
   it('drags a list and emits a semantic column target', () => {
     const root = document.createElement('div');
     document.body.append(root);
@@ -959,6 +1012,53 @@ describe('BoardsView', () => {
 
     expect(handlers.onPatchColumn).toHaveBeenCalledWith(COLUMN_TODO, {
       before_column: COLUMN_READING,
+    });
+    view.destroy();
+  });
+
+  it('does not show a list placeholder when dragging over the original slot', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const board = createBoard();
+    board.columns.push({
+      id: COLUMN_READING,
+      board: BOARD_ID,
+      title: 'Reading',
+      order: 1,
+      cards: [],
+    });
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState(board));
+
+    const canvas = root.querySelector<HTMLElement>('[data-board-canvas="true"]')!;
+    const columns = root.querySelectorAll<HTMLElement>(
+      '[data-board-column-draggable="true"]'
+    );
+    setRect(canvas, { left: 0, top: 0, width: 620, height: 500 });
+    setRect(columns[0]!, { left: 0, top: 0, width: 272, height: 500 });
+    setRect(columns[1]!, { left: 300, top: 0, width: 272, height: 500 });
+
+    dispatchPointerEvent(columns[0]!, 'pointerdown', {
+      clientX: 40,
+      clientY: 24,
+    });
+    dispatchPointerEvent(window, 'pointermove', {
+      clientX: 48,
+      clientY: 28,
+    });
+
+    expect(
+      root.querySelector('.majom-boards__column-drag-placeholder')
+    ).toBeNull();
+    expect(handlers.onPatchColumn).not.toHaveBeenCalled();
+
+    dispatchPointerEvent(window, 'pointerup', {
+      clientX: 48,
+      clientY: 28,
     });
     view.destroy();
   });
