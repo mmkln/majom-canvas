@@ -53,11 +53,13 @@ type VariantMetrics = {
   groupGap: string;
   iconButtonSizePx: number;
   iconSizePx: number;
+  iconStrokeWidth: number;
   iconButtonRadiusPx: number;
   routinesHeightPx: number;
   routinesPadding: string;
   routinesRadiusPx: number;
   routinesIconSizePx: number;
+  routinesIconStrokeWidth: number;
   routinesLabelFontSizePx: number;
   dividerHeightPx: number;
   dividerMargin: string;
@@ -88,11 +90,13 @@ const VARIANT_METRICS: Record<WorkspaceControlsBarVariant, VariantMetrics> = {
     groupGap: '5px',
     iconButtonSizePx: 36,
     iconSizePx: 15,
+    iconStrokeWidth: 2.2,
     iconButtonRadiusPx: 10,
     routinesHeightPx: 36,
     routinesPadding: '0 12px',
     routinesRadiusPx: 10,
     routinesIconSizePx: 16,
+    routinesIconStrokeWidth: 2.2,
     routinesLabelFontSizePx: 12.5,
     dividerHeightPx: 20,
     dividerMargin: '0 7px',
@@ -111,11 +115,13 @@ const VARIANT_METRICS: Record<WorkspaceControlsBarVariant, VariantMetrics> = {
     groupGap: '2px',
     iconButtonSizePx: 30,
     iconSizePx: 14,
+    iconStrokeWidth: 1.8,
     iconButtonRadiusPx: 8,
     routinesHeightPx: 30,
     routinesPadding: '0 12px',
     routinesRadiusPx: 8,
     routinesIconSizePx: 15,
+    routinesIconStrokeWidth: 1.8,
     routinesLabelFontSizePx: 12,
     dividerHeightPx: 16,
     dividerMargin: '0 4px',
@@ -134,11 +140,13 @@ const VARIANT_METRICS: Record<WorkspaceControlsBarVariant, VariantMetrics> = {
     groupGap: `${SIDEBAR_TOKENS.controlGapPx}px`,
     iconButtonSizePx: SIDEBAR_TOKENS.railButtonSizePx,
     iconSizePx: 14,
+    iconStrokeWidth: 1.8,
     iconButtonRadiusPx: SIDEBAR_TOKENS.railButtonRadiusPx,
     routinesHeightPx: SIDEBAR_TOKENS.railButtonSizePx,
     routinesPadding: '0',
     routinesRadiusPx: SIDEBAR_TOKENS.railButtonRadiusPx,
     routinesIconSizePx: 15,
+    routinesIconStrokeWidth: 1.8,
     routinesLabelFontSizePx: 12,
     dividerHeightPx: 1,
     dividerMargin: '0',
@@ -461,7 +469,7 @@ export class WorkspaceControlsBar {
 
     const icon = createIcon(options.icon, {
       size: this.metrics.iconSizePx,
-      strokeWidth: 1.8,
+      strokeWidth: this.metrics.iconStrokeWidth,
     });
     icon.setAttribute('aria-hidden', 'true');
     button.appendChild(icon);
@@ -511,7 +519,7 @@ export class WorkspaceControlsBar {
 
     const icon = createIcon('check-circle', {
       size: this.metrics.routinesIconSizePx,
-      strokeWidth: 1.8,
+      strokeWidth: this.metrics.routinesIconStrokeWidth,
     });
     icon.setAttribute('aria-hidden', 'true');
     button.appendChild(icon);

@@ -29,6 +29,7 @@ const PRESENTATION_MENU_PANEL_PEEK_SCALE = 0.972;
 const PRESENTATION_MENU_PANEL_PEEK_OPACITY = 0.76;
 const PRESENTATION_MENU_HANDLE_HIDE_SCALE = 0.88;
 const PRESENTATION_MENU_HANDLE_HIDE_TRANSLATE_Y_PX = 10;
+const PRESENTATION_MENU_ICON_STROKE_WIDTH = 2.25;
 const PRESENTATION_MENU_ACCESSORY_BUTTON_CLASS =
   'rounded-[9px] text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100';
 
@@ -97,6 +98,7 @@ export class PresentationMenuView {
       wallpaperService: options.wallpaperService,
       triggerButtonTone: 'text',
       triggerButtonSize: 'md',
+      triggerButtonIconStrokeWidth: PRESENTATION_MENU_ICON_STROKE_WIDTH,
       triggerButtonClassName: PRESENTATION_MENU_ACCESSORY_BUTTON_CLASS,
     });
 
@@ -334,13 +336,13 @@ export class PresentationMenuView {
     this.handleViewIcon.replaceChildren(
       createIcon(this.getHandleViewIconName(state.activeView), {
         size: 13,
-        strokeWidth: 1.9,
+        strokeWidth: PRESENTATION_MENU_ICON_STROKE_WIDTH,
       })
     );
     this.handleChevronIcon.replaceChildren(
       createIcon(expanded ? 'chevron-down' : 'chevron-up', {
         size: 13,
-        strokeWidth: 1.9,
+        strokeWidth: PRESENTATION_MENU_ICON_STROKE_WIDTH,
       })
     );
 
@@ -389,7 +391,7 @@ export class PresentationMenuView {
       this.pinButton,
       createIcon(pinned ? 'lock-closed' : 'lock-open', {
         size: 13,
-        strokeWidth: 1.9,
+        strokeWidth: PRESENTATION_MENU_ICON_STROKE_WIDTH,
       })
     );
     this.pinButton.title = this.runtime.i18n.t(

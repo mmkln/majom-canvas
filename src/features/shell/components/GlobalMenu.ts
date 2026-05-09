@@ -45,6 +45,7 @@ type GlobalMenuOptions = {
   wallpaperService?: ProfileSettingsWallpaperService;
   triggerButtonTone?: IconButtonTone;
   triggerButtonSize?: 'sm' | 'md' | 'lg';
+  triggerButtonIconStrokeWidth?: number;
   triggerButtonClassName?: string;
 };
 
@@ -114,6 +115,7 @@ export class GlobalMenu {
       icon: 'ellipsis-vertical',
       tone: options.triggerButtonTone ?? 'soft',
       size: options.triggerButtonSize ?? 'md',
+      iconStrokeWidth: options.triggerButtonIconStrokeWidth,
       className: options.triggerButtonClassName,
       title: this.i18n.t('header.openGlobalMenu'),
       ariaLabel: this.i18n.t('header.openGlobalMenu'),
