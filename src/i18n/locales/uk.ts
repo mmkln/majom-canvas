@@ -1034,6 +1034,7 @@ export const uk = {
   'boards.addColumnPanelTitle': 'Додати ще список',
   'boards.boardPicker.all': 'Усі',
   'boards.boardPicker.actions': 'Дії дошки',
+  'boards.boardPicker.createBoard': 'Створити нову дошку',
   'boards.boardPicker.createGroup': 'Створити групу',
   'boards.boardPicker.moveToGroup': 'Перемістити до {group}',
   'boards.boardPicker.newGroupPlaceholder': 'Назва нової групи',

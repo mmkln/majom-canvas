@@ -1021,6 +1021,7 @@ export const en = {
   'boards.addColumnPanelTitle': 'Add another list',
   'boards.boardPicker.all': 'All',
   'boards.boardPicker.actions': 'Board actions',
+  'boards.boardPicker.createBoard': 'Create new board',
   'boards.boardPicker.createGroup': 'Create group',
   'boards.boardPicker.moveToGroup': 'Move to {group}',
   'boards.boardPicker.newGroupPlaceholder': 'New group name',

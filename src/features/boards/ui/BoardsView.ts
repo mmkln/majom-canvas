@@ -670,6 +670,7 @@ export class BoardsView {
             selectedBoardId: selectedBoard?.id,
             viewState,
             allowEmpty: true,
+            showCreateBoardCard: viewState.activeFilter === 'all',
             onToggle: renderResults,
           })
         );
@@ -807,6 +808,7 @@ export class BoardsView {
     selectedBoardId: Board['id'] | null | undefined;
     viewState: BoardPickerViewState;
     allowEmpty: boolean;
+    showCreateBoardCard?: boolean;
     onToggle: () => void;
   }): HTMLElement {
     const collapsed = options.viewState.collapsedSections[options.id];
@@ -857,9 +859,26 @@ export class BoardsView {
         );
       });
     }
+    if (options.showCreateBoardCard) {
+      grid.append(this.renderBoardPickerCreateCard());
+    }
 
     section.append(heading, grid);
     return section;
+  }
+
+  private renderBoardPickerCreateCard(): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = boardsViewClassNames.boardPickerCreateCard;
+    button.textContent = this.runtime.i18n.t('boards.boardPicker.createBoard');
+    button.addEventListener('click', () => {
+      this.closeBoardPickerPopover();
+      this.handlers.onCreateBoard(
+        this.runtime.i18n.t('boards.defaultBoardTitle')
+      );
+    });
+    return button;
   }
 
   private renderBoardPickerCard(
@@ -1164,7 +1183,7 @@ export class BoardsView {
     header.append(this.renderColumnTitle(column, state));
 
     const menuButton = createIconButton({
-      icon: 'ellipsis-vertical',
+      icon: 'ellipsis-horizontal',
       tone: 'text',
       size: 'sm',
       className: `${boardsViewClassNames.iconButton} ${boardsViewClassNames.columnMenuButton}`,

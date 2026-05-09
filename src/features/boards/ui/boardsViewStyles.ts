@@ -30,6 +30,7 @@ export const boardsViewClassNames = {
   boardPickerCard: 'majom-boards-board-picker__card',
   boardPickerCardSelected: 'majom-boards-board-picker__card is-selected',
   boardPickerCardButton: 'majom-boards-board-picker__card-button',
+  boardPickerCreateCard: 'majom-boards-board-picker__create-card',
   boardPickerStarButton: 'majom-boards-board-picker__star-button',
   boardPickerStarButtonActive:
     'majom-boards-board-picker__star-button is-active',
@@ -196,6 +197,11 @@ export const boardsModalClassNames = {
 } as const;
 
 const BOARDS_VIEW_CSS = `
+:root {
+  --mb-shadow-card: 0 1px 1px rgba(9, 30, 66, 0.25), 0 0 0 1px rgba(9, 30, 66, 0.06);
+  --mb-shadow-list: 0 1px 1px rgba(9, 30, 66, 0.16), 0 0 1px rgba(9, 30, 66, 0.31);
+}
+
 .majom-boards {
   --mb-text: #172b4d;
   --mb-muted: #44546f;
@@ -223,8 +229,6 @@ const BOARDS_VIEW_CSS = `
   --mb-button-active: rgba(9, 30, 66, 0.2);
   --mb-list-button-hover: rgba(9, 30, 66, 0.08);
   --mb-list-button-active: rgba(9, 30, 66, 0.14);
-  --mb-shadow-card: 0 1px 1px rgba(9, 30, 66, 0.25), 0 0 0 1px rgba(9, 30, 66, 0.06);
-  --mb-shadow-list: 0 1px 1px rgba(9, 30, 66, 0.16), 0 0 1px rgba(9, 30, 66, 0.31);
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -389,11 +393,17 @@ const BOARDS_VIEW_CSS = `
 }
 
 .majom-boards-board-picker {
+  --mb-board-picker-bg: #f7f8f9;
+  --mb-board-picker-card-bg: #ffffff;
+  --mb-board-picker-card-bg-hover: #ffffff;
+  --mb-board-picker-create-card-bg: #f1f2f4;
+  --mb-board-picker-create-card-bg-hover: #e6e8ec;
+  --mb-board-picker-inline-padding: 16px;
   width: min(420px, calc(100vw - 24px));
   max-height: min(640px, calc(100vh - 24px));
   overflow: hidden;
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--mb-board-picker-bg);
   color: var(--mb-text);
   box-shadow:
     0 16px 40px rgba(9, 30, 66, 0.2),
@@ -402,13 +412,13 @@ const BOARDS_VIEW_CSS = `
 
 .majom-boards-board-picker__search-wrap {
   position: relative;
-  padding: 12px 12px 8px;
+  padding: 16px var(--mb-board-picker-inline-padding) 10px;
 }
 
 .majom-boards-board-picker__search-icon {
   position: absolute;
   top: 50%;
-  left: 24px;
+  left: calc(var(--mb-board-picker-inline-padding) + 12px);
   color: var(--mb-muted);
   pointer-events: none;
   transform: translateY(-35%);
@@ -422,9 +432,9 @@ const BOARDS_VIEW_CSS = `
 
 .majom-boards-board-picker__chips {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   overflow-x: auto;
-  padding: 0 12px 10px;
+  padding: 0 var(--mb-board-picker-inline-padding) 14px;
 }
 
 .majom-boards-board-picker__chip {
@@ -433,9 +443,10 @@ const BOARDS_VIEW_CSS = `
   border: 1px solid rgba(9, 30, 66, 0.14);
   border-radius: 7px;
   padding: 0 10px;
-  color: var(--mb-muted);
+  color: #566277;
   background: #ffffff;
   font-size: 13px;
+  font-weight: 500;
   line-height: 26px;
   cursor: pointer;
 }
@@ -456,11 +467,11 @@ const BOARDS_VIEW_CSS = `
 }
 
 .majom-boards-board-picker__section {
-  padding: 8px 12px 16px;
+  padding: 10px var(--mb-board-picker-inline-padding) 20px;
 }
 
 .majom-boards-board-picker__section-title {
-  margin: 0 0 10px;
+  margin: 0 0 12px;
 }
 
 .majom-boards-board-picker__section-toggle {
@@ -495,32 +506,28 @@ const BOARDS_VIEW_CSS = `
 .majom-boards-board-picker__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
-  gap: 8px;
+  gap: 10px;
 }
 
 .majom-boards-board-picker__card {
   position: relative;
   min-width: 0;
-  border: 1px solid rgba(9, 30, 66, 0.12);
+  border: 0;
   border-radius: 7px;
   overflow: hidden;
   color: var(--mb-text);
-  background: #ffffff;
-  box-shadow: 0 1px 1px rgba(9, 30, 66, 0.12);
+  background: var(--mb-board-picker-card-bg);
+  box-shadow: var(--mb-shadow-card);
 }
 
-.majom-boards-board-picker__card:hover,
-.majom-boards-board-picker__card:focus-within {
-  background: #f7f8f9;
+.majom-boards-board-picker__grid .majom-boards-board-picker__card:hover,
+.majom-boards-board-picker__grid .majom-boards-board-picker__card:focus-within,
+.majom-boards-board-picker__grid .majom-boards-board-picker__card.is-selected:hover,
+.majom-boards-board-picker__grid .majom-boards-board-picker__card.is-selected:focus-within {
+  background: var(--mb-board-picker-card-bg-hover);
   box-shadow:
-    0 2px 5px rgba(9, 30, 66, 0.16),
-    0 0 0 1px rgba(9, 30, 66, 0.12);
-}
-
-.majom-boards-board-picker__card.is-selected {
-  box-shadow:
-    0 0 0 2px #0c66e4,
-    0 2px 5px rgba(9, 30, 66, 0.16);
+    0 1px 2px rgba(9, 30, 66, 0.3),
+    0 0 0 2px rgba(12, 102, 228, 0.42);
 }
 
 .majom-boards-board-picker__card-button {
@@ -537,6 +544,35 @@ const BOARDS_VIEW_CSS = `
 
 .majom-boards-board-picker__card-button:focus-visible {
   outline: none;
+}
+
+.majom-boards-board-picker__create-card {
+  display: flex;
+  min-width: 0;
+  min-height: 110px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 7px;
+  padding: 18px 16px;
+  color: var(--mb-muted);
+  background: var(--mb-board-picker-create-card-bg);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 18px;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: var(--mb-shadow-card);
+  white-space: normal;
+}
+
+.majom-boards-board-picker__grid .majom-boards-board-picker__create-card:hover,
+.majom-boards-board-picker__grid .majom-boards-board-picker__create-card:focus-visible {
+  background: var(--mb-board-picker-create-card-bg-hover);
+  outline: none;
+  box-shadow:
+    0 1px 2px rgba(9, 30, 66, 0.3),
+    0 0 0 2px rgba(12, 102, 228, 0.42);
 }
 
 .majom-boards-board-picker__star-button {
@@ -647,7 +683,7 @@ const BOARDS_VIEW_CSS = `
   overflow: hidden;
   color: var(--mb-text);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 18px;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;

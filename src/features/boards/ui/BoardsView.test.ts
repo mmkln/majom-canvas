@@ -1188,6 +1188,34 @@ describe('BoardsView', () => {
     view.destroy();
   });
 
+  it('creates a board from the header board picker grid', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState());
+
+    root
+      .querySelector<HTMLButtonElement>('[data-testid="board-picker-button"]')
+      ?.click();
+    const createButton = Array.from(
+      document.querySelectorAll<HTMLButtonElement>(
+        '.majom-boards-board-picker__create-card'
+      )
+    ).find((button) => button.textContent === 'Create new board');
+    expect(createButton).not.toBeNull();
+    createButton!.click();
+
+    expect(handlers.onCreateBoard).toHaveBeenCalledWith('New board');
+    expect(
+      document.querySelector('[data-testid="board-picker-popover"]')
+    ).toBeNull();
+    view.destroy();
+  });
+
   it('filters the header board picker using board meta', () => {
     const root = document.createElement('div');
     document.body.append(root);
