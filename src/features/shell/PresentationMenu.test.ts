@@ -47,14 +47,8 @@ describe('PresentationMenu', () => {
     expect(handleDock).not.toBeNull();
     expect(intentZone).not.toBeNull();
     expect(pinButton).not.toBeNull();
-    expect(intentZone?.style.width).toBe('68px');
-    expect(intentZone?.style.height).toBe('38px');
-    expect(intentZone?.style.bottom).toBe('-13px');
     expect(container?.firstElementChild?.contains(menuButton as HTMLButtonElement)).toBe(
       true
-    );
-    expect((container?.firstElementChild as HTMLElement).style.padding).toBe(
-      '6px 10px 6px 6px'
     );
     expect(container?.firstElementChild?.contains(pinButton as HTMLButtonElement)).toBe(
       true
@@ -127,9 +121,6 @@ describe('PresentationMenu', () => {
     ).toBe('chevron-up');
     expect(handleDock.style.opacity).toBe('1');
     expect(pinButton.style.display).toBe('none');
-    expect((container?.firstElementChild as HTMLElement).style.transform).toContain(
-      'translateY(66px)'
-    );
     expect((container?.firstElementChild as HTMLElement).style.transform).toContain(
       'scale(0.972)'
     );

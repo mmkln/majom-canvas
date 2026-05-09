@@ -11,14 +11,14 @@ import { GlobalMenu } from './components/GlobalMenu.ts';
 import type { WallpaperService } from './services/WallpaperService.ts';
 import type { PresentationMenuMode } from './PresentationMenuMachine.ts';
 
-const PRESENTATION_MENU_PEEK_HANDLE_WIDTH_PX = 58;
-const PRESENTATION_MENU_PEEK_HANDLE_HEIGHT_PX = 28;
-const PRESENTATION_MENU_HIDDEN_HANDLE_WIDTH_PX = 52;
-const PRESENTATION_MENU_HIDDEN_HANDLE_HEIGHT_PX = 26;
+const PRESENTATION_MENU_PEEK_HANDLE_WIDTH_PX = 63;
+const PRESENTATION_MENU_PEEK_HANDLE_HEIGHT_PX = 31;
+const PRESENTATION_MENU_HIDDEN_HANDLE_WIDTH_PX = 56;
+const PRESENTATION_MENU_HIDDEN_HANDLE_HEIGHT_PX = 28;
 const PRESENTATION_MENU_INTENT_ZONE_PADDING_PX = 5;
 const PRESENTATION_MENU_PEEK_BOTTOM_OFFSET_PX = -8;
 const PRESENTATION_MENU_PEEK_HIDDEN_OFFSET_PX = -14;
-const PRESENTATION_MENU_FALLBACK_HEIGHT_PX = 44;
+const PRESENTATION_MENU_FALLBACK_HEIGHT_PX = 51;
 const PRESENTATION_MENU_OPEN_TRANSFORM_MS = 320;
 const PRESENTATION_MENU_OPEN_OPACITY_MS = 260;
 const PRESENTATION_MENU_OPEN_EASING = 'cubic-bezier(0.16, 1, 0.3, 1)';
@@ -96,7 +96,7 @@ export class PresentationMenuView {
     this.globalMenu = new GlobalMenu(this.runtime, {
       wallpaperService: options.wallpaperService,
       triggerButtonTone: 'text',
-      triggerButtonSize: 'sm',
+      triggerButtonSize: 'md',
       triggerButtonClassName: PRESENTATION_MENU_ACCESSORY_BUTTON_CLASS,
     });
 
@@ -104,8 +104,8 @@ export class PresentationMenuView {
     this.handleViewIcon.style.display = 'inline-flex';
     this.handleViewIcon.style.alignItems = 'center';
     this.handleViewIcon.style.justifyContent = 'center';
-    this.handleViewIcon.style.width = '18px';
-    this.handleViewIcon.style.height = '18px';
+    this.handleViewIcon.style.width = '19px';
+    this.handleViewIcon.style.height = '19px';
     this.handleViewIcon.style.borderRadius = '4px';
     this.handleViewIcon.style.background = 'rgba(255, 255, 255, 0.1)';
 
@@ -113,8 +113,8 @@ export class PresentationMenuView {
     this.handleChevronIcon.style.display = 'inline-flex';
     this.handleChevronIcon.style.alignItems = 'center';
     this.handleChevronIcon.style.justifyContent = 'center';
-    this.handleChevronIcon.style.width = '12px';
-    this.handleChevronIcon.style.height = '12px';
+    this.handleChevronIcon.style.width = '13px';
+    this.handleChevronIcon.style.height = '13px';
     this.handleChevronIcon.style.opacity = '0.76';
 
     this.handleButton = document.createElement('button');
@@ -126,7 +126,7 @@ export class PresentationMenuView {
     this.handleButton.style.gap = '6px';
     this.handleButton.style.width = `${PRESENTATION_MENU_PEEK_HANDLE_WIDTH_PX}px`;
     this.handleButton.style.height = `${PRESENTATION_MENU_PEEK_HANDLE_HEIGHT_PX}px`;
-    this.handleButton.style.padding = '0 10px';
+    this.handleButton.style.padding = '0 11px';
     this.handleButton.style.border = 'none';
     this.handleButton.style.borderRadius = '999px';
     this.handleButton.style.background = 'rgba(15, 23, 42, 0.76)';
@@ -139,7 +139,7 @@ export class PresentationMenuView {
     this.pinButton = createIconButton({
       icon: 'lock-open',
       tone: 'text',
-      size: 'sm',
+      size: 'md',
       className: `hidden shrink-0 relative overflow-visible ${PRESENTATION_MENU_ACCESSORY_BUTTON_CLASS}`,
     });
     this.pinButton.dataset.role = 'presentation-menu-pin';
@@ -150,7 +150,7 @@ export class PresentationMenuView {
     this.pinIndicator.style.left = '50%';
     this.pinIndicator.style.bottom = '0';
     this.pinIndicator.style.display = 'block';
-    this.pinIndicator.style.width = '12px';
+    this.pinIndicator.style.width = '13px';
     this.pinIndicator.style.height = '2px';
     this.pinIndicator.style.borderRadius = '999px';
     this.pinIndicator.style.background = '#6366f1';
@@ -333,13 +333,13 @@ export class PresentationMenuView {
 
     this.handleViewIcon.replaceChildren(
       createIcon(this.getHandleViewIconName(state.activeView), {
-        size: 12,
+        size: 13,
         strokeWidth: 1.9,
       })
     );
     this.handleChevronIcon.replaceChildren(
       createIcon(expanded ? 'chevron-down' : 'chevron-up', {
-        size: 12,
+        size: 13,
         strokeWidth: 1.9,
       })
     );
@@ -363,8 +363,8 @@ export class PresentationMenuView {
     this.handleButton.tabIndex = peek ? 0 : -1;
     this.handleButton.setAttribute('aria-hidden', peek ? 'false' : 'true');
 
-    this.handleViewIcon.style.width = peek ? '18px' : '16px';
-    this.handleViewIcon.style.height = peek ? '18px' : '16px';
+    this.handleViewIcon.style.width = peek ? '19px' : '17px';
+    this.handleViewIcon.style.height = peek ? '19px' : '17px';
     this.handleViewIcon.style.opacity = peek ? '1' : '0.88';
 
     this.handleChevronIcon.style.opacity = peek ? '0.76' : '0.66';
@@ -388,7 +388,7 @@ export class PresentationMenuView {
     setIconButtonContent(
       this.pinButton,
       createIcon(pinned ? 'lock-closed' : 'lock-open', {
-        size: 12,
+        size: 13,
         strokeWidth: 1.9,
       })
     );

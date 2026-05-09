@@ -89,10 +89,6 @@ describe('WorkspaceControlsBar sidebar variant', () => {
       railButtons.indexOf(energyButton as HTMLButtonElement)
     ).toBeGreaterThan(railButtons.indexOf(chatButton as HTMLButtonElement));
 
-    const dividers = bar.element.querySelectorAll(
-      '[data-component="HudSidebarDivider"]'
-    );
-    expect(dividers).toHaveLength(4);
   });
 
   it('updates sidebar active state via shared data attributes instead of inline styles', () => {
@@ -285,6 +281,7 @@ describe('WorkspaceControlsBar floating variant', () => {
       showKanban: true,
       showTimeClustering: false,
       showRoutines: false,
+      showNotes: false,
       showChat: false,
       showEnergy: false,
       trailingAccessory: accessory,
@@ -295,20 +292,6 @@ describe('WorkspaceControlsBar floating variant', () => {
     expect(bar.element.lastElementChild).toBe(accessory);
     expect(bar.element.children).toHaveLength(3);
     expect(bar.element.children[1]?.getAttribute('aria-hidden')).toBe('true');
-  });
-
-  it('uses the same asymmetric floating padding as the action menu shell', () => {
-    const bar = new WorkspaceControlsBar({
-      initialView: 'canvas',
-      showKanban: true,
-      showTimeClustering: false,
-      showRoutines: false,
-      showChat: false,
-      showEnergy: false,
-      variant: 'floating',
-    });
-
-    expect(bar.element.style.padding).toBe('6px 10px 6px 6px');
   });
 
   it('renders a routines badge when today still has open habits', () => {

@@ -52,10 +52,13 @@ type VariantMetrics = {
   rootGap: string;
   groupGap: string;
   iconButtonSizePx: number;
+  iconSizePx: number;
   iconButtonRadiusPx: number;
   routinesHeightPx: number;
   routinesPadding: string;
   routinesRadiusPx: number;
+  routinesIconSizePx: number;
+  routinesLabelFontSizePx: number;
   dividerHeightPx: number;
   dividerMargin: string;
   dividerColor: string;
@@ -77,19 +80,22 @@ const VIEW_OPTIONS: ViewOption[] = [
   { view: 'learning-studio', icon: 'academic-cap' },
 ];
 
-const FLOATING_CONTROLS_PADDING = '6px 10px 6px 6px';
+const FLOATING_CONTROLS_PADDING = '7px 11px 7px 7px';
 
 const VARIANT_METRICS: Record<WorkspaceControlsBarVariant, VariantMetrics> = {
   floating: {
     rootGap: '0',
-    groupGap: '4px',
-    iconButtonSizePx: 32,
-    iconButtonRadiusPx: 9,
-    routinesHeightPx: 32,
-    routinesPadding: '0 10px',
-    routinesRadiusPx: 9,
-    dividerHeightPx: 18,
-    dividerMargin: '0 6px',
+    groupGap: '5px',
+    iconButtonSizePx: 36,
+    iconSizePx: 15,
+    iconButtonRadiusPx: 10,
+    routinesHeightPx: 36,
+    routinesPadding: '0 12px',
+    routinesRadiusPx: 10,
+    routinesIconSizePx: 16,
+    routinesLabelFontSizePx: 12.5,
+    dividerHeightPx: 20,
+    dividerMargin: '0 7px',
     dividerColor: 'rgba(148, 163, 184, 0.45)',
     inactiveIconColor: '#475569',
     inactiveTextColor: '#334155',
@@ -104,10 +110,13 @@ const VARIANT_METRICS: Record<WorkspaceControlsBarVariant, VariantMetrics> = {
     rootGap: '4px',
     groupGap: '2px',
     iconButtonSizePx: 30,
+    iconSizePx: 14,
     iconButtonRadiusPx: 8,
     routinesHeightPx: 30,
     routinesPadding: '0 12px',
     routinesRadiusPx: 8,
+    routinesIconSizePx: 15,
+    routinesLabelFontSizePx: 12,
     dividerHeightPx: 16,
     dividerMargin: '0 4px',
     dividerColor: 'rgba(203, 213, 225, 0.95)',
@@ -124,10 +133,13 @@ const VARIANT_METRICS: Record<WorkspaceControlsBarVariant, VariantMetrics> = {
     rootGap: `${SIDEBAR_TOKENS.controlGapPx}px`,
     groupGap: `${SIDEBAR_TOKENS.controlGapPx}px`,
     iconButtonSizePx: SIDEBAR_TOKENS.railButtonSizePx,
+    iconSizePx: 14,
     iconButtonRadiusPx: SIDEBAR_TOKENS.railButtonRadiusPx,
     routinesHeightPx: SIDEBAR_TOKENS.railButtonSizePx,
     routinesPadding: '0',
     routinesRadiusPx: SIDEBAR_TOKENS.railButtonRadiusPx,
+    routinesIconSizePx: 15,
+    routinesLabelFontSizePx: 12,
     dividerHeightPx: 1,
     dividerMargin: '0',
     dividerColor: 'rgba(226, 232, 240, 0.85)',
@@ -390,7 +402,7 @@ export class WorkspaceControlsBar {
     if (this.variant === 'floating') {
       this.element.style.padding = FLOATING_CONTROLS_PADDING;
       this.element.style.border = '1px solid rgba(203, 213, 225, 0.88)';
-      this.element.style.borderRadius = '14px';
+      this.element.style.borderRadius = '15px';
       this.element.style.background = 'rgba(255, 255, 255, 0.98)';
       this.element.style.backdropFilter = 'none';
       this.element.style.boxShadow = '0 4px 14px rgba(15, 23, 42, 0.08)';
@@ -447,7 +459,10 @@ export class WorkspaceControlsBar {
       button.style.color = this.metrics.inactiveIconColor;
     });
 
-    const icon = createIcon(options.icon, { size: 14, strokeWidth: 1.8 });
+    const icon = createIcon(options.icon, {
+      size: this.metrics.iconSizePx,
+      strokeWidth: 1.8,
+    });
     icon.setAttribute('aria-hidden', 'true');
     button.appendChild(icon);
     return button;
@@ -494,13 +509,16 @@ export class WorkspaceControlsBar {
     });
     button.addEventListener('click', onClick);
 
-    const icon = createIcon('check-circle', { size: 15, strokeWidth: 1.8 });
+    const icon = createIcon('check-circle', {
+      size: this.metrics.routinesIconSizePx,
+      strokeWidth: 1.8,
+    });
     icon.setAttribute('aria-hidden', 'true');
     button.appendChild(icon);
     if (this.metrics.showRoutinesLabel) {
       const label = document.createElement('span');
       label.textContent = this.i18n.t('workspaceControls.routines');
-      label.style.fontSize = '12px';
+      label.style.fontSize = `${this.metrics.routinesLabelFontSizePx}px`;
       label.style.fontWeight = '600';
       label.style.lineHeight = '1';
       this.routinesLabel = label;
