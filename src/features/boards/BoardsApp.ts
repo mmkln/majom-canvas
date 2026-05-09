@@ -56,6 +56,9 @@ export class BoardsApp {
         onSelectBoard: (boardId) => store.selectBoard(boardId),
         onCreateBoard: (title) => void store.createBoard(title),
         onPatchBoard: (boardId, patch) => void store.patchBoard(boardId, patch),
+        onToggleBoardStar: (boardId) => store.toggleBoardStar(boardId),
+        onUpdateBoardGroup: (boardId, group) =>
+          store.updateBoardGroup(boardId, group),
         onDeleteBoard: (boardId) => void store.deleteBoard(boardId),
         onCreateColumn: (boardId, title) =>
           void store.createColumn(boardId, title),

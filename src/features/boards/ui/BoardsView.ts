@@ -19,9 +19,12 @@ import type {
 import {
   AnchoredMenu,
   MenuButton,
+  createDivider,
+  createDropdownItem,
   createSurface,
   createInputBase,
   createIconButton,
+  setIconButtonContent,
   createTextButton,
   createFormMessage,
 } from '../../../ui-lib/src/hud/index.ts';
@@ -38,6 +41,14 @@ import {
   haveSameBoardCardTagIds,
   normalizeBoardCardTagIds,
 } from '../domain/cardTags.ts';
+import {
+  generateBoardGroupId,
+  getBoardGroup,
+  getBoardRecentTimestamp,
+  getUniqueBoardGroups,
+  isBoardStarred,
+  type BoardGroup,
+} from '../domain/boardMeta.ts';
 import { resolveCardPlacementTarget } from '../domain/placementTargetResolver.ts';
 import { BoardColumnDragController } from './BoardColumnDragController.ts';
 import { BoardDragController } from './BoardDragController.ts';
@@ -89,6 +100,20 @@ type CardLabelsPopoverController = {
   trigger: HTMLButtonElement;
 };
 
+type BoardPickerPopoverController = {
+  menu: AnchoredMenu;
+  panel: HTMLElement;
+  trigger: HTMLButtonElement;
+  viewState: BoardPickerViewState;
+  actionsMenu: BoardPickerActionsMenuController | null;
+};
+
+type BoardPickerActionsMenuController = {
+  menu: AnchoredMenu;
+  panel: HTMLElement;
+  boardId: Board['id'];
+};
+
 type CardWithOptionalFrontMetadata = Card & {
   commentCount?: number;
   commentsCount?: number;
@@ -101,9 +126,31 @@ type PlacementTargetSelection = BoardCardPlacementTarget & {
 };
 
 type TagCatalogStatus = 'idle' | 'loading' | 'ready' | 'error';
+type BoardPickerFilter = 'all' | 'starred' | 'recent';
+type BoardPickerSectionId = string;
+type BoardPickerViewState = {
+  query: string;
+  activeFilter: BoardPickerFilter;
+  collapsedSections: Record<BoardPickerSectionId, boolean>;
+};
 
 const CARD_BACK_TITLE_EDITOR_ROWS = 1;
 const CARD_BACK_TITLE_MAX_LENGTH = 16384;
+const BOARD_PICKER_COVER_CLASSES = [
+  boardsViewClassNames.boardPickerCoverA,
+  boardsViewClassNames.boardPickerCoverB,
+  boardsViewClassNames.boardPickerCoverC,
+  boardsViewClassNames.boardPickerCoverD,
+  boardsViewClassNames.boardPickerCoverE,
+  boardsViewClassNames.boardPickerCoverF,
+] as const;
+const DEFAULT_BOARD_PICKER_COLLAPSED_SECTIONS: Record<
+  BoardPickerSectionId,
+  boolean
+> = {
+  starred: false,
+  yourBoards: false,
+};
 
 const QUICK_CARD_EDITOR_GEOMETRY = {
   formWidth: 256,
@@ -133,11 +180,18 @@ function setMenuButtonIconOnly(
   label: string
 ): void {
   const button = menu.getButtonElement();
+  button.className = boardsViewClassNames.headerMenuButton;
   const iconElement = createIcon(icon, { size: 16, strokeWidth: 2 });
   iconElement.setAttribute('aria-hidden', 'true');
   button.replaceChildren(iconElement);
   button.title = label;
   button.setAttribute('aria-label', label);
+}
+
+function syncHeaderMenuButtonOpenState(menu: MenuButton, open: boolean): void {
+  const button = menu.getButtonElement();
+  button.classList.remove('!bg-slate-100', '!text-slate-800');
+  button.dataset.boardsHeaderMenuOpen = open ? 'true' : 'false';
 }
 
 function getCardCommentCount(card: Card): number {
@@ -157,6 +211,21 @@ function mapTagToPickerItem(tag: Tag): TagPickerItem {
     title: tag.title,
     color: tag.color,
   };
+}
+
+function getBoardPickerCoverClass(board: Board): string {
+  const seed = Array.from(board.id).reduce(
+    (sum, character) => sum + character.charCodeAt(0),
+    0
+  );
+  return (
+    BOARD_PICKER_COVER_CLASSES[seed % BOARD_PICKER_COVER_CLASSES.length] ??
+    BOARD_PICKER_COVER_CLASSES[0]
+  );
+}
+
+function getBoardPickerInitial(board: Board): string {
+  return board.title.trim().charAt(0) || '?';
 }
 
 function getCardLabelTextColor(color: string): string {
@@ -183,6 +252,7 @@ export class BoardsView {
   private editingColumnTitleId: BoardColumn['id'] | null = null;
   private columnTitleEditInput: HTMLInputElement | null = null;
   private headerMenu: MenuButton | null = null;
+  private boardPickerPopover: BoardPickerPopoverController | null = null;
   private quickEditorOverlay: HTMLDivElement | null = null;
   private activeCardPlacementId: CardPlacement['id'] | null = null;
   private cardModalOverlay: HTMLDivElement | null = null;
@@ -232,18 +302,37 @@ export class BoardsView {
   }
 
   public render(state: BoardsState): void {
+    const reopenBoardPicker = this.boardPickerPopover
+      ? {
+          ...this.boardPickerPopover.viewState,
+          collapsedSections: {
+            ...this.boardPickerPopover.viewState.collapsedSections,
+          },
+        }
+      : null;
     this.state = state;
     this.ensureTagCatalogLoaded();
     this.dragController.cancelDrag();
     this.columnDragController.cancelDrag();
     this.cardDrafts.clear();
     this.unmountHeaderMenu();
+    this.closeBoardPickerPopover();
     this.closeListActionsPopover();
     this.closeCardActionsPopover();
     this.closeMoveCardPopover();
     this.closeQuickCardEditor();
     this.root.replaceChildren(this.renderShell(state));
     this.syncCardModal(state);
+    if (reopenBoardPicker) {
+      requestAnimationFrame(() => {
+        const trigger = this.root.querySelector<HTMLButtonElement>(
+          '[data-testid="board-picker-button"]'
+        );
+        if (trigger && !trigger.disabled) {
+          this.openBoardPickerPopover(trigger, state, reopenBoardPicker);
+        }
+      });
+    }
   }
 
   public destroy(): void {
@@ -251,6 +340,7 @@ export class BoardsView {
     this.dragController.unmount();
     this.columnDragController.unmount();
     this.unmountHeaderMenu();
+    this.closeBoardPickerPopover();
     this.closeCardLabelsPopover();
     this.closeListActionsPopover();
     this.closeCardActionsPopover();
@@ -267,6 +357,7 @@ export class BoardsView {
   }
 
   private closeTransientBoardOverlays(): void {
+    this.closeBoardPickerPopover();
     this.closeListActionsPopover();
     this.closeCardActionsPopover();
     this.closeCardLabelsPopover();
@@ -331,10 +422,13 @@ export class BoardsView {
 
     const titleBlock = document.createElement('div');
     titleBlock.className = boardsViewClassNames.titleBlock;
-    titleBlock.append(this.renderBoardTitle(selectedBoard, state));
-    if (state.boards.length > 1) {
-      titleBlock.append(this.renderBoardTabs(state));
+    const titleRow = document.createElement('div');
+    titleRow.className = boardsViewClassNames.titleRow;
+    titleRow.append(this.renderBoardTitle(selectedBoard, state));
+    if (state.boards.length > 0) {
+      titleRow.append(this.renderBoardPickerButton(selectedBoard, state));
     }
+    titleBlock.append(titleRow);
 
     const actions = document.createElement('div');
     actions.className = boardsViewClassNames.headerActions;
@@ -404,11 +498,598 @@ export class BoardsView {
     return title;
   }
 
+  private renderBoardPickerButton(
+    board: Board | null,
+    state: BoardsState
+  ): HTMLButtonElement {
+    const label = this.runtime.i18n.t('boards.boardPicker.open');
+    const button = createIconButton({
+      icon: 'kanban',
+      tone: 'text',
+      size: 'sm',
+      className: boardsViewClassNames.boardPickerButton,
+      title: label,
+      ariaLabel: label,
+      disabled: !board || state.status === 'saving',
+    });
+    const content = document.createElement('span');
+    content.className = boardsViewClassNames.boardPickerButtonContent;
+    const boardIcon = createIcon('kanban', { size: 16, strokeWidth: 2 });
+    boardIcon.setAttribute('aria-hidden', 'true');
+    const chevronIcon = createIcon('chevron-down', {
+      size: 14,
+      strokeWidth: 2,
+    });
+    chevronIcon.setAttribute('aria-hidden', 'true');
+    content.append(boardIcon, chevronIcon);
+    setIconButtonContent(button, content);
+    button.setAttribute('aria-haspopup', 'dialog');
+    button.setAttribute('aria-expanded', 'false');
+    button.setAttribute('data-testid', 'board-picker-button');
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (this.boardPickerPopover?.trigger === button) {
+        this.closeBoardPickerPopover();
+        return;
+      }
+      this.openBoardPickerPopover(button, state);
+    });
+    return button;
+  }
+
+  private openBoardPickerPopover(
+    trigger: HTMLButtonElement,
+    state: BoardsState,
+    initialViewState?: BoardPickerViewState
+  ): void {
+    this.closeTransientBoardOverlays();
+
+    const viewState: BoardPickerViewState = initialViewState
+      ? {
+          query: initialViewState.query,
+          activeFilter: initialViewState.activeFilter,
+          collapsedSections: { ...initialViewState.collapsedSections },
+        }
+      : {
+          query: '',
+          activeFilter: 'all',
+          collapsedSections: { ...DEFAULT_BOARD_PICKER_COLLAPSED_SECTIONS },
+        };
+    const selectedBoard = this.getSelectedBoard(state);
+    const panel = createSurface({
+      elevated: true,
+      className: `${boardsViewClassNames.boardPickerPopover} hidden`,
+    });
+    panel.setAttribute('data-testid', 'board-picker-popover');
+
+    const searchWrap = document.createElement('div');
+    searchWrap.className = boardsViewClassNames.boardPickerSearchWrap;
+    const searchIcon = createIcon('magnifying-glass', {
+      size: 18,
+      strokeWidth: 2,
+    });
+    searchIcon.setAttribute('aria-hidden', 'true');
+    searchIcon.classList.add(boardsViewClassNames.boardPickerSearchIcon);
+    const searchInput = createInputBase({
+      type: 'search',
+      autoComplete: 'off',
+      placeholder: this.runtime.i18n.t('boards.boardPicker.searchPlaceholder'),
+      className: boardsViewClassNames.boardPickerSearchInput,
+      onInput: (value) => {
+        viewState.query = value.trim().toLowerCase();
+        renderResults();
+      },
+      onKeyDown: (event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          this.closeBoardPickerPopover();
+        }
+      },
+    });
+    searchInput.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('boards.boardPicker.searchLabel')
+    );
+    searchInput.value = viewState.query;
+    searchWrap.append(searchIcon, searchInput);
+
+    const chips = document.createElement('div');
+    chips.className = boardsViewClassNames.boardPickerChips;
+    const renderFilters = (): void => {
+      chips.replaceChildren(
+        ...this.getBoardPickerFilterOptions().map((filter) =>
+          this.renderBoardPickerChip({
+            label: filter.label,
+            selected: viewState.activeFilter === filter.value,
+            onClick: () => {
+              viewState.activeFilter = filter.value;
+              renderFilters();
+              renderResults();
+              searchInput.focus();
+            },
+          })
+        )
+      );
+    };
+
+    const sections = document.createElement('div');
+    sections.className = boardsViewClassNames.boardPickerSections;
+
+    const renderResults = (): void => {
+      sections.replaceChildren();
+      const visibleBoards = this.getBoardPickerVisibleBoards(
+        state.boards,
+        viewState.activeFilter,
+        viewState.query
+      );
+      const groupedBoards = this.getBoardPickerGroupedBoards(visibleBoards);
+      if (viewState.activeFilter === 'all') {
+        const starredBoards = visibleBoards.filter(isBoardStarred);
+        if (starredBoards.length > 0) {
+          sections.append(
+            this.renderBoardPickerSection({
+              id: 'starred',
+              label: this.runtime.i18n.t('boards.boardPicker.starred'),
+              boards: starredBoards,
+              selectedBoardId: selectedBoard?.id,
+              viewState,
+              allowEmpty: false,
+              onToggle: renderResults,
+            })
+          );
+        }
+      }
+      groupedBoards.groups.forEach((group) => {
+        sections.append(
+          this.renderBoardPickerSection({
+            id: `group:${group.id}`,
+            label: group.name,
+            boards: group.boards,
+            allBoards: state.boards,
+            selectedBoardId: selectedBoard?.id,
+            viewState,
+            allowEmpty: false,
+            onToggle: renderResults,
+          })
+        );
+      });
+      if (
+        groupedBoards.ungrouped.length > 0 ||
+        groupedBoards.groups.length === 0 ||
+        visibleBoards.length === 0
+      ) {
+        sections.append(
+          this.renderBoardPickerSection({
+            id: 'yourBoards',
+            label: this.runtime.i18n.t('boards.boardPicker.yourBoards'),
+            boards:
+              groupedBoards.groups.length > 0
+                ? groupedBoards.ungrouped
+                : visibleBoards,
+            allBoards: state.boards,
+            selectedBoardId: selectedBoard?.id,
+            viewState,
+            allowEmpty: true,
+            onToggle: renderResults,
+          })
+        );
+      }
+    };
+
+    panel.append(searchWrap, chips, sections);
+
+    const menu = new AnchoredMenu({
+      container: trigger,
+      panel,
+      positioning: 'viewport',
+      panelZIndex: 290,
+      onOpenChange: (open) => {
+        trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (!open && this.boardPickerPopover?.menu === menu) {
+          this.closeBoardPickerPopover();
+        }
+      },
+    });
+    menu.mount();
+    this.boardPickerPopover = {
+      menu,
+      panel,
+      trigger,
+      viewState,
+      actionsMenu: null,
+    };
+    renderFilters();
+    renderResults();
+    menu.openAt({
+      anchor: trigger,
+      placement: 'bottom-start',
+      fallbackPlacements: ['bottom-end', 'top-start', 'top-end'],
+      gap: 8,
+      margin: 12,
+      lockPlacementAfterOpen: true,
+    });
+    requestAnimationFrame(() => searchInput.focus());
+  }
+
+  private getBoardPickerFilterOptions(): Array<{
+    value: BoardPickerFilter;
+    label: string;
+  }> {
+    return [
+      {
+        value: 'all',
+        label: this.runtime.i18n.t('boards.boardPicker.all'),
+      },
+      {
+        value: 'starred',
+        label: this.runtime.i18n.t('boards.boardPicker.starred'),
+      },
+      {
+        value: 'recent',
+        label: this.runtime.i18n.t('boards.boardPicker.recent'),
+      },
+    ];
+  }
+
+  private getBoardPickerVisibleBoards(
+    boards: Board[],
+    filter: BoardPickerFilter,
+    query: string
+  ): Board[] {
+    const normalizedQuery = query.trim().toLowerCase();
+    const filtered = boards.filter((board) => {
+      if (
+        normalizedQuery &&
+        !board.title.toLowerCase().includes(normalizedQuery)
+      ) {
+        return false;
+      }
+      if (filter === 'starred') return isBoardStarred(board);
+      if (filter === 'recent') return getBoardRecentTimestamp(board) !== null;
+      return true;
+    });
+
+    if (filter !== 'recent') return filtered;
+    return [...filtered].sort(
+      (left, right) =>
+        (getBoardRecentTimestamp(right) ?? 0) -
+        (getBoardRecentTimestamp(left) ?? 0)
+    );
+  }
+
+  private getBoardPickerGroupedBoards(boards: Board[]): {
+    groups: Array<BoardGroup & { boards: Board[] }>;
+    ungrouped: Board[];
+  } {
+    const groups = new Map<string, BoardGroup & { boards: Board[] }>();
+    const ungrouped: Board[] = [];
+    boards.forEach((board) => {
+      const group = getBoardGroup(board);
+      if (!group) {
+        ungrouped.push(board);
+        return;
+      }
+      const existing = groups.get(group.id);
+      if (existing) {
+        existing.boards.push(board);
+        return;
+      }
+      groups.set(group.id, { ...group, boards: [board] });
+    });
+    return {
+      groups: Array.from(groups.values()).sort((left, right) =>
+        left.name.localeCompare(right.name)
+      ),
+      ungrouped,
+    };
+  }
+
+  private renderBoardPickerChip(options: {
+    label: string;
+    selected: boolean;
+    onClick: () => void;
+  }): HTMLButtonElement {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = options.selected
+      ? boardsViewClassNames.boardPickerChipSelected
+      : boardsViewClassNames.boardPickerChip;
+    chip.textContent = options.label;
+    chip.addEventListener('click', options.onClick);
+    return chip;
+  }
+
+  private renderBoardPickerSection(options: {
+    id: BoardPickerSectionId;
+    label: string;
+    boards: Board[];
+    allBoards: Board[];
+    selectedBoardId: Board['id'] | null | undefined;
+    viewState: BoardPickerViewState;
+    allowEmpty: boolean;
+    onToggle: () => void;
+  }): HTMLElement {
+    const collapsed = options.viewState.collapsedSections[options.id];
+    const section = document.createElement('section');
+    section.className = boardsViewClassNames.boardPickerSection;
+    section.dataset.boardPickerSection = options.id;
+
+    const heading = document.createElement('h2');
+    heading.className = boardsViewClassNames.boardPickerSectionTitle;
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = boardsViewClassNames.boardPickerSectionToggle;
+    toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    const sectionIcon = createIcon('chevron-down', {
+      size: 16,
+      strokeWidth: 2,
+    });
+    sectionIcon.setAttribute('aria-hidden', 'true');
+    sectionIcon.classList.toggle(
+      boardsViewClassNames.boardPickerSectionIconCollapsed,
+      collapsed
+    );
+    const sectionLabel = document.createElement('span');
+    sectionLabel.textContent = options.label;
+    toggle.append(sectionIcon, sectionLabel);
+    toggle.addEventListener('click', () => {
+      options.viewState.collapsedSections[options.id] = !collapsed;
+      options.onToggle();
+    });
+    heading.append(toggle);
+
+    const grid = document.createElement('div');
+    grid.className = boardsViewClassNames.boardPickerGrid;
+    grid.hidden = collapsed;
+    if (options.boards.length === 0 && options.allowEmpty) {
+      const empty = document.createElement('p');
+      empty.className = boardsViewClassNames.boardPickerEmpty;
+      empty.textContent = this.runtime.i18n.t('boards.boardPicker.noResults');
+      grid.append(empty);
+    } else {
+      options.boards.forEach((board) => {
+        grid.append(
+          this.renderBoardPickerCard(
+            board,
+            options.selectedBoardId,
+            options.allBoards
+          )
+        );
+      });
+    }
+
+    section.append(heading, grid);
+    return section;
+  }
+
+  private renderBoardPickerCard(
+    board: Board,
+    selectedBoardId: Board['id'] | null | undefined,
+    allBoards: Board[]
+  ): HTMLElement {
+    const selected = board.id === selectedBoardId;
+    const starred = isBoardStarred(board);
+    const card = document.createElement('div');
+    card.className = selected
+      ? boardsViewClassNames.boardPickerCardSelected
+      : boardsViewClassNames.boardPickerCard;
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = boardsViewClassNames.boardPickerCardButton;
+    button.setAttribute('aria-label', board.title);
+    button.setAttribute('aria-current', selected ? 'true' : 'false');
+    button.dataset.boardPickerBoardId = board.id;
+    button.addEventListener('click', () => {
+      this.closeBoardPickerPopover();
+      this.handlers.onSelectBoard(board.id);
+    });
+
+    const cover = document.createElement('div');
+    cover.className =
+      `${boardsViewClassNames.boardPickerCover} ${getBoardPickerCoverClass(board)}`.trim();
+    const initial = document.createElement('span');
+    initial.className = boardsViewClassNames.boardPickerCoverInitial;
+    initial.textContent = getBoardPickerInitial(board);
+    cover.append(initial);
+
+    const title = document.createElement('span');
+    title.className = boardsViewClassNames.boardPickerCardTitle;
+    title.textContent = board.title;
+
+    button.append(cover, title);
+    const starButton = createIconButton({
+      icon: starred ? 'star-solid' : 'star',
+      tone: 'text',
+      size: 'sm',
+      className: starred
+        ? boardsViewClassNames.boardPickerStarButtonActive
+        : boardsViewClassNames.boardPickerStarButton,
+      title: this.runtime.i18n.t(
+        starred ? 'boards.boardPicker.unstar' : 'boards.boardPicker.star'
+      ),
+      ariaLabel: this.runtime.i18n.t(
+        starred ? 'boards.boardPicker.unstar' : 'boards.boardPicker.star'
+      ),
+      onClick: (event) => {
+        event.stopPropagation();
+        this.handlers.onToggleBoardStar(board.id);
+      },
+    });
+    starButton.setAttribute('aria-pressed', starred ? 'true' : 'false');
+    const actionsButton = createIconButton({
+      icon: 'ellipsis-horizontal',
+      tone: 'text',
+      size: 'sm',
+      className: boardsViewClassNames.boardPickerActionsButton,
+      title: this.runtime.i18n.t('boards.boardPicker.actions'),
+      ariaLabel: this.runtime.i18n.t('boards.boardPicker.actions'),
+      onClick: (event) => {
+        event.stopPropagation();
+        this.openBoardPickerActionsMenu(board, allBoards, actionsButton);
+      },
+    });
+    card.append(button, starButton, actionsButton);
+    return card;
+  }
+
+  private openBoardPickerActionsMenu(
+    board: Board,
+    boards: Board[],
+    anchor: HTMLButtonElement
+  ): void {
+    const popover = this.boardPickerPopover;
+    if (!popover) return;
+    if (popover.actionsMenu?.boardId === board.id) {
+      this.closeBoardPickerActionsMenu();
+      return;
+    }
+    this.closeBoardPickerActionsMenu();
+    const panel = createSurface({
+      elevated: true,
+      className: `${boardsViewClassNames.boardPickerActionsMenu} hidden`,
+    });
+    panel.addEventListener('mousedown', (event) => event.stopPropagation());
+    const menu = new AnchoredMenu({
+      container: anchor,
+      panel,
+      positioning: 'viewport',
+      panelZIndex: 310,
+      onOpenChange: (open) => {
+        if (!open && this.boardPickerPopover?.actionsMenu?.menu === menu) {
+          this.closeBoardPickerActionsMenu();
+        }
+      },
+    });
+    popover.panel.append(panel);
+    menu.mount();
+    popover.actionsMenu = { menu, panel, boardId: board.id };
+    this.renderBoardPickerActionsMenu(board, boards);
+    menu.openAt({
+      anchor,
+      placement: 'right-start',
+      fallbackPlacements: ['left-start', 'bottom-end', 'top-end'],
+      gap: 4,
+      margin: 8,
+      lockPlacementAfterOpen: true,
+    });
+  }
+
+  private renderBoardPickerActionsMenu(
+    board: Board,
+    boards: Board[],
+    mode: 'menu' | 'createGroup' = 'menu'
+  ): void {
+    const actionsMenu = this.boardPickerPopover?.actionsMenu;
+    if (!actionsMenu) return;
+    actionsMenu.panel.replaceChildren();
+    if (mode === 'createGroup') {
+      actionsMenu.panel.append(
+        this.renderBoardPickerCreateGroupInput(board, boards)
+      );
+      return;
+    }
+
+    const currentGroup = getBoardGroup(board);
+    getUniqueBoardGroups(boards)
+      .filter((group) => group.id !== currentGroup?.id)
+      .forEach((group) => {
+        actionsMenu.panel.append(
+          createDropdownItem({
+            label: this.runtime.i18n.t('boards.boardPicker.moveToGroup', {
+              group: group.name,
+            }),
+            onClick: (event) => {
+              event.stopPropagation();
+              this.handlers.onUpdateBoardGroup(board.id, group);
+              this.closeBoardPickerActionsMenu();
+            },
+          })
+        );
+      });
+
+    if (currentGroup) {
+      actionsMenu.panel.append(
+        createDropdownItem({
+          label: this.runtime.i18n.t('boards.boardPicker.removeFromGroup'),
+          onClick: (event) => {
+            event.stopPropagation();
+            this.handlers.onUpdateBoardGroup(board.id, null);
+            this.closeBoardPickerActionsMenu();
+          },
+        })
+      );
+    }
+
+    if (actionsMenu.panel.childElementCount > 0) {
+      actionsMenu.panel.append(createDivider({ tone: 'soft' }));
+    }
+    actionsMenu.panel.append(
+      createDropdownItem({
+        label: this.runtime.i18n.t('boards.boardPicker.createGroup'),
+        onClick: (event) => {
+          event.stopPropagation();
+          this.renderBoardPickerActionsMenu(board, boards, 'createGroup');
+        },
+      })
+    );
+  }
+
+  private renderBoardPickerCreateGroupInput(
+    board: Board,
+    boards: Board[]
+  ): HTMLElement {
+    const row = document.createElement('div');
+    row.className = boardsViewClassNames.boardPickerActionsInputRow;
+    const input = createInputBase({
+      variant: 'inline',
+      value: '',
+      type: 'text',
+      className: boardsViewClassNames.boardPickerActionsInput,
+    });
+    input.placeholder = this.runtime.i18n.t(
+      'boards.boardPicker.newGroupPlaceholder'
+    );
+    let finished = false;
+    const finishEdit = (apply: boolean): void => {
+      if (finished) return;
+      finished = true;
+      const name = apply ? input.value.trim() : '';
+      if (!name) {
+        this.renderBoardPickerActionsMenu(board, boards);
+        return;
+      }
+      const existingGroup = getUniqueBoardGroups(boards).find(
+        (group) => group.name.toLowerCase() === name.toLowerCase()
+      );
+      const targetGroup = existingGroup ?? {
+        id: generateBoardGroupId(name, boards),
+        name,
+      };
+      this.handlers.onUpdateBoardGroup(board.id, targetGroup);
+      this.closeBoardPickerActionsMenu();
+    };
+    input.addEventListener('blur', () => finishEdit(true));
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        finishEdit(true);
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        finishEdit(false);
+      }
+    });
+    row.append(input);
+    requestAnimationFrame(() => input.focus());
+    return row;
+  }
+
   private renderHeaderMenu(
     board: Board | null,
     state: BoardsState
   ): HTMLElement {
-    const menu = new MenuButton({
+    let menu: MenuButton;
+    menu = new MenuButton({
       label: this.runtime.i18n.t('boards.actions.menu'),
       ariaLabel: this.runtime.i18n.t('boards.actions.menu'),
       title: this.runtime.i18n.t('boards.actions.menu'),
@@ -417,6 +1098,7 @@ export class BoardsView {
       buttonClassName: boardsViewClassNames.headerMenuButton,
       placement: 'bottom-end',
       fallbackPlacements: ['bottom-start', 'top-end', 'top-start'],
+      onOpenChange: (open) => syncHeaderMenuButtonOpenState(menu, open),
       items: [
         {
           id: 'create-board',
@@ -441,7 +1123,7 @@ export class BoardsView {
     });
     setMenuButtonIconOnly(
       menu,
-      'ellipsis-vertical',
+      'ellipsis-horizontal',
       this.runtime.i18n.t('boards.actions.menu')
     );
     this.headerMenu = menu;
@@ -465,26 +1147,6 @@ export class BoardsView {
 
     body.append(canvas);
     return body;
-  }
-
-  private renderBoardTabs(state: BoardsState): HTMLElement {
-    const tabs = document.createElement('div');
-    tabs.className = boardsViewClassNames.tabs;
-    state.boards.forEach((board) => {
-      const selected = board.id === state.selectedBoardId;
-      tabs.append(
-        createTextButton({
-          text: board.title,
-          tone: 'text',
-          size: 'sm',
-          className: selected
-            ? boardsViewClassNames.boardTabSelected
-            : boardsViewClassNames.boardTab,
-          onClick: () => this.handlers.onSelectBoard(board.id),
-        })
-      );
-    });
-    return tabs;
   }
 
   private renderColumn(
@@ -2809,6 +3471,26 @@ export class BoardsView {
     popover.menu.close();
     popover.menu.unmount();
     popover.panel.remove();
+  }
+
+  private closeBoardPickerPopover(): void {
+    const popover = this.boardPickerPopover;
+    if (!popover) return;
+    this.closeBoardPickerActionsMenu();
+    this.boardPickerPopover = null;
+    popover.trigger.setAttribute('aria-expanded', 'false');
+    popover.menu.close();
+    popover.menu.unmount();
+    popover.panel.remove();
+  }
+
+  private closeBoardPickerActionsMenu(): void {
+    const actionsMenu = this.boardPickerPopover?.actionsMenu;
+    if (!actionsMenu) return;
+    this.boardPickerPopover.actionsMenu = null;
+    actionsMenu.menu.close();
+    actionsMenu.menu.unmount();
+    actionsMenu.panel.remove();
   }
 
   private closeQuickCardEditor(): void {

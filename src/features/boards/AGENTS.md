@@ -7,6 +7,10 @@
 - Do not write routine board selection into `user.meta`; reserve profile-backed board defaults for an explicit user-facing default-board preference if one is introduced later.
 - Resolve board selection through validated available boards: explicit runtime/preferred board first, then tab session board, then the first available board.
 - Keep `BoardsView` free of selected-board persistence; it should emit selection intents and render store state only.
+- Board picker chips are filters such as all/starred/recent, not duplicate board shortcuts.
+- Read board picker filter metadata from `Board.meta` in the same guarded style as canvas metadata. Persist starred state as `meta.favorite` and recent selection as `meta.lastOpenedAt`; keep fallback reads for legacy boolean fields such as `favourite`/`starred` and date fields such as `lastActivityAt`, `last_activity_at`, `updatedAt`, `updated_at`, `createdAt`, or `created_at`.
+- Persist board picker groups in `Board.meta` using the canvas-compatible shape `group: { id, name }` plus `groupId`, `groupName`, `group_id`, and `group_name` mirrors for tolerant reads.
+- Keep persisted board picker metadata mutations in `BoardsStore`; `BoardsView` owns only transient picker UI state such as search text, active filter chip, and collapsed sections.
 
 ## Trello-Like Card Fronts
 

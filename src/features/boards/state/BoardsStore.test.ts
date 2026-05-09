@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BoardsApiService } from '../../../majom-wrapper/data-access/boards-api-service.ts';
 import type { Board } from '../../../majom-wrapper/interfaces/index.ts';
@@ -73,14 +73,126 @@ describe('BoardsStore', () => {
           createBoard({ id: SECOND_BOARD_ID, title: 'Second Board' }),
         ])
       ),
+      updateBoard: vi.fn((boardId: Board['id'], patch: Partial<Board>) =>
+        of(createBoard({ id: boardId, meta: patch.meta ?? null }))
+      ),
     } as unknown as BoardsApiService;
-    const store = new BoardsStore(api);
+    const store = new BoardsStore(api, {
+      now: () => new Date('2026-05-09T12:00:00.000Z'),
+    });
     await store.load();
 
     store.selectBoard(SECOND_BOARD_ID);
 
     expect(store.snapshot.selectedBoardId).toBe(SECOND_BOARD_ID);
     expect(readBoardsSessionSelectedBoardId()).toBe(SECOND_BOARD_ID);
+    expect(api.updateBoard).toHaveBeenCalledWith(SECOND_BOARD_ID, {
+      meta: { lastOpenedAt: '2026-05-09T12:00:00.000Z' },
+    });
+    expect(
+      store.snapshot.boards.find((board) => board.id === SECOND_BOARD_ID)?.meta
+    ).toEqual({ lastOpenedAt: '2026-05-09T12:00:00.000Z' });
+    store.destroy();
+  });
+
+  it('toggles board favorite state through board meta', async () => {
+    const api = {
+      getBoards: vi.fn(() =>
+        of([createBoard({ meta: { favorite: false, group: 'work' } })])
+      ),
+      updateBoard: vi.fn((boardId: Board['id'], patch: Partial<Board>) =>
+        of(createBoard({ id: boardId, meta: patch.meta ?? null }))
+      ),
+    } as unknown as BoardsApiService;
+    const store = new BoardsStore(api);
+    await store.load();
+
+    store.toggleBoardStar(BOARD_ID);
+
+    expect(api.updateBoard).toHaveBeenCalledWith(BOARD_ID, {
+      meta: { favorite: true, group: 'work' },
+    });
+    expect(store.snapshot.boards[0]?.meta).toEqual({
+      favorite: true,
+      group: 'work',
+    });
+    store.destroy();
+  });
+
+  it('updates board group through board meta', async () => {
+    const api = {
+      getBoards: vi.fn(() =>
+        of([createBoard({ meta: { favorite: true, group: 'old' } })])
+      ),
+      updateBoard: vi.fn((boardId: Board['id'], patch: Partial<Board>) =>
+        of(createBoard({ id: boardId, meta: patch.meta ?? null }))
+      ),
+    } as unknown as BoardsApiService;
+    const store = new BoardsStore(api);
+    await store.load();
+
+    store.updateBoardGroup(BOARD_ID, { id: 'work', name: 'Work' });
+
+    expect(api.updateBoard).toHaveBeenCalledWith(BOARD_ID, {
+      meta: {
+        favorite: true,
+        group: { id: 'work', name: 'Work' },
+        groupId: 'work',
+        groupName: 'Work',
+        group_id: 'work',
+        group_name: 'Work',
+      },
+    });
+    expect(store.snapshot.boards[0]?.meta).toEqual({
+      favorite: true,
+      group: { id: 'work', name: 'Work' },
+      groupId: 'work',
+      groupName: 'Work',
+      group_id: 'work',
+      group_name: 'Work',
+    });
+    store.destroy();
+  });
+
+  it('ignores stale board meta mutation responses', async () => {
+    const firstUpdate = new Subject<Board>();
+    const secondUpdate = new Subject<Board>();
+    const api = {
+      getBoards: vi.fn(() => of([createBoard({ meta: { favorite: false } })])),
+      updateBoard: vi
+        .fn()
+        .mockReturnValueOnce(firstUpdate.asObservable())
+        .mockReturnValueOnce(secondUpdate.asObservable()),
+    } as unknown as BoardsApiService;
+    const store = new BoardsStore(api);
+    await store.load();
+
+    store.toggleBoardStar(BOARD_ID);
+    store.updateBoardGroup(BOARD_ID, { id: 'work', name: 'Work' });
+    secondUpdate.next(
+      createBoard({
+        meta: {
+          favorite: true,
+          group: { id: 'work', name: 'Work' },
+          groupId: 'work',
+          groupName: 'Work',
+          group_id: 'work',
+          group_name: 'Work',
+        },
+      })
+    );
+    secondUpdate.complete();
+    firstUpdate.next(createBoard({ meta: { favorite: true } }));
+    firstUpdate.complete();
+
+    expect(store.snapshot.boards[0]?.meta).toEqual({
+      favorite: true,
+      group: { id: 'work', name: 'Work' },
+      groupId: 'work',
+      groupName: 'Work',
+      group_id: 'work',
+      group_name: 'Work',
+    });
     store.destroy();
   });
 

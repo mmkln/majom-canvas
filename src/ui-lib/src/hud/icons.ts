@@ -50,6 +50,7 @@ export type IconName =
   | 'chevron-double-up'
   | 'chevron-left'
   | 'chevron-right'
+  | 'ellipsis-horizontal'
   | 'ellipsis-vertical'
   | 'x-mark'
   | 'eye'
@@ -573,6 +574,15 @@ export function createIcon(
     svg.appendChild(
       makePath(
         'M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z'
+      )
+    );
+    return svg;
+  }
+
+  if (name === 'ellipsis-horizontal') {
+    svg.appendChild(
+      makePath(
+        'M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z'
       )
     );
     return svg;

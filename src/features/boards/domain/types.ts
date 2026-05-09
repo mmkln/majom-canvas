@@ -1,5 +1,6 @@
 import type {
   Board,
+  BoardMeta,
   BoardColumn,
   Card,
   CardPlacement,
@@ -56,7 +57,15 @@ export type BoardsIntentHandlers = {
   onRefresh: () => void;
   onSelectBoard: (boardId: Board['id']) => void;
   onCreateBoard: (title: string) => void;
-  onPatchBoard: (boardId: Board['id'], patch: { title?: string }) => void;
+  onPatchBoard: (
+    boardId: Board['id'],
+    patch: { title?: string; meta?: BoardMeta }
+  ) => void;
+  onToggleBoardStar: (boardId: Board['id']) => void;
+  onUpdateBoardGroup: (
+    boardId: Board['id'],
+    group: { id: string; name: string } | null
+  ) => void;
   onDeleteBoard: (boardId: Board['id']) => void;
   onCreateColumn: (boardId: Board['id'], title: string) => void;
   onPatchColumn: (columnId: BoardColumn['id'], patch: BoardColumnPatch) => void;

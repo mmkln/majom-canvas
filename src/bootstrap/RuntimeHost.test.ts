@@ -298,6 +298,35 @@ describe('RuntimeHost time clustering island layout', () => {
       'url("https://example.test/wallpaper.webp")'
     );
     expect(host.workspaceRoot.style.backgroundColor).toBe('rgb(244, 247, 251)');
+    expect(host.workspaceRoot.dataset.workspaceWallpaperHeaderTone).toBe(
+      'on-dark'
+    );
+    expect(
+      host.workspaceRoot.style.getPropertyValue(
+        '--workspace-dynamic-text-color'
+      )
+    ).toBe('#ffffff');
+
+    host.dispose();
+  });
+
+  it('uses light-background header tokens for boards without a wallpaper image', () => {
+    const host = getRuntimeHostInternals(createRuntimeHost());
+    host.hostVisible = true;
+    host.activeView = 'boards';
+    host.currentWallpaperUrl = '';
+
+    host.applyVisibility();
+
+    expect(host.workspaceRoot.style.backgroundImage).toBe('');
+    expect(host.workspaceRoot.dataset.workspaceWallpaperHeaderTone).toBe(
+      'on-light'
+    );
+    expect(
+      host.workspaceRoot.style.getPropertyValue(
+        '--workspace-dynamic-text-color'
+      )
+    ).toBe('#172b4d');
 
     host.dispose();
   });

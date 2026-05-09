@@ -13,6 +13,12 @@ import {
   resolveWallpaperUrl,
   WallpaperService,
 } from '../features/shell/services/WallpaperService.ts';
+import {
+  analyzeWorkspaceWallpaperImageBrightness,
+  resolveBrightnessFromHex,
+  resolveWorkspaceWallpaperHeaderTheme,
+  type WorkspaceWallpaperHeaderTheme,
+} from '../features/shell/services/workspaceWallpaperTheme.ts';
 import type { WorkspaceModule } from '../features/shell/WorkspaceModule.ts';
 import { WorkspaceShell } from '../features/shell/WorkspaceShell.ts';
 import {
@@ -150,6 +156,7 @@ export class RuntimeHost {
   private readonly wallpaperSubscription: Subscription;
   private runtimeSubscriptionDispose: (() => void) | null = null;
   private currentWallpaperUrl = '';
+  private wallpaperThemeRequestId = 0;
   private wallpaperPickerOpen = false;
   private readonly userApiService: Pick<
     UserApiService,
@@ -364,12 +371,14 @@ export class RuntimeHost {
     if (isCanvasVisible) {
       this.workspaceRoot.style.backgroundImage = '';
       this.workspaceRoot.style.backgroundColor = '#ffffff';
+      this.syncWorkspaceWallpaperHeaderTheme('#ffffff');
       return;
     }
 
     if (isLearningStudioVisible) {
       this.workspaceRoot.style.backgroundImage = '';
       this.workspaceRoot.style.backgroundColor = '#f8fafc';
+      this.syncWorkspaceWallpaperHeaderTheme('#f8fafc');
       return;
     }
 
@@ -386,6 +395,7 @@ export class RuntimeHost {
     if (!isKanbanVisible) {
       this.workspaceRoot.style.backgroundImage = '';
       this.workspaceRoot.style.backgroundColor = '';
+      this.syncWorkspaceWallpaperHeaderTheme('#ffffff');
       return;
     }
 
@@ -399,6 +409,62 @@ export class RuntimeHost {
       this.workspaceRoot.style.backgroundImage = '';
     }
     this.workspaceRoot.style.backgroundColor = fallbackColor;
+    this.syncWorkspaceWallpaperHeaderTheme(fallbackColor);
+  }
+
+  private syncWorkspaceWallpaperHeaderTheme(fallbackColor: string): void {
+    const imageUrl = this.currentWallpaperUrl.trim();
+    const fallbackBrightness = resolveBrightnessFromHex(fallbackColor);
+    const requestId = ++this.wallpaperThemeRequestId;
+    this.applyWorkspaceWallpaperHeaderTheme(
+      resolveWorkspaceWallpaperHeaderTheme({
+        hasImage: imageUrl.length > 0,
+        brightness: imageUrl.length > 0 ? null : fallbackBrightness,
+      })
+    );
+
+    if (!imageUrl) return;
+    void analyzeWorkspaceWallpaperImageBrightness(imageUrl).then(
+      (brightness) => {
+        if (requestId !== this.wallpaperThemeRequestId) return;
+        this.applyWorkspaceWallpaperHeaderTheme(
+          resolveWorkspaceWallpaperHeaderTheme({
+            hasImage: true,
+            brightness,
+          })
+        );
+      }
+    );
+  }
+
+  private applyWorkspaceWallpaperHeaderTheme(
+    theme: WorkspaceWallpaperHeaderTheme
+  ): void {
+    this.workspaceRoot.dataset.workspaceWallpaperHeaderTone = theme.tone;
+    this.workspaceRoot.style.setProperty(
+      '--workspace-dynamic-text-color',
+      theme.textColor
+    );
+    this.workspaceRoot.style.setProperty(
+      '--workspace-dynamic-icon-color',
+      theme.iconColor
+    );
+    this.workspaceRoot.style.setProperty(
+      '--workspace-dynamic-header-bg',
+      theme.headerBackground
+    );
+    this.workspaceRoot.style.setProperty(
+      '--workspace-dynamic-button-bg',
+      theme.buttonBackground
+    );
+    this.workspaceRoot.style.setProperty(
+      '--workspace-dynamic-button-bg-hover',
+      theme.buttonHoverBackground
+    );
+    this.workspaceRoot.style.setProperty(
+      '--workspace-dynamic-button-bg-active',
+      theme.buttonActiveBackground
+    );
   }
 
   private resolveCurrentWallpaperId(): string | null {
@@ -470,6 +536,7 @@ export class RuntimeHost {
   public dispose(): void {
     this.runtimeSubscriptionDispose?.();
     this.runtimeSubscriptionDispose = null;
+    this.wallpaperThemeRequestId += 1;
     this.disposePreferencesSubscription?.();
     this.disposePreferencesSubscription = null;
     this.wallpaperSubscription.unsubscribe();

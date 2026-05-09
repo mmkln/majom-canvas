@@ -34,6 +34,8 @@ function createHandlers(): BoardsIntentHandlers {
     onSelectBoard: vi.fn(),
     onCreateBoard: vi.fn(),
     onPatchBoard: vi.fn(),
+    onToggleBoardStar: vi.fn(),
+    onUpdateBoardGroup: vi.fn(),
     onDeleteBoard: vi.fn(),
     onCreateColumn: vi.fn(),
     onPatchColumn: vi.fn(),
@@ -1136,6 +1138,306 @@ describe('BoardsView', () => {
     expect(handlers.onPatchBoard).toHaveBeenCalledWith(BOARD_ID, {
       title: 'Reading',
     });
+    view.destroy();
+  });
+
+  it('selects a board from the header board picker', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    const primaryBoard = createBoard();
+    const secondaryBoard: Board = {
+      id: SOURCE_BOARD_ID,
+      title: 'Shared Notes',
+      columns: [],
+    };
+    view.render({
+      boards: [primaryBoard, secondaryBoard],
+      selectedBoardId: primaryBoard.id,
+      status: 'idle',
+      error: null,
+    });
+
+    root
+      .querySelector<HTMLButtonElement>('[data-testid="board-picker-button"]')
+      ?.click();
+    const searchInput = document.querySelector<HTMLInputElement>(
+      'input[aria-label="Search boards"]'
+    );
+    expect(searchInput).not.toBeNull();
+    searchInput!.value = 'shared';
+    searchInput!.dispatchEvent(new Event('input', { bubbles: true }));
+    document
+      .querySelector<HTMLButtonElement>(
+        `[data-board-picker-board-id="${SOURCE_BOARD_ID}"]`
+      )
+      ?.click();
+
+    expect(handlers.onSelectBoard).toHaveBeenCalledWith(SOURCE_BOARD_ID);
+    view.destroy();
+  });
+
+  it('filters the header board picker using board meta', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    const activeBoard = {
+      ...createBoard(),
+      meta: { favorite: false, updated_at: '2026-01-02T00:00:00.000Z' },
+    };
+    const starredBoard: Board = {
+      id: SOURCE_BOARD_ID,
+      title: 'Shared Notes',
+      meta: { favorite: true, updated_at: '2026-01-01T00:00:00.000Z' },
+      columns: [],
+    };
+    const recentBoard: Board = {
+      id: '00000000-0000-4000-8000-000000000004',
+      title: 'Roadmap',
+      meta: { lastActivityAt: '2026-01-03T00:00:00.000Z' },
+      columns: [],
+    };
+    const undatedBoard: Board = {
+      id: '00000000-0000-4000-8000-000000000005',
+      title: 'Archive',
+      meta: null,
+      columns: [],
+    };
+    view.render({
+      boards: [activeBoard, starredBoard, recentBoard, undatedBoard],
+      selectedBoardId: activeBoard.id,
+      status: 'idle',
+      error: null,
+    });
+
+    root
+      .querySelector<HTMLButtonElement>('[data-testid="board-picker-button"]')
+      ?.click();
+    document
+      .querySelectorAll<HTMLButtonElement>(
+        '.majom-boards-board-picker__chip'
+      )
+      .forEach((button) => {
+        if (button.textContent === 'Starred') button.click();
+      });
+    expect(
+      document.querySelectorAll('[data-board-picker-board-id]')
+    ).toHaveLength(1);
+    expect(
+      document.querySelector(
+        `[data-board-picker-board-id="${SOURCE_BOARD_ID}"]`
+      )
+    ).not.toBeNull();
+
+    document
+      .querySelectorAll<HTMLButtonElement>(
+        '.majom-boards-board-picker__chip'
+      )
+      .forEach((button) => {
+        if (button.textContent === 'Recent') button.click();
+      });
+    const recentIds = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-board-picker-board-id]')
+    ).map((button) => button.dataset.boardPickerBoardId);
+    expect(recentIds).toEqual([recentBoard.id, activeBoard.id, starredBoard.id]);
+    view.destroy();
+  });
+
+  it('collapses board picker sections from the section chevron', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    const activeBoard = {
+      ...createBoard(),
+      meta: { favorite: true },
+    };
+    const secondaryBoard: Board = {
+      id: SOURCE_BOARD_ID,
+      title: 'Shared Notes',
+      meta: null,
+      columns: [],
+    };
+    view.render({
+      boards: [activeBoard, secondaryBoard],
+      selectedBoardId: activeBoard.id,
+      status: 'idle',
+      error: null,
+    });
+
+    root
+      .querySelector<HTMLButtonElement>('[data-testid="board-picker-button"]')
+      ?.click();
+    const yourBoardsSection = document.querySelector<HTMLElement>(
+      '[data-board-picker-section="yourBoards"]'
+    );
+    const toggle =
+      yourBoardsSection?.querySelector<HTMLButtonElement>('h2 button');
+    const grid = yourBoardsSection?.querySelector<HTMLElement>(
+      '.majom-boards-board-picker__grid'
+    );
+
+    expect(toggle).not.toBeNull();
+    expect(grid?.hidden).toBe(false);
+    toggle!.click();
+    expect(
+      document
+        .querySelector<HTMLElement>('[data-board-picker-section="yourBoards"]')
+        ?.querySelector<HTMLElement>('.majom-boards-board-picker__grid')
+        ?.hidden
+    ).toBe(true);
+    view.destroy();
+  });
+
+  it('toggles starred state from board picker cards', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    const primaryBoard = createBoard();
+    const secondaryBoard: Board = {
+      id: SOURCE_BOARD_ID,
+      title: 'Shared Notes',
+      meta: { favorite: true },
+      columns: [],
+    };
+    view.render({
+      boards: [primaryBoard, secondaryBoard],
+      selectedBoardId: primaryBoard.id,
+      status: 'idle',
+      error: null,
+    });
+
+    root
+      .querySelector<HTMLButtonElement>('[data-testid="board-picker-button"]')
+      ?.click();
+    const primaryCard = document
+      .querySelector<HTMLElement>(`[data-board-picker-board-id="${BOARD_ID}"]`)
+      ?.closest('.majom-boards-board-picker__card');
+    primaryCard
+      ?.querySelector<HTMLButtonElement>('button[aria-label="Star board"]')
+      ?.click();
+
+    expect(handlers.onToggleBoardStar).toHaveBeenCalledWith(BOARD_ID);
+    expect(handlers.onSelectBoard).not.toHaveBeenCalled();
+    expect(
+      document.querySelector(
+        `[data-board-picker-section="starred"] [data-board-picker-board-id="${SOURCE_BOARD_ID}"]`
+      )
+    ).not.toBeNull();
+    view.destroy();
+  });
+
+  it('groups boards and creates board groups from card actions', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    const primaryBoard = createBoard();
+    const groupedBoard: Board = {
+      id: SOURCE_BOARD_ID,
+      title: 'Shared Notes',
+      meta: { group: { id: 'work', name: 'Work' } },
+      columns: [],
+    };
+    view.render({
+      boards: [primaryBoard, groupedBoard],
+      selectedBoardId: primaryBoard.id,
+      status: 'idle',
+      error: null,
+    });
+
+    root
+      .querySelector<HTMLButtonElement>('[data-testid="board-picker-button"]')
+      ?.click();
+    expect(
+      document.querySelector(
+        `[data-board-picker-section="group:work"] [data-board-picker-board-id="${SOURCE_BOARD_ID}"]`
+      )
+    ).not.toBeNull();
+
+    const primaryCard = document
+      .querySelector<HTMLElement>(`[data-board-picker-board-id="${BOARD_ID}"]`)
+      ?.closest('.majom-boards-board-picker__card');
+    primaryCard
+      ?.querySelector<HTMLButtonElement>('button[aria-label="Board actions"]')
+      ?.click();
+    Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent === 'Create group')
+      ?.click();
+    const input = document.querySelector<HTMLInputElement>(
+      'input[placeholder="New group name"]'
+    );
+    expect(input).not.toBeNull();
+    input!.value = 'Focus';
+    input!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+
+    expect(handlers.onUpdateBoardGroup).toHaveBeenCalledWith(BOARD_ID, {
+      id: 'focus',
+      name: 'Focus',
+    });
+    view.destroy();
+  });
+
+  it('closes board picker card actions when clicking elsewhere in the picker', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    const primaryBoard = createBoard();
+    const groupedBoard: Board = {
+      id: SOURCE_BOARD_ID,
+      title: 'Shared Notes',
+      meta: { group: { id: 'work', name: 'Work' } },
+      columns: [],
+    };
+    view.render({
+      boards: [primaryBoard, groupedBoard],
+      selectedBoardId: primaryBoard.id,
+      status: 'idle',
+      error: null,
+    });
+
+    root
+      .querySelector<HTMLButtonElement>('[data-testid="board-picker-button"]')
+      ?.click();
+    const primaryCard = document
+      .querySelector<HTMLElement>(`[data-board-picker-board-id="${BOARD_ID}"]`)
+      ?.closest('.majom-boards-board-picker__card');
+    primaryCard
+      ?.querySelector<HTMLButtonElement>('button[aria-label="Board actions"]')
+      ?.click();
+    expect(
+      document.querySelector('.majom-boards-board-picker-actions')
+    ).not.toBeNull();
+
+    document
+      .querySelector<HTMLInputElement>('input[aria-label="Search boards"]')
+      ?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+
+    expect(
+      document.querySelector('.majom-boards-board-picker-actions')
+    ).toBeNull();
     view.destroy();
   });
 

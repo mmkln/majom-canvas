@@ -5,11 +5,48 @@ export const boardsViewClassNames = {
   shell: 'majom-boards__shell',
   header: 'majom-boards__header',
   titleBlock: 'majom-boards__title-block',
+  titleRow: 'majom-boards__title-row',
   title: 'majom-boards__title',
   titleButton: 'majom-boards__title-button',
   titleEditInput: 'majom-boards__title-edit-input',
+  boardPickerButton: 'majom-boards__board-picker-button',
+  boardPickerButtonContent: 'majom-boards__board-picker-button-content',
   headerActions: 'majom-boards__header-actions',
   headerMenuButton: 'majom-boards__header-menu-button',
+  boardPickerPopover: 'majom-boards-board-picker',
+  boardPickerSearchWrap: 'majom-boards-board-picker__search-wrap',
+  boardPickerSearchIcon: 'majom-boards-board-picker__search-icon',
+  boardPickerSearchInput: 'majom-boards-board-picker__search-input',
+  boardPickerChips: 'majom-boards-board-picker__chips',
+  boardPickerChip: 'majom-boards-board-picker__chip',
+  boardPickerChipSelected: 'majom-boards-board-picker__chip is-selected',
+  boardPickerSections: 'majom-boards-board-picker__sections',
+  boardPickerSection: 'majom-boards-board-picker__section',
+  boardPickerSectionTitle: 'majom-boards-board-picker__section-title',
+  boardPickerSectionToggle: 'majom-boards-board-picker__section-toggle',
+  boardPickerSectionIconCollapsed:
+    'majom-boards-board-picker__section-icon--collapsed',
+  boardPickerGrid: 'majom-boards-board-picker__grid',
+  boardPickerCard: 'majom-boards-board-picker__card',
+  boardPickerCardSelected: 'majom-boards-board-picker__card is-selected',
+  boardPickerCardButton: 'majom-boards-board-picker__card-button',
+  boardPickerStarButton: 'majom-boards-board-picker__star-button',
+  boardPickerStarButtonActive:
+    'majom-boards-board-picker__star-button is-active',
+  boardPickerActionsButton: 'majom-boards-board-picker__actions-button',
+  boardPickerActionsMenu: 'majom-boards-board-picker-actions',
+  boardPickerActionsInputRow: 'majom-boards-board-picker-actions__input-row',
+  boardPickerActionsInput: 'majom-boards-board-picker-actions__input',
+  boardPickerCover: 'majom-boards-board-picker__cover',
+  boardPickerCoverA: 'majom-boards-board-picker__cover--a',
+  boardPickerCoverB: 'majom-boards-board-picker__cover--b',
+  boardPickerCoverC: 'majom-boards-board-picker__cover--c',
+  boardPickerCoverD: 'majom-boards-board-picker__cover--d',
+  boardPickerCoverE: 'majom-boards-board-picker__cover--e',
+  boardPickerCoverF: 'majom-boards-board-picker__cover--f',
+  boardPickerCoverInitial: 'majom-boards-board-picker__cover-initial',
+  boardPickerCardTitle: 'majom-boards-board-picker__card-title',
+  boardPickerEmpty: 'majom-boards-board-picker__empty',
   input: 'majom-boards__input',
   primaryButton: 'majom-boards__button majom-boards__button--primary',
   quietButton: 'majom-boards__button majom-boards__button--quiet',
@@ -18,9 +55,6 @@ export const boardsViewClassNames = {
   dangerIconButton:
     'majom-boards__icon-button majom-boards__icon-button--danger',
   body: 'majom-boards__body',
-  tabs: 'majom-boards__tabs',
-  boardTab: 'majom-boards__tab',
-  boardTabSelected: 'majom-boards__tab is-selected',
   canvas: 'majom-boards__canvas',
   column: 'majom-boards__column',
   columnHeader: 'majom-boards__column-header',
@@ -173,7 +207,18 @@ const BOARDS_VIEW_CSS = `
   --mb-blue-hover: #0055cc;
   --mb-danger: #ae2e24;
   --mb-danger-soft: #ffeceb;
-  --mb-header-bg: rgba(255, 255, 255, 0.24);
+  --mb-on-wallpaper-text: var(--workspace-dynamic-text-color, #172b4d);
+  --mb-on-wallpaper-icon: var(--workspace-dynamic-icon-color, #172b4d);
+  --mb-on-wallpaper-bg: var(--workspace-dynamic-header-bg, rgba(255, 255, 255, 0.24));
+  --mb-on-wallpaper-button-bg: var(--workspace-dynamic-button-bg, rgba(9, 30, 66, 0.1));
+  --mb-on-wallpaper-button-bg-hover: var(--workspace-dynamic-button-bg-hover, rgba(9, 30, 66, 0.16));
+  --mb-on-wallpaper-button-bg-active: var(--workspace-dynamic-button-bg-active, rgba(9, 30, 66, 0.22));
+  --mb-header-text: var(--mb-on-wallpaper-text);
+  --mb-header-icon: var(--mb-on-wallpaper-icon);
+  --mb-header-bg: var(--mb-on-wallpaper-bg);
+  --mb-header-button-bg: var(--mb-on-wallpaper-button-bg);
+  --mb-header-button-bg-hover: var(--mb-on-wallpaper-button-bg-hover);
+  --mb-header-button-bg-active: var(--mb-on-wallpaper-button-bg-active);
   --mb-button-hover: rgba(9, 30, 66, 0.14);
   --mb-button-active: rgba(9, 30, 66, 0.2);
   --mb-list-button-hover: rgba(9, 30, 66, 0.08);
@@ -207,7 +252,7 @@ const BOARDS_VIEW_CSS = `
   gap: 8px;
   padding: 8px 12px;
   background: var(--mb-header-bg);
-  color: var(--mb-text);
+  color: var(--mb-header-text);
   backdrop-filter: blur(10px);
 }
 
@@ -219,10 +264,17 @@ const BOARDS_VIEW_CSS = `
   gap: 6px;
 }
 
+.majom-boards__title-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
 .majom-boards__title {
   margin: 0;
   overflow: hidden;
-  color: var(--mb-text);
+  color: var(--mb-header-text);
   font-size: 18px;
   font-weight: 700;
   line-height: 24px;
@@ -249,7 +301,7 @@ const BOARDS_VIEW_CSS = `
 
 .majom-boards__title-button:hover,
 .majom-boards__title-button:focus-visible {
-  background: var(--mb-button-hover);
+  background: var(--mb-header-button-bg-hover);
   outline: none;
 }
 
@@ -261,6 +313,38 @@ const BOARDS_VIEW_CSS = `
   font: inherit;
 }
 
+.majom-boards__board-picker-button,
+.majom-boards__header-menu-button {
+  height: 32px;
+  border-radius: 6px;
+  color: var(--mb-header-icon) !important;
+  background: transparent !important;
+}
+
+.majom-boards__board-picker-button:hover,
+.majom-boards__board-picker-button:focus-visible,
+.majom-boards__board-picker-button:active,
+.majom-boards__board-picker-button[aria-expanded="true"],
+.majom-boards__header-menu-button:hover,
+.majom-boards__header-menu-button:focus-visible,
+.majom-boards__header-menu-button:active,
+.majom-boards__header-menu-button[aria-expanded="true"],
+.majom-boards__header-menu-button[data-boards-header-menu-open="true"] {
+  color: var(--mb-header-icon) !important;
+  background: var(--mb-header-button-bg-active) !important;
+}
+
+.majom-boards__board-picker-button {
+  width: 50px;
+}
+
+.majom-boards__board-picker-button-content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
 .majom-boards__header-actions {
   display: flex;
   min-width: 0;
@@ -269,8 +353,32 @@ const BOARDS_VIEW_CSS = `
 }
 
 .majom-boards__header-menu-button {
-  color: var(--mb-text);
-  background: var(--mb-button-hover);
+  display: inline-flex;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 !important;
+  color: var(--mb-header-icon) !important;
+  background: transparent !important;
+  cursor: pointer;
+}
+
+.majom-boards .majom-boards__header .majom-boards__header-menu-button {
+  color: var(--mb-header-icon) !important;
+  background: transparent !important;
+}
+
+.majom-boards .majom-boards__header .majom-boards__header-menu-button:hover,
+.majom-boards .majom-boards__header .majom-boards__header-menu-button:focus-visible,
+.majom-boards .majom-boards__header .majom-boards__header-menu-button:active,
+.majom-boards .majom-boards__header .majom-boards__header-menu-button[aria-expanded="true"],
+.majom-boards .majom-boards__header .majom-boards__header-menu-button[data-boards-header-menu-open="true"] {
+  color: var(--mb-header-icon) !important;
+  background: var(--mb-header-button-bg-active) !important;
 }
 
 .majom-boards__body {
@@ -278,36 +386,279 @@ const BOARDS_VIEW_CSS = `
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  padding: 12px 16px 16px;
 }
 
-.majom-boards__tabs {
-  display: flex;
-  min-width: 0;
-  max-width: 100%;
-  gap: 4px;
-  overflow-x: auto;
-  padding-bottom: 2px;
+.majom-boards-board-picker {
+  width: min(420px, calc(100vw - 24px));
+  max-height: min(640px, calc(100vh - 24px));
+  overflow: hidden;
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--mb-text);
+  box-shadow:
+    0 16px 40px rgba(9, 30, 66, 0.2),
+    0 0 0 1px rgba(9, 30, 66, 0.12);
 }
 
-.majom-boards__tab {
-  max-width: 220px;
-  height: 32px;
-  flex-shrink: 0;
+.majom-boards-board-picker__search-wrap {
+  position: relative;
+  padding: 12px 12px 8px;
+}
+
+.majom-boards-board-picker__search-icon {
+  position: absolute;
+  top: 50%;
+  left: 24px;
+  color: var(--mb-muted);
+  pointer-events: none;
+  transform: translateY(-35%);
+}
+
+.majom-boards-board-picker__search-input {
+  height: 36px;
   border-radius: 6px;
-  color: var(--mb-text);
+  padding-left: 32px;
+}
+
+.majom-boards-board-picker__chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 0 12px 10px;
+}
+
+.majom-boards-board-picker__chip {
+  height: 28px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(9, 30, 66, 0.14);
+  border-radius: 7px;
+  padding: 0 10px;
+  color: var(--mb-muted);
+  background: #ffffff;
+  font-size: 13px;
+  line-height: 26px;
+  cursor: pointer;
+}
+
+.majom-boards-board-picker__chip:hover {
+  background: #f7f8f9;
+}
+
+.majom-boards-board-picker__chip.is-selected {
+  border-color: #0c66e4;
+  color: #0c66e4;
+  background: #e9f2ff;
+}
+
+.majom-boards-board-picker__sections {
+  max-height: min(480px, calc(100vh - 154px));
+  overflow-y: auto;
+}
+
+.majom-boards-board-picker__section {
+  padding: 8px 12px 16px;
+}
+
+.majom-boards-board-picker__section-title {
+  margin: 0 0 10px;
+}
+
+.majom-boards-board-picker__section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 6px;
+  padding: 2px 4px;
+  color: var(--mb-muted);
   background: transparent;
-  box-shadow: none;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  cursor: pointer;
 }
 
-.majom-boards__tab:hover {
-  color: var(--mb-text);
-  background: var(--mb-button-hover);
+.majom-boards-board-picker__section-toggle:hover,
+.majom-boards-board-picker__section-toggle:focus-visible {
+  background: var(--mb-list-button-hover);
+  outline: none;
 }
 
-.majom-boards__tab.is-selected {
+.majom-boards-board-picker__section-toggle svg {
+  transition: transform 120ms ease;
+}
+
+.majom-boards-board-picker__section-icon--collapsed {
+  transform: rotate(-90deg);
+}
+
+.majom-boards-board-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 8px;
+}
+
+.majom-boards-board-picker__card {
+  position: relative;
+  min-width: 0;
+  border: 1px solid rgba(9, 30, 66, 0.12);
+  border-radius: 7px;
+  overflow: hidden;
   color: var(--mb-text);
-  background: rgba(9, 30, 66, 0.16);
+  background: #ffffff;
+  box-shadow: 0 1px 1px rgba(9, 30, 66, 0.12);
+}
+
+.majom-boards-board-picker__card:hover,
+.majom-boards-board-picker__card:focus-within {
+  background: #f7f8f9;
+  box-shadow:
+    0 2px 5px rgba(9, 30, 66, 0.16),
+    0 0 0 1px rgba(9, 30, 66, 0.12);
+}
+
+.majom-boards-board-picker__card.is-selected {
+  box-shadow:
+    0 0 0 2px #0c66e4,
+    0 2px 5px rgba(9, 30, 66, 0.16);
+}
+
+.majom-boards-board-picker__card-button {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.majom-boards-board-picker__card-button:focus-visible {
+  outline: none;
+}
+
+.majom-boards-board-picker__star-button {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  color: rgba(255, 255, 255, 0.9) !important;
+  background: rgba(9, 30, 66, 0.28) !important;
+  opacity: 0;
+}
+
+.majom-boards-board-picker__card:hover .majom-boards-board-picker__star-button,
+.majom-boards-board-picker__card:focus-within .majom-boards-board-picker__star-button,
+.majom-boards-board-picker__star-button.is-active {
+  opacity: 1;
+}
+
+.majom-boards-board-picker__star-button:hover,
+.majom-boards-board-picker__star-button:focus-visible,
+.majom-boards-board-picker__star-button.is-active {
+  color: #facc15 !important;
+  background: rgba(9, 30, 66, 0.42) !important;
+}
+
+.majom-boards-board-picker__actions-button {
+  position: absolute;
+  top: 6px;
+  right: 38px;
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  color: rgba(255, 255, 255, 0.9) !important;
+  background: rgba(9, 30, 66, 0.28) !important;
+  opacity: 0;
+}
+
+.majom-boards-board-picker__card:hover .majom-boards-board-picker__actions-button,
+.majom-boards-board-picker__card:focus-within .majom-boards-board-picker__actions-button {
+  opacity: 1;
+}
+
+.majom-boards-board-picker__actions-button:hover,
+.majom-boards-board-picker__actions-button:focus-visible {
+  color: #ffffff !important;
+  background: rgba(9, 30, 66, 0.42) !important;
+}
+
+.majom-boards-board-picker-actions {
+  min-width: 220px;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+.majom-boards-board-picker-actions__input-row {
+  padding: 8px 10px;
+}
+
+.majom-boards-board-picker-actions__input {
+  width: 100%;
+}
+
+.majom-boards-board-picker__cover {
+  display: flex;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.majom-boards-board-picker__cover--a {
+  background: linear-gradient(135deg, #a33a32, #d65f45);
+}
+
+.majom-boards-board-picker__cover--b {
+  background: linear-gradient(135deg, #0f766e, #38bdf8);
+}
+
+.majom-boards-board-picker__cover--c {
+  background: linear-gradient(135deg, #6d5dfc, #f0abfc);
+}
+
+.majom-boards-board-picker__cover--d {
+  background: linear-gradient(135deg, #334155, #94a3b8);
+}
+
+.majom-boards-board-picker__cover--e {
+  background: linear-gradient(135deg, #047857, #facc15);
+}
+
+.majom-boards-board-picker__cover--f {
+  background: linear-gradient(135deg, #be123c, #fb7185);
+}
+
+.majom-boards-board-picker__cover-initial {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.majom-boards-board-picker__card-title {
+  display: -webkit-box;
+  min-height: 42px;
+  padding: 7px 8px 8px;
+  overflow: hidden;
+  color: var(--mb-text);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 18px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.majom-boards-board-picker__empty {
+  padding: 18px 8px 8px;
+  color: var(--mb-muted);
+  font-size: 14px;
+  line-height: 20px;
+  text-align: center;
 }
 
 .majom-boards__canvas {
@@ -318,7 +669,7 @@ const BOARDS_VIEW_CSS = `
   gap: 12px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 0 8px 8px 0;
+  padding: 12px 16px 16px;
 }
 
 .majom-boards__column,
@@ -647,9 +998,9 @@ const BOARDS_VIEW_CSS = `
 
 .majom-boards__column-composer--collapsed {
   padding: 0;
-  background: rgba(255, 255, 255, 0.24);
+  background: var(--mb-on-wallpaper-bg);
   box-shadow: none;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(10px);
 }
 
 .majom-boards__column-composer-collapsed {
@@ -658,13 +1009,20 @@ const BOARDS_VIEW_CSS = `
   justify-content: flex-start;
   border-radius: 8px;
   gap: 8px;
-  color: var(--mb-text);
-  background: transparent;
+  color: var(--mb-on-wallpaper-text) !important;
+  background: transparent !important;
+  font-weight: 600;
 }
 
-.majom-boards__column-composer-collapsed:hover {
-  color: var(--mb-text);
-  background: var(--mb-button-hover);
+.majom-boards__column-composer-collapsed:hover,
+.majom-boards__column-composer-collapsed:focus-visible {
+  color: var(--mb-on-wallpaper-text) !important;
+  background: var(--mb-on-wallpaper-button-bg-hover) !important;
+}
+
+.majom-boards__column-composer-collapsed:active {
+  color: var(--mb-on-wallpaper-text) !important;
+  background: var(--mb-on-wallpaper-button-bg-active) !important;
 }
 
 .majom-boards__column-composer-expanded {
@@ -1745,10 +2103,6 @@ const BOARDS_VIEW_CSS = `
     flex-direction: row;
     align-items: center;
     flex-wrap: nowrap;
-  }
-
-  .majom-boards__tabs {
-    max-width: min(48vw, 520px);
   }
 
   .majom-boards__input,

@@ -22,6 +22,17 @@ import {
   persistBoardsSessionSelectedBoardId,
   resolveSelectedBoardId,
 } from './boardsSessionState.ts';
+import {
+  isBoardStarred,
+  setBoardMetaLastOpenedAt,
+  setBoardMetaGroup,
+  setBoardMetaStarred,
+  type BoardMetaRecord,
+} from '../domain/boardMeta.ts';
+
+type BoardsStoreOptions = {
+  now?: () => Date;
+};
 
 const INITIAL_STATE: BoardsState = {
   boards: [],
@@ -62,8 +73,15 @@ export class BoardsStore {
     INITIAL_STATE
   );
   public readonly state$ = this.stateSubject.asObservable();
+  private readonly boardMetaMutationVersions = new Map<Board['id'], number>();
+  private readonly now: () => Date;
 
-  constructor(private readonly api: BoardsApiService) {}
+  constructor(
+    private readonly api: BoardsApiService,
+    options: BoardsStoreOptions = {}
+  ) {
+    this.now = options.now ?? (() => new Date());
+  }
 
   public get snapshot(): BoardsState {
     return this.stateSubject.value;
@@ -77,6 +95,9 @@ export class BoardsStore {
     if (!this.snapshot.boards.some((board) => board.id === boardId)) return;
     persistBoardsSessionSelectedBoardId(boardId);
     this.patchState({ selectedBoardId: boardId, error: null });
+    this.patchBoardMeta(boardId, (board) =>
+      setBoardMetaLastOpenedAt(board, this.now().toISOString())
+    );
   }
 
   public async load(): Promise<void> {
@@ -119,6 +140,19 @@ export class BoardsStore {
       await firstValueFrom(this.api.updateBoard(boardId, patch));
       await this.reload(boardId);
     });
+  }
+
+  public toggleBoardStar(boardId: Board['id']): void {
+    this.patchBoardMeta(boardId, (board) =>
+      setBoardMetaStarred(board, !isBoardStarred(board))
+    );
+  }
+
+  public updateBoardGroup(
+    boardId: Board['id'],
+    group: { id: string; name: string } | null
+  ): void {
+    this.patchBoardMeta(boardId, (board) => setBoardMetaGroup(board, group));
   }
 
   public async createColumn(boardId: Board['id'], title: string): Promise<void> {
@@ -264,6 +298,43 @@ export class BoardsStore {
 
   private findBoard(boardId: Board['id']): Board | null {
     return this.snapshot.boards.find((board) => board.id === boardId) ?? null;
+  }
+
+  private patchBoardMeta(
+    boardId: Board['id'],
+    createMeta: (board: Board) => BoardMetaRecord
+  ): void {
+    const board = this.findBoard(boardId);
+    if (!board) return;
+    const version = (this.boardMetaMutationVersions.get(boardId) ?? 0) + 1;
+    this.boardMetaMutationVersions.set(boardId, version);
+    const previousMeta = board.meta ?? null;
+    const nextMeta = createMeta(board);
+    this.replaceBoardMeta(boardId, nextMeta);
+    void firstValueFrom(this.api.updateBoard(boardId, { meta: nextMeta }))
+      .then((updated) => {
+        if (this.boardMetaMutationVersions.get(boardId) !== version) return;
+        this.replaceBoardMeta(boardId, updated.meta ?? nextMeta);
+      })
+      .catch(() => {
+        if (this.boardMetaMutationVersions.get(boardId) !== version) return;
+        this.replaceBoardMeta(boardId, previousMeta);
+        this.patchState({ error: 'boards.errors.save' });
+      });
+  }
+
+  private replaceBoardMeta(
+    boardId: Board['id'],
+    meta: Board['meta'] | null | undefined
+  ): void {
+    this.patchState({
+      boards: normalizeBoards(
+        this.snapshot.boards.map((board) =>
+          board.id === boardId ? { ...board, meta: meta ?? null } : board
+        )
+      ),
+      error: null,
+    });
   }
 
   private findColumn(columnId: BoardColumn['id']): BoardColumn | null {

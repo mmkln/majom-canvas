@@ -106,6 +106,13 @@
 - Add translation keys to both `src/i18n/locales/en.ts` and `src/i18n/locales/uk.ts`, keep them semantic and stable, and use `i18n.formatDate(...)` instead of locale-implicit `Intl` calls.
 - Persist user language changes through `UserApiService.setUserProfileLanguage(...)` rather than bypassing the API boundary.
 
+### Workspace Wallpaper Dynamic UI
+
+- Treat the app workspace wallpaper from `WallpaperService` as the source of truth for UI that visually sits over the background image.
+- Do not derive Boards header contrast or transparent over-wallpaper control colors from board data; derive them from the workspace wallpaper/background applied by `RuntimeHost`.
+- Keep wallpaper-derived presentation tokens scoped to the workspace root through CSS custom properties so mounted workspace modules inherit them without duplicating wallpaper state in feature stores.
+- For image wallpapers, use sampled brightness when available and a conservative dark-overlay/light-control fallback when image analysis is unavailable.
+
 ### Script Conventions
 
 - `npm run start:stable` must remain a built app served through `vite preview`, but using Vite `development` mode config and env loading.
