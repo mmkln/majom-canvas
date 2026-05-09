@@ -1931,9 +1931,7 @@ export class BoardsView {
       testId: string;
       labelKey: string;
       icon: IconName;
-      onClick?: (event: MouseEvent) => void;
-      disabled?: boolean;
-      badgeText?: string;
+      onClick: (event: MouseEvent) => void;
       danger?: boolean;
     }> = [
       {
@@ -1955,24 +1953,6 @@ export class BoardsView {
         },
       },
       {
-        testId: 'quick-card-editor-change-members',
-        labelKey: 'boards.quickEditor.changeMembers',
-        icon: 'plus',
-        disabled: true,
-      },
-      {
-        testId: 'quick-card-editor-change-cover',
-        labelKey: 'boards.quickEditor.changeCover',
-        icon: 'document',
-        disabled: true,
-      },
-      {
-        testId: 'quick-card-editor-edit-dates',
-        labelKey: 'boards.quickEditor.editDates',
-        icon: 'calendar',
-        disabled: true,
-      },
-      {
         testId: 'quick-card-editor-move',
         labelKey: 'boards.quickEditor.move',
         icon: 'arrow-right',
@@ -1985,25 +1965,6 @@ export class BoardsView {
             'move'
           );
         },
-      },
-      {
-        testId: 'quick-card-editor-create-jira-work-item',
-        labelKey: 'boards.quickEditor.createJiraWorkItem',
-        icon: 'check-box',
-        disabled: true,
-        badgeText: this.runtime.i18n.t('boards.quickEditor.newBadge'),
-      },
-      {
-        testId: 'quick-card-editor-copy',
-        labelKey: 'boards.quickEditor.copyCard',
-        icon: 'square-2-stack',
-        disabled: true,
-      },
-      {
-        testId: 'quick-card-editor-copy-link',
-        labelKey: 'boards.quickEditor.copyLink',
-        icon: 'link',
-        disabled: true,
       },
       {
         testId: 'mirror-new-button',
@@ -2051,17 +2012,10 @@ export class BoardsView {
         className: item.danger
           ? `${boardsModalClassNames.quickEditorButton} ${boardsModalClassNames.quickEditorDangerButton}`
           : boardsModalClassNames.quickEditorButton,
-        disabled: item.disabled,
         onClick: item.onClick,
       });
       button.setAttribute('data-testid', item.testId);
       prependButtonIcon(button, item.icon);
-      if (item.badgeText) {
-        const badge = document.createElement('span');
-        badge.className = boardsModalClassNames.quickEditorNewBadge;
-        badge.textContent = item.badgeText;
-        button.append(badge);
-      }
       li.append(button);
       list.append(li);
     });

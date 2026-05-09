@@ -331,10 +331,17 @@ describe('BoardsView', () => {
     expect(
       editor?.querySelector('[data-testid="quick-card-editor-buttons"]')
     ).not.toBeNull();
-    expect(editor?.textContent).toContain('Create Jira work item');
-    expect(editor?.textContent).toContain('NEW');
     expect(editor?.textContent).toContain('Mirror');
     expect(editor?.textContent).toContain('Delete card');
+    expect(editor?.textContent).not.toContain('Change members');
+    expect(editor?.textContent).not.toContain('Change cover');
+    expect(editor?.textContent).not.toContain('Edit dates');
+    expect(editor?.textContent).not.toContain('Create Jira work item');
+    expect(editor?.textContent).not.toContain('Copy card');
+    expect(editor?.textContent).not.toContain('Copy link');
+    expect(
+      editor?.querySelector('[data-testid="quick-card-editor-buttons"] button:disabled')
+    ).toBeNull();
 
     const title = editor?.querySelector<HTMLTextAreaElement>(
       '[data-testid="quick-card-editor-card-title"]'
