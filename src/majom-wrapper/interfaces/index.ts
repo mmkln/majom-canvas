@@ -1,14 +1,17 @@
 export type BoardEntityId = string;
+export type BoardMeta = Record<string, unknown> | null;
 
 export interface Board {
   id: BoardEntityId;
   title: string;
+  meta?: BoardMeta;
   columns: BoardColumn[];
 }
 
 export interface BoardColumn {
   id: BoardEntityId;
   title: string;
+  meta?: BoardMeta;
   order: number;
   pos?: string | number | null;
   cards: Card[];
@@ -29,6 +32,7 @@ export interface Card {
   placement_id?: BoardEntityId | null;
   title: string;
   description: string;
+  meta?: BoardMeta;
   pos?: string | number | null;
   order?: number;
   column: BoardColumn['id'];

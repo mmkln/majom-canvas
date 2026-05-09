@@ -9,14 +9,15 @@ import type {
 } from '../interfaces/index.ts';
 import type { PaginatedResponse } from './paginated-response.ts';
 
-export type BoardCreatePayload = Pick<Board, 'title'>;
-export type BoardUpdatePayload = Partial<BoardCreatePayload>;
+export type BoardCreatePayload = Pick<Board, 'title'> &
+  Partial<Pick<Board, 'meta'>>;
+export type BoardUpdatePayload = Partial<Pick<Board, 'title' | 'meta'>>;
 
 export type BoardColumnCreatePayload = Pick<BoardColumn, 'board' | 'title'> &
-  Partial<Pick<BoardColumn, 'order'>> &
+  Partial<Pick<BoardColumn, 'order' | 'meta'>> &
   BoardColumnTargetPayload;
 export type BoardColumnUpdatePayload = Partial<
-  Pick<BoardColumn, 'board' | 'title' | 'order'>
+  Pick<BoardColumn, 'board' | 'title' | 'order' | 'meta'>
 > &
   BoardColumnTargetPayload;
 export type BoardColumnTargetPayload = {
@@ -26,10 +27,10 @@ export type BoardColumnTargetPayload = {
 };
 
 export type BoardCardCreatePayload = Pick<Card, 'column' | 'title'> &
-  Partial<Pick<Card, 'description' | 'tag_ids'>> &
+  Partial<Pick<Card, 'description' | 'tag_ids' | 'meta'>> &
   BoardPlacementTargetPayload;
 export type BoardCardUpdatePayload = Partial<
-  Pick<Card, 'title' | 'description' | 'tag_ids'>
+  Pick<Card, 'title' | 'description' | 'tag_ids' | 'meta'>
 >;
 export type BoardPlacementTargetPayload = {
   before_placement?: CardPlacement['id'] | null;
