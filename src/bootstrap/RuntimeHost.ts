@@ -82,6 +82,7 @@ import {
 import type { UserApiService } from '../majom-wrapper/data-access/user-api-service.ts';
 import type { Wallpaper } from '../majom-wrapper/interfaces/auth-interfaces.ts';
 import { openWallpaperPickerModal } from '../features/shell/components/WallpaperPickerModal.ts';
+import { ToastProvider } from '../ui-lib/src/components/ToastProvider.ts';
 
 const TIME_CLUSTERING_ISLAND_WIDTH_PX = 360;
 
@@ -166,6 +167,7 @@ export class RuntimeHost {
   private readonly timeClusteringIslandRoot: HTMLDivElement;
   private readonly chatPanel: AiAssistantPanel;
   private readonly chatController: AiAssistantSessionController;
+  private readonly toastProvider: ToastProvider;
   private activeView: WorkspaceView = 'canvas';
   private chatOpen = false;
   private timeClusteringOpen = false;
@@ -208,6 +210,7 @@ export class RuntimeHost {
     this.workspaceRoot.style.transition =
       'left 180ms ease, top 180ms ease, right 180ms ease, bottom 180ms ease, border-radius 180ms ease, box-shadow 180ms ease';
     document.body.appendChild(this.workspaceRoot);
+    this.toastProvider = new ToastProvider();
     this.islandBackdropRoot = document.createElement('div');
     this.islandBackdropRoot.id = 'workspace-island-backdrop-root';
     this.islandBackdropRoot.style.position = 'fixed';
@@ -584,6 +587,7 @@ export class RuntimeHost {
     this.workspaceRoot.remove();
     this.chatPanel.unmount();
     this.chatController.dispose();
+    this.toastProvider.destroy();
   }
 
   public showCanvas(): void {

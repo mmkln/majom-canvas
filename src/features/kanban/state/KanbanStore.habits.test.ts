@@ -1,9 +1,9 @@
 import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { KanbanStore } from './KanbanStore.ts';
-import { notify } from '../../canvas/core/services/NotificationService.ts';
+import { notify } from '../../../ui-lib/src/services/NotificationService.ts';
 
-vi.mock('../../canvas/core/services/NotificationService.ts', () => ({
+vi.mock('../../../ui-lib/src/services/NotificationService.ts', () => ({
   notify: vi.fn(),
 }));
 

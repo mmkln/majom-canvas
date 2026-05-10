@@ -33,6 +33,24 @@
 - Card ordering is placement-owned. Frontend should send semantic placement targets (`before_placement`, `after_placement`, or `position`) instead of calculating or persisting numeric ranks. Backend owns the exact `pos` value and rebalance logic.
 - Board, list, card, and card-placement public ids are UUID strings. Numeric database primary keys are backend-internal only; frontend code must not parse board entity ids with `Number(...)`.
 
+## Card Checklists
+
+- Treat checklists as card-owned execution details, not board-owned data, placement-owned data, task relations, or Focus Board items.
+- Read card-front checklist badges from `card.checklist_summary`; do not include full checklist item payloads in board card fronts.
+- Load full checklist data only for the card details surface through the card checklist API.
+- Keep checklist mutations routed through `BoardsStore`/`BoardsApiService`; `BoardsView` may own modal-local loading and form state only.
+- Mirror placements must show the same checklist state because the source of truth is `Card.id`, not `placement_id`.
+
+## Card Entity Links
+
+- Treat card links to Task/Story/Goal as explicit domain links, not as a conversion that makes a card equal to a task, story, or goal.
+- Keep the MVP relation shape simple: `card`, `entity_type`, `entity_id`, plus metadata returned by the backend for display.
+- Persist link/unlink through `BoardsStore` and `BoardsApiService`; `BoardsView` may own only picker/search UI state.
+- Card fronts should show compact link badges from `card.entity_links`; detailed link management belongs in card details or an explicit card action surface.
+- Linked entity rows in card details should expose open, unlink, and delete-entity actions from a right-side row menu that appears on hover/focus/open, not as always-visible inline buttons.
+- Mirror placements must show the same linked entities because links are owned by `Card.id`, not `placement_id`.
+- Search/link picker data should come from Task/Story/Goal APIs through a catalog port instead of importing those services directly into `BoardsView`.
+
 ## Trello-Like List Headers
 
 - List headers should keep the title editable inline.

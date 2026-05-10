@@ -519,6 +519,86 @@ describe('BoardsStore', () => {
     store.destroy();
   });
 
+  it('creates and deletes card entity links through the boards API', async () => {
+    const linkId = '00000000-0000-4000-8000-000000000401';
+    const entityId = '00000000-0000-4000-8000-000000000501';
+    const board = createBoard({
+      columns: [
+        {
+          id: COLUMN_TODO,
+          board: BOARD_ID,
+          title: 'Todo',
+          order: 0,
+          cards: [
+            {
+              id: CARD_EXISTING,
+              placement_id: PLACEMENT_EXISTING,
+              column: COLUMN_TODO,
+              title: 'Existing',
+              description: '',
+              order: 0,
+            },
+          ],
+        },
+      ],
+    });
+    const linkedBoard = createBoard({
+      columns: [
+        {
+          ...board.columns[0]!,
+          cards: [
+            {
+              ...board.columns[0]!.cards[0]!,
+              entity_links: [
+                {
+                  id: linkId,
+                  card: CARD_EXISTING,
+                  entity_type: 'task',
+                  entity_id: entityId,
+                  entity: {
+                    id: entityId,
+                    title: 'Existing task',
+                    status: 'open',
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const api = {
+      getBoards: vi
+        .fn()
+        .mockReturnValueOnce(of([board]))
+        .mockReturnValueOnce(of([linkedBoard]))
+        .mockReturnValueOnce(of([board])),
+      createCardEntityLink: vi.fn(() =>
+        of({
+          id: linkId,
+          card: CARD_EXISTING,
+          entity_type: 'task',
+          entity_id: entityId,
+        })
+      ),
+      deleteCardEntityLink: vi.fn(() => of(undefined)),
+    } as unknown as BoardsApiService;
+    const store = new BoardsStore(api);
+    await store.load();
+
+    await store.createCardEntityLink(CARD_EXISTING, 'task', entityId);
+    await store.deleteCardEntityLink(linkId);
+
+    expect(api.createCardEntityLink).toHaveBeenCalledWith({
+      card: CARD_EXISTING,
+      entity_type: 'task',
+      entity_id: entityId,
+    });
+    expect(api.deleteCardEntityLink).toHaveBeenCalledWith(linkId);
+    expect(api.getBoards).toHaveBeenCalledTimes(3);
+    store.destroy();
+  });
+
   it('moves a concrete card placement through the placements API', async () => {
     const board = createBoard({
       columns: [

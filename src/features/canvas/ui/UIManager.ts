@@ -3,7 +3,6 @@ import { CanvasNavigationDock } from './CanvasNavigationDock.ts';
 import { EditElementModal } from './components/EditElementModal.ts';
 import { StoryDetailsModal } from './components/StoryDetailsModal.ts';
 import { GoalDetailsModal } from './components/GoalDetailsModal.ts';
-import { NotificationContainer } from './components/NotificationContainer.ts';
 import { CanvasBoardSelector } from './components/CanvasBoardSelector.ts';
 import { CanvasManager } from '../core/managers/CanvasManager.ts';
 import { Scene } from '../core/scene/Scene.ts';
@@ -313,9 +312,6 @@ export class UIManager {
       statusPicker,
       saveControls
     );
-    // Notification container
-    const notificationContainer = new NotificationContainer();
-    this.components.push(notificationContainer);
     if (CANVAS_PERF_LOG) {
       this.components.push(new CanvasPerfHud(this.canvasManager));
     }

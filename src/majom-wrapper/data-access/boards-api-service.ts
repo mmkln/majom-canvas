@@ -3,6 +3,9 @@ import { map } from 'rxjs/operators';
 import { HttpInterceptorClient } from './http-interceptor.ts';
 import type {
   Board,
+  CardCheckItem,
+  CardChecklist,
+  CardEntityLink,
   BoardColumn,
   Card,
   CardPlacement,
@@ -27,10 +30,40 @@ export type BoardColumnTargetPayload = {
 };
 
 export type BoardCardCreatePayload = Pick<Card, 'column' | 'title'> &
-  Partial<Pick<Card, 'description' | 'tag_ids' | 'meta'>> &
+  Partial<Pick<Card, 'description' | 'completedAt' | 'tag_ids' | 'meta'>> &
   BoardPlacementTargetPayload;
 export type BoardCardUpdatePayload = Partial<
-  Pick<Card, 'title' | 'description' | 'tag_ids' | 'meta'>
+  Pick<Card, 'title' | 'description' | 'completedAt' | 'tag_ids' | 'meta'>
+>;
+export type CardChecklistCreatePayload = {
+  title: string;
+  position?: 'top' | 'bottom';
+};
+export type CardChecklistUpdatePayload = Partial<{
+  title: string;
+  before_checklist: CardChecklist['id'] | null;
+  after_checklist: CardChecklist['id'] | null;
+  position: 'top' | 'bottom';
+}>;
+export type CardCheckItemCreatePayload = {
+  title: string;
+  state?: CardCheckItem['state'];
+  position?: 'top' | 'bottom';
+};
+export type CardCheckItemUpdatePayload = Partial<{
+  title: string;
+  state: CardCheckItem['state'];
+  checklist: CardChecklist['id'];
+  before_item: CardCheckItem['id'] | null;
+  after_item: CardCheckItem['id'] | null;
+  position: 'top' | 'bottom';
+}>;
+export type BoardCardEntityLinkCreatePayload = Pick<
+  CardEntityLink,
+  'card' | 'entity_type' | 'entity_id'
+>;
+export type BoardCardEntityLinkListParams = Partial<
+  Pick<CardEntityLink, 'card' | 'entity_type' | 'entity_id'>
 >;
 export type BoardPlacementTargetPayload = {
   before_placement?: CardPlacement['id'] | null;
@@ -55,6 +88,22 @@ function normalizeListResponse<T>(
 
 function encodeResourceId(id: string): string {
   return encodeURIComponent(String(id));
+}
+
+function buildCardEntityLinkQuery(
+  params: BoardCardEntityLinkListParams = {}
+): string {
+  const query: string[] = [];
+  if (params.card) {
+    query.push(`card=${encodeURIComponent(params.card)}`);
+  }
+  if (params.entity_type) {
+    query.push(`entity_type=${encodeURIComponent(params.entity_type)}`);
+  }
+  if (params.entity_id) {
+    query.push(`entity_id=${encodeURIComponent(params.entity_id)}`);
+  }
+  return query.length ? `?${query.join('&')}` : '';
 }
 
 export class BoardsApiService {
@@ -120,6 +169,90 @@ export class BoardsApiService {
 
   public deleteCard(cardId: Card['id']): Observable<void> {
     return this.http.delete<void>(`/cards/${encodeResourceId(cardId)}/`);
+  }
+
+  public getCardChecklists(cardId: Card['id']): Observable<CardChecklist[]> {
+    return this.http.get<CardChecklist[]>(
+      `/cards/${encodeResourceId(cardId)}/checklists/`
+    );
+  }
+
+  public createCardChecklist(
+    cardId: Card['id'],
+    payload: CardChecklistCreatePayload
+  ): Observable<CardChecklist> {
+    return this.http.post<CardChecklist>(
+      `/cards/${encodeResourceId(cardId)}/checklists/`,
+      payload
+    );
+  }
+
+  public updateCardChecklist(
+    checklistId: CardChecklist['id'],
+    payload: CardChecklistUpdatePayload
+  ): Observable<CardChecklist> {
+    return this.http.patch<CardChecklist>(
+      `/card-checklists/${encodeResourceId(checklistId)}/`,
+      payload
+    );
+  }
+
+  public deleteCardChecklist(
+    checklistId: CardChecklist['id']
+  ): Observable<void> {
+    return this.http.delete<void>(
+      `/card-checklists/${encodeResourceId(checklistId)}/`
+    );
+  }
+
+  public createCardCheckItem(
+    checklistId: CardChecklist['id'],
+    payload: CardCheckItemCreatePayload
+  ): Observable<CardCheckItem> {
+    return this.http.post<CardCheckItem>(
+      `/card-checklists/${encodeResourceId(checklistId)}/items/`,
+      payload
+    );
+  }
+
+  public updateCardCheckItem(
+    itemId: CardCheckItem['id'],
+    payload: CardCheckItemUpdatePayload
+  ): Observable<CardCheckItem> {
+    return this.http.patch<CardCheckItem>(
+      `/card-check-items/${encodeResourceId(itemId)}/`,
+      payload
+    );
+  }
+
+  public deleteCardCheckItem(itemId: CardCheckItem['id']): Observable<void> {
+    return this.http.delete<void>(
+      `/card-check-items/${encodeResourceId(itemId)}/`
+    );
+  }
+
+  public getCardEntityLinks(
+    params: BoardCardEntityLinkListParams = {}
+  ): Observable<CardEntityLink[]> {
+    return this.http
+      .get<PaginatedResponse<CardEntityLink> | CardEntityLink[]>(
+        `/card-entity-links/${buildCardEntityLinkQuery(params)}`
+      )
+      .pipe(map(normalizeListResponse));
+  }
+
+  public createCardEntityLink(
+    payload: BoardCardEntityLinkCreatePayload
+  ): Observable<CardEntityLink> {
+    return this.http.post<CardEntityLink>('/card-entity-links/', payload);
+  }
+
+  public deleteCardEntityLink(
+    linkId: CardEntityLink['id']
+  ): Observable<void> {
+    return this.http.delete<void>(
+      `/card-entity-links/${encodeResourceId(linkId)}/`
+    );
   }
 
   public createCardPlacement(

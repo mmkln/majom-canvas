@@ -3,15 +3,21 @@ import type {
   BoardMeta,
   BoardColumn,
   Card,
+  CardCheckItem,
+  CardChecklist,
+  CardEntityLink,
+  CardEntityLinkType,
   CardPlacement,
   Tag,
 } from '../../../majom-wrapper/interfaces/index.ts';
 
 export type BoardsRequestStatus = 'idle' | 'loading' | 'saving' | 'error';
+export type BoardsIntentResult<T> = T | Promise<T>;
 
 export type BoardCardPatch = {
   title?: string;
   description?: string;
+  completedAt?: Card['completedAt'];
   tag_ids?: number[];
 };
 
@@ -53,6 +59,18 @@ export type BoardTagCatalogPort = {
   deleteTag: (id: number) => Promise<void>;
 };
 
+export type BoardEntityLinkSearchItem = {
+  id: string;
+  title: string;
+  status?: string | null;
+};
+
+export type BoardEntityCatalogPort = {
+  searchTasks: (query: string) => Promise<BoardEntityLinkSearchItem[]>;
+  searchStories: (query: string) => Promise<BoardEntityLinkSearchItem[]>;
+  searchGoals: (query: string) => Promise<BoardEntityLinkSearchItem[]>;
+};
+
 export type BoardsIntentHandlers = {
   onRefresh: () => void;
   onSelectBoard: (boardId: Board['id']) => void;
@@ -76,6 +94,43 @@ export type BoardsIntentHandlers = {
     description: string
   ) => void;
   onPatchCard: (cardId: Card['id'], patch: BoardCardPatch) => void;
+  onLoadCardChecklists: (
+    cardId: Card['id']
+  ) => BoardsIntentResult<CardChecklist[]>;
+  onCreateCardChecklist: (
+    cardId: Card['id'],
+    title: string
+  ) => BoardsIntentResult<CardChecklist | null>;
+  onDeleteCardChecklist: (
+    checklistId: CardChecklist['id']
+  ) => BoardsIntentResult<void>;
+  onCreateCardCheckItem: (
+    checklistId: CardChecklist['id'],
+    title: string
+  ) => BoardsIntentResult<CardCheckItem | null>;
+  onPatchCardCheckItem: (
+    itemId: CardCheckItem['id'],
+    patch: { title?: string; state?: CardCheckItem['state'] }
+  ) => BoardsIntentResult<CardCheckItem | null>;
+  onDeleteCardCheckItem: (
+    itemId: CardCheckItem['id']
+  ) => BoardsIntentResult<void>;
+  onCreateCardEntityLink: (
+    cardId: Card['id'],
+    entityType: CardEntityLinkType,
+    entityId: string
+  ) => BoardsIntentResult<CardEntityLink | null>;
+  onCreateCardEntityFromCard: (
+    card: Card,
+    entityType: CardEntityLinkType
+  ) => BoardsIntentResult<CardEntityLink | null>;
+  onDeleteCardEntityLink: (
+    linkId: CardEntityLink['id']
+  ) => BoardsIntentResult<void>;
+  onDeleteLinkedEntity: (
+    card: Card,
+    link: CardEntityLink
+  ) => BoardsIntentResult<void>;
   onCreateCardMirror: (
     cardId: Card['id'],
     columnId: BoardColumn['id'],

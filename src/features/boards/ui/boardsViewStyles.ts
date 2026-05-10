@@ -65,8 +65,12 @@ export const boardsViewClassNames = {
   columnMenuButton: 'majom-boards__column-menu-button',
   cards: 'majom-boards__cards',
   card: 'majom-boards__card',
+  cardCompleted: 'majom-boards__card is-complete',
   cardMirror: 'majom-boards__card--mirror',
   cardOpenButton: 'majom-boards__card-open',
+  cardCompleteToggle: 'majom-boards__card-complete-toggle',
+  cardCompleteToggleCompleted:
+    'majom-boards__card-complete-toggle is-complete',
   cardSourceLabel: 'majom-boards__card-source-label',
   cardTags: 'majom-boards__card-tags',
   cardTag: 'majom-boards__card-tag',
@@ -75,6 +79,12 @@ export const boardsViewClassNames = {
   cardTitle: 'majom-boards__card-title',
   cardBadges: 'majom-boards__card-badges',
   cardBadge: 'majom-boards__card-badge',
+  cardBadgePlain: 'majom-boards__card-badge majom-boards__card-badge--plain',
+  cardBadgeNeutral:
+    'majom-boards__card-badge majom-boards__card-badge--neutral',
+  cardBadgeTask: 'majom-boards__card-badge majom-boards__card-badge--task',
+  cardBadgeStory: 'majom-boards__card-badge majom-boards__card-badge--story',
+  cardBadgeGoal: 'majom-boards__card-badge majom-boards__card-badge--goal',
   cardComposer: 'majom-boards__card-composer',
   cardComposerCollapsed: 'majom-boards__card-composer-collapsed',
   cardComposerExpanded: 'majom-boards__card-composer-expanded',
@@ -96,7 +106,6 @@ export const boardsViewClassNames = {
   emptyCopy: 'majom-boards__empty-copy',
   messageWrapper: 'majom-boards__message-wrapper',
   messageLabel: 'majom-boards__message-label',
-  error: 'majom-boards__error',
 } as const;
 
 export const boardsModalClassNames = {
@@ -162,6 +171,7 @@ export const boardsModalClassNames = {
   sectionActions: 'majom-boards-cardback__section-actions',
   titleSection: 'majom-boards-cardback__title-section',
   doneButton: 'majom-boards-cardback__done-button',
+  doneButtonCompleted: 'majom-boards-cardback__done-button is-complete',
   titleEditor: 'majom-boards-cardback__title-editor',
   quickActions: 'majom-boards-cardback__quick-actions',
   quickActionList: 'majom-boards-cardback__quick-action-list',
@@ -173,6 +183,70 @@ export const boardsModalClassNames = {
   labelSwatch: 'majom-boards-cardback__label-swatch',
   labelAddButton: 'majom-boards-cardback__label-add-button',
   labelPickerPopover: 'majom-boards-cardback__label-picker-popover',
+  entityLinksHost: 'majom-boards-cardback__entity-links-host',
+  entityLinksMessage: 'majom-boards-cardback__entity-links-message',
+  entityLinksList: 'majom-boards-cardback__entity-links-list',
+  entityLinkItem: 'majom-boards-cardback__entity-link-item',
+  entityLinkIcon: 'majom-boards-cardback__entity-link-icon',
+  entityLinkContent: 'majom-boards-cardback__entity-link-content',
+  entityLinkTitle: 'majom-boards-cardback__entity-link-title',
+  entityLinkMeta: 'majom-boards-cardback__entity-link-meta',
+  entityLinkMenuTriggerButton:
+    'majom-boards-cardback__entity-link-menu-trigger',
+  entityLinkMenuPopover: 'majom-boards-cardback__entity-link-menu',
+  entityLinkMenuList: 'majom-boards-cardback__entity-link-menu-list',
+  entityLinkMenuItem: 'majom-boards-cardback__entity-link-menu-item',
+  entityLinkMenuButton: 'majom-boards-cardback__entity-link-menu-button',
+  entityLinkMenuDangerButton:
+    'majom-boards-cardback__entity-link-menu-button majom-boards-cardback__entity-link-menu-button--danger',
+  entityLinkPicker: 'majom-boards-cardback__entity-link-picker',
+  entityLinkPickerField: 'majom-boards-cardback__entity-link-picker-field',
+  entityLinkPickerInput: 'majom-boards-cardback__entity-link-picker-input',
+  entityLinkPickerResults: 'majom-boards-cardback__entity-link-picker-results',
+  entityLinkPickerList: 'majom-boards-cardback__entity-link-picker-list',
+  entityLinkPickerButton: 'majom-boards-cardback__entity-link-picker-button',
+  checklistPopover: 'majom-boards-cardback__checklist-popover',
+  checklistPopoverHeader: 'majom-boards-cardback__checklist-popover-header',
+  checklistPopoverTitle: 'majom-boards-cardback__checklist-popover-title',
+  checklistPopoverClose: 'majom-boards-cardback__checklist-popover-close',
+  checklistPopoverForm: 'majom-boards-cardback__checklist-popover-form',
+  checklistPopoverLabel: 'majom-boards-cardback__checklist-popover-label',
+  checklistPopoverInput: 'majom-boards-cardback__checklist-popover-input',
+  checklistPopoverActions: 'majom-boards-cardback__checklist-popover-actions',
+  checklistPopoverSubmit: 'majom-boards-cardback__checklist-popover-submit',
+  checklistsHost: 'majom-boards-cardback__checklists-host',
+  checklistsMessage: 'majom-boards-cardback__checklists-message',
+  checklistsList: 'majom-boards-cardback__checklists-list',
+  checklist: 'majom-boards-cardback__checklist',
+  checklistHeader: 'majom-boards-cardback__checklist-header',
+  checklistTitle: 'majom-boards-cardback__checklist-title',
+  checklistActions: 'majom-boards-cardback__checklist-actions',
+  checklistActionButton: 'majom-boards-cardback__checklist-action-button',
+  checklistProgressRow: 'majom-boards-cardback__checklist-progress-row',
+  checklistProgress: 'majom-boards-cardback__checklist-progress',
+  checklistProgressTrack: 'majom-boards-cardback__checklist-progress-track',
+  checklistProgressBar: 'majom-boards-cardback__checklist-progress-bar',
+  checkItemList: 'majom-boards-cardback__checkitem-list',
+  checkItem: 'majom-boards-cardback__checkitem',
+  checkItemCheckbox: 'majom-boards-cardback__checkitem-checkbox',
+  checkItemTitle: 'majom-boards-cardback__checkitem-title',
+  checkItemTitleComplete:
+    'majom-boards-cardback__checkitem-title is-complete',
+  checkItemTitleInput: 'majom-boards-cardback__checkitem-title-input',
+  checkItemMenuTriggerButton: 'majom-boards-cardback__checkitem-menu-trigger',
+  checkItemMenuPopover: 'majom-boards-cardback__checkitem-menu',
+  checkItemMenuList: 'majom-boards-cardback__checkitem-menu-list',
+  checkItemMenuItem: 'majom-boards-cardback__checkitem-menu-item',
+  checkItemMenuButton: 'majom-boards-cardback__checkitem-menu-button',
+  checkItemCollapsedComposer: 'majom-boards-cardback__checkitem-collapsed-composer',
+  checkItemComposer: 'majom-boards-cardback__checkitem-composer',
+  checkItemComposerInput: 'majom-boards-cardback__checkitem-composer-input',
+  checkItemComposerActions: 'majom-boards-cardback__checkitem-composer-actions',
+  checkItemComposerPrimaryActions:
+    'majom-boards-cardback__checkitem-composer-primary-actions',
+  checkItemComposerMetaActions:
+    'majom-boards-cardback__checkitem-composer-meta-actions',
+  checkItemMetaButton: 'majom-boards-cardback__checkitem-meta-button',
   descriptionEditor: 'majom-boards-cardback__description-editor',
   placeholderPanel: 'majom-boards-cardback__placeholder-panel',
   editorActions: 'majom-boards-cardback__editor-actions',
@@ -204,6 +278,8 @@ const BOARDS_VIEW_CSS = `
 
 .majom-boards {
   --mb-text: #172b4d;
+  --mb-board-column-title-text: #44546f;
+  --mb-board-card-title-text: #292A2E;
   --mb-muted: #44546f;
   --mb-subtle: #626f86;
   --mb-list: #f1f2f4;
@@ -399,7 +475,7 @@ const BOARDS_VIEW_CSS = `
   --mb-board-picker-create-card-bg: #f1f2f4;
   --mb-board-picker-create-card-bg-hover: #e6e8ec;
   --mb-board-picker-inline-padding: 16px;
-  width: min(420px, calc(100vw - 24px));
+  width: min(560px, calc(100vw - 24px));
   max-height: min(640px, calc(100vh - 24px));
   overflow: hidden;
   border-radius: 10px;
@@ -445,8 +521,8 @@ const BOARDS_VIEW_CSS = `
   padding: 0 10px;
   color: #566277;
   background: #ffffff;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   line-height: 26px;
   cursor: pointer;
 }
@@ -755,7 +831,7 @@ const BOARDS_VIEW_CSS = `
   display: block;
   min-width: 0;
   overflow: hidden;
-  color: var(--mb-text);
+  color: var(--mb-board-column-title-text);
   font-size: 14px;
   font-weight: 700;
   line-height: 20px;
@@ -770,7 +846,7 @@ const BOARDS_VIEW_CSS = `
   border: 0;
   border-radius: 4px;
   padding: 5px 8px;
-  color: var(--mb-text);
+  color: var(--mb-board-column-title-text);
   background: #ffffff;
   box-shadow: inset 0 0 0 2px var(--mb-blue);
   font: inherit;
@@ -834,6 +910,52 @@ const BOARDS_VIEW_CSS = `
   background: transparent;
   text-align: left;
   cursor: pointer;
+  transition: padding-left 150ms ease;
+}
+
+.majom-boards__card:hover .majom-boards__card-open,
+.majom-boards__card:focus-within .majom-boards__card-open,
+.majom-boards__card.is-complete .majom-boards__card-open {
+  padding-left: 34px;
+}
+
+.majom-boards__card-complete-toggle {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  z-index: 2;
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  color: #626f86;
+  background: transparent;
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+  transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.majom-boards__card:hover .majom-boards__card-complete-toggle,
+.majom-boards__card:focus-within .majom-boards__card-complete-toggle,
+.majom-boards__card-complete-toggle:focus-visible,
+.majom-boards__card-complete-toggle.is-complete {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.majom-boards__card-complete-toggle:hover,
+.majom-boards__card-complete-toggle:focus-visible {
+  background: #dcdfe4;
+  color: #172b4d;
+}
+
+.majom-boards__card-complete-toggle.is-complete {
+  color: #ffffff;
 }
 
 .majom-boards__card.is-dragging {
@@ -944,10 +1066,8 @@ const BOARDS_VIEW_CSS = `
 
 .majom-boards__card-title {
   margin: 0;
-  color: var(--mb-text);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 20px;
+  color: var(--mb-board-card-title-text);
+  font: normal 400 0.875rem/1.25rem "Atlassian Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, "Helvetica Neue", sans-serif;
   overflow-wrap: anywhere;
 }
 
@@ -961,12 +1081,41 @@ const BOARDS_VIEW_CSS = `
 .majom-boards__card-badge {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  min-height: 16px;
+  gap: 4px;
+  min-height: 20px;
+  border-radius: 4px;
+  padding: 2px 6px;
   color: var(--mb-muted);
+  background: #f1f2f4;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 16px;
+}
+
+.majom-boards__card-badge--plain {
+  padding: 2px 0;
+  background: transparent;
+  color: #8590a2;
+}
+
+.majom-boards__card-badge--neutral {
+  color: #44546f;
+  background: #f1f2f4;
+}
+
+.majom-boards__card-badge--task {
+  color: #44546f;
+  background: #f1f2f4;
+}
+
+.majom-boards__card-badge--story {
+  color: #146c43;
+  background: #dcfce7;
+}
+
+.majom-boards__card-badge--goal {
+  color: #7e22ce;
+  background: #f3e8ff;
 }
 
 .majom-boards__card-composer {
@@ -1204,16 +1353,6 @@ const BOARDS_VIEW_CSS = `
   line-height: 22px;
 }
 
-.majom-boards__error {
-  margin: 0 16px 10px;
-  border-radius: 8px;
-  padding: 8px 12px;
-  color: var(--mb-danger);
-  background: var(--mb-danger-soft);
-  box-shadow: inset 0 0 0 1px rgba(174, 46, 36, 0.16);
-  font-size: 14px;
-}
-
 .majom-boards-modal {
   --mb-text: #172b4d;
   --mb-muted: #44546f;
@@ -1227,7 +1366,7 @@ const BOARDS_VIEW_CSS = `
   max-width: min(72rem, calc(100vw - 2rem));
   border-radius: 12px;
   padding: 0;
-  background: #f1f2f4;
+  background: #ffffff;
 }
 
 .majom-boards-modal__body {
@@ -1302,7 +1441,7 @@ const BOARDS_VIEW_CSS = `
   flex-direction: column;
   overflow: hidden;
   color: var(--mb-text, #172b4d);
-  background: #f1f2f4;
+  background: #ffffff;
 }
 
 .majom-boards-cardback__topbar {
@@ -1313,7 +1452,7 @@ const BOARDS_VIEW_CSS = `
   gap: 12px;
   border-bottom: 1px solid rgba(9, 30, 66, 0.14);
   padding: 10px 12px;
-  background: #f1f2f4;
+  background: #ffffff;
 }
 
 .majom-boards-cardback__topbar-start,
@@ -1742,13 +1881,58 @@ const BOARDS_VIEW_CSS = `
 }
 
 .majom-boards-cardback__done-button {
+  display: inline-flex;
   width: 32px;
   height: 32px;
+  align-items: center;
+  justify-content: center;
   border: 0;
   border-radius: 999px;
+  padding: 0;
   color: var(--mb-subtle, #626f86);
   background: transparent;
   box-shadow: none;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.majom-boards-cardback__done-button:hover,
+.majom-boards-cardback__done-button:focus-visible {
+  color: var(--mb-text, #172b4d);
+  background: #dcdfe4;
+}
+
+.majom-boards-cardback__done-button.is-complete {
+  color: #ffffff;
+}
+
+.majom-boards__completion-mark {
+  position: relative;
+  display: block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid currentColor;
+  border-radius: 999px;
+  background: #ffffff;
+}
+
+.majom-boards__card-complete-toggle.is-complete .majom-boards__completion-mark,
+.majom-boards-cardback__done-button.is-complete .majom-boards__completion-mark {
+  border-color: #22a06b;
+  background: #22a06b;
+}
+
+.majom-boards__card-complete-toggle.is-complete .majom-boards__completion-mark::after,
+.majom-boards-cardback__done-button.is-complete .majom-boards__completion-mark::after {
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 5px;
+  height: 9px;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  content: '';
+  transform: rotate(45deg);
 }
 
 .majom-boards-cardback__title-editor {
@@ -1876,6 +2060,561 @@ const BOARDS_VIEW_CSS = `
   box-shadow:
     0 8px 18px rgba(9, 30, 66, 0.18),
     0 0 0 1px rgba(9, 30, 66, 0.12);
+}
+
+.majom-boards-cardback__entity-links-host {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.majom-boards-cardback__entity-links-message {
+  margin: 0;
+  color: var(--mb-muted, #44546f);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.majom-boards-cardback__entity-links-list,
+.majom-boards-cardback__entity-link-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.majom-boards-cardback__entity-link-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  border-radius: 6px;
+  padding: 4px 6px;
+}
+
+.majom-boards-cardback__entity-link-item:hover,
+.majom-boards-cardback__entity-link-item:focus-within {
+  background: #f7f8f9;
+}
+
+.majom-boards-cardback__entity-link-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mb-muted, #44546f);
+}
+
+.majom-boards-cardback__entity-link-content {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.majom-boards-cardback__entity-link-title {
+  overflow: hidden;
+  color: var(--mb-text, #172b4d);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.majom-boards-cardback__entity-link-meta {
+  overflow: hidden;
+  color: var(--mb-muted, #44546f);
+  font-size: 12px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.majom-boards-cardback__entity-link-menu-trigger {
+  width: 28px;
+  height: 28px;
+  color: var(--mb-subtle, #626f86);
+  opacity: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.majom-boards-cardback__entity-link-item:hover .majom-boards-cardback__entity-link-menu-trigger,
+.majom-boards-cardback__entity-link-item:focus-within .majom-boards-cardback__entity-link-menu-trigger,
+.majom-boards-cardback__entity-link-menu-trigger[aria-expanded='true'] {
+  opacity: 1;
+}
+
+.majom-boards-cardback__entity-link-menu-trigger:hover,
+.majom-boards-cardback__entity-link-menu-trigger[aria-expanded='true'] {
+  color: var(--mb-text, #172b4d);
+  background: #f1f2f4;
+}
+
+.majom-boards-cardback__entity-link-menu {
+  width: min(232px, calc(100vw - 24px));
+  overflow: hidden;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow:
+    0 8px 18px rgba(9, 30, 66, 0.18),
+    0 0 0 1px rgba(9, 30, 66, 0.12);
+}
+
+.majom-boards-cardback__entity-link-menu-list {
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+}
+
+.majom-boards-cardback__entity-link-menu-item {
+  margin: 0;
+}
+
+.majom-boards-cardback__entity-link-menu-button {
+  width: 100%;
+  min-height: 34px;
+  justify-content: flex-start;
+  gap: 8px;
+  border-radius: 0;
+  color: var(--mb-text, #172b4d);
+  background: transparent;
+  box-shadow: none;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.majom-boards-cardback__entity-link-menu-button:hover:not(:disabled) {
+  background: #f1f2f4;
+}
+
+.majom-boards-cardback__entity-link-menu-button--danger {
+  color: #ae2e24;
+}
+
+.majom-boards-cardback__entity-link-menu-button--danger:hover:not(:disabled) {
+  color: #7f1d1d;
+  background: #fbeae5;
+}
+
+.majom-boards-cardback__entity-link-picker {
+  display: grid;
+  gap: 14px;
+}
+
+.majom-boards-cardback__entity-link-picker-field {
+  display: grid;
+  gap: 6px;
+}
+
+.majom-boards-cardback__entity-link-picker-input {
+  width: 100%;
+  font-size: 16px;
+}
+
+.majom-boards-cardback__entity-link-picker-results {
+  min-height: 48px;
+}
+
+.majom-boards-cardback__entity-link-picker-button {
+  display: grid;
+  width: 100%;
+  min-height: 44px;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 8px;
+  color: var(--mb-text, #172b4d);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.majom-boards-cardback__entity-link-picker-button:hover:not(:disabled),
+.majom-boards-cardback__entity-link-picker-button:focus-visible {
+  background: #f1f2f4;
+  outline: none;
+}
+
+.majom-boards-cardback__entity-link-picker-button:disabled {
+  color: var(--mb-subtle, #626f86);
+  cursor: not-allowed;
+}
+
+.majom-boards-cardback__checklist-popover {
+  width: min(382px, calc(100vw - 24px));
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow:
+    0 8px 18px rgba(9, 30, 66, 0.18),
+    0 0 0 1px rgba(9, 30, 66, 0.12);
+}
+
+.majom-boards-cardback__checklist-popover-header {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 32px;
+  align-items: center;
+  padding: 12px 12px 8px;
+}
+
+.majom-boards-cardback__checklist-popover-title {
+  grid-column: 2;
+  margin: 0;
+  overflow: hidden;
+  color: var(--mb-muted, #44546f);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.majom-boards-cardback__checklist-popover-close {
+  grid-column: 3;
+  width: 32px;
+  height: 32px;
+  color: var(--mb-subtle, #626f86);
+}
+
+.majom-boards-cardback__checklist-popover-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px 16px;
+}
+
+.majom-boards-cardback__checklist-popover-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--mb-muted, #44546f);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+}
+
+.majom-boards-cardback__checklist-popover-input {
+  width: 100%;
+  font-size: 16px;
+}
+
+.majom-boards-cardback__checklist-popover-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.majom-boards-cardback__checklist-popover-submit {
+  min-width: 94px;
+  min-height: 40px;
+  border-radius: 6px;
+  background: #0c66e4;
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.majom-boards-cardback__checklist-popover-submit:hover:not(:disabled) {
+  background: #0055cc;
+  color: #ffffff;
+}
+
+.majom-boards-cardback__checklists-host {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.majom-boards-cardback__checklists-host[hidden] {
+  display: none;
+}
+
+.majom-boards-cardback__checklists-message {
+  color: var(--mb-muted, #44546f);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.majom-boards-cardback__checklists-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.majom-boards-cardback__checklist {
+  grid-template-columns: 24px minmax(0, 1fr);
+  row-gap: 8px;
+  padding-top: 12px;
+  padding-bottom: 18px;
+}
+
+.majom-boards-cardback__checklist > .majom-boards-cardback__section-icon {
+  color: var(--mb-text, #172b4d);
+}
+
+.majom-boards-cardback__checklist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.majom-boards-cardback__checklist-title {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--mb-text, #172b4d);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+}
+
+.majom-boards-cardback__checklist-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.majom-boards-cardback__checklist-action-button {
+  min-height: 40px;
+  border-radius: 8px;
+  color: var(--mb-muted, #44546f);
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(9, 30, 66, 0.14);
+}
+
+.majom-boards-cardback__checklist-action-button:hover:not(:disabled) {
+  color: var(--mb-text, #172b4d);
+  background: #f7f8f9;
+}
+
+.majom-boards-cardback__checklist-progress-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 12px;
+}
+
+.majom-boards-cardback__checklist-progress {
+  color: var(--mb-muted, #44546f);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.majom-boards-cardback__checkitem-menu-trigger {
+  position: absolute;
+  right: 2px;
+  width: 28px;
+  height: 28px;
+  color: var(--mb-subtle, #626f86);
+  opacity: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.majom-boards-cardback__checkitem:hover .majom-boards-cardback__checkitem-menu-trigger,
+.majom-boards-cardback__checkitem:focus-within .majom-boards-cardback__checkitem-menu-trigger,
+.majom-boards-cardback__checkitem-menu-trigger[aria-expanded='true'] {
+  opacity: 1;
+}
+
+.majom-boards-cardback__checkitem-menu-trigger:hover,
+.majom-boards-cardback__checkitem-menu-trigger[aria-expanded='true'] {
+  color: var(--mb-text, #172b4d);
+  background: #f1f2f4;
+}
+
+.majom-boards-cardback__checkitem-menu {
+  width: min(220px, calc(100vw - 24px));
+  overflow: hidden;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow:
+    0 8px 18px rgba(9, 30, 66, 0.18),
+    0 0 0 1px rgba(9, 30, 66, 0.12);
+}
+
+.majom-boards-cardback__checkitem-menu-list {
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+}
+
+.majom-boards-cardback__checkitem-menu-item {
+  margin: 0;
+}
+
+.majom-boards-cardback__checkitem-menu-button {
+  width: 100%;
+  min-height: 34px;
+  justify-content: flex-start;
+  border-radius: 0;
+  color: var(--mb-text, #172b4d);
+  background: transparent;
+  box-shadow: none;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.majom-boards-cardback__checkitem-menu-button:hover:not(:disabled) {
+  color: #ae2e24;
+  background: #fbeae5;
+}
+
+.majom-boards-cardback__checklist-progress-track {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dfe1e6;
+}
+
+.majom-boards-cardback__checklist-progress-bar {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #30313a;
+  transition: width 150ms ease;
+}
+
+.majom-boards-cardback__checkitem-list {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.majom-boards-cardback__checkitem {
+  display: grid;
+  position: relative;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 12px;
+  min-height: 32px;
+}
+
+.majom-boards-cardback__checkitem-checkbox {
+  width: 24px;
+  height: 32px;
+}
+
+.majom-boards-cardback__checkitem-title {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 38px 6px 8px;
+  overflow-wrap: anywhere;
+  color: var(--mb-text, #172b4d);
+  background: transparent;
+  font-size: 14px;
+  line-height: 20px;
+  text-align: left;
+  cursor: text;
+}
+
+.majom-boards-cardback__checkitem-title:hover,
+.majom-boards-cardback__checkitem-title:focus-visible {
+  background: #f1f2f4;
+  outline: none;
+}
+
+.majom-boards-cardback__checkitem-title.is-complete {
+  color: var(--mb-subtle, #626f86);
+  text-decoration: line-through;
+}
+
+.majom-boards-cardback__checkitem-title-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 38px 6px 8px;
+  color: var(--mb-text, #172b4d);
+  background: #ffffff;
+  box-shadow: inset 0 0 0 2px var(--mb-blue, #0c66e4);
+  font: inherit;
+  font-size: 16px;
+  line-height: 20px;
+}
+
+.majom-boards-cardback__checkitem-title-input:focus {
+  outline: none;
+}
+
+.majom-boards-cardback__checkitem-collapsed-composer {
+  grid-column: 2;
+  align-self: flex-start;
+  justify-self: start;
+  min-height: 40px;
+  border-radius: 8px;
+  color: var(--mb-muted, #44546f);
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(9, 30, 66, 0.14);
+}
+
+.majom-boards-cardback__checkitem-composer {
+  display: flex;
+  grid-column: 2;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.majom-boards-cardback__checkitem-composer-input {
+  width: 100%;
+  min-height: 40px;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--mb-text, #172b4d);
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(9, 30, 66, 0.34);
+  font: inherit;
+  min-width: 0;
+  font-size: 16px;
+  line-height: 20px;
+}
+
+.majom-boards-cardback__checkitem-composer-input:focus-visible {
+  outline: 2px solid rgba(12, 102, 228, 0.36);
+  outline-offset: 2px;
+}
+
+.majom-boards-cardback__checkitem-composer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.majom-boards-cardback__checkitem-composer-primary-actions,
+.majom-boards-cardback__checkitem-composer-meta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.majom-boards-cardback__checkitem-meta-button {
+  gap: 6px;
+  color: var(--mb-muted, #44546f);
+  background: transparent;
+  box-shadow: none;
 }
 
 .majom-boards-cardback__description-editor {

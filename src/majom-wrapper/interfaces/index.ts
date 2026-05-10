@@ -38,10 +38,57 @@ export interface Card {
   column: BoardColumn['id'];
   tags?: Tag[];
   tag_ids?: number[];
+  checklist_summary?: CardChecklistSummary | null;
+  entity_links?: CardEntityLink[];
   mirror_source?: CardMirrorSource | null;
   version?: number;
+  completedAt?: Date | null;
   created_at?: string;
   updated_at?: string;
+}
+
+export type CardChecklistSummary = {
+  total: number;
+  completed: number;
+};
+
+export type CardCheckItemState = 'complete' | 'incomplete';
+
+export interface CardCheckItem {
+  id: BoardEntityId;
+  checklist: BoardEntityId;
+  title: string;
+  state: CardCheckItemState;
+  pos?: string | number | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CardChecklist {
+  id: BoardEntityId;
+  card: Card['id'];
+  title: string;
+  pos?: string | number | null;
+  items: CardCheckItem[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type CardEntityLinkType = 'task' | 'story' | 'goal';
+
+export type CardEntityLinkSummary = {
+  id: BoardEntityId;
+  title: string;
+  status?: string | null;
+};
+
+export interface CardEntityLink {
+  id: BoardEntityId;
+  card: Card['id'];
+  entity_type: CardEntityLinkType;
+  entity_id: BoardEntityId;
+  entity?: CardEntityLinkSummary | null;
+  created_at?: string;
 }
 
 export interface CardPlacement {
@@ -179,6 +226,7 @@ export interface Milestone {
 export interface Flow {
   readonly id: number;
   title: string;
+  status: Status;
   tasks: PlatformTask[];
 }
 

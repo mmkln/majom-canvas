@@ -5,6 +5,7 @@ import {
   getModalActionButtonClass,
 } from '../../../ui-lib/src/components/Modal.ts';
 import { createPaneModalShell } from '../../../ui-lib/src/components/PaneModal.ts';
+import { Checkbox } from '../../../ui-lib/src/components/Checkbox.ts';
 import {
   TagPickerField,
   type TagPickerItem,
@@ -13,6 +14,11 @@ import type {
   Board,
   BoardColumn,
   Card,
+  CardCheckItem,
+  CardChecklist,
+  CardChecklistSummary,
+  CardEntityLink,
+  CardEntityLinkType,
   CardPlacement,
   Tag,
 } from '../../../majom-wrapper/interfaces/index.ts';
@@ -30,7 +36,10 @@ import {
 } from '../../../ui-lib/src/hud/index.ts';
 import { createIcon, type IconName } from '../../../ui-lib/src/hud/icons.ts';
 import type {
+  BoardCardPatch,
   BoardCardPlacementTarget,
+  BoardEntityCatalogPort,
+  BoardEntityLinkSearchItem,
   BoardTagCatalogPort,
   BoardsIntentHandlers,
   BoardsState,
@@ -57,10 +66,12 @@ import {
   boardsViewClassNames,
   installBoardsViewStyles,
 } from './boardsViewStyles.ts';
+import { notify } from '../../../ui-lib/src/services/NotificationService.ts';
 
 type BoardsViewOptions = {
   runtime?: AppRuntime;
   tagCatalog?: BoardTagCatalogPort;
+  entityCatalog?: BoardEntityCatalogPort;
   handlers: BoardsIntentHandlers;
 };
 
@@ -100,6 +111,34 @@ type CardLabelsPopoverController = {
   trigger: HTMLButtonElement;
 };
 
+type CardChecklistPopoverController = {
+  menu: AnchoredMenu;
+  panel: HTMLElement;
+  trigger: HTMLButtonElement;
+};
+
+type CardCheckItemMenuPopoverController = {
+  itemId: CardCheckItem['id'];
+  menu: AnchoredMenu;
+  panel: HTMLElement;
+  trigger: HTMLButtonElement;
+};
+
+type CardEntityLinkMenuPopoverController = {
+  menu: AnchoredMenu;
+  panel: HTMLElement;
+  trigger: HTMLButtonElement;
+};
+
+type CardChecklistPanelStatus = 'idle' | 'loading' | 'ready' | 'saving' | 'error';
+
+type CardChecklistPanelState = {
+  cardId: Card['id'];
+  status: CardChecklistPanelStatus;
+  checklists: CardChecklist[];
+  error: string | null;
+};
+
 type BoardPickerPopoverController = {
   menu: AnchoredMenu;
   panel: HTMLElement;
@@ -126,6 +165,8 @@ type PlacementTargetSelection = BoardCardPlacementTarget & {
 };
 
 type TagCatalogStatus = 'idle' | 'loading' | 'ready' | 'error';
+type CardEntityLinkPickerStatus = 'idle' | 'loading' | 'ready' | 'error';
+type CardFrontBadgeTone = 'plain' | 'neutral' | 'task' | 'story' | 'goal';
 type BoardPickerFilter = 'all' | 'starred' | 'recent';
 type BoardPickerSectionId = string;
 type BoardPickerViewState = {
@@ -162,6 +203,10 @@ const QUICK_CARD_EDITOR_GEOMETRY = {
 
 function isMirrorCard(card: Card): boolean {
   return card.mirror_source != null;
+}
+
+function isCardCompleted(card: Card): boolean {
+  return card.completedAt != null;
 }
 
 function prependButtonIcon(button: HTMLButtonElement, icon: IconName): void {
@@ -238,9 +283,58 @@ function getCardLabelTextColor(color: string): string {
   return luminance > 0.58 ? '#172b4d' : '#ffffff';
 }
 
+function getCardChecklistSummary(card: Card): CardChecklistSummary {
+  const summary = card.checklist_summary;
+  const total = Number(summary?.total ?? 0);
+  const completed = Number(summary?.completed ?? 0);
+  return {
+    total: Number.isFinite(total) ? total : 0,
+    completed: Number.isFinite(completed) ? completed : 0,
+  };
+}
+
+function getCardEntityLinks(card: Card): CardEntityLink[] {
+  return card.entity_links ?? [];
+}
+
+function countCardEntityLinksByType(
+  card: Card
+): Record<CardEntityLinkType, number> {
+  return getCardEntityLinks(card).reduce<Record<CardEntityLinkType, number>>(
+    (counts, link) => {
+      counts[link.entity_type] += 1;
+      return counts;
+    },
+    { task: 0, story: 0, goal: 0 }
+  );
+}
+
+function getCardEntityIcon(entityType: CardEntityLinkType): IconName {
+  if (entityType === 'task') return 'check-box';
+  if (entityType === 'story') return 'bookmark';
+  return 'goal-circle';
+}
+
+function getCardEntityTypeLabelKey(entityType: CardEntityLinkType): string {
+  if (entityType === 'task') return 'boards.cardLinks.task';
+  if (entityType === 'story') return 'boards.cardLinks.story';
+  return 'boards.cardLinks.goal';
+}
+
+function getCreateCardEntityLabelKey(entityType: CardEntityLinkType): string {
+  if (entityType === 'task') return 'boards.cardLinks.createTask';
+  if (entityType === 'story') return 'boards.cardLinks.createStory';
+  return 'boards.cardLinks.createGoal';
+}
+
+function getCardEntityLinkTitle(link: CardEntityLink): string {
+  return link.entity?.title?.trim() || link.entity_id;
+}
+
 export class BoardsView {
   private readonly runtime: AppRuntime;
   private readonly tagCatalog: BoardTagCatalogPort | null;
+  private readonly entityCatalog: BoardEntityCatalogPort | null;
   private readonly handlers: BoardsIntentHandlers;
   private readonly disposeRuntimeSubscription: () => void;
   private state: BoardsState | null = null;
@@ -260,12 +354,23 @@ export class BoardsView {
   private listActionsPopover: ListActionsPopoverController | null = null;
   private cardActionsPopover: CardActionsPopoverController | null = null;
   private cardLabelsPopover: CardLabelsPopoverController | null = null;
+  private cardChecklistPopover: CardChecklistPopoverController | null = null;
+  private cardCheckItemMenuPopover: CardCheckItemMenuPopoverController | null =
+    null;
+  private cardEntityLinkMenuPopover: CardEntityLinkMenuPopoverController | null =
+    null;
   private cardModalDraftTagIds: number[] | null = null;
   private cardModalRequestedTagIds: number[] | null = null;
   private cardModalLabelsHost: HTMLDivElement | null = null;
   private cardModalQuickActionList: HTMLUListElement | null = null;
+  private cardModalChecklistHost: HTMLDivElement | null = null;
+  private cardChecklistPanelState: CardChecklistPanelState | null = null;
+  private cardChecklistLoadVersion = 0;
+  private readonly hiddenCheckedChecklistIds = new Set<CardChecklist['id']>();
+  private readonly expandedCheckItemComposerIds = new Set<CardChecklist['id']>();
   private tagItems: TagPickerItem[] = [];
   private tagCatalogStatus: TagCatalogStatus = 'idle';
+  private lastNotifiedErrorKey: string | null = null;
   private readonly dragController: BoardDragController;
   private readonly columnDragController: BoardColumnDragController;
   private readonly cardDrafts = new Map<BoardColumn['id'], CardDraft>();
@@ -277,6 +382,7 @@ export class BoardsView {
     installBoardsViewStyles();
     this.runtime = options.runtime ?? createAppRuntime();
     this.tagCatalog = options.tagCatalog ?? null;
+    this.entityCatalog = options.entityCatalog ?? null;
     this.handlers = options.handlers;
     this.dragController = new BoardDragController({
       root: this.root,
@@ -311,6 +417,7 @@ export class BoardsView {
         }
       : null;
     this.state = state;
+    this.notifyStateError(state.error);
     this.ensureTagCatalogLoaded();
     this.dragController.cancelDrag();
     this.columnDragController.cancelDrag();
@@ -320,6 +427,9 @@ export class BoardsView {
     this.closeListActionsPopover();
     this.closeCardActionsPopover();
     this.closeMoveCardPopover();
+    this.closeCardChecklistPopover();
+    this.closeCardCheckItemMenuPopover();
+    this.closeCardEntityLinkMenuPopover();
     this.closeQuickCardEditor();
     this.root.replaceChildren(this.renderShell(state));
     this.syncCardModal(state);
@@ -342,6 +452,9 @@ export class BoardsView {
     this.unmountHeaderMenu();
     this.closeBoardPickerPopover();
     this.closeCardLabelsPopover();
+    this.closeCardChecklistPopover();
+    this.closeCardCheckItemMenuPopover();
+    this.closeCardEntityLinkMenuPopover();
     this.closeListActionsPopover();
     this.closeCardActionsPopover();
     this.closeMoveCardPopover();
@@ -349,6 +462,16 @@ export class BoardsView {
     this.closeCardModal();
     this.cardDrafts.clear();
     this.root.replaceChildren();
+  }
+
+  private notifyStateError(messageKey: string | null): void {
+    if (!messageKey) {
+      this.lastNotifiedErrorKey = null;
+      return;
+    }
+    if (messageKey === this.lastNotifiedErrorKey) return;
+    this.lastNotifiedErrorKey = messageKey;
+    notify(this.runtime.i18n.t(messageKey), 'error');
   }
 
   private refreshFromRuntime(): void {
@@ -361,6 +484,9 @@ export class BoardsView {
     this.closeListActionsPopover();
     this.closeCardActionsPopover();
     this.closeCardLabelsPopover();
+    this.closeCardChecklistPopover();
+    this.closeCardCheckItemMenuPopover();
+    this.closeCardEntityLinkMenuPopover();
     this.closeMoveCardPopover();
     this.closeQuickCardEditor();
   }
@@ -392,9 +518,6 @@ export class BoardsView {
     const shell = document.createElement('section');
     shell.className = boardsViewClassNames.shell;
     shell.append(this.renderHeader(state));
-    if (state.error) {
-      shell.append(this.renderError(state.error));
-    }
 
     if (state.status === 'loading' && state.boards.length === 0) {
       shell.append(this.renderMessage(this.runtime.i18n.t('boards.loading')));
@@ -1494,10 +1617,14 @@ export class BoardsView {
 
   private renderCard(card: Card): HTMLElement {
     const placementId = getCardPlacementId(card);
+    const isCompleted = isCardCompleted(card);
     const article = document.createElement('article');
-    article.className = isMirrorCard(card)
-      ? `${boardsViewClassNames.card} ${boardsViewClassNames.cardMirror}`
+    const baseCardClass = isCompleted
+      ? boardsViewClassNames.cardCompleted
       : boardsViewClassNames.card;
+    article.className = isMirrorCard(card)
+      ? `${baseCardClass} ${boardsViewClassNames.cardMirror}`
+      : baseCardClass;
     article.dataset.boardCardId = String(card.id);
     article.dataset.boardCardPlacementId = String(placementId);
     article.dataset.boardCardDraggable = 'true';
@@ -1520,6 +1647,12 @@ export class BoardsView {
     const title = document.createElement('h3');
     title.className = boardsViewClassNames.cardTitle;
     title.textContent = card.title;
+    const completeToggle = this.createCardCompletionToggle(card, {
+      className: isCompleted
+        ? boardsViewClassNames.cardCompleteToggleCompleted
+        : boardsViewClassNames.cardCompleteToggle,
+      testId: 'board-card-completion-toggle',
+    });
     const sourceLabel = this.renderCardMirrorSourceLabel(
       card,
       boardsViewClassNames.cardSourceLabel
@@ -1534,8 +1667,54 @@ export class BoardsView {
       openButton.append(badges);
     }
 
-    article.append(openButton);
+    article.append(completeToggle, openButton);
     return article;
+  }
+
+  private createCardCompletionToggle(
+    card: Card,
+    options: { className: string; testId: string }
+  ): HTMLButtonElement {
+    const isCompleted = isCardCompleted(card);
+    const label = this.runtime.i18n.t(
+      isCompleted
+        ? 'boards.cardBack.markIncomplete'
+        : 'boards.cardBack.markComplete',
+      { title: card.title }
+    );
+    const hint = this.runtime.i18n.t(
+      isCompleted
+        ? 'boards.cardBack.markIncompleteHint'
+        : 'boards.cardBack.markCompleteHint'
+    );
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = options.className;
+    button.title = hint;
+    button.dataset.testid = options.testId;
+    button.dataset.boardDragIgnore = 'true';
+    button.setAttribute('aria-label', label);
+    button.setAttribute('aria-pressed', isCompleted ? 'true' : 'false');
+    const mark = document.createElement('span');
+    mark.className = 'majom-boards__completion-mark';
+    mark.setAttribute('aria-hidden', 'true');
+    button.append(mark);
+    button.addEventListener('pointerdown', (event) => {
+      event.stopPropagation();
+    });
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.toggleCardCompletion(card);
+    });
+    return button;
+  }
+
+  private toggleCardCompletion(card: Card): void {
+    const patch: BoardCardPatch = {
+      completedAt: isCardCompleted(card) ? null : new Date(),
+    };
+    this.handlers.onPatchCard(card.id, patch);
   }
 
   private renderCardFrontTags(card: Card): HTMLElement | null {
@@ -1568,7 +1747,9 @@ export class BoardsView {
       badges.append(
         this.createCardFrontBadge(
           'bars-3-bottom-left',
-          this.runtime.i18n.t('boards.cardDescriptionLabel')
+          this.runtime.i18n.t('boards.cardDescriptionLabel'),
+          undefined,
+          'plain'
         )
       );
     }
@@ -1579,10 +1760,58 @@ export class BoardsView {
         this.createCardFrontBadge(
           'chat-bubble-bottom-center-text',
           this.runtime.i18n.t('boards.cardBack.comments'),
-          String(commentCount)
+          String(commentCount),
+          'neutral'
         )
       );
     }
+
+    const checklistSummary = getCardChecklistSummary(card);
+    if (checklistSummary.total > 0) {
+      badges.append(
+        this.createCardFrontBadge(
+          'check-box',
+          this.runtime.i18n.t('boards.cardBack.checklist'),
+          `${checklistSummary.completed}/${checklistSummary.total}`,
+          'neutral'
+        )
+      );
+    }
+
+    const entityLinkCounts = countCardEntityLinksByType(card);
+    const entityBadgeSpecs: Array<{
+      type: CardEntityLinkType;
+      tone: CardFrontBadgeTone;
+      labelKey: string;
+    }> = [
+      {
+        type: 'goal',
+        tone: 'goal',
+        labelKey: 'boards.cardLinks.goalBadge',
+      },
+      {
+        type: 'story',
+        tone: 'story',
+        labelKey: 'boards.cardLinks.storyBadge',
+      },
+      {
+        type: 'task',
+        tone: 'task',
+        labelKey: 'boards.cardLinks.taskBadge',
+      },
+    ];
+    entityBadgeSpecs.forEach((spec) => {
+      const count = entityLinkCounts[spec.type];
+      if (count <= 0) return;
+      badges.append(
+        this.createCardFrontBadge(
+          getCardEntityIcon(spec.type),
+          this.runtime.i18n.t(spec.labelKey),
+          String(count),
+          spec.tone
+        )
+      );
+    });
 
     return badges.childElementCount > 0 ? badges : null;
   }
@@ -1614,10 +1843,18 @@ export class BoardsView {
   private createCardFrontBadge(
     icon: IconName,
     label: string,
-    text?: string
+    text?: string,
+    tone: CardFrontBadgeTone = 'neutral'
   ): HTMLElement {
     const badge = document.createElement('span');
-    badge.className = boardsViewClassNames.cardBadge;
+    const badgeClassNames: Record<CardFrontBadgeTone, string> = {
+      plain: boardsViewClassNames.cardBadgePlain,
+      neutral: boardsViewClassNames.cardBadgeNeutral,
+      task: boardsViewClassNames.cardBadgeTask,
+      story: boardsViewClassNames.cardBadgeStory,
+      goal: boardsViewClassNames.cardBadgeGoal,
+    };
+    badge.className = badgeClassNames[tone];
     badge.title = label;
     badge.setAttribute('aria-label', text ? `${label}: ${text}` : label);
     const badgeIcon = createIcon(icon, { size: 16, strokeWidth: 2 });
@@ -1815,13 +2052,6 @@ export class BoardsView {
     label.textContent = message;
     wrapper.append(label);
     return wrapper;
-  }
-
-  private renderError(messageKey: string): HTMLElement {
-    const banner = document.createElement('div');
-    banner.className = boardsViewClassNames.error;
-    banner.textContent = this.runtime.i18n.t(messageKey);
-    return banner;
   }
 
   private openQuickCardEditor(
@@ -2095,7 +2325,16 @@ export class BoardsView {
     this.activeCardPlacementId = placementId;
     this.cardModalDraftTagIds = getBoardCardTagIds(location.card);
     this.cardModalRequestedTagIds = [...this.cardModalDraftTagIds];
+    this.hiddenCheckedChecklistIds.clear();
+    this.expandedCheckItemComposerIds.clear();
+    this.cardChecklistPanelState = {
+      cardId: location.card.id,
+      status: 'idle',
+      checklists: [],
+      error: null,
+    };
     this.renderCardModal(location);
+    void this.loadCardModalChecklists(location.card.id);
   }
 
   private syncCardModal(state: BoardsState): void {
@@ -2110,11 +2349,15 @@ export class BoardsView {
 
   private renderCardModal(location: CardLocation): void {
     this.closeCardLabelsPopover();
+    this.closeCardChecklistPopover();
+    this.closeCardCheckItemMenuPopover();
+    this.closeCardEntityLinkMenuPopover();
     this.closeMoveCardPopover();
     this.cardModalOverlay?.remove();
     this.cardModalOverlay = null;
     this.cardModalLabelsHost = null;
     this.cardModalQuickActionList = null;
+    this.cardModalChecklistHost = null;
 
     const { board, column, card } = location;
     if (this.cardModalDraftTagIds === null) {
@@ -2305,6 +2548,33 @@ export class BoardsView {
           this.closeCardActionsPopover();
           this.openMoveCardPopover(trigger, board, column, card, 'mirror');
         },
+      }),
+      this.renderCardActionItem({
+        testId: 'card-back-link-entity-button',
+        labelKey: 'boards.cardLinks.link',
+        icon: 'link',
+        onClick: () => {
+          this.closeCardActionsPopover();
+          this.openCardEntityLinkModal(card);
+        },
+      }),
+      this.renderCardActionItem({
+        testId: 'card-back-create-task-button',
+        labelKey: 'boards.cardLinks.createTask',
+        icon: 'check-box',
+        onClick: () => void this.createEntityFromCard(card, 'task'),
+      }),
+      this.renderCardActionItem({
+        testId: 'card-back-create-story-button',
+        labelKey: 'boards.cardLinks.createStory',
+        icon: 'document',
+        onClick: () => void this.createEntityFromCard(card, 'story'),
+      }),
+      this.renderCardActionItem({
+        testId: 'card-back-create-goal-button',
+        labelKey: 'boards.cardLinks.createGoal',
+        icon: 'goal-circle',
+        onClick: () => void this.createEntityFromCard(card, 'goal'),
       }),
       this.renderCardActionsDivider(),
       this.renderCardActionItem({
@@ -2720,7 +2990,9 @@ export class BoardsView {
       this.renderCardBackTitleSection(card, titleInput),
       this.renderCardBackQuickActions(card),
       this.renderCardBackLabelsHost(card),
+      ...this.renderCardBackEntityLinksSection(card),
       this.renderCardBackDescriptionSection(card, titleInput, description),
+      this.renderCardBackChecklistsSection(card),
       this.renderCardBackAttachmentsSection()
     );
 
@@ -2739,17 +3011,12 @@ export class BoardsView {
 
     const iconWrap = document.createElement('div');
     iconWrap.className = boardsModalClassNames.sectionIcon;
-    const doneButton = document.createElement('button');
-    doneButton.type = 'button';
-    doneButton.className = boardsModalClassNames.doneButton;
-    doneButton.setAttribute(
-      'aria-label',
-      this.runtime.i18n.t('boards.cardBack.markComplete', {
-        title: card.title,
-      })
-    );
-    doneButton.disabled = true;
-    doneButton.append(createIcon('check-circle', { size: 20, strokeWidth: 2 }));
+    const doneButton = this.createCardCompletionToggle(card, {
+      className: isCardCompleted(card)
+        ? boardsModalClassNames.doneButtonCompleted
+        : boardsModalClassNames.doneButton,
+      testId: 'card-back-completion-toggle',
+    });
     iconWrap.append(doneButton);
 
     const main = document.createElement('div');
@@ -2807,13 +3074,32 @@ export class BoardsView {
       });
     }
     actionItems.push(
+      {
+        labelKey: 'boards.cardLinks.link',
+        icon: 'link',
+        onClick: () => this.openCardEntityLinkModal(card),
+      },
+      {
+        labelKey: 'boards.cardLinks.createTask',
+        icon: 'check-box',
+        onClick: () => void this.createEntityFromCard(card, 'task'),
+      },
+      {
+        labelKey: 'boards.cardLinks.createStory',
+        icon: 'document',
+        onClick: () => void this.createEntityFromCard(card, 'story'),
+      },
+      {
+        labelKey: 'boards.cardLinks.createGoal',
+        icon: 'goal-circle',
+        onClick: () => void this.createEntityFromCard(card, 'goal'),
+      },
       { labelKey: 'boards.cardBack.dates', icon: 'calendar', disabled: true },
       {
         labelKey: 'boards.cardBack.checklist',
         icon: 'check-box',
-        disabled: true,
-      },
-      { labelKey: 'boards.cardBack.members', icon: 'plus', disabled: true }
+        onClick: (button) => this.openCardChecklistPopover(button, card),
+      }
     );
 
     actionItems.forEach((action) => {
@@ -3044,6 +3330,98 @@ export class BoardsView {
     window.requestAnimationFrame(() => picker.focusSearch());
   }
 
+  private openCardChecklistPopover(
+    trigger: HTMLButtonElement,
+    card: Card
+  ): void {
+    this.closeCardChecklistPopover();
+
+    const panel = createSurface({
+      elevated: true,
+      className: `${boardsModalClassNames.checklistPopover} hidden`,
+    });
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'false');
+    panel.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('boards.cardBack.addChecklist')
+    );
+    panel.setAttribute('data-testid', 'card-back-checklist-popover');
+    panel.addEventListener('mousedown', (event) => event.stopPropagation());
+
+    const header = document.createElement('header');
+    header.className = boardsModalClassNames.checklistPopoverHeader;
+    const title = document.createElement('h3');
+    title.className = boardsModalClassNames.checklistPopoverTitle;
+    title.textContent = this.runtime.i18n.t('boards.cardBack.addChecklist');
+    const closeButton = createIconButton({
+      icon: 'x-mark',
+      tone: 'text',
+      size: 'sm',
+      className: boardsModalClassNames.checklistPopoverClose,
+      ariaLabel: this.runtime.i18n.t('common.close'),
+      title: this.runtime.i18n.t('common.close'),
+      onClick: () => this.closeCardChecklistPopover(),
+    });
+    header.append(title, closeButton);
+
+    const form = document.createElement('form');
+    form.className = boardsModalClassNames.checklistPopoverForm;
+    const label = document.createElement('label');
+    label.className = boardsModalClassNames.checklistPopoverLabel;
+    label.textContent = this.runtime.i18n.t('boards.cardBack.checklistTitle');
+    const input = createInputBase({
+      variant: 'default',
+      value: this.runtime.i18n.t('boards.cardBack.defaultChecklistTitle'),
+      className: boardsModalClassNames.checklistPopoverInput,
+    });
+    label.append(input);
+    const actions = document.createElement('div');
+    actions.className = boardsModalClassNames.checklistPopoverActions;
+    const submit = createTextButton({
+      text: this.runtime.i18n.t('boards.cardBack.add'),
+      tone: 'primary',
+      size: 'md',
+      className: boardsModalClassNames.checklistPopoverSubmit,
+    });
+    submit.type = 'submit';
+    actions.append(submit);
+    form.append(label, actions);
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      void this.createCardModalChecklist(card, input.value);
+    });
+    panel.append(header, form);
+
+    let menu!: AnchoredMenu;
+    menu = new AnchoredMenu({
+      container: trigger,
+      panel,
+      positioning: 'viewport',
+      panelZIndex: 310,
+      onOpenChange: (open) => {
+        trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (!open && this.cardChecklistPopover?.menu === menu) {
+          this.closeCardChecklistPopover();
+        }
+      },
+    });
+    menu.mount();
+    this.cardChecklistPopover = { menu, panel, trigger };
+    menu.openAt({
+      anchor: trigger,
+      placement: 'bottom-start',
+      fallbackPlacements: ['bottom-end', 'top-start', 'top-end'],
+      gap: 8,
+      margin: 12,
+      lockPlacementAfterOpen: true,
+    });
+    window.requestAnimationFrame(() => {
+      input.focus();
+      input.select();
+    });
+  }
+
   private async createTagFromCardBack(
     title: string,
     color?: string
@@ -3097,6 +3475,1070 @@ export class BoardsView {
       return;
     }
     this.tagItems = [...this.tagItems, item];
+  }
+
+  private renderCardBackEntityLinksSection(card: Card): HTMLElement[] {
+    const links = getCardEntityLinks(card);
+    if (links.length === 0) return [];
+
+    const section = this.createCardBackSection(
+      'link',
+      this.runtime.i18n.t('boards.cardLinks.title')
+    );
+    const main = section.querySelector<HTMLElement>(
+      `.${boardsModalClassNames.sectionMain}`
+    );
+    const header = section.querySelector<HTMLElement>(
+      `.${boardsModalClassNames.sectionHeader}`
+    );
+    if (!main || !header) return [section];
+
+    const actions = document.createElement('div');
+    actions.className = boardsModalClassNames.sectionActions;
+    actions.append(
+      createTextButton({
+        text: this.runtime.i18n.t('boards.cardLinks.link'),
+        tone: 'text',
+        size: 'md',
+        className: boardsViewClassNames.quietButton,
+        onClick: () => this.openCardEntityLinkModal(card),
+      })
+    );
+    header.append(actions);
+
+    const host = document.createElement('div');
+    host.className = boardsModalClassNames.entityLinksHost;
+    host.setAttribute('data-testid', 'card-entity-links');
+
+    const list = document.createElement('ul');
+    list.className = boardsModalClassNames.entityLinksList;
+    links.forEach((link) => {
+      list.append(this.renderCardEntityLinkItem(card, link));
+    });
+    host.append(list);
+
+    main.append(host);
+    return [section];
+  }
+
+  private renderCardEntityLinkItem(
+    card: Card,
+    link: CardEntityLink
+  ): HTMLLIElement {
+    const item = document.createElement('li');
+    item.className = boardsModalClassNames.entityLinkItem;
+
+    const icon = document.createElement('span');
+    icon.className = boardsModalClassNames.entityLinkIcon;
+    icon.append(createIcon(getCardEntityIcon(link.entity_type), { size: 16 }));
+
+    const content = document.createElement('span');
+    content.className = boardsModalClassNames.entityLinkContent;
+    const title = document.createElement('span');
+    title.className = boardsModalClassNames.entityLinkTitle;
+    title.textContent = getCardEntityLinkTitle(link);
+    const meta = document.createElement('span');
+    meta.className = boardsModalClassNames.entityLinkMeta;
+    const typeLabel = this.runtime.i18n.t(
+      getCardEntityTypeLabelKey(link.entity_type)
+    );
+    meta.textContent = link.entity?.status
+      ? `${typeLabel} - ${link.entity.status}`
+      : typeLabel;
+    content.append(title, meta);
+
+    const menuButton = createIconButton({
+      icon: 'ellipsis-vertical',
+      tone: 'text',
+      size: 'sm',
+      className: boardsModalClassNames.entityLinkMenuTriggerButton,
+      ariaLabel: this.runtime.i18n.t('boards.cardLinks.actions', {
+        title: getCardEntityLinkTitle(link),
+      }),
+      title: this.runtime.i18n.t('boards.cardBack.actions'),
+    });
+    menuButton.setAttribute('aria-haspopup', 'dialog');
+    menuButton.setAttribute('aria-expanded', 'false');
+    menuButton.setAttribute('data-testid', 'card-entity-link-menu-button');
+    menuButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (this.cardEntityLinkMenuPopover?.trigger === menuButton) {
+        this.closeCardEntityLinkMenuPopover();
+        return;
+      }
+      this.openCardEntityLinkMenuPopover(menuButton, card, link);
+    });
+
+    item.append(icon, content, menuButton);
+    return item;
+  }
+
+  private openCardEntityLinkMenuPopover(
+    trigger: HTMLButtonElement,
+    card: Card,
+    link: CardEntityLink
+  ): void {
+    this.closeCardEntityLinkMenuPopover();
+
+    const panel = createSurface({
+      elevated: true,
+      className: `${boardsModalClassNames.entityLinkMenuPopover} hidden`,
+    });
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'false');
+    panel.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('boards.cardLinks.actions', {
+        title: getCardEntityLinkTitle(link),
+      })
+    );
+    panel.setAttribute('data-testid', 'card-entity-link-menu-popover');
+    panel.addEventListener('mousedown', (event) => event.stopPropagation());
+
+    const list = document.createElement('ul');
+    list.className = boardsModalClassNames.entityLinkMenuList;
+    list.append(
+      this.renderCardEntityLinkMenuItem({
+        labelKey: 'boards.cardLinks.openAction',
+        ariaLabel: this.runtime.i18n.t('boards.cardLinks.open', {
+          title: getCardEntityLinkTitle(link),
+        }),
+        icon: 'arrow-right',
+        onClick: () => {
+          this.closeCardEntityLinkMenuPopover();
+          this.openLinkedEntity(link);
+        },
+      }),
+      this.renderCardEntityLinkMenuItem({
+        labelKey: 'boards.cardLinks.unlinkAction',
+        ariaLabel: this.runtime.i18n.t('boards.cardLinks.unlink', {
+          title: getCardEntityLinkTitle(link),
+        }),
+        icon: 'link-slash',
+        onClick: () => {
+          this.closeCardEntityLinkMenuPopover();
+          void this.unlinkCardEntity(card, link);
+        },
+      }),
+      this.renderCardEntityLinkMenuItem({
+        labelKey: 'boards.cardLinks.deleteEntity',
+        ariaLabel: this.runtime.i18n.t('boards.cardLinks.deleteEntityLabel', {
+          title: getCardEntityLinkTitle(link),
+        }),
+        icon: 'trash',
+        danger: true,
+        onClick: () => {
+          this.closeCardEntityLinkMenuPopover();
+          void this.deleteLinkedEntity(card, link);
+        },
+      })
+    );
+    panel.append(list);
+
+    let menu!: AnchoredMenu;
+    menu = new AnchoredMenu({
+      container: trigger,
+      panel,
+      positioning: 'viewport',
+      panelZIndex: 320,
+      onOpenChange: (open) => {
+        trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (!open && this.cardEntityLinkMenuPopover?.menu === menu) {
+          this.closeCardEntityLinkMenuPopover();
+        }
+      },
+    });
+    menu.mount();
+    this.cardEntityLinkMenuPopover = {
+      menu,
+      panel,
+      trigger,
+    };
+    menu.openAt({
+      anchor: trigger,
+      placement: 'bottom-end',
+      fallbackPlacements: ['bottom-start', 'top-end', 'top-start'],
+      gap: 4,
+      margin: 12,
+      lockPlacementAfterOpen: true,
+    });
+  }
+
+  private renderCardEntityLinkMenuItem(options: {
+    labelKey: string;
+    ariaLabel: string;
+    icon: IconName;
+    danger?: boolean;
+    onClick: () => void;
+  }): HTMLLIElement {
+    const item = document.createElement('li');
+    item.className = boardsModalClassNames.entityLinkMenuItem;
+    const button = createTextButton({
+      text: this.runtime.i18n.t(options.labelKey),
+      tone: 'text',
+      size: 'md',
+      className: options.danger
+        ? boardsModalClassNames.entityLinkMenuDangerButton
+        : boardsModalClassNames.entityLinkMenuButton,
+      onClick: options.onClick,
+    });
+    button.setAttribute('aria-label', options.ariaLabel);
+    prependButtonIcon(button, options.icon);
+    item.append(button);
+    return item;
+  }
+
+  private async unlinkCardEntity(
+    card: Card,
+    link: CardEntityLink
+  ): Promise<void> {
+    await Promise.resolve(this.handlers.onDeleteCardEntityLink(link.id));
+    await this.refreshOpenCardEntityLinks(card.id);
+  }
+
+  private async deleteLinkedEntity(
+    card: Card,
+    link: CardEntityLink
+  ): Promise<void> {
+    await Promise.resolve(this.handlers.onDeleteLinkedEntity(card, link));
+    await this.refreshOpenCardEntityLinks(card.id);
+  }
+
+  private async createEntityFromCard(
+    card: Card,
+    entityType: CardEntityLinkType
+  ): Promise<void> {
+    await Promise.resolve(
+      this.handlers.onCreateCardEntityFromCard(card, entityType)
+    );
+    await this.refreshOpenCardEntityLinks(card.id);
+  }
+
+  private async refreshOpenCardEntityLinks(cardId: Card['id']): Promise<void> {
+    const location =
+      this.activeCardPlacementId && this.state
+        ? this.findCardLocation(this.activeCardPlacementId, this.state)
+        : null;
+    if (!location || location.card.id !== cardId) return;
+    this.renderCardModal(location);
+  }
+
+  private openLinkedEntity(link: CardEntityLink): void {
+    window.dispatchEvent(
+      new CustomEvent('boardLinkedEntityOpenRequested', {
+        detail: {
+          entityType: link.entity_type,
+          entityId: link.entity_id,
+        },
+      })
+    );
+  }
+
+  private openCardEntityLinkModal(card: Card): void {
+    let modalOverlay: HTMLDivElement | null = null;
+    const { overlay, container, body } = createModalShell(
+      this.runtime.i18n.t('boards.cardLinks.linkToEntity'),
+      {
+        zIndex: 360,
+        onClose: () => modalOverlay?.remove(),
+      }
+    );
+    modalOverlay = overlay;
+    container.setAttribute('data-testid', 'card-entity-link-modal');
+
+    const form = document.createElement('div');
+    form.className = boardsModalClassNames.entityLinkPicker;
+
+    const typeField = document.createElement('label');
+    typeField.className = boardsModalClassNames.entityLinkPickerField;
+    const typeLabel = document.createElement('span');
+    typeLabel.className = boardsModalClassNames.moveLabel;
+    typeLabel.textContent = this.runtime.i18n.t('boards.cardLinks.selectType');
+    const typeSelect = document.createElement('select');
+    typeSelect.className = boardsModalClassNames.moveSelect;
+    const entityTypes: CardEntityLinkType[] = ['task', 'story', 'goal'];
+    entityTypes.forEach((entityType) => {
+      const option = document.createElement('option');
+      option.value = entityType;
+      option.textContent = this.runtime.i18n.t(
+        getCardEntityTypeLabelKey(entityType)
+      );
+      typeSelect.append(option);
+    });
+    typeField.append(typeLabel, typeSelect);
+
+    const searchField = document.createElement('label');
+    searchField.className = boardsModalClassNames.entityLinkPickerField;
+    const searchLabel = document.createElement('span');
+    searchLabel.className = boardsModalClassNames.moveLabel;
+    searchLabel.textContent = this.runtime.i18n.t('boards.cardLinks.search');
+    const searchInput = createInputBase({
+      variant: 'default',
+      className: boardsModalClassNames.entityLinkPickerInput,
+      placeholder: this.runtime.i18n.t('boards.cardLinks.searchPlaceholder'),
+      disabled: !this.entityCatalog,
+    });
+    searchField.append(searchLabel, searchInput);
+
+    const resultsHost = document.createElement('div');
+    resultsHost.className = boardsModalClassNames.entityLinkPickerResults;
+    resultsHost.setAttribute('data-testid', 'card-entity-link-results');
+
+    form.append(typeField, searchField, resultsHost);
+    body.append(form);
+    document.body.append(overlay);
+
+    let status: CardEntityLinkPickerStatus = this.entityCatalog
+      ? 'idle'
+      : 'error';
+    let results: BoardEntityLinkSearchItem[] = [];
+    let searchVersion = 0;
+    let searchTimer: number | null = null;
+
+    const renderResults = (): void => {
+      resultsHost.replaceChildren();
+      if (status === 'loading') {
+        resultsHost.append(
+          this.createEntityLinkPickerMessage(
+            this.runtime.i18n.t('boards.cardLinks.loading')
+          )
+        );
+        return;
+      }
+      if (status === 'error') {
+        resultsHost.append(
+          this.createEntityLinkPickerMessage(
+            this.runtime.i18n.t('boards.cardLinks.loadFailed')
+          )
+        );
+        return;
+      }
+      if (results.length === 0) {
+        resultsHost.append(
+          this.createEntityLinkPickerMessage(
+            this.runtime.i18n.t('boards.cardLinks.noResults')
+          )
+        );
+        return;
+      }
+
+      const linkedIds = new Set(
+        getCardEntityLinks(card).map(
+          (link) => `${link.entity_type}:${link.entity_id}`
+        )
+      );
+      const list = document.createElement('ul');
+      list.className = boardsModalClassNames.entityLinkPickerList;
+      const entityType = typeSelect.value as CardEntityLinkType;
+      results.forEach((result) => {
+        list.append(
+          this.renderEntityLinkPickerResult({
+            card,
+            entityType,
+            item: result,
+            disabled: linkedIds.has(`${entityType}:${result.id}`),
+            close: () => overlay.remove(),
+          })
+        );
+      });
+      resultsHost.append(list);
+    };
+
+    const runSearch = async (): Promise<void> => {
+      const version = ++searchVersion;
+      status = 'loading';
+      renderResults();
+      try {
+        results = await this.searchCardEntityCatalog(
+          typeSelect.value as CardEntityLinkType,
+          searchInput.value
+        );
+        if (version !== searchVersion) return;
+        status = 'ready';
+        renderResults();
+      } catch {
+        if (version !== searchVersion) return;
+        results = [];
+        status = 'error';
+        renderResults();
+      }
+    };
+
+    const scheduleSearch = (): void => {
+      if (searchTimer !== null) window.clearTimeout(searchTimer);
+      searchTimer = window.setTimeout(() => {
+        searchTimer = null;
+        void runSearch();
+      }, 180);
+    };
+
+    typeSelect.addEventListener('change', () => {
+      results = [];
+      void runSearch();
+    });
+    searchInput.addEventListener('input', scheduleSearch);
+    renderResults();
+    if (this.entityCatalog) {
+      void runSearch();
+      searchInput.focus();
+    }
+  }
+
+  private createEntityLinkPickerMessage(message: string): HTMLElement {
+    const element = document.createElement('p');
+    element.className = boardsModalClassNames.entityLinksMessage;
+    element.textContent = message;
+    return element;
+  }
+
+  private renderEntityLinkPickerResult(options: {
+    card: Card;
+    entityType: CardEntityLinkType;
+    item: BoardEntityLinkSearchItem;
+    disabled: boolean;
+    close: () => void;
+  }): HTMLLIElement {
+    const row = document.createElement('li');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = boardsModalClassNames.entityLinkPickerButton;
+    button.disabled = options.disabled;
+    button.setAttribute('data-testid', 'card-entity-link-result');
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      await Promise.resolve(
+        this.handlers.onCreateCardEntityLink(
+          options.card.id,
+          options.entityType,
+          options.item.id
+        )
+      );
+      options.close();
+      await this.refreshOpenCardEntityLinks(options.card.id);
+    });
+
+    const icon = createIcon(getCardEntityIcon(options.entityType), { size: 16 });
+    icon.setAttribute('aria-hidden', 'true');
+    const content = document.createElement('span');
+    content.className = boardsModalClassNames.entityLinkContent;
+    const title = document.createElement('span');
+    title.className = boardsModalClassNames.entityLinkTitle;
+    title.textContent = options.item.title;
+    const meta = document.createElement('span');
+    meta.className = boardsModalClassNames.entityLinkMeta;
+    meta.textContent = options.item.status
+      ? `${this.runtime.i18n.t(getCardEntityTypeLabelKey(options.entityType))} - ${options.item.status}`
+      : this.runtime.i18n.t(getCardEntityTypeLabelKey(options.entityType));
+    content.append(title, meta);
+    button.append(icon, content);
+    row.append(button);
+    return row;
+  }
+
+  private searchCardEntityCatalog(
+    entityType: CardEntityLinkType,
+    query: string
+  ): Promise<BoardEntityLinkSearchItem[]> {
+    if (!this.entityCatalog) return Promise.resolve([]);
+    if (entityType === 'task') return this.entityCatalog.searchTasks(query);
+    if (entityType === 'story') return this.entityCatalog.searchStories(query);
+    return this.entityCatalog.searchGoals(query);
+  }
+
+  private renderCardBackChecklistsSection(card: Card): HTMLElement {
+    const host = document.createElement('div');
+    host.className = boardsModalClassNames.checklistsHost;
+    host.setAttribute('data-testid', 'card-back-checklists-host');
+    this.cardModalChecklistHost = host;
+    this.populateCardBackChecklistsHost(card);
+    return host;
+  }
+
+  private populateCardBackChecklistsHost(card: Card): void {
+    const host = this.cardModalChecklistHost;
+    if (!host) return;
+    host.replaceChildren();
+
+    const state =
+      this.cardChecklistPanelState?.cardId === card.id
+        ? this.cardChecklistPanelState
+        : null;
+
+    const shouldHideSection =
+      !state ||
+      (state.status === 'idle' && state.checklists.length === 0) ||
+      (state.status === 'ready' && state.checklists.length === 0 && !state.error);
+    host.hidden = shouldHideSection;
+    if (shouldHideSection) return;
+
+    if (state?.status === 'loading') {
+      const loadingSection = this.createCardBackSection(
+        'check-box',
+        this.runtime.i18n.t('boards.cardBack.checklist')
+      );
+      const main = loadingSection.querySelector<HTMLElement>(
+        `.${boardsModalClassNames.sectionMain}`
+      );
+      const loading = document.createElement('div');
+      loading.className = boardsModalClassNames.checklistsMessage;
+      loading.textContent = this.runtime.i18n.t('boards.cardBack.checklistsLoading');
+      main?.append(loading);
+      host.append(loadingSection);
+      return;
+    }
+
+    if (state?.error) {
+      const errorSection = this.createCardBackSection(
+        'check-box',
+        this.runtime.i18n.t('boards.cardBack.checklist')
+      );
+      const main = errorSection.querySelector<HTMLElement>(
+        `.${boardsModalClassNames.sectionMain}`
+      );
+      const message = createFormMessage({ tone: 'error' });
+      message.show(this.runtime.i18n.t(state.error));
+      main?.append(message.element);
+      host.append(errorSection);
+    }
+
+    const checklists = state?.checklists ?? [];
+    if (checklists.length > 0) {
+      const list = document.createElement('div');
+      list.className = boardsModalClassNames.checklistsList;
+      checklists.forEach((checklist) => {
+        list.append(this.renderCardChecklist(card, checklist));
+      });
+      host.append(list);
+    }
+  }
+
+  private renderCardChecklist(
+    card: Card,
+    checklist: CardChecklist
+  ): HTMLElement {
+    const completed = checklist.items.filter(
+      (item) => item.state === 'complete'
+    ).length;
+    const total = checklist.items.length;
+    const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
+    const hideChecked = this.hiddenCheckedChecklistIds.has(checklist.id);
+    const visibleItems = hideChecked
+      ? checklist.items.filter((item) => item.state !== 'complete')
+      : checklist.items;
+
+    const actions = document.createElement('div');
+    actions.className = boardsModalClassNames.checklistActions;
+    if (completed > 0) {
+      actions.append(
+        createTextButton({
+          text: hideChecked
+            ? this.runtime.i18n.t('boards.cardBack.showCheckedItems', {
+                count: completed,
+              })
+            : this.runtime.i18n.t('boards.cardBack.hideCheckedItems'),
+          tone: 'text',
+          size: 'md',
+          className: boardsModalClassNames.checklistActionButton,
+          onClick: () => this.toggleChecklistCheckedItems(card, checklist.id),
+        })
+      );
+    }
+    const deleteButton = createTextButton({
+      text: this.runtime.i18n.t('common.delete'),
+      tone: 'text',
+      size: 'md',
+      className: boardsModalClassNames.checklistActionButton,
+      onClick: () => this.deleteCardModalChecklist(card.id, checklist.id),
+    });
+    deleteButton.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('boards.cardBack.deleteChecklist', {
+        title: checklist.title,
+      })
+    );
+    actions.append(deleteButton);
+
+    const section = this.createCardBackSection(
+      'check-box',
+      checklist.title,
+      actions
+    );
+    section.classList.add(boardsModalClassNames.checklist);
+    section.setAttribute('data-testid', 'card-checklist');
+    const main = section.querySelector<HTMLElement>(
+      `.${boardsModalClassNames.sectionMain}`
+    );
+    if (!main) return section;
+
+    const progressRow = document.createElement('div');
+    progressRow.className = boardsModalClassNames.checklistProgressRow;
+    const progressLabel = document.createElement('span');
+    progressLabel.className = boardsModalClassNames.checklistProgress;
+    progressLabel.textContent = `${percent}%`;
+    const progressTrack = document.createElement('div');
+    progressTrack.className = boardsModalClassNames.checklistProgressTrack;
+    const progressBar = document.createElement('span');
+    progressBar.className = boardsModalClassNames.checklistProgressBar;
+    progressBar.style.width = `${percent}%`;
+    progressTrack.append(progressBar);
+    progressRow.append(progressLabel, progressTrack);
+
+    const itemList = document.createElement('ul');
+    itemList.className = boardsModalClassNames.checkItemList;
+    visibleItems.forEach((item) => {
+      itemList.append(this.renderCardChecklistItem(card, item));
+    });
+
+    section.append(progressRow);
+    section.append(itemList, this.renderCheckItemComposer(card, checklist));
+    return section;
+  }
+
+  private renderCardChecklistItem(
+    card: Card,
+    item: CardCheckItem
+  ): HTMLLIElement {
+    const row = document.createElement('li');
+    row.className = boardsModalClassNames.checkItem;
+    row.setAttribute('data-testid', 'card-check-item');
+
+    const checkbox = new Checkbox({
+      checked: item.state === 'complete',
+      ariaLabel: item.title,
+      className: boardsModalClassNames.checkItemCheckbox,
+      onChange: (checked) => {
+        void this.patchCardModalCheckItem(card.id, item.id, {
+          state: checked ? 'complete' : 'incomplete',
+        });
+      },
+    });
+
+    const title = this.renderCardChecklistItemTitle(card, item);
+
+    const menuButton = createIconButton({
+      icon: 'ellipsis-vertical',
+      tone: 'text',
+      size: 'sm',
+      className: boardsModalClassNames.checkItemMenuTriggerButton,
+      ariaLabel: this.runtime.i18n.t('boards.cardBack.checkItemActions', {
+        title: item.title,
+      }),
+      title: this.runtime.i18n.t('boards.cardBack.actions'),
+    });
+    menuButton.setAttribute('aria-haspopup', 'dialog');
+    menuButton.setAttribute('aria-expanded', 'false');
+    menuButton.setAttribute('data-testid', 'card-check-item-menu-button');
+    menuButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (this.cardCheckItemMenuPopover?.trigger === menuButton) {
+        this.closeCardCheckItemMenuPopover();
+        return;
+      }
+      this.openCardCheckItemMenuPopover(menuButton, card, item);
+    });
+
+    row.append(checkbox.getElement(), title, menuButton);
+    return row;
+  }
+
+  private openCardCheckItemMenuPopover(
+    trigger: HTMLButtonElement,
+    card: Card,
+    item: CardCheckItem
+  ): void {
+    this.closeCardCheckItemMenuPopover();
+
+    const panel = createSurface({
+      elevated: true,
+      className: `${boardsModalClassNames.checkItemMenuPopover} hidden`,
+    });
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'false');
+    panel.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('boards.cardBack.checkItemActions', {
+        title: item.title,
+      })
+    );
+    panel.setAttribute('data-testid', 'card-check-item-menu-popover');
+    panel.addEventListener('mousedown', (event) => event.stopPropagation());
+
+    const list = document.createElement('ul');
+    list.className = boardsModalClassNames.checkItemMenuList;
+    const deleteItem = document.createElement('li');
+    deleteItem.className = boardsModalClassNames.checkItemMenuItem;
+    const deleteButton = createTextButton({
+      text: this.runtime.i18n.t('common.delete'),
+      tone: 'text',
+      size: 'md',
+      className: boardsModalClassNames.checkItemMenuButton,
+      onClick: () => {
+        this.closeCardCheckItemMenuPopover();
+        void this.deleteCardModalCheckItem(card.id, item.id);
+      },
+    });
+    deleteButton.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('boards.cardBack.deleteCheckItem', {
+        title: item.title,
+      })
+    );
+    prependButtonIcon(deleteButton, 'trash');
+    deleteItem.append(deleteButton);
+    list.append(deleteItem);
+    panel.append(list);
+
+    let menu!: AnchoredMenu;
+    menu = new AnchoredMenu({
+      container: trigger,
+      panel,
+      positioning: 'viewport',
+      panelZIndex: 320,
+      onOpenChange: (open) => {
+        trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (!open && this.cardCheckItemMenuPopover?.menu === menu) {
+          this.closeCardCheckItemMenuPopover();
+        }
+      },
+    });
+    menu.mount();
+    this.cardCheckItemMenuPopover = {
+      itemId: item.id,
+      menu,
+      panel,
+      trigger,
+    };
+    menu.openAt({
+      anchor: trigger,
+      placement: 'bottom-end',
+      fallbackPlacements: ['bottom-start', 'top-end', 'top-start'],
+      gap: 4,
+      margin: 12,
+      lockPlacementAfterOpen: true,
+    });
+  }
+
+  private renderCardChecklistItemTitle(
+    card: Card,
+    item: CardCheckItem
+  ): HTMLButtonElement {
+    const title = document.createElement('button');
+    title.type = 'button';
+    title.className =
+      item.state === 'complete'
+        ? boardsModalClassNames.checkItemTitleComplete
+        : boardsModalClassNames.checkItemTitle;
+    title.textContent = item.title;
+    title.addEventListener('click', () => {
+      this.startCardChecklistItemTitleEdit(card, item, title);
+    });
+    return title;
+  }
+
+  private startCardChecklistItemTitleEdit(
+    card: Card,
+    item: CardCheckItem,
+    titleButton: HTMLButtonElement
+  ): void {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = boardsModalClassNames.checkItemTitleInput;
+    input.value = item.title;
+    input.setAttribute('aria-label', item.title);
+
+    let settled = false;
+    const restore = (): void => {
+      if (titleButton.isConnected) return;
+      input.replaceWith(titleButton);
+    };
+    const commit = (): void => {
+      if (settled) return;
+      settled = true;
+      const nextTitle = input.value.trim();
+      if (!nextTitle || nextTitle === item.title) {
+        restore();
+        return;
+      }
+      void this.patchCardModalCheckItem(card.id, item.id, {
+        title: nextTitle,
+      });
+    };
+    const cancel = (): void => {
+      if (settled) return;
+      settled = true;
+      restore();
+    };
+
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        commit();
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        cancel();
+      }
+    });
+    input.addEventListener('blur', commit);
+
+    titleButton.replaceWith(input);
+    window.requestAnimationFrame(() => {
+      input.focus();
+      input.select();
+    });
+  }
+
+  private renderCheckItemComposer(
+    card: Card,
+    checklist: CardChecklist
+  ): HTMLElement {
+    if (!this.expandedCheckItemComposerIds.has(checklist.id)) {
+      return createTextButton({
+        text: this.runtime.i18n.t('boards.cardBack.checkItemPlaceholder'),
+        tone: 'text',
+        size: 'md',
+        className: boardsModalClassNames.checkItemCollapsedComposer,
+        onClick: () => this.expandCheckItemComposer(card, checklist.id),
+      });
+    }
+
+    const form = document.createElement('form');
+    form.className = boardsModalClassNames.checkItemComposer;
+    const input = createInputBase({
+      variant: 'default',
+      className: boardsModalClassNames.checkItemComposerInput,
+      placeholder: this.runtime.i18n.t('boards.cardBack.checkItemPlaceholder'),
+    });
+    input.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('boards.cardBack.checkItemPlaceholder')
+    );
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        form.requestSubmit();
+      }
+      if (event.key === 'Escape') {
+        this.collapseCheckItemComposer(card, checklist.id);
+      }
+    });
+    const actions = document.createElement('div');
+    actions.className = boardsModalClassNames.checkItemComposerActions;
+    const primaryActions = document.createElement('div');
+    primaryActions.className = boardsModalClassNames.checkItemComposerPrimaryActions;
+    const submit = createTextButton({
+      text: this.runtime.i18n.t('boards.cardBack.addItem'),
+      tone: 'primary',
+      size: 'md',
+      className: boardsViewClassNames.primaryButton,
+    });
+    submit.type = 'submit';
+    const cancel = createTextButton({
+      text: this.runtime.i18n.t('common.cancel'),
+      tone: 'text',
+      size: 'md',
+      className: boardsViewClassNames.quietButton,
+      onClick: () => this.collapseCheckItemComposer(card, checklist.id),
+    });
+    cancel.type = 'button';
+    primaryActions.append(submit, cancel);
+
+    const metaActions = document.createElement('div');
+    metaActions.className = boardsModalClassNames.checkItemComposerMetaActions;
+    metaActions.append(
+      this.createCheckItemMetaButton('plus', 'boards.cardBack.assign'),
+      this.createCheckItemMetaButton('calendar', 'boards.cardBack.dueDate')
+    );
+    actions.append(primaryActions, metaActions);
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      void this.createCardModalCheckItem(card.id, checklist.id, input.value);
+    });
+    form.append(input, actions);
+    window.requestAnimationFrame(() => input.focus());
+    return form;
+  }
+
+  private createCheckItemMetaButton(
+    icon: IconName,
+    labelKey: string
+  ): HTMLButtonElement {
+    const button = createTextButton({
+      text: this.runtime.i18n.t(labelKey),
+      tone: 'text',
+      size: 'md',
+      className: boardsModalClassNames.checkItemMetaButton,
+      disabled: true,
+    });
+    prependButtonIcon(button, icon);
+    return button;
+  }
+
+  private setCardChecklistPanelState(state: CardChecklistPanelState): void {
+    this.cardChecklistPanelState = state;
+    const location =
+      this.activeCardPlacementId && this.state
+        ? this.findCardLocation(this.activeCardPlacementId, this.state)
+        : null;
+    if (location?.card.id === state.cardId) {
+      this.populateCardBackChecklistsHost(location.card);
+    }
+  }
+
+  private async loadCardModalChecklists(cardId: Card['id']): Promise<void> {
+    const version = ++this.cardChecklistLoadVersion;
+    this.setCardChecklistPanelState({
+      cardId,
+      status: 'loading',
+      checklists: this.cardChecklistPanelState?.cardId === cardId
+        ? this.cardChecklistPanelState.checklists
+        : [],
+      error: null,
+    });
+    try {
+      const checklists = await Promise.resolve(
+        this.handlers.onLoadCardChecklists(cardId)
+      );
+      if (
+        version !== this.cardChecklistLoadVersion ||
+        this.activeCardPlacementId === null
+      ) {
+        return;
+      }
+      this.setCardChecklistPanelState({
+        cardId,
+        status: 'ready',
+        checklists,
+        error: null,
+      });
+    } catch {
+      if (version !== this.cardChecklistLoadVersion) return;
+      this.setCardChecklistPanelState({
+        cardId,
+        status: 'error',
+        checklists: [],
+        error: 'boards.cardBack.checklistsLoadFailed',
+      });
+    }
+  }
+
+  private focusCardChecklistComposer(): void {
+    const input =
+      this.cardChecklistPopover?.panel.querySelector<HTMLInputElement>('input');
+    input?.focus();
+  }
+
+  private toggleChecklistCheckedItems(
+    card: Card,
+    checklistId: CardChecklist['id']
+  ): void {
+    if (this.hiddenCheckedChecklistIds.has(checklistId)) {
+      this.hiddenCheckedChecklistIds.delete(checklistId);
+    } else {
+      this.hiddenCheckedChecklistIds.add(checklistId);
+    }
+    this.populateCardBackChecklistsHost(card);
+  }
+
+  private expandCheckItemComposer(
+    card: Card,
+    checklistId: CardChecklist['id']
+  ): void {
+    this.expandedCheckItemComposerIds.add(checklistId);
+    this.populateCardBackChecklistsHost(card);
+  }
+
+  private collapseCheckItemComposer(
+    card: Card,
+    checklistId: CardChecklist['id']
+  ): void {
+    this.expandedCheckItemComposerIds.delete(checklistId);
+    this.populateCardBackChecklistsHost(card);
+  }
+
+  private async createCardModalChecklist(
+    card: Card,
+    title?: string
+  ): Promise<void> {
+    const normalizedTitle = title?.trim() ?? '';
+    if (!normalizedTitle) {
+      this.focusCardChecklistComposer();
+      return;
+    }
+    await this.runCardChecklistMutation(card.id, async () => {
+      await Promise.resolve(
+        this.handlers.onCreateCardChecklist(card.id, normalizedTitle)
+      );
+    });
+    this.closeCardChecklistPopover();
+  }
+
+  private async deleteCardModalChecklist(
+    cardId: Card['id'],
+    checklistId: CardChecklist['id']
+  ): Promise<void> {
+    await this.runCardChecklistMutation(cardId, async () => {
+      await Promise.resolve(this.handlers.onDeleteCardChecklist(checklistId));
+    });
+  }
+
+  private async createCardModalCheckItem(
+    cardId: Card['id'],
+    checklistId: CardChecklist['id'],
+    title: string
+  ): Promise<void> {
+    const normalizedTitle = title.trim();
+    if (!normalizedTitle) return;
+    await this.runCardChecklistMutation(cardId, async () => {
+      await Promise.resolve(
+        this.handlers.onCreateCardCheckItem(checklistId, normalizedTitle)
+      );
+    });
+    this.expandedCheckItemComposerIds.delete(checklistId);
+  }
+
+  private async patchCardModalCheckItem(
+    cardId: Card['id'],
+    itemId: CardCheckItem['id'],
+    patch: { title?: string; state?: CardCheckItem['state'] }
+  ): Promise<void> {
+    await this.runCardChecklistMutation(cardId, async () => {
+      await Promise.resolve(this.handlers.onPatchCardCheckItem(itemId, patch));
+    });
+  }
+
+  private async deleteCardModalCheckItem(
+    cardId: Card['id'],
+    itemId: CardCheckItem['id']
+  ): Promise<void> {
+    await this.runCardChecklistMutation(cardId, async () => {
+      await Promise.resolve(this.handlers.onDeleteCardCheckItem(itemId));
+    });
+  }
+
+  private async runCardChecklistMutation(
+    cardId: Card['id'],
+    action: () => Promise<void>
+  ): Promise<void> {
+    const current = this.cardChecklistPanelState;
+    this.setCardChecklistPanelState({
+      cardId,
+      status: 'saving',
+      checklists: current?.cardId === cardId ? current.checklists : [],
+      error: null,
+    });
+    try {
+      await action();
+      await this.loadCardModalChecklists(cardId);
+    } catch {
+      this.setCardChecklistPanelState({
+        cardId,
+        status: 'error',
+        checklists: current?.cardId === cardId ? current.checklists : [],
+        error: 'boards.cardBack.checklistsSaveFailed',
+      });
+    }
   }
 
   private renderCardBackDescriptionSection(
@@ -3395,11 +4837,16 @@ export class BoardsView {
   private closeCardModal(): void {
     this.closeCardActionsPopover();
     this.closeCardLabelsPopover();
+    this.closeCardChecklistPopover();
+    this.closeCardCheckItemMenuPopover();
     this.closeMoveCardPopover();
     this.cardModalDraftTagIds = null;
     this.cardModalRequestedTagIds = null;
     this.cardModalLabelsHost = null;
     this.cardModalQuickActionList = null;
+    this.cardModalChecklistHost = null;
+    this.cardChecklistPanelState = null;
+    this.cardChecklistLoadVersion += 1;
     this.activeCardPlacementId = null;
     this.cardModalOverlay?.remove();
     this.cardModalOverlay = null;
@@ -3413,6 +4860,36 @@ export class BoardsView {
     popover.menu.close();
     popover.menu.unmount();
     popover.picker.destroy();
+    popover.panel.remove();
+  }
+
+  private closeCardChecklistPopover(): void {
+    const popover = this.cardChecklistPopover;
+    if (!popover) return;
+    this.cardChecklistPopover = null;
+    popover.trigger.setAttribute('aria-expanded', 'false');
+    popover.menu.close();
+    popover.menu.unmount();
+    popover.panel.remove();
+  }
+
+  private closeCardCheckItemMenuPopover(): void {
+    const popover = this.cardCheckItemMenuPopover;
+    if (!popover) return;
+    this.cardCheckItemMenuPopover = null;
+    popover.trigger.setAttribute('aria-expanded', 'false');
+    popover.menu.close();
+    popover.menu.unmount();
+    popover.panel.remove();
+  }
+
+  private closeCardEntityLinkMenuPopover(): void {
+    const popover = this.cardEntityLinkMenuPopover;
+    if (!popover) return;
+    this.cardEntityLinkMenuPopover = null;
+    popover.trigger.setAttribute('aria-expanded', 'false');
+    popover.menu.close();
+    popover.menu.unmount();
     popover.panel.remove();
   }
 

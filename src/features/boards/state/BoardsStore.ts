@@ -5,12 +5,18 @@ import type {
   BoardCardPlacementUpdatePayload,
   BoardCardUpdatePayload,
   BoardColumnUpdatePayload,
+  CardCheckItemUpdatePayload,
+  BoardCardEntityLinkCreatePayload,
   BoardsApiService,
 } from '../../../majom-wrapper/data-access/boards-api-service.ts';
 import type {
   Board,
   BoardColumn,
   Card,
+  CardCheckItem,
+  CardChecklist,
+  CardEntityLink,
+  CardEntityLinkType,
   CardPlacement,
 } from '../../../majom-wrapper/interfaces/index.ts';
 import type { BoardsState } from '../domain/types.ts';
@@ -223,6 +229,110 @@ export class BoardsStore {
     });
   }
 
+  public async loadCardChecklists(
+    cardId: Card['id']
+  ): Promise<CardChecklist[]> {
+    if (!this.findCard(cardId)) return [];
+    try {
+      return await firstValueFrom(this.api.getCardChecklists(cardId));
+    } catch {
+      this.patchState({ error: 'boards.errors.load' });
+      return [];
+    }
+  }
+
+  public async createCardChecklist(
+    cardId: Card['id'],
+    title: string
+  ): Promise<CardChecklist | null> {
+    const normalizedTitle = title.trim();
+    if (!normalizedTitle || !this.findCard(cardId)) return null;
+    return this.runMutationResult(async () => {
+      const checklist = await firstValueFrom(
+        this.api.createCardChecklist(cardId, {
+          title: normalizedTitle,
+          position: 'bottom',
+        })
+      );
+      await this.reloadPreservingSelection();
+      return checklist;
+    });
+  }
+
+  public async deleteCardChecklist(
+    checklistId: CardChecklist['id']
+  ): Promise<void> {
+    await this.runMutation(async () => {
+      await firstValueFrom(this.api.deleteCardChecklist(checklistId));
+      await this.reloadPreservingSelection();
+    });
+  }
+
+  public async createCardCheckItem(
+    checklistId: CardChecklist['id'],
+    title: string
+  ): Promise<CardCheckItem | null> {
+    const normalizedTitle = title.trim();
+    if (!normalizedTitle) return null;
+    return this.runMutationResult(async () => {
+      const item = await firstValueFrom(
+        this.api.createCardCheckItem(checklistId, {
+          title: normalizedTitle,
+          position: 'bottom',
+        })
+      );
+      await this.reloadPreservingSelection();
+      return item;
+    });
+  }
+
+  public async patchCardCheckItem(
+    itemId: CardCheckItem['id'],
+    patch: CardCheckItemUpdatePayload
+  ): Promise<CardCheckItem | null> {
+    return this.runMutationResult(async () => {
+      const item = await firstValueFrom(
+        this.api.updateCardCheckItem(itemId, patch)
+      );
+      await this.reloadPreservingSelection();
+      return item;
+    });
+  }
+
+  public async deleteCardCheckItem(itemId: CardCheckItem['id']): Promise<void> {
+    await this.runMutation(async () => {
+      await firstValueFrom(this.api.deleteCardCheckItem(itemId));
+      await this.reloadPreservingSelection();
+    });
+  }
+
+  public async createCardEntityLink(
+    cardId: Card['id'],
+    entityType: CardEntityLinkType,
+    entityId: string
+  ): Promise<CardEntityLink | null> {
+    if (!this.findCard(cardId)) return null;
+    const payload: BoardCardEntityLinkCreatePayload = {
+      card: cardId,
+      entity_type: entityType,
+      entity_id: entityId,
+    };
+    return this.runMutationResult(async () => {
+      const link = await firstValueFrom(this.api.createCardEntityLink(payload));
+      await this.reloadPreservingSelection();
+      return link;
+    });
+  }
+
+  public async deleteCardEntityLink(
+    linkId: CardEntityLink['id']
+  ): Promise<void> {
+    await this.runMutation(async () => {
+      await firstValueFrom(this.api.deleteCardEntityLink(linkId));
+      await this.reloadPreservingSelection();
+    });
+  }
+
   public async createCardMirror(
     cardId: Card['id'],
     columnId: BoardColumn['id'],
@@ -279,6 +389,23 @@ export class BoardsStore {
         status: 'error',
         error: 'boards.errors.save',
       });
+    }
+  }
+
+  private async runMutationResult<T>(
+    action: () => Promise<T>
+  ): Promise<T | null> {
+    this.patchState({ status: 'saving', error: null });
+    try {
+      const result = await action();
+      this.patchState({ status: 'idle', error: null });
+      return result;
+    } catch {
+      this.patchState({
+        status: 'error',
+        error: 'boards.errors.save',
+      });
+      return null;
     }
   }
 

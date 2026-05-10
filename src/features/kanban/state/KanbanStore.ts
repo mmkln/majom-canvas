@@ -19,7 +19,7 @@ import {
   createEmptyKanbanColumns,
 } from '../domain/buildBoard.ts';
 import { getMsUntilNextLocalMidnight } from '../domain/dateUtils.ts';
-import { notify } from '../../canvas/core/services/NotificationService.ts';
+import { notify } from '../../../ui-lib/src/services/NotificationService.ts';
 import { KanbanDataService } from '../services/KanbanDataService.ts';
 
 type RefreshRequest = {

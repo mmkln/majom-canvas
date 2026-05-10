@@ -9,7 +9,7 @@ import {
   createTextButton,
 } from '../../../ui-lib/src/hud/index.ts';
 import { StaticDropdownSelect } from '../../../ui-lib/src/components/StaticDropdownSelect.ts';
-import { notify } from '../../canvas/core/services/NotificationService.ts';
+import { notify } from '../../../ui-lib/src/services/NotificationService.ts';
 import {
   normalizeAccountDetails,
   validateAccountDetails,

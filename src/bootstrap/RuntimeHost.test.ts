@@ -224,6 +224,20 @@ describe('RuntimeHost time clustering island layout', () => {
     expect(document.documentElement.dataset.theme).toBe('light');
   });
 
+  it('mounts one global toast provider for workspace notifications', () => {
+    const host = createRuntimeHost();
+
+    expect(
+      document.body.querySelectorAll('[data-component="ToastProvider"]')
+    ).toHaveLength(1);
+
+    host.dispose();
+
+    expect(
+      document.body.querySelector('[data-component="ToastProvider"]')
+    ).toBeNull();
+  });
+
   it('reserves left workspace space when time clustering is docked', () => {
     const host = getRuntimeHostInternals(createRuntimeHost());
     const { canvas } = attachCanvasSurface(host);

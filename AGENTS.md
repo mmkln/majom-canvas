@@ -300,6 +300,13 @@
 - Read first: `docs/UI-ARCHITECTURE.md`
 - Expected result: keep a stable split between Tailwind tokens, TypeScript component recipes/behavior, and limited template usage for static fragments; avoid large-scale rewrites unless explicitly requested.
 
+### Use Global Notifications
+
+- Use when the request adds, moves, or changes toast/notification behavior across app modules.
+- Owner: `src/ui-lib/src` + `src/bootstrap`
+- Read first: `src/ui-lib/src/AGENTS.md`
+- Expected result: one app-level `ToastProvider` handles the shared `notify(...)` bus, and feature modules do not mount their own persistent notification containers for page-level errors.
+
 ### Define Theme Vs UI Mode Personalization
 
 - Use when the request is to introduce platform-wide theme packs/skins, separate visual theme from density/focus modes, or plan runtime-backed UI personalization settings.
@@ -320,6 +327,20 @@
 - Owner: `src/features/boards`
 - Read first: `src/features/boards/AGENTS.md`
 - Expected result: preserve Trello-like interaction semantics, including card fronts that open details and expose badges instead of destructive actions.
+
+### Implement Boards Card Checklists
+
+- Use when the request adds or changes checklist UI, checklist API wiring, checklist badges, or checklist item behavior inside Boards cards.
+- Owner: `src/features/boards` + backend card checklist API
+- Read first: `src/features/boards/AGENTS.md`
+- Expected result: checklists stay owned by `Card.id`, mirrors share checklist state, board cards render only summary badges, and full checklist data loads inside card details.
+
+### Implement Boards Card Entity Links
+
+- Use when the request links Boards cards to Task, Story, or Goal entities, shows linked entities on card details, or adds link/unlink/open actions.
+- Owner: `src/features/boards` + backend card entity link API
+- Read first: `src/features/boards/AGENTS.md`
+- Expected result: cards remain board/context objects, links stay owned by `Card.id`, mirrors share link state, and Task/Story/Goal search stays behind a catalog port.
 
 ### Implement Boards Card Drag And Drop
 

@@ -2,13 +2,25 @@
 
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { AppRuntime } from '../../../app-runtime/index.ts';
-import type { Board, Card, Tag } from '../../../majom-wrapper/interfaces/index.ts';
 import type {
+  Board,
+  Card,
+  CardEntityLink,
+  CardChecklist,
+  Tag,
+} from '../../../majom-wrapper/interfaces/index.ts';
+import type {
+  BoardEntityCatalogPort,
   BoardTagCatalogPort,
   BoardsIntentHandlers,
   BoardsState,
 } from '../domain/types.ts';
 import { BoardsView } from './BoardsView.ts';
+import { notify } from '../../../ui-lib/src/services/NotificationService.ts';
+
+vi.mock('../../../ui-lib/src/services/NotificationService.ts', () => ({
+  notify: vi.fn(),
+}));
 
 const BOARD_ID = '00000000-0000-4000-8000-000000000001';
 const SOURCE_BOARD_ID = '00000000-0000-4000-8000-000000000003';
@@ -20,6 +32,11 @@ const CARD_MIRROR = '00000000-0000-4000-8000-000000000021';
 const PLACEMENT_BOOK = '00000000-0000-4000-8000-000000000200';
 const PLACEMENT_MIRROR = '00000000-0000-4000-8000-000000000201';
 const SOURCE_PLACEMENT_ID = '00000000-0000-4000-8000-000000000301';
+const CHECKLIST_SETUP = '00000000-0000-4000-8000-000000000401';
+const CHECKITEM_DONE = '00000000-0000-4000-8000-000000000501';
+const CHECKITEM_OPEN = '00000000-0000-4000-8000-000000000502';
+const TASK_LINK = '00000000-0000-4000-8000-000000000601';
+const LINKED_TASK = '00000000-0000-4000-8000-000000000701';
 
 function createRuntime(): AppRuntime {
   return new AppRuntime({
@@ -42,6 +59,16 @@ function createHandlers(): BoardsIntentHandlers {
     onDeleteColumn: vi.fn(),
     onCreateCard: vi.fn(),
     onPatchCard: vi.fn(),
+    onLoadCardChecklists: vi.fn(async () => []),
+    onCreateCardChecklist: vi.fn(async () => null),
+    onDeleteCardChecklist: vi.fn(),
+    onCreateCardCheckItem: vi.fn(async () => null),
+    onPatchCardCheckItem: vi.fn(async () => null),
+    onDeleteCardCheckItem: vi.fn(),
+    onCreateCardEntityLink: vi.fn(async () => null),
+    onCreateCardEntityFromCard: vi.fn(async () => null),
+    onDeleteCardEntityLink: vi.fn(),
+    onDeleteLinkedEntity: vi.fn(),
     onCreateCardMirror: vi.fn(),
     onPatchCardPlacement: vi.fn(),
     onDeleteCardPlacement: vi.fn(),
@@ -86,6 +113,34 @@ function createTagCatalog(tags: Tag[]): BoardTagCatalogPort {
     deleteTag: vi.fn(async (id) => {
       currentTags = currentTags.filter((tag) => tag.id !== id);
     }),
+  };
+}
+
+function createEntityCatalog(): BoardEntityCatalogPort {
+  return {
+    searchTasks: vi.fn(async () => [
+      {
+        id: LINKED_TASK,
+        title: 'Write implementation plan',
+        status: 'open',
+      },
+    ]),
+    searchStories: vi.fn(async () => []),
+    searchGoals: vi.fn(async () => []),
+  };
+}
+
+function createCardEntityLink(): CardEntityLink {
+  return {
+    id: TASK_LINK,
+    card: CARD_BOOK,
+    entity_type: 'task',
+    entity_id: LINKED_TASK,
+    entity: {
+      id: LINKED_TASK,
+      title: 'Write implementation plan',
+      status: 'open',
+    },
   };
 }
 
@@ -170,11 +225,64 @@ function createState(board = createBoard()): BoardsState {
   };
 }
 
+function createChecklist(): CardChecklist {
+  return {
+    id: CHECKLIST_SETUP,
+    card: CARD_BOOK,
+    title: 'Setup',
+    pos: '1024.000000000000000',
+    items: [
+      {
+        id: CHECKITEM_DONE,
+        checklist: CHECKLIST_SETUP,
+        title: 'Create funnel',
+        state: 'complete',
+        pos: '1024.000000000000000',
+      },
+      {
+        id: CHECKITEM_OPEN,
+        checklist: CHECKLIST_SETUP,
+        title: 'Connect calendar',
+        state: 'incomplete',
+        pos: '2048.000000000000000',
+      },
+    ],
+  };
+}
+
 afterEach(() => {
+  vi.clearAllMocks();
   document.body.innerHTML = '';
 });
 
 describe('BoardsView', () => {
+  it('reports page-level errors through the global toaster instead of an inline board banner', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const runtime = createRuntime();
+    const view = new BoardsView(root, {
+      runtime,
+      handlers,
+    });
+    const state = {
+      ...createState(),
+      status: 'error' as const,
+      error: 'boards.errors.save',
+    };
+
+    view.render(state);
+    view.render(state);
+
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith(
+      runtime.i18n.t('boards.errors.save'),
+      'error'
+    );
+    expect(root.textContent).not.toContain(runtime.i18n.t('boards.errors.save'));
+    view.destroy();
+  });
+
   it('renders backend card tags on the card front', () => {
     const root = document.createElement('div');
     document.body.append(root);
@@ -212,6 +320,11 @@ describe('BoardsView', () => {
     (
       board.columns[0].cards[0] as Card & { commentsCount: number }
     ).commentsCount = 2;
+    board.columns[0].cards[0]!.checklist_summary = {
+      total: 3,
+      completed: 1,
+    };
+    board.columns[0].cards[0]!.entity_links = [createCardEntityLink()];
     const view = new BoardsView(root, {
       runtime: createRuntime(),
       handlers,
@@ -232,6 +345,11 @@ describe('BoardsView', () => {
     ).not.toBeNull();
     expect(
       root.querySelector('[data-icon-name="chat-bubble-bottom-center-text"]')
+    ).not.toBeNull();
+    expect(root.querySelector('[aria-label="Checklist: 1/3"]')).not.toBeNull();
+    expect(root.querySelector('[data-icon-name="check-box"]')).not.toBeNull();
+    expect(
+      root.querySelector('[aria-label="Linked tasks: 1"]')
     ).not.toBeNull();
     expect(
       root.querySelector('[data-testid="card-mirror-source-label"]')
@@ -299,6 +417,59 @@ describe('BoardsView', () => {
       root.querySelector('[data-testid="card-mirror-source-label"]')
     ).toBeNull();
     expect(root.textContent).not.toContain('Strategy / Source list');
+    view.destroy();
+  });
+
+  it('toggles card completion from the card front without opening details', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState());
+
+    const toggle = root.querySelector<HTMLButtonElement>(
+      '[data-testid="board-card-completion-toggle"]'
+    );
+    expect(toggle?.title).toBe('Mark complete');
+    toggle?.click();
+
+    const patch = vi.mocked(handlers.onPatchCard).mock.calls[0]?.[1];
+    expect(handlers.onPatchCard).toHaveBeenCalledWith(CARD_BOOK, {
+      completedAt: expect.any(Date),
+    });
+    expect(patch?.completedAt).toBeInstanceOf(Date);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    view.destroy();
+  });
+
+  it('keeps the completion toggle active for completed cards and can clear it', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const board = createBoard();
+    board.columns[0]!.cards[0] = {
+      ...board.columns[0]!.cards[0]!,
+      completedAt: new Date('2026-05-10T10:00:00.000Z'),
+    };
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState(board));
+
+    const toggle = root.querySelector<HTMLButtonElement>(
+      '[data-testid="board-card-completion-toggle"]'
+    );
+    expect(toggle?.getAttribute('aria-pressed')).toBe('true');
+    expect(toggle?.title).toBe('Mark incomplete');
+    toggle?.click();
+
+    expect(handlers.onPatchCard).toHaveBeenCalledWith(CARD_BOOK, {
+      completedAt: null,
+    });
     view.destroy();
   });
 
@@ -561,6 +732,10 @@ describe('BoardsView', () => {
     expect(title?.rows).toBe(1);
     expect(dialog?.textContent).toContain('Comments and activity');
     expect(dialog?.textContent).toContain('Attachments');
+    expect(dialog?.textContent).toContain('Link entity');
+    expect(dialog?.textContent).toContain('Create Task');
+    expect(dialog?.textContent).toContain('Create Story');
+    expect(dialog?.textContent).toContain('Create Goal');
     expect(dialog?.textContent).not.toContain('Mirroring');
     expect(dialog?.querySelector('[aria-label="Cover"]')).toBeNull();
     title!.value = 'The Design of Everyday Things';
@@ -576,6 +751,345 @@ describe('BoardsView', () => {
       description: 'Updated notes',
     });
     expect(document.querySelector('[role="dialog"]')).toBeNull();
+    view.destroy();
+  });
+
+  it('toggles card completion from the card details title control', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState());
+
+    root
+      .querySelector<HTMLButtonElement>(
+        `[data-board-card-open="${PLACEMENT_BOOK}"]`
+      )
+      ?.click();
+
+    document
+      .querySelector<HTMLButtonElement>(
+        '[data-testid="card-back-completion-toggle"]'
+      )
+      ?.click();
+
+    const patch = vi.mocked(handlers.onPatchCard).mock.calls[0]?.[1];
+    expect(handlers.onPatchCard).toHaveBeenCalledWith(CARD_BOOK, {
+      completedAt: expect.any(Date),
+    });
+    expect(patch?.completedAt).toBeInstanceOf(Date);
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+    view.destroy();
+  });
+
+  it('creates a new linked task from card details', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState());
+
+    root
+      .querySelector<HTMLButtonElement>(
+        `[data-board-card-open="${PLACEMENT_BOOK}"]`
+      )
+      ?.click();
+    await flushPromises();
+
+    const createTaskButton = Array.from(
+      document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')
+    ).find((button) => button.textContent === 'Create Task');
+    createTaskButton?.click();
+    await flushPromises();
+
+    expect(handlers.onCreateCardEntityFromCard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: CARD_BOOK,
+        title: 'Design of Everyday Things',
+        description: 'Interaction design notes',
+      }),
+      'task'
+    );
+    view.destroy();
+  });
+
+  it('loads card checklists in card details and routes item toggles', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    vi.mocked(handlers.onLoadCardChecklists).mockResolvedValue([
+      createChecklist(),
+    ]);
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState());
+
+    root
+      .querySelector<HTMLButtonElement>(
+        `[data-board-card-open="${PLACEMENT_BOOK}"]`
+      )
+      ?.click();
+    await flushPromises();
+
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
+    expect(handlers.onLoadCardChecklists).toHaveBeenCalledWith(CARD_BOOK);
+    expect(dialog?.textContent).toContain('Setup');
+    expect(dialog?.textContent).toContain('50%');
+    expect(dialog?.textContent).toContain('Create funnel');
+    expect(dialog?.textContent).toContain('Connect calendar');
+
+    const openItemRow = Array.from(
+      dialog!.querySelectorAll<HTMLElement>('[data-testid="card-check-item"]')
+    ).find((row) => row.textContent?.includes('Connect calendar'));
+    const itemMenuButton = openItemRow?.querySelector<HTMLButtonElement>(
+      '[data-testid="card-check-item-menu-button"]'
+    );
+    expect(itemMenuButton?.getAttribute('aria-expanded')).toBe('false');
+    itemMenuButton?.click();
+    expect(itemMenuButton?.getAttribute('aria-expanded')).toBe('true');
+    const itemMenu = document.querySelector<HTMLElement>(
+      '[data-testid="card-check-item-menu-popover"]'
+    );
+    expect(itemMenu?.textContent).toContain('Delete');
+    itemMenu
+      ?.querySelector<HTMLButtonElement>(
+        '[aria-label="Delete checklist item Connect calendar"]'
+      )
+      ?.click();
+    await flushPromises();
+
+    expect(handlers.onDeleteCardCheckItem).toHaveBeenCalledWith(
+      CHECKITEM_OPEN
+    );
+
+    const hideCheckedButton = Array.from(
+      dialog!.querySelectorAll<HTMLButtonElement>('button')
+    ).find((button) => button.textContent === 'Hide checked items');
+    hideCheckedButton?.click();
+
+    expect(dialog?.textContent).not.toContain('Create funnel');
+    expect(dialog?.textContent).toContain('Show checked items (1)');
+
+    const showCheckedButton = Array.from(
+      dialog!.querySelectorAll<HTMLButtonElement>('button')
+    ).find((button) => button.textContent === 'Show checked items (1)');
+    showCheckedButton?.click();
+
+    expect(dialog?.textContent).toContain('Create funnel');
+
+    const openItemTitle = Array.from(
+      dialog!.querySelectorAll<HTMLButtonElement>('button')
+    ).find((button) => button.textContent === 'Connect calendar');
+    openItemTitle?.click();
+    const titleInput = dialog!.querySelector<HTMLInputElement>(
+      'input[aria-label="Connect calendar"]:not([type="checkbox"])'
+    );
+    expect(titleInput?.value).toBe('Connect calendar');
+    titleInput!.value = 'Connect booking calendar';
+    titleInput!.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
+    );
+    await flushPromises();
+
+    expect(handlers.onPatchCardCheckItem).toHaveBeenCalledWith(
+      CHECKITEM_OPEN,
+      { title: 'Connect booking calendar' }
+    );
+    vi.mocked(handlers.onPatchCardCheckItem).mockClear();
+
+    dialog
+      ?.querySelector<HTMLInputElement>('input[aria-label="Connect calendar"]')
+      ?.click();
+    await flushPromises();
+
+    expect(handlers.onPatchCardCheckItem).toHaveBeenCalledWith(
+      CHECKITEM_OPEN,
+      { state: 'complete' }
+    );
+    view.destroy();
+  });
+
+  it('opens the checklist popover from card details and creates a checklist', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState());
+
+    root
+      .querySelector<HTMLButtonElement>(
+        `[data-board-card-open="${PLACEMENT_BOOK}"]`
+      )
+      ?.click();
+    await flushPromises();
+
+    const checklistButton = Array.from(
+      document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')
+    ).find((button) => button.textContent === 'Checklist');
+    checklistButton?.click();
+
+    const popover = document.querySelector<HTMLElement>(
+      '[data-testid="card-back-checklist-popover"]'
+    );
+    const input = popover?.querySelector<HTMLInputElement>('input');
+    const addButton = popover?.querySelector<HTMLButtonElement>(
+      'button[type="submit"]'
+    );
+    expect(popover?.textContent).toContain('Add checklist');
+    expect(addButton?.textContent).toBe('Add');
+    expect(input?.value).toBe('Checklist');
+
+    input!.value = 'My Checklist';
+    addButton?.click();
+    await flushPromises();
+    await flushPromises();
+
+    expect(handlers.onCreateCardChecklist).toHaveBeenCalledWith(
+      CARD_BOOK,
+      'My Checklist'
+    );
+    expect(
+      document.querySelector('[data-testid="card-back-checklist-popover"]')
+    ).toBeNull();
+    view.destroy();
+  });
+
+  it('links a card to an existing task from card details', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const entityCatalog = createEntityCatalog();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      entityCatalog,
+      handlers,
+    });
+    view.render(createState());
+
+    root
+      .querySelector<HTMLButtonElement>(
+        `[data-board-card-open="${PLACEMENT_BOOK}"]`
+      )
+      ?.click();
+    await flushPromises();
+
+    document
+      .querySelector<HTMLButtonElement>('[data-testid="card-back-actions-button"]')
+      ?.click();
+    const linkButton = document.querySelector<HTMLButtonElement>(
+      '[data-testid="card-back-link-entity-button"]'
+    );
+    linkButton?.click();
+    await flushPromises();
+
+    expect(entityCatalog.searchTasks).toHaveBeenCalledWith('');
+    const result = document.querySelector<HTMLButtonElement>(
+      '[data-testid="card-entity-link-result"]'
+    );
+    expect(result?.textContent).toContain('Write implementation plan');
+    result?.click();
+    await flushPromises();
+
+    expect(handlers.onCreateCardEntityLink).toHaveBeenCalledWith(
+      CARD_BOOK,
+      'task',
+      LINKED_TASK
+    );
+    expect(
+      document.querySelector('[data-testid="card-entity-link-modal"]')
+    ).toBeNull();
+    view.destroy();
+  });
+
+  it('routes linked card entity actions through the entity menu', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const board = createBoard();
+    board.columns[0]!.cards[0]!.entity_links = [createCardEntityLink()];
+    const openListener = vi.fn();
+    window.addEventListener('boardLinkedEntityOpenRequested', openListener);
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState(board));
+
+    root
+      .querySelector<HTMLButtonElement>(
+        `[data-board-card-open="${PLACEMENT_BOOK}"]`
+      )
+      ?.click();
+    await flushPromises();
+
+    const links = document.querySelector<HTMLElement>(
+      '[data-testid="card-entity-links"]'
+    );
+    expect(links?.textContent).toContain('Write implementation plan');
+    const getMenuButton = () =>
+      document.querySelector<HTMLButtonElement>(
+        '[data-testid="card-entity-link-menu-button"]'
+      );
+    let menuButton = getMenuButton();
+    expect(menuButton?.getAttribute('aria-expanded')).toBe('false');
+    menuButton?.click();
+    expect(menuButton?.getAttribute('aria-expanded')).toBe('true');
+
+    let popover = document.querySelector<HTMLElement>(
+      '[data-testid="card-entity-link-menu-popover"]'
+    );
+    expect(popover?.textContent).toContain('Open entity');
+    expect(popover?.textContent).toContain('Unlink');
+    expect(popover?.textContent).toContain('Delete entity');
+    popover
+      ?.querySelector<HTMLButtonElement>(
+        '[aria-label="Open linked entity Write implementation plan"]'
+      )
+      ?.click();
+    expect(openListener).toHaveBeenCalled();
+
+    menuButton = getMenuButton();
+    menuButton?.click();
+    popover = document.querySelector<HTMLElement>(
+      '[data-testid="card-entity-link-menu-popover"]'
+    );
+    popover
+      ?.querySelector<HTMLButtonElement>(
+        '[aria-label="Unlink Write implementation plan"]'
+      )
+      ?.click();
+    await flushPromises();
+
+    expect(handlers.onDeleteCardEntityLink).toHaveBeenCalledWith(TASK_LINK);
+
+    menuButton = getMenuButton();
+    menuButton?.click();
+    popover = document.querySelector<HTMLElement>(
+      '[data-testid="card-entity-link-menu-popover"]'
+    );
+    popover
+      ?.querySelector<HTMLButtonElement>(
+        '[aria-label="Delete linked entity Write implementation plan"]'
+      )
+      ?.click();
+    await flushPromises();
+
+    expect(handlers.onDeleteLinkedEntity).toHaveBeenCalledWith(
+      expect.objectContaining({ id: CARD_BOOK }),
+      expect.objectContaining({ id: TASK_LINK, entity_type: 'task' })
+    );
+    window.removeEventListener('boardLinkedEntityOpenRequested', openListener);
     view.destroy();
   });
 
