@@ -30,6 +30,9 @@ export const BOARDS_DEV_ENABLED = BOARDS_ENABLED;
 export const KANBAN_DEV_ENABLED =
   IS_DEVELOPMENT_MODE &&
   (parseOptionalBoolean(import.meta.env.VITE_ENABLE_KANBAN_DEV) ?? true);
+export const FLOWS_DEV_ENABLED =
+  IS_DEVELOPMENT_MODE &&
+  (parseOptionalBoolean(import.meta.env.VITE_ENABLE_FLOWS_DEV) ?? true);
 export const FOCUS_BOARD_DEV_ENABLED =
   IS_DEVELOPMENT_MODE &&
   (parseOptionalBoolean(import.meta.env.VITE_ENABLE_FOCUS_BOARD_DEV) ?? true);

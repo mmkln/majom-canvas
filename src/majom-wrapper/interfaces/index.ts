@@ -1,5 +1,6 @@
 export type BoardEntityId = string;
 export type BoardMeta = Record<string, unknown> | null;
+export type FlowMeta = Record<string, unknown> | null;
 
 export interface Board {
   id: BoardEntityId;
@@ -227,6 +228,7 @@ export interface Flow {
   readonly id: number;
   title: string;
   status: Status;
+  meta?: FlowMeta;
   tasks: PlatformTask[];
 }
 

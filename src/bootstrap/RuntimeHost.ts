@@ -2,6 +2,7 @@ import { firstValueFrom, Subscription } from 'rxjs';
 import { GLOBAL_APP_SIDEBAR_WIDTH_PX } from './GlobalAppHeader.ts';
 import {
   BOARDS_DEV_ENABLED,
+  FLOWS_DEV_ENABLED,
   FOCUS_BOARD_DEV_ENABLED,
   KANBAN_DEV_ENABLED,
   LEARNING_STUDIO_DEV_ENABLED,
@@ -101,6 +102,12 @@ type FocusBoardModuleNamespace = {
   }) => WorkspaceModule;
 };
 
+type FlowsModuleNamespace = {
+  FlowsModule: new (options?: {
+    runtime?: AppRuntime;
+  }) => WorkspaceModule;
+};
+
 type RuntimeHostOptions = {
   userApiService?: Pick<UserApiService, 'setUserWallpaper'>;
 };
@@ -137,6 +144,9 @@ const loadBoardsModule = (): Promise<BoardsModuleNamespace> =>
 const loadFocusBoardModule = (): Promise<FocusBoardModuleNamespace> =>
   import('../features/focus-board/FocusBoardModule.ts');
 
+const loadFlowsModule = (): Promise<FlowsModuleNamespace> =>
+  import('../features/flows/FlowsModule.ts');
+
 const loadLearningStudioModule = (): Promise<LearningStudioModuleNamespace> =>
   import('../features/learning-studio/LearningStudioModule.ts');
 
@@ -148,6 +158,7 @@ export class RuntimeHost {
   private canvasModule: CanvasModule | null = null;
   private boardsModule: WorkspaceModule | null = null;
   private kanbanModule: WorkspaceModule | null = null;
+  private flowsModule: WorkspaceModule | null = null;
   private focusBoardModule: WorkspaceModule | null = null;
   private learningStudioModule: WorkspaceModule | null = null;
   private timeClusteringModule: TimeClusteringIslandModule | null = null;
@@ -367,6 +378,7 @@ export class RuntimeHost {
     const isCanvasVisible = this.hostVisible && this.activeView === 'canvas';
     const isBoardsVisible = this.hostVisible && this.activeView === 'boards';
     const isKanbanVisible = this.hostVisible && this.activeView === 'kanban';
+    const isFlowsVisible = this.hostVisible && this.activeView === 'flows';
     const isFocusBoardVisible =
       this.hostVisible && this.activeView === 'focus-board';
     const isLearningStudioVisible =
@@ -390,7 +402,7 @@ export class RuntimeHost {
       return;
     }
 
-    if (isFocusBoardVisible) {
+    if (isFlowsVisible || isFocusBoardVisible) {
       this.applyWorkspaceImageWallpaper('#f4f7fb');
       return;
     }
@@ -578,6 +590,7 @@ export class RuntimeHost {
     this.canvasModule = null;
     this.boardsModule = null;
     this.kanbanModule = null;
+    this.flowsModule = null;
     this.focusBoardModule = null;
     this.learningStudioModule = null;
     this.timeClusteringModule?.unmount();
@@ -626,6 +639,7 @@ export class RuntimeHost {
           initialTimeClusteringLayoutMode: this.timeClusteringLayoutMode,
           showBoards: BOARDS_DEV_ENABLED,
           showKanban: KANBAN_DEV_ENABLED,
+          showFlows: FLOWS_DEV_ENABLED,
           showFocusBoard: FOCUS_BOARD_DEV_ENABLED,
           showLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
           showTimeClustering: TIME_CLUSTERING_DEV_ENABLED,
@@ -659,6 +673,13 @@ export class RuntimeHost {
         const { KanbanModule } = await loadKanbanModule();
         this.kanbanModule = new KanbanModule();
         this.shell.register(this.kanbanModule);
+      }
+      if (FLOWS_DEV_ENABLED && !this.flowsModule) {
+        const { FlowsModule } = await loadFlowsModule();
+        this.flowsModule = new FlowsModule({
+          runtime: this.runtime,
+        });
+        this.shell.register(this.flowsModule);
       }
       if (FOCUS_BOARD_DEV_ENABLED && !this.focusBoardModule) {
         const { FocusBoardModule } = await loadFocusBoardModule();
@@ -706,6 +727,7 @@ export class RuntimeHost {
   public async setActiveView(view: WorkspaceView): Promise<void> {
     if (view === 'boards' && !BOARDS_DEV_ENABLED) return;
     if (view === 'kanban' && !KANBAN_DEV_ENABLED) return;
+    if (view === 'flows' && !FLOWS_DEV_ENABLED) return;
     if (view === 'focus-board' && !FOCUS_BOARD_DEV_ENABLED) return;
     if (view === 'learning-studio' && !LEARNING_STUDIO_DEV_ENABLED) return;
     const shouldCloseTimeClustering =
@@ -1116,6 +1138,7 @@ export class RuntimeHost {
     this.activeView = loadInitialWorkspaceView({
       allowBoards: BOARDS_DEV_ENABLED,
       allowKanban: KANBAN_DEV_ENABLED,
+      allowFlows: FLOWS_DEV_ENABLED,
       allowFocusBoard: FOCUS_BOARD_DEV_ENABLED,
       allowLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
     });

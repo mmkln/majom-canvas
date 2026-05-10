@@ -391,6 +391,13 @@
 - Read first: `docs/KANBAN-TACTICAL-EXECUTION-DESIGN.md`
 - Expected result: a clear split between strategy (canvas), tactics (flows/capacity), and execution (Kanban), with an explicit roadmap for replacing temporary distribution logic.
 
+### Implement Flows Workspace
+
+- Use when the request creates or extends the Flows workspace, flow list loading, flow page shell, or shell/presentation-menu integration for flows.
+- Owner: `src/features/flows` + `src/majom-wrapper/data-access`
+- Read first: `src/features/flows/AGENTS.md`
+- Expected result: `FlowsStore` owns flow request state, `RuntimeHost` owns wallpaper-backed workspace presentation, and the shell routes through the `flows` workspace view without duplicating state channels.
+
 ### Apply AI-Native Incremental Refactoring
 
 - Use when implementing any code change, especially modifications to existing functionality that should gradually become easier for AI agents to evolve safely.

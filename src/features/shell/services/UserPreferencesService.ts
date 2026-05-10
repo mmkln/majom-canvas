@@ -553,6 +553,7 @@ function readLegacyWorkspaceDefaultView(): WorkspaceView | undefined {
     if (
       value === 'canvas' ||
       value === 'kanban' ||
+      value === 'flows' ||
       value === 'focus-board' ||
       value === 'learning-studio'
     ) {
@@ -957,6 +958,7 @@ function isWorkspaceView(value: unknown): value is WorkspaceView {
     value === 'canvas' ||
     value === 'boards' ||
     value === 'kanban' ||
+    value === 'flows' ||
     value === 'focus-board' ||
     value === 'learning-studio'
   );

@@ -36,6 +36,7 @@ export function isWorkspaceView(value: unknown): value is WorkspaceView {
     value === 'canvas' ||
     value === 'boards' ||
     value === 'kanban' ||
+    value === 'flows' ||
     value === 'focus-board' ||
     value === 'learning-studio'
   );

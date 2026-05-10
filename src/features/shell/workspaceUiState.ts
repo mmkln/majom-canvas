@@ -31,6 +31,7 @@ const LEGACY_WORKSPACE_CHAT_OPEN_STORAGE_KEY = 'workspace-chat-open';
 type WorkspaceViewAvailabilityOptions = {
   allowBoards?: boolean;
   allowKanban?: boolean;
+  allowFlows?: boolean;
   allowFocusBoard?: boolean;
   allowLearningStudio?: boolean;
 };
@@ -41,10 +42,12 @@ export function resolveAvailableWorkspaceView(
 ): WorkspaceView {
   const allowBoards = options.allowBoards ?? true;
   const allowKanban = options.allowKanban ?? true;
+  const allowFlows = options.allowFlows ?? true;
   const allowFocusBoard = options.allowFocusBoard ?? true;
   const allowLearningStudio = options.allowLearningStudio ?? true;
   if (view === 'boards' && allowBoards) return 'boards';
   if (view === 'kanban' && allowKanban) return 'kanban';
+  if (view === 'flows' && allowFlows) return 'flows';
   if (view === 'focus-board' && allowFocusBoard) return 'focus-board';
   if (view === 'learning-studio' && allowLearningStudio) {
     return 'learning-studio';

@@ -82,6 +82,9 @@ describe('workspaceUiState workspace view restore', () => {
     expect(
       resolveAvailableWorkspaceView('kanban', { allowKanban: false })
     ).toBe('canvas');
+    expect(
+      resolveAvailableWorkspaceView('flows', { allowFlows: false })
+    ).toBe('canvas');
     expect(resolveAvailableWorkspaceView('canvas')).toBe('canvas');
   });
 });

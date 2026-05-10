@@ -294,6 +294,28 @@ describe('WorkspaceControlsBar floating variant', () => {
     expect(bar.element.children[1]?.getAttribute('aria-hidden')).toBe('true');
   });
 
+  it('renders the flows workspace button with the shared flows icon', () => {
+    const bar = new WorkspaceControlsBar({
+      initialView: 'canvas',
+      showKanban: true,
+      showFlows: true,
+      showTimeClustering: false,
+      showRoutines: false,
+      showNotes: false,
+      showChat: false,
+      showEnergy: false,
+      variant: 'floating',
+    });
+
+    const flowsButton = bar.element.querySelector<HTMLButtonElement>(
+      'button[data-view="flows"]'
+    );
+
+    expect(flowsButton).not.toBeNull();
+    expect(flowsButton?.getAttribute('aria-label')).toBe('Flows');
+    expect(flowsButton?.querySelector('svg')?.dataset.iconName).toBe('flows');
+  });
+
   it('renders a routines badge when today still has open habits', () => {
     const bar = new WorkspaceControlsBar({
       initialView: 'canvas',

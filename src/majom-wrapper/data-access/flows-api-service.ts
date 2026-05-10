@@ -1,0 +1,87 @@
+import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
+import type { Flow, PlatformTask } from '../interfaces/index.ts';
+import type { HttpInterceptorClient } from './http-interceptor.ts';
+import type { PaginatedResponse } from './paginated-response.ts';
+
+type FlowListResponse = PaginatedResponse<Flow> | Flow[];
+
+export type FlowCreatePayload = Pick<Flow, 'title'> &
+  Partial<Pick<Flow, 'status' | 'meta'>>;
+export type FlowUpdatePayload = Partial<Pick<Flow, 'title' | 'status' | 'meta'>>;
+export type FlowTaskListItem = Pick<
+  PlatformTask,
+  'id' | 'uuid' | 'title' | 'status' | 'priority' | 'due_date' | 'is_completed'
+>;
+export type FlowTaskListParams = {
+  isCompleted?: boolean;
+  page?: number;
+  pageSize?: number;
+};
+
+function normalizeFlowListResponse(response: FlowListResponse): Flow[] {
+  return Array.isArray(response) ? response : response.results;
+}
+
+function encodeFlowId(id: Flow['id']): string {
+  return encodeURIComponent(String(id));
+}
+
+function buildFlowTaskQuery(params: FlowTaskListParams = {}): string {
+  const query: string[] = [];
+  if (params.isCompleted !== undefined) {
+    query.push(`is_completed=${params.isCompleted ? 'true' : 'false'}`);
+  }
+  if (params.page !== undefined) {
+    query.push(`page=${encodeURIComponent(params.page.toString())}`);
+  }
+  if (params.pageSize !== undefined) {
+    query.push(`page_size=${encodeURIComponent(params.pageSize.toString())}`);
+  }
+  return query.length ? `?${query.join('&')}` : '';
+}
+
+export class FlowsApiService {
+  constructor(private readonly http: HttpInterceptorClient) {}
+
+  public getFlows(): Observable<Flow[]> {
+    return this.http
+      .get<FlowListResponse>('/flows/')
+      .pipe(map(normalizeFlowListResponse));
+  }
+
+  public getFlow(id: Flow['id']): Observable<Flow> {
+    return this.http.get<Flow>(`/flows/${encodeFlowId(id)}/`);
+  }
+
+  public getFlowTasks(
+    id: Flow['id'],
+    params: FlowTaskListParams = {}
+  ): Observable<PaginatedResponse<FlowTaskListItem>> {
+    return this.http.get<PaginatedResponse<FlowTaskListItem>>(
+      `/flows/${encodeFlowId(id)}/tasks/${buildFlowTaskQuery(params)}`
+    );
+  }
+
+  public createFlow(payload: FlowCreatePayload): Observable<Flow> {
+    return this.http.post<Flow>('/flows/', payload);
+  }
+
+  public updateFlow(
+    id: Flow['id'],
+    payload: FlowCreatePayload
+  ): Observable<Flow> {
+    return this.http.put<Flow>(`/flows/${encodeFlowId(id)}/`, payload);
+  }
+
+  public patchFlow(
+    id: Flow['id'],
+    payload: FlowUpdatePayload
+  ): Observable<Flow> {
+    return this.http.patch<Flow>(`/flows/${encodeFlowId(id)}/`, payload);
+  }
+
+  public deleteFlow(id: Flow['id']): Observable<void> {
+    return this.http.delete<void>(`/flows/${encodeFlowId(id)}/`);
+  }
+}

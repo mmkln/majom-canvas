@@ -55,6 +55,7 @@ type PresentationMenuViewOptions = {
   autoCollapseEnabled: boolean;
   showBoards?: boolean;
   showKanban?: boolean;
+  showFlows?: boolean;
   showFocusBoard?: boolean;
   showLearningStudio?: boolean;
   showTimeClustering?: boolean;
@@ -178,6 +179,7 @@ export class PresentationMenuView {
       initialTimeClusteringLayoutMode: options.initialTimeClusteringLayoutMode,
       showBoards: options.showBoards,
       showKanban: options.showKanban,
+      showFlows: options.showFlows,
       showFocusBoard: options.showFocusBoard,
       showLearningStudio: options.showLearningStudio,
       showTimeClustering: options.showTimeClustering,
@@ -503,6 +505,7 @@ export class PresentationMenuView {
   private getHandleViewIconName(view: WorkspaceView): IconName {
     if (view === 'boards') return 'kanban';
     if (view === 'kanban') return 'view-columns';
+    if (view === 'flows') return 'flows';
     if (view === 'focus-board') return 'view-columns';
     if (view === 'learning-studio') return 'academic-cap';
     return 'map';

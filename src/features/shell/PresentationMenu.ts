@@ -25,6 +25,7 @@ type PresentationMenuOptions = {
   wallpaperService?: WallpaperService;
   showBoards?: boolean;
   showKanban?: boolean;
+  showFlows?: boolean;
   showFocusBoard?: boolean;
   showLearningStudio?: boolean;
   showTimeClustering?: boolean;
@@ -76,6 +77,7 @@ export class PresentationMenu {
       initialTimeClusteringLayoutMode: options.initialTimeClusteringLayoutMode,
       showBoards: options.showBoards,
       showKanban: options.showKanban,
+      showFlows: options.showFlows,
       showFocusBoard: options.showFocusBoard,
       showLearningStudio: options.showLearningStudio,
       showTimeClustering: options.showTimeClustering,
