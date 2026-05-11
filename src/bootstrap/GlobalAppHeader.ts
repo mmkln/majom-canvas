@@ -1,6 +1,6 @@
 import {
   BOARDS_DEV_ENABLED,
-  FLOWS_DEV_ENABLED,
+  FLOWS_ENABLED,
   FOCUS_BOARD_DEV_ENABLED,
   IS_DEVELOPMENT_MODE,
   KANBAN_DEV_ENABLED,
@@ -178,7 +178,7 @@ export class GlobalAppHeader {
       initialTimeClusteringLayoutMode: 'docked-left',
       showBoards: BOARDS_DEV_ENABLED,
       showKanban: KANBAN_DEV_ENABLED,
-      showFlows: FLOWS_DEV_ENABLED,
+      showFlows: FLOWS_ENABLED,
       showLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
       showTimeClustering: false,
       showRoutines: false,
@@ -262,7 +262,7 @@ export class GlobalAppHeader {
       loadInitialWorkspaceView({
         allowBoards: BOARDS_DEV_ENABLED,
         allowKanban: KANBAN_DEV_ENABLED,
-        allowFlows: FLOWS_DEV_ENABLED,
+        allowFlows: FLOWS_ENABLED,
         allowFocusBoard: FOCUS_BOARD_DEV_ENABLED,
         allowLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
       })

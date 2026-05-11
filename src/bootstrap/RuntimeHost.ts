@@ -2,7 +2,7 @@ import { firstValueFrom, Subscription } from 'rxjs';
 import { GLOBAL_APP_SIDEBAR_WIDTH_PX } from './GlobalAppHeader.ts';
 import {
   BOARDS_DEV_ENABLED,
-  FLOWS_DEV_ENABLED,
+  FLOWS_ENABLED,
   FOCUS_BOARD_DEV_ENABLED,
   KANBAN_DEV_ENABLED,
   LEARNING_STUDIO_DEV_ENABLED,
@@ -103,9 +103,7 @@ type FocusBoardModuleNamespace = {
 };
 
 type FlowsModuleNamespace = {
-  FlowsModule: new (options?: {
-    runtime?: AppRuntime;
-  }) => WorkspaceModule;
+  FlowsModule: new (options?: { runtime?: AppRuntime }) => WorkspaceModule;
 };
 
 type RuntimeHostOptions = {
@@ -639,7 +637,7 @@ export class RuntimeHost {
           initialTimeClusteringLayoutMode: this.timeClusteringLayoutMode,
           showBoards: BOARDS_DEV_ENABLED,
           showKanban: KANBAN_DEV_ENABLED,
-          showFlows: FLOWS_DEV_ENABLED,
+          showFlows: FLOWS_ENABLED,
           showFocusBoard: FOCUS_BOARD_DEV_ENABLED,
           showLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
           showTimeClustering: TIME_CLUSTERING_DEV_ENABLED,
@@ -674,7 +672,7 @@ export class RuntimeHost {
         this.kanbanModule = new KanbanModule();
         this.shell.register(this.kanbanModule);
       }
-      if (FLOWS_DEV_ENABLED && !this.flowsModule) {
+      if (FLOWS_ENABLED && !this.flowsModule) {
         const { FlowsModule } = await loadFlowsModule();
         this.flowsModule = new FlowsModule({
           runtime: this.runtime,
@@ -727,7 +725,7 @@ export class RuntimeHost {
   public async setActiveView(view: WorkspaceView): Promise<void> {
     if (view === 'boards' && !BOARDS_DEV_ENABLED) return;
     if (view === 'kanban' && !KANBAN_DEV_ENABLED) return;
-    if (view === 'flows' && !FLOWS_DEV_ENABLED) return;
+    if (view === 'flows' && !FLOWS_ENABLED) return;
     if (view === 'focus-board' && !FOCUS_BOARD_DEV_ENABLED) return;
     if (view === 'learning-studio' && !LEARNING_STUDIO_DEV_ENABLED) return;
     const shouldCloseTimeClustering =
@@ -1138,7 +1136,7 @@ export class RuntimeHost {
     this.activeView = loadInitialWorkspaceView({
       allowBoards: BOARDS_DEV_ENABLED,
       allowKanban: KANBAN_DEV_ENABLED,
-      allowFlows: FLOWS_DEV_ENABLED,
+      allowFlows: FLOWS_ENABLED,
       allowFocusBoard: FOCUS_BOARD_DEV_ENABLED,
       allowLearningStudio: LEARNING_STUDIO_DEV_ENABLED,
     });

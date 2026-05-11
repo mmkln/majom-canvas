@@ -38,6 +38,7 @@ export type FlowPresentationSettings = {
   riskLevel: FlowRiskLevel | null;
   priority: FlowPriority | null;
   collapsed: boolean | null;
+  hidden: boolean | null;
 };
 
 const FLOW_COLOR_SET = new Set<string>(FLOW_THEME_COLORS);
@@ -57,11 +58,13 @@ export function readFlowPresentationSettings(
   const riskLevel = presentation?.riskLevel;
   const priority = presentation?.priority;
   const collapsed = presentation?.collapsed;
+  const hidden = presentation?.hidden;
 
   return {
-    color: typeof color === 'string' && FLOW_COLOR_SET.has(color)
-      ? (color as FlowThemeColor)
-      : null,
+    color:
+      typeof color === 'string' && FLOW_COLOR_SET.has(color)
+        ? (color as FlowThemeColor)
+        : null,
     timeProfile:
       typeof timeProfile === 'string' && timeProfile.trim()
         ? timeProfile.trim()
@@ -75,6 +78,7 @@ export function readFlowPresentationSettings(
         ? (priority as FlowPriority)
         : null,
     collapsed: typeof collapsed === 'boolean' ? collapsed : null,
+    hidden: typeof hidden === 'boolean' ? hidden : null,
   };
 }
 
@@ -90,6 +94,7 @@ export function writeFlowPresentationSettings(
     riskLevel: settings.riskLevel,
     priority: settings.priority,
     collapsed: settings.collapsed,
+    hidden: settings.hidden,
   };
   meta.presentation = presentation;
   return meta;

@@ -1,5 +1,11 @@
 import type { AppRuntime } from '../../../app-runtime/index.ts';
-import { createTextButton } from '../../../ui-lib/src/hud/index.ts';
+import { StaticDropdownSelect } from '../../../ui-lib/src/components/StaticDropdownSelect.ts';
+import {
+  AnchoredMenu,
+  createDropdownItem,
+  createSurface,
+  createTextButton,
+} from '../../../ui-lib/src/hud/index.ts';
 import { createIcon, type IconName } from '../../../ui-lib/src/hud/icons.ts';
 import {
   Priority,
@@ -42,6 +48,21 @@ type FlowTitleEditTarget = {
   surface: FlowTitleEditSurface;
 };
 
+type FlowColumnMenuPopover = {
+  menu: AnchoredMenu;
+  panel: HTMLElement;
+  trigger: HTMLButtonElement;
+};
+
+type FlowMetaTone = 'slate' | 'blue' | 'emerald' | 'amber' | 'rose' | 'violet';
+
+type FlowMetaSelectItem = {
+  value: string;
+  label: string;
+  icon: IconName;
+  tone: FlowMetaTone;
+};
+
 const FLOW_STATUSES = [
   Status.Draft,
   Status.Described,
@@ -50,6 +71,7 @@ const FLOW_STATUSES = [
   Status.Archived,
   Status.Cancelled,
 ] as const;
+const ORGANIZE_MULTI_COLUMN_THRESHOLD = 8;
 
 type FlowsViewHandlers = {
   onCreateFlow: (payload: FlowCreatePayload) => Promise<void> | void;
@@ -71,8 +93,9 @@ export class FlowsView {
   private organizeDraggingFlowId: Flow['id'] | null = null;
   private organizeDragOverFlowId: Flow['id'] | null = null;
   private organizeDragPlacement: 'before' | 'after' | null = null;
+  private organizeDropInsertionIndex: number | null = null;
   private reorderPendingFlowId: Flow['id'] | null = null;
-  private openMenuFlowId: number | null = null;
+  private columnMenuPopover: FlowColumnMenuPopover | null = null;
   private editingFlowTitleTarget: FlowTitleEditTarget | null = null;
   private flowTitleEditInput: HTMLInputElement | null = null;
   private isCreatingFlow = false;
@@ -81,12 +104,7 @@ export class FlowsView {
   private editError: string | null = null;
   private isSubmittingEdit = false;
   private lastState: FlowsState | null = null;
-  private readonly closeMenuOnOutsideClick = (event: MouseEvent): void => {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    if (target.closest('.flows-column-menu-container')) return;
-    this.closeColumnMenu();
-  };
+  private readonly dropdownDisposers: Array<() => void> = [];
 
   constructor(
     private readonly parent: HTMLElement,
@@ -106,17 +124,19 @@ export class FlowsView {
       },
     });
     this.columnDragController.mount();
-    document.addEventListener('click', this.closeMenuOnOutsideClick);
   }
 
   public render(state: FlowsState): void {
+    this.closeColumnMenu();
+    this.disposeDropdownControls();
     this.lastState = state;
     this.element.replaceChildren(this.renderPage(state));
   }
 
   public destroy(): void {
+    this.closeColumnMenu();
+    this.disposeDropdownControls();
     this.columnDragController.unmount();
-    document.removeEventListener('click', this.closeMenuOnOutsideClick);
     this.element.remove();
   }
 
@@ -163,17 +183,10 @@ export class FlowsView {
           this.openOrganizeModal();
           this.renderCurrent();
         },
-      })
-    );
-    titleBlock.appendChild(titleRow);
-
-    const actions = document.createElement('div');
-    actions.className = 'flows-header-actions';
-    actions.appendChild(
+      }),
       this.renderHeaderActionButton({
         label: this.runtime.i18n.t('flows.actions.create'),
         icon: 'plus',
-        tone: 'primary',
         disabled: state.status === 'loading',
         onClick: () => {
           this.openCreateModal();
@@ -181,26 +194,24 @@ export class FlowsView {
         },
       })
     );
+    titleBlock.appendChild(titleRow);
 
-    header.append(titleBlock, actions);
+    header.appendChild(titleBlock);
     return header;
   }
 
   private renderHeaderActionButton(options: {
     label: string;
     icon: IconName;
-    tone?: 'primary' | 'quiet';
     disabled?: boolean;
     pressed?: boolean;
     onClick: () => void;
   }): HTMLButtonElement {
     const button = createTextButton({
       text: '',
-      tone: options.tone === 'primary' ? 'primary' : 'text',
+      tone: 'text',
       size: 'sm',
-      className: `flows-header-action${
-        options.tone === 'primary' ? ' flows-header-action--primary' : ''
-      }`,
+      className: 'flows-header-action',
       title: options.label,
       ariaLabel: options.label,
       disabled: options.disabled,
@@ -227,13 +238,19 @@ export class FlowsView {
     if (state.columns.length === 0) {
       return this.renderCenterState(this.runtime.i18n.t('flows.empty'));
     }
+    const visibleColumns = state.columns.filter(
+      (column) => readFlowPresentationSettings(column.flow).hidden !== true
+    );
 
     const board = document.createElement('div');
     board.className = 'flows-board';
     board.dataset.flowBoard = 'true';
-    state.columns.forEach((column, index) => {
-      board.appendChild(this.renderFlowColumn(column, index));
+    visibleColumns.forEach((column) => {
+      board.appendChild(
+        this.renderFlowColumn(column, this.getColumnIndex(column.flow.id))
+      );
     });
+    board.appendChild(this.renderAddFlowButton(state));
     return board;
   }
 
@@ -266,13 +283,17 @@ export class FlowsView {
 
   private renderOrganizeModal(state: FlowsState): HTMLElement {
     const columns = state.columns;
+    const useMultiColumnLayout =
+      columns.length >= ORGANIZE_MULTI_COLUMN_THRESHOLD;
     const overlay = document.createElement('div');
     overlay.className = 'flows-organize-modal';
     overlay.setAttribute('role', 'presentation');
     overlay.addEventListener('click', () => this.closeOrganizeModal());
 
     const dialog = document.createElement('section');
-    dialog.className = 'flows-organize-dialog';
+    dialog.className = `flows-organize-dialog${
+      useMultiColumnLayout ? ' flows-organize-dialog--multi-column' : ''
+    }`;
     dialog.setAttribute('role', 'dialog');
     dialog.setAttribute('aria-modal', 'true');
     dialog.setAttribute('aria-labelledby', 'flows-organize-title');
@@ -302,8 +323,16 @@ export class FlowsView {
     header.append(titleWrap, closeButton);
 
     const body = document.createElement('div');
-    body.className = 'flows-organize-body';
+    body.className = `flows-organize-body${
+      useMultiColumnLayout ? ' flows-organize-body--multi-column' : ''
+    }`;
     body.setAttribute('role', 'list');
+    body.addEventListener('dragover', (event) => {
+      this.handleOrganizeBodyDragOver(event);
+    });
+    body.addEventListener('drop', (event) => {
+      void this.handleOrganizeBodyDrop(event, columns);
+    });
     if (columns.length === 0) {
       const empty = document.createElement('p');
       empty.className = 'flows-organize-empty';
@@ -338,15 +367,16 @@ export class FlowsView {
     columns: FlowColumn[]
   ): HTMLElement {
     const accentColor = this.getColumnAccentColor(column, index);
+    const presentation = readFlowPresentationSettings(column.flow);
     const isPending = this.reorderPendingFlowId === column.flow.id;
     const row = document.createElement('div');
     row.className = `flows-organize-row flows-column--${accentColor}${
       isPending ? ' is-pending' : ''
-    }`;
+    }${presentation.hidden === true ? ' is-hidden' : ''}`;
     row.setAttribute('role', 'listitem');
     row.dataset.flowId = String(column.flow.id);
     row.addEventListener('dragover', (event) => {
-      this.handleOrganizeDragOver(event, row, column);
+      this.handleOrganizeDragOver(event, row, column, index, columns);
     });
     row.addEventListener('drop', (event) => {
       void this.handleOrganizeDrop(event, row, column, index, columns);
@@ -381,46 +411,35 @@ export class FlowsView {
     label.appendChild(this.renderFlowTitleInline(column, 'organize'));
     main.append(handle, dot, label);
 
-    const actions = document.createElement('div');
-    actions.className = 'flows-organize-row-actions';
-    actions.append(
-      this.renderOrganizeMoveButton({
-        icon: 'chevron-up',
-        label: this.runtime.i18n.t('flows.organize.moveUp', {
-          title: column.flow.title,
-        }),
-        disabled: index === 0 || this.reorderPendingFlowId !== null,
-        onClick: () => void this.moveOrganizeColumn(column.flow.id, index - 1),
-      }),
-      this.renderOrganizeMoveButton({
-        icon: 'chevron-down',
-        label: this.runtime.i18n.t('flows.organize.moveDown', {
-          title: column.flow.title,
-        }),
-        disabled:
-          index === columns.length - 1 || this.reorderPendingFlowId !== null,
-        onClick: () => void this.moveOrganizeColumn(column.flow.id, index + 1),
-      })
-    );
-    row.append(main, actions);
+    row.append(main, this.renderOrganizeHideButton(column, presentation));
 
     return row;
   }
 
-  private renderOrganizeMoveButton(options: {
-    icon: IconName;
-    label: string;
-    disabled: boolean;
-    onClick: () => void;
-  }): HTMLButtonElement {
+  private renderOrganizeHideButton(
+    column: FlowColumn,
+    presentation: FlowPresentationSettings
+  ): HTMLButtonElement {
+    const isHidden = presentation.hidden === true;
+    const label = this.runtime.i18n.t(
+      isHidden ? 'flows.organize.show' : 'flows.organize.hide'
+    );
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'flows-organize-move';
-    button.title = options.label;
-    button.setAttribute('aria-label', options.label);
-    button.disabled = options.disabled;
-    button.appendChild(createIcon(options.icon, { size: 17, strokeWidth: 2 }));
-    button.addEventListener('click', options.onClick);
+    button.className = `flows-organize-hide${isHidden ? ' is-hidden' : ''}`;
+    button.dataset.flowDragIgnore = 'true';
+    button.disabled = this.reorderPendingFlowId !== null;
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    button.appendChild(
+      createIcon(isHidden ? 'eye' : 'eye-slash', {
+        size: 16,
+        strokeWidth: 2,
+      })
+    );
+    button.addEventListener('click', () => {
+      void this.patchFlowHidden(column, !isHidden);
+    });
     return button;
   }
 
@@ -511,7 +530,9 @@ export class FlowsView {
   private handleOrganizeDragOver(
     event: DragEvent,
     row: HTMLElement,
-    column: FlowColumn
+    column: FlowColumn,
+    targetIndex: number,
+    columns: FlowColumn[]
   ): void {
     const draggingFlowId = this.organizeDraggingFlowId;
     if (
@@ -526,10 +547,20 @@ export class FlowsView {
       event.dataTransfer.dropEffect = 'move';
     }
     const placement = this.resolveOrganizeDropPlacement(event, row);
-    this.clearOrganizeDropIndicators();
+    const insertionIndex = this.resolveOrganizeInsertionIndex(
+      columns,
+      draggingFlowId,
+      targetIndex,
+      placement
+    );
     this.organizeDragOverFlowId = column.flow.id;
     this.organizeDragPlacement = placement;
-    row.classList.add('is-drag-over', `is-drag-over-${placement}`);
+    this.organizeDropInsertionIndex = insertionIndex;
+    this.placeOrganizeDropPlaceholder({
+      row,
+      placement,
+      show: hasFlowInsertionChanged(columns, draggingFlowId, insertionIndex),
+    });
   }
 
   private async handleOrganizeDrop(
@@ -554,14 +585,56 @@ export class FlowsView {
       this.organizeDragPlacement
         ? this.organizeDragPlacement
         : this.resolveOrganizeDropPlacement(event, row);
-    const insertionIndex = this.resolveOrganizeInsertionIndex(
-      columns,
-      draggingFlowId,
-      targetIndex,
-      placement
-    );
+    const insertionIndex =
+      this.organizeDragOverFlowId === column.flow.id &&
+      this.organizeDragPlacement &&
+      this.organizeDropInsertionIndex !== null
+        ? this.organizeDropInsertionIndex
+        : this.resolveOrganizeInsertionIndex(
+            columns,
+            draggingFlowId,
+            targetIndex,
+            placement
+          );
+    event.stopPropagation();
     this.resetOrganizeDragState();
     await this.moveOrganizeColumn(draggingFlowId, insertionIndex);
+  }
+
+  private async handleOrganizeBodyDrop(
+    event: DragEvent,
+    columns: FlowColumn[]
+  ): Promise<void> {
+    const draggingFlowId = this.readOrganizeDraggedFlowId(event);
+    const insertionIndex = this.organizeDropInsertionIndex;
+    if (
+      this.reorderPendingFlowId !== null ||
+      draggingFlowId === null ||
+      insertionIndex === null
+    ) {
+      this.resetOrganizeDragState();
+      return;
+    }
+    event.preventDefault();
+    this.resetOrganizeDragState();
+    if (!hasFlowInsertionChanged(columns, draggingFlowId, insertionIndex)) {
+      return;
+    }
+    await this.moveOrganizeColumn(draggingFlowId, insertionIndex);
+  }
+
+  private handleOrganizeBodyDragOver(event: DragEvent): void {
+    if (
+      this.reorderPendingFlowId !== null ||
+      this.organizeDraggingFlowId === null ||
+      this.organizeDropInsertionIndex === null
+    ) {
+      return;
+    }
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'move';
+    }
   }
 
   private resolveOrganizeDropPlacement(
@@ -589,6 +662,35 @@ export class FlowsView {
     return placement === 'after' ? stableTargetIndex + 1 : stableTargetIndex;
   }
 
+  private placeOrganizeDropPlaceholder(options: {
+    row: HTMLElement;
+    placement: 'before' | 'after';
+    show: boolean;
+  }): void {
+    this.element
+      .querySelectorAll<HTMLElement>('.flows-organize-drop-placeholder')
+      .forEach((placeholder) => placeholder.remove());
+    if (!options.show) return;
+    const parent = options.row.parentElement;
+    if (!parent) return;
+
+    const placeholder = document.createElement('div');
+    placeholder.className = 'flows-organize-drop-placeholder';
+    const accentClass = Array.from(options.row.classList).find((className) =>
+      className.startsWith('flows-column--')
+    );
+    if (accentClass) {
+      placeholder.classList.add(accentClass);
+    }
+    placeholder.setAttribute('aria-hidden', 'true');
+    parent.insertBefore(
+      placeholder,
+      options.placement === 'before'
+        ? options.row
+        : options.row.nextElementSibling
+    );
+  }
+
   private readOrganizeDraggedFlowId(event: DragEvent): Flow['id'] | null {
     const transferred = event.dataTransfer?.getData('text/plain') ?? '';
     if (!transferred.trim()) return this.organizeDraggingFlowId;
@@ -601,22 +703,19 @@ export class FlowsView {
     this.organizeDraggingFlowId = null;
     this.organizeDragOverFlowId = null;
     this.organizeDragPlacement = null;
+    this.organizeDropInsertionIndex = null;
     this.clearOrganizeDropIndicators();
   }
 
   private clearOrganizeDropIndicators(): void {
     this.element
-      .querySelectorAll<HTMLElement>(
-        '.flows-organize-row.is-dragging, .flows-organize-row.is-drag-over'
-      )
+      .querySelectorAll<HTMLElement>('.flows-organize-row.is-dragging')
       .forEach((row) => {
-        row.classList.remove(
-          'is-dragging',
-          'is-drag-over',
-          'is-drag-over-before',
-          'is-drag-over-after'
-        );
+        row.classList.remove('is-dragging');
       });
+    this.element
+      .querySelectorAll<HTMLElement>('.flows-organize-drop-placeholder')
+      .forEach((placeholder) => placeholder.remove());
   }
 
   private async moveOrganizeColumn(
@@ -646,7 +745,7 @@ export class FlowsView {
   }
 
   private openOrganizeModal(): void {
-    this.openMenuFlowId = null;
+    this.closeColumnMenu();
     this.isOrganizeModalOpen = true;
   }
 
@@ -695,8 +794,8 @@ export class FlowsView {
     const header = document.createElement('header');
     header.className = 'flows-column-header';
 
-    const colorBar = document.createElement('span');
-    colorBar.className = 'flows-column-color-bar';
+    const colorBar = document.createElement('div');
+    colorBar.className = 'color-line-bar flows-column-color-line-bar';
     colorBar.setAttribute('aria-hidden', 'true');
 
     const titleRow = document.createElement('div');
@@ -748,7 +847,6 @@ export class FlowsView {
   }
 
   private renderColumnMenu(column: FlowColumn): HTMLElement {
-    const isOpen = this.openMenuFlowId === column.flow.id;
     const container = document.createElement('div');
     container.className = 'flows-column-menu-container';
 
@@ -759,29 +857,33 @@ export class FlowsView {
     trigger.title = this.runtime.i18n.t('flows.actions.menu');
     trigger.setAttribute('aria-label', trigger.title);
     trigger.setAttribute('aria-haspopup', 'menu');
-    trigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    trigger.setAttribute('aria-expanded', 'false');
     trigger.appendChild(
       createIcon('ellipsis-horizontal', { size: 18, strokeWidth: 2 })
     );
     trigger.addEventListener('click', (event) => {
       event.stopPropagation();
-      this.openMenuFlowId = isOpen ? null : column.flow.id;
-      this.renderCurrent();
+      if (this.columnMenuPopover?.trigger === trigger) {
+        this.closeColumnMenu();
+        return;
+      }
+      this.openColumnMenu(trigger, column);
     });
 
     container.appendChild(trigger);
-    if (isOpen) {
-      container.appendChild(this.renderColumnMenuDropdown(column));
-    }
     return container;
   }
 
-  private renderColumnMenuDropdown(column: FlowColumn): HTMLElement {
-    const menu = document.createElement('div');
-    menu.className = 'flows-column-menu';
-    menu.setAttribute('role', 'menu');
-    menu.addEventListener('click', (event) => event.stopPropagation());
-    menu.append(
+  private openColumnMenu(trigger: HTMLButtonElement, column: FlowColumn): void {
+    this.closeColumnMenu();
+
+    const panel = createSurface({
+      elevated: true,
+      className: 'flows-column-menu hidden',
+    });
+    panel.setAttribute('role', 'menu');
+    panel.addEventListener('mousedown', (event) => event.stopPropagation());
+    panel.append(
       this.renderColumnMenuItem({
         label: this.runtime.i18n.t('flows.actions.edit'),
         icon: 'pencil',
@@ -794,7 +896,30 @@ export class FlowsView {
         onClick: () => void this.deleteFlow(column),
       })
     );
-    return menu;
+
+    let menu!: AnchoredMenu;
+    menu = new AnchoredMenu({
+      container: trigger,
+      panel,
+      positioning: 'viewport',
+      panelZIndex: 290,
+      onOpenChange: (open) => {
+        trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (!open && this.columnMenuPopover?.menu === menu) {
+          this.closeColumnMenu();
+        }
+      },
+    });
+    menu.mount();
+    this.columnMenuPopover = { menu, panel, trigger };
+    menu.openAt({
+      anchor: trigger,
+      placement: 'bottom-end',
+      fallbackPlacements: ['bottom-start', 'top-end', 'top-start'],
+      gap: 6,
+      margin: 12,
+      lockPlacementAfterOpen: true,
+    });
   }
 
   private renderColumnMenuItem(options: {
@@ -803,22 +928,31 @@ export class FlowsView {
     tone?: 'danger';
     onClick: () => void;
   }): HTMLButtonElement {
-    const item = document.createElement('button');
-    item.type = 'button';
+    const leadingIcon = document.createElement('span');
+    leadingIcon.className = 'flows-column-menu-item-icon';
+    leadingIcon.appendChild(
+      createIcon(options.icon, { size: 15, strokeWidth: 2 })
+    );
+    const item = createDropdownItem({
+      label: options.label,
+      tone: options.tone === 'danger' ? 'danger' : 'default',
+      leading: leadingIcon,
+      className: `flows-column-menu-item${
+        options.tone === 'danger' ? ' flows-column-menu-item--danger' : ''
+      }`,
+      onClick: (event) => {
+        event.stopPropagation();
+        options.onClick();
+      },
+    });
     item.dataset.flowDragIgnore = 'true';
-    item.className = `flows-column-menu-item${
-      options.tone === 'danger' ? ' flows-column-menu-item--danger' : ''
-    }`;
     item.setAttribute('role', 'menuitem');
-    item.appendChild(createIcon(options.icon, { size: 15, strokeWidth: 2 }));
-    item.append(document.createTextNode(options.label));
-    item.addEventListener('click', options.onClick);
     return item;
   }
 
   private openEditModal(column: FlowColumn): void {
     const presentation = readFlowPresentationSettings(column.flow);
-    this.openMenuFlowId = null;
+    this.closeColumnMenu();
     this.editingFlowTitleTarget = null;
     this.flowTitleEditInput = null;
     this.isCreatingFlow = false;
@@ -837,7 +971,7 @@ export class FlowsView {
   }
 
   private openCreateModal(): void {
-    this.openMenuFlowId = null;
+    this.closeColumnMenu();
     this.isOrganizeModalOpen = false;
     this.editingFlowTitleTarget = null;
     this.flowTitleEditInput = null;
@@ -848,8 +982,7 @@ export class FlowsView {
   }
 
   private async deleteFlow(column: FlowColumn): Promise<void> {
-    this.openMenuFlowId = null;
-    this.renderCurrent();
+    this.closeColumnMenu();
     const confirmed = window.confirm(
       this.runtime.i18n.t('flows.delete.confirm', {
         title: column.flow.title,
@@ -860,16 +993,22 @@ export class FlowsView {
   }
 
   private renderFlowStatusSelect(column: FlowColumn): HTMLElement {
+    const status = column.flow.status;
     return this.renderMetaSelect({
+      kind: 'status',
       label: this.runtime.i18n.t('flows.fields.status'),
-      value: column.flow.status,
+      value: status,
       options: FLOW_STATUSES.map((status) => ({
         value: status,
         label: this.getStatusLabel(status),
+        icon: this.getStatusIcon(status),
+        tone: this.getStatusTone(status),
       })),
-      onChange: (value, select) => {
+      onChange: (value, setDisabled) => {
         if (!isFlowStatus(value) || value === column.flow.status) return;
-        void this.patchFlowFromSelect(select, column, { status: value });
+        void this.patchFlowFromMetaControl(setDisabled, column, {
+          status: value,
+        });
       },
     });
   }
@@ -880,15 +1019,18 @@ export class FlowsView {
   ): HTMLElement {
     const priority = presentation.priority ?? Priority.Medium;
     return this.renderMetaSelect({
+      kind: 'priority',
       label: this.runtime.i18n.t('flows.fields.priority'),
       value: priority,
       options: FLOW_PRIORITIES.map((value) => ({
         value,
         label: this.getPriorityLabel(value),
+        icon: this.getPriorityIcon(value),
+        tone: this.getPriorityTone(value),
       })),
-      onChange: (value, select) => {
+      onChange: (value, setDisabled) => {
         if (!isFlowPriority(value) || value === presentation.priority) return;
-        void this.patchFlowFromSelect(select, column, {
+        void this.patchFlowFromMetaControl(setDisabled, column, {
           meta: writeFlowPresentationSettings(column.flow.meta, {
             ...presentation,
             priority: value,
@@ -899,47 +1041,95 @@ export class FlowsView {
   }
 
   private renderMetaSelect(options: {
+    kind: 'status' | 'priority';
     label: string;
     value: string;
-    options: Array<{ value: string; label: string }>;
-    onChange: (value: string, select: HTMLSelectElement) => void;
+    options: FlowMetaSelectItem[];
+    onChange: (
+      value: string,
+      setDisabled: (disabled: boolean) => void
+    ) => void;
   }): HTMLElement {
-    const field = document.createElement('label');
-    field.className = 'flows-column-meta-select-field';
+    const selected =
+      options.options.find((item) => item.value === options.value) ?? null;
+    const tone = selected?.tone ?? 'slate';
+
+    const field = document.createElement('div');
+    field.className = `flows-column-meta-select-field flows-column-meta-select-field--${options.kind} flows-column-meta-select-field--${tone}`;
 
     const text = document.createElement('span');
     text.className = 'flows-column-meta-select-label';
     text.textContent = options.label;
 
-    const select = document.createElement('select');
-    select.className = 'flows-column-meta-select';
-    select.dataset.flowDragIgnore = 'true';
-    select.value = options.value;
-    options.options.forEach((item) => {
-      const option = document.createElement('option');
-      option.value = item.value;
-      option.selected = item.value === options.value;
-      option.textContent = item.label;
-      select.appendChild(option);
+    const dropdownRef: {
+      current: StaticDropdownSelect<FlowMetaSelectItem> | null;
+    } = { current: null };
+    const dropdown = new StaticDropdownSelect<FlowMetaSelectItem>({
+      size: 'sm',
+      value: selected,
+      placeholder: options.label,
+      items: options.options,
+      getKey: (item) => item.value,
+      getLabel: (item) => item.label,
+      ariaLabel: options.label,
+      className: 'flows-column-meta-dropdown',
+      portalTarget: document.body,
+      renderTriggerLeading: (item) => this.renderMetaSelectIcon(item),
+      renderTriggerTrailing: () => {
+        const chevron = createIcon('chevron-down', {
+          size: 13,
+          strokeWidth: 2,
+        });
+        chevron.classList.add('flows-column-meta-select-chevron');
+        chevron.setAttribute('aria-hidden', 'true');
+        return chevron;
+      },
+      renderOptionLeading: (item) => this.renderMetaSelectIcon(item, true),
+      renderOptionTrailing: (_item, active) => {
+        if (!active) return null;
+        const check = createIcon('check', { size: 14, strokeWidth: 2.3 });
+        check.classList.add('flows-column-meta-option-check');
+        check.setAttribute('aria-hidden', 'true');
+        return check;
+      },
+      onSelect: (item) => {
+        options.onChange(item.value, (disabled) =>
+          dropdownRef.current?.setDisabled(disabled)
+        );
+      },
     });
-    select.addEventListener('change', () => {
-      options.onChange(select.value, select);
-    });
+    dropdownRef.current = dropdown;
+    dropdown.element.dataset.flowDragIgnore = 'true';
+    this.dropdownDisposers.push(() => dropdown.destroy());
 
-    field.append(text, select);
+    field.append(text, dropdown.element);
     return field;
   }
 
-  private async patchFlowFromSelect(
-    select: HTMLSelectElement,
+  private renderMetaSelectIcon(
+    item: FlowMetaSelectItem | null,
+    option = false
+  ): HTMLElement | null {
+    if (!item) return null;
+    const icon = createIcon(item.icon, { size: 14, strokeWidth: 2 });
+    icon.classList.add(
+      option ? 'flows-column-meta-option-icon' : 'flows-column-meta-select-icon',
+      `flows-column-meta-tone--${item.tone}`
+    );
+    icon.setAttribute('aria-hidden', 'true');
+    return icon;
+  }
+
+  private async patchFlowFromMetaControl(
+    setDisabled: (disabled: boolean) => void,
     column: FlowColumn,
     patch: FlowUpdatePayload
   ): Promise<void> {
-    select.disabled = true;
+    setDisabled(true);
     try {
       await this.handlers.onPatchFlow(column.flow.id, patch);
     } catch {
-      select.disabled = false;
+      setDisabled(false);
       this.renderCurrent();
     }
   }
@@ -953,6 +1143,19 @@ export class FlowsView {
       meta: writeFlowPresentationSettings(column.flow.meta, {
         ...presentation,
         collapsed,
+      }),
+    });
+  }
+
+  private async patchFlowHidden(
+    column: FlowColumn,
+    hidden: boolean
+  ): Promise<void> {
+    const presentation = readFlowPresentationSettings(column.flow);
+    await this.handlers.onPatchFlow(column.flow.id, {
+      meta: writeFlowPresentationSettings(column.flow.meta, {
+        ...presentation,
+        hidden,
       }),
     });
   }
@@ -1003,13 +1206,6 @@ export class FlowsView {
       );
       return;
     }
-    if (column.tasks.length === 0) {
-      parent.appendChild(
-        this.renderColumnState(this.runtime.i18n.t('flows.tasks.empty'))
-      );
-      return;
-    }
-
     column.tasks.forEach((task) => {
       const card = document.createElement('article');
       card.className = 'flows-task-card';
@@ -1027,6 +1223,7 @@ export class FlowsView {
       card.append(title, meta);
       parent.appendChild(card);
     });
+    parent.appendChild(this.renderAddTaskButton());
   }
 
   private renderColumnState(text: string): HTMLElement {
@@ -1041,6 +1238,39 @@ export class FlowsView {
     item.className = 'flows-task-meta-item';
     item.textContent = text;
     return item;
+  }
+
+  private renderAddTaskButton(): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'flows-add-task-button';
+    button.dataset.flowDragIgnore = 'true';
+    button.append(
+      createIcon('plus', { size: 15, strokeWidth: 2 }),
+      document.createTextNode(this.runtime.i18n.t('flows.tasks.add'))
+    );
+    return button;
+  }
+
+  private renderAddFlowButton(state: FlowsState): HTMLElement {
+    const wrapper = document.createElement('aside');
+    wrapper.className = 'flows-add-flow-panel';
+    wrapper.dataset.flowDragIgnore = 'true';
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'flows-add-flow-button';
+    button.disabled = state.status === 'loading';
+    button.append(
+      createIcon('plus', { size: 16, strokeWidth: 2 }),
+      document.createTextNode(this.runtime.i18n.t('flows.actions.addFlow'))
+    );
+    button.addEventListener('click', () => {
+      this.openCreateModal();
+      this.renderCurrent();
+    });
+    wrapper.appendChild(button);
+    return wrapper;
   }
 
   private renderEditModal(column: FlowColumn | null): HTMLElement {
@@ -1244,15 +1474,17 @@ export class FlowsView {
       if (column === null) {
         await this.handlers.onCreateFlow({
           title: draft.title,
-          meta: this.writeDraftPresentation(null, draft, null),
+          meta: this.writeDraftPresentation(null, draft, null, null),
         });
       } else {
+        const presentation = readFlowPresentationSettings(column.flow);
         await this.handlers.onPatchFlow(column.flow.id, {
           title: draft.title,
           meta: this.writeDraftPresentation(
             column.flow.meta,
             draft,
-            readFlowPresentationSettings(column.flow).collapsed
+            presentation.collapsed,
+            presentation.hidden
           ),
         });
       }
@@ -1270,7 +1502,8 @@ export class FlowsView {
   private writeDraftPresentation(
     currentMeta: Flow['meta'] | undefined,
     draft: FlowEditDraft,
-    collapsed: boolean | null
+    collapsed: boolean | null,
+    hidden: boolean | null
   ): Flow['meta'] {
     return writeFlowPresentationSettings(currentMeta, {
       color: draft.color,
@@ -1278,6 +1511,7 @@ export class FlowsView {
       riskLevel: draft.riskLevel,
       priority: draft.priority,
       collapsed,
+      hidden,
     });
   }
 
@@ -1348,6 +1582,44 @@ export class FlowsView {
     return this.runtime.i18n.t(`flows.status.${status}`);
   }
 
+  private getStatusIcon(status: Status): IconName {
+    switch (status) {
+      case Status.Active:
+        return 'arrow-path';
+      case Status.Completed:
+        return 'check-circle';
+      case Status.Archived:
+        return 'archive-box';
+      case Status.Cancelled:
+        return 'x-mark';
+      case Status.Described:
+        return 'map-pin';
+      case Status.Draft:
+      default:
+        return 'status-pending';
+    }
+  }
+
+  private getStatusTone(
+    status: Status
+  ): 'slate' | 'blue' | 'emerald' | 'amber' | 'rose' | 'violet' {
+    switch (status) {
+      case Status.Active:
+        return 'blue';
+      case Status.Completed:
+        return 'emerald';
+      case Status.Cancelled:
+        return 'rose';
+      case Status.Described:
+        return 'violet';
+      case Status.Draft:
+        return 'amber';
+      case Status.Archived:
+      default:
+        return 'slate';
+    }
+  }
+
   private getPriorityLabel(priority: FlowPriority): string {
     switch (priority) {
       case Priority.Highest:
@@ -1361,6 +1633,38 @@ export class FlowsView {
       case Priority.Medium:
       default:
         return this.runtime.i18n.t('priority.medium');
+    }
+  }
+
+  private getPriorityIcon(priority: FlowPriority): IconName {
+    switch (priority) {
+      case Priority.Highest:
+        return 'chevron-double-up';
+      case Priority.High:
+        return 'chevron-up';
+      case Priority.Low:
+        return 'chevron-down';
+      case Priority.Lowest:
+        return 'chevron-double-down';
+      case Priority.Medium:
+      default:
+        return 'bars-2';
+    }
+  }
+
+  private getPriorityTone(
+    priority: FlowPriority
+  ): 'slate' | 'blue' | 'emerald' | 'amber' | 'rose' | 'violet' {
+    switch (priority) {
+      case Priority.Highest:
+      case Priority.High:
+        return 'rose';
+      case Priority.Low:
+      case Priority.Lowest:
+        return 'blue';
+      case Priority.Medium:
+      default:
+        return 'amber';
     }
   }
 
@@ -1425,9 +1729,19 @@ export class FlowsView {
   }
 
   private closeColumnMenu(): void {
-    if (this.openMenuFlowId === null) return;
-    this.openMenuFlowId = null;
-    this.renderCurrent();
+    const popover = this.columnMenuPopover;
+    if (!popover) return;
+    this.columnMenuPopover = null;
+    popover.trigger.setAttribute('aria-expanded', 'false');
+    popover.menu.close();
+    popover.menu.unmount();
+    popover.panel.remove();
+  }
+
+  private disposeDropdownControls(): void {
+    while (this.dropdownDisposers.length > 0) {
+      this.dropdownDisposers.pop()?.();
+    }
   }
 }
 

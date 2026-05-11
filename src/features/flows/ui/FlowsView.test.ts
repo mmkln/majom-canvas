@@ -65,7 +65,7 @@ describe('FlowsView', () => {
     root
       .querySelector<HTMLButtonElement>('.flows-column-menu-trigger')
       ?.click();
-    root
+    document
       .querySelectorAll<HTMLButtonElement>('.flows-column-menu-item')[0]
       ?.click();
 
@@ -100,6 +100,7 @@ describe('FlowsView', () => {
           riskLevel: 'stable',
           priority: null,
           collapsed: null,
+          hidden: null,
         },
       },
     });
@@ -119,18 +120,36 @@ describe('FlowsView', () => {
     });
     view.render(createState());
 
-    const selects = root.querySelectorAll<HTMLSelectElement>(
-      '.flows-column-meta-select'
+    const dropdowns = root.querySelectorAll<HTMLButtonElement>(
+      '.flows-column-meta-dropdown > button'
     );
-    const statusSelect = selects[0];
-    const prioritySelect = selects[1];
-    expect(statusSelect).toBeDefined();
-    expect(prioritySelect).toBeDefined();
+    const statusDropdown = dropdowns[0];
+    const priorityDropdown = dropdowns[1];
+    expect(statusDropdown).toBeDefined();
+    expect(priorityDropdown).toBeDefined();
+    if (!statusDropdown || !priorityDropdown) {
+      throw new Error('Expected flow meta dropdown controls');
+    }
 
-    statusSelect!.value = Status.Completed;
-    statusSelect!.dispatchEvent(new Event('change', { bubbles: true }));
-    prioritySelect!.value = Priority.High;
-    prioritySelect!.dispatchEvent(new Event('change', { bubbles: true }));
+    statusDropdown.click();
+    const statusOption = document.querySelector<HTMLElement>(
+      `[data-dropdown-select-item="${Status.Completed}"]`
+    );
+    expect(statusOption).toBeDefined();
+    if (!statusOption) {
+      throw new Error('Expected completed status dropdown option');
+    }
+    statusOption.click();
+
+    priorityDropdown.click();
+    const priorityOption = document.querySelector<HTMLElement>(
+      `[data-dropdown-select-item="${Priority.High}"]`
+    );
+    expect(priorityOption).toBeDefined();
+    if (!priorityOption) {
+      throw new Error('Expected high priority dropdown option');
+    }
+    priorityOption.click();
     await flushPromises();
 
     expect(onPatchFlow).toHaveBeenCalledWith(1, {
@@ -145,9 +164,44 @@ describe('FlowsView', () => {
           riskLevel: null,
           priority: Priority.High,
           collapsed: null,
+          hidden: null,
         },
       },
     });
+    view.destroy();
+  });
+
+  it('shows add task at the end of the flow task list instead of an empty state', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const view = new FlowsView(root, createRuntime(), {
+      onCreateFlow: vi.fn(),
+      onPatchFlow: vi.fn(),
+      onReorderFlow: vi.fn(),
+      onDeleteFlow: vi.fn(),
+    });
+    view.render({
+      status: 'ready',
+      error: null,
+      columns: [
+        {
+          flow: createFlow(),
+          tasks: [],
+          taskStatus: 'ready',
+          taskError: null,
+          openTaskCount: 0,
+        },
+      ],
+    });
+
+    const addTaskButton = root.querySelector<HTMLButtonElement>(
+      '.flows-add-task-button'
+    );
+    expect(addTaskButton?.textContent).toBe('Add Task');
+    expect(addTaskButton?.querySelector('svg')?.dataset.iconName).toBe('plus');
+    expect(root.querySelector('.flows-column-state')?.textContent).not.toBe(
+      'Empty flow'
+    );
     view.destroy();
   });
 
@@ -177,6 +231,7 @@ describe('FlowsView', () => {
           riskLevel: null,
           priority: null,
           collapsed: true,
+          hidden: null,
         },
       },
     });
@@ -203,6 +258,7 @@ describe('FlowsView', () => {
           priority: null,
           riskLevel: null,
           timeProfile: null,
+          hidden: null,
         },
       },
     });
@@ -248,12 +304,26 @@ describe('FlowsView', () => {
     expect(columnMenuTrigger?.querySelector('svg')?.dataset.iconName).toBe(
       'ellipsis-horizontal'
     );
+    columnMenuTrigger?.click();
+    expect(columnMenuTrigger?.getAttribute('aria-expanded')).toBe('true');
+    expect(
+      document.querySelector('.flows-column-menu')?.closest('#flows-root')
+    ).toBeNull();
+    document
+      .querySelector<HTMLButtonElement>('.flows-column-menu-item')
+      ?.click();
     expect(createButton?.querySelector('svg')?.dataset.iconName).toBe('plus');
     expect(organizeButton?.querySelector('svg')?.dataset.iconName).toBe(
       'bars-3'
     );
     expect(organizeButton?.closest('.flows-header-title-row')).not.toBeNull();
-    expect(organizeButton?.closest('.flows-header-actions')).toBeNull();
+    expect(createButton?.closest('.flows-header-title-row')).not.toBeNull();
+    expect(
+      Array.from(
+        header?.querySelectorAll<HTMLButtonElement>('.flows-header-action') ??
+          []
+      ).map((button) => button.textContent)
+    ).toEqual(['Organize', 'New flow']);
 
     createButton?.click();
     expect(onCreateFlow).not.toHaveBeenCalled();
@@ -287,10 +357,40 @@ describe('FlowsView', () => {
           riskLevel: 'stable',
           priority: null,
           collapsed: null,
+          hidden: null,
         },
       },
     });
     expect(root.querySelector('.flows-edit-modal')).toBeNull();
+    view.destroy();
+  });
+
+  it('opens the create modal from the add flow composer at the end of columns', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const view = new FlowsView(root, createRuntime(), {
+      onCreateFlow: vi.fn(),
+      onPatchFlow: vi.fn(),
+      onReorderFlow: vi.fn(),
+      onDeleteFlow: vi.fn(),
+    });
+    view.render(createState());
+
+    const board = root.querySelector<HTMLElement>('.flows-board');
+    const addFlowButton = root.querySelector<HTMLButtonElement>(
+      '.flows-add-flow-button'
+    );
+
+    expect(addFlowButton?.textContent).toBe('Add Flow');
+    expect(addFlowButton?.querySelector('svg')?.dataset.iconName).toBe('plus');
+    expect(board?.lastElementChild).toBe(
+      addFlowButton?.closest('.flows-add-flow-panel')
+    );
+
+    addFlowButton?.click();
+    expect(
+      root.querySelector<HTMLElement>('.flows-edit-title')?.textContent
+    ).toBe('New flow');
     view.destroy();
   });
 
@@ -322,14 +422,13 @@ describe('FlowsView', () => {
     view.destroy();
   });
 
-  it('opens the organize modal and reorders a flow column with row controls', async () => {
+  it('opens the organize modal with drag-only flow rows', () => {
     const root = document.createElement('div');
     document.body.appendChild(root);
-    const onReorderFlow = vi.fn(async () => undefined);
     const view = new FlowsView(root, createRuntime(), {
       onCreateFlow: vi.fn(),
       onPatchFlow: vi.fn(),
-      onReorderFlow,
+      onReorderFlow: vi.fn(),
       onDeleteFlow: vi.fn(),
     });
     view.render(
@@ -360,20 +459,197 @@ describe('FlowsView', () => {
         .querySelector('.flows-organize-drag-handle svg')
         ?.getAttribute('data-icon-name')
     ).toBe('drag-handle');
-
-    const qwertRow = root.querySelectorAll<HTMLElement>(
-      '.flows-organize-row'
-    )[1];
-
-    qwertRow
-      ?.querySelector<HTMLButtonElement>('button[aria-label="Move qwert up"]')
-      ?.click();
-    await flushPromises();
-
-    expect(onReorderFlow).toHaveBeenCalledWith(2, 0);
+    expect(root.querySelector('.flows-organize-row-actions')).toBeNull();
 
     root.querySelector<HTMLButtonElement>('.flows-organize-done')?.click();
     expect(root.querySelector('.flows-organize-modal')).toBeNull();
+    view.destroy();
+  });
+
+  it('hides hidden flows from the page while keeping them in organize lines', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const view = new FlowsView(root, createRuntime(), {
+      onCreateFlow: vi.fn(),
+      onPatchFlow: vi.fn(),
+      onReorderFlow: vi.fn(),
+      onDeleteFlow: vi.fn(),
+    });
+    view.render(
+      createStateFromFlows([
+        createFlow({ id: 1, title: 'Visible flow' }),
+        createFlow({
+          id: 2,
+          title: 'Hidden flow',
+          meta: { presentation: { hidden: true } },
+        }),
+      ])
+    );
+
+    expect(
+      root.querySelector('.flows-column[data-flow-id="1"]')
+    ).not.toBeNull();
+    expect(root.querySelector('.flows-column[data-flow-id="2"]')).toBeNull();
+
+    Array.from(root.querySelectorAll<HTMLButtonElement>('.flows-header-action'))
+      .find((button) => button.textContent?.includes('Organize'))
+      ?.click();
+
+    expect(
+      Array.from(root.querySelectorAll('.flows-organize-label')).map(
+        (label) => label.textContent
+      )
+    ).toEqual(['Visible flow', 'Hidden flow']);
+    expect(
+      root
+        .querySelectorAll<HTMLButtonElement>('.flows-organize-hide')[1]
+        ?.querySelector('svg')?.dataset.iconName
+    ).toBe('eye');
+    expect(
+      root
+        .querySelectorAll<HTMLElement>('.flows-organize-row')[1]
+        ?.classList.contains('is-hidden')
+    ).toBe(true);
+    expect(
+      root
+        .querySelectorAll<HTMLButtonElement>('.flows-organize-hide')[1]
+        ?.getAttribute('aria-label')
+    ).toBe('Show');
+    expect(
+      root.querySelectorAll<HTMLButtonElement>('.flows-organize-hide')[1]
+        ?.disabled
+    ).toBe(false);
+    view.destroy();
+  });
+
+  it('patches flow visibility from the organize row hide button', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const onPatchFlow = vi.fn(async () => undefined);
+    const view = new FlowsView(root, createRuntime(), {
+      onCreateFlow: vi.fn(),
+      onPatchFlow,
+      onReorderFlow: vi.fn(),
+      onDeleteFlow: vi.fn(),
+    });
+    view.render(
+      createStateFromFlows([
+        createFlow({
+          id: 1,
+          title: 'Visible flow',
+          meta: { existing: 'kept', presentation: { color: 'rose' } },
+        }),
+      ])
+    );
+
+    Array.from(root.querySelectorAll<HTMLButtonElement>('.flows-header-action'))
+      .find((button) => button.textContent?.includes('Organize'))
+      ?.click();
+    const hideButton = root.querySelector<HTMLButtonElement>(
+      '.flows-organize-hide'
+    );
+    expect(hideButton?.textContent).toBe('');
+    expect(hideButton?.querySelector('svg')?.dataset.iconName).toBe(
+      'eye-slash'
+    );
+    expect(hideButton?.getAttribute('aria-label')).toBe('Hide');
+    hideButton?.click();
+    await flushPromises();
+
+    expect(onPatchFlow).toHaveBeenCalledWith(1, {
+      meta: {
+        existing: 'kept',
+        presentation: {
+          color: 'rose',
+          timeProfile: null,
+          riskLevel: null,
+          priority: null,
+          collapsed: null,
+          hidden: true,
+        },
+      },
+    });
+    view.destroy();
+  });
+
+  it('patches hidden flow visibility from the organize row show button', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const onPatchFlow = vi.fn(async () => undefined);
+    const view = new FlowsView(root, createRuntime(), {
+      onCreateFlow: vi.fn(),
+      onPatchFlow,
+      onReorderFlow: vi.fn(),
+      onDeleteFlow: vi.fn(),
+    });
+    view.render(
+      createStateFromFlows([
+        createFlow({
+          id: 1,
+          title: 'Hidden flow',
+          meta: { existing: 'kept', presentation: { hidden: true } },
+        }),
+      ])
+    );
+
+    Array.from(root.querySelectorAll<HTMLButtonElement>('.flows-header-action'))
+      .find((button) => button.textContent?.includes('Organize'))
+      ?.click();
+    const showButton = root.querySelector<HTMLButtonElement>(
+      '.flows-organize-hide'
+    );
+    expect(showButton?.querySelector('svg')?.dataset.iconName).toBe('eye');
+    expect(showButton?.getAttribute('aria-label')).toBe('Show');
+    showButton?.click();
+    await flushPromises();
+
+    expect(onPatchFlow).toHaveBeenCalledWith(1, {
+      meta: {
+        existing: 'kept',
+        presentation: {
+          hidden: false,
+          color: null,
+          timeProfile: null,
+          riskLevel: null,
+          priority: null,
+          collapsed: null,
+        },
+      },
+    });
+    view.destroy();
+  });
+
+  it('uses a multi-column organize layout for long flow lists', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const view = new FlowsView(root, createRuntime(), {
+      onCreateFlow: vi.fn(),
+      onPatchFlow: vi.fn(),
+      onReorderFlow: vi.fn(),
+      onDeleteFlow: vi.fn(),
+    });
+    view.render(
+      createStateFromFlows(
+        Array.from({ length: 9 }, (_, index) =>
+          createFlow({ id: index + 1, title: `Flow ${index + 1}` })
+        )
+      )
+    );
+
+    Array.from(root.querySelectorAll<HTMLButtonElement>('.flows-header-action'))
+      .find((button) => button.textContent?.includes('Organize'))
+      ?.click();
+
+    expect(
+      root
+        .querySelector<HTMLElement>('.flows-organize-dialog')
+        ?.classList.contains('flows-organize-dialog--multi-column')
+    ).toBe(true);
+    expect(
+      root
+        .querySelector<HTMLElement>('.flows-organize-body')
+        ?.classList.contains('flows-organize-body--multi-column')
+    ).toBe(true);
     view.destroy();
   });
 
@@ -460,6 +736,10 @@ describe('FlowsView', () => {
 
     sourceHandle?.dispatchEvent(createDragEvent('dragstart'));
     targetRow?.dispatchEvent(createDragEvent('dragover', { clientY: 80 }));
+    expect(
+      root.querySelector('.flows-organize-drop-placeholder')
+    ).not.toBeNull();
+    expect(targetRow?.classList.contains('is-drag-over')).toBe(false);
     targetRow?.dispatchEvent(
       createDragEvent('drop', { clientY: 80, data: '1' })
     );
@@ -511,6 +791,9 @@ describe('FlowsView', () => {
 
     sourceHandle?.dispatchEvent(createDragEvent('dragstart'));
     targetRow?.dispatchEvent(createDragEvent('dragover', { clientY: 80 }));
+    expect(
+      root.querySelector('.flows-organize-drop-placeholder')
+    ).not.toBeNull();
     targetRow?.dispatchEvent(createDragEvent('drop', { clientY: 80 }));
     await flushPromises();
 
@@ -560,6 +843,7 @@ describe('FlowsView', () => {
 
     sourceHandle?.dispatchEvent(createDragEvent('dragstart'));
     targetRow?.dispatchEvent(createDragEvent('dragover', { clientY: 80 }));
+    expect(root.querySelector('.flows-organize-drop-placeholder')).toBeNull();
     targetRow?.dispatchEvent(
       createDragEvent('drop', { clientY: 80, data: '2' })
     );

@@ -9,6 +9,9 @@ interface ImportMetaEnv {
   readonly VITE_CANVAS_PERF_LOG?: string;
   readonly VITE_ENABLE_BOARDS?: string;
   readonly VITE_ENABLE_BOARDS_DEV?: string;
+  readonly VITE_ENABLE_FLOWS?: string;
+  readonly VITE_ENABLE_FLOWS_DEV?: string;
+  readonly VITE_ENABLE_FOCUS_BOARD_DEV?: string;
   readonly VITE_ENABLE_KANBAN_DEV?: string;
   readonly VITE_ENABLE_LEARNING_STUDIO_DEV?: string;
   readonly VITE_ENABLE_TIME_CLUSTERING_DEV?: string;

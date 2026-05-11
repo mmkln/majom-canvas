@@ -13,11 +13,13 @@ const parseOptionalString = (value?: string): string | null => {
   return trimmed.length > 0 ? trimmed : null;
 };
 
-export const resolveBoardsFeatureFlag = (
+export const resolveWorkspaceFeatureFlag = (
   value?: string,
   legacyDevValue?: string
 ): boolean =>
   parseOptionalBoolean(value) ?? parseOptionalBoolean(legacyDevValue) ?? true;
+
+export const resolveBoardsFeatureFlag = resolveWorkspaceFeatureFlag;
 
 export const IS_DEVELOPMENT_MODE = __DEV_BUILD__;
 export const CANVAS_PERF_LOG =
@@ -30,9 +32,11 @@ export const BOARDS_DEV_ENABLED = BOARDS_ENABLED;
 export const KANBAN_DEV_ENABLED =
   IS_DEVELOPMENT_MODE &&
   (parseOptionalBoolean(import.meta.env.VITE_ENABLE_KANBAN_DEV) ?? true);
-export const FLOWS_DEV_ENABLED =
-  IS_DEVELOPMENT_MODE &&
-  (parseOptionalBoolean(import.meta.env.VITE_ENABLE_FLOWS_DEV) ?? true);
+export const FLOWS_ENABLED = resolveWorkspaceFeatureFlag(
+  import.meta.env.VITE_ENABLE_FLOWS,
+  import.meta.env.VITE_ENABLE_FLOWS_DEV
+);
+export const FLOWS_DEV_ENABLED = FLOWS_ENABLED;
 export const FOCUS_BOARD_DEV_ENABLED =
   IS_DEVELOPMENT_MODE &&
   (parseOptionalBoolean(import.meta.env.VITE_ENABLE_FOCUS_BOARD_DEV) ?? true);
@@ -41,14 +45,12 @@ export const LEARNING_STUDIO_DEV_ENABLED =
   (parseOptionalBoolean(import.meta.env.VITE_ENABLE_LEARNING_STUDIO_DEV) ??
     true);
 export const TIME_CLUSTERING_DEV_ENABLED =
-  (parseOptionalBoolean(import.meta.env.VITE_ENABLE_TIME_CLUSTERING_DEV) ??
-    true);
+  parseOptionalBoolean(import.meta.env.VITE_ENABLE_TIME_CLUSTERING_DEV) ?? true;
 export const ROUTINES_ENABLED =
   parseOptionalBoolean(import.meta.env.VITE_ENABLE_ROUTINES) ?? true;
 export const API_URL =
   parseOptionalString(import.meta.env.VITE_API_URL) ?? DEFAULT_API_URL;
 // Allow the browser-exposed Grok key only for development-mode runs/builds.
-export const GROK_API_KEY =
-  IS_DEVELOPMENT_MODE
-    ? (parseOptionalString(import.meta.env.VITE_GROK_API_KEY) ?? '')
-    : '';
+export const GROK_API_KEY = IS_DEVELOPMENT_MODE
+  ? (parseOptionalString(import.meta.env.VITE_GROK_API_KEY) ?? '')
+  : '';
