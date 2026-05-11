@@ -22,6 +22,19 @@ async function flushPromises(): Promise<void> {
   await Promise.resolve();
 }
 
+function clickOpenDropdownOption(value: string): void {
+  const option = Array.from(
+    document.querySelectorAll<HTMLElement>(
+      `[data-dropdown-select-item="${value}"]`
+    )
+  ).find((element) => !element.closest('.hidden'));
+  expect(option).toBeDefined();
+  if (!option) {
+    throw new Error(`Expected open dropdown option "${value}"`);
+  }
+  option.click();
+}
+
 function createDragEvent(
   type: string,
   options: { clientY?: number; data?: string } = {}
@@ -108,7 +121,7 @@ describe('FlowsView', () => {
     view.destroy();
   });
 
-  it('patches flow status and priority from the column controls', async () => {
+  it('saves flow status, priority, and risk from the settings dropdowns', async () => {
     const root = document.createElement('div');
     document.body.appendChild(root);
     const onPatchFlow = vi.fn(async () => undefined);
@@ -120,48 +133,55 @@ describe('FlowsView', () => {
     });
     view.render(createState());
 
-    const dropdowns = root.querySelectorAll<HTMLButtonElement>(
-      '.flows-column-meta-dropdown > button'
+    expect(root.querySelector('.flows-column-meta-row')).toBeNull();
+
+    root
+      .querySelector<HTMLButtonElement>('.flows-column-menu-trigger')
+      ?.click();
+    document
+      .querySelectorAll<HTMLButtonElement>('.flows-column-menu-item')[0]
+      ?.click();
+
+    const statusDropdown = root.querySelector<HTMLButtonElement>(
+      '.flows-edit-dropdown > button[aria-label="Status"]'
     );
-    const statusDropdown = dropdowns[0];
-    const priorityDropdown = dropdowns[1];
+    const priorityDropdown = root.querySelector<HTMLButtonElement>(
+      '.flows-edit-dropdown > button[aria-label="Priority"]'
+    );
+    const riskDropdown = root.querySelector<HTMLButtonElement>(
+      '.flows-edit-dropdown > button[aria-label="Risk Level"]'
+    );
     expect(statusDropdown).toBeDefined();
     expect(priorityDropdown).toBeDefined();
-    if (!statusDropdown || !priorityDropdown) {
-      throw new Error('Expected flow meta dropdown controls');
+    expect(riskDropdown).toBeDefined();
+    if (!statusDropdown || !priorityDropdown || !riskDropdown) {
+      throw new Error('Expected flow settings dropdown controls');
     }
 
     statusDropdown.click();
-    const statusOption = document.querySelector<HTMLElement>(
-      `[data-dropdown-select-item="${Status.Completed}"]`
-    );
-    expect(statusOption).toBeDefined();
-    if (!statusOption) {
-      throw new Error('Expected completed status dropdown option');
-    }
-    statusOption.click();
+    clickOpenDropdownOption(Status.Completed);
 
     priorityDropdown.click();
-    const priorityOption = document.querySelector<HTMLElement>(
-      `[data-dropdown-select-item="${Priority.High}"]`
+    clickOpenDropdownOption(Priority.High);
+
+    riskDropdown.click();
+    clickOpenDropdownOption('high');
+
+    const form = root.querySelector<HTMLFormElement>('.flows-edit-dialog');
+    form?.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
     );
-    expect(priorityOption).toBeDefined();
-    if (!priorityOption) {
-      throw new Error('Expected high priority dropdown option');
-    }
-    priorityOption.click();
     await flushPromises();
 
     expect(onPatchFlow).toHaveBeenCalledWith(1, {
+      title: 'Launch flow',
       status: Status.Completed,
-    });
-    expect(onPatchFlow).toHaveBeenCalledWith(1, {
       meta: {
         existing: 'kept',
         presentation: {
-          color: null,
+          color: 'indigo',
           timeProfile: null,
-          riskLevel: null,
+          riskLevel: 'high',
           priority: Priority.High,
           collapsed: null,
           hidden: null,

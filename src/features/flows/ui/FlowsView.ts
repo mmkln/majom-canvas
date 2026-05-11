@@ -35,6 +35,7 @@ import { ensureFlowsStyles } from './flowsStyles.ts';
 
 type FlowEditDraft = {
   title: string;
+  status: Status;
   color: FlowThemeColor;
   timeProfile: string;
   riskLevel: FlowRiskLevel;
@@ -62,6 +63,8 @@ type FlowMetaSelectItem = {
   icon: IconName;
   tone: FlowMetaTone;
 };
+
+const FLOW_PRIORITY_DEFAULT_VALUE = 'default';
 
 const FLOW_STATUSES = [
   Status.Draft,
@@ -828,15 +831,7 @@ export class FlowsView {
 
     titleRow.append(titleWrap, titleActions);
 
-    const metaRow = document.createElement('div');
-    metaRow.className = 'flows-column-meta-row';
-    const presentation = readFlowPresentationSettings(column.flow);
-    metaRow.append(
-      this.renderFlowStatusSelect(column),
-      this.renderFlowPrioritySelect(column, presentation)
-    );
-
-    header.append(colorBar, titleRow, metaRow);
+    header.append(colorBar, titleRow);
 
     const taskList = document.createElement('div');
     taskList.className = 'flows-column-task-list';
@@ -959,6 +954,7 @@ export class FlowsView {
     this.editingFlowId = column.flow.id;
     this.editDraft = {
       title: column.flow.title,
+      status: column.flow.status,
       color:
         presentation.color ??
         getFallbackFlowColor(this.getColumnIndex(column.flow.id)),
@@ -992,148 +988,6 @@ export class FlowsView {
     await this.handlers.onDeleteFlow(column.flow.id);
   }
 
-  private renderFlowStatusSelect(column: FlowColumn): HTMLElement {
-    const status = column.flow.status;
-    return this.renderMetaSelect({
-      kind: 'status',
-      label: this.runtime.i18n.t('flows.fields.status'),
-      value: status,
-      options: FLOW_STATUSES.map((status) => ({
-        value: status,
-        label: this.getStatusLabel(status),
-        icon: this.getStatusIcon(status),
-        tone: this.getStatusTone(status),
-      })),
-      onChange: (value, setDisabled) => {
-        if (!isFlowStatus(value) || value === column.flow.status) return;
-        void this.patchFlowFromMetaControl(setDisabled, column, {
-          status: value,
-        });
-      },
-    });
-  }
-
-  private renderFlowPrioritySelect(
-    column: FlowColumn,
-    presentation: FlowPresentationSettings
-  ): HTMLElement {
-    const priority = presentation.priority ?? Priority.Medium;
-    return this.renderMetaSelect({
-      kind: 'priority',
-      label: this.runtime.i18n.t('flows.fields.priority'),
-      value: priority,
-      options: FLOW_PRIORITIES.map((value) => ({
-        value,
-        label: this.getPriorityLabel(value),
-        icon: this.getPriorityIcon(value),
-        tone: this.getPriorityTone(value),
-      })),
-      onChange: (value, setDisabled) => {
-        if (!isFlowPriority(value) || value === presentation.priority) return;
-        void this.patchFlowFromMetaControl(setDisabled, column, {
-          meta: writeFlowPresentationSettings(column.flow.meta, {
-            ...presentation,
-            priority: value,
-          }),
-        });
-      },
-    });
-  }
-
-  private renderMetaSelect(options: {
-    kind: 'status' | 'priority';
-    label: string;
-    value: string;
-    options: FlowMetaSelectItem[];
-    onChange: (
-      value: string,
-      setDisabled: (disabled: boolean) => void
-    ) => void;
-  }): HTMLElement {
-    const selected =
-      options.options.find((item) => item.value === options.value) ?? null;
-    const tone = selected?.tone ?? 'slate';
-
-    const field = document.createElement('div');
-    field.className = `flows-column-meta-select-field flows-column-meta-select-field--${options.kind} flows-column-meta-select-field--${tone}`;
-
-    const text = document.createElement('span');
-    text.className = 'flows-column-meta-select-label';
-    text.textContent = options.label;
-
-    const dropdownRef: {
-      current: StaticDropdownSelect<FlowMetaSelectItem> | null;
-    } = { current: null };
-    const dropdown = new StaticDropdownSelect<FlowMetaSelectItem>({
-      size: 'sm',
-      value: selected,
-      placeholder: options.label,
-      items: options.options,
-      getKey: (item) => item.value,
-      getLabel: (item) => item.label,
-      ariaLabel: options.label,
-      className: 'flows-column-meta-dropdown',
-      portalTarget: document.body,
-      renderTriggerLeading: (item) => this.renderMetaSelectIcon(item),
-      renderTriggerTrailing: () => {
-        const chevron = createIcon('chevron-down', {
-          size: 13,
-          strokeWidth: 2,
-        });
-        chevron.classList.add('flows-column-meta-select-chevron');
-        chevron.setAttribute('aria-hidden', 'true');
-        return chevron;
-      },
-      renderOptionLeading: (item) => this.renderMetaSelectIcon(item, true),
-      renderOptionTrailing: (_item, active) => {
-        if (!active) return null;
-        const check = createIcon('check', { size: 14, strokeWidth: 2.3 });
-        check.classList.add('flows-column-meta-option-check');
-        check.setAttribute('aria-hidden', 'true');
-        return check;
-      },
-      onSelect: (item) => {
-        options.onChange(item.value, (disabled) =>
-          dropdownRef.current?.setDisabled(disabled)
-        );
-      },
-    });
-    dropdownRef.current = dropdown;
-    dropdown.element.dataset.flowDragIgnore = 'true';
-    this.dropdownDisposers.push(() => dropdown.destroy());
-
-    field.append(text, dropdown.element);
-    return field;
-  }
-
-  private renderMetaSelectIcon(
-    item: FlowMetaSelectItem | null,
-    option = false
-  ): HTMLElement | null {
-    if (!item) return null;
-    const icon = createIcon(item.icon, { size: 14, strokeWidth: 2 });
-    icon.classList.add(
-      option ? 'flows-column-meta-option-icon' : 'flows-column-meta-select-icon',
-      `flows-column-meta-tone--${item.tone}`
-    );
-    icon.setAttribute('aria-hidden', 'true');
-    return icon;
-  }
-
-  private async patchFlowFromMetaControl(
-    setDisabled: (disabled: boolean) => void,
-    column: FlowColumn,
-    patch: FlowUpdatePayload
-  ): Promise<void> {
-    setDisabled(true);
-    try {
-      await this.handlers.onPatchFlow(column.flow.id, patch);
-    } catch {
-      setDisabled(false);
-      this.renderCurrent();
-    }
-  }
-
   private async patchColumnCollapsed(
     column: FlowColumn,
     collapsed: boolean
@@ -1158,39 +1012,6 @@ export class FlowsView {
         hidden,
       }),
     });
-  }
-
-  private renderRiskBadge(
-    column: FlowColumn,
-    presentation: FlowPresentationSettings
-  ): HTMLElement {
-    const badge = document.createElement('span');
-    const highCount = column.tasks.filter(
-      (task) => task.priority === 'high' || task.priority === 'highest'
-    ).length;
-    const tone =
-      presentation.riskLevel ??
-      (highCount > 0
-        ? 'high'
-        : column.openTaskCount > column.tasks.length
-          ? 'medium'
-          : 'stable');
-    badge.className = `flows-column-risk flows-column-risk--${tone}`;
-
-    const dot = document.createElement('span');
-    dot.className = 'flows-column-risk-dot';
-    dot.setAttribute('aria-hidden', 'true');
-
-    const text = document.createElement('span');
-    text.textContent =
-      tone === 'high'
-        ? this.runtime.i18n.t('flows.risk.high')
-        : tone === 'medium'
-          ? this.runtime.i18n.t('flows.risk.medium')
-          : this.runtime.i18n.t('flows.risk.stable');
-
-    badge.append(dot, text);
-    return badge;
   }
 
   private appendTaskContent(parent: HTMLElement, column: FlowColumn): void {
@@ -1323,7 +1144,17 @@ export class FlowsView {
         label: this.runtime.i18n.t('flows.edit.name'),
         value: draft.title,
         placeholder: this.runtime.i18n.t('flows.edit.namePlaceholder'),
-      }),
+      })
+    );
+    if (!isCreate) {
+      body.appendChild(
+        this.renderEditFieldGrid([
+          this.renderStatusField(draft.status),
+          this.renderPriorityField(draft.priority),
+        ])
+      );
+    }
+    body.append(
       this.renderColorField(draft.color),
       this.renderTextField({
         name: 'timeProfile',
@@ -1432,29 +1263,137 @@ export class FlowsView {
     return field;
   }
 
+  private renderEditFieldGrid(fields: HTMLElement[]): HTMLElement {
+    const grid = document.createElement('div');
+    grid.className = 'flows-edit-field-grid';
+    grid.append(...fields);
+    return grid;
+  }
+
+  private renderStatusField(selectedStatus: Status): HTMLElement {
+    return this.renderEditDropdownField({
+      label: this.runtime.i18n.t('flows.fields.status'),
+      value: selectedStatus,
+      items: FLOW_STATUSES.map((status) => ({
+        value: status,
+        label: this.getStatusLabel(status),
+        icon: this.getStatusIcon(status),
+        tone: this.getStatusTone(status),
+      })),
+      onSelect: (value) => {
+        if (!isFlowStatus(value)) return;
+        this.updateEditDraft({ status: value });
+      },
+    });
+  }
+
+  private renderPriorityField(priority: FlowPriority | null): HTMLElement {
+    return this.renderEditDropdownField({
+      label: this.runtime.i18n.t('flows.fields.priority'),
+      value: priority ?? FLOW_PRIORITY_DEFAULT_VALUE,
+      items: [
+        {
+          value: FLOW_PRIORITY_DEFAULT_VALUE,
+          label: this.runtime.i18n.t('flows.edit.priorityDefault'),
+          icon: 'bars-2',
+          tone: 'slate',
+        },
+        ...FLOW_PRIORITIES.map((value) => ({
+          value,
+          label: this.getPriorityLabel(value),
+          icon: this.getPriorityIcon(value),
+          tone: this.getPriorityTone(value),
+        })),
+      ],
+      onSelect: (value) => {
+        this.updateEditDraft({
+          priority: isFlowPriority(value) ? value : null,
+        });
+      },
+    });
+  }
+
   private renderRiskField(selectedRisk: FlowRiskLevel): HTMLElement {
-    const field = document.createElement('label');
+    return this.renderEditDropdownField({
+      label: this.runtime.i18n.t('flows.edit.risk'),
+      value: selectedRisk,
+      items: FLOW_RISK_LEVELS.map((risk) => ({
+        value: risk,
+        label: this.getRiskLabel(risk),
+        icon: this.getRiskIcon(risk),
+        tone: this.getRiskTone(risk),
+      })),
+      onSelect: (value) => {
+        if (!isFlowRisk(value)) return;
+        this.updateEditDraft({ riskLevel: value });
+      },
+    });
+  }
+
+  private renderEditDropdownField(options: {
+    label: string;
+    value: string;
+    items: FlowMetaSelectItem[];
+    onSelect: (value: string) => void;
+  }): HTMLElement {
+    const selected =
+      options.items.find((item) => item.value === options.value) ?? null;
+    const field = document.createElement('div');
     field.className = 'flows-edit-field';
 
     const label = document.createElement('span');
     label.className = 'flows-edit-label';
-    label.textContent = this.runtime.i18n.t('flows.edit.risk');
+    label.textContent = options.label;
 
-    const select = document.createElement('select');
-    select.className = 'flows-edit-select';
-    select.dataset.flowDragIgnore = 'true';
-    select.name = 'riskLevel';
-    select.disabled = this.isSubmittingEdit;
-    FLOW_RISK_LEVELS.forEach((risk) => {
-      const option = document.createElement('option');
-      option.value = risk;
-      option.selected = risk === selectedRisk;
-      option.textContent = this.getRiskLabel(risk);
-      select.appendChild(option);
+    const dropdown = new StaticDropdownSelect<FlowMetaSelectItem>({
+      size: 'md',
+      value: selected,
+      placeholder: options.label,
+      items: options.items,
+      getKey: (item) => item.value,
+      getLabel: (item) => item.label,
+      ariaLabel: options.label,
+      className: 'flows-edit-dropdown',
+      disabled: this.isSubmittingEdit,
+      portalTarget: document.body,
+      renderTriggerLeading: (item) => this.renderDropdownIcon(item, false),
+      renderOptionLeading: (item) => this.renderDropdownIcon(item, true),
+      renderOptionTrailing: (_item, active) => {
+        if (!active) return null;
+        const check = createIcon('check', { size: 14, strokeWidth: 2.3 });
+        check.classList.add('flows-edit-dropdown-check');
+        check.setAttribute('aria-hidden', 'true');
+        return check;
+      },
+      onSelect: (item) => options.onSelect(item.value),
     });
+    dropdown.element.dataset.flowDragIgnore = 'true';
+    this.dropdownDisposers.push(() => dropdown.destroy());
 
-    field.append(label, select);
+    field.append(label, dropdown.element);
     return field;
+  }
+
+  private renderDropdownIcon(
+    item: FlowMetaSelectItem | null,
+    option: boolean
+  ): HTMLElement | null {
+    if (!item) return null;
+    const icon = createIcon(item.icon, { size: option ? 14 : 15, strokeWidth: 2 });
+    icon.classList.add(
+      option ? 'flows-edit-dropdown-option-icon' : 'flows-edit-dropdown-icon',
+      `flows-edit-dropdown-tone--${item.tone}`
+    );
+    icon.setAttribute('aria-hidden', 'true');
+    return icon;
+  }
+
+  private updateEditDraft(patch: Partial<FlowEditDraft>): void {
+    if (!this.editDraft) return;
+    this.editDraft = {
+      ...this.editDraft,
+      ...patch,
+    };
   }
 
   private async submitEditModal(
@@ -1478,7 +1417,7 @@ export class FlowsView {
         });
       } else {
         const presentation = readFlowPresentationSettings(column.flow);
-        await this.handlers.onPatchFlow(column.flow.id, {
+        const patch: FlowUpdatePayload = {
           title: draft.title,
           meta: this.writeDraftPresentation(
             column.flow.meta,
@@ -1486,7 +1425,11 @@ export class FlowsView {
             presentation.collapsed,
             presentation.hidden
           ),
-        });
+        };
+        if (draft.status !== column.flow.status) {
+          patch.status = draft.status;
+        }
+        await this.handlers.onPatchFlow(column.flow.id, patch);
       }
       this.isSubmittingEdit = false;
       this.closeEditModal();
@@ -1516,20 +1459,26 @@ export class FlowsView {
   }
 
   private readCreateDraft(formData: FormData): FlowEditDraft {
+    const draft = this.editDraft ?? this.createNewFlowDraft();
     return this.readDraftFromForm(
       formData,
       this.runtime.i18n.t('flows.defaultFlowTitle'),
       getFallbackFlowColor(this.lastState?.columns.length ?? 0),
-      null
+      draft.status,
+      draft.riskLevel,
+      draft.priority
     );
   }
 
   private readEditDraft(formData: FormData, column: FlowColumn): FlowEditDraft {
+    const draft = this.editDraft ?? this.createEditDraft(column);
     return this.readDraftFromForm(
       formData,
       column.flow.title,
       getFallbackFlowColor(this.getColumnIndex(column.flow.id)),
-      readFlowPresentationSettings(column.flow).priority
+      draft.status,
+      draft.riskLevel,
+      draft.priority
     );
   }
 
@@ -1537,20 +1486,20 @@ export class FlowsView {
     formData: FormData,
     fallbackTitle: string,
     fallbackColor: FlowThemeColor,
+    status: Status,
+    riskLevel: FlowRiskLevel,
     priority: FlowPriority | null
   ): FlowEditDraft {
     const title = String(formData.get('title') ?? '').trim();
     const colorValue = String(formData.get('color') ?? '');
-    const riskValue = String(formData.get('riskLevel') ?? '');
     return {
       title: title || fallbackTitle,
+      status,
       color: FLOW_THEME_COLORS.includes(colorValue as FlowThemeColor)
         ? (colorValue as FlowThemeColor)
         : fallbackColor,
       timeProfile: String(formData.get('timeProfile') ?? '').trim(),
-      riskLevel: FLOW_RISK_LEVELS.includes(riskValue as FlowRiskLevel)
-        ? (riskValue as FlowRiskLevel)
-        : 'stable',
+      riskLevel,
       priority,
     };
   }
@@ -1559,6 +1508,7 @@ export class FlowsView {
     const presentation = readFlowPresentationSettings(column.flow);
     return {
       title: column.flow.title,
+      status: column.flow.status,
       color:
         presentation.color ??
         getFallbackFlowColor(this.getColumnIndex(column.flow.id)),
@@ -1571,6 +1521,7 @@ export class FlowsView {
   private createNewFlowDraft(): FlowEditDraft {
     return {
       title: '',
+      status: Status.Draft,
       color: getFallbackFlowColor(this.lastState?.columns.length ?? 0),
       timeProfile: '',
       riskLevel: 'stable',
@@ -1676,6 +1627,18 @@ export class FlowsView {
         : this.runtime.i18n.t('flows.risk.stable');
   }
 
+  private getRiskIcon(risk: FlowRiskLevel): IconName {
+    return risk === 'high'
+      ? 'shield-exclamation'
+      : risk === 'medium'
+        ? 'exclamation-circle'
+        : 'check-circle';
+  }
+
+  private getRiskTone(risk: FlowRiskLevel): FlowMetaTone {
+    return risk === 'high' ? 'rose' : risk === 'medium' ? 'amber' : 'emerald';
+  }
+
   private getEditingColumn(state: FlowsState): FlowColumn | null {
     if (this.editingFlowId === null) return null;
     return (
@@ -1751,4 +1714,8 @@ function isFlowStatus(value: string): value is Status {
 
 function isFlowPriority(value: string): value is FlowPriority {
   return FLOW_PRIORITIES.includes(value as FlowPriority);
+}
+
+function isFlowRisk(value: string): value is FlowRiskLevel {
+  return FLOW_RISK_LEVELS.includes(value as FlowRiskLevel);
 }

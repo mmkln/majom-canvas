@@ -1037,6 +1037,7 @@ export const en = {
   'flows.edit.error': 'Could not save flow settings.',
   'flows.edit.name': 'Flow Name',
   'flows.edit.namePlaceholder': 'e.g. Project X',
+  'flows.edit.priorityDefault': 'Default',
   'flows.edit.risk': 'Risk Level',
   'flows.edit.save': 'Save',
   'flows.edit.saving': 'Saving...',

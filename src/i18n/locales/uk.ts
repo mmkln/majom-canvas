@@ -1050,6 +1050,7 @@ export const uk = {
   'flows.edit.error': 'Не вдалося зберегти налаштування flow.',
   'flows.edit.name': 'Назва flow',
   'flows.edit.namePlaceholder': 'наприклад Project X',
+  'flows.edit.priorityDefault': 'За замовчуванням',
   'flows.edit.risk': 'Рівень ризику',
   'flows.edit.save': 'Save',
   'flows.edit.saving': 'Збереження...',
