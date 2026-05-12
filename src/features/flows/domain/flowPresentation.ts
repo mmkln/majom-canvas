@@ -19,6 +19,28 @@ export const FLOW_THEME_COLORS = [
   'slate',
 ] as const;
 
+export const FLOW_THEME_ICONS = [
+  'book-open',
+  'heart',
+  'code-brackets',
+  'command-line',
+  'computer-desktop',
+  'academic-cap',
+  'notebook',
+  'book-closed',
+  'brain',
+  'paw',
+  'lotus',
+  'plant',
+  'dumbbell',
+  'currency-dollar',
+  'folder',
+  'plane',
+  'health',
+  'popcorn',
+  'bar-chart',
+] as const;
+
 export const FLOW_RISK_LEVELS = ['stable', 'medium', 'high'] as const;
 export const FLOW_PRIORITIES = [
   Priority.Lowest,
@@ -29,10 +51,12 @@ export const FLOW_PRIORITIES = [
 ] as const;
 
 export type FlowThemeColor = (typeof FLOW_THEME_COLORS)[number];
+export type FlowThemeIcon = (typeof FLOW_THEME_ICONS)[number];
 export type FlowRiskLevel = (typeof FLOW_RISK_LEVELS)[number];
 export type FlowPriority = (typeof FLOW_PRIORITIES)[number];
 
 export type FlowPresentationSettings = {
+  icon: FlowThemeIcon | null;
   color: FlowThemeColor | null;
   timeProfile: string | null;
   riskLevel: FlowRiskLevel | null;
@@ -41,18 +65,24 @@ export type FlowPresentationSettings = {
   hidden: boolean | null;
 };
 
+const FLOW_ICON_SET = new Set<string>(FLOW_THEME_ICONS);
 const FLOW_COLOR_SET = new Set<string>(FLOW_THEME_COLORS);
 const FLOW_RISK_SET = new Set<string>(FLOW_RISK_LEVELS);
 const FLOW_PRIORITY_SET = new Set<string>(FLOW_PRIORITIES);
 
-export function getFallbackFlowColor(index: number): FlowThemeColor {
-  return FLOW_THEME_COLORS[index % FLOW_THEME_COLORS.length] ?? 'indigo';
+export function getFallbackFlowColor(): FlowThemeColor {
+  return 'slate';
+}
+
+export function getFallbackFlowIcon(): FlowThemeIcon {
+  return 'folder';
 }
 
 export function readFlowPresentationSettings(
   flow: Pick<Flow, 'meta'>
 ): FlowPresentationSettings {
   const presentation = readRecord(readRecord(flow.meta)?.presentation);
+  const icon = presentation?.icon;
   const color = presentation?.color;
   const timeProfile = presentation?.timeProfile;
   const riskLevel = presentation?.riskLevel;
@@ -61,6 +91,10 @@ export function readFlowPresentationSettings(
   const hidden = presentation?.hidden;
 
   return {
+    icon:
+      typeof icon === 'string' && FLOW_ICON_SET.has(icon)
+        ? (icon as FlowThemeIcon)
+        : null,
     color:
       typeof color === 'string' && FLOW_COLOR_SET.has(color)
         ? (color as FlowThemeColor)
@@ -89,6 +123,7 @@ export function writeFlowPresentationSettings(
   const meta = { ...(readRecord(currentMeta) ?? {}) };
   const presentation = {
     ...(readRecord(meta.presentation) ?? {}),
+    icon: settings.icon,
     color: settings.color,
     timeProfile: settings.timeProfile,
     riskLevel: settings.riskLevel,

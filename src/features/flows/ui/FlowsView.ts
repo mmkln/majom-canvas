@@ -20,11 +20,14 @@ import {
   FLOW_PRIORITIES,
   FLOW_RISK_LEVELS,
   FLOW_THEME_COLORS,
+  FLOW_THEME_ICONS,
   type FlowPresentationSettings,
   type FlowPriority,
   type FlowRiskLevel,
   type FlowThemeColor,
+  type FlowThemeIcon,
   getFallbackFlowColor,
+  getFallbackFlowIcon,
   readFlowPresentationSettings,
   writeFlowPresentationSettings,
 } from '../domain/flowPresentation.ts';
@@ -36,10 +39,16 @@ import { ensureFlowsStyles } from './flowsStyles.ts';
 type FlowEditDraft = {
   title: string;
   status: Status;
+  icon: FlowThemeIcon;
   color: FlowThemeColor;
   timeProfile: string;
   riskLevel: FlowRiskLevel;
   priority: FlowPriority | null;
+};
+
+type FlowVisual = {
+  icon: FlowThemeIcon;
+  color: FlowThemeColor;
 };
 
 type FlowTitleEditSurface = 'column' | 'organize';
@@ -50,6 +59,12 @@ type FlowTitleEditTarget = {
 };
 
 type FlowColumnMenuPopover = {
+  menu: AnchoredMenu;
+  panel: HTMLElement;
+  trigger: HTMLButtonElement;
+};
+
+type FlowAppearancePopover = {
   menu: AnchoredMenu;
   panel: HTMLElement;
   trigger: HTMLButtonElement;
@@ -99,6 +114,7 @@ export class FlowsView {
   private organizeDropInsertionIndex: number | null = null;
   private reorderPendingFlowId: Flow['id'] | null = null;
   private columnMenuPopover: FlowColumnMenuPopover | null = null;
+  private appearancePopover: FlowAppearancePopover | null = null;
   private editingFlowTitleTarget: FlowTitleEditTarget | null = null;
   private flowTitleEditInput: HTMLInputElement | null = null;
   private isCreatingFlow = false;
@@ -131,6 +147,7 @@ export class FlowsView {
 
   public render(state: FlowsState): void {
     this.closeColumnMenu();
+    this.closeAppearancePopover();
     this.disposeDropdownControls();
     this.lastState = state;
     this.element.replaceChildren(this.renderPage(state));
@@ -138,6 +155,7 @@ export class FlowsView {
 
   public destroy(): void {
     this.closeColumnMenu();
+    this.closeAppearancePopover();
     this.disposeDropdownControls();
     this.columnDragController.unmount();
     this.element.remove();
@@ -249,9 +267,7 @@ export class FlowsView {
     board.className = 'flows-board';
     board.dataset.flowBoard = 'true';
     visibleColumns.forEach((column) => {
-      board.appendChild(
-        this.renderFlowColumn(column, this.getColumnIndex(column.flow.id))
-      );
+      board.appendChild(this.renderFlowColumn(column));
     });
     board.appendChild(this.renderAddFlowButton(state));
     return board;
@@ -268,19 +284,19 @@ export class FlowsView {
     return wrapper;
   }
 
-  private renderFlowColumn(column: FlowColumn, index: number): HTMLElement {
+  private renderFlowColumn(column: FlowColumn): HTMLElement {
     const presentation = readFlowPresentationSettings(column.flow);
     const isCollapsed = presentation.collapsed === true;
-    const accentColor = this.getColumnAccentColor(column, index);
+    const visual = this.getColumnVisual(column);
     const root = document.createElement('section');
-    root.className = `flows-column flows-column--${accentColor}${
+    root.className = `flows-column${
       isCollapsed ? ' is-collapsed' : ''
     }`;
     root.dataset.flowId = String(column.flow.id);
     root.dataset.flowColumnDraggable = 'true';
 
-    root.appendChild(this.renderCollapsedColumn(column));
-    root.appendChild(this.renderExpandedColumn(column));
+    root.appendChild(this.renderCollapsedColumn(column, visual));
+    root.appendChild(this.renderExpandedColumn(column, visual));
     return root;
   }
 
@@ -369,11 +385,11 @@ export class FlowsView {
     index: number,
     columns: FlowColumn[]
   ): HTMLElement {
-    const accentColor = this.getColumnAccentColor(column, index);
+    const visual = this.getColumnVisual(column);
     const presentation = readFlowPresentationSettings(column.flow);
     const isPending = this.reorderPendingFlowId === column.flow.id;
     const row = document.createElement('div');
-    row.className = `flows-organize-row flows-column--${accentColor}${
+    row.className = `flows-organize-row${
       isPending ? ' is-pending' : ''
     }${presentation.hidden === true ? ' is-hidden' : ''}`;
     row.setAttribute('role', 'listitem');
@@ -405,14 +421,16 @@ export class FlowsView {
     const main = document.createElement('div');
     main.className = 'flows-organize-row-main';
 
-    const dot = document.createElement('span');
-    dot.className = 'flows-organize-dot';
-    dot.setAttribute('aria-hidden', 'true');
+    const icon = this.renderFlowVisualIcon(
+      visual,
+      'flows-organize-icon',
+      16
+    );
 
     const label = document.createElement('span');
     label.className = 'flows-organize-label';
     label.appendChild(this.renderFlowTitleInline(column, 'organize'));
-    main.append(handle, dot, label);
+    main.append(handle, icon, label);
 
     row.append(main, this.renderOrganizeHideButton(column, presentation));
 
@@ -679,12 +697,6 @@ export class FlowsView {
 
     const placeholder = document.createElement('div');
     placeholder.className = 'flows-organize-drop-placeholder';
-    const accentClass = Array.from(options.row.classList).find((className) =>
-      className.startsWith('flows-column--')
-    );
-    if (accentClass) {
-      placeholder.classList.add(accentClass);
-    }
     placeholder.setAttribute('aria-hidden', 'true');
     parent.insertBefore(
       placeholder,
@@ -759,17 +771,253 @@ export class FlowsView {
     this.renderCurrent();
   }
 
-  private getColumnAccentColor(
-    column: FlowColumn,
-    index: number
-  ): FlowThemeColor {
-    return (
-      readFlowPresentationSettings(column.flow).color ??
-      getFallbackFlowColor(index)
-    );
+  private getColumnVisual(column: FlowColumn): FlowVisual {
+    const presentation = readFlowPresentationSettings(column.flow);
+    return {
+      icon: presentation.icon ?? getFallbackFlowIcon(),
+      color: presentation.color ?? getFallbackFlowColor(),
+    };
   }
 
-  private renderCollapsedColumn(column: FlowColumn): HTMLElement {
+  private renderFlowVisualIcon(
+    visual: FlowVisual,
+    className: string,
+    size: number
+  ): SVGSVGElement {
+    const icon = createIcon(visual.icon, { size, strokeWidth: 1.8 });
+    icon.classList.add(
+      'flows-flow-icon',
+      className,
+      `flows-flow-icon--${visual.color}`
+    );
+    icon.setAttribute('aria-hidden', 'true');
+    return icon;
+  }
+
+  private renderFlowAppearanceButton(options: {
+    column: FlowColumn | null;
+    visual: FlowVisual;
+    className: string;
+    iconClassName: string;
+    size: number;
+  }): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `flows-appearance-button ${options.className}`;
+    button.dataset.flowDragIgnore = 'true';
+    button.title = this.runtime.i18n.t('flows.edit.appearance');
+    button.setAttribute('aria-label', button.title);
+    button.setAttribute('aria-haspopup', 'dialog');
+    button.setAttribute('aria-expanded', 'false');
+    button.dataset.flowAppearanceIconClass = options.iconClassName;
+    button.dataset.flowAppearanceIconSize = String(options.size);
+    button.appendChild(
+      this.renderFlowVisualIcon(
+        options.visual,
+        options.iconClassName,
+        options.size
+      )
+    );
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      this.openAppearancePopover(button, options.column, options.visual);
+    });
+    return button;
+  }
+
+  private openAppearancePopover(
+    trigger: HTMLButtonElement,
+    column: FlowColumn | null,
+    visual: FlowVisual
+  ): void {
+    if (this.appearancePopover?.trigger === trigger) {
+      this.closeAppearancePopover();
+      return;
+    }
+    this.closeAppearancePopover();
+    this.closeColumnMenu();
+
+    const panel = createSurface({
+      elevated: true,
+      className: 'flows-appearance-popover hidden',
+    });
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-label', this.runtime.i18n.t('flows.edit.appearance'));
+    panel.dataset.flowAppearanceIcon = visual.icon;
+    panel.dataset.flowAppearanceColor = visual.color;
+    panel.addEventListener('mousedown', (event) => event.stopPropagation());
+    panel.append(
+      this.renderAppearanceIconGrid(panel, trigger, column),
+      this.renderAppearanceColorRow(panel, trigger, column)
+    );
+
+    const menu = new AnchoredMenu({
+      container: trigger,
+      panel,
+      positioning: 'viewport',
+      panelZIndex: 300,
+      onOpenChange: (open) => {
+        trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (!open && this.appearancePopover?.menu === menu) {
+          this.closeAppearancePopover();
+        }
+      },
+    });
+    this.appearancePopover = { menu, panel, trigger };
+    menu.mount();
+    menu.openAt({
+      anchor: trigger,
+      placement: 'bottom-start',
+      fallbackPlacements: ['top-start', 'bottom-end', 'top-end'],
+      gap: 6,
+      margin: 8,
+    });
+    this.syncAppearancePopover(panel, trigger);
+  }
+
+  private renderAppearanceIconGrid(
+    panel: HTMLElement,
+    trigger: HTMLButtonElement,
+    column: FlowColumn | null
+  ): HTMLElement {
+    const grid = document.createElement('div');
+    grid.className = 'flows-appearance-icon-grid';
+    FLOW_THEME_ICONS.forEach((iconName) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'flows-appearance-icon-option';
+      button.dataset.flowAppearanceIconOption = iconName;
+      button.title = this.getThemeIconLabel(iconName);
+      button.setAttribute('aria-label', button.title);
+      button.appendChild(createIcon(iconName, { size: 18, strokeWidth: 1.8 }));
+      button.addEventListener('click', () => {
+        this.applyAppearanceSelection(panel, trigger, column, { icon: iconName });
+      });
+      grid.appendChild(button);
+    });
+    return grid;
+  }
+
+  private renderAppearanceColorRow(
+    panel: HTMLElement,
+    trigger: HTMLButtonElement,
+    column: FlowColumn | null
+  ): HTMLElement {
+    const row = document.createElement('div');
+    row.className = 'flows-appearance-color-row';
+    FLOW_THEME_COLORS.forEach((color) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `flows-appearance-color-option flows-edit-color--${color}`;
+      button.dataset.flowAppearanceColorOption = color;
+      button.title = this.runtime.i18n.t(`flows.colors.${color}`);
+      button.setAttribute('aria-label', button.title);
+      const dot = document.createElement('span');
+      dot.setAttribute('aria-hidden', 'true');
+      button.appendChild(dot);
+      button.addEventListener('click', () => {
+        this.applyAppearanceSelection(panel, trigger, column, { color });
+      });
+      row.appendChild(button);
+    });
+    return row;
+  }
+
+  private applyAppearanceSelection(
+    panel: HTMLElement,
+    trigger: HTMLButtonElement,
+    column: FlowColumn | null,
+    patch: Partial<FlowVisual>
+  ): void {
+    const next: FlowVisual = {
+      icon: patch.icon ?? this.readPopoverIcon(panel),
+      color: patch.color ?? this.readPopoverColor(panel),
+    };
+    panel.dataset.flowAppearanceIcon = next.icon;
+    panel.dataset.flowAppearanceColor = next.color;
+    this.syncAppearancePopover(panel, trigger);
+    if (this.editDraft) {
+      this.editDraft = {
+        ...this.editDraft,
+        icon: next.icon,
+        color: next.color,
+      };
+    }
+    if (column) {
+      void this.patchFlowAppearance(column, next);
+    }
+  }
+
+  private syncAppearancePopover(
+    panel: HTMLElement,
+    trigger: HTMLButtonElement
+  ): void {
+    const visual: FlowVisual = {
+      icon: this.readPopoverIcon(panel),
+      color: this.readPopoverColor(panel),
+    };
+    const triggerIconClass =
+      trigger.dataset.flowAppearanceIconClass ?? 'flows-appearance-button-icon';
+    const triggerIconSize = Number(trigger.dataset.flowAppearanceIconSize);
+    trigger.replaceChildren(
+      this.renderFlowVisualIcon(
+        visual,
+        triggerIconClass,
+        Number.isFinite(triggerIconSize) ? triggerIconSize : 18
+      )
+    );
+    panel
+      .querySelectorAll<HTMLButtonElement>('.flows-appearance-icon-option')
+      .forEach((button) => {
+        const active = button.dataset.flowAppearanceIconOption === visual.icon;
+        button.classList.toggle('is-selected', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+        FLOW_THEME_COLORS.forEach((color) => {
+          button.classList.remove(`flows-flow-icon--${color}`);
+        });
+        button.classList.add(`flows-flow-icon--${visual.color}`);
+      });
+    panel
+      .querySelectorAll<HTMLButtonElement>('.flows-appearance-color-option')
+      .forEach((button) => {
+        const active = button.dataset.flowAppearanceColorOption === visual.color;
+        button.classList.toggle('is-selected', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+  }
+
+  private readPopoverIcon(panel: HTMLElement): FlowThemeIcon {
+    const value = panel.dataset.flowAppearanceIcon ?? '';
+    return FLOW_THEME_ICONS.includes(value as FlowThemeIcon)
+      ? (value as FlowThemeIcon)
+      : getFallbackFlowIcon();
+  }
+
+  private readPopoverColor(panel: HTMLElement): FlowThemeColor {
+    const value = panel.dataset.flowAppearanceColor ?? '';
+    return FLOW_THEME_COLORS.includes(value as FlowThemeColor)
+      ? (value as FlowThemeColor)
+      : getFallbackFlowColor();
+  }
+
+  private async patchFlowAppearance(
+    column: FlowColumn,
+    visual: FlowVisual
+  ): Promise<void> {
+    const presentation = readFlowPresentationSettings(column.flow);
+    await this.handlers.onPatchFlow(column.flow.id, {
+      meta: writeFlowPresentationSettings(column.flow.meta, {
+        ...presentation,
+        icon: visual.icon,
+        color: visual.color,
+      }),
+    });
+  }
+
+  private renderCollapsedColumn(
+    column: FlowColumn,
+    visual: FlowVisual
+  ): HTMLElement {
     const collapsed = document.createElement('button');
     collapsed.type = 'button';
     collapsed.className = 'flows-column-collapsed';
@@ -779,33 +1027,44 @@ export class FlowsView {
       void this.patchColumnCollapsed(column, false);
     });
 
-    const indicator = document.createElement('span');
-    indicator.className = 'flows-column-collapsed-indicator';
+    const icon = this.renderFlowVisualIcon(
+      visual,
+      'flows-column-collapsed-icon',
+      20
+    );
 
     const title = document.createElement('span');
     title.className = 'flows-column-collapsed-title';
     title.textContent = column.flow.title;
 
-    collapsed.append(indicator, title);
+    collapsed.append(icon, title);
     return collapsed;
   }
 
-  private renderExpandedColumn(column: FlowColumn): HTMLElement {
+  private renderExpandedColumn(
+    column: FlowColumn,
+    visual: FlowVisual
+  ): HTMLElement {
     const expanded = document.createElement('div');
     expanded.className = 'flows-column-expanded';
 
     const header = document.createElement('header');
     header.className = 'flows-column-header';
 
-    const colorBar = document.createElement('div');
-    colorBar.className = 'color-line-bar flows-column-color-line-bar';
-    colorBar.setAttribute('aria-hidden', 'true');
-
     const titleRow = document.createElement('div');
     titleRow.className = 'flows-column-title-row';
 
     const titleWrap = document.createElement('div');
     titleWrap.className = 'flows-column-title-wrap';
+    titleWrap.appendChild(
+      this.renderFlowAppearanceButton({
+        column,
+        visual,
+        className: 'flows-column-title-icon-button',
+        iconClassName: 'flows-column-title-icon',
+        size: 18,
+      })
+    );
 
     const collapseButton = document.createElement('button');
     collapseButton.type = 'button';
@@ -831,7 +1090,7 @@ export class FlowsView {
 
     titleRow.append(titleWrap, titleActions);
 
-    header.append(colorBar, titleRow);
+    header.append(titleRow);
 
     const taskList = document.createElement('div');
     taskList.className = 'flows-column-task-list';
@@ -892,8 +1151,7 @@ export class FlowsView {
       })
     );
 
-    let menu!: AnchoredMenu;
-    menu = new AnchoredMenu({
+    const menu = new AnchoredMenu({
       container: trigger,
       panel,
       positioning: 'viewport',
@@ -955,9 +1213,12 @@ export class FlowsView {
     this.editDraft = {
       title: column.flow.title,
       status: column.flow.status,
+      icon:
+        presentation.icon ??
+        getFallbackFlowIcon(),
       color:
         presentation.color ??
-        getFallbackFlowColor(this.getColumnIndex(column.flow.id)),
+        getFallbackFlowColor(),
       timeProfile: presentation.timeProfile ?? '',
       riskLevel: presentation.riskLevel ?? 'stable',
       priority: presentation.priority,
@@ -1138,14 +1399,7 @@ export class FlowsView {
 
     const body = document.createElement('div');
     body.className = 'flows-edit-body';
-    body.append(
-      this.renderTextField({
-        name: 'title',
-        label: this.runtime.i18n.t('flows.edit.name'),
-        value: draft.title,
-        placeholder: this.runtime.i18n.t('flows.edit.namePlaceholder'),
-      })
-    );
+    body.append(this.renderTitleField(column, draft));
     if (!isCreate) {
       body.appendChild(
         this.renderEditFieldGrid([
@@ -1155,7 +1409,6 @@ export class FlowsView {
       );
     }
     body.append(
-      this.renderColorField(draft.color),
       this.renderTextField({
         name: 'timeProfile',
         label: this.runtime.i18n.t('flows.edit.timeProfile'),
@@ -1230,36 +1483,41 @@ export class FlowsView {
     return field;
   }
 
-  private renderColorField(selectedColor: FlowThemeColor): HTMLElement {
-    const field = document.createElement('fieldset');
-    field.className = 'flows-edit-field flows-edit-color-field';
+  private renderTitleField(
+    column: FlowColumn | null,
+    draft: FlowEditDraft
+  ): HTMLElement {
+    const field = document.createElement('div');
+    field.className = 'flows-edit-field flows-edit-title-field';
 
-    const legend = document.createElement('legend');
-    legend.className = 'flows-edit-label';
-    legend.textContent = this.runtime.i18n.t('flows.edit.color');
+    const label = document.createElement('span');
+    label.className = 'flows-edit-label';
+    label.textContent = this.runtime.i18n.t('flows.edit.name');
 
-    const options = document.createElement('div');
-    options.className = 'flows-edit-color-row';
-    FLOW_THEME_COLORS.forEach((color) => {
-      const swatch = document.createElement('label');
-      swatch.className = `flows-edit-color flows-edit-color--${color}`;
-      swatch.title = this.runtime.i18n.t(`flows.colors.${color}`);
+    const row = document.createElement('div');
+    row.className = 'flows-edit-title-control-row';
+    row.appendChild(
+      this.renderFlowAppearanceButton({
+        column,
+        visual: { icon: draft.icon, color: draft.color },
+        className: 'flows-edit-title-icon-button',
+        iconClassName: 'flows-edit-title-icon',
+        size: 22,
+      })
+    );
 
-      const input = document.createElement('input');
-      input.type = 'radio';
-      input.dataset.flowDragIgnore = 'true';
-      input.name = 'color';
-      input.value = color;
-      input.checked = color === selectedColor;
-      input.disabled = this.isSubmittingEdit;
+    const input = document.createElement('input');
+    input.className = 'flows-edit-input flows-edit-title-input';
+    input.dataset.flowDragIgnore = 'true';
+    input.name = 'title';
+    input.type = 'text';
+    input.value = draft.title;
+    input.placeholder = this.runtime.i18n.t('flows.edit.namePlaceholder');
+    input.disabled = this.isSubmittingEdit;
+    input.setAttribute('aria-label', this.runtime.i18n.t('flows.edit.name'));
 
-      const dot = document.createElement('span');
-      dot.setAttribute('aria-hidden', 'true');
-      swatch.append(input, dot);
-      options.appendChild(swatch);
-    });
-
-    field.append(legend, options);
+    row.appendChild(input);
+    field.append(label, row);
     return field;
   }
 
@@ -1361,9 +1619,11 @@ export class FlowsView {
       renderOptionTrailing: (_item, active) => {
         if (!active) return null;
         const check = createIcon('check', { size: 14, strokeWidth: 2.3 });
-        check.classList.add('flows-edit-dropdown-check');
         check.setAttribute('aria-hidden', 'true');
-        return check;
+        const wrapper = document.createElement('span');
+        wrapper.className = 'flows-edit-dropdown-check';
+        wrapper.appendChild(check);
+        return wrapper;
       },
       onSelect: (item) => options.onSelect(item.value),
     });
@@ -1380,12 +1640,14 @@ export class FlowsView {
   ): HTMLElement | null {
     if (!item) return null;
     const icon = createIcon(item.icon, { size: option ? 14 : 15, strokeWidth: 2 });
-    icon.classList.add(
+    const wrapper = document.createElement('span');
+    wrapper.classList.add(
       option ? 'flows-edit-dropdown-option-icon' : 'flows-edit-dropdown-icon',
       `flows-edit-dropdown-tone--${item.tone}`
     );
     icon.setAttribute('aria-hidden', 'true');
-    return icon;
+    wrapper.appendChild(icon);
+    return wrapper;
   }
 
   private updateEditDraft(patch: Partial<FlowEditDraft>): void {
@@ -1449,6 +1711,7 @@ export class FlowsView {
     hidden: boolean | null
   ): Flow['meta'] {
     return writeFlowPresentationSettings(currentMeta, {
+      icon: draft.icon,
       color: draft.color,
       timeProfile: draft.timeProfile || null,
       riskLevel: draft.riskLevel,
@@ -1463,7 +1726,8 @@ export class FlowsView {
     return this.readDraftFromForm(
       formData,
       this.runtime.i18n.t('flows.defaultFlowTitle'),
-      getFallbackFlowColor(this.lastState?.columns.length ?? 0),
+      draft.icon,
+      draft.color,
       draft.status,
       draft.riskLevel,
       draft.priority
@@ -1475,7 +1739,8 @@ export class FlowsView {
     return this.readDraftFromForm(
       formData,
       column.flow.title,
-      getFallbackFlowColor(this.getColumnIndex(column.flow.id)),
+      draft.icon,
+      draft.color,
       draft.status,
       draft.riskLevel,
       draft.priority
@@ -1485,20 +1750,25 @@ export class FlowsView {
   private readDraftFromForm(
     formData: FormData,
     fallbackTitle: string,
+    fallbackIcon: FlowThemeIcon,
     fallbackColor: FlowThemeColor,
     status: Status,
     riskLevel: FlowRiskLevel,
     priority: FlowPriority | null
   ): FlowEditDraft {
-    const title = String(formData.get('title') ?? '').trim();
-    const colorValue = String(formData.get('color') ?? '');
+    const title = readFormString(formData, 'title');
+    const iconValue = readFormString(formData, 'icon');
+    const colorValue = readFormString(formData, 'color');
     return {
       title: title || fallbackTitle,
       status,
+      icon: FLOW_THEME_ICONS.includes(iconValue as FlowThemeIcon)
+        ? (iconValue as FlowThemeIcon)
+        : fallbackIcon,
       color: FLOW_THEME_COLORS.includes(colorValue as FlowThemeColor)
         ? (colorValue as FlowThemeColor)
         : fallbackColor,
-      timeProfile: String(formData.get('timeProfile') ?? '').trim(),
+      timeProfile: readFormString(formData, 'timeProfile'),
       riskLevel,
       priority,
     };
@@ -1509,9 +1779,12 @@ export class FlowsView {
     return {
       title: column.flow.title,
       status: column.flow.status,
+      icon:
+        presentation.icon ??
+        getFallbackFlowIcon(),
       color:
         presentation.color ??
-        getFallbackFlowColor(this.getColumnIndex(column.flow.id)),
+        getFallbackFlowColor(),
       timeProfile: presentation.timeProfile ?? '',
       riskLevel: presentation.riskLevel ?? 'stable',
       priority: presentation.priority,
@@ -1522,11 +1795,55 @@ export class FlowsView {
     return {
       title: '',
       status: Status.Draft,
-      color: getFallbackFlowColor(this.lastState?.columns.length ?? 0),
+      icon: getFallbackFlowIcon(),
+      color: getFallbackFlowColor(),
       timeProfile: '',
       riskLevel: 'stable',
       priority: null,
     };
+  }
+
+  private getThemeIconLabel(icon: FlowThemeIcon): string {
+    switch (icon) {
+      case 'academic-cap':
+        return this.runtime.i18n.t('flows.icons.academicCap');
+      case 'bar-chart':
+        return this.runtime.i18n.t('flows.icons.barChart');
+      case 'book-closed':
+        return this.runtime.i18n.t('flows.icons.bookClosed');
+      case 'book-open':
+        return this.runtime.i18n.t('flows.icons.bookOpen');
+      case 'brain':
+        return this.runtime.i18n.t('flows.icons.brain');
+      case 'code-brackets':
+        return this.runtime.i18n.t('flows.icons.codeBrackets');
+      case 'command-line':
+        return this.runtime.i18n.t('flows.icons.commandLine');
+      case 'computer-desktop':
+        return this.runtime.i18n.t('flows.icons.computerDesktop');
+      case 'currency-dollar':
+        return this.runtime.i18n.t('flows.icons.currencyDollar');
+      case 'dumbbell':
+        return this.runtime.i18n.t('flows.icons.dumbbell');
+      case 'folder':
+        return this.runtime.i18n.t('flows.icons.folder');
+      case 'health':
+        return this.runtime.i18n.t('flows.icons.health');
+      case 'heart':
+        return this.runtime.i18n.t('flows.icons.heart');
+      case 'notebook':
+        return this.runtime.i18n.t('flows.icons.notebook');
+      case 'lotus':
+        return this.runtime.i18n.t('flows.icons.lotus');
+      case 'paw':
+        return this.runtime.i18n.t('flows.icons.paw');
+      case 'plane':
+        return this.runtime.i18n.t('flows.icons.plane');
+      case 'plant':
+        return this.runtime.i18n.t('flows.icons.plant');
+      case 'popcorn':
+        return this.runtime.i18n.t('flows.icons.popcorn');
+    }
   }
 
   private getStatusLabel(status: Status): string {
@@ -1701,6 +2018,16 @@ export class FlowsView {
     popover.panel.remove();
   }
 
+  private closeAppearancePopover(): void {
+    const popover = this.appearancePopover;
+    if (!popover) return;
+    this.appearancePopover = null;
+    popover.trigger.setAttribute('aria-expanded', 'false');
+    popover.menu.close();
+    popover.menu.unmount();
+    popover.panel.remove();
+  }
+
   private disposeDropdownControls(): void {
     while (this.dropdownDisposers.length > 0) {
       this.dropdownDisposers.pop()?.();
@@ -1718,4 +2045,9 @@ function isFlowPriority(value: string): value is FlowPriority {
 
 function isFlowRisk(value: string): value is FlowRiskLevel {
   return FLOW_RISK_LEVELS.includes(value as FlowRiskLevel);
+}
+
+function readFormString(formData: FormData, name: string): string {
+  const value = formData.get(name);
+  return typeof value === 'string' ? value.trim() : '';
 }

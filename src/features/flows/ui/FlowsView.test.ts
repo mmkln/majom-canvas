@@ -63,7 +63,7 @@ afterEach(() => {
 });
 
 describe('FlowsView', () => {
-  it('saves the selected theme color into flow meta from the edit modal', async () => {
+  it('applies theme icon and color immediately from the modal title button', async () => {
     const root = document.createElement('div');
     document.body.appendChild(root);
     const onPatchFlow = vi.fn(async () => undefined);
@@ -82,42 +82,62 @@ describe('FlowsView', () => {
       .querySelectorAll<HTMLButtonElement>('.flows-column-menu-item')[0]
       ?.click();
 
-    const colorInput = root.querySelector<HTMLInputElement>(
-      'input[name="color"][value="fuchsia"]'
+    const appearanceButton = root.querySelector<HTMLButtonElement>(
+      '.flows-edit-title-icon-button'
     );
-    const initialColorInput = root.querySelector<HTMLInputElement>(
-      'input[name="color"][value="indigo"]'
-    );
-    expect(colorInput).not.toBeNull();
-    expect(root.querySelector('.flows-edit-color.is-selected')).toBeNull();
+    expect(appearanceButton).not.toBeNull();
+    expect(
+      appearanceButton?.closest('.flows-edit-title-control-row')?.children[0]
+    ).toBe(appearanceButton);
     expect(
       root.querySelector<HTMLButtonElement>('.flows-edit-primary')?.textContent
     ).toBe('Save');
-    colorInput!.closest<HTMLLabelElement>('.flows-edit-color')?.click();
-    expect(colorInput!.checked).toBe(true);
-    expect(initialColorInput?.checked).toBe(false);
 
-    const form = root.querySelector<HTMLFormElement>('.flows-edit-dialog');
-    form?.dispatchEvent(
-      new Event('submit', { bubbles: true, cancelable: true })
-    );
+    appearanceButton?.click();
+    expect(document.querySelector('.flows-appearance-popover')).not.toBeNull();
+    document
+      .querySelector<HTMLButtonElement>(
+        '[data-flow-appearance-icon-option="heart"]'
+      )
+      ?.click();
     await flushPromises();
 
     expect(onPatchFlow).toHaveBeenCalledWith(1, {
-      title: 'Launch flow',
       meta: {
         existing: 'kept',
         presentation: {
-          color: 'fuchsia',
+          icon: 'heart',
+          color: 'slate',
           timeProfile: null,
-          riskLevel: 'stable',
+          riskLevel: null,
           priority: null,
           collapsed: null,
           hidden: null,
         },
       },
     });
-    expect(root.querySelector('.flows-edit-modal')).toBeNull();
+
+    document
+      .querySelector<HTMLButtonElement>(
+        '[data-flow-appearance-color-option="fuchsia"]'
+      )
+      ?.click();
+    await flushPromises();
+
+    expect(onPatchFlow).toHaveBeenLastCalledWith(1, {
+      meta: {
+        existing: 'kept',
+        presentation: {
+          icon: 'heart',
+          color: 'fuchsia',
+          timeProfile: null,
+          riskLevel: null,
+          priority: null,
+          collapsed: null,
+          hidden: null,
+        },
+      },
+    });
     view.destroy();
   });
 
@@ -179,7 +199,8 @@ describe('FlowsView', () => {
       meta: {
         existing: 'kept',
         presentation: {
-          color: 'indigo',
+          icon: 'folder',
+          color: 'slate',
           timeProfile: null,
           riskLevel: 'high',
           priority: Priority.High,
@@ -225,6 +246,90 @@ describe('FlowsView', () => {
     view.destroy();
   });
 
+  it('renders default and persisted visual icons without random column fallbacks', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const view = new FlowsView(root, createRuntime(), {
+      onCreateFlow: vi.fn(),
+      onPatchFlow: vi.fn(),
+      onReorderFlow: vi.fn(),
+      onDeleteFlow: vi.fn(),
+    });
+
+    view.render(createState());
+
+    const expandedIcon = root.querySelector<SVGSVGElement>(
+      '.flows-column-title-icon'
+    );
+    expect(expandedIcon?.dataset.iconName).toBe('folder');
+    expect(expandedIcon?.classList.contains('flows-flow-icon--slate')).toBe(
+      true
+    );
+
+    view.render(
+      createState({
+        meta: {
+          presentation: { icon: 'heart', color: 'rose', collapsed: true },
+        },
+      })
+    );
+
+    const collapsedIcon = root.querySelector<SVGSVGElement>(
+      '.flows-column-collapsed-icon'
+    );
+    expect(collapsedIcon?.dataset.iconName).toBe('heart');
+    expect(collapsedIcon?.classList.contains('flows-flow-icon--rose')).toBe(
+      true
+    );
+    view.destroy();
+  });
+
+  it('applies theme changes immediately from the column header icon button', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const onPatchFlow = vi.fn(async () => undefined);
+    const view = new FlowsView(root, createRuntime(), {
+      onCreateFlow: vi.fn(),
+      onPatchFlow,
+      onReorderFlow: vi.fn(),
+      onDeleteFlow: vi.fn(),
+    });
+    view.render(createState());
+
+    const headerButton = root.querySelector<HTMLButtonElement>(
+      '.flows-column-title-icon-button'
+    );
+    expect(headerButton?.querySelector('svg')?.dataset.iconName).toBe('folder');
+    headerButton?.click();
+    document
+      .querySelector<HTMLButtonElement>(
+        '[data-flow-appearance-icon-option="brain"]'
+      )
+      ?.click();
+    document
+      .querySelector<HTMLButtonElement>(
+        '[data-flow-appearance-color-option="violet"]'
+      )
+      ?.click();
+    await flushPromises();
+
+    expect(onPatchFlow).toHaveBeenLastCalledWith(1, {
+      meta: {
+        existing: 'kept',
+        presentation: {
+          icon: 'brain',
+          color: 'violet',
+          timeProfile: null,
+          riskLevel: null,
+          priority: null,
+          collapsed: null,
+          hidden: null,
+        },
+      },
+    });
+    view.destroy();
+  });
+
   it('persists column collapse state in flow meta', async () => {
     const root = document.createElement('div');
     document.body.appendChild(root);
@@ -246,6 +351,7 @@ describe('FlowsView', () => {
       meta: {
         existing: 'kept',
         presentation: {
+          icon: null,
           color: null,
           timeProfile: null,
           riskLevel: null,
@@ -274,6 +380,7 @@ describe('FlowsView', () => {
         existing: 'kept',
         presentation: {
           collapsed: false,
+          icon: null,
           color: null,
           priority: null,
           riskLevel: null,
@@ -357,10 +464,14 @@ describe('FlowsView', () => {
     expect(titleInput?.value).toBe('');
     titleInput!.value = 'Customer onboarding';
 
-    const colorInput = root.querySelector<HTMLInputElement>(
-      'input[name="color"][value="fuchsia"]'
-    );
-    colorInput!.closest<HTMLLabelElement>('.flows-edit-color')?.click();
+    root
+      .querySelector<HTMLButtonElement>('.flows-edit-title-icon-button')
+      ?.click();
+    document
+      .querySelector<HTMLButtonElement>(
+        '[data-flow-appearance-color-option="fuchsia"]'
+      )
+      ?.click();
 
     const form = root.querySelector<HTMLFormElement>('.flows-edit-dialog');
     form?.dispatchEvent(
@@ -372,6 +483,7 @@ describe('FlowsView', () => {
       title: 'Customer onboarding',
       meta: {
         presentation: {
+          icon: 'folder',
           color: 'fuchsia',
           timeProfile: null,
           riskLevel: 'stable',
@@ -580,6 +692,7 @@ describe('FlowsView', () => {
       meta: {
         existing: 'kept',
         presentation: {
+          icon: null,
           color: 'rose',
           timeProfile: null,
           riskLevel: null,
@@ -628,6 +741,7 @@ describe('FlowsView', () => {
         existing: 'kept',
         presentation: {
           hidden: false,
+          icon: null,
           color: null,
           timeProfile: null,
           riskLevel: null,
