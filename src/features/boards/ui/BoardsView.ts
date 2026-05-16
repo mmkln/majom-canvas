@@ -6,6 +6,7 @@ import {
 } from '../../../ui-lib/src/components/Modal.ts';
 import { createPaneModalShell } from '../../../ui-lib/src/components/PaneModal.ts';
 import { Checkbox } from '../../../ui-lib/src/components/Checkbox.ts';
+import { Textarea } from '../../../ui-lib/src/components/Textarea.ts';
 import {
   TagPickerField,
   type TagPickerItem,
@@ -33,8 +34,10 @@ import {
   setIconButtonContent,
   createTextButton,
   createFormMessage,
+  HudSegmentedControl,
 } from '../../../ui-lib/src/hud/index.ts';
 import { createIcon, type IconName } from '../../../ui-lib/src/hud/icons.ts';
+import { renderInlineComposer } from '../../../ui-lib/src/workspace-board/index.ts';
 import type {
   BoardCardPatch,
   BoardCardPlacementTarget,
@@ -44,6 +47,20 @@ import type {
   BoardsIntentHandlers,
   BoardsState,
 } from '../domain/types.ts';
+import {
+  createDefaultBoardsImportPolicies,
+  type BoardsExchangeFormat,
+  type BoardsExchangeScope,
+  type BoardsExportRequest,
+  type BoardsExportResult,
+  type BoardsImportMatchStrategy,
+  type BoardsImportMode,
+  type BoardsImportPlan,
+  type BoardsImportPolicies,
+  type BoardsImportRequest,
+  type BoardsImportTarget,
+  type BoardsImportUnknownFieldPolicy,
+} from '../exchange/schema.ts';
 import { getCardPlacementId } from '../domain/cardIdentity.ts';
 import {
   getBoardCardTagIds,
@@ -130,7 +147,23 @@ type CardEntityLinkMenuPopoverController = {
   trigger: HTMLButtonElement;
 };
 
-type CardChecklistPanelStatus = 'idle' | 'loading' | 'ready' | 'saving' | 'error';
+type ImportPreviewModalScope = {
+  scope: BoardsExchangeScope;
+  titleKey: string;
+  target?: BoardsImportTarget;
+};
+
+type ExportOutputModalConfig = {
+  titleKey: string;
+  request: BoardsExportRequest;
+};
+
+type CardChecklistPanelStatus =
+  | 'idle'
+  | 'loading'
+  | 'ready'
+  | 'saving'
+  | 'error';
 
 type CardChecklistPanelState = {
   cardId: Card['id'];
@@ -199,6 +232,19 @@ const QUICK_CARD_EDITOR_GEOMETRY = {
   actionsGap: 8,
   viewportMargin: 12,
   minVisibleHeight: 220,
+} as const;
+const IMPORT_ACTION_LABEL_KEYS = {
+  create: 'boards.import.action.create',
+  update: 'boards.import.action.update',
+  skip: 'boards.import.action.skip',
+  conflict: 'boards.import.action.conflict',
+} as const;
+const IMPORT_ENTITY_LABEL_KEYS = {
+  board: 'boards.import.entity.board',
+  column: 'boards.import.entity.column',
+  card: 'boards.import.entity.card',
+  checklist: 'boards.import.entity.checklist',
+  checkItem: 'boards.import.entity.checkItem',
 } as const;
 
 function isMirrorCard(card: Card): boolean {
@@ -347,6 +393,8 @@ export class BoardsView {
   private columnTitleEditInput: HTMLInputElement | null = null;
   private headerMenu: MenuButton | null = null;
   private boardPickerPopover: BoardPickerPopoverController | null = null;
+  private importPreviewOverlay: HTMLDivElement | null = null;
+  private exportOutputOverlay: HTMLDivElement | null = null;
   private quickEditorOverlay: HTMLDivElement | null = null;
   private activeCardPlacementId: CardPlacement['id'] | null = null;
   private cardModalOverlay: HTMLDivElement | null = null;
@@ -367,7 +415,9 @@ export class BoardsView {
   private cardChecklistPanelState: CardChecklistPanelState | null = null;
   private cardChecklistLoadVersion = 0;
   private readonly hiddenCheckedChecklistIds = new Set<CardChecklist['id']>();
-  private readonly expandedCheckItemComposerIds = new Set<CardChecklist['id']>();
+  private readonly expandedCheckItemComposerIds = new Set<
+    CardChecklist['id']
+  >();
   private tagItems: TagPickerItem[] = [];
   private tagCatalogStatus: TagCatalogStatus = 'idle';
   private lastNotifiedErrorKey: string | null = null;
@@ -459,6 +509,8 @@ export class BoardsView {
     this.closeCardActionsPopover();
     this.closeMoveCardPopover();
     this.closeQuickCardEditor();
+    this.closeImportPreviewModal();
+    this.closeExportOutputModal();
     this.closeCardModal();
     this.cardDrafts.clear();
     this.root.replaceChildren();
@@ -1253,6 +1305,45 @@ export class BoardsView {
           },
         },
         {
+          id: 'import-board',
+          label: this.runtime.i18n.t('boards.import.actions.importBoard'),
+          disabled: !board || state.status === 'saving',
+          onSelect: () => {
+            this.openImportPreviewModal({
+              scope: 'board',
+              titleKey: 'boards.import.title.board',
+            });
+          },
+        },
+        {
+          id: 'export-board-markdown',
+          label: this.runtime.i18n.t('boards.export.actions.boardMarkdown'),
+          disabled: !board,
+          onSelect: () => {
+            if (!board) return;
+            void this.openExportOutputModal({
+              titleKey: 'boards.export.title.board',
+              request: {
+                scope: 'board',
+                format: 'markdown',
+                boardId: board.id,
+              },
+            });
+          },
+        },
+        {
+          id: 'export-board-json',
+          label: this.runtime.i18n.t('boards.export.actions.boardJson'),
+          disabled: !board,
+          onSelect: () => {
+            if (!board) return;
+            void this.openExportOutputModal({
+              titleKey: 'boards.export.title.board',
+              request: { scope: 'board', format: 'json', boardId: board.id },
+            });
+          },
+        },
+        {
           id: 'delete-board',
           label: this.runtime.i18n.t('boards.actions.deleteBoard'),
           disabled: !board || state.status === 'saving',
@@ -1324,7 +1415,7 @@ export class BoardsView {
         this.closeListActionsPopover();
         return;
       }
-      this.openListActionsPopover(menuButton, column);
+      this.openListActionsPopover(menuButton, board, column);
     });
     header.append(menuButton);
 
@@ -1395,6 +1486,7 @@ export class BoardsView {
 
   private openListActionsPopover(
     trigger: HTMLButtonElement,
+    board: Board,
     column: BoardColumn
   ): void {
     this.closeListActionsPopover();
@@ -1440,6 +1532,44 @@ export class BoardsView {
           },
         }),
         this.createListActionButton({
+          labelKey: 'boards.import.actions.importColumn',
+          testId: 'list-actions-import-column-button',
+          onClick: () => {
+            this.closeListActionsPopover();
+            this.openImportPreviewModal({
+              scope: 'column',
+              titleKey: 'boards.import.title.column',
+              target: { boardId: board.id, columnId: column.id },
+            });
+          },
+        }),
+        this.createListActionButton({
+          labelKey: 'boards.export.actions.columnMarkdown',
+          testId: 'list-actions-export-column-markdown-button',
+          onClick: () => {
+            this.closeListActionsPopover();
+            void this.openExportOutputModal({
+              titleKey: 'boards.export.title.column',
+              request: {
+                scope: 'column',
+                format: 'markdown',
+                columnId: column.id,
+              },
+            });
+          },
+        }),
+        this.createListActionButton({
+          labelKey: 'boards.export.actions.columnJson',
+          testId: 'list-actions-export-column-json-button',
+          onClick: () => {
+            this.closeListActionsPopover();
+            void this.openExportOutputModal({
+              titleKey: 'boards.export.title.column',
+              request: { scope: 'column', format: 'json', columnId: column.id },
+            });
+          },
+        }),
+        this.createListActionButton({
           labelKey: 'boards.listActions.copyList',
           testId: 'list-actions-copy-list-button',
           disabled: true,
@@ -1466,8 +1596,6 @@ export class BoardsView {
       ]),
       this.renderListActionsDivider(),
       this.renderListActionsColorSection(),
-      this.renderListActionsDivider(),
-      this.renderListActionsAutomationSection(),
       this.renderListActionsDivider(),
       this.renderListActionList([
         this.createListActionButton({
@@ -1575,43 +1703,6 @@ export class BoardsView {
     );
     upgrade.append(title, copy);
     section.append(button, upgrade);
-    return section;
-  }
-
-  private renderListActionsAutomationSection(): HTMLElement {
-    const section = document.createElement('section');
-    section.className = boardsModalClassNames.listActionsSection;
-    const header = createTextButton({
-      text: this.runtime.i18n.t('boards.listActions.automation'),
-      tone: 'text',
-      size: 'md',
-      className: boardsModalClassNames.listActionsSectionButton,
-      disabled: true,
-    });
-    const chevron = createIcon('chevron-up', { size: 16, strokeWidth: 2 });
-    chevron.setAttribute('aria-hidden', 'true');
-    header.append(chevron);
-    section.append(
-      header,
-      this.renderListActionList([
-        this.createListActionButton({
-          labelKey: 'boards.listActions.whenCardAdded',
-          disabled: true,
-        }),
-        this.createListActionButton({
-          labelKey: 'boards.listActions.everyDaySort',
-          disabled: true,
-        }),
-        this.createListActionButton({
-          labelKey: 'boards.listActions.everyMondaySort',
-          disabled: true,
-        }),
-        this.createListActionButton({
-          labelKey: 'boards.listActions.createRule',
-          disabled: true,
-        }),
-      ])
-    );
     return section;
   }
 
@@ -1822,13 +1913,10 @@ export class BoardsView {
   ): HTMLElement | null {
     if (!card.mirror_source) return null;
     const source = card.mirror_source;
-    const sourceText = this.runtime.i18n.t(
-      'boards.cardMirror.sourceLocation',
-      {
-        board: source.board_title,
-        list: source.column_title,
-      }
-    );
+    const sourceText = this.runtime.i18n.t('boards.cardMirror.sourceLocation', {
+      board: source.board_title,
+      list: source.column_title,
+    });
     const label = document.createElement('span');
     label.className = className;
     label.setAttribute('data-testid', 'card-mirror-source-label');
@@ -1872,74 +1960,32 @@ export class BoardsView {
     column: BoardColumn,
     state: BoardsState
   ): HTMLElement {
-    const container = document.createElement('div');
-    container.className = boardsViewClassNames.cardComposer;
-
-    if (this.expandedCardComposerColumnId !== column.id) {
-      const addButton = createTextButton({
-        text: this.runtime.i18n.t('boards.actions.createCard'),
-        tone: 'text',
-        size: 'md',
-        fullWidth: true,
-        className: boardsViewClassNames.cardComposerCollapsed,
-        disabled: state.status === 'saving',
-        onClick: () => this.expandCardComposer(column.id),
-      });
-      container.append(addButton);
-      return container;
-    }
-
-    const form = document.createElement('form');
-    form.className = boardsViewClassNames.cardComposerExpanded;
-    form.addEventListener('submit', (event) => {
-      event.preventDefault();
-      this.submitCard(column.id);
-    });
-
-    const title = document.createElement('textarea');
-    title.className = boardsViewClassNames.cardComposerTextarea;
-    title.placeholder = this.runtime.i18n.t('boards.cardComposerPlaceholder');
-    title.dir = 'auto';
-    title.rows = 2;
-    title.setAttribute('data-testid', 'list-card-composer-textarea');
-    title.setAttribute(
-      'aria-label',
-      this.runtime.i18n.t('boards.cardTitleLabel')
-    );
-    title.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter' || event.shiftKey) return;
-      event.preventDefault();
-      this.submitCard(column.id);
-    });
-
-    this.cardDrafts.set(column.id, { title });
-    const actions = document.createElement('div');
-    actions.className = boardsViewClassNames.composerActions;
-    actions.append(
-      createTextButton({
-        text: this.runtime.i18n.t('boards.actions.createCard'),
-        tone: 'primary',
-        size: 'sm',
-        type: 'submit',
-        className: boardsViewClassNames.primaryButton,
-        disabled: state.status === 'saving',
-      }),
-      createIconButton({
-        icon: 'x-mark',
-        tone: 'text',
-        size: 'md',
-        type: 'button',
-        title: this.runtime.i18n.t('boards.actions.cancelNewCard'),
-        ariaLabel: this.runtime.i18n.t('boards.actions.cancelNewCard'),
-        className: boardsViewClassNames.composerCancelButton,
-        onClick: () => this.collapseCardComposer(),
-      })
-    );
-
-    form.append(title, actions);
-    container.append(form);
-    requestAnimationFrame(() => title.focus());
-    return container;
+    return renderInlineComposer({
+      expanded: this.expandedCardComposerColumnId === column.id,
+      collapsedLabel: this.runtime.i18n.t('boards.actions.createCard'),
+      submitLabel: this.runtime.i18n.t('boards.actions.createCard'),
+      cancelLabel: this.runtime.i18n.t('boards.actions.cancelNewCard'),
+      placeholder: this.runtime.i18n.t('boards.cardComposerPlaceholder'),
+      ariaLabel: this.runtime.i18n.t('boards.cardTitleLabel'),
+      classNames: {
+        root: boardsViewClassNames.cardComposer,
+        collapsedButton: boardsViewClassNames.cardComposerCollapsed,
+        expandedForm: boardsViewClassNames.cardComposerExpanded,
+        textarea: boardsViewClassNames.cardComposerTextarea,
+        actions: boardsViewClassNames.composerActions,
+        submitButton: boardsViewClassNames.primaryButton,
+        cancelButton: boardsViewClassNames.composerCancelButton,
+      },
+      disabled: state.status === 'saving',
+      rows: 2,
+      textareaTestId: 'list-card-composer-textarea',
+      focusOnRender: true,
+      dragIgnoreDatasetKey: 'boardDragIgnore',
+      onExpand: () => this.expandCardComposer(column.id),
+      onTextareaCreated: (title) => this.cardDrafts.set(column.id, { title }),
+      onSubmit: () => this.submitCard(column.id),
+      onCancel: () => this.collapseCardComposer(),
+    }).element;
   }
 
   private renderColumnComposer(board: Board, state: BoardsState): HTMLElement {
@@ -2559,6 +2605,47 @@ export class BoardsView {
         },
       }),
       this.renderCardActionItem({
+        testId: 'card-back-import-card-button',
+        labelKey: 'boards.import.actions.importCard',
+        icon: 'arrow-down',
+        onClick: () => {
+          this.closeCardActionsPopover();
+          this.openImportPreviewModal({
+            scope: 'card',
+            titleKey: 'boards.import.title.card',
+            target: { cardId: card.id, columnId: column.id, boardId: board.id },
+          });
+        },
+      }),
+      this.renderCardActionItem({
+        testId: 'card-back-export-card-markdown-button',
+        labelKey: 'boards.export.actions.cardMarkdown',
+        icon: 'document',
+        onClick: () => {
+          this.closeCardActionsPopover();
+          void this.openExportOutputModal({
+            titleKey: 'boards.export.title.card',
+            request: {
+              scope: 'card',
+              format: 'markdown',
+              cardId: card.id,
+            },
+          });
+        },
+      }),
+      this.renderCardActionItem({
+        testId: 'card-back-export-card-json-button',
+        labelKey: 'boards.export.actions.cardJson',
+        icon: 'document',
+        onClick: () => {
+          this.closeCardActionsPopover();
+          void this.openExportOutputModal({
+            titleKey: 'boards.export.title.card',
+            request: { scope: 'card', format: 'json', cardId: card.id },
+          });
+        },
+      }),
+      this.renderCardActionItem({
         testId: 'card-back-create-task-button',
         labelKey: 'boards.cardLinks.createTask',
         icon: 'check-box',
@@ -2652,6 +2739,477 @@ export class BoardsView {
     item.className = boardsModalClassNames.cardActionsDivider;
     item.setAttribute('role', 'separator');
     return item;
+  }
+
+  private openImportPreviewModal(config: ImportPreviewModalScope): void {
+    this.closeImportPreviewModal();
+    this.closeTransientBoardOverlays();
+
+    let format: BoardsExchangeFormat = 'markdown';
+    const policies: BoardsImportPolicies = createDefaultBoardsImportPolicies();
+    let lastPreviewRequest: BoardsImportRequest | null = null;
+    let lastPreviewPlan: BoardsImportPlan | null = null;
+
+    const { overlay, container, body, footer } = createModalShell(
+      this.runtime.i18n.t(config.titleKey),
+      {
+        intent: 'info',
+        zIndex: 370,
+        onClose: () => this.closeImportPreviewModal(),
+      }
+    );
+    container.classList.add(boardsModalClassNames.importModal);
+    overlay.setAttribute('data-testid', 'boards-import-preview-modal');
+
+    const content = document.createElement('div');
+    content.className = boardsModalClassNames.importLayout;
+
+    const sourcePanel = document.createElement('section');
+    sourcePanel.className = boardsModalClassNames.importPanel;
+
+    const formatControl = new HudSegmentedControl<BoardsExchangeFormat>({
+      value: format,
+      size: 'sm',
+      fullWidth: true,
+      ariaLabel: this.runtime.i18n.t('boards.import.format'),
+      options: [
+        {
+          id: 'markdown',
+          value: 'markdown',
+          label: this.runtime.i18n.t('boards.import.formatMarkdown'),
+        },
+        {
+          id: 'json',
+          value: 'json',
+          label: this.runtime.i18n.t('boards.import.formatJson'),
+        },
+      ],
+      onChange: (value) => {
+        format = value;
+        invalidatePreview();
+      },
+    });
+
+    const sourceField = this.createImportField(
+      'boards.import.source',
+      'boards-import-source'
+    );
+    const sourceInput = new Textarea({
+      id: 'boards-import-source',
+      rows: 14,
+      placeholder: this.runtime.i18n.t('boards.import.sourcePlaceholder'),
+      className: boardsModalClassNames.importSource,
+      onInput: () => {
+        invalidatePreview();
+        validatePreviewButton();
+      },
+    }).createElement();
+    sourceField.append(sourceInput);
+
+    sourcePanel.append(formatControl.element, sourceField);
+
+    const configPanel = document.createElement('section');
+    configPanel.className = boardsModalClassNames.importPanel;
+    configPanel.append(
+      this.createImportSelect<BoardsImportMode>({
+        id: 'boards-import-mode',
+        labelKey: 'boards.import.mode',
+        value: policies.mode,
+        options: [
+          ['merge', 'boards.import.mode.merge'],
+          ['create', 'boards.import.mode.create'],
+          ['replace', 'boards.import.mode.replace'],
+        ],
+        onChange: (value) => {
+          policies.mode = value;
+          invalidatePreview();
+        },
+      }),
+      this.createImportSelect<BoardsImportMatchStrategy>({
+        id: 'boards-import-match',
+        labelKey: 'boards.import.match',
+        value: policies.matchStrategy,
+        options: [
+          ['title', 'boards.import.match.title'],
+          ['id', 'boards.import.match.id'],
+          ['external_ref', 'boards.import.match.externalRef'],
+        ],
+        onChange: (value) => {
+          policies.matchStrategy = value;
+          invalidatePreview();
+        },
+      }),
+      this.createImportSelect<BoardsImportPolicies['missingFieldPolicy']>({
+        id: 'boards-import-missing',
+        labelKey: 'boards.import.missingFields',
+        value: policies.missingFieldPolicy,
+        options: [
+          ['keep_existing', 'boards.import.missing.keepExisting'],
+          ['use_defaults', 'boards.import.missing.useDefaults'],
+          ['clear_on_replace', 'boards.import.missing.clearOnReplace'],
+        ],
+        onChange: (value) => {
+          policies.missingFieldPolicy = value;
+          invalidatePreview();
+        },
+      }),
+      this.createImportSelect<BoardsImportUnknownFieldPolicy>({
+        id: 'boards-import-unknown',
+        labelKey: 'boards.import.unknownFields',
+        value: policies.unknownFieldPolicy,
+        options: [
+          ['warn_and_ignore', 'boards.import.unknown.warn'],
+          ['strict_error', 'boards.import.unknown.strict'],
+        ],
+        onChange: (value) => {
+          policies.unknownFieldPolicy = value;
+          invalidatePreview();
+        },
+      })
+    );
+
+    const previewPanel = document.createElement('section');
+    previewPanel.className = boardsModalClassNames.importPreviewPanel;
+    previewPanel.setAttribute('data-testid', 'boards-import-preview-panel');
+    this.renderImportPreviewPlan(previewPanel, null);
+
+    content.append(sourcePanel, configPanel, previewPanel);
+    body.replaceChildren(content);
+
+    const message = createFormMessage({
+      className: boardsModalClassNames.importMessage,
+      ariaLive: 'polite',
+    });
+    const row = createModalActionRow({ variant: 'confirm' });
+    const previewButton = document.createElement('button');
+    previewButton.type = 'button';
+    previewButton.className = getModalActionButtonClass('default');
+    previewButton.textContent = this.runtime.i18n.t('boards.import.preview');
+    previewButton.setAttribute('data-testid', 'boards-import-preview-button');
+
+    const applyButton = document.createElement('button');
+    applyButton.type = 'button';
+    applyButton.className = getModalActionButtonClass('wide');
+    applyButton.textContent = this.runtime.i18n.t('boards.import.apply');
+    applyButton.disabled = true;
+    applyButton.setAttribute('data-testid', 'boards-import-apply-button');
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = getModalActionButtonClass('default');
+    closeButton.textContent = this.runtime.i18n.t('common.close');
+    closeButton.addEventListener('click', () => this.closeImportPreviewModal());
+
+    const runPreview = async (): Promise<void> => {
+      const raw = sourceInput.value.trim();
+      if (!raw) return;
+      const request: BoardsImportRequest = {
+        raw,
+        format,
+        scope: config.scope,
+        target: config.target,
+        policies: { ...policies },
+      };
+      previewButton.disabled = true;
+      applyButton.disabled = true;
+      message.show(this.runtime.i18n.t('boards.import.previewing'), 'info');
+      try {
+        const plan = await this.handlers.onPreviewImport(request);
+        lastPreviewRequest = request;
+        lastPreviewPlan = plan;
+        this.renderImportPreviewPlan(previewPanel, plan);
+        message.clear();
+      } catch {
+        lastPreviewRequest = null;
+        lastPreviewPlan = null;
+        this.renderImportPreviewPlan(previewPanel, null);
+        message.show(
+          this.runtime.i18n.t('boards.import.previewFailed'),
+          'error'
+        );
+      } finally {
+        validatePreviewButton();
+        syncApplyButton();
+      }
+    };
+
+    const applyImport = async (): Promise<void> => {
+      if (!lastPreviewRequest || !lastPreviewPlan?.canApply) return;
+      if (lastPreviewRequest.policies.mode !== 'create') return;
+      applyButton.disabled = true;
+      previewButton.disabled = true;
+      message.show(this.runtime.i18n.t('boards.import.applying'), 'info');
+      try {
+        const result = await this.handlers.onApplyImport(lastPreviewRequest);
+        if (!result) {
+          message.show(
+            this.runtime.i18n.t('boards.import.applyFailed'),
+            'error'
+          );
+          return;
+        }
+        this.closeImportPreviewModal();
+        notify(this.runtime.i18n.t('boards.import.applied'), 'success');
+      } catch {
+        message.show(this.runtime.i18n.t('boards.import.applyFailed'), 'error');
+      } finally {
+        validatePreviewButton();
+        syncApplyButton();
+      }
+    };
+
+    function invalidatePreview(): void {
+      lastPreviewRequest = null;
+      lastPreviewPlan = null;
+      applyButton.disabled = true;
+    }
+
+    function validatePreviewButton(): void {
+      previewButton.disabled = sourceInput.value.trim().length === 0;
+    }
+
+    function syncApplyButton(): void {
+      applyButton.disabled =
+        !lastPreviewRequest ||
+        !lastPreviewPlan?.canApply ||
+        lastPreviewRequest.policies.mode !== 'create';
+    }
+
+    previewButton.addEventListener('click', () => void runPreview());
+    applyButton.addEventListener('click', () => void applyImport());
+    row.append(closeButton, previewButton, applyButton);
+    footer.replaceChildren(message.element, row);
+    validatePreviewButton();
+
+    this.importPreviewOverlay = overlay;
+    requestAnimationFrame(() => sourceInput.focus());
+  }
+
+  private createImportField(labelKey: string, id: string): HTMLLabelElement {
+    const label = document.createElement('label');
+    label.className = boardsModalClassNames.importField;
+    label.htmlFor = id;
+    const text = document.createElement('span');
+    text.className = boardsModalClassNames.importLabel;
+    text.textContent = this.runtime.i18n.t(labelKey);
+    label.append(text);
+    return label;
+  }
+
+  private createImportSelect<TValue extends string>(options: {
+    id: string;
+    labelKey: string;
+    value: TValue;
+    options: Array<[TValue, string]>;
+    onChange: (value: TValue) => void;
+  }): HTMLElement {
+    const field = this.createImportField(options.labelKey, options.id);
+    const select = document.createElement('select');
+    select.id = options.id;
+    select.className = boardsModalClassNames.importSelect;
+    select.value = options.value;
+    for (const [value, labelKey] of options.options) {
+      select.append(
+        this.createSelectOption(value, this.runtime.i18n.t(labelKey))
+      );
+    }
+    select.addEventListener('change', () => {
+      options.onChange(select.value as TValue);
+    });
+    field.append(select);
+    return field;
+  }
+
+  private renderImportPreviewPlan(
+    host: HTMLElement,
+    plan: BoardsImportPlan | null
+  ): void {
+    host.replaceChildren();
+
+    const title = document.createElement('h3');
+    title.className = boardsModalClassNames.importPreviewTitle;
+    title.textContent = this.runtime.i18n.t('boards.import.previewTitle');
+    host.append(title);
+
+    if (!plan) {
+      const empty = document.createElement('p');
+      empty.className = boardsModalClassNames.importEmpty;
+      empty.textContent = this.runtime.i18n.t('boards.import.previewEmpty');
+      host.append(empty);
+      return;
+    }
+
+    const counts = document.createElement('dl');
+    counts.className = boardsModalClassNames.importCounts;
+    (
+      [
+        ['create', 'boards.import.count.create'],
+        ['update', 'boards.import.count.update'],
+        ['skip', 'boards.import.count.skip'],
+        ['conflict', 'boards.import.count.conflict'],
+      ] as const
+    ).forEach(([key, labelKey]) => {
+      const item = document.createElement('div');
+      item.className = boardsModalClassNames.importCount;
+      const value = document.createElement('dt');
+      value.className = boardsModalClassNames.importCountValue;
+      value.textContent = String(plan.counts[key]);
+      const label = document.createElement('dd');
+      label.className = boardsModalClassNames.importCountLabel;
+      label.textContent = this.runtime.i18n.t(labelKey);
+      item.append(value, label);
+      counts.append(item);
+    });
+    host.append(counts);
+
+    const status = document.createElement('p');
+    status.className = plan.canApply
+      ? boardsModalClassNames.importStatusOk
+      : boardsModalClassNames.importStatusBlocked;
+    status.textContent = this.runtime.i18n.t(
+      plan.canApply
+        ? 'boards.import.status.ready'
+        : 'boards.import.status.blocked'
+    );
+    host.append(status);
+
+    if (plan.items.length > 0) {
+      const list = document.createElement('ul');
+      list.className = boardsModalClassNames.importItems;
+      plan.items.slice(0, 40).forEach((planItem) => {
+        const item = document.createElement('li');
+        item.className = boardsModalClassNames.importItem;
+        const main = document.createElement('span');
+        main.className = boardsModalClassNames.importItemMain;
+        main.textContent = `${this.runtime.i18n.t(
+          IMPORT_ACTION_LABEL_KEYS[planItem.action]
+        )} ${this.runtime.i18n.t(
+          IMPORT_ENTITY_LABEL_KEYS[planItem.entity]
+        )}: ${planItem.title}`;
+        const meta = document.createElement('span');
+        meta.className = boardsModalClassNames.importItemMeta;
+        meta.textContent = planItem.reason
+          ? `${planItem.path} · ${planItem.reason}`
+          : planItem.path;
+        item.append(main, meta);
+        list.append(item);
+      });
+      host.append(list);
+    }
+
+    if (plan.diagnostics.length > 0) {
+      const diagnostics = document.createElement('ul');
+      diagnostics.className = boardsModalClassNames.importDiagnostics;
+      plan.diagnostics.slice(0, 20).forEach((diagnostic) => {
+        const item = document.createElement('li');
+        item.className =
+          diagnostic.level === 'error'
+            ? boardsModalClassNames.importDiagnosticError
+            : boardsModalClassNames.importDiagnosticWarning;
+        item.textContent = diagnostic.path
+          ? `${diagnostic.path}: ${diagnostic.message}`
+          : diagnostic.message;
+        diagnostics.append(item);
+      });
+      host.append(diagnostics);
+    }
+  }
+
+  private closeImportPreviewModal(): void {
+    this.importPreviewOverlay?.remove();
+    this.importPreviewOverlay = null;
+  }
+
+  private async openExportOutputModal(
+    config: ExportOutputModalConfig
+  ): Promise<void> {
+    this.closeExportOutputModal();
+    this.closeImportPreviewModal();
+
+    const result = await this.handlers.onExportData(config.request);
+    if (!result) {
+      notify(this.runtime.i18n.t('boards.export.failed'), 'error');
+      return;
+    }
+
+    const { overlay, container, body, footer } = createModalShell(
+      this.runtime.i18n.t(config.titleKey),
+      {
+        intent: 'info',
+        zIndex: 380,
+        onClose: () => this.closeExportOutputModal(),
+      }
+    );
+    container.classList.add(boardsModalClassNames.exportModal);
+    overlay.setAttribute('data-testid', 'boards-export-output-modal');
+
+    const content = document.createElement('div');
+    content.className = boardsModalClassNames.exportContent;
+
+    const meta = document.createElement('p');
+    meta.className = boardsModalClassNames.exportMeta;
+    meta.textContent = `${result.fileName} · ${result.format.toUpperCase()}`;
+
+    const output = new Textarea({
+      rows: 18,
+      value: result.content,
+      className: boardsModalClassNames.exportOutput,
+    }).createElement();
+    output.readOnly = true;
+    output.setAttribute('data-testid', 'boards-export-output');
+    output.addEventListener('focus', () => output.select());
+
+    content.append(meta, output);
+    body.replaceChildren(content);
+
+    const message = createFormMessage({
+      className: boardsModalClassNames.exportMessage,
+      ariaLive: 'polite',
+    });
+    const row = createModalActionRow({ variant: 'confirm' });
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = getModalActionButtonClass('default');
+    closeButton.textContent = this.runtime.i18n.t('common.close');
+    closeButton.addEventListener('click', () => this.closeExportOutputModal());
+
+    const copyButton = document.createElement('button');
+    copyButton.type = 'button';
+    copyButton.className = getModalActionButtonClass('wide');
+    copyButton.textContent = this.runtime.i18n.t('boards.export.copy');
+    copyButton.setAttribute('data-testid', 'boards-export-copy-button');
+    copyButton.addEventListener('click', () => {
+      void this.copyExportContent(result, output, message);
+    });
+
+    row.append(closeButton, copyButton);
+    footer.replaceChildren(message.element, row);
+    this.exportOutputOverlay = overlay;
+    requestAnimationFrame(() => output.focus());
+  }
+
+  private async copyExportContent(
+    result: BoardsExportResult,
+    output: HTMLTextAreaElement,
+    message: ReturnType<typeof createFormMessage>
+  ): Promise<void> {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(result.content);
+      } else {
+        output.select();
+        document.execCommand('copy');
+      }
+      message.show(this.runtime.i18n.t('boards.export.copied'), 'success');
+    } catch {
+      output.select();
+      message.show(this.runtime.i18n.t('boards.export.copyFailed'), 'warning');
+    }
+  }
+
+  private closeExportOutputModal(): void {
+    this.exportOutputOverlay?.remove();
+    this.exportOutputOverlay = null;
   }
 
   private archiveOrRemoveCard(
@@ -2882,10 +3440,17 @@ export class BoardsView {
         if (mode === 'mirror') {
           this.closeQuickCardEditor();
           const { column: targetColumn, ...placementTarget } = target;
-          this.handlers.onCreateCardMirror(card.id, targetColumn, placementTarget);
+          this.handlers.onCreateCardMirror(
+            card.id,
+            targetColumn,
+            placementTarget
+          );
           return;
         }
-        if (column.id === currentColumn.id && selectedPosition - 1 === currentOrder) {
+        if (
+          column.id === currentColumn.id &&
+          selectedPosition - 1 === currentOrder
+        ) {
           this.closeQuickCardEditor();
           return;
         }
@@ -3063,9 +3628,7 @@ export class BoardsView {
           disabled?: false;
           onClick: (button: HTMLButtonElement) => void;
         }
-    > = [
-      { labelKey: 'boards.cardBack.add', icon: 'plus', disabled: true },
-    ];
+    > = [{ labelKey: 'boards.cardBack.add', icon: 'plus', disabled: true }];
     if (this.getCardModalDraftTagItems(card).length === 0) {
       actionItems.push({
         labelKey: 'boards.cardBack.labels',
@@ -3221,7 +3784,9 @@ export class BoardsView {
     this.tagItems.forEach((tag) => knownTags.set(tag.id, tag));
     return draftIds
       .map((id) => knownTags.get(id))
-      .filter((tag): tag is TagPickerItem => Boolean(tag) && draftIdSet.has(tag.id));
+      .filter(
+        (tag): tag is TagPickerItem => Boolean(tag) && draftIdSet.has(tag.id)
+      );
   }
 
   private refreshCardModalLabelControls(card: Card): void {
@@ -3242,10 +3807,7 @@ export class BoardsView {
     this.handlers.onPatchCard(card.id, { tag_ids: nextTagIds });
   }
 
-  private openCardLabelsPopover(
-    trigger: HTMLButtonElement,
-    card: Card
-  ): void {
+  private openCardLabelsPopover(trigger: HTMLButtonElement, card: Card): void {
     this.closeCardLabelsPopover();
 
     const panel = createSurface({
@@ -3917,7 +4479,9 @@ export class BoardsView {
       await this.refreshOpenCardEntityLinks(options.card.id);
     });
 
-    const icon = createIcon(getCardEntityIcon(options.entityType), { size: 16 });
+    const icon = createIcon(getCardEntityIcon(options.entityType), {
+      size: 16,
+    });
     icon.setAttribute('aria-hidden', 'true');
     const content = document.createElement('span');
     content.className = boardsModalClassNames.entityLinkContent;
@@ -3967,7 +4531,9 @@ export class BoardsView {
     const shouldHideSection =
       !state ||
       (state.status === 'idle' && state.checklists.length === 0) ||
-      (state.status === 'ready' && state.checklists.length === 0 && !state.error);
+      (state.status === 'ready' &&
+        state.checklists.length === 0 &&
+        !state.error);
     host.hidden = shouldHideSection;
     if (shouldHideSection) return;
 
@@ -3981,7 +4547,9 @@ export class BoardsView {
       );
       const loading = document.createElement('div');
       loading.className = boardsModalClassNames.checklistsMessage;
-      loading.textContent = this.runtime.i18n.t('boards.cardBack.checklistsLoading');
+      loading.textContent = this.runtime.i18n.t(
+        'boards.cardBack.checklistsLoading'
+      );
       main?.append(loading);
       host.append(loadingSection);
       return;
@@ -4325,7 +4893,8 @@ export class BoardsView {
     const actions = document.createElement('div');
     actions.className = boardsModalClassNames.checkItemComposerActions;
     const primaryActions = document.createElement('div');
-    primaryActions.className = boardsModalClassNames.checkItemComposerPrimaryActions;
+    primaryActions.className =
+      boardsModalClassNames.checkItemComposerPrimaryActions;
     const submit = createTextButton({
       text: this.runtime.i18n.t('boards.cardBack.addItem'),
       tone: 'primary',
@@ -4391,9 +4960,10 @@ export class BoardsView {
     this.setCardChecklistPanelState({
       cardId,
       status: 'loading',
-      checklists: this.cardChecklistPanelState?.cardId === cardId
-        ? this.cardChecklistPanelState.checklists
-        : [],
+      checklists:
+        this.cardChecklistPanelState?.cardId === cardId
+          ? this.cardChecklistPanelState.checklists
+          : [],
       error: null,
     });
     try {
@@ -4819,9 +5389,7 @@ export class BoardsView {
       patch.description = nextDescription;
     const requestedTagIds =
       this.cardModalRequestedTagIds ?? getBoardCardTagIds(card);
-    if (
-      !haveSameBoardCardTagIds(nextTagIds, requestedTagIds)
-    ) {
+    if (!haveSameBoardCardTagIds(nextTagIds, requestedTagIds)) {
       patch.tag_ids = nextTagIds;
     }
     this.closeCardModal();

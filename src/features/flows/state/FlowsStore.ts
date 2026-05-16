@@ -5,7 +5,17 @@ import type {
   FlowTaskListItem,
   FlowUpdatePayload,
 } from '../../../majom-wrapper/data-access/flows-api-service.ts';
-import type { Flow } from '../../../majom-wrapper/interfaces/index.ts';
+import type {
+  Flow,
+  PlatformTask,
+} from '../../../majom-wrapper/interfaces/index.ts';
+import {
+  normalizeTaskEditModel,
+  normalizeTaskEditPatch,
+  taskEditPatchToPlatformTaskPatch,
+  type TaskEditModel,
+  type TaskEditPatch,
+} from '../../tasks/index.ts';
 import {
   compareFlowsForDisplay,
   resolveFlowColumnPosPatches,
@@ -37,7 +47,14 @@ export class FlowsStore {
   constructor(
     private readonly api: Pick<
       FlowsApiService,
-      'getFlows' | 'getFlowTasks' | 'createFlow' | 'patchFlow' | 'deleteFlow'
+      | 'getFlows'
+      | 'getFlowTasks'
+      | 'createFlowTask'
+      | 'getTask'
+      | 'patchTask'
+      | 'createFlow'
+      | 'patchFlow'
+      | 'deleteFlow'
     >
   ) {}
 
@@ -112,6 +129,85 @@ export class FlowsStore {
       ]),
     });
     await this.loadColumnTasks(created, version);
+  }
+
+  public async createFlowTask(
+    flowId: Flow['id'],
+    title: string
+  ): Promise<void> {
+    const normalizedTitle = title.trim();
+    if (!normalizedTitle) return;
+
+    const created = await firstValueFrom(
+      this.api.createFlowTask(flowId, {
+        title: normalizedTitle,
+        description: '',
+        is_standalone: true,
+      })
+    );
+    const column = this.snapshot.columns.find(
+      (candidate) => candidate.flow.id === flowId
+    );
+    if (!column) return;
+
+    this.patchColumn(flowId, {
+      tasks: appendUniqueTask(column.tasks, created),
+      taskStatus: 'ready',
+      taskError: null,
+      openTaskCount: created.is_completed
+        ? column.openTaskCount
+        : column.openTaskCount + 1,
+    });
+  }
+
+  public async loadFlowTask(
+    flowId: Flow['id'],
+    taskRef: PlatformTask['id'] | NonNullable<PlatformTask['uuid']>
+  ): Promise<TaskEditModel> {
+    if (!this.snapshot.columns.some((column) => column.flow.id === flowId)) {
+      throw new Error('Flow column is not loaded.');
+    }
+    const task = await firstValueFrom(this.api.getTask(taskRef));
+    return normalizeTaskEditModel(task);
+  }
+
+  public async patchFlowTask(
+    flowId: Flow['id'],
+    taskRef: PlatformTask['id'] | NonNullable<PlatformTask['uuid']>,
+    patch: TaskEditPatch
+  ): Promise<TaskEditModel> {
+    const normalizedPatch = normalizeTaskEditPatch(patch);
+    const previousColumns = this.snapshot.columns;
+    const previousColumn = previousColumns.find(
+      (column) => column.flow.id === flowId
+    );
+
+    if (previousColumn) {
+      this.patchColumn(
+        flowId,
+        applyTaskPatchToColumn(previousColumn, taskRef, normalizedPatch)
+      );
+    }
+
+    try {
+      const updated = await firstValueFrom(
+        this.api.patchTask(
+          taskRef,
+          taskEditPatchToPlatformTaskPatch(normalizedPatch)
+        )
+      );
+      const model = normalizeTaskEditModel(updated);
+      const currentColumn = this.snapshot.columns.find(
+        (column) => column.flow.id === flowId
+      );
+      if (currentColumn) {
+        this.patchColumn(flowId, applyTaskModelToColumn(currentColumn, model));
+      }
+      return model;
+    } catch (error) {
+      this.patchState({ columns: previousColumns });
+      throw error;
+    }
   }
 
   public async reorderFlowColumns(
@@ -258,6 +354,101 @@ function applyFlowPosPatches(
           };
     })
   );
+}
+
+function appendUniqueTask(
+  tasks: FlowTaskListItem[],
+  task: FlowTaskListItem
+): FlowTaskListItem[] {
+  if (tasks.some((candidate) => candidate.id === task.id)) {
+    return tasks;
+  }
+  return [...tasks, task];
+}
+
+function getTaskRef(task: Pick<FlowTaskListItem, 'id' | 'uuid'>): string {
+  return String(task.uuid ?? task.id);
+}
+
+function isSameTask(
+  task: Pick<FlowTaskListItem, 'id' | 'uuid'>,
+  ref: PlatformTask['id'] | NonNullable<PlatformTask['uuid']>
+): boolean {
+  return getTaskRef(task) === String(ref) || String(task.id) === String(ref);
+}
+
+function applyTaskPatchToColumn(
+  column: FlowColumn,
+  taskRef: PlatformTask['id'] | NonNullable<PlatformTask['uuid']>,
+  patch: TaskEditPatch
+): Partial<Omit<FlowColumn, 'flow'>> {
+  const previousTask = column.tasks.find((task) => isSameTask(task, taskRef));
+  if (!previousTask) return {};
+  const nextTask = applyTaskPatchToListItem(previousTask, patch);
+  if (nextTask.is_completed) {
+    return {
+      tasks: column.tasks.filter((task) => !isSameTask(task, taskRef)),
+      openTaskCount: Math.max(0, column.openTaskCount - 1),
+    };
+  }
+  return {
+    tasks: column.tasks.map((task) =>
+      isSameTask(task, taskRef) ? nextTask : task
+    ),
+  };
+}
+
+function applyTaskModelToColumn(
+  column: FlowColumn,
+  task: TaskEditModel
+): Partial<Omit<FlowColumn, 'flow'>> {
+  const taskRef = task.uuid ?? task.id;
+  const exists = column.tasks.some((candidate) => isSameTask(candidate, taskRef));
+  if (task.isCompleted) {
+    return {
+      tasks: column.tasks.filter((candidate) => !isSameTask(candidate, taskRef)),
+      openTaskCount: exists
+        ? Math.max(0, column.openTaskCount - 1)
+        : column.openTaskCount,
+    };
+  }
+  const listItem = taskEditModelToListItem(task);
+  return {
+    tasks: exists
+      ? column.tasks.map((candidate) =>
+          isSameTask(candidate, taskRef) ? listItem : candidate
+        )
+      : [...column.tasks, listItem],
+    openTaskCount: exists ? column.openTaskCount : column.openTaskCount + 1,
+  };
+}
+
+function applyTaskPatchToListItem(
+  task: FlowTaskListItem,
+  patch: TaskEditPatch
+): FlowTaskListItem {
+  return {
+    ...task,
+    ...(patch.title !== undefined ? { title: patch.title } : {}),
+    ...(patch.status !== undefined ? { status: patch.status } : {}),
+    ...(patch.priority !== undefined ? { priority: patch.priority } : {}),
+    ...(patch.dueDate !== undefined ? { due_date: patch.dueDate } : {}),
+    ...(patch.isCompleted !== undefined
+      ? { is_completed: patch.isCompleted }
+      : {}),
+  };
+}
+
+function taskEditModelToListItem(task: TaskEditModel): FlowTaskListItem {
+  return {
+    id: task.id,
+    uuid: task.uuid,
+    title: task.title,
+    status: task.status,
+    priority: task.priority,
+    due_date: task.dueDate,
+    is_completed: task.isCompleted,
+  };
 }
 
 function createLoadingColumn(flow: Flow): FlowColumn {

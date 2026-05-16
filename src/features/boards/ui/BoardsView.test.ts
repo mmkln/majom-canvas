@@ -15,6 +15,11 @@ import type {
   BoardsIntentHandlers,
   BoardsState,
 } from '../domain/types.ts';
+import type {
+  BoardsExportResult,
+  BoardsImportApplyResult,
+  BoardsImportPlan,
+} from '../exchange/schema.ts';
 import { BoardsView } from './BoardsView.ts';
 import { notify } from '../../../ui-lib/src/services/NotificationService.ts';
 
@@ -46,6 +51,45 @@ function createRuntime(): AppRuntime {
 }
 
 function createHandlers(): BoardsIntentHandlers {
+  const importPlan: BoardsImportPlan = {
+    scope: 'board',
+    canApply: true,
+    counts: { create: 3, update: 0, skip: 0, conflict: 0 },
+    items: [
+      {
+        action: 'create',
+        entity: 'board',
+        title: 'Imported board',
+        path: 'payload',
+        reason: 'new-board',
+      },
+    ],
+    diagnostics: [],
+    warnings: [],
+    errors: [],
+  };
+  const exportResult: BoardsExportResult = {
+    format: 'markdown',
+    scope: 'board',
+    fileName: 'board-books.md',
+    content: [
+      '---',
+      'schema: majom.boards.exchange',
+      'scope: board',
+      'title: "Books"',
+      '---',
+    ].join('\n'),
+  };
+  const applyResult: BoardsImportApplyResult = {
+    scope: 'board',
+    created: {
+      boardId: BOARD_ID,
+      columnIds: [],
+      cardIds: [],
+      checklistIds: [],
+      checkItemIds: [],
+    },
+  };
   return {
     onRefresh: vi.fn(),
     onSelectBoard: vi.fn(),
@@ -73,6 +117,9 @@ function createHandlers(): BoardsIntentHandlers {
     onPatchCardPlacement: vi.fn(),
     onDeleteCardPlacement: vi.fn(),
     onDeleteCard: vi.fn(),
+    onPreviewImport: vi.fn(async () => importPlan),
+    onExportData: vi.fn(async () => exportResult),
+    onApplyImport: vi.fn(async () => applyResult),
   };
 }
 
@@ -102,7 +149,8 @@ function createTagCatalog(tags: Tag[]): BoardTagCatalogPort {
       return tag;
     }),
     updateTag: vi.fn(async (id, patch) => {
-      const previous = currentTags.find((tag) => tag.id === id) ?? createTag({ id });
+      const previous =
+        currentTags.find((tag) => tag.id === id) ?? createTag({ id });
       const updated = {
         ...previous,
         ...patch,
@@ -279,7 +327,9 @@ describe('BoardsView', () => {
       runtime.i18n.t('boards.errors.save'),
       'error'
     );
-    expect(root.textContent).not.toContain(runtime.i18n.t('boards.errors.save'));
+    expect(root.textContent).not.toContain(
+      runtime.i18n.t('boards.errors.save')
+    );
     view.destroy();
   });
 
@@ -348,9 +398,7 @@ describe('BoardsView', () => {
     ).not.toBeNull();
     expect(root.querySelector('[aria-label="Checklist: 1/3"]')).not.toBeNull();
     expect(root.querySelector('[data-icon-name="check-box"]')).not.toBeNull();
-    expect(
-      root.querySelector('[aria-label="Linked tasks: 1"]')
-    ).not.toBeNull();
+    expect(root.querySelector('[aria-label="Linked tasks: 1"]')).not.toBeNull();
     expect(
       root.querySelector('[data-testid="card-mirror-source-label"]')
     ).toBeNull();
@@ -511,7 +559,9 @@ describe('BoardsView', () => {
     expect(editor?.textContent).not.toContain('Copy card');
     expect(editor?.textContent).not.toContain('Copy link');
     expect(
-      editor?.querySelector('[data-testid="quick-card-editor-buttons"] button:disabled')
+      editor?.querySelector(
+        '[data-testid="quick-card-editor-buttons"] button:disabled'
+      )
     ).toBeNull();
 
     const title = editor?.querySelector<HTMLTextAreaElement>(
@@ -615,9 +665,7 @@ describe('BoardsView', () => {
         '[data-testid="quick-card-editor-archive"]'
       )
       ?.click();
-    expect(handlers.onDeleteCardPlacement).toHaveBeenCalledWith(
-      PLACEMENT_BOOK
-    );
+    expect(handlers.onDeleteCardPlacement).toHaveBeenCalledWith(PLACEMENT_BOOK);
     vi.mocked(handlers.onDeleteCardPlacement).mockClear();
 
     view.render(createState(board));
@@ -641,11 +689,11 @@ describe('BoardsView', () => {
         ?.textContent
     ).toBe('Books / To Read');
     document
-      .querySelector<HTMLButtonElement>('[data-testid="card-back-archive-button"]')
+      .querySelector<HTMLButtonElement>(
+        '[data-testid="card-back-archive-button"]'
+      )
       ?.click();
-    expect(handlers.onDeleteCardPlacement).toHaveBeenCalledWith(
-      PLACEMENT_BOOK
-    );
+    expect(handlers.onDeleteCardPlacement).toHaveBeenCalledWith(PLACEMENT_BOOK);
     expect(handlers.onDeleteCard).not.toHaveBeenCalled();
     view.destroy();
   });
@@ -696,7 +744,9 @@ describe('BoardsView', () => {
       )
       ?.click();
     document
-      .querySelector<HTMLButtonElement>('[data-testid="card-back-archive-button"]')
+      .querySelector<HTMLButtonElement>(
+        '[data-testid="card-back-archive-button"]'
+      )
       ?.click();
 
     expect(handlers.onDeleteCard).toHaveBeenCalledWith(CARD_BOOK);
@@ -866,9 +916,7 @@ describe('BoardsView', () => {
       ?.click();
     await flushPromises();
 
-    expect(handlers.onDeleteCardCheckItem).toHaveBeenCalledWith(
-      CHECKITEM_OPEN
-    );
+    expect(handlers.onDeleteCardCheckItem).toHaveBeenCalledWith(CHECKITEM_OPEN);
 
     const hideCheckedButton = Array.from(
       dialog!.querySelectorAll<HTMLButtonElement>('button')
@@ -899,10 +947,9 @@ describe('BoardsView', () => {
     );
     await flushPromises();
 
-    expect(handlers.onPatchCardCheckItem).toHaveBeenCalledWith(
-      CHECKITEM_OPEN,
-      { title: 'Connect booking calendar' }
-    );
+    expect(handlers.onPatchCardCheckItem).toHaveBeenCalledWith(CHECKITEM_OPEN, {
+      title: 'Connect booking calendar',
+    });
     vi.mocked(handlers.onPatchCardCheckItem).mockClear();
 
     dialog
@@ -910,10 +957,9 @@ describe('BoardsView', () => {
       ?.click();
     await flushPromises();
 
-    expect(handlers.onPatchCardCheckItem).toHaveBeenCalledWith(
-      CHECKITEM_OPEN,
-      { state: 'complete' }
-    );
+    expect(handlers.onPatchCardCheckItem).toHaveBeenCalledWith(CHECKITEM_OPEN, {
+      state: 'complete',
+    });
     view.destroy();
   });
 
@@ -985,7 +1031,9 @@ describe('BoardsView', () => {
     await flushPromises();
 
     document
-      .querySelector<HTMLButtonElement>('[data-testid="card-back-actions-button"]')
+      .querySelector<HTMLButtonElement>(
+        '[data-testid="card-back-actions-button"]'
+      )
       ?.click();
     const linkButton = document.querySelector<HTMLButtonElement>(
       '[data-testid="card-back-link-entity-button"]'
@@ -1125,7 +1173,9 @@ describe('BoardsView', () => {
       )
       ?.click();
     document
-      .querySelector<HTMLButtonElement>('[data-testid="card-back-add-label-button"]')
+      .querySelector<HTMLButtonElement>(
+        '[data-testid="card-back-add-label-button"]'
+      )
       ?.click();
     const strategyRow = Array.from(
       document.querySelectorAll<HTMLElement>(
@@ -1404,8 +1454,12 @@ describe('BoardsView', () => {
     });
     view.render(createState(board));
 
-    const canvas = root.querySelector<HTMLElement>('[data-board-canvas="true"]')!;
-    const columns = root.querySelectorAll<HTMLElement>('[data-board-column-id]');
+    const canvas = root.querySelector<HTMLElement>(
+      '[data-board-canvas="true"]'
+    )!;
+    const columns = root.querySelectorAll<HTMLElement>(
+      '[data-board-column-id]'
+    );
     const sourceCard = root.querySelector<HTMLElement>(
       `[data-board-card-placement-id="${PLACEMENT_BOOK}"]`
     )!;
@@ -1431,13 +1485,10 @@ describe('BoardsView', () => {
       clientY: 52,
     });
 
-    expect(handlers.onPatchCardPlacement).toHaveBeenCalledWith(
-      PLACEMENT_BOOK,
-      {
-        column: COLUMN_READING,
-        after_placement: PLACEMENT_MIRROR,
-      }
-    );
+    expect(handlers.onPatchCardPlacement).toHaveBeenCalledWith(PLACEMENT_BOOK, {
+      column: COLUMN_READING,
+      after_placement: PLACEMENT_MIRROR,
+    });
     view.destroy();
   });
 
@@ -1460,7 +1511,9 @@ describe('BoardsView', () => {
     });
     view.render(createState(board));
 
-    const canvas = root.querySelector<HTMLElement>('[data-board-canvas="true"]')!;
+    const canvas = root.querySelector<HTMLElement>(
+      '[data-board-canvas="true"]'
+    )!;
     const column = root.querySelector<HTMLElement>('[data-board-column-id]')!;
     const sourceCard = root.querySelector<HTMLElement>(
       `[data-board-card-placement-id="${PLACEMENT_BOOK}"]`
@@ -1512,7 +1565,9 @@ describe('BoardsView', () => {
     });
     view.render(createState(board));
 
-    const canvas = root.querySelector<HTMLElement>('[data-board-canvas="true"]')!;
+    const canvas = root.querySelector<HTMLElement>(
+      '[data-board-canvas="true"]'
+    )!;
     const columns = root.querySelectorAll<HTMLElement>(
       '[data-board-column-draggable="true"]'
     );
@@ -1557,7 +1612,9 @@ describe('BoardsView', () => {
     });
     view.render(createState(board));
 
-    const canvas = root.querySelector<HTMLElement>('[data-board-canvas="true"]')!;
+    const canvas = root.querySelector<HTMLElement>(
+      '[data-board-canvas="true"]'
+    )!;
     const columns = root.querySelectorAll<HTMLElement>(
       '[data-board-column-draggable="true"]'
     );
@@ -1608,7 +1665,9 @@ describe('BoardsView', () => {
     expect(dialog?.textContent).not.toContain('Delete card');
 
     dialog
-      ?.querySelector<HTMLButtonElement>('[data-testid="card-back-actions-button"]')
+      ?.querySelector<HTMLButtonElement>(
+        '[data-testid="card-back-actions-button"]'
+      )
       ?.click();
     const deleteButton = document.querySelector<HTMLButtonElement>(
       '[data-testid="card-back-delete-card-button"]'
@@ -1622,7 +1681,9 @@ describe('BoardsView', () => {
       'Delete this card from every board and list where it appears?'
     );
     document
-      .querySelector<HTMLButtonElement>('[data-testid="delete-card-cancel-button"]')
+      .querySelector<HTMLButtonElement>(
+        '[data-testid="delete-card-cancel-button"]'
+      )
       ?.click();
     await Promise.resolve();
 
@@ -1630,7 +1691,9 @@ describe('BoardsView', () => {
 
     deleteButton?.click();
     document
-      .querySelector<HTMLButtonElement>('[data-testid="delete-card-confirm-button"]')
+      .querySelector<HTMLButtonElement>(
+        '[data-testid="delete-card-confirm-button"]'
+      )
       ?.click();
     await Promise.resolve();
 
@@ -1771,9 +1834,7 @@ describe('BoardsView', () => {
       .querySelector<HTMLButtonElement>('[data-testid="board-picker-button"]')
       ?.click();
     document
-      .querySelectorAll<HTMLButtonElement>(
-        '.majom-boards-board-picker__chip'
-      )
+      .querySelectorAll<HTMLButtonElement>('.majom-boards-board-picker__chip')
       .forEach((button) => {
         if (button.textContent === 'Starred') button.click();
       });
@@ -1787,16 +1848,18 @@ describe('BoardsView', () => {
     ).not.toBeNull();
 
     document
-      .querySelectorAll<HTMLButtonElement>(
-        '.majom-boards-board-picker__chip'
-      )
+      .querySelectorAll<HTMLButtonElement>('.majom-boards-board-picker__chip')
       .forEach((button) => {
         if (button.textContent === 'Recent') button.click();
       });
     const recentIds = Array.from(
       document.querySelectorAll<HTMLElement>('[data-board-picker-board-id]')
     ).map((button) => button.dataset.boardPickerBoardId);
-    expect(recentIds).toEqual([recentBoard.id, activeBoard.id, starredBoard.id]);
+    expect(recentIds).toEqual([
+      recentBoard.id,
+      activeBoard.id,
+      starredBoard.id,
+    ]);
     view.destroy();
   });
 
@@ -1843,8 +1906,7 @@ describe('BoardsView', () => {
     expect(
       document
         .querySelector<HTMLElement>('[data-board-picker-section="yourBoards"]')
-        ?.querySelector<HTMLElement>('.majom-boards-board-picker__grid')
-        ?.hidden
+        ?.querySelector<HTMLElement>('.majom-boards-board-picker__grid')?.hidden
     ).toBe(true);
     view.destroy();
   });
@@ -2041,6 +2103,7 @@ describe('BoardsView', () => {
     expect(popover?.textContent).toContain('List actions');
     expect(popover?.textContent).toContain('Add card');
     expect(popover?.textContent).toContain('Archive this list');
+    expect(popover?.textContent).not.toContain('Automation');
 
     popover
       ?.querySelector<HTMLButtonElement>(
@@ -2097,6 +2160,167 @@ describe('BoardsView', () => {
     );
     deleteBoardItem?.click();
     expect(handlers.onDeleteBoard).toHaveBeenCalledWith(BOARD_ID);
+    view.destroy();
+  });
+
+  it('previews a board import from the header menu without applying mutations', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    const raw = ['---', 'title: Imported board', '---'].join('\n');
+    view.render(createState());
+
+    root
+      .querySelector<HTMLButtonElement>('button[aria-label="Board menu"]')
+      ?.click();
+    const importBoardItem = Array.from(root.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Import board'
+    );
+    importBoardItem?.click();
+
+    const modal = document.querySelector<HTMLElement>(
+      '[data-testid="boards-import-preview-modal"]'
+    );
+    expect(modal).not.toBeNull();
+    const source = modal?.querySelector<HTMLTextAreaElement>(
+      '#boards-import-source'
+    );
+    expect(source).not.toBeNull();
+    source!.value = raw;
+    source!.dispatchEvent(new Event('input', { bubbles: true }));
+    modal
+      ?.querySelector<HTMLButtonElement>(
+        '[data-testid="boards-import-preview-button"]'
+      )
+      ?.click();
+    await Promise.resolve();
+
+    expect(handlers.onPreviewImport).toHaveBeenCalledWith({
+      raw,
+      format: 'markdown',
+      scope: 'board',
+      target: undefined,
+      policies: {
+        mode: 'merge',
+        missingFieldPolicy: 'keep_existing',
+        matchStrategy: 'title',
+        unknownFieldPolicy: 'warn_and_ignore',
+      },
+    });
+    expect(
+      modal?.querySelector('[data-testid="boards-import-preview-panel"]')
+        ?.textContent
+    ).toContain('Imported board');
+    expect(
+      modal?.querySelector<HTMLButtonElement>(
+        '[data-testid="boards-import-apply-button"]'
+      )?.disabled
+    ).toBe(true);
+    view.destroy();
+  });
+
+  it('applies a create-mode board import after preview succeeds', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    const raw = ['---', 'title: Imported board', '---'].join('\n');
+    view.render(createState());
+
+    root
+      .querySelector<HTMLButtonElement>('button[aria-label="Board menu"]')
+      ?.click();
+    Array.from(root.querySelectorAll('button'))
+      .find((button) => button.textContent === 'Import board')
+      ?.click();
+
+    const modal = document.querySelector<HTMLElement>(
+      '[data-testid="boards-import-preview-modal"]'
+    );
+    const modeSelect = modal?.querySelector<HTMLSelectElement>(
+      '#boards-import-mode'
+    );
+    modeSelect!.value = 'create';
+    modeSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+    const source = modal?.querySelector<HTMLTextAreaElement>(
+      '#boards-import-source'
+    );
+    source!.value = raw;
+    source!.dispatchEvent(new Event('input', { bubbles: true }));
+    modal
+      ?.querySelector<HTMLButtonElement>(
+        '[data-testid="boards-import-preview-button"]'
+      )
+      ?.click();
+    await Promise.resolve();
+
+    const applyButton = modal?.querySelector<HTMLButtonElement>(
+      '[data-testid="boards-import-apply-button"]'
+    );
+    expect(applyButton?.disabled).toBe(false);
+    applyButton?.click();
+    await Promise.resolve();
+
+    expect(handlers.onApplyImport).toHaveBeenCalledWith({
+      raw,
+      format: 'markdown',
+      scope: 'board',
+      target: undefined,
+      policies: {
+        mode: 'create',
+        missingFieldPolicy: 'keep_existing',
+        matchStrategy: 'title',
+        unknownFieldPolicy: 'warn_and_ignore',
+      },
+    });
+    expect(
+      document.querySelector('[data-testid="boards-import-preview-modal"]')
+    ).toBeNull();
+    expect(notify).toHaveBeenCalledWith('Import applied.', 'success');
+    view.destroy();
+  });
+
+  it('exports a board from the header menu into a readonly output modal', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState());
+
+    root
+      .querySelector<HTMLButtonElement>('button[aria-label="Board menu"]')
+      ?.click();
+    const exportBoardItem = Array.from(root.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Export board as Markdown'
+    );
+    exportBoardItem?.click();
+    await Promise.resolve();
+
+    expect(handlers.onExportData).toHaveBeenCalledWith({
+      scope: 'board',
+      format: 'markdown',
+      boardId: BOARD_ID,
+    });
+    const modal = document.querySelector<HTMLElement>(
+      '[data-testid="boards-export-output-modal"]'
+    );
+    expect(modal).not.toBeNull();
+    const output = modal?.querySelector<HTMLTextAreaElement>(
+      '[data-testid="boards-export-output"]'
+    );
+    expect(output?.readOnly).toBe(true);
+    expect(output?.value).toContain('schema: majom.boards.exchange');
+    expect(modal?.textContent).toContain('board-books.md');
     view.destroy();
   });
 

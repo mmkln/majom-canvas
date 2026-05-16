@@ -15,3 +15,6 @@
 3. Put repeated flow page classes in `ui/flowsStyles.ts`; do not inline long utility strings in store or app wiring.
 4. Use `AppRuntime` for live translations in mounted views and do not put app-global runtime state into `FlowsStore`.
 5. Add behavior tests around store request lifecycle and shell availability guards when adding new flows interactions.
+6. Keep `FlowsView` state updates on a stable page shell with keyed flow-column DOM reconciliation. Collapse, reorder, hide/show, and modal-local updates must not rebuild the whole flows page root.
+7. Use a per-column view/controller boundary for flow columns. `FlowsView` should own shell/order/overlays, while column-level DOM identity and update decisions stay in the column view layer.
+8. Keep flow column updates section-keyed inside `FlowColumnView`: root/collapsed/header/tasks updates should be independently keyed so task refreshes do not replace headers and header edits do not replace task lists.

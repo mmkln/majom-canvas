@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BoardsApiService } from '../../../majom-wrapper/data-access/boards-api-service.ts';
 import type { Board } from '../../../majom-wrapper/interfaces/index.ts';
 import { BoardsStore } from './BoardsStore.ts';
+import { createDefaultBoardsImportPolicies } from '../exchange/schema.ts';
 import {
   persistBoardsSessionSelectedBoardId,
   readBoardsSessionSelectedBoardId,
@@ -15,6 +16,9 @@ const COLUMN_TODO = '00000000-0000-4000-8000-000000000010';
 const COLUMN_DONE = '00000000-0000-4000-8000-000000000011';
 const CARD_EXISTING = '00000000-0000-4000-8000-000000000020';
 const CARD_NEW = '00000000-0000-4000-8000-000000000021';
+const CHECKLIST_SETUP = '00000000-0000-4000-8000-000000000030';
+const CHECKITEM_OPEN = '00000000-0000-4000-8000-000000000031';
+const CHECKITEM_DONE = '00000000-0000-4000-8000-000000000032';
 const PLACEMENT_EXISTING = '00000000-0000-4000-8000-000000000200';
 const PLACEMENT_MIRROR = '00000000-0000-4000-8000-000000000201';
 const PLACEMENT_LATE = '00000000-0000-4000-8000-000000000202';
@@ -218,6 +222,200 @@ describe('BoardsStore', () => {
 
     expect(store.snapshot.selectedBoardId).toBe(SECOND_BOARD_ID);
     expect(readBoardsSessionSelectedBoardId()).toBe(SECOND_BOARD_ID);
+    store.destroy();
+  });
+
+  it('exports the selected board from normalized store state', async () => {
+    const api = {
+      getBoards: vi.fn(() =>
+        of([
+          createBoard({
+            title: 'Export Board',
+            columns: [
+              {
+                id: COLUMN_TODO,
+                board: BOARD_ID,
+                title: 'Todo',
+                order: 0,
+                cards: [
+                  {
+                    id: CARD_EXISTING,
+                    column: COLUMN_TODO,
+                    title: 'Existing',
+                    description: 'Details',
+                    order: 0,
+                  },
+                ],
+              },
+            ],
+          }),
+        ])
+      ),
+      getCardChecklists: vi.fn(() =>
+        of([
+          {
+            id: CHECKLIST_SETUP,
+            card: CARD_EXISTING,
+            title: 'Implementation',
+            items: [
+              {
+                id: CHECKITEM_OPEN,
+                checklist: CHECKLIST_SETUP,
+                title: 'Parser',
+                state: 'incomplete',
+              },
+            ],
+          },
+        ])
+      ),
+    } as unknown as BoardsApiService;
+    const store = new BoardsStore(api);
+    await store.load();
+
+    const result = await store.exportData({
+      scope: 'board',
+      format: 'markdown',
+    });
+
+    expect(api.getCardChecklists).toHaveBeenCalledWith(CARD_EXISTING);
+    expect(result?.fileName).toBe('board-export-board.md');
+    expect(result?.content).toContain('## Column: Todo');
+    expect(result?.content).toContain('### Card: Existing');
+    expect(result?.content).toContain('Checklist: Implementation');
+    expect(result?.content).toContain('- [ ] Parser');
+    store.destroy();
+  });
+
+  it('applies a create-only Markdown board import through board, column, and card APIs', async () => {
+    const importedBoard = createBoard({ title: 'Imported Board' });
+    const importedColumn = {
+      id: COLUMN_TODO,
+      board: BOARD_ID,
+      title: 'Backlog',
+      order: 0,
+      cards: [],
+    };
+    const importedCard = {
+      id: CARD_EXISTING,
+      column: COLUMN_TODO,
+      title: 'Draft import UX',
+      description: 'Make Markdown easy for AI.',
+      order: 0,
+    };
+    const importedChecklist = {
+      id: CHECKLIST_SETUP,
+      card: CARD_EXISTING,
+      title: 'Implementation',
+      items: [],
+    };
+    const api = {
+      getBoards: vi.fn(() =>
+        of([
+          createBoard({
+            title: 'Imported Board',
+            columns: [
+              {
+                ...importedColumn,
+                cards: [importedCard],
+              },
+            ],
+          }),
+        ])
+      ),
+      createBoard: vi.fn(() => of(importedBoard)),
+      createColumn: vi.fn(() => of(importedColumn)),
+      createCard: vi.fn(() => of(importedCard)),
+      createCardChecklist: vi.fn(() => of(importedChecklist)),
+      createCardCheckItem: vi
+        .fn()
+        .mockReturnValueOnce(
+          of({
+            id: CHECKITEM_OPEN,
+            checklist: CHECKLIST_SETUP,
+            title: 'Parser',
+            state: 'incomplete',
+          })
+        )
+        .mockReturnValueOnce(
+          of({
+            id: CHECKITEM_DONE,
+            checklist: CHECKLIST_SETUP,
+            title: 'Preview',
+            state: 'complete',
+          })
+        ),
+    } as unknown as BoardsApiService;
+    const store = new BoardsStore(api);
+
+    const result = await store.applyImport({
+      format: 'markdown',
+      scope: 'board',
+      raw: [
+        '---',
+        'title: "Imported Board"',
+        '---',
+        '',
+        '## Column: Backlog',
+        '',
+        '### Card: Draft import UX',
+        'Description:',
+        'Make Markdown easy for AI.',
+        '',
+        'Checklist: Implementation',
+        '- [ ] Parser',
+        '- [x] Preview',
+      ].join('\n'),
+      policies: {
+        ...createDefaultBoardsImportPolicies(),
+        mode: 'create',
+      },
+    });
+
+    expect(api.createBoard).toHaveBeenCalledWith({ title: 'Imported Board' });
+    expect(api.createColumn).toHaveBeenCalledWith({
+      board: BOARD_ID,
+      title: 'Backlog',
+      position: 'end',
+    });
+    expect(api.createCard).toHaveBeenCalledWith({
+      column: COLUMN_TODO,
+      title: 'Draft import UX',
+      description: 'Make Markdown easy for AI.',
+      position: 'bottom',
+    });
+    expect(api.createCardChecklist).toHaveBeenCalledWith(CARD_EXISTING, {
+      title: 'Implementation',
+      position: 'bottom',
+    });
+    expect(api.createCardCheckItem).toHaveBeenNthCalledWith(
+      1,
+      CHECKLIST_SETUP,
+      {
+        title: 'Parser',
+        state: 'incomplete',
+        position: 'bottom',
+      }
+    );
+    expect(api.createCardCheckItem).toHaveBeenNthCalledWith(
+      2,
+      CHECKLIST_SETUP,
+      {
+        title: 'Preview',
+        state: 'complete',
+        position: 'bottom',
+      }
+    );
+    expect(result).toEqual({
+      scope: 'board',
+      created: {
+        boardId: BOARD_ID,
+        columnIds: [COLUMN_TODO],
+        cardIds: [CARD_EXISTING],
+        checklistIds: [CHECKLIST_SETUP],
+        checkItemIds: [CHECKITEM_OPEN, CHECKITEM_DONE],
+      },
+    });
+    expect(store.snapshot.selectedBoardId).toBe(BOARD_ID);
     store.destroy();
   });
 

@@ -11,6 +11,14 @@ import type {
   Tag,
 } from '../../../majom-wrapper/interfaces/index.ts';
 
+import type {
+  BoardsExportRequest,
+  BoardsExportResult,
+  BoardsImportApplyResult,
+  BoardsImportPlan,
+  BoardsImportRequest,
+} from '../exchange/schema.ts';
+
 export type BoardsRequestStatus = 'idle' | 'loading' | 'saving' | 'error';
 export type BoardsIntentResult<T> = T | Promise<T>;
 
@@ -142,4 +150,13 @@ export type BoardsIntentHandlers = {
   ) => void;
   onDeleteCardPlacement: (placementId: CardPlacement['id']) => void;
   onDeleteCard: (cardId: Card['id']) => void;
+  onPreviewImport: (
+    request: BoardsImportRequest
+  ) => BoardsIntentResult<BoardsImportPlan>;
+  onExportData: (
+    request: BoardsExportRequest
+  ) => BoardsIntentResult<BoardsExportResult | null>;
+  onApplyImport: (
+    request: BoardsImportRequest
+  ) => BoardsIntentResult<BoardsImportApplyResult | null>;
 };

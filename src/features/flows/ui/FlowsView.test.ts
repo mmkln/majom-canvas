@@ -63,6 +63,251 @@ afterEach(() => {
 });
 
 describe('FlowsView', () => {
+  it('preserves flow column DOM nodes when collapse state changes', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const view = new FlowsView(root, createRuntime(), {
+      onCreateFlow: vi.fn(),
+      onPatchFlow: vi.fn(),
+      onReorderFlow: vi.fn(),
+      onDeleteFlow: vi.fn(),
+    });
+
+    view.render(
+      createStateFromFlows([
+        createFlow({ id: 1, title: 'First flow' }),
+        createFlow({ id: 2, title: 'Second flow' }),
+      ])
+    );
+    const firstColumn = root.querySelector<HTMLElement>('[data-flow-id="1"]');
+    const secondColumn = root.querySelector<HTMLElement>('[data-flow-id="2"]');
+    const firstTitle = firstColumn?.querySelector<HTMLElement>(
+      '.flows-column-title-button'
+    );
+
+    view.render(
+      createStateFromFlows([
+        createFlow({ id: 1, title: 'First flow' }),
+        createFlow({
+          id: 2,
+          title: 'Second flow',
+          meta: { presentation: { collapsed: true } },
+        }),
+      ])
+    );
+
+    expect(root.querySelector<HTMLElement>('[data-flow-id="1"]')).toBe(
+      firstColumn
+    );
+    expect(root.querySelector<HTMLElement>('[data-flow-id="2"]')).toBe(
+      secondColumn
+    );
+    expect(
+      root
+        .querySelector<HTMLElement>('[data-flow-id="1"]')
+        ?.querySelector<HTMLElement>('.flows-column-title-button')
+    ).toBe(firstTitle);
+    expect(secondColumn?.classList.contains('is-collapsed')).toBe(true);
+    view.destroy();
+  });
+
+  it('moves existing flow column DOM nodes when order changes', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const view = new FlowsView(root, createRuntime(), {
+      onCreateFlow: vi.fn(),
+      onPatchFlow: vi.fn(),
+      onReorderFlow: vi.fn(),
+      onDeleteFlow: vi.fn(),
+    });
+
+    view.render(
+      createStateFromFlows([
+        createFlow({ id: 1, title: 'First flow' }),
+        createFlow({ id: 2, title: 'Second flow' }),
+        createFlow({ id: 3, title: 'Third flow' }),
+      ])
+    );
+    const firstColumn = root.querySelector<HTMLElement>('[data-flow-id="1"]');
+    const secondColumn = root.querySelector<HTMLElement>('[data-flow-id="2"]');
+    const firstTitle = firstColumn?.querySelector<HTMLElement>(
+      '.flows-column-title-button'
+    );
+    const secondTitle = secondColumn?.querySelector<HTMLElement>(
+      '.flows-column-title-button'
+    );
+
+    view.render(
+      createStateFromFlows([
+        createFlow({ id: 2, title: 'Second flow' }),
+        createFlow({ id: 1, title: 'First flow' }),
+        createFlow({ id: 3, title: 'Third flow' }),
+      ])
+    );
+
+    expect(
+      Array.from(root.querySelectorAll<HTMLElement>('.flows-column')).map(
+        (column) => column.dataset.flowId
+      )
+    ).toEqual(['2', '1', '3']);
+    expect(root.querySelector<HTMLElement>('[data-flow-id="1"]')).toBe(
+      firstColumn
+    );
+    expect(root.querySelector<HTMLElement>('[data-flow-id="2"]')).toBe(
+      secondColumn
+    );
+    expect(
+      root
+        .querySelector<HTMLElement>('[data-flow-id="1"]')
+        ?.querySelector<HTMLElement>('.flows-column-title-button')
+    ).toBe(firstTitle);
+    expect(
+      root
+        .querySelector<HTMLElement>('[data-flow-id="2"]')
+        ?.querySelector<HTMLElement>('.flows-column-title-button')
+    ).toBe(secondTitle);
+    view.destroy();
+  });
+
+  it('keeps an open column menu across unrelated column updates', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const view = new FlowsView(root, createRuntime(), {
+      onCreateFlow: vi.fn(),
+      onPatchFlow: vi.fn(),
+      onReorderFlow: vi.fn(),
+      onDeleteFlow: vi.fn(),
+    });
+
+    view.render(
+      createStateFromFlows([
+        createFlow({ id: 1, title: 'First flow' }),
+        createFlow({ id: 2, title: 'Second flow' }),
+      ])
+    );
+    root
+      .querySelector<HTMLElement>('[data-flow-id="1"]')
+      ?.querySelector<HTMLButtonElement>('.flows-column-menu-trigger')
+      ?.click();
+
+    expect(document.querySelector('.flows-column-menu')).not.toBeNull();
+
+    view.render(
+      createStateFromFlows([
+        createFlow({ id: 1, title: 'First flow' }),
+        createFlow({
+          id: 2,
+          title: 'Second flow',
+          meta: { presentation: { collapsed: true } },
+        }),
+      ])
+    );
+
+    expect(document.querySelector('.flows-column-menu')).not.toBeNull();
+    expect(
+      root
+        .querySelector<HTMLElement>('[data-flow-id="1"]')
+        ?.querySelector<HTMLButtonElement>('.flows-column-menu-trigger')
+        ?.getAttribute('aria-expanded')
+    ).toBe('true');
+    view.destroy();
+  });
+
+  it('hides a flow from the column header menu', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const onPatchFlow = vi.fn(async () => undefined);
+    const view = new FlowsView(root, createRuntime(), {
+      onCreateFlow: vi.fn(),
+      onPatchFlow,
+      onReorderFlow: vi.fn(),
+      onDeleteFlow: vi.fn(),
+    });
+    view.render(
+      createStateFromFlows([
+        createFlow({
+          id: 1,
+          title: 'Visible flow',
+          meta: { existing: 'kept', presentation: { color: 'rose' } },
+        }),
+      ])
+    );
+
+    root
+      .querySelector<HTMLButtonElement>('.flows-column-menu-trigger')
+      ?.click();
+    Array.from(
+      document.querySelectorAll<HTMLButtonElement>('.flows-column-menu-item')
+    )
+      .find((button) => button.textContent === 'Hide flow')
+      ?.click();
+    await flushPromises();
+
+    expect(onPatchFlow).toHaveBeenCalledWith(1, {
+      meta: {
+        existing: 'kept',
+        presentation: {
+          icon: null,
+          color: 'rose',
+          timeProfile: null,
+          priority: null,
+          collapsed: null,
+          hidden: true,
+        },
+      },
+    });
+
+    view.render(
+      createStateFromFlows([
+        createFlow({
+          id: 1,
+          title: 'Visible flow',
+          meta: { existing: 'kept', presentation: { hidden: true } },
+        }),
+      ])
+    );
+    expect(root.querySelector('.flows-column[data-flow-id="1"]')).toBeNull();
+    view.destroy();
+  });
+
+  it('updates a flow task list without replacing the column header', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const view = new FlowsView(root, createRuntime(), {
+      onCreateFlow: vi.fn(),
+      onPatchFlow: vi.fn(),
+      onReorderFlow: vi.fn(),
+      onDeleteFlow: vi.fn(),
+    });
+    const initialState = createStateFromFlows([
+      createFlow({ id: 1, title: 'First flow' }),
+    ]);
+    initialState.columns[0]!.tasks = [createTask({ title: 'Initial task' })];
+    initialState.columns[0]!.openTaskCount = 1;
+
+    view.render(initialState);
+    const header = root.querySelector<HTMLElement>('.flows-column-header');
+    const taskList = root.querySelector<HTMLElement>('.flows-column-task-list');
+    const nextState = createStateFromFlows([
+      createFlow({ id: 1, title: 'First flow' }),
+    ]);
+    nextState.columns[0]!.tasks = [createTask({ title: 'Updated task' })];
+    nextState.columns[0]!.openTaskCount = 1;
+
+    view.render(nextState);
+
+    expect(root.querySelector<HTMLElement>('.flows-column-header')).toBe(
+      header
+    );
+    expect(root.querySelector<HTMLElement>('.flows-column-task-list')).toBe(
+      taskList
+    );
+    expect(root.querySelector('.flows-task-title')?.textContent).toBe(
+      'Updated task'
+    );
+    view.destroy();
+  });
+
   it('applies theme icon and color immediately from the modal title button', async () => {
     const root = document.createElement('div');
     document.body.appendChild(root);
@@ -109,7 +354,6 @@ describe('FlowsView', () => {
           icon: 'heart',
           color: 'slate',
           timeProfile: null,
-          riskLevel: null,
           priority: null,
           collapsed: null,
           hidden: null,
@@ -131,7 +375,6 @@ describe('FlowsView', () => {
           icon: 'heart',
           color: 'fuchsia',
           timeProfile: null,
-          riskLevel: null,
           priority: null,
           collapsed: null,
           hidden: null,
@@ -141,7 +384,7 @@ describe('FlowsView', () => {
     view.destroy();
   });
 
-  it('saves flow status, priority, and risk from the settings dropdowns', async () => {
+  it('saves flow status and priority from the settings dropdowns', async () => {
     const root = document.createElement('div');
     document.body.appendChild(root);
     const onPatchFlow = vi.fn(async () => undefined);
@@ -168,13 +411,14 @@ describe('FlowsView', () => {
     const priorityDropdown = root.querySelector<HTMLButtonElement>(
       '.flows-edit-dropdown > button[aria-label="Priority"]'
     );
-    const riskDropdown = root.querySelector<HTMLButtonElement>(
-      '.flows-edit-dropdown > button[aria-label="Risk Level"]'
-    );
     expect(statusDropdown).toBeDefined();
     expect(priorityDropdown).toBeDefined();
-    expect(riskDropdown).toBeDefined();
-    if (!statusDropdown || !priorityDropdown || !riskDropdown) {
+    expect(
+      root.querySelector<HTMLButtonElement>(
+        '.flows-edit-dropdown > button[aria-label="Risk Level"]'
+      )
+    ).toBeNull();
+    if (!statusDropdown || !priorityDropdown) {
       throw new Error('Expected flow settings dropdown controls');
     }
 
@@ -183,9 +427,6 @@ describe('FlowsView', () => {
 
     priorityDropdown.click();
     clickOpenDropdownOption(Priority.High);
-
-    riskDropdown.click();
-    clickOpenDropdownOption('high');
 
     const form = root.querySelector<HTMLFormElement>('.flows-edit-dialog');
     form?.dispatchEvent(
@@ -202,7 +443,6 @@ describe('FlowsView', () => {
           icon: 'folder',
           color: 'slate',
           timeProfile: null,
-          riskLevel: 'high',
           priority: Priority.High,
           collapsed: null,
           hidden: null,
@@ -243,6 +483,147 @@ describe('FlowsView', () => {
     expect(root.querySelector('.flows-column-state')?.textContent).not.toBe(
       'Empty flow'
     );
+    view.destroy();
+  });
+
+  it('opens the add task composer and submits a trimmed title', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const onCreateTask = vi.fn(async () => undefined);
+    const view = new FlowsView(root, createRuntime(), {
+      onCreateFlow: vi.fn(),
+      onCreateTask,
+      onPatchFlow: vi.fn(),
+      onReorderFlow: vi.fn(),
+      onDeleteFlow: vi.fn(),
+    });
+    view.render(
+      createStateFromFlows([createFlow({ id: 7, title: 'Customer flow' })])
+    );
+
+    root.querySelector<HTMLButtonElement>('.flows-add-task-button')?.click();
+    const title = root.querySelector<HTMLTextAreaElement>(
+      '.flows-task-composer-textarea'
+    );
+    expect(title).not.toBeNull();
+    title!.value = '  Follow up with lead  ';
+    title!.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'Enter',
+        bubbles: true,
+        cancelable: true,
+      })
+    );
+    await flushPromises();
+
+    expect(onCreateTask).toHaveBeenCalledWith(7, 'Follow up with lead');
+    expect(root.querySelector('.flows-task-composer-textarea')).toBeNull();
+    view.destroy();
+  });
+
+  it('keeps the add task composer open when task creation fails', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const onCreateTask = vi.fn(async () => {
+      throw new Error('network');
+    });
+    const view = new FlowsView(root, createRuntime(), {
+      onCreateFlow: vi.fn(),
+      onCreateTask,
+      onPatchFlow: vi.fn(),
+      onReorderFlow: vi.fn(),
+      onDeleteFlow: vi.fn(),
+    });
+    view.render(createState());
+
+    root.querySelector<HTMLButtonElement>('.flows-add-task-button')?.click();
+    const title = root.querySelector<HTMLTextAreaElement>(
+      '.flows-task-composer-textarea'
+    );
+    title!.value = 'Retry task';
+    root
+      .querySelector<HTMLButtonElement>('.flows-task-composer-submit')
+      ?.click();
+    await flushPromises();
+
+    expect(
+      root.querySelector<HTMLTextAreaElement>('.flows-task-composer-textarea')
+        ?.value
+    ).toBe('Retry task');
+    expect(root.querySelector('.flows-task-composer-error')?.textContent).toBe(
+      'Could not create task.'
+    );
+    view.destroy();
+  });
+
+  it('opens a shared task edit modal from a flow task card and saves changes', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const onLoadTask = vi.fn(async () => ({
+      id: 10,
+      uuid: '00000000-0000-4000-8000-000000000010',
+      title: 'Open task',
+      description: 'Existing details',
+      status: Status.Active,
+      priority: Priority.Medium,
+      dueDate: null,
+      isCompleted: false,
+      goalId: null,
+      goal: null,
+      storyId: null,
+      story: null,
+    }));
+    const onPatchTask = vi.fn(async () => ({
+      id: 10,
+      uuid: '00000000-0000-4000-8000-000000000010',
+      title: 'Updated task',
+      description: 'Existing details',
+      status: Status.Active,
+      priority: Priority.Medium,
+      dueDate: null,
+      isCompleted: false,
+      goalId: null,
+      goal: null,
+      storyId: null,
+      story: null,
+    }));
+    const view = new FlowsView(root, createRuntime(), {
+      onCreateFlow: vi.fn(),
+      onCreateTask: vi.fn(),
+      onLoadTask,
+      onPatchTask,
+      onPatchFlow: vi.fn(),
+      onReorderFlow: vi.fn(),
+      onDeleteFlow: vi.fn(),
+    });
+    view.render(createState());
+
+    root.querySelector<HTMLButtonElement>('.flows-task-card')?.click();
+    await flushPromises();
+
+    expect(onLoadTask).toHaveBeenCalledWith(
+      1,
+      '00000000-0000-4000-8000-000000000010'
+    );
+    expect(document.querySelector('.task-edit-modal-form')).not.toBeNull();
+
+    const titleInput = document.querySelector<HTMLInputElement>(
+      '.task-edit-modal-input'
+    );
+    titleInput!.value = 'Updated task';
+    titleInput!.dispatchEvent(new Event('input', { bubbles: true }));
+
+    Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent === 'Save')
+      ?.click();
+    await flushPromises();
+
+    expect(onPatchTask).toHaveBeenCalledWith(
+      1,
+      '00000000-0000-4000-8000-000000000010',
+      { title: 'Updated task' }
+    );
+    expect(document.querySelector('.task-edit-modal-form')).toBeNull();
     view.destroy();
   });
 
@@ -320,7 +701,6 @@ describe('FlowsView', () => {
           icon: 'brain',
           color: 'violet',
           timeProfile: null,
-          riskLevel: null,
           priority: null,
           collapsed: null,
           hidden: null,
@@ -354,7 +734,6 @@ describe('FlowsView', () => {
           icon: null,
           color: null,
           timeProfile: null,
-          riskLevel: null,
           priority: null,
           collapsed: true,
           hidden: null,
@@ -383,7 +762,6 @@ describe('FlowsView', () => {
           icon: null,
           color: null,
           priority: null,
-          riskLevel: null,
           timeProfile: null,
           hidden: null,
         },
@@ -486,7 +864,6 @@ describe('FlowsView', () => {
           icon: 'folder',
           color: 'fuchsia',
           timeProfile: null,
-          riskLevel: 'stable',
           priority: null,
           collapsed: null,
           hidden: null,
@@ -695,7 +1072,6 @@ describe('FlowsView', () => {
           icon: null,
           color: 'rose',
           timeProfile: null,
-          riskLevel: null,
           priority: null,
           collapsed: null,
           hidden: true,
@@ -744,7 +1120,6 @@ describe('FlowsView', () => {
           icon: null,
           color: null,
           timeProfile: null,
-          riskLevel: null,
           priority: null,
           collapsed: null,
         },
@@ -1023,5 +1398,19 @@ function createFlow(overrides: Partial<Flow> = {}): Flow {
     status: overrides.status ?? Status.Active,
     meta: overrides.meta ?? { existing: 'kept' },
     tasks: overrides.tasks ?? [],
+  };
+}
+
+function createTask(
+  overrides: Partial<FlowsState['columns'][number]['tasks'][number]> = {}
+): FlowsState['columns'][number]['tasks'][number] {
+  return {
+    id: overrides.id ?? 10,
+    uuid: overrides.uuid ?? '00000000-0000-4000-8000-000000000010',
+    title: overrides.title ?? 'Open task',
+    status: overrides.status ?? Status.Active,
+    priority: overrides.priority ?? Priority.Medium,
+    due_date: overrides.due_date ?? null,
+    is_completed: overrides.is_completed ?? false,
   };
 }

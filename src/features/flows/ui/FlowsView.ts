@@ -1,29 +1,44 @@
 import type { AppRuntime } from '../../../app-runtime/index.ts';
+import { Input } from '../../../ui-lib/src/components/Input.ts';
+import {
+  createModalActionRow,
+  createModalShell,
+  getModalActionButtonClass,
+} from '../../../ui-lib/src/components/Modal.ts';
 import { StaticDropdownSelect } from '../../../ui-lib/src/components/StaticDropdownSelect.ts';
 import {
   AnchoredMenu,
   createDropdownItem,
+  createField,
   createSurface,
   createTextButton,
+  setTextButtonLoading,
 } from '../../../ui-lib/src/hud/index.ts';
 import { createIcon, type IconName } from '../../../ui-lib/src/hud/icons.ts';
+import { renderInlineComposer } from '../../../ui-lib/src/workspace-board/index.ts';
 import {
   Priority,
   Status,
   type Flow,
+  type PlatformTask,
 } from '../../../majom-wrapper/interfaces/index.ts';
+import {
+  TaskEditModal,
+  type TaskEditModalLabels,
+  type TaskEditModel,
+  type TaskEditPatch,
+  type TaskRelationCatalogPort,
+} from '../../tasks/index.ts';
 import type {
   FlowCreatePayload,
   FlowUpdatePayload,
 } from '../../../majom-wrapper/data-access/flows-api-service.ts';
 import {
   FLOW_PRIORITIES,
-  FLOW_RISK_LEVELS,
   FLOW_THEME_COLORS,
   FLOW_THEME_ICONS,
   type FlowPresentationSettings,
   type FlowPriority,
-  type FlowRiskLevel,
   type FlowThemeColor,
   type FlowThemeIcon,
   getFallbackFlowColor,
@@ -33,6 +48,7 @@ import {
 } from '../domain/flowPresentation.ts';
 import { hasFlowInsertionChanged } from '../domain/flowColumnPosition.ts';
 import type { FlowColumn, FlowsState } from '../domain/types.ts';
+import { FlowColumnView, type FlowColumnViewKeys } from './FlowColumnView.ts';
 import { FlowColumnDragController } from './FlowColumnDragController.ts';
 import { ensureFlowsStyles } from './flowsStyles.ts';
 
@@ -42,7 +58,6 @@ type FlowEditDraft = {
   icon: FlowThemeIcon;
   color: FlowThemeColor;
   timeProfile: string;
-  riskLevel: FlowRiskLevel;
   priority: FlowPriority | null;
 };
 
@@ -93,6 +108,17 @@ const ORGANIZE_MULTI_COLUMN_THRESHOLD = 8;
 
 type FlowsViewHandlers = {
   onCreateFlow: (payload: FlowCreatePayload) => Promise<void> | void;
+  onCreateTask?: (flowId: Flow['id'], title: string) => Promise<void> | void;
+  onLoadTask?: (
+    flowId: Flow['id'],
+    taskRef: PlatformTask['id'] | NonNullable<PlatformTask['uuid']>
+  ) => Promise<TaskEditModel>;
+  onPatchTask?: (
+    flowId: Flow['id'],
+    taskRef: PlatformTask['id'] | NonNullable<PlatformTask['uuid']>,
+    patch: TaskEditPatch
+  ) => Promise<TaskEditModel>;
+  taskRelationCatalog?: TaskRelationCatalogPort;
   onPatchFlow: (
     flowId: Flow['id'],
     patch: FlowUpdatePayload
@@ -107,6 +133,13 @@ type FlowsViewHandlers = {
 export class FlowsView {
   private readonly element: HTMLDivElement;
   private readonly columnDragController: FlowColumnDragController;
+  private pageElement: HTMLDivElement | null = null;
+  private headerElement: HTMLElement | null = null;
+  private bodyElement: HTMLElement | null = null;
+  private boardElement: HTMLDivElement | null = null;
+  private overlayHost: HTMLDivElement | null = null;
+  private addFlowPanelElement: HTMLElement | null = null;
+  private readonly columnViews = new Map<Flow['id'], FlowColumnView>();
   private isOrganizeModalOpen = false;
   private organizeDraggingFlowId: Flow['id'] | null = null;
   private organizeDragOverFlowId: Flow['id'] | null = null;
@@ -122,6 +155,11 @@ export class FlowsView {
   private editDraft: FlowEditDraft | null = null;
   private editError: string | null = null;
   private isSubmittingEdit = false;
+  private expandedTaskComposerFlowId: Flow['id'] | null = null;
+  private taskComposerSubmittingFlowId: Flow['id'] | null = null;
+  private taskComposerErrorFlowId: Flow['id'] | null = null;
+  private readonly taskDrafts = new Map<Flow['id'], string>();
+  private taskEditModal: TaskEditModal | null = null;
   private lastState: FlowsState | null = null;
   private readonly dropdownDisposers: Array<() => void> = [];
 
@@ -146,41 +184,169 @@ export class FlowsView {
   }
 
   public render(state: FlowsState): void {
-    this.closeColumnMenu();
-    this.closeAppearancePopover();
     this.disposeDropdownControls();
     this.lastState = state;
-    this.element.replaceChildren(this.renderPage(state));
+    this.ensureShell();
+    this.syncHeader(state);
+    this.syncBody(state);
+    this.syncOverlays(state);
+    this.closeDisconnectedPopovers();
   }
 
   public destroy(): void {
     this.closeColumnMenu();
     this.closeAppearancePopover();
     this.disposeDropdownControls();
+    this.closeTaskEditModal();
     this.columnDragController.unmount();
+    this.destroyColumnViews();
+    this.taskDrafts.clear();
     this.element.remove();
   }
 
-  private renderPage(state: FlowsState): HTMLElement {
+  private ensureShell(): void {
+    if (this.pageElement && this.bodyElement && this.overlayHost) return;
+
     const page = document.createElement('div');
     page.className = 'flows-page';
 
     const body = document.createElement('main');
     body.className = 'flows-body';
-    body.appendChild(this.renderBody(state));
 
-    page.append(this.renderHeader(state), body);
+    const overlayHost = document.createElement('div');
+    overlayHost.className = 'flows-overlay-host';
+
+    page.append(body, overlayHost);
+    this.element.replaceChildren(page);
+
+    this.pageElement = page;
+    this.bodyElement = body;
+    this.overlayHost = overlayHost;
+  }
+
+  private syncHeader(state: FlowsState): void {
+    const header = this.renderHeader(state);
+    if (this.headerElement) {
+      this.headerElement.replaceWith(header);
+    } else {
+      this.pageElement?.prepend(header);
+    }
+    this.headerElement = header;
+  }
+
+  private syncBody(state: FlowsState): void {
+    if (!this.bodyElement) return;
+
+    if (state.status === 'loading' || state.status === 'idle') {
+      this.renderBodyCenterState(this.runtime.i18n.t('flows.loading'));
+      return;
+    }
+    if (state.status === 'error') {
+      this.renderBodyCenterState(this.runtime.i18n.t('flows.errors.load'));
+      return;
+    }
+    if (state.columns.length === 0) {
+      this.renderBodyCenterState(this.runtime.i18n.t('flows.empty'));
+      return;
+    }
+
+    const visibleColumns = state.columns.filter(
+      (column) => readFlowPresentationSettings(column.flow).hidden !== true
+    );
+    this.syncBoard(visibleColumns, state);
+  }
+
+  private renderBodyCenterState(text: string): void {
+    if (!this.bodyElement) return;
+    this.destroyColumnViews();
+    this.boardElement = null;
+    this.addFlowPanelElement = null;
+    this.bodyElement.replaceChildren(this.renderCenterState(text));
+  }
+
+  private syncBoard(columns: FlowColumn[], state: FlowsState): void {
+    if (!this.bodyElement) return;
+
+    const board = this.ensureBoard();
+    const visibleIds = new Set(columns.map((column) => column.flow.id));
+    for (const [flowId, columnView] of this.columnViews) {
+      if (visibleIds.has(flowId)) continue;
+      columnView.destroy();
+      this.columnViews.delete(flowId);
+    }
+
+    columns.forEach((column) => {
+      const columnView = this.getOrCreateColumnView(column.flow.id);
+      columnView.update(column);
+      board.appendChild(columnView.element);
+    });
+
+    this.addFlowPanelElement?.remove();
+    this.addFlowPanelElement = this.renderAddFlowButton(state);
+    board.appendChild(this.addFlowPanelElement);
+  }
+
+  private ensureBoard(): HTMLDivElement {
+    if (!this.bodyElement) {
+      throw new Error('Flows body must exist before rendering board');
+    }
+    if (!this.boardElement) {
+      this.boardElement = document.createElement('div');
+      this.boardElement.className = 'flows-board';
+      this.boardElement.dataset.flowBoard = 'true';
+    }
+    if (this.boardElement.parentElement !== this.bodyElement) {
+      this.bodyElement.replaceChildren(this.boardElement);
+    }
+    return this.boardElement;
+  }
+
+  private getOrCreateColumnView(flowId: Flow['id']): FlowColumnView {
+    const existingView = this.columnViews.get(flowId);
+    if (existingView) return existingView;
+
+    const view = new FlowColumnView({
+      getKeys: (column) => this.getColumnViewKeys(column),
+      isCollapsed: (column) =>
+        readFlowPresentationSettings(column.flow).collapsed === true,
+      renderCollapsed: (column) =>
+        this.renderCollapsedColumn(column, this.getColumnVisual(column)),
+      renderHeader: (column) =>
+        this.renderColumnHeader(column, this.getColumnVisual(column)),
+      renderTasksInto: (parent, column) =>
+        this.appendTaskContent(parent, column),
+    });
+    this.columnViews.set(flowId, view);
+    return view;
+  }
+
+  private destroyColumnViews(): void {
+    for (const view of this.columnViews.values()) {
+      view.destroy();
+    }
+    this.columnViews.clear();
+  }
+
+  private syncOverlays(state: FlowsState): void {
+    if (!this.overlayHost) return;
+    this.clearOverlayHost();
     const editingColumn = this.getEditingColumn(state);
     if (editingColumn) {
-      page.appendChild(this.renderEditModal(editingColumn));
+      this.overlayHost.appendChild(this.renderEditModal(editingColumn));
     }
     if (this.isCreatingFlow) {
-      page.appendChild(this.renderEditModal(null));
+      this.overlayHost.appendChild(this.renderEditModal(null));
     }
     if (this.isOrganizeModalOpen) {
-      page.appendChild(this.renderOrganizeModal(state));
+      this.overlayHost.appendChild(this.renderOrganizeModal(state));
     }
-    return page;
+  }
+
+  private clearOverlayHost(): void {
+    if (!this.overlayHost) return;
+    while (this.overlayHost.firstChild) {
+      this.overlayHost.firstChild.remove();
+    }
   }
 
   private renderHeader(state: FlowsState): HTMLElement {
@@ -249,30 +415,6 @@ export class FlowsView {
     return button;
   }
 
-  private renderBody(state: FlowsState): HTMLElement {
-    if (state.status === 'loading' || state.status === 'idle') {
-      return this.renderCenterState(this.runtime.i18n.t('flows.loading'));
-    }
-    if (state.status === 'error') {
-      return this.renderCenterState(this.runtime.i18n.t('flows.errors.load'));
-    }
-    if (state.columns.length === 0) {
-      return this.renderCenterState(this.runtime.i18n.t('flows.empty'));
-    }
-    const visibleColumns = state.columns.filter(
-      (column) => readFlowPresentationSettings(column.flow).hidden !== true
-    );
-
-    const board = document.createElement('div');
-    board.className = 'flows-board';
-    board.dataset.flowBoard = 'true';
-    visibleColumns.forEach((column) => {
-      board.appendChild(this.renderFlowColumn(column));
-    });
-    board.appendChild(this.renderAddFlowButton(state));
-    return board;
-  }
-
   private renderCenterState(text: string): HTMLElement {
     const wrapper = document.createElement('div');
     wrapper.className = 'flows-center-state';
@@ -284,20 +426,39 @@ export class FlowsView {
     return wrapper;
   }
 
-  private renderFlowColumn(column: FlowColumn): HTMLElement {
-    const presentation = readFlowPresentationSettings(column.flow);
-    const isCollapsed = presentation.collapsed === true;
+  private getColumnViewKeys(column: FlowColumn): FlowColumnViewKeys {
+    const flowId = column.flow.id;
     const visual = this.getColumnVisual(column);
-    const root = document.createElement('section');
-    root.className = `flows-column${
-      isCollapsed ? ' is-collapsed' : ''
-    }`;
-    root.dataset.flowId = String(column.flow.id);
-    root.dataset.flowColumnDraggable = 'true';
+    const presentation = readFlowPresentationSettings(column.flow);
+    const isEditingTitle =
+      this.editingFlowTitleTarget?.surface === 'column' &&
+      this.editingFlowTitleTarget.flowId === flowId;
 
-    root.appendChild(this.renderCollapsedColumn(column, visual));
-    root.appendChild(this.renderExpandedColumn(column, visual));
-    return root;
+    return {
+      root: JSON.stringify({
+        flowId,
+        collapsed: presentation.collapsed === true,
+      }),
+      collapsed: JSON.stringify({
+        title: column.flow.title,
+        visual,
+      }),
+      header: JSON.stringify({
+        flow: column.flow,
+        visual,
+        editingTitle: isEditingTitle,
+      }),
+      tasks: JSON.stringify({
+        tasks: column.tasks,
+        taskStatus: column.taskStatus,
+        taskError: column.taskError,
+        openTaskCount: column.openTaskCount,
+        taskComposerExpanded: this.expandedTaskComposerFlowId === flowId,
+        taskComposerSubmitting: this.taskComposerSubmittingFlowId === flowId,
+        taskComposerError: this.taskComposerErrorFlowId === flowId,
+        taskDraft: this.taskDrafts.get(flowId) ?? null,
+      }),
+    };
   }
 
   private renderOrganizeModal(state: FlowsState): HTMLElement {
@@ -421,11 +582,7 @@ export class FlowsView {
     const main = document.createElement('div');
     main.className = 'flows-organize-row-main';
 
-    const icon = this.renderFlowVisualIcon(
-      visual,
-      'flows-organize-icon',
-      16
-    );
+    const icon = this.renderFlowVisualIcon(visual, 'flows-organize-icon', 16);
 
     const label = document.createElement('span');
     label.className = 'flows-organize-label';
@@ -842,7 +999,10 @@ export class FlowsView {
       className: 'flows-appearance-popover hidden',
     });
     panel.setAttribute('role', 'dialog');
-    panel.setAttribute('aria-label', this.runtime.i18n.t('flows.edit.appearance'));
+    panel.setAttribute(
+      'aria-label',
+      this.runtime.i18n.t('flows.edit.appearance')
+    );
     panel.dataset.flowAppearanceIcon = visual.icon;
     panel.dataset.flowAppearanceColor = visual.color;
     panel.addEventListener('mousedown', (event) => event.stopPropagation());
@@ -891,7 +1051,9 @@ export class FlowsView {
       button.setAttribute('aria-label', button.title);
       button.appendChild(createIcon(iconName, { size: 18, strokeWidth: 1.8 }));
       button.addEventListener('click', () => {
-        this.applyAppearanceSelection(panel, trigger, column, { icon: iconName });
+        this.applyAppearanceSelection(panel, trigger, column, {
+          icon: iconName,
+        });
       });
       grid.appendChild(button);
     });
@@ -980,7 +1142,8 @@ export class FlowsView {
     panel
       .querySelectorAll<HTMLButtonElement>('.flows-appearance-color-option')
       .forEach((button) => {
-        const active = button.dataset.flowAppearanceColorOption === visual.color;
+        const active =
+          button.dataset.flowAppearanceColorOption === visual.color;
         button.classList.toggle('is-selected', active);
         button.setAttribute('aria-pressed', active ? 'true' : 'false');
       });
@@ -1041,13 +1204,10 @@ export class FlowsView {
     return collapsed;
   }
 
-  private renderExpandedColumn(
+  private renderColumnHeader(
     column: FlowColumn,
     visual: FlowVisual
   ): HTMLElement {
-    const expanded = document.createElement('div');
-    expanded.className = 'flows-column-expanded';
-
     const header = document.createElement('header');
     header.className = 'flows-column-header';
 
@@ -1091,13 +1251,7 @@ export class FlowsView {
     titleRow.append(titleWrap, titleActions);
 
     header.append(titleRow);
-
-    const taskList = document.createElement('div');
-    taskList.className = 'flows-column-task-list';
-    this.appendTaskContent(taskList, column);
-
-    expanded.append(header, taskList);
-    return expanded;
+    return header;
   }
 
   private renderColumnMenu(column: FlowColumn): HTMLElement {
@@ -1142,6 +1296,14 @@ export class FlowsView {
         label: this.runtime.i18n.t('flows.actions.edit'),
         icon: 'pencil',
         onClick: () => this.openEditModal(column),
+      }),
+      this.renderColumnMenuItem({
+        label: this.runtime.i18n.t('flows.actions.hideFlow'),
+        icon: 'eye-slash',
+        onClick: () => {
+          this.closeColumnMenu();
+          void this.patchFlowHidden(column, true);
+        },
       }),
       this.renderColumnMenuItem({
         label: this.runtime.i18n.t('flows.actions.delete'),
@@ -1213,14 +1375,9 @@ export class FlowsView {
     this.editDraft = {
       title: column.flow.title,
       status: column.flow.status,
-      icon:
-        presentation.icon ??
-        getFallbackFlowIcon(),
-      color:
-        presentation.color ??
-        getFallbackFlowColor(),
+      icon: presentation.icon ?? getFallbackFlowIcon(),
+      color: presentation.color ?? getFallbackFlowColor(),
       timeProfile: presentation.timeProfile ?? '',
-      riskLevel: presentation.riskLevel ?? 'stable',
       priority: presentation.priority,
     };
     this.editError = null;
@@ -1289,8 +1446,16 @@ export class FlowsView {
       return;
     }
     column.tasks.forEach((task) => {
-      const card = document.createElement('article');
+      const card = document.createElement('button');
+      card.type = 'button';
       card.className = 'flows-task-card';
+      card.dataset.flowDragIgnore = 'true';
+      card.disabled = !this.handlers.onPatchTask;
+      if (this.handlers.onPatchTask) {
+        card.addEventListener('click', () => {
+          this.openTaskEditModal(column, task);
+        });
+      }
 
       const title = document.createElement('p');
       title.className = 'flows-task-title';
@@ -1305,7 +1470,7 @@ export class FlowsView {
       card.append(title, meta);
       parent.appendChild(card);
     });
-    parent.appendChild(this.renderAddTaskButton());
+    parent.appendChild(this.renderAddTaskButton(column));
   }
 
   private renderColumnState(text: string): HTMLElement {
@@ -1322,16 +1487,184 @@ export class FlowsView {
     return item;
   }
 
-  private renderAddTaskButton(): HTMLButtonElement {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'flows-add-task-button';
-    button.dataset.flowDragIgnore = 'true';
-    button.append(
-      createIcon('plus', { size: 15, strokeWidth: 2 }),
-      document.createTextNode(this.runtime.i18n.t('flows.tasks.add'))
-    );
-    return button;
+  private renderAddTaskButton(column: FlowColumn): HTMLElement {
+    const flowId = column.flow.id;
+    const isExpanded = this.expandedTaskComposerFlowId === flowId;
+    const isSubmitting = this.taskComposerSubmittingFlowId === flowId;
+    const result = renderInlineComposer({
+      expanded: isExpanded,
+      collapsedLabel: this.runtime.i18n.t('flows.tasks.add'),
+      submitLabel: this.runtime.i18n.t('flows.tasks.add'),
+      cancelLabel: this.runtime.i18n.t('common.cancel'),
+      placeholder: this.runtime.i18n.t('flows.tasks.placeholder'),
+      ariaLabel: this.runtime.i18n.t('flows.tasks.titleLabel'),
+      classNames: {
+        root: 'flows-task-composer',
+        collapsedButton: 'flows-add-task-button',
+        expandedForm: 'flows-task-composer-expanded',
+        textarea: 'flows-task-composer-textarea',
+        actions: 'flows-task-composer-actions',
+        submitButton: 'flows-task-composer-submit',
+        cancelButton: 'flows-task-composer-cancel',
+      },
+      disabled: isSubmitting,
+      value: this.taskDrafts.get(flowId) ?? '',
+      rows: 2,
+      focusOnRender: true,
+      collapsedIcon: 'plus',
+      dragIgnoreDatasetKey: 'flowDragIgnore',
+      onExpand: () => this.expandTaskComposer(flowId),
+      onInput: (value) => {
+        this.taskDrafts.set(flowId, value);
+      },
+      onSubmit: (value) => {
+        void this.submitTaskComposer(flowId, value);
+      },
+      onCancel: () => this.collapseTaskComposer(flowId),
+    });
+
+    if (this.taskComposerErrorFlowId === flowId) {
+      const error = document.createElement('div');
+      error.className = 'flows-task-composer-error';
+      error.textContent = this.runtime.i18n.t('flows.tasks.errors.create');
+      result.element.append(error);
+    }
+
+    return result.element;
+  }
+
+  private openTaskEditModal(
+    column: FlowColumn,
+    task: FlowColumn['tasks'][number]
+  ): void {
+    if (!this.handlers.onPatchTask) return;
+    this.closeTaskEditModal();
+    const taskRef = getFlowTaskRef(task);
+    const modal = new TaskEditModal({
+      task: flowTaskListItemToEditModel(task),
+      labels: this.getTaskEditModalLabels(),
+      port: {
+        loadTask: this.handlers.onLoadTask
+          ? () => this.handlers.onLoadTask!(column.flow.id, taskRef)
+          : undefined,
+        saveTaskPatch: (patch) =>
+          this.handlers.onPatchTask!(column.flow.id, taskRef, patch),
+        searchGoals: this.handlers.taskRelationCatalog?.searchGoals,
+        searchStories: this.handlers.taskRelationCatalog?.searchStories,
+      },
+      onClose: () => {
+        if (this.taskEditModal === modal) {
+          this.taskEditModal = null;
+        }
+      },
+    });
+    this.taskEditModal = modal;
+    modal.show();
+  }
+
+  private closeTaskEditModal(): void {
+    const modal = this.taskEditModal;
+    this.taskEditModal = null;
+    modal?.close();
+  }
+
+  private getTaskEditModalLabels(): Partial<TaskEditModalLabels> {
+    return {
+      title: this.runtime.i18n.t('tasks.edit.title'),
+      titleField: this.runtime.i18n.t('tasks.edit.titleField'),
+      description: this.runtime.i18n.t('tasks.edit.description'),
+      status: this.runtime.i18n.t('tasks.edit.status'),
+      priority: this.runtime.i18n.t('tasks.edit.priority'),
+      dueDate: this.runtime.i18n.t('tasks.edit.dueDate'),
+      goal: this.runtime.i18n.t('tasks.edit.goal'),
+      story: this.runtime.i18n.t('tasks.edit.story'),
+      goalPlaceholder: this.runtime.i18n.t('tasks.edit.goalPlaceholder'),
+      storyPlaceholder: this.runtime.i18n.t('tasks.edit.storyPlaceholder'),
+      goalSearchPlaceholder: this.runtime.i18n.t(
+        'tasks.edit.goalSearchPlaceholder'
+      ),
+      storySearchPlaceholder: this.runtime.i18n.t(
+        'tasks.edit.storySearchPlaceholder'
+      ),
+      clearRelation: this.runtime.i18n.t('tasks.edit.clearRelation'),
+      clearSearch: this.runtime.i18n.t('tasks.edit.clearSearch'),
+      loadingOptions: this.runtime.i18n.t('tasks.edit.loadingOptions'),
+      goalEmpty: this.runtime.i18n.t('tasks.edit.goalEmpty'),
+      storyEmpty: this.runtime.i18n.t('tasks.edit.storyEmpty'),
+      goalHint: this.runtime.i18n.t('tasks.edit.goalHint'),
+      storyHint: this.runtime.i18n.t('tasks.edit.storyHint'),
+      relationSearchError: this.runtime.i18n.t(
+        'tasks.edit.errors.relationSearch'
+      ),
+      cancel: this.runtime.i18n.t('common.cancel'),
+      save: this.runtime.i18n.t('common.save'),
+      saving: this.runtime.i18n.t('tasks.edit.saving'),
+      loading: this.runtime.i18n.t('tasks.edit.loading'),
+      loadError: this.runtime.i18n.t('tasks.edit.errors.load'),
+      saveError: this.runtime.i18n.t('tasks.edit.errors.save'),
+      titleRequired: this.runtime.i18n.t('tasks.edit.errors.titleRequired'),
+      getStatusLabel: (status) => this.getStatusLabel(status),
+      getPriorityLabel: (priority) => this.getPriorityLabel(priority),
+      unsaved: {
+        title: this.runtime.i18n.t('tasks.edit.unsaved.title'),
+        message: this.runtime.i18n.t('tasks.edit.unsaved.message'),
+        keepEditing: this.runtime.i18n.t('tasks.edit.unsaved.keepEditing'),
+        discard: this.runtime.i18n.t('tasks.edit.unsaved.discard'),
+        saveChanges: this.runtime.i18n.t('tasks.edit.unsaved.saveChanges'),
+      },
+    };
+  }
+
+  private expandTaskComposer(flowId: Flow['id']): void {
+    if (!this.handlers.onCreateTask) return;
+    this.expandedTaskComposerFlowId = flowId;
+    this.taskComposerErrorFlowId = null;
+    this.rerenderCurrentState();
+  }
+
+  private collapseTaskComposer(flowId: Flow['id']): void {
+    if (this.taskComposerSubmittingFlowId === flowId) return;
+    this.taskDrafts.delete(flowId);
+    if (this.expandedTaskComposerFlowId === flowId) {
+      this.expandedTaskComposerFlowId = null;
+    }
+    if (this.taskComposerErrorFlowId === flowId) {
+      this.taskComposerErrorFlowId = null;
+    }
+    this.rerenderCurrentState();
+  }
+
+  private async submitTaskComposer(
+    flowId: Flow['id'],
+    rawTitle: string
+  ): Promise<void> {
+    const title = rawTitle.trim();
+    if (!title || !this.handlers.onCreateTask) return;
+
+    this.taskDrafts.set(flowId, rawTitle);
+    this.taskComposerSubmittingFlowId = flowId;
+    this.taskComposerErrorFlowId = null;
+    this.rerenderCurrentState();
+
+    try {
+      await this.handlers.onCreateTask(flowId, title);
+      this.taskDrafts.delete(flowId);
+      if (this.expandedTaskComposerFlowId === flowId) {
+        this.expandedTaskComposerFlowId = null;
+      }
+    } catch {
+      this.taskComposerErrorFlowId = flowId;
+    } finally {
+      if (this.taskComposerSubmittingFlowId === flowId) {
+        this.taskComposerSubmittingFlowId = null;
+      }
+      this.rerenderCurrentState();
+    }
+  }
+
+  private rerenderCurrentState(): void {
+    if (!this.lastState) return;
+    this.render(this.lastState);
   }
 
   private renderAddFlowButton(state: FlowsState): HTMLElement {
@@ -1360,99 +1693,84 @@ export class FlowsView {
     const draft =
       this.editDraft ??
       (isCreate ? this.createNewFlowDraft() : this.createEditDraft(column));
-    const overlay = document.createElement('div');
-    overlay.className = 'flows-edit-modal';
-    overlay.setAttribute('role', 'presentation');
-    overlay.addEventListener('click', () => this.closeEditModal());
+    const { overlay, container, body, footer } = createModalShell(
+      this.runtime.i18n.t(isCreate ? 'flows.create.title' : 'flows.edit.title'),
+      {
+        onClose: () => this.closeEditModal(),
+        intent: 'form',
+      }
+    );
+    container.classList.add('flows-edit-container');
+    container.querySelector('h2')?.classList.add('flows-edit-title');
+    body.classList.add('flows-edit-body');
 
-    const dialog = document.createElement('form');
-    dialog.className = 'flows-edit-dialog';
-    dialog.setAttribute('role', 'dialog');
-    dialog.setAttribute('aria-modal', 'true');
-    dialog.setAttribute('aria-labelledby', 'flows-edit-title');
-    dialog.addEventListener('click', (event) => event.stopPropagation());
-    dialog.addEventListener('submit', (event) => {
+    const form = document.createElement('form');
+    form.className = 'flows-edit-dialog';
+    form.addEventListener('submit', (event) => {
       event.preventDefault();
-      void this.submitEditModal(column, dialog);
+      void this.submitEditModal(column, form);
     });
 
-    const header = document.createElement('header');
-    header.className = 'flows-edit-header';
-
-    const title = document.createElement('h2');
-    title.id = 'flows-edit-title';
-    title.className = 'flows-edit-title';
-    title.textContent = this.runtime.i18n.t(
-      isCreate ? 'flows.create.title' : 'flows.edit.title'
-    );
-
-    const closeButton = document.createElement('button');
-    closeButton.type = 'button';
-    closeButton.className = 'flows-edit-close';
-    closeButton.title = this.runtime.i18n.t(
-      isCreate ? 'flows.create.close' : 'flows.edit.close'
-    );
-    closeButton.setAttribute('aria-label', closeButton.title);
-    closeButton.appendChild(createIcon('x-mark', { size: 18, strokeWidth: 2 }));
-    closeButton.addEventListener('click', () => this.closeEditModal());
-    header.append(title, closeButton);
-
-    const body = document.createElement('div');
-    body.className = 'flows-edit-body';
-    body.append(this.renderTitleField(column, draft));
+    form.append(this.renderTitleField(column, draft));
     if (!isCreate) {
-      body.appendChild(
+      form.appendChild(
         this.renderEditFieldGrid([
           this.renderStatusField(draft.status),
           this.renderPriorityField(draft.priority),
         ])
       );
     }
-    body.append(
+    form.append(
       this.renderTextField({
         name: 'timeProfile',
         label: this.runtime.i18n.t('flows.edit.timeProfile'),
         value: draft.timeProfile,
         placeholder: this.runtime.i18n.t('flows.edit.timeProfilePlaceholder'),
-      }),
-      this.renderRiskField(draft.riskLevel)
+      })
     );
     if (this.editError) {
       const error = document.createElement('p');
       error.className = 'flows-edit-error';
       error.textContent = this.editError;
-      body.appendChild(error);
+      form.appendChild(error);
     }
+    body.appendChild(form);
 
-    const footer = document.createElement('footer');
-    footer.className = 'flows-edit-footer';
-
-    const cancel = document.createElement('button');
-    cancel.type = 'button';
-    cancel.className = 'flows-edit-secondary';
-    cancel.textContent = this.runtime.i18n.t('flows.edit.cancel');
-    cancel.disabled = this.isSubmittingEdit;
-    cancel.addEventListener('click', () => this.closeEditModal());
-
-    const save = document.createElement('button');
-    save.type = 'submit';
-    save.className = 'flows-edit-primary';
-    save.textContent = this.runtime.i18n.t(
-      this.isSubmittingEdit
-        ? isCreate
-          ? 'flows.create.saving'
-          : 'flows.edit.saving'
-        : isCreate
-          ? 'flows.create.save'
-          : 'flows.edit.save'
+    const actionRow = createModalActionRow({ variant: 'form' });
+    actionRow.append(
+      createTextButton({
+        text: this.runtime.i18n.t('flows.edit.cancel'),
+        tone: 'text',
+        size: 'md',
+        className: getModalActionButtonClass('default'),
+        disabled: this.isSubmittingEdit,
+        onClick: () => this.closeEditModal(),
+      })
     );
-    save.disabled = this.isSubmittingEdit;
-    footer.append(cancel, save);
+    const save = createTextButton({
+      text: this.runtime.i18n.t(
+        isCreate ? 'flows.create.save' : 'flows.edit.save'
+      ),
+      tone: 'primary',
+      size: 'md',
+      className: `${getModalActionButtonClass('default')} flows-edit-primary`,
+      disabled: this.isSubmittingEdit,
+      onClick: () => {
+        form.requestSubmit();
+      },
+    });
+    if (this.isSubmittingEdit) {
+      setTextButtonLoading(save, true, {
+        text: this.runtime.i18n.t(
+          isCreate ? 'flows.create.saving' : 'flows.edit.saving'
+        ),
+      });
+    }
+    actionRow.append(save);
+    footer.appendChild(actionRow);
 
-    dialog.append(header, body, footer);
-    overlay.appendChild(dialog);
     requestAnimationFrame(() => {
-      dialog.querySelector<HTMLInputElement>('input[name="title"]')?.focus();
+      form.querySelector<HTMLInputElement>('input[name="title"]')?.focus();
     });
     return overlay;
   }
@@ -1463,37 +1781,24 @@ export class FlowsView {
     value: string;
     placeholder: string;
   }): HTMLElement {
-    const field = document.createElement('label');
-    field.className = 'flows-edit-field';
-
-    const label = document.createElement('span');
-    label.className = 'flows-edit-label';
-    label.textContent = options.label;
-
-    const input = document.createElement('input');
-    input.className = 'flows-edit-input';
+    const input = new Input({
+      name: options.name,
+      value: options.value,
+      placeholder: options.placeholder,
+      disabled: this.isSubmittingEdit,
+    }).createElement();
     input.dataset.flowDragIgnore = 'true';
-    input.name = options.name;
-    input.type = 'text';
-    input.value = options.value;
-    input.placeholder = options.placeholder;
-    input.disabled = this.isSubmittingEdit;
-
-    field.append(label, input);
-    return field;
+    return createField({
+      label: options.label,
+      control: input,
+      disabled: this.isSubmittingEdit,
+    }).element;
   }
 
   private renderTitleField(
     column: FlowColumn | null,
     draft: FlowEditDraft
   ): HTMLElement {
-    const field = document.createElement('div');
-    field.className = 'flows-edit-field flows-edit-title-field';
-
-    const label = document.createElement('span');
-    label.className = 'flows-edit-label';
-    label.textContent = this.runtime.i18n.t('flows.edit.name');
-
     const row = document.createElement('div');
     row.className = 'flows-edit-title-control-row';
     row.appendChild(
@@ -1506,19 +1811,22 @@ export class FlowsView {
       })
     );
 
-    const input = document.createElement('input');
-    input.className = 'flows-edit-input flows-edit-title-input';
+    const input = new Input({
+      name: 'title',
+      value: draft.title,
+      placeholder: this.runtime.i18n.t('flows.edit.namePlaceholder'),
+      disabled: this.isSubmittingEdit,
+      className: 'flows-edit-title-input',
+    }).createElement();
     input.dataset.flowDragIgnore = 'true';
-    input.name = 'title';
-    input.type = 'text';
-    input.value = draft.title;
-    input.placeholder = this.runtime.i18n.t('flows.edit.namePlaceholder');
-    input.disabled = this.isSubmittingEdit;
     input.setAttribute('aria-label', this.runtime.i18n.t('flows.edit.name'));
 
     row.appendChild(input);
-    field.append(label, row);
-    return field;
+    return createField({
+      label: this.runtime.i18n.t('flows.edit.name'),
+      control: row,
+      disabled: this.isSubmittingEdit,
+    }).element;
   }
 
   private renderEditFieldGrid(fields: HTMLElement[]): HTMLElement {
@@ -1571,23 +1879,6 @@ export class FlowsView {
     });
   }
 
-  private renderRiskField(selectedRisk: FlowRiskLevel): HTMLElement {
-    return this.renderEditDropdownField({
-      label: this.runtime.i18n.t('flows.edit.risk'),
-      value: selectedRisk,
-      items: FLOW_RISK_LEVELS.map((risk) => ({
-        value: risk,
-        label: this.getRiskLabel(risk),
-        icon: this.getRiskIcon(risk),
-        tone: this.getRiskTone(risk),
-      })),
-      onSelect: (value) => {
-        if (!isFlowRisk(value)) return;
-        this.updateEditDraft({ riskLevel: value });
-      },
-    });
-  }
-
   private renderEditDropdownField(options: {
     label: string;
     value: string;
@@ -1596,13 +1887,6 @@ export class FlowsView {
   }): HTMLElement {
     const selected =
       options.items.find((item) => item.value === options.value) ?? null;
-    const field = document.createElement('div');
-    field.className = 'flows-edit-field';
-
-    const label = document.createElement('span');
-    label.className = 'flows-edit-label';
-    label.textContent = options.label;
-
     const dropdown = new StaticDropdownSelect<FlowMetaSelectItem>({
       size: 'md',
       value: selected,
@@ -1630,8 +1914,11 @@ export class FlowsView {
     dropdown.element.dataset.flowDragIgnore = 'true';
     this.dropdownDisposers.push(() => dropdown.destroy());
 
-    field.append(label, dropdown.element);
-    return field;
+    return createField({
+      label: options.label,
+      control: dropdown.element,
+      disabled: this.isSubmittingEdit,
+    }).element;
   }
 
   private renderDropdownIcon(
@@ -1639,7 +1926,10 @@ export class FlowsView {
     option: boolean
   ): HTMLElement | null {
     if (!item) return null;
-    const icon = createIcon(item.icon, { size: option ? 14 : 15, strokeWidth: 2 });
+    const icon = createIcon(item.icon, {
+      size: option ? 14 : 15,
+      strokeWidth: 2,
+    });
     const wrapper = document.createElement('span');
     wrapper.classList.add(
       option ? 'flows-edit-dropdown-option-icon' : 'flows-edit-dropdown-icon',
@@ -1714,7 +2004,6 @@ export class FlowsView {
       icon: draft.icon,
       color: draft.color,
       timeProfile: draft.timeProfile || null,
-      riskLevel: draft.riskLevel,
       priority: draft.priority,
       collapsed,
       hidden,
@@ -1729,7 +2018,6 @@ export class FlowsView {
       draft.icon,
       draft.color,
       draft.status,
-      draft.riskLevel,
       draft.priority
     );
   }
@@ -1742,7 +2030,6 @@ export class FlowsView {
       draft.icon,
       draft.color,
       draft.status,
-      draft.riskLevel,
       draft.priority
     );
   }
@@ -1753,7 +2040,6 @@ export class FlowsView {
     fallbackIcon: FlowThemeIcon,
     fallbackColor: FlowThemeColor,
     status: Status,
-    riskLevel: FlowRiskLevel,
     priority: FlowPriority | null
   ): FlowEditDraft {
     const title = readFormString(formData, 'title');
@@ -1769,7 +2055,6 @@ export class FlowsView {
         ? (colorValue as FlowThemeColor)
         : fallbackColor,
       timeProfile: readFormString(formData, 'timeProfile'),
-      riskLevel,
       priority,
     };
   }
@@ -1779,14 +2064,9 @@ export class FlowsView {
     return {
       title: column.flow.title,
       status: column.flow.status,
-      icon:
-        presentation.icon ??
-        getFallbackFlowIcon(),
-      color:
-        presentation.color ??
-        getFallbackFlowColor(),
+      icon: presentation.icon ?? getFallbackFlowIcon(),
+      color: presentation.color ?? getFallbackFlowColor(),
       timeProfile: presentation.timeProfile ?? '',
-      riskLevel: presentation.riskLevel ?? 'stable',
       priority: presentation.priority,
     };
   }
@@ -1798,7 +2078,6 @@ export class FlowsView {
       icon: getFallbackFlowIcon(),
       color: getFallbackFlowColor(),
       timeProfile: '',
-      riskLevel: 'stable',
       priority: null,
     };
   }
@@ -1815,12 +2094,16 @@ export class FlowsView {
         return this.runtime.i18n.t('flows.icons.bookOpen');
       case 'brain':
         return this.runtime.i18n.t('flows.icons.brain');
+      case 'car':
+        return this.runtime.i18n.t('flows.icons.car');
       case 'code-brackets':
         return this.runtime.i18n.t('flows.icons.codeBrackets');
       case 'command-line':
         return this.runtime.i18n.t('flows.icons.commandLine');
       case 'computer-desktop':
         return this.runtime.i18n.t('flows.icons.computerDesktop');
+      case 'cooking-pot':
+        return this.runtime.i18n.t('flows.icons.cookingPot');
       case 'currency-dollar':
         return this.runtime.i18n.t('flows.icons.currencyDollar');
       case 'dumbbell':
@@ -1936,26 +2219,6 @@ export class FlowsView {
     }
   }
 
-  private getRiskLabel(risk: FlowRiskLevel): string {
-    return risk === 'high'
-      ? this.runtime.i18n.t('flows.risk.high')
-      : risk === 'medium'
-        ? this.runtime.i18n.t('flows.risk.medium')
-        : this.runtime.i18n.t('flows.risk.stable');
-  }
-
-  private getRiskIcon(risk: FlowRiskLevel): IconName {
-    return risk === 'high'
-      ? 'shield-exclamation'
-      : risk === 'medium'
-        ? 'exclamation-circle'
-        : 'check-circle';
-  }
-
-  private getRiskTone(risk: FlowRiskLevel): FlowMetaTone {
-    return risk === 'high' ? 'rose' : risk === 'medium' ? 'amber' : 'emerald';
-  }
-
   private getEditingColumn(state: FlowsState): FlowColumn | null {
     if (this.editingFlowId === null) return null;
     return (
@@ -2028,6 +2291,15 @@ export class FlowsView {
     popover.panel.remove();
   }
 
+  private closeDisconnectedPopovers(): void {
+    if (this.columnMenuPopover && !this.columnMenuPopover.trigger.isConnected) {
+      this.closeColumnMenu();
+    }
+    if (this.appearancePopover && !this.appearancePopover.trigger.isConnected) {
+      this.closeAppearancePopover();
+    }
+  }
+
   private disposeDropdownControls(): void {
     while (this.dropdownDisposers.length > 0) {
       this.dropdownDisposers.pop()?.();
@@ -2039,12 +2311,45 @@ function isFlowStatus(value: string): value is Status {
   return FLOW_STATUSES.includes(value as Status);
 }
 
-function isFlowPriority(value: string): value is FlowPriority {
-  return FLOW_PRIORITIES.includes(value as FlowPriority);
+function getFlowTaskRef(
+  task: Pick<FlowColumn['tasks'][number], 'id' | 'uuid'>
+): PlatformTask['id'] | NonNullable<PlatformTask['uuid']> {
+  return task.uuid ?? task.id;
 }
 
-function isFlowRisk(value: string): value is FlowRiskLevel {
-  return FLOW_RISK_LEVELS.includes(value as FlowRiskLevel);
+function flowTaskListItemToEditModel(
+  task: FlowColumn['tasks'][number]
+): TaskEditModel {
+  return {
+    id: task.id,
+    uuid: task.uuid,
+    title: task.title,
+    description: '',
+    status: task.status,
+    priority: task.priority,
+    dueDate: normalizeTaskDate(task.due_date),
+    isCompleted: task.is_completed,
+    goalId: null,
+    goal: null,
+    storyId: null,
+    story: null,
+  };
+}
+
+function normalizeTaskDate(
+  value: FlowColumn['tasks'][number]['due_date']
+): string | null {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime())
+      ? null
+      : value.toISOString().slice(0, 10);
+  }
+  return value.slice(0, 10);
+}
+
+function isFlowPriority(value: string): value is FlowPriority {
+  return FLOW_PRIORITIES.includes(value as FlowPriority);
 }
 
 function readFormString(formData: FormData, name: string): string {

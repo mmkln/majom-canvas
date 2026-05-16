@@ -22,7 +22,9 @@ type EntitySearchDto = {
   status?: string | null;
 };
 
-function mapEntitySearchItem(entity: EntitySearchDto): BoardEntityLinkSearchItem {
+function mapEntitySearchItem(
+  entity: EntitySearchDto
+): BoardEntityLinkSearchItem {
   return {
     id: entity.uuid ?? String(entity.id),
     title: entity.title,
@@ -30,7 +32,9 @@ function mapEntitySearchItem(entity: EntitySearchDto): BoardEntityLinkSearchItem
   };
 }
 
-function getCardEntityDescription(description: string | null | undefined): string {
+function getCardEntityDescription(
+  description: string | null | undefined
+): string {
   return description?.trim() ?? '';
 }
 
@@ -90,7 +94,11 @@ export class BoardsApp {
         },
         searchGoals: async (query) => {
           const response = await firstValueFrom(
-            goalsApi.searchGoalsForPicker({ search: query, page: 1, pageSize: 20 })
+            goalsApi.searchGoalsForPicker({
+              search: query,
+              page: 1,
+              pageSize: 20,
+            })
           );
           return response.results.map(mapEntitySearchItem);
         },
@@ -121,8 +129,7 @@ export class BoardsApp {
           store.createCardCheckItem(checklistId, title),
         onPatchCardCheckItem: (itemId, patch) =>
           store.patchCardCheckItem(itemId, patch),
-        onDeleteCardCheckItem: (itemId) =>
-          store.deleteCardCheckItem(itemId),
+        onDeleteCardCheckItem: (itemId) => store.deleteCardCheckItem(itemId),
         onCreateCardEntityLink: (cardId, entityType, entityId) =>
           store.createCardEntityLink(cardId, entityType, entityId),
         onCreateCardEntityFromCard: async (card, entityType) => {
@@ -165,8 +172,7 @@ export class BoardsApp {
             goal.uuid ?? String(goal.id)
           );
         },
-        onDeleteCardEntityLink: (linkId) =>
-          store.deleteCardEntityLink(linkId),
+        onDeleteCardEntityLink: (linkId) => store.deleteCardEntityLink(linkId),
         onDeleteLinkedEntity: async (_card, link) => {
           if (link.entity_type === 'task') {
             await firstValueFrom(tasksApi.deleteTask(link.entity_id));
@@ -184,6 +190,9 @@ export class BoardsApp {
         onDeleteCardPlacement: (placementId) =>
           void store.deleteCardPlacement(placementId),
         onDeleteCard: (cardId) => void store.deleteCard(cardId),
+        onPreviewImport: (request) => store.previewImport(request),
+        onExportData: (request) => store.exportData(request),
+        onApplyImport: (request) => store.applyImport(request),
       },
     });
     this.store = store;

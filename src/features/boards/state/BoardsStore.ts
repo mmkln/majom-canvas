@@ -36,9 +36,45 @@ import {
   type BoardMetaRecord,
 } from '../domain/boardMeta.ts';
 
+import type {
+  BoardsExportRequest,
+  BoardsExportResult,
+  BoardsImportApplyResult,
+  BoardsImportPlan,
+  BoardsImportRequest,
+  ExchangeBoardPayload,
+  ExchangeCardPayload,
+  ExchangeColumnPayload,
+} from '../exchange/schema.ts';
+import { previewBoardsImport } from '../exchange/importPlanner.ts';
+import { parseBoardsImport } from '../exchange/importParser.ts';
+import {
+  exportBoard,
+  exportCard,
+  exportColumn,
+} from '../exchange/exportSerializer.ts';
+
 type BoardsStoreOptions = {
   now?: () => Date;
 };
+
+type ImportedCardCreateResult = {
+  card: Card;
+  checklistIds: CardChecklist['id'][];
+  checkItemIds: CardCheckItem['id'][];
+};
+
+type ImportedCardsCreateResult = {
+  cardIds: Card['id'][];
+  checklistIds: CardChecklist['id'][];
+  checkItemIds: CardCheckItem['id'][];
+};
+
+type CardWithLoadedChecklists = Card & {
+  checklists: CardChecklist[];
+};
+
+type ChecklistExportCache = Map<Card['id'], Promise<CardChecklist[]>>;
 
 const INITIAL_STATE: BoardsState = {
   boards: [],
@@ -52,7 +88,10 @@ function toSortablePosition(value: string | number | null | undefined): number {
   return Number.isFinite(numeric) ? numeric : 0;
 }
 
-function compareColumnsByPosition(left: BoardColumn, right: BoardColumn): number {
+function compareColumnsByPosition(
+  left: BoardColumn,
+  right: BoardColumn
+): number {
   const leftPos = left.pos ?? left.order ?? 0;
   const rightPos = right.pos ?? right.order ?? 0;
   const positionDelta =
@@ -104,6 +143,85 @@ export class BoardsStore {
     this.patchBoardMeta(boardId, (board) =>
       setBoardMetaLastOpenedAt(board, this.now().toISOString())
     );
+  }
+
+  public previewImport(request: BoardsImportRequest): BoardsImportPlan {
+    return previewBoardsImport(this.snapshot.boards, request);
+  }
+
+  public async exportData(
+    request: BoardsExportRequest
+  ): Promise<BoardsExportResult | null> {
+    const cache: ChecklistExportCache = new Map();
+    this.patchState({ status: 'loading', error: null });
+    try {
+      const result = await this.createExportData(request, cache);
+      this.patchState({ status: 'idle', error: null });
+      return result;
+    } catch {
+      this.patchState({ status: 'error', error: 'boards.errors.load' });
+      return null;
+    }
+  }
+
+  private async createExportData(
+    request: BoardsExportRequest,
+    cache: ChecklistExportCache
+  ): Promise<BoardsExportResult | null> {
+    if (request.scope === 'board') {
+      const board = request.boardId
+        ? this.findBoard(request.boardId)
+        : this.getSelectedBoard();
+      if (!board) return null;
+      return exportBoard(
+        await this.hydrateBoardForExport(board, cache),
+        request.format
+      );
+    }
+    if (request.scope === 'column') {
+      const column = request.columnId
+        ? this.findColumn(request.columnId)
+        : null;
+      if (!column) return null;
+      return exportColumn(
+        await this.hydrateColumnForExport(column, cache),
+        request.format
+      );
+    }
+    const card = request.cardId ? this.findCard(request.cardId) : null;
+    if (!card) return null;
+    return exportCard(
+      await this.hydrateCardForExport(card, cache),
+      request.format
+    );
+  }
+
+  public async applyImport(
+    request: BoardsImportRequest
+  ): Promise<BoardsImportApplyResult | null> {
+    if (request.policies.mode !== 'create') return null;
+    const plan = this.previewImport(request);
+    if (!plan.canApply) return null;
+    const parsed = parseBoardsImport(request);
+    if (!parsed.envelope) return null;
+
+    return this.runMutationResult(async () => {
+      if (request.scope === 'board') {
+        return this.applyBoardCreateImport(
+          parsed.envelope.payload as ExchangeBoardPayload
+        );
+      }
+      if (request.scope === 'column') {
+        return this.applyColumnCreateImport(
+          parsed.envelope.payload as ExchangeColumnPayload,
+          request.target?.boardId
+        );
+      }
+      return this.applyCardCreateImport(
+        parsed.envelope.payload as ExchangeCardPayload,
+        request.target?.columnId
+      );
+    });
   }
 
   public async load(): Promise<void> {
@@ -161,7 +279,10 @@ export class BoardsStore {
     this.patchBoardMeta(boardId, (board) => setBoardMetaGroup(board, group));
   }
 
-  public async createColumn(boardId: Board['id'], title: string): Promise<void> {
+  public async createColumn(
+    boardId: Board['id'],
+    title: string
+  ): Promise<void> {
     const normalizedTitle = title.trim();
     if (!normalizedTitle) return;
     const board = this.findBoard(boardId);
@@ -379,6 +500,205 @@ export class BoardsStore {
     });
   }
 
+  private async applyBoardCreateImport(
+    payload: ExchangeBoardPayload
+  ): Promise<BoardsImportApplyResult> {
+    const board = await firstValueFrom(
+      this.api.createBoard({ title: payload.title })
+    );
+    const columnIds: BoardColumn['id'][] = [];
+    const cardIds: Card['id'][] = [];
+    const checklistIds: CardChecklist['id'][] = [];
+    const checkItemIds: CardCheckItem['id'][] = [];
+
+    for (const columnPayload of payload.columns ?? []) {
+      const column = await firstValueFrom(
+        this.api.createColumn({
+          board: board.id,
+          title: columnPayload.title,
+          position: 'end',
+        })
+      );
+      columnIds.push(column.id);
+      const createdCards = await this.createImportedCards(
+        column.id,
+        columnPayload.cards ?? []
+      );
+      cardIds.push(...createdCards.cardIds);
+      checklistIds.push(...createdCards.checklistIds);
+      checkItemIds.push(...createdCards.checkItemIds);
+    }
+
+    await this.reload(board.id);
+    return {
+      scope: 'board',
+      created: {
+        boardId: board.id,
+        columnIds,
+        cardIds,
+        checklistIds,
+        checkItemIds,
+      },
+    };
+  }
+
+  private async applyColumnCreateImport(
+    payload: ExchangeColumnPayload,
+    targetBoardId: Board['id'] | undefined
+  ): Promise<BoardsImportApplyResult> {
+    const boardId = targetBoardId ?? this.snapshot.selectedBoardId ?? undefined;
+    if (!boardId || !this.findBoard(boardId)) {
+      throw new Error('Missing import target board');
+    }
+
+    const column = await firstValueFrom(
+      this.api.createColumn({
+        board: boardId,
+        title: payload.title,
+        position: 'end',
+      })
+    );
+    const createdCards = await this.createImportedCards(
+      column.id,
+      payload.cards ?? []
+    );
+    await this.reload(boardId);
+    return {
+      scope: 'column',
+      created: {
+        columnIds: [column.id],
+        cardIds: createdCards.cardIds,
+        checklistIds: createdCards.checklistIds,
+        checkItemIds: createdCards.checkItemIds,
+      },
+    };
+  }
+
+  private async applyCardCreateImport(
+    payload: ExchangeCardPayload,
+    targetColumnId: BoardColumn['id'] | undefined
+  ): Promise<BoardsImportApplyResult> {
+    if (!targetColumnId || !this.findColumn(targetColumnId)) {
+      throw new Error('Missing import target column');
+    }
+
+    const createdCard = await this.createImportedCard(targetColumnId, payload);
+    await this.reloadPreservingSelection();
+    return {
+      scope: 'card',
+      created: {
+        columnIds: [],
+        cardIds: [createdCard.card.id],
+        checklistIds: createdCard.checklistIds,
+        checkItemIds: createdCard.checkItemIds,
+      },
+    };
+  }
+
+  private async createImportedCards(
+    columnId: BoardColumn['id'],
+    cards: ExchangeCardPayload[]
+  ): Promise<ImportedCardsCreateResult> {
+    const cardIds: Card['id'][] = [];
+    const checklistIds: CardChecklist['id'][] = [];
+    const checkItemIds: CardCheckItem['id'][] = [];
+    for (const cardPayload of cards) {
+      const createdCard = await this.createImportedCard(columnId, cardPayload);
+      cardIds.push(createdCard.card.id);
+      checklistIds.push(...createdCard.checklistIds);
+      checkItemIds.push(...createdCard.checkItemIds);
+    }
+    return { cardIds, checklistIds, checkItemIds };
+  }
+
+  private async createImportedCard(
+    columnId: BoardColumn['id'],
+    payload: ExchangeCardPayload
+  ): Promise<ImportedCardCreateResult> {
+    const card = await firstValueFrom(
+      this.api.createCard({
+        column: columnId,
+        title: payload.title,
+        description: payload.description ?? '',
+        position: 'bottom',
+      })
+    );
+    const checklistIds: CardChecklist['id'][] = [];
+    const checkItemIds: CardCheckItem['id'][] = [];
+
+    for (const checklistPayload of payload.checklists ?? []) {
+      const checklist = await firstValueFrom(
+        this.api.createCardChecklist(card.id, {
+          title: checklistPayload.title,
+          position: 'bottom',
+        })
+      );
+      checklistIds.push(checklist.id);
+
+      for (const itemPayload of checklistPayload.items ?? []) {
+        const item = await firstValueFrom(
+          this.api.createCardCheckItem(checklist.id, {
+            title: itemPayload.title,
+            state: itemPayload.state ?? 'incomplete',
+            position: 'bottom',
+          })
+        );
+        checkItemIds.push(item.id);
+      }
+    }
+
+    return { card, checklistIds, checkItemIds };
+  }
+
+  private async hydrateBoardForExport(
+    board: Board,
+    cache: ChecklistExportCache
+  ): Promise<Board> {
+    return {
+      ...board,
+      columns: await Promise.all(
+        (board.columns ?? []).map((column) =>
+          this.hydrateColumnForExport(column, cache)
+        )
+      ),
+    };
+  }
+
+  private async hydrateColumnForExport(
+    column: BoardColumn,
+    cache: ChecklistExportCache
+  ): Promise<BoardColumn> {
+    return {
+      ...column,
+      cards: await Promise.all(
+        (column.cards ?? []).map((card) =>
+          this.hydrateCardForExport(card, cache)
+        )
+      ),
+    };
+  }
+
+  private async hydrateCardForExport(
+    card: Card,
+    cache: ChecklistExportCache
+  ): Promise<CardWithLoadedChecklists> {
+    return {
+      ...card,
+      checklists: await this.loadCardChecklistsForExport(card.id, cache),
+    };
+  }
+
+  private loadCardChecklistsForExport(
+    cardId: Card['id'],
+    cache: ChecklistExportCache
+  ): Promise<CardChecklist[]> {
+    const cached = cache.get(cardId);
+    if (cached) return cached;
+    const request = firstValueFrom(this.api.getCardChecklists(cardId));
+    cache.set(cardId, request);
+    return request;
+  }
+
   private async runMutation(action: () => Promise<void>): Promise<void> {
     this.patchState({ status: 'saving', error: null });
     try {
@@ -425,6 +745,12 @@ export class BoardsStore {
 
   private findBoard(boardId: Board['id']): Board | null {
     return this.snapshot.boards.find((board) => board.id === boardId) ?? null;
+  }
+
+  private getSelectedBoard(): Board | null {
+    return this.snapshot.selectedBoardId
+      ? this.findBoard(this.snapshot.selectedBoardId)
+      : null;
   }
 
   private patchBoardMeta(

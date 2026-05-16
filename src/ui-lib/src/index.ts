@@ -11,3 +11,4 @@ export { ToastProvider } from './components/ToastProvider.ts';
 export * from './services/NotificationService.ts';
 
 export * from './hud/index.ts';
+export * from './workspace-board/index.ts';

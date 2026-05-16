@@ -342,6 +342,13 @@
 - Read first: `src/features/boards/AGENTS.md`
 - Expected result: cards remain board/context objects, links stay owned by `Card.id`, mirrors share link state, and Task/Story/Goal search stays behind a catalog port.
 
+### Implement Boards Import And Export
+
+- Use when the request imports or exports Boards data as JSON or Markdown, changes import preview/configuration, or adds exchange support for board, column, or card scopes.
+- Owner: `src/features/boards`
+- Read first: `src/features/boards/AGENTS.md`
+- Expected result: exchange parsing/planning stays in `src/features/boards/exchange`, `BoardsStore` owns import/export lifecycle, Markdown stays partial-friendly with diagnostics, and UI only presents source input, preview, policies, and confirmation.
+
 ### Implement Boards Card Drag And Drop
 
 - Use when the request changes card drag/drop, placement ordering, or reorder/move interactions in the Boards feature.
@@ -397,6 +404,13 @@
 - Owner: `src/features/flows` + `src/majom-wrapper/data-access`
 - Read first: `src/features/flows/AGENTS.md`
 - Expected result: `FlowsStore` owns flow request state, `RuntimeHost` owns wallpaper-backed workspace presentation, and the shell routes through the `flows` workspace view without duplicating state channels.
+
+### Build Shared Task UI
+
+- Use when the request creates or changes reusable task-domain UI, task editing modals, task picker/edit contracts, or components intended to be used across Flows, Canvas, Boards, Focus Board, or other task surfaces.
+- Owner: `src/features/tasks`
+- Read first: `src/features/tasks/AGENTS.md`
+- Expected result: shared task components live in `src/features/tasks`, generic primitives stay in `src/ui-lib/src`, and workspace-specific persistence or runtime behavior stays in the consuming feature adapter/store.
 
 ### Apply AI-Native Incremental Refactoring
 

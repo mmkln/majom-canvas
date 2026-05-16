@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { firstValueFrom, of } from 'rxjs';
 import { FlowsApiService } from './flows-api-service.ts';
-import { Status } from '../interfaces/index.ts';
+import { Priority, Status } from '../interfaces/index.ts';
 import type { Flow } from '../interfaces/index.ts';
 import type { HttpInterceptorClient } from './http-interceptor.ts';
 
@@ -128,6 +128,87 @@ describe('FlowsApiService', () => {
       '/flows/7/tasks/?is_completed=false&page=1&page_size=50'
     );
     expect(result.results[0]?.is_completed).toBe(false);
+  });
+
+  it('creates a task linked to the flow through the task endpoint', async () => {
+    const response = {
+      id: 22,
+      uuid: 'task-22',
+      title: 'Draft outreach',
+      status: Status.Draft,
+      priority: Priority.Lowest,
+      due_date: null,
+      is_completed: false,
+    };
+    const post = vi.fn(() => of(response));
+    const service = new FlowsApiService(
+      { post } as unknown as HttpInterceptorClient
+    );
+
+    const result = await firstValueFrom(
+      service.createFlowTask(7, {
+        title: 'Draft outreach',
+        description: '',
+        is_standalone: true,
+      })
+    );
+
+    expect(post).toHaveBeenCalledWith('/tasks/', {
+      title: 'Draft outreach',
+      description: '',
+      is_standalone: true,
+      flow_ids: [7],
+    });
+    expect(result).toEqual(response);
+  });
+
+  it('loads and patches full task details through task endpoints', async () => {
+    const task = {
+      id: 22,
+      uuid: '00000000-0000-4000-8000-000000000022',
+      title: 'Draft outreach',
+      description: 'Call the lead',
+      created_at: new Date(),
+      start_date: null,
+      due_date: null,
+      resolved_date: null,
+      estimate: 0,
+      subtasks: [],
+      priority: Priority.Medium,
+      status: Status.Active,
+      tags: [],
+      challenge: null,
+      goal: null,
+      strategy: null,
+      is_completed: false,
+      is_standalone: true,
+      relations: [],
+      flows: [],
+      story: null,
+    };
+    const get = vi.fn(() => of(task));
+    const patch = vi.fn(() => of({ ...task, title: 'Updated outreach' }));
+    const service = new FlowsApiService({
+      get,
+      patch,
+    } as unknown as HttpInterceptorClient);
+
+    await firstValueFrom(service.getTask(task.uuid));
+    const updated = await firstValueFrom(
+      service.patchTask(task.uuid, {
+        title: 'Updated outreach',
+        goal_id: 7,
+        story_id: 17,
+      })
+    );
+
+    expect(get).toHaveBeenCalledWith(`/tasks/${task.uuid}/`);
+    expect(patch).toHaveBeenCalledWith(`/tasks/${task.uuid}/`, {
+      title: 'Updated outreach',
+      goal_id: 7,
+      story_id: 17,
+    });
+    expect(updated.title).toBe('Updated outreach');
   });
 });
 

@@ -13,6 +13,26 @@ export type FlowTaskListItem = Pick<
   PlatformTask,
   'id' | 'uuid' | 'title' | 'status' | 'priority' | 'due_date' | 'is_completed'
 >;
+export type FlowTaskCreatePayload = Pick<PlatformTask, 'title'> &
+  Partial<
+    Pick<
+      PlatformTask,
+      'description' | 'status' | 'priority' | 'due_date' | 'is_standalone'
+    >
+  >;
+export type FlowTaskUpdatePayload = Partial<
+  Pick<
+    PlatformTask,
+    | 'title'
+    | 'description'
+    | 'status'
+    | 'priority'
+    | 'due_date'
+    | 'is_completed'
+    | 'goal_id'
+    | 'story_id'
+  >
+>;
 export type FlowTaskListParams = {
   isCompleted?: boolean;
   page?: number;
@@ -25,6 +45,18 @@ function normalizeFlowListResponse(response: FlowListResponse): Flow[] {
 
 function encodeFlowId(id: Flow['id']): string {
   return encodeURIComponent(String(id));
+}
+
+function toFlowTaskListItem(task: PlatformTask): FlowTaskListItem {
+  return {
+    id: task.id,
+    uuid: task.uuid,
+    title: task.title,
+    status: task.status,
+    priority: task.priority,
+    due_date: task.due_date,
+    is_completed: task.is_completed,
+  };
 }
 
 function buildFlowTaskQuery(params: FlowTaskListParams = {}): string {
@@ -60,6 +92,36 @@ export class FlowsApiService {
   ): Observable<PaginatedResponse<FlowTaskListItem>> {
     return this.http.get<PaginatedResponse<FlowTaskListItem>>(
       `/flows/${encodeFlowId(id)}/tasks/${buildFlowTaskQuery(params)}`
+    );
+  }
+
+  public createFlowTask(
+    id: Flow['id'],
+    payload: FlowTaskCreatePayload
+  ): Observable<FlowTaskListItem> {
+    return this.http
+      .post<PlatformTask>('/tasks/', {
+        ...payload,
+        flow_ids: [id],
+      })
+      .pipe(map(toFlowTaskListItem));
+  }
+
+  public getTask(
+    ref: PlatformTask['id'] | NonNullable<PlatformTask['uuid']>
+  ): Observable<PlatformTask> {
+    return this.http.get<PlatformTask>(
+      `/tasks/${encodeURIComponent(String(ref))}/`
+    );
+  }
+
+  public patchTask(
+    ref: PlatformTask['id'] | NonNullable<PlatformTask['uuid']>,
+    payload: FlowTaskUpdatePayload
+  ): Observable<PlatformTask> {
+    return this.http.patch<PlatformTask>(
+      `/tasks/${encodeURIComponent(String(ref))}/`,
+      payload
     );
   }
 

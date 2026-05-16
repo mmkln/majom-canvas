@@ -23,6 +23,9 @@ describe('FlowsStore', () => {
           results: [createTask({ id: flowId * 10, title: `Task ${flowId}` })],
         })
       ),
+      createFlowTask: vi.fn(),
+      getTask: vi.fn(),
+      patchTask: vi.fn(),
       createFlow: vi.fn(),
       patchFlow: vi.fn(),
       deleteFlow: vi.fn(),
@@ -49,6 +52,9 @@ describe('FlowsStore', () => {
     const store = new FlowsStore({
       getFlows: vi.fn(() => throwError(() => new Error('network'))),
       getFlowTasks: vi.fn(),
+      createFlowTask: vi.fn(),
+      getTask: vi.fn(),
+      patchTask: vi.fn(),
       createFlow: vi.fn(),
       patchFlow: vi.fn(),
       deleteFlow: vi.fn(),
@@ -71,6 +77,9 @@ describe('FlowsStore', () => {
       getFlowTasks: vi.fn(() =>
         of({ count: 0, next: null, previous: null, results: [] })
       ),
+      createFlowTask: vi.fn(),
+      getTask: vi.fn(),
+      patchTask: vi.fn(),
       createFlow: vi.fn(),
       patchFlow: vi.fn(() =>
         of(
@@ -111,6 +120,9 @@ describe('FlowsStore', () => {
       getFlowTasks: vi.fn(() =>
         of({ count: 0, next: null, previous: null, results: [] })
       ),
+      createFlowTask: vi.fn(),
+      getTask: vi.fn(),
+      patchTask: vi.fn(),
       createFlow: vi.fn(),
       patchFlow: vi.fn(() => patchResponse),
       deleteFlow: vi.fn(),
@@ -146,6 +158,9 @@ describe('FlowsStore', () => {
       getFlowTasks: vi.fn(() =>
         of({ count: 0, next: null, previous: null, results: [] })
       ),
+      createFlowTask: vi.fn(),
+      getTask: vi.fn(),
+      patchTask: vi.fn(),
       createFlow: vi.fn(),
       patchFlow: vi.fn(),
       deleteFlow: vi.fn(),
@@ -170,6 +185,9 @@ describe('FlowsStore', () => {
       getFlowTasks: vi.fn(() =>
         of({ count: 0, next: null, previous: null, results: [] })
       ),
+      createFlowTask: vi.fn(),
+      getTask: vi.fn(),
+      patchTask: vi.fn(),
       createFlow: vi.fn(),
       patchFlow: vi.fn((flowId: number, patch: Partial<Flow>) =>
         of({
@@ -210,6 +228,9 @@ describe('FlowsStore', () => {
       getFlowTasks: vi.fn(() =>
         of({ count: 0, next: null, previous: null, results: [] })
       ),
+      createFlowTask: vi.fn(),
+      getTask: vi.fn(),
+      patchTask: vi.fn(),
       createFlow: vi.fn(),
       patchFlow: vi.fn((flowId: number) => {
         const response = new Subject<Flow>();
@@ -249,6 +270,9 @@ describe('FlowsStore', () => {
             flowId === 4 ? [createTask({ id: 40, title: 'First task' })] : [],
         })
       ),
+      createFlowTask: vi.fn(),
+      getTask: vi.fn(),
+      patchTask: vi.fn(),
       createFlow: vi.fn(() => of(created)),
       patchFlow: vi.fn(),
       deleteFlow: vi.fn(),
@@ -269,6 +293,113 @@ describe('FlowsStore', () => {
       'Delta',
     ]);
     expect(store.snapshot.columns[1]?.tasks[0]?.title).toBe('First task');
+  });
+
+  it('creates a task for a flow and appends it to the open task list', async () => {
+    const api = {
+      getFlows: vi.fn(() => of([createFlow({ id: 1, title: 'Alpha' })])),
+      getFlowTasks: vi.fn(() =>
+        of({
+          count: 1,
+          next: null,
+          previous: null,
+          results: [createTask({ id: 10, title: 'Existing task' })],
+        })
+      ),
+      createFlowTask: vi.fn(() =>
+        of(createTask({ id: 11, title: 'New task' }))
+      ),
+      getTask: vi.fn(),
+      patchTask: vi.fn(),
+      createFlow: vi.fn(),
+      patchFlow: vi.fn(),
+      deleteFlow: vi.fn(),
+    };
+    const store = new FlowsStore(api);
+    await store.load();
+
+    await store.createFlowTask(1, '  New task  ');
+
+    expect(api.createFlowTask).toHaveBeenCalledWith(1, {
+      title: 'New task',
+      description: '',
+      is_standalone: true,
+    });
+    expect(store.snapshot.columns[0]?.tasks.map((task) => task.title)).toEqual(
+      ['Existing task', 'New task']
+    );
+    expect(store.snapshot.columns[0]?.openTaskCount).toBe(2);
+  });
+
+  it('loads full task details for a flow task edit modal', async () => {
+    const api = {
+      getFlows: vi.fn(() => of([createFlow({ id: 1, title: 'Alpha' })])),
+      getFlowTasks: vi.fn(() =>
+        of({ count: 0, next: null, previous: null, results: [] })
+      ),
+      createFlowTask: vi.fn(),
+      getTask: vi.fn(() =>
+        of(createFullTask({ title: 'Loaded task', description: 'Details' }))
+      ),
+      patchTask: vi.fn(),
+      createFlow: vi.fn(),
+      patchFlow: vi.fn(),
+      deleteFlow: vi.fn(),
+    };
+    const store = new FlowsStore(api);
+    await store.load();
+
+    const task = await store.loadFlowTask(1, 'task-1');
+
+    expect(api.getTask).toHaveBeenCalledWith('task-1');
+    expect(task.description).toBe('Details');
+  });
+
+  it('patches a flow task and removes it from open tasks when completed', async () => {
+    const api = {
+      getFlows: vi.fn(() => of([createFlow({ id: 1, title: 'Alpha' })])),
+      getFlowTasks: vi.fn(() =>
+        of({
+          count: 1,
+          next: null,
+          previous: null,
+          results: [createTask({ id: 10, uuid: 'task-10', title: 'Open task' })],
+        })
+      ),
+      createFlowTask: vi.fn(),
+      getTask: vi.fn(),
+      patchTask: vi.fn(() =>
+        of(
+          createFullTask({
+            id: 10,
+            uuid: 'task-10',
+            title: 'Done task',
+            status: Status.Completed,
+            is_completed: true,
+          })
+        )
+      ),
+      createFlow: vi.fn(),
+      patchFlow: vi.fn(),
+      deleteFlow: vi.fn(),
+    };
+    const store = new FlowsStore(api);
+    await store.load();
+
+    await store.patchFlowTask(1, 'task-10', {
+      status: Status.Completed,
+      goalId: 7,
+      storyId: 17,
+    });
+
+    expect(api.patchTask).toHaveBeenCalledWith('task-10', {
+      status: Status.Completed,
+      is_completed: true,
+      goal_id: 7,
+      story_id: 17,
+    });
+    expect(store.snapshot.columns[0]?.tasks).toEqual([]);
+    expect(store.snapshot.columns[0]?.openTaskCount).toBe(0);
   });
 });
 
@@ -291,5 +422,25 @@ function createTask(overrides: Partial<any> = {}) {
     priority: overrides.priority ?? Priority.Medium,
     due_date: overrides.due_date ?? null,
     is_completed: overrides.is_completed ?? false,
+  };
+}
+
+function createFullTask(overrides: Partial<any> = {}) {
+  return {
+    ...createTask(overrides),
+    description: overrides.description ?? '',
+    created_at: new Date(),
+    start_date: null,
+    resolved_date: null,
+    estimate: 0,
+    subtasks: [],
+    tags: [],
+    challenge: null,
+    goal: null,
+    strategy: null,
+    is_standalone: true,
+    relations: [],
+    flows: [],
+    story: null,
   };
 }

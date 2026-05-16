@@ -12,6 +12,15 @@
 - Persist board picker groups in `Board.meta` using the canvas-compatible shape `group: { id, name }` plus `groupId`, `groupName`, `group_id`, and `group_name` mirrors for tolerant reads.
 - Keep persisted board picker metadata mutations in `BoardsStore`; `BoardsView` owns only transient picker UI state such as search text, active filter chip, and collapsed sections.
 
+## Board Import And Export Exchange
+
+- Keep board import/export parsing, serialization, preview planning, and future apply orchestration in `src/features/boards/exchange` plus `BoardsStore`; `BoardsView` should only collect user input, show preview/configuration, and emit intents.
+- Treat Markdown import as partial and AI-editable: missing titles or fields should produce diagnostics and safe fallbacks instead of forcing the user to provide every parameter.
+- Run import through a preview plan before any mutation. The plan must expose create/update/skip/conflict counts, diagnostics, paths, target ids when resolved, and whether apply is blocked.
+- Apply import policies before mutation: `mode`, missing-field behavior, match strategy, and unknown-field strictness must be represented in typed exchange contracts.
+- JSON import/export is the full-fidelity path; Markdown is tolerant and human/AI-friendly, with warnings when unsupported or unknown fields are skipped.
+- Keep card data card-owned and placement/order column-owned. Do not make Markdown placement data create duplicate source cards unless the user-facing import policy explicitly chooses that behavior.
+
 ## Trello-Like Card Fronts
 
 - Card fronts should open card details; do not place delete actions directly on the card front.
@@ -56,6 +65,7 @@
 - List headers should keep the title editable inline.
 - Do not show routine counters or destructive actions directly in the list header.
 - Keep list operations behind the header menu button; destructive list actions belong in the list actions popover.
+- Do not expose future, unavailable, or non-implemented list action sections as disabled production UI. If a workflow is not going to be implemented or has no working flow yet, remove it from the menu and translation catalogs instead of leaving placeholder actions.
 
 ## Card Drag And Drop
 

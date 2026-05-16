@@ -33,15 +33,16 @@ export const FLOW_THEME_ICONS = [
   'lotus',
   'plant',
   'dumbbell',
+  'cooking-pot',
   'currency-dollar',
   'folder',
   'plane',
+  'car',
   'health',
   'popcorn',
   'bar-chart',
 ] as const;
 
-export const FLOW_RISK_LEVELS = ['stable', 'medium', 'high'] as const;
 export const FLOW_PRIORITIES = [
   Priority.Lowest,
   Priority.Low,
@@ -52,14 +53,12 @@ export const FLOW_PRIORITIES = [
 
 export type FlowThemeColor = (typeof FLOW_THEME_COLORS)[number];
 export type FlowThemeIcon = (typeof FLOW_THEME_ICONS)[number];
-export type FlowRiskLevel = (typeof FLOW_RISK_LEVELS)[number];
 export type FlowPriority = (typeof FLOW_PRIORITIES)[number];
 
 export type FlowPresentationSettings = {
   icon: FlowThemeIcon | null;
   color: FlowThemeColor | null;
   timeProfile: string | null;
-  riskLevel: FlowRiskLevel | null;
   priority: FlowPriority | null;
   collapsed: boolean | null;
   hidden: boolean | null;
@@ -67,7 +66,6 @@ export type FlowPresentationSettings = {
 
 const FLOW_ICON_SET = new Set<string>(FLOW_THEME_ICONS);
 const FLOW_COLOR_SET = new Set<string>(FLOW_THEME_COLORS);
-const FLOW_RISK_SET = new Set<string>(FLOW_RISK_LEVELS);
 const FLOW_PRIORITY_SET = new Set<string>(FLOW_PRIORITIES);
 
 export function getFallbackFlowColor(): FlowThemeColor {
@@ -85,7 +83,6 @@ export function readFlowPresentationSettings(
   const icon = presentation?.icon;
   const color = presentation?.color;
   const timeProfile = presentation?.timeProfile;
-  const riskLevel = presentation?.riskLevel;
   const priority = presentation?.priority;
   const collapsed = presentation?.collapsed;
   const hidden = presentation?.hidden;
@@ -102,10 +99,6 @@ export function readFlowPresentationSettings(
     timeProfile:
       typeof timeProfile === 'string' && timeProfile.trim()
         ? timeProfile.trim()
-        : null,
-    riskLevel:
-      typeof riskLevel === 'string' && FLOW_RISK_SET.has(riskLevel)
-        ? (riskLevel as FlowRiskLevel)
         : null,
     priority:
       typeof priority === 'string' && FLOW_PRIORITY_SET.has(priority)
@@ -126,11 +119,11 @@ export function writeFlowPresentationSettings(
     icon: settings.icon,
     color: settings.color,
     timeProfile: settings.timeProfile,
-    riskLevel: settings.riskLevel,
     priority: settings.priority,
     collapsed: settings.collapsed,
     hidden: settings.hidden,
   };
+  delete presentation.riskLevel;
   meta.presentation = presentation;
   return meta;
 }

@@ -69,8 +69,7 @@ export const boardsViewClassNames = {
   cardMirror: 'majom-boards__card--mirror',
   cardOpenButton: 'majom-boards__card-open',
   cardCompleteToggle: 'majom-boards__card-complete-toggle',
-  cardCompleteToggleCompleted:
-    'majom-boards__card-complete-toggle is-complete',
+  cardCompleteToggleCompleted: 'majom-boards__card-complete-toggle is-complete',
   cardSourceLabel: 'majom-boards__card-source-label',
   cardTags: 'majom-boards__card-tags',
   cardTag: 'majom-boards__card-tag',
@@ -152,6 +151,38 @@ export const boardsModalClassNames = {
   listActionsUpgrade: 'majom-boards-list-actions__upgrade',
   listActionsUpgradeTitle: 'majom-boards-list-actions__upgrade-title',
   listActionsUpgradeCopy: 'majom-boards-list-actions__upgrade-copy',
+  importModal: 'majom-boards-import-modal',
+  importLayout: 'majom-boards-import__layout',
+  importPanel: 'majom-boards-import__panel',
+  importField: 'majom-boards-import__field',
+  importLabel: 'majom-boards-import__label',
+  importSource: 'majom-boards-import__source',
+  importSelect: 'majom-boards-import__select',
+  importPreviewPanel: 'majom-boards-import__preview',
+  importPreviewTitle: 'majom-boards-import__preview-title',
+  importEmpty: 'majom-boards-import__empty',
+  importCounts: 'majom-boards-import__counts',
+  importCount: 'majom-boards-import__count',
+  importCountValue: 'majom-boards-import__count-value',
+  importCountLabel: 'majom-boards-import__count-label',
+  importStatusOk: 'majom-boards-import__status majom-boards-import__status--ok',
+  importStatusBlocked:
+    'majom-boards-import__status majom-boards-import__status--blocked',
+  importItems: 'majom-boards-import__items',
+  importItem: 'majom-boards-import__item',
+  importItemMain: 'majom-boards-import__item-main',
+  importItemMeta: 'majom-boards-import__item-meta',
+  importDiagnostics: 'majom-boards-import__diagnostics',
+  importDiagnosticWarning:
+    'majom-boards-import__diagnostic majom-boards-import__diagnostic--warning',
+  importDiagnosticError:
+    'majom-boards-import__diagnostic majom-boards-import__diagnostic--error',
+  importMessage: 'majom-boards-import__message',
+  exportModal: 'majom-boards-export-modal',
+  exportContent: 'majom-boards-export__content',
+  exportMeta: 'majom-boards-export__meta',
+  exportOutput: 'majom-boards-export__output',
+  exportMessage: 'majom-boards-export__message',
   cardActionsPopover: 'majom-boards-card-actions',
   cardActionsBody: 'majom-boards-card-actions__body',
   cardActionsList: 'majom-boards-card-actions__list',
@@ -230,15 +261,15 @@ export const boardsModalClassNames = {
   checkItem: 'majom-boards-cardback__checkitem',
   checkItemCheckbox: 'majom-boards-cardback__checkitem-checkbox',
   checkItemTitle: 'majom-boards-cardback__checkitem-title',
-  checkItemTitleComplete:
-    'majom-boards-cardback__checkitem-title is-complete',
+  checkItemTitleComplete: 'majom-boards-cardback__checkitem-title is-complete',
   checkItemTitleInput: 'majom-boards-cardback__checkitem-title-input',
   checkItemMenuTriggerButton: 'majom-boards-cardback__checkitem-menu-trigger',
   checkItemMenuPopover: 'majom-boards-cardback__checkitem-menu',
   checkItemMenuList: 'majom-boards-cardback__checkitem-menu-list',
   checkItemMenuItem: 'majom-boards-cardback__checkitem-menu-item',
   checkItemMenuButton: 'majom-boards-cardback__checkitem-menu-button',
-  checkItemCollapsedComposer: 'majom-boards-cardback__checkitem-collapsed-composer',
+  checkItemCollapsedComposer:
+    'majom-boards-cardback__checkitem-collapsed-composer',
   checkItemComposer: 'majom-boards-cardback__checkitem-composer',
   checkItemComposerInput: 'majom-boards-cardback__checkitem-composer-input',
   checkItemComposerActions: 'majom-boards-cardback__checkitem-composer-actions',
@@ -1743,6 +1774,236 @@ const BOARDS_VIEW_CSS = `
   line-height: 18px;
 }
 
+.majom-boards-import-modal {
+  width: min(920px, calc(100vw - 24px));
+  max-width: min(920px, calc(100vw - 24px));
+}
+
+.majom-boards-import__layout {
+  display: grid;
+  min-height: min(560px, calc(100vh - 168px));
+  grid-template-columns: minmax(0, 1.15fr) minmax(220px, 0.65fr) minmax(260px, 0.9fr);
+  gap: 16px;
+  overflow: hidden;
+  padding: 16px;
+}
+
+.majom-boards-import__panel,
+.majom-boards-import__preview {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.majom-boards-import__field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.majom-boards-import__label {
+  color: var(--mb-muted, #44546f);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+}
+
+.majom-boards-import__source {
+  min-height: 420px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 16px;
+  line-height: 22px;
+}
+
+.majom-boards-import__select {
+  width: 100%;
+  min-height: 40px;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 34px 8px 10px;
+  color: var(--mb-text, #172b4d);
+  background: #ffffff;
+  box-shadow: inset 0 0 0 2px rgba(9, 30, 66, 0.14);
+  font: inherit;
+  font-size: 16px;
+  line-height: 20px;
+}
+
+.majom-boards-import__select:focus {
+  box-shadow: inset 0 0 0 2px var(--mb-blue, #0c66e4);
+  outline: none;
+}
+
+.majom-boards-import__preview {
+  overflow-y: auto;
+  border-radius: 8px;
+  padding: 12px;
+  background: #f7f8f9;
+}
+
+.majom-boards-import__preview-title {
+  margin: 0;
+  color: var(--mb-text, #172b4d);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+}
+
+.majom-boards-import__empty {
+  margin: 0;
+  color: var(--mb-muted, #44546f);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.majom-boards-import__counts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.majom-boards-import__count {
+  min-width: 0;
+  border-radius: 6px;
+  padding: 8px;
+  background: #ffffff;
+}
+
+.majom-boards-import__count-value,
+.majom-boards-import__count-label {
+  margin: 0;
+}
+
+.majom-boards-import__count-value {
+  color: var(--mb-text, #172b4d);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 22px;
+}
+
+.majom-boards-import__count-label {
+  color: var(--mb-muted, #44546f);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 14px;
+}
+
+.majom-boards-import__status {
+  margin: 0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.majom-boards-import__status--ok {
+  color: #216e4e;
+  background: #dcfff1;
+}
+
+.majom-boards-import__status--blocked {
+  color: #ae2e24;
+  background: #ffeceb;
+}
+
+.majom-boards-import__items,
+.majom-boards-import__diagnostics {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.majom-boards-import__item,
+.majom-boards-import__diagnostic {
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #ffffff;
+}
+
+.majom-boards-import__item-main,
+.majom-boards-import__item-meta {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.majom-boards-import__item-main {
+  color: var(--mb-text, #172b4d);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.majom-boards-import__item-meta {
+  margin-top: 2px;
+  color: var(--mb-muted, #44546f);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.majom-boards-import__diagnostic {
+  font-size: 12px;
+  line-height: 17px;
+  overflow-wrap: anywhere;
+}
+
+.majom-boards-import__diagnostic--warning {
+  color: #7f5f01;
+  background: #fff7d6;
+}
+
+.majom-boards-import__diagnostic--error {
+  color: #ae2e24;
+  background: #ffeceb;
+}
+
+.majom-boards-import__message {
+  margin: 0 0 10px;
+}
+
+.majom-boards-export-modal {
+  width: min(820px, calc(100vw - 24px));
+  max-width: min(820px, calc(100vw - 24px));
+}
+
+.majom-boards-export__content {
+  display: flex;
+  min-height: min(520px, calc(100vh - 168px));
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+}
+
+.majom-boards-export__meta {
+  margin: 0;
+  color: var(--mb-muted, #44546f);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.majom-boards-export__output {
+  min-height: 440px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 16px;
+  line-height: 22px;
+}
+
+.majom-boards-export__message {
+  margin: 0 0 10px;
+}
+
 .majom-boards-card-actions {
   width: min(232px, calc(100vw - 24px));
   overflow: hidden;
@@ -2845,6 +3106,27 @@ const BOARDS_VIEW_CSS = `
 }
 
 @media (max-width: 640px) {
+  .majom-boards-import__layout {
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .majom-boards-import__source {
+    min-height: 260px;
+  }
+
+  .majom-boards-export__content {
+    min-height: 0;
+  }
+
+  .majom-boards-export__output {
+    min-height: 300px;
+  }
+
+  .majom-boards-import__counts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .majom-boards-quick-editor [role="dialog"] {
     width: min(256px, calc(100vw - 24px));
   }
@@ -2885,7 +3167,10 @@ const BOARDS_VIEW_CSS = `
   .majom-boards__card-composer-textarea,
   .majom-boards__list-composer-textarea,
   .majom-boards-modal__title-input,
-  .majom-boards-modal__description {
+  .majom-boards-modal__description,
+  .majom-boards-import__source,
+  .majom-boards-import__select,
+  .majom-boards-export__output {
     font-size: 14px;
   }
 
