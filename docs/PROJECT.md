@@ -1,6 +1,6 @@
-# Majom Canvas
+# Majom
 
-Majom Canvas is a personal development application built around two connected pillars:
+Majom is a personal development application built around two connected pillars:
 
 - planning and time management across strategic, tactical, and operational levels
 - learning and course progression integrated into the same work system

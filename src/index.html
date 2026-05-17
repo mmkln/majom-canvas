@@ -3,7 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Majom Canvas</title>
+    <title>Majom | Visual planning workspace for individuals</title>
+    <meta name="description" content="Majom is a visual planning workspace for individuals who want to turn goals, tasks, boards, routines, and ideas into one clear personal system." />
+    <meta name="robots" content="index,follow,max-image-preview:large" />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="canonical" href="https://gomajom.com/" />
+    <meta property="og:site_name" content="Majom" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Majom | Visual planning workspace for individuals" />
+    <meta property="og:description" content="Plan goals, tasks, boards, routines, and ideas in one personal visual workspace." />
+    <meta property="og:url" content="https://gomajom.com/" />
+    <meta property="og:image" content="https://gomajom.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Majom | Visual planning workspace for individuals" />
+    <meta name="twitter:description" content="Plan goals, tasks, boards, routines, and ideas in one personal visual workspace." />
+    <meta name="twitter:image" content="https://gomajom.com/og-image.png" />
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="Majom summary for AI systems" />
     <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="shortcut icon" href="/favicon.ico" />
@@ -11,9 +28,258 @@
     <meta name="apple-mobile-web-app-title" content="Majom" />
     <link rel="manifest" href="/site.webmanifest" />
     <link href="./styles.css" rel="stylesheet" />
-
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://gomajom.com/#organization",
+          "name": "Majom",
+          "url": "https://gomajom.com/",
+          "logo": "https://gomajom.com/web-app-manifest-512x512.png"
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://gomajom.com/#website",
+          "name": "Majom",
+          "url": "https://gomajom.com/",
+          "publisher": {
+            "@id": "https://gomajom.com/#organization"
+          },
+          "description": "A visual planning workspace for individuals who want one personal system for goals, tasks, boards, routines, and ideas."
+        },
+        {
+          "@type": "SoftwareApplication",
+          "@id": "https://gomajom.com/#software",
+          "name": "Majom",
+          "applicationCategory": "ProductivityApplication",
+          "operatingSystem": "Web",
+          "url": "https://gomajom.com/",
+          "image": "https://gomajom.com/og-image.png",
+          "description": "Majom is a visual planning workspace for individuals who want to turn goals, tasks, boards, routines, and ideas into one clear personal system.",
+          "publisher": {
+            "@id": "https://gomajom.com/#organization"
+          }
+        },
+        {
+          "@type": "FAQPage",
+          "@id": "https://gomajom.com/#faq",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "What is Majom?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Majom is a visual planning workspace for individuals. It helps one person connect goals, tasks, boards, routines, and ideas in a single private workspace."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Who is Majom for?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Majom is built for individual makers, creators, students, and independent operators who want a visual system for personal planning."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "How is Majom different from Trello, Miro, or Notion?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Majom combines visual canvas planning, task structure, boards, routines, and AI-assisted thinking for individual planning instead of focusing on team boards, whiteboarding, or document databases."
+              }
+            }
+          ]
+        }
+      ]
+    }
+    </script>
 </head>
 <body>
+<main id="majom-public-landing" class="fixed inset-0 z-[180] overflow-y-auto bg-slate-50 text-slate-950">
+    <nav class="sticky top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur-md">
+        <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8 lg:px-12">
+            <a href="#majom-top" class="text-xl font-semibold tracking-tight text-slate-950">Majom</a>
+            <div class="hidden items-center gap-7 text-sm font-medium text-slate-600 md:flex">
+                <a href="#features" class="hover:text-slate-950">Features</a>
+                <a href="#how-it-works" class="hover:text-slate-950">How it works</a>
+                <a href="#audience" class="hover:text-slate-950">For whom</a>
+                <a href="#majom-faq" class="hover:text-slate-950">FAQ</a>
+            </div>
+            <div class="hidden md:block">
+                <button type="button" data-landing-action="sign-in">Sign in</button>
+            </div>
+            <button type="button" data-landing-action="toggle-menu" aria-controls="majom-mobile-menu" aria-expanded="false" class="md:hidden">Menu</button>
+        </div>
+        <div id="majom-mobile-menu" data-landing-mobile-menu hidden class="border-t border-slate-200 bg-white px-5 py-4 md:hidden">
+            <div class="flex flex-col gap-3 text-sm font-medium text-slate-700">
+                <a href="#features" class="py-2 hover:text-slate-950">Features</a>
+                <a href="#how-it-works" class="py-2 hover:text-slate-950">How it works</a>
+                <a href="#audience" class="py-2 hover:text-slate-950">For whom</a>
+                <a href="#majom-faq" class="py-2 hover:text-slate-950">FAQ</a>
+                <button type="button" data-landing-action="sign-in">Sign in</button>
+            </div>
+        </div>
+    </nav>
+
+    <section id="majom-top" class="relative flex min-h-[82vh] items-end overflow-hidden bg-slate-50 px-5 pb-12 pt-24 sm:px-8 lg:px-12">
+        <div aria-hidden="true" class="absolute inset-0 hidden bg-cover bg-center md:block" style="background-image: linear-gradient(90deg, rgba(248,250,252,0.99) 0%, rgba(248,250,252,0.96) 48%, rgba(248,250,252,0.82) 100%), url('/landing-hero.png');"></div>
+        <div class="relative z-10 mx-auto w-full max-w-7xl">
+            <p class="mb-4 text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">Visual planning for individuals</p>
+            <h1 class="max-w-4xl text-4xl font-semibold leading-[1.04] text-slate-950 sm:text-5xl lg:text-6xl">A personal workspace for goals, tasks, boards, routines, and ideas</h1>
+            <p class="mt-6 max-w-2xl text-lg leading-8 text-slate-700">Majom helps solo makers, learners, and independent operators turn scattered work into one clear visual system without team process overhead.</p>
+            <div class="mt-8 flex flex-wrap items-center gap-3">
+                <button type="button" data-landing-action="sign-in">Open Majom</button>
+                <a href="#majom-faq" class="inline-flex h-11 items-center justify-center rounded-lg bg-white px-5 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2">Read the FAQ</a>
+            </div>
+            <dl class="mt-10 grid max-w-4xl grid-cols-1 gap-4 text-sm text-slate-700 sm:grid-cols-3">
+                <div class="rounded-lg bg-white/80 p-4 shadow-sm ring-1 ring-slate-200/80">
+                    <dt class="font-semibold text-slate-950">Canvas first</dt>
+                    <dd class="mt-1">Map the work visually before it becomes a rigid list.</dd>
+                </div>
+                <div class="rounded-lg bg-white/80 p-4 shadow-sm ring-1 ring-slate-200/80">
+                    <dt class="font-semibold text-slate-950">Personal system</dt>
+                    <dd class="mt-1">Connect goals, boards, tasks, routines, and notes.</dd>
+                </div>
+                <div class="rounded-lg bg-white/80 p-4 shadow-sm ring-1 ring-slate-200/80">
+                    <dt class="font-semibold text-slate-950">AI-assisted</dt>
+                    <dd class="mt-1">Use AI to clarify, decompose, and structure your plan.</dd>
+                </div>
+            </dl>
+        </div>
+    </section>
+
+    <section class="bg-white px-5 py-16 sm:px-8 lg:px-12">
+        <div class="mx-auto max-w-7xl">
+            <div class="overflow-hidden rounded-lg bg-slate-950 shadow-xl">
+                <img src="/landing-hero.png" alt="Majom visual planning workspace preview" class="h-auto w-full object-cover" />
+            </div>
+        </div>
+    </section>
+
+    <section id="features" class="bg-white px-5 py-20 sm:px-8 lg:px-12">
+        <div class="mx-auto max-w-7xl">
+            <div class="mx-auto max-w-3xl text-center">
+                <p class="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">Core features</p>
+                <h2 class="mt-3 text-3xl font-semibold leading-tight text-slate-950 sm:text-4xl">Plan the way you think</h2>
+                <p class="mt-4 text-base leading-7 text-slate-700">Majom gives individual planning a structure that can hold messy ideas, concrete next actions, and the relationships between them.</p>
+            </div>
+            <div class="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3">
+                <article class="rounded-lg bg-slate-50 p-6">
+                    <p class="mb-5 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-lg font-semibold text-emerald-700">1</p>
+                    <h3 class="text-xl font-semibold text-slate-950">Canvas first</h3>
+                    <p class="mt-3 text-sm leading-6 text-slate-700">Visualize work and structure ideas on a free canvas before committing them to a strict task list.</p>
+                </article>
+                <article class="rounded-lg bg-slate-50 p-6">
+                    <p class="mb-5 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 text-lg font-semibold text-sky-700">2</p>
+                    <h3 class="text-xl font-semibold text-slate-950">One personal system</h3>
+                    <p class="mt-3 text-sm leading-6 text-slate-700">Keep goals, current tasks, boards, project context, and daily routines in one connected private workspace.</p>
+                </article>
+                <article class="rounded-lg bg-slate-50 p-6">
+                    <p class="mb-5 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-violet-100 text-lg font-semibold text-violet-700">3</p>
+                    <h3 class="text-xl font-semibold text-slate-950">AI thinking support</h3>
+                    <p class="mt-3 text-sm leading-6 text-slate-700">Use AI to clarify thoughts, split goals into smaller work, and organize your own planning process.</p>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section id="how-it-works" class="bg-slate-50 px-5 py-20 sm:px-8 lg:px-12">
+        <div class="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+            <div>
+                <h2 class="text-3xl font-semibold leading-tight text-slate-950 sm:text-4xl">One private place to reason through your work</h2>
+                <p class="mt-4 text-base leading-7 text-slate-700">Majom helps individuals plan at the level where thinking actually happens: goals, tasks, habits, notes, and the connections between them.</p>
+            </div>
+            <div class="space-y-6">
+                <article class="grid grid-cols-[2.5rem_1fr] gap-4">
+                    <p class="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-sm font-semibold text-emerald-800">01</p>
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-950">Break down goals and tasks</h3>
+                        <p class="mt-2 text-sm leading-6 text-slate-700">Turn large intentions into stories, tasks, and next actions without losing the bigger picture.</p>
+                    </div>
+                </article>
+                <article class="grid grid-cols-[2.5rem_1fr] gap-4">
+                    <p class="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 text-sm font-semibold text-sky-800">02</p>
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-950">Use boards without team noise</h3>
+                        <p class="mt-2 text-sm leading-6 text-slate-700">Track execution on boards while keeping the planning context connected to the canvas.</p>
+                    </div>
+                </article>
+                <article class="grid grid-cols-[2.5rem_1fr] gap-4">
+                    <p class="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-100 text-sm font-semibold text-violet-800">03</p>
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-950">Keep routines and focus visible</h3>
+                        <p class="mt-2 text-sm leading-6 text-slate-700">Treat recurring work and focused sessions as part of the same personal operating system.</p>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section id="audience" class="bg-slate-950 px-5 py-20 text-white sm:px-8 lg:px-12">
+        <div class="mx-auto max-w-7xl">
+            <div class="mx-auto max-w-3xl text-center">
+                <h2 class="text-3xl font-semibold leading-tight sm:text-4xl">Built for solo operators, makers, and learners</h2>
+                <p class="mt-4 text-base leading-7 text-slate-300">Majom is for people who need a clear personal workspace before they need a company workflow. It favors individual clarity, visual reasoning, and low-friction planning.</p>
+            </div>
+            <div class="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <article class="rounded-lg bg-white/10 p-5">
+                    <h3 class="text-base font-semibold">Product makers</h3>
+                    <p class="mt-3 text-sm leading-6 text-slate-300">Plan an idea from high-level goal to concrete tasks.</p>
+                </article>
+                <article class="rounded-lg bg-white/10 p-5">
+                    <h3 class="text-base font-semibold">Students and learners</h3>
+                    <p class="mt-3 text-sm leading-6 text-slate-300">Turn research notes and study plans into action maps.</p>
+                </article>
+                <article class="rounded-lg bg-white/10 p-5">
+                    <h3 class="text-base font-semibold">Independent builders</h3>
+                    <p class="mt-3 text-sm leading-6 text-slate-300">Keep routines, boards, and priorities connected.</p>
+                </article>
+                <article class="rounded-lg bg-white/10 p-5">
+                    <h3 class="text-base font-semibold">AI-assisted planners</h3>
+                    <p class="mt-3 text-sm leading-6 text-slate-300">Use AI help without losing ownership of the plan.</p>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section id="majom-faq" class="bg-white px-5 py-20 sm:px-8 lg:px-12">
+        <div class="mx-auto max-w-4xl">
+            <div class="text-center">
+                <p class="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">FAQ</p>
+                <h2 class="mt-3 text-3xl font-semibold leading-tight text-slate-950">Common questions</h2>
+            </div>
+            <div class="mt-10 space-y-4">
+                <details class="rounded-lg bg-slate-50 p-6" open>
+                    <summary class="cursor-pointer text-lg font-semibold text-slate-950">What is Majom?</summary>
+                    <p class="mt-3 text-base leading-7 text-slate-700">Majom is a visual planning workspace for individuals. It helps one person connect goals, tasks, boards, routines, and ideas in a single private workspace.</p>
+                </details>
+                <details class="rounded-lg bg-slate-50 p-6">
+                    <summary class="cursor-pointer text-lg font-semibold text-slate-950">Who is Majom for?</summary>
+                    <p class="mt-3 text-base leading-7 text-slate-700">It is for individual makers, creators, students, independent builders, and people who want a personal planning system instead of a team-first project management tool.</p>
+                </details>
+                <details class="rounded-lg bg-slate-50 p-6">
+                    <summary class="cursor-pointer text-lg font-semibold text-slate-950">How is it different from Trello, Miro, or Notion?</summary>
+                    <p class="mt-3 text-base leading-7 text-slate-700">Trello is board-first, Miro is whiteboard-first, and Notion is document/database-first. Majom is designed as a personal visual planning workspace that connects canvas thinking, tasks, boards, routines, and AI-assisted planning.</p>
+                </details>
+            </div>
+            <div class="mt-10 flex justify-center">
+                <button type="button" data-landing-action="sign-in">Sign in to Majom</button>
+            </div>
+        </div>
+    </section>
+
+    <footer class="border-t border-slate-200 bg-slate-50 px-5 py-10 sm:px-8 lg:px-12">
+        <div class="mx-auto flex max-w-7xl flex-col gap-4 text-sm text-slate-600 md:flex-row md:items-center md:justify-between">
+            <p class="text-base font-semibold text-slate-950">Majom</p>
+            <p>&copy; 2026 Majom. A visual planning workspace for individuals.</p>
+        </div>
+    </footer>
+</main>
+<noscript>
+    <p style="padding: 1rem; font-family: system-ui, sans-serif;">Majom needs JavaScript to open the private workspace. The product overview above is available without JavaScript.</p>
+</noscript>
 <script type="module" src="./main.js"></script>
 </body>
 </html>

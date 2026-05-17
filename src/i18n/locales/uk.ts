@@ -828,7 +828,9 @@ export const uk = {
   'notes.updatedAt': 'Оновлено {date}',
   'loading.canvasFailed':
     'Не вдалося завантажити дані canvas. Спробуйте ще раз.',
-  'login.caption': 'Увійдіть у Majom Canvas',
+  'login.accessLimited': 'Доступ зараз обмежений, поки Majom на ранньому етапі розробки.',
+  'login.backToOverview': 'Назад до огляду',
+  'login.caption': 'Увійдіть у свій робочий простір Majom.',
   'login.errorFallback': 'Не вдалося увійти. Спробуйте ще раз.',
   'login.password.label': 'Пароль',
   'login.password.placeholder': 'Пароль',
@@ -838,6 +840,7 @@ export const uk = {
   'login.submit': 'Увійти',
   'login.submitLoading': 'Вхід...',
   'login.title': 'Ласкаво просимо знову',
+  'login.privateWorkspaceNote': 'Ваш робочий простір залишається приватним у вашому акаунті.',
   'login.username.label': "Ім'я користувача",
   'login.username.placeholder': "Ім'я користувача",
   'login.usernameRequired': "Ім'я користувача обов'язкове.",
@@ -1314,6 +1317,7 @@ export const uk = {
   'boards.listActions.addCard': 'Додати картку',
   'boards.listActions.archiveAllCards': 'Архівувати всі картки в цьому списку',
   'boards.listActions.archiveList': 'Архівувати цей список',
+  'boards.listActions.deleteList': 'Видалити список',
   'boards.listActions.changeListColor': 'Змінити колір списку',
   'boards.listActions.colorUpgradeBody':
     'Кольори списків допомагають візуально організувати дошку.',

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines the default UI implementation approach for Majom Canvas during alpha and beyond.
+This document defines the default UI implementation approach for Majom during alpha and beyond.
 It exists to reduce mixed patterns and keep component behavior, styling, and reuse decisions consistent across modules.
 
 ## Core Principles

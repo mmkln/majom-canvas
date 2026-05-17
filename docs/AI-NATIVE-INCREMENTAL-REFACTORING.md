@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This guide defines a mandatory, repeatable way to evolve Majom Canvas into a more AI-operable codebase **during normal feature and bug work**, without full rewrites.
+This guide defines a mandatory, repeatable way to evolve Majom into a more AI-operable codebase **during normal feature and bug work**, without full rewrites.
 
 The objective is simple: each implementation task should leave the touched area more explicit, more machine-checkable, and easier to modify safely.
 

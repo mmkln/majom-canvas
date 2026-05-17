@@ -106,6 +106,15 @@
 - Add translation keys to both `src/i18n/locales/en.ts` and `src/i18n/locales/uk.ts`, keep them semantic and stable, and use `i18n.formatDate(...)` instead of locale-implicit `Intl` calls.
 - Persist user language changes through `UserApiService.setUserProfileLanguage(...)` rather than bypassing the API boundary.
 
+### SPA Entry And Routing
+
+- Treat this project as a single-page app with one public entry URL.
+- Do not add client-side route paths or route-based navigation flows unless the user explicitly changes this project constraint.
+- Model landing, login, and authenticated workspace as app states inside the SPA, not as separate URL routes.
+- SEO work must support the single root URL first; additional indexed content should live in a separate marketing/docs surface if multi-page SEO is needed later.
+- Use `Majom` as the public product name. Do not introduce new user-facing copy that uses the legacy two-word product name unless the user explicitly asks for it.
+- When the user provides a product screenshot for landing, preview, OG, or other marketing assets, use that exact source image once a local path is available. Do not generate or approximate a replacement unless the user explicitly asks for a generated asset.
+
 ### Workspace Wallpaper Dynamic UI
 
 - Treat the app workspace wallpaper from `WallpaperService` as the source of truth for UI that visually sits over the background image.
@@ -313,6 +322,13 @@
 - Owner: `docs` + `src/app-runtime` + `src/ui-lib` + `src/features/shell`
 - Read first: `docs/UI-THEMES-AND-UI-MODES-STRATEGY.md`
 - Expected result: keep `theme` and `uiMode` as separate app-level preferences, roll out incrementally through ui-lib tokens/recipes, and avoid full rewrite style overhauls.
+
+### Build Single-Entry SPA SEO
+
+- Use when the request changes SEO, AI-search discoverability, public landing content, social previews, crawler metadata, or landing/login/app entry behavior.
+- Owner: `src/index.html` + `src/bootstrap` + `src/public`
+- Read first: `docs/SEO-SINGLE-SPA.md`
+- Expected result: the root URL stays the only indexed SPA entry, unauthenticated users see the landing before login, SEO assets/metadata target `https://gomajom.com/` without adding routes, and landing UI controlled by TypeScript reuses ui-lib/HUD primitives.
 
 ### Audit And Enforce UI Style Guidelines
 

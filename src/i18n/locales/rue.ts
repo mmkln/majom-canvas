@@ -280,7 +280,9 @@ export const rue: AppTranslations = {
   'notes.updatedAt': 'Обновлено {date}',
   'loading.canvasFailed':
     'Не подало ся загрузити данны canvas-у. Спробуй знова.',
-  'login.caption': 'Увыйди до Majom Canvas',
+  'login.accessLimited': 'Приступ є теперь обмедженый, покы Majom є в раннім розвою.',
+  'login.backToOverview': 'Назад до перегляду',
+  'login.caption': 'Увыйди до свого робочого простору Majom.',
   'login.errorFallback': 'Не подало ся увыйти до системы. Спробуй знова.',
   'login.password.label': 'Гесло',
   'login.password.placeholder': 'Гесло',
@@ -290,6 +292,8 @@ export const rue: AppTranslations = {
   'login.submit': 'Увыйти',
   'login.submitLoading': 'Входить ся...',
   'login.title': 'Вітай назад',
+  'login.privateWorkspaceNote':
+    'Твуй робочый простір лишать ся приватным у твоїм акаунті.',
   'login.username.label': 'Юзернейм',
   'login.username.placeholder': 'Юзернейм',
   'login.usernameRequired': 'Юзернейм є обовязковый.',

@@ -1,0 +1,25 @@
+# Majom
+
+Majom is a visual planning workspace for individuals.
+
+Canonical URL: https://gomajom.com/
+
+## What It Does
+
+Majom helps one person connect goals, tasks, boards, routines, and ideas in a single private workspace. It is designed for personal planning, visual reasoning, and turning loose thoughts into structured action.
+
+## Intended Audience
+
+Majom is for individual makers, creators, students, independent builders, and solo operators. It is not positioned as a team-first project management platform.
+
+## Core Concepts
+
+- Visual canvas planning
+- Goal and task structure
+- Personal boards
+- Routines and focus
+- AI-assisted planning
+
+## Differentiation
+
+Trello is board-first, Miro is whiteboard-first, and Notion is document/database-first. Majom is a personal visual planning workspace that connects canvas thinking, tasks, boards, routines, and AI-assisted planning in one private system.

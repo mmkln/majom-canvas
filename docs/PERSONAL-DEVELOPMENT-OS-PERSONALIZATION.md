@@ -8,7 +8,7 @@
 
 ## Why This Document Exists
 
-This document defines how Majom Canvas can evolve from an AI planning assistant into a personalized Personal Development OS while keeping scope controlled.
+This document defines how Majom can evolve from an AI planning assistant into a personalized Personal Development OS while keeping scope controlled.
 
 The target product value is:
 

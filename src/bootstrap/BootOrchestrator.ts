@@ -19,6 +19,7 @@ import {
 import type { BootEvent, BootState } from './BootState.ts';
 import { nextBootState } from './BootStateMachine.ts';
 import { GlobalAppHeader } from './GlobalAppHeader.ts';
+import { PublicLandingPage } from './PublicLandingPage.ts';
 import { RuntimeHost } from './RuntimeHost.ts';
 import { createAppRuntime } from '../app-runtime/index.ts';
 
@@ -33,6 +34,7 @@ export class BootOrchestrator {
   );
   private readonly runtimeHost: RuntimeHost;
   private readonly globalHeader: GlobalAppHeader;
+  private readonly landingPage: PublicLandingPage;
   private readonly loginPage: LoginPage;
   private readonly loadingScreen: LoadingScreen;
   private readonly minLoadingScreenMs: number;
@@ -40,7 +42,7 @@ export class BootOrchestrator {
   private loginSubscription: Subscription | null = null;
   private readonly windowFocusHandler: () => void;
   private readonly visibilityChangeHandler: () => void;
-  private state: BootState = 'auth_required';
+  private state: BootState = 'landing';
   private bootInFlight = false;
   private logoutInProgress = false;
 
@@ -49,10 +51,23 @@ export class BootOrchestrator {
     this.runtimeHost = new RuntimeHost(this.wallpaperService, this.runtime, {
       userApiService: this.userApi,
     });
+    this.landingPage = new PublicLandingPage({
+      onSignIn: () => {
+        this.dispatch('sign_in_requested');
+        this.render();
+      },
+    });
     this.loadingScreen = new LoadingScreen({ runtime: this.runtime });
     this.minLoadingScreenMs = this.resolveMinLoadingScreenDuration();
     this.loginPage = new LoginPage({
       runtime: this.runtime,
+      secondaryAction: {
+        text: (i18n) => i18n.t('login.backToOverview'),
+        onClick: () => {
+          this.dispatch('login_cancelled');
+          this.render();
+        },
+      },
       onSubmit: async (credentials) => this.handleLoginSubmit(credentials),
     });
     this.windowFocusHandler = () => {
@@ -88,7 +103,7 @@ export class BootOrchestrator {
     });
     this.loginSubscription = authFlowService.loginRequests$.subscribe(() => {
       if (this.authService.isLoggedIn()) return;
-      this.dispatch('session_missing');
+      this.dispatch('sign_in_requested');
       this.render();
     });
   }
@@ -98,10 +113,20 @@ export class BootOrchestrator {
   }
 
   private render(): void {
-    if (this.state === 'auth_required') {
+    if (this.state === 'landing') {
       this.globalHeader.unmount();
       this.runtimeHost.hideCanvas();
       this.loadingScreen.hide();
+      this.loginPage.hide();
+      this.landingPage.show();
+      return;
+    }
+
+    if (this.state === 'login_required') {
+      this.globalHeader.unmount();
+      this.runtimeHost.hideCanvas();
+      this.loadingScreen.hide();
+      this.landingPage.hide();
       this.loginPage.show();
       this.loginPage.focusPrimaryField();
       return;
@@ -110,6 +135,7 @@ export class BootOrchestrator {
     if (this.state === 'booting') {
       this.globalHeader.unmount();
       this.runtimeHost.hideCanvas();
+      this.landingPage.hide();
       this.loginPage.hide();
       this.loadingScreen.showLoading((i18n) => i18n.t('loading.fetchingData'));
       return;
@@ -118,6 +144,7 @@ export class BootOrchestrator {
     if (this.state === 'boot_error') {
       this.globalHeader.unmount();
       this.runtimeHost.hideCanvas();
+      this.landingPage.hide();
       this.loginPage.hide();
       this.loadingScreen.showError(
         (i18n) => i18n.t('loading.canvasFailed'),
@@ -128,6 +155,7 @@ export class BootOrchestrator {
       return;
     }
 
+    this.landingPage.hide();
     this.loginPage.hide();
     this.loadingScreen.hide();
     this.globalHeader.mount(document.body);

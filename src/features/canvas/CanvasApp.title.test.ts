@@ -122,7 +122,7 @@ describe('CanvasApp.setCanvasTitle', () => {
       }
     }
 
-    vi.stubGlobal('document', { title: 'Majom Canvas' });
+    vi.stubGlobal('document', { title: 'Majom' });
     vi.stubGlobal('window', { dispatchEvent: vi.fn(() => true) });
     vi.stubGlobal('CustomEvent', TestCustomEvent);
   });
@@ -145,7 +145,7 @@ describe('CanvasApp.setCanvasTitle', () => {
     runSetCanvasTitle(app, 'Roadmap');
 
     expect(app.canvasTitle).toBe('Roadmap');
-    expect(document.title).toBe('Roadmap - Majom Canvas');
+    expect(document.title).toBe('Roadmap - Majom');
     expect(fakeWindow.dispatchEvent).toHaveBeenCalledTimes(1);
     const event = fakeWindow.dispatchEvent.mock.calls[0]?.[0] as {
       type?: string;
@@ -165,7 +165,7 @@ describe('CanvasApp.setCanvasTitle', () => {
     runSetCanvasTitle(app, '   ');
 
     expect(app.canvasTitle).toBe('   ');
-    expect(document.title).toBe('Majom Canvas');
+    expect(document.title).toBe('Majom');
     expect(app.emitAiAssistantContext).toHaveBeenCalledTimes(1);
   });
 

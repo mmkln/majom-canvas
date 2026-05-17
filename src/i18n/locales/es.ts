@@ -626,7 +626,9 @@ export const es: AppTranslations = {
   'notes.updatedAt': 'Actualizada {date}',
   'loading.canvasFailed':
     'No se pudieron cargar los datos del canvas. Vuelve a intentarlo.',
-  'login.caption': 'Inicia sesión en Majom Canvas',
+  'login.accessLimited': 'El acceso está limitado mientras Majom está en desarrollo temprano.',
+  'login.backToOverview': 'Volver al resumen',
+  'login.caption': 'Inicia sesión en tu espacio de trabajo de Majom.',
   'login.errorFallback':
     'No se pudo iniciar sesión. Inténtalo de nuevo.',
   'login.password.label': 'Contraseña',
@@ -637,6 +639,8 @@ export const es: AppTranslations = {
   'login.submit': 'Iniciar sesión',
   'login.submitLoading': 'Iniciando sesión...',
   'login.title': 'Bienvenido de nuevo',
+  'login.privateWorkspaceNote':
+    'Tu espacio de trabajo permanece privado en tu cuenta.',
   'login.username.label': 'Nombre de usuario',
   'login.username.placeholder': 'Nombre de usuario',
   'login.usernameRequired': 'El nombre de usuario es obligatorio.',

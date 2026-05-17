@@ -66,7 +66,7 @@ At the same time, the canvas remains a strong fit for:
 
 ## Product Vision
 
-`Learning Studio` is a learning product inside Majom Canvas that joins:
+`Learning Studio` is a learning product inside Majom that joins:
 
 - creator-driven course authoring
 - learner-facing course consumption

@@ -120,7 +120,7 @@ type CanvasListCacheItem = {
   meta?: Record<string, unknown> | null;
 };
 
-const APP_DOCUMENT_TITLE = 'Majom Canvas';
+const APP_DOCUMENT_TITLE = 'Majom';
 const CANVAS_TITLE_MAX_LENGTH = 100;
 const CANVAS_UI_STATE_CHANGED_EVENT = 'canvasUiStateChanged';
 

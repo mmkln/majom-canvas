@@ -22,6 +22,10 @@ import type { LoginSubmitResult } from '../auth/AuthController.ts';
 type LoginPageOptions = {
   title?: string;
   runtime?: AppRuntime;
+  secondaryAction?: {
+    text: string | ((i18n: I18nService) => string);
+    onClick: () => void;
+  };
   onSubmit: (credentials: LoginCredentials) => Promise<LoginSubmitResult>;
 };
 
@@ -32,12 +36,15 @@ export class LoginPage {
   private readonly shell: HTMLElement;
   private readonly heading: HTMLHeadingElement;
   private readonly caption: HTMLParagraphElement;
+  private readonly accessNote: HTMLParagraphElement;
+  private readonly trustNote: HTMLParagraphElement;
   private readonly usernameInput: HTMLInputElement;
   private readonly passwordInput: HTMLInputElement;
   private readonly usernameField: ReturnType<typeof createField>;
   private readonly passwordField: ReturnType<typeof createField>;
   private readonly generalError: FormMessage;
   private readonly submitButton: TextButtonElement;
+  private readonly secondaryButton: TextButtonElement | null;
   private readonly viewportResizeHandler: () => void;
   private validationMessages: LoginCredentialsValidationMessages;
   private viewportListenersBound = false;
@@ -80,7 +87,11 @@ export class LoginPage {
     caption.className = 'mt-2 text-sm leading-5 text-slate-600';
     caption.textContent = this.i18n.t('login.caption');
 
-    header.append(logo, heading, caption);
+    const accessNote = document.createElement('p');
+    accessNote.className = 'mt-3 text-xs leading-5 text-slate-500';
+    accessNote.textContent = this.i18n.t('login.accessLimited');
+
+    header.append(logo, heading, caption, accessNote);
 
     const form = document.createElement('form');
     form.className = 'space-y-0';
@@ -143,6 +154,9 @@ export class LoginPage {
       loadingText: this.i18n.t('login.submitLoading'),
       type: 'submit',
     });
+    const trustNote = document.createElement('p');
+    trustNote.className = 'text-center text-xs leading-5 text-slate-500';
+    trustNote.textContent = this.i18n.t('login.privateWorkspaceNote');
 
     this.usernameInput.addEventListener('input', () => {
       this.clearGeneralError();
@@ -163,15 +177,32 @@ export class LoginPage {
     });
 
     const errorSlot = document.createElement('div');
-    errorSlot.className = 'min-h-[2.75rem]';
+    errorSlot.className = 'min-h-1';
     errorSlot.appendChild(this.generalError.element);
 
     form.append(
       this.usernameField.element,
       this.passwordField.element,
       errorSlot,
-      this.submitButton
+      this.submitButton,
+      trustNote
     );
+
+    let secondaryButton: TextButtonElement | null = null;
+    if (this.options.secondaryAction) {
+      secondaryButton = createTextButton({
+        tone: 'text',
+        size: 'sm',
+        fullWidth: true,
+        text: this.getSecondaryActionText(),
+        type: 'button',
+        onClick: () => {
+          this.clearGeneralError();
+          this.options.secondaryAction?.onClick();
+        },
+      });
+      form.appendChild(secondaryButton);
+    }
 
     shell.append(header, form);
     root.appendChild(shell);
@@ -179,10 +210,13 @@ export class LoginPage {
     this.shell = shell;
     this.heading = heading;
     this.caption = caption;
+    this.accessNote = accessNote;
+    this.trustNote = trustNote;
     this.viewportResizeHandler = () => {
       this.applyVerticalPlacement();
     };
-    form.className = 'space-y-4';
+    this.secondaryButton = secondaryButton;
+    form.className = 'space-y-3';
   }
 
   public show(parent: HTMLElement = document.body): void {
@@ -220,6 +254,8 @@ export class LoginPage {
     this.shell.setAttribute('aria-label', title);
     this.heading.textContent = title;
     this.caption.textContent = this.i18n.t('login.caption');
+    this.accessNote.textContent = this.i18n.t('login.accessLimited');
+    this.trustNote.textContent = this.i18n.t('login.privateWorkspaceNote');
     this.usernameInput.placeholder = this.i18n.t('login.username.placeholder');
     this.passwordInput.placeholder = this.i18n.t('login.password.placeholder');
     this.usernameField.label.textContent = this.i18n.t('login.username.label');
@@ -228,6 +264,17 @@ export class LoginPage {
       this.submitButton.textContent = this.i18n.t('login.submit');
     }
     this.submitButton.loadingText = this.i18n.t('login.submitLoading');
+    if (this.secondaryButton) {
+      this.secondaryButton.textContent = this.getSecondaryActionText();
+    }
+  }
+
+  private getSecondaryActionText(): string {
+    const secondaryAction = this.options.secondaryAction;
+    if (!secondaryAction) return '';
+    return typeof secondaryAction.text === 'function'
+      ? secondaryAction.text(this.i18n)
+      : secondaryAction.text;
   }
 
   public focusPrimaryField(): void {
