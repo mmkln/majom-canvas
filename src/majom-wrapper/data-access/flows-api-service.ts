@@ -1,6 +1,12 @@
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
-import type { Flow, PlatformTask } from '../interfaces/index.ts';
+import type {
+  Flow,
+  FlowFocus,
+  FocusStatus,
+  FocusType,
+  PlatformTask,
+} from '../interfaces/index.ts';
 import type { HttpInterceptorClient } from './http-interceptor.ts';
 import type { PaginatedResponse } from './paginated-response.ts';
 
@@ -8,7 +14,47 @@ type FlowListResponse = PaginatedResponse<Flow> | Flow[];
 
 export type FlowCreatePayload = Pick<Flow, 'title'> &
   Partial<Pick<Flow, 'status' | 'meta'>>;
-export type FlowUpdatePayload = Partial<Pick<Flow, 'title' | 'status' | 'meta'>>;
+export type FlowUpdatePayload = Partial<
+  Pick<Flow, 'title' | 'status' | 'meta'>
+>;
+export type FlowFocusCreatePayload = {
+  type: FocusType;
+  title: string;
+  description?: string;
+  status?: FocusStatus;
+  startDate?: string | null;
+  endDate?: string | null;
+  successCriteria: string;
+  evidenceRequired?: string | null;
+  isPrimary?: boolean;
+};
+export type FlowFocusPatchPayload = Partial<{
+  type: FocusType;
+  title: string;
+  description: string;
+  status: FocusStatus;
+  startDate: string | null;
+  endDate: string | null;
+  successCriteria: string;
+  evidenceRequired: string | null;
+  evidence: string | null;
+  closeReason: string | null;
+  isPrimary: boolean;
+}>;
+export type FlowFocusActivatePayload = {
+  replaceActive?: boolean;
+  startDate?: string | null;
+};
+export type FlowFocusCompletePayload = {
+  evidence?: string | null;
+  closeReason?: string | null;
+  endDate?: string | null;
+};
+export type FlowFocusListParams = {
+  status?: FocusStatus;
+  type?: FocusType;
+  includeArchived?: boolean;
+};
 export type FlowTaskListItem = Pick<
   PlatformTask,
   'id' | 'uuid' | 'title' | 'status' | 'priority' | 'due_date' | 'is_completed'
@@ -47,6 +93,10 @@ function encodeFlowId(id: Flow['id']): string {
   return encodeURIComponent(String(id));
 }
 
+function encodeFocusId(id: FlowFocus['id']): string {
+  return encodeURIComponent(id);
+}
+
 function toFlowTaskListItem(task: PlatformTask): FlowTaskListItem {
   return {
     id: task.id,
@@ -69,6 +119,20 @@ function buildFlowTaskQuery(params: FlowTaskListParams = {}): string {
   }
   if (params.pageSize !== undefined) {
     query.push(`page_size=${encodeURIComponent(params.pageSize.toString())}`);
+  }
+  return query.length ? `?${query.join('&')}` : '';
+}
+
+function buildFlowFocusQuery(params: FlowFocusListParams = {}): string {
+  const query: string[] = [];
+  if (params.status !== undefined) {
+    query.push(`status=${encodeURIComponent(params.status)}`);
+  }
+  if (params.type !== undefined) {
+    query.push(`type=${encodeURIComponent(params.type)}`);
+  }
+  if (params.includeArchived !== undefined) {
+    query.push(`includeArchived=${params.includeArchived ? 'true' : 'false'}`);
   }
   return query.length ? `?${query.join('&')}` : '';
 }
@@ -105,6 +169,55 @@ export class FlowsApiService {
         flow_ids: [id],
       })
       .pipe(map(toFlowTaskListItem));
+  }
+
+  public getFlowFocuses(
+    id: Flow['id'],
+    params: FlowFocusListParams = {}
+  ): Observable<FlowFocus[]> {
+    return this.http.get<FlowFocus[]>(
+      `/flows/${encodeFlowId(id)}/focuses/${buildFlowFocusQuery(params)}`
+    );
+  }
+
+  public createFlowFocus(
+    id: Flow['id'],
+    payload: FlowFocusCreatePayload
+  ): Observable<FlowFocus> {
+    return this.http.post<FlowFocus>(
+      `/flows/${encodeFlowId(id)}/focuses/`,
+      payload
+    );
+  }
+
+  public patchFlowFocus(
+    id: FlowFocus['id'],
+    payload: FlowFocusPatchPayload
+  ): Observable<FlowFocus> {
+    return this.http.patch<FlowFocus>(
+      `/flow-focuses/${encodeFocusId(id)}/`,
+      payload
+    );
+  }
+
+  public activateFlowFocus(
+    id: FlowFocus['id'],
+    payload: FlowFocusActivatePayload = {}
+  ): Observable<FlowFocus> {
+    return this.http.post<FlowFocus>(
+      `/flow-focuses/${encodeFocusId(id)}/activate/`,
+      payload
+    );
+  }
+
+  public completeFlowFocus(
+    id: FlowFocus['id'],
+    payload: FlowFocusCompletePayload
+  ): Observable<FlowFocus> {
+    return this.http.post<FlowFocus>(
+      `/flow-focuses/${encodeFocusId(id)}/complete/`,
+      payload
+    );
   }
 
   public getTask(

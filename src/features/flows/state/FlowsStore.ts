@@ -1,5 +1,14 @@
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
+import {
+  FocusStatus,
+  Priority,
+  Status,
+} from '../../../majom-wrapper/interfaces/index.ts';
 import type {
+  FlowFocusActivatePayload,
+  FlowFocusCompletePayload,
+  FlowFocusCreatePayload,
+  FlowFocusPatchPayload,
   FlowCreatePayload,
   FlowsApiService,
   FlowTaskListItem,
@@ -7,6 +16,7 @@ import type {
 } from '../../../majom-wrapper/data-access/flows-api-service.ts';
 import type {
   Flow,
+  FlowFocus,
   PlatformTask,
 } from '../../../majom-wrapper/interfaces/index.ts';
 import {
@@ -24,6 +34,12 @@ import {
 import type { FlowColumn, FlowsState } from '../domain/types.ts';
 
 const FLOW_TASK_PAGE_SIZE = 50;
+const FLOW_TASK_CREATE_DEFAULTS = {
+  description: '',
+  status: Status.Described,
+  priority: Priority.Medium,
+  is_standalone: true,
+} as const;
 
 const INITIAL_STATE: FlowsState = {
   columns: [],
@@ -52,6 +68,10 @@ export class FlowsStore {
       | 'createFlowTask'
       | 'getTask'
       | 'patchTask'
+      | 'createFlowFocus'
+      | 'patchFlowFocus'
+      | 'activateFlowFocus'
+      | 'completeFlowFocus'
       | 'createFlow'
       | 'patchFlow'
       | 'deleteFlow'
@@ -141,8 +161,7 @@ export class FlowsStore {
     const created = await firstValueFrom(
       this.api.createFlowTask(flowId, {
         title: normalizedTitle,
-        description: '',
-        is_standalone: true,
+        ...FLOW_TASK_CREATE_DEFAULTS,
       })
     );
     const column = this.snapshot.columns.find(
@@ -208,6 +227,64 @@ export class FlowsStore {
       this.patchState({ columns: previousColumns });
       throw error;
     }
+  }
+
+  public async createFlowFocus(
+    flowId: Flow['id'],
+    payload: FlowFocusCreatePayload
+  ): Promise<FlowFocus> {
+    const focus = await firstValueFrom(
+      this.api.createFlowFocus(flowId, payload)
+    );
+    this.replaceFlowFocus(flowId, focus);
+    return focus;
+  }
+
+  public async createCurrentFlowFocus(
+    flowId: Flow['id'],
+    payload: FlowFocusCreatePayload
+  ): Promise<void> {
+    const focus = await this.createFlowFocus(flowId, {
+      ...payload,
+      status: FocusStatus.Candidate,
+    });
+    await this.activateFlowFocus(flowId, focus.id, {
+      replaceActive: true,
+      startDate: payload.startDate ?? null,
+    });
+  }
+
+  public async patchFlowFocus(
+    flowId: Flow['id'],
+    focusId: FlowFocus['id'],
+    payload: FlowFocusPatchPayload
+  ): Promise<void> {
+    const focus = await firstValueFrom(
+      this.api.patchFlowFocus(focusId, payload)
+    );
+    this.replaceFlowFocus(flowId, focus);
+  }
+
+  public async activateFlowFocus(
+    flowId: Flow['id'],
+    focusId: FlowFocus['id'],
+    payload: FlowFocusActivatePayload = {}
+  ): Promise<void> {
+    const focus = await firstValueFrom(
+      this.api.activateFlowFocus(focusId, payload)
+    );
+    this.replaceFlowFocus(flowId, focus);
+  }
+
+  public async completeFlowFocus(
+    flowId: Flow['id'],
+    focusId: FlowFocus['id'],
+    payload: FlowFocusCompletePayload
+  ): Promise<void> {
+    const focus = await firstValueFrom(
+      this.api.completeFlowFocus(focusId, payload)
+    );
+    this.replaceFlowFocus(flowId, focus);
   }
 
   public async reorderFlowColumns(
@@ -312,6 +389,27 @@ export class FlowsStore {
     });
   }
 
+  private replaceFlowFocus(flowId: Flow['id'], focus: FlowFocus): void {
+    this.patchState({
+      columns: this.snapshot.columns.map((column) => {
+        if (column.flow.id !== flowId) return column;
+        const currentFocus =
+          focus.status === FocusStatus.Active && focus.isPrimary
+            ? focus
+            : column.flow.currentFocus?.id === focus.id
+              ? null
+              : (column.flow.currentFocus ?? null);
+        return {
+          ...column,
+          flow: {
+            ...column.flow,
+            currentFocus,
+          },
+        };
+      }),
+    });
+  }
+
   private patchState(patch: Partial<FlowsState>): void {
     this.stateSubject.next({
       ...this.snapshot,
@@ -403,10 +501,14 @@ function applyTaskModelToColumn(
   task: TaskEditModel
 ): Partial<Omit<FlowColumn, 'flow'>> {
   const taskRef = task.uuid ?? task.id;
-  const exists = column.tasks.some((candidate) => isSameTask(candidate, taskRef));
+  const exists = column.tasks.some((candidate) =>
+    isSameTask(candidate, taskRef)
+  );
   if (task.isCompleted) {
     return {
-      tasks: column.tasks.filter((candidate) => !isSameTask(candidate, taskRef)),
+      tasks: column.tasks.filter(
+        (candidate) => !isSameTask(candidate, taskRef)
+      ),
       openTaskCount: exists
         ? Math.max(0, column.openTaskCount - 1)
         : column.openTaskCount,

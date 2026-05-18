@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Subject, of, throwError } from 'rxjs';
 import {
+  FocusStatus,
+  FocusType,
   Priority,
   Status,
   type Flow,
+  type FlowFocus,
 } from '../../../majom-wrapper/interfaces/index.ts';
 import { FlowsStore } from './FlowsStore.ts';
 
@@ -112,7 +115,11 @@ describe('FlowsStore', () => {
 
   it('publishes patched flow meta before the backend response resolves', async () => {
     const flows = [
-      createFlow({ id: 1, title: 'Alpha', meta: { presentation: { collapsed: false } } }),
+      createFlow({
+        id: 1,
+        title: 'Alpha',
+        meta: { presentation: { collapsed: false } },
+      }),
     ];
     const patchResponse = new Subject<Flow>();
     const api = {
@@ -138,11 +145,13 @@ describe('FlowsStore', () => {
       presentation: { collapsed: true },
     });
 
-    patchResponse.next(createFlow({
-      id: 1,
-      title: 'Alpha',
-      meta: { presentation: { collapsed: true } },
-    }));
+    patchResponse.next(
+      createFlow({
+        id: 1,
+        title: 'Alpha',
+        meta: { presentation: { collapsed: true } },
+      })
+    );
     patchResponse.complete();
     await patchPromise;
   });
@@ -323,11 +332,14 @@ describe('FlowsStore', () => {
     expect(api.createFlowTask).toHaveBeenCalledWith(1, {
       title: 'New task',
       description: '',
+      status: Status.Described,
+      priority: Priority.Medium,
       is_standalone: true,
     });
-    expect(store.snapshot.columns[0]?.tasks.map((task) => task.title)).toEqual(
-      ['Existing task', 'New task']
-    );
+    expect(store.snapshot.columns[0]?.tasks.map((task) => task.title)).toEqual([
+      'Existing task',
+      'New task',
+    ]);
     expect(store.snapshot.columns[0]?.openTaskCount).toBe(2);
   });
 
@@ -363,7 +375,9 @@ describe('FlowsStore', () => {
           count: 1,
           next: null,
           previous: null,
-          results: [createTask({ id: 10, uuid: 'task-10', title: 'Open task' })],
+          results: [
+            createTask({ id: 10, uuid: 'task-10', title: 'Open task' }),
+          ],
         })
       ),
       createFlowTask: vi.fn(),
@@ -401,6 +415,127 @@ describe('FlowsStore', () => {
     expect(store.snapshot.columns[0]?.tasks).toEqual([]);
     expect(store.snapshot.columns[0]?.openTaskCount).toBe(0);
   });
+
+  it('activates a flow focus as the current focus for the owning column', async () => {
+    const activeFocus = createFocus({ title: 'Build proof case' });
+    const api = {
+      getFlows: vi.fn(() => of([createFlow({ id: 1, title: 'Alpha' })])),
+      getFlowTasks: vi.fn(() =>
+        of({ count: 0, next: null, previous: null, results: [] })
+      ),
+      createFlowTask: vi.fn(),
+      getTask: vi.fn(),
+      patchTask: vi.fn(),
+      createFlowFocus: vi.fn(),
+      patchFlowFocus: vi.fn(),
+      activateFlowFocus: vi.fn(() => of(activeFocus)),
+      completeFlowFocus: vi.fn(),
+      createFlow: vi.fn(),
+      patchFlow: vi.fn(),
+      deleteFlow: vi.fn(),
+    };
+    const store = new FlowsStore(api);
+    await store.load();
+
+    await store.activateFlowFocus(1, activeFocus.id, {
+      replaceActive: true,
+      startDate: '2026-05-18',
+    });
+
+    expect(api.activateFlowFocus).toHaveBeenCalledWith(activeFocus.id, {
+      replaceActive: true,
+      startDate: '2026-05-18',
+    });
+    expect(store.snapshot.columns[0]?.flow.currentFocus).toEqual(activeFocus);
+  });
+
+  it('creates a candidate focus and activates it as the current focus', async () => {
+    const candidateFocus = createFocus({
+      id: '11111111-1111-4111-8111-111111111112',
+      status: FocusStatus.Candidate,
+      title: 'Candidate focus',
+    });
+    const activeFocus = createFocus({
+      ...candidateFocus,
+      status: FocusStatus.Active,
+    });
+    const api = {
+      getFlows: vi.fn(() => of([createFlow({ id: 1, title: 'Alpha' })])),
+      getFlowTasks: vi.fn(() =>
+        of({ count: 0, next: null, previous: null, results: [] })
+      ),
+      createFlowTask: vi.fn(),
+      getTask: vi.fn(),
+      patchTask: vi.fn(),
+      createFlowFocus: vi.fn(() => of(candidateFocus)),
+      patchFlowFocus: vi.fn(),
+      activateFlowFocus: vi.fn(() => of(activeFocus)),
+      completeFlowFocus: vi.fn(),
+      createFlow: vi.fn(),
+      patchFlow: vi.fn(),
+      deleteFlow: vi.fn(),
+    };
+    const store = new FlowsStore(api);
+    await store.load();
+
+    await store.createCurrentFlowFocus(1, {
+      type: FocusType.Mission,
+      title: 'Candidate focus',
+      startDate: '2026-05-18',
+      successCriteria: 'Criteria',
+    });
+
+    expect(api.createFlowFocus).toHaveBeenCalledWith(1, {
+      type: FocusType.Mission,
+      title: 'Candidate focus',
+      startDate: '2026-05-18',
+      successCriteria: 'Criteria',
+      status: FocusStatus.Candidate,
+    });
+    expect(api.activateFlowFocus).toHaveBeenCalledWith(candidateFocus.id, {
+      replaceActive: true,
+      startDate: '2026-05-18',
+    });
+    expect(store.snapshot.columns[0]?.flow.currentFocus).toEqual(activeFocus);
+  });
+
+  it('clears current focus when the current focus is completed', async () => {
+    const currentFocus = createFocus({ title: 'Current focus' });
+    const completedFocus = createFocus({
+      ...currentFocus,
+      status: FocusStatus.Completed,
+      closeReason: 'Done enough.',
+    });
+    const api = {
+      getFlows: vi.fn(() =>
+        of([createFlow({ id: 1, title: 'Alpha', currentFocus })])
+      ),
+      getFlowTasks: vi.fn(() =>
+        of({ count: 0, next: null, previous: null, results: [] })
+      ),
+      createFlowTask: vi.fn(),
+      getTask: vi.fn(),
+      patchTask: vi.fn(),
+      createFlowFocus: vi.fn(),
+      patchFlowFocus: vi.fn(),
+      activateFlowFocus: vi.fn(),
+      completeFlowFocus: vi.fn(() => of(completedFocus)),
+      createFlow: vi.fn(),
+      patchFlow: vi.fn(),
+      deleteFlow: vi.fn(),
+    };
+    const store = new FlowsStore(api);
+    await store.load();
+
+    await store.completeFlowFocus(1, currentFocus.id, {
+      closeReason: 'Done enough.',
+    });
+
+    expect(api.completeFlowFocus).toHaveBeenCalledWith(currentFocus.id, {
+      closeReason: 'Done enough.',
+    });
+    expect(store.snapshot.columns[0]?.flow.currentFocus).toBeNull();
+  });
 });
 
 function createFlow(overrides: Partial<Flow> = {}): Flow {
@@ -410,6 +545,27 @@ function createFlow(overrides: Partial<Flow> = {}): Flow {
     status: overrides.status ?? Status.Draft,
     meta: overrides.meta ?? null,
     tasks: overrides.tasks ?? [],
+    currentFocus: overrides.currentFocus ?? null,
+  };
+}
+
+function createFocus(overrides: Partial<FlowFocus> = {}): FlowFocus {
+  return {
+    id: overrides.id ?? '11111111-1111-4111-8111-111111111111',
+    flowId: overrides.flowId ?? '22222222-2222-4222-8222-222222222222',
+    type: overrides.type ?? FocusType.Mission,
+    title: overrides.title ?? 'Focus',
+    description: overrides.description ?? '',
+    status: overrides.status ?? FocusStatus.Active,
+    startDate: overrides.startDate ?? null,
+    endDate: overrides.endDate ?? null,
+    successCriteria: overrides.successCriteria ?? 'Criteria',
+    evidenceRequired: overrides.evidenceRequired ?? null,
+    evidence: overrides.evidence ?? null,
+    closeReason: overrides.closeReason ?? null,
+    isPrimary: overrides.isPrimary ?? true,
+    createdAt: overrides.createdAt ?? '2026-05-18T00:00:00Z',
+    updatedAt: overrides.updatedAt ?? '2026-05-18T00:00:00Z',
   };
 }
 

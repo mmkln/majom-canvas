@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { firstValueFrom, of } from 'rxjs';
 import { FlowsApiService } from './flows-api-service.ts';
-import { Priority, Status } from '../interfaces/index.ts';
+import {
+  FocusStatus,
+  FocusType,
+  Priority,
+  Status,
+} from '../interfaces/index.ts';
 import type { Flow } from '../interfaces/index.ts';
 import type { HttpInterceptorClient } from './http-interceptor.ts';
 
@@ -11,9 +16,9 @@ describe('FlowsApiService', () => {
       createFlow({ id: 1, title: 'Launch flow', status: Status.Active }),
     ];
     const get = vi.fn(() => of(flows));
-    const service = new FlowsApiService(
-      { get } as unknown as HttpInterceptorClient
-    );
+    const service = new FlowsApiService({
+      get,
+    } as unknown as HttpInterceptorClient);
 
     const result = await firstValueFrom(service.getFlows());
 
@@ -31,9 +36,9 @@ describe('FlowsApiService', () => {
         results: flows,
       })
     );
-    const service = new FlowsApiService(
-      { get } as unknown as HttpInterceptorClient
-    );
+    const service = new FlowsApiService({
+      get,
+    } as unknown as HttpInterceptorClient);
 
     const result = await firstValueFrom(service.getFlows());
 
@@ -112,9 +117,9 @@ describe('FlowsApiService', () => {
       ],
     };
     const get = vi.fn(() => of(response));
-    const service = new FlowsApiService(
-      { get } as unknown as HttpInterceptorClient
-    );
+    const service = new FlowsApiService({
+      get,
+    } as unknown as HttpInterceptorClient);
 
     const result = await firstValueFrom(
       service.getFlowTasks(7, {
@@ -141,9 +146,9 @@ describe('FlowsApiService', () => {
       is_completed: false,
     };
     const post = vi.fn(() => of(response));
-    const service = new FlowsApiService(
-      { post } as unknown as HttpInterceptorClient
-    );
+    const service = new FlowsApiService({
+      post,
+    } as unknown as HttpInterceptorClient);
 
     const result = await firstValueFrom(
       service.createFlowTask(7, {
@@ -210,6 +215,84 @@ describe('FlowsApiService', () => {
     });
     expect(updated.title).toBe('Updated outreach');
   });
+
+  it('calls flow focus endpoints with camelCase payloads', async () => {
+    const focus = createFocus();
+    const get = vi.fn(() => of([focus]));
+    const post = vi.fn(() => of(focus));
+    const patch = vi.fn(() => of({ ...focus, title: 'Updated focus' }));
+    const service = new FlowsApiService({
+      get,
+      post,
+      patch,
+    } as unknown as HttpInterceptorClient);
+
+    await firstValueFrom(
+      service.getFlowFocuses(7, {
+        status: FocusStatus.Active,
+        type: FocusType.Mission,
+        includeArchived: false,
+      })
+    );
+    await firstValueFrom(
+      service.createFlowFocus(7, {
+        type: FocusType.Mission,
+        title: 'Build proof case',
+        status: FocusStatus.Candidate,
+        successCriteria: 'Case is documented.',
+        evidenceRequired: 'Screenshots',
+      })
+    );
+    await firstValueFrom(
+      service.patchFlowFocus(focus.id, {
+        title: 'Updated focus',
+        closeReason: null,
+      })
+    );
+    await firstValueFrom(
+      service.activateFlowFocus(focus.id, {
+        replaceActive: true,
+        startDate: '2026-05-18',
+      })
+    );
+    await firstValueFrom(
+      service.completeFlowFocus(focus.id, {
+        closeReason: 'Done enough.',
+        endDate: '2026-05-18',
+      })
+    );
+
+    expect(get).toHaveBeenCalledWith(
+      '/flows/7/focuses/?status=active&type=mission&includeArchived=false'
+    );
+    expect(post).toHaveBeenNthCalledWith(1, '/flows/7/focuses/', {
+      type: FocusType.Mission,
+      title: 'Build proof case',
+      status: FocusStatus.Candidate,
+      successCriteria: 'Case is documented.',
+      evidenceRequired: 'Screenshots',
+    });
+    expect(patch).toHaveBeenCalledWith(`/flow-focuses/${focus.id}/`, {
+      title: 'Updated focus',
+      closeReason: null,
+    });
+    expect(post).toHaveBeenNthCalledWith(
+      2,
+      `/flow-focuses/${focus.id}/activate/`,
+      {
+        replaceActive: true,
+        startDate: '2026-05-18',
+      }
+    );
+    expect(post).toHaveBeenNthCalledWith(
+      3,
+      `/flow-focuses/${focus.id}/complete/`,
+      {
+        closeReason: 'Done enough.',
+        endDate: '2026-05-18',
+      }
+    );
+  });
 });
 
 function createFlow(overrides: Partial<Flow> = {}): Flow {
@@ -219,5 +302,26 @@ function createFlow(overrides: Partial<Flow> = {}): Flow {
     status: overrides.status ?? Status.Draft,
     meta: overrides.meta ?? null,
     tasks: overrides.tasks ?? [],
+    currentFocus: overrides.currentFocus ?? null,
+  };
+}
+
+function createFocus() {
+  return {
+    id: '11111111-1111-4111-8111-111111111111',
+    flowId: '22222222-2222-4222-8222-222222222222',
+    type: FocusType.Mission,
+    title: 'Build proof case',
+    description: '',
+    status: FocusStatus.Active,
+    startDate: null,
+    endDate: null,
+    successCriteria: 'Case is documented.',
+    evidenceRequired: 'Screenshots',
+    evidence: null,
+    closeReason: null,
+    isPrimary: true,
+    createdAt: '2026-05-18T00:00:00Z',
+    updatedAt: '2026-05-18T00:00:00Z',
   };
 }

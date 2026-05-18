@@ -226,10 +226,50 @@ export interface Milestone {
 
 export interface Flow {
   readonly id: number;
+  readonly uuid?: string;
   title: string;
   status: Status;
   meta?: FlowMeta;
   tasks: PlatformTask[];
+  currentFocus?: FlowFocus | null;
+}
+
+export enum FocusType {
+  Mission = 'mission',
+  Objective = 'objective',
+  Cycle = 'cycle',
+  Stage = 'stage',
+  Milestone = 'milestone',
+  Experiment = 'experiment',
+  Maintenance = 'maintenance',
+}
+
+export enum FocusStatus {
+  Draft = 'draft',
+  Candidate = 'candidate',
+  Active = 'active',
+  Paused = 'paused',
+  Completed = 'completed',
+  Failed = 'failed',
+  Archived = 'archived',
+}
+
+export interface FlowFocus {
+  readonly id: string;
+  readonly flowId: string;
+  type: FocusType;
+  title: string;
+  description: string;
+  status: FocusStatus;
+  startDate: string | null;
+  endDate: string | null;
+  successCriteria: string;
+  evidenceRequired: string | null;
+  evidence: string | null;
+  closeReason: string | null;
+  isPrimary: boolean;
+  readonly createdAt: string;
+  readonly updatedAt: string;
 }
 
 export interface Story {

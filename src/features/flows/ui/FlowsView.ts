@@ -1,5 +1,6 @@
 import type { AppRuntime } from '../../../app-runtime/index.ts';
 import { Input } from '../../../ui-lib/src/components/Input.ts';
+import { Textarea } from '../../../ui-lib/src/components/Textarea.ts';
 import {
   createModalActionRow,
   createModalShell,
@@ -17,9 +18,11 @@ import {
 import { createIcon, type IconName } from '../../../ui-lib/src/hud/icons.ts';
 import { renderInlineComposer } from '../../../ui-lib/src/workspace-board/index.ts';
 import {
+  FocusType,
   Priority,
   Status,
   type Flow,
+  type FlowFocus,
   type PlatformTask,
 } from '../../../majom-wrapper/interfaces/index.ts';
 import {
@@ -30,6 +33,9 @@ import {
   type TaskRelationCatalogPort,
 } from '../../tasks/index.ts';
 import type {
+  FlowFocusCompletePayload,
+  FlowFocusCreatePayload,
+  FlowFocusPatchPayload,
   FlowCreatePayload,
   FlowUpdatePayload,
 } from '../../../majom-wrapper/data-access/flows-api-service.ts';
@@ -73,6 +79,26 @@ type FlowTitleEditTarget = {
   surface: FlowTitleEditSurface;
 };
 
+type FlowFocusModalMode = 'create' | 'edit' | 'complete';
+
+type FlowFocusModalTarget = {
+  flowId: Flow['id'];
+  focusId: FlowFocus['id'] | null;
+  mode: FlowFocusModalMode;
+};
+
+type FlowFocusDraft = {
+  type: FocusType;
+  title: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+  successCriteria: string;
+  evidenceRequired: string;
+  evidence: string;
+  closeReason: string;
+};
+
 type FlowColumnMenuPopover = {
   menu: AnchoredMenu;
   panel: HTMLElement;
@@ -90,6 +116,7 @@ type FlowMetaTone = 'slate' | 'blue' | 'emerald' | 'amber' | 'rose' | 'violet';
 type FlowMetaSelectItem = {
   value: string;
   label: string;
+  hint?: string;
   icon: IconName;
   tone: FlowMetaTone;
 };
@@ -105,6 +132,15 @@ const FLOW_STATUSES = [
   Status.Cancelled,
 ] as const;
 const ORGANIZE_MULTI_COLUMN_THRESHOLD = 8;
+const FOCUS_TYPES = [
+  FocusType.Mission,
+  FocusType.Objective,
+  FocusType.Cycle,
+  FocusType.Stage,
+  FocusType.Milestone,
+  FocusType.Experiment,
+  FocusType.Maintenance,
+] as const;
 
 type FlowsViewHandlers = {
   onCreateFlow: (payload: FlowCreatePayload) => Promise<void> | void;
@@ -122,6 +158,20 @@ type FlowsViewHandlers = {
   onPatchFlow: (
     flowId: Flow['id'],
     patch: FlowUpdatePayload
+  ) => Promise<void> | void;
+  onCreateCurrentFlowFocus?: (
+    flowId: Flow['id'],
+    payload: FlowFocusCreatePayload
+  ) => Promise<void> | void;
+  onPatchFlowFocus?: (
+    flowId: Flow['id'],
+    focusId: FlowFocus['id'],
+    payload: FlowFocusPatchPayload
+  ) => Promise<void> | void;
+  onCompleteFlowFocus?: (
+    flowId: Flow['id'],
+    focusId: FlowFocus['id'],
+    payload: FlowFocusCompletePayload
   ) => Promise<void> | void;
   onReorderFlow: (
     flowId: Flow['id'],
@@ -155,6 +205,10 @@ export class FlowsView {
   private editDraft: FlowEditDraft | null = null;
   private editError: string | null = null;
   private isSubmittingEdit = false;
+  private focusModalTarget: FlowFocusModalTarget | null = null;
+  private focusDraft: FlowFocusDraft | null = null;
+  private focusError: string | null = null;
+  private isSubmittingFocus = false;
   private expandedTaskComposerFlowId: Flow['id'] | null = null;
   private taskComposerSubmittingFlowId: Flow['id'] | null = null;
   private taskComposerErrorFlowId: Flow['id'] | null = null;
@@ -198,6 +252,9 @@ export class FlowsView {
     this.closeAppearancePopover();
     this.disposeDropdownControls();
     this.closeTaskEditModal();
+    this.focusModalTarget = null;
+    this.focusDraft = null;
+    this.focusError = null;
     this.columnDragController.unmount();
     this.destroyColumnViews();
     this.taskDrafts.clear();
@@ -313,6 +370,7 @@ export class FlowsView {
         this.renderCollapsedColumn(column, this.getColumnVisual(column)),
       renderHeader: (column) =>
         this.renderColumnHeader(column, this.getColumnVisual(column)),
+      renderFocus: (column) => this.renderColumnFocus(column),
       renderTasksInto: (parent, column) =>
         this.appendTaskContent(parent, column),
     });
@@ -339,6 +397,10 @@ export class FlowsView {
     }
     if (this.isOrganizeModalOpen) {
       this.overlayHost.appendChild(this.renderOrganizeModal(state));
+    }
+    const focusColumn = this.getFocusModalColumn(state);
+    if (focusColumn) {
+      this.overlayHost.appendChild(this.renderFocusModal(focusColumn));
     }
   }
 
@@ -447,6 +509,11 @@ export class FlowsView {
         flow: column.flow,
         visual,
         editingTitle: isEditingTitle,
+      }),
+      focus: JSON.stringify({
+        currentFocus: column.flow.currentFocus ?? null,
+        modalTarget: this.focusModalTarget,
+        submitting: this.isSubmittingFocus,
       }),
       tasks: JSON.stringify({
         tasks: column.tasks,
@@ -1254,6 +1321,74 @@ export class FlowsView {
     return header;
   }
 
+  private renderColumnFocus(column: FlowColumn): HTMLElement {
+    const section = document.createElement('section');
+    section.className = 'flows-column-focus';
+    section.dataset.flowDragIgnore = 'true';
+    const focus = column.flow.currentFocus ?? null;
+    if (!focus) {
+      return section;
+    }
+
+    const card = document.createElement('article');
+    card.className = 'flows-focus-card';
+
+    const titleRow = document.createElement('div');
+    titleRow.className = 'flows-focus-title-row';
+    const titleGroup = document.createElement('div');
+    titleGroup.className = 'flows-focus-title-group';
+    const typeIcon = this.renderFocusTypeIcon(focus.type);
+    const title = document.createElement('h3');
+    title.className = 'flows-focus-title';
+    title.textContent = focus.title;
+    titleGroup.append(typeIcon, title);
+    const actions = document.createElement('div');
+    actions.className = 'flows-focus-actions';
+    actions.append(
+      this.renderFocusIconButton({
+        label: this.runtime.i18n.t('flows.focus.edit'),
+        icon: 'pencil',
+        disabled: !this.handlers.onPatchFlowFocus,
+        onClick: () => this.openFocusEditModal(column, focus),
+      })
+    );
+    titleRow.append(titleGroup, actions);
+
+    card.append(titleRow);
+    section.appendChild(card);
+    return section;
+  }
+
+  private renderFocusTypeIcon(type: FocusType): HTMLElement {
+    const label = this.getFocusTypeLabel(type);
+    const hint = this.getFocusTypeHint(type);
+    const wrapper = document.createElement('span');
+    wrapper.className = `flows-focus-type-icon flows-focus-type-icon--${this.getFocusTypeTone(type)}`;
+    wrapper.title = `${label}: ${hint}`;
+    wrapper.setAttribute('aria-label', wrapper.title);
+    wrapper.appendChild(
+      createIcon(this.getFocusTypeIcon(type), { size: 14, strokeWidth: 2 })
+    );
+    return wrapper;
+  }
+
+  private renderFocusIconButton(options: {
+    label: string;
+    icon: IconName;
+    disabled?: boolean;
+    onClick: () => void;
+  }): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'flows-focus-icon-button';
+    button.disabled = options.disabled;
+    button.title = options.label;
+    button.setAttribute('aria-label', options.label);
+    button.appendChild(createIcon(options.icon, { size: 14, strokeWidth: 2 }));
+    button.addEventListener('click', options.onClick);
+    return button;
+  }
+
   private renderColumnMenu(column: FlowColumn): HTMLElement {
     const container = document.createElement('div');
     container.className = 'flows-column-menu-container';
@@ -1296,6 +1431,12 @@ export class FlowsView {
         label: this.runtime.i18n.t('flows.actions.edit'),
         icon: 'pencil',
         onClick: () => this.openEditModal(column),
+      }),
+      this.renderColumnMenuItem({
+        label: this.runtime.i18n.t('flows.focus.add'),
+        icon: 'plus',
+        disabled: !this.handlers.onCreateCurrentFlowFocus,
+        onClick: () => this.openFocusCreateModal(column),
       }),
       this.renderColumnMenuItem({
         label: this.runtime.i18n.t('flows.actions.hideFlow'),
@@ -1341,6 +1482,7 @@ export class FlowsView {
     label: string;
     icon: Parameters<typeof createIcon>[0];
     tone?: 'danger';
+    disabled?: boolean;
     onClick: () => void;
   }): HTMLButtonElement {
     const leadingIcon = document.createElement('span');
@@ -1352,11 +1494,13 @@ export class FlowsView {
       label: options.label,
       tone: options.tone === 'danger' ? 'danger' : 'default',
       leading: leadingIcon,
+      disabled: options.disabled,
       className: `flows-column-menu-item${
         options.tone === 'danger' ? ' flows-column-menu-item--danger' : ''
       }`,
       onClick: (event) => {
         event.stopPropagation();
+        if (options.disabled) return;
         options.onClick();
       },
     });
@@ -1773,6 +1917,292 @@ export class FlowsView {
       form.querySelector<HTMLInputElement>('input[name="title"]')?.focus();
     });
     return overlay;
+  }
+
+  private renderFocusModal(column: FlowColumn): HTMLElement {
+    const target = this.focusModalTarget;
+    if (!target) {
+      throw new Error('Focus modal target is required');
+    }
+    const focus = target.focusId ? (column.flow.currentFocus ?? null) : null;
+    const isComplete = target.mode === 'complete';
+    const titleKey =
+      target.mode === 'create'
+        ? 'flows.focus.createTitle'
+        : target.mode === 'complete'
+          ? 'flows.focus.completeTitle'
+          : 'flows.focus.editTitle';
+    const draft =
+      this.focusDraft ??
+      (focus ? this.createFocusDraft(focus) : this.createEmptyFocusDraft());
+    const { overlay, container, body, footer } = createModalShell(
+      this.runtime.i18n.t(titleKey),
+      {
+        onClose: () => this.closeFocusModal(),
+        intent: 'form',
+      }
+    );
+    container.classList.add('flows-focus-modal-container');
+    body.classList.add('flows-focus-modal-body');
+
+    const form = document.createElement('form');
+    form.className = 'flows-focus-modal-form';
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      void this.submitFocusModal(column, form);
+    });
+
+    if (isComplete) {
+      form.append(
+        this.renderFocusReadonlySummary(focus),
+        this.renderFocusTextareaField({
+          name: 'evidence',
+          label: this.runtime.i18n.t('flows.focus.evidence'),
+          value: draft.evidence,
+          placeholder: this.runtime.i18n.t('flows.focus.evidencePlaceholder'),
+          rows: 3,
+        }),
+        this.renderFocusTextareaField({
+          name: 'closeReason',
+          label: this.runtime.i18n.t('flows.focus.closeReason'),
+          value: draft.closeReason,
+          placeholder: this.runtime.i18n.t(
+            'flows.focus.closeReasonPlaceholder'
+          ),
+          rows: 3,
+        }),
+        this.renderFocusTextField({
+          name: 'endDate',
+          label: this.runtime.i18n.t('flows.focus.endDate'),
+          value: draft.endDate,
+          placeholder: 'YYYY-MM-DD',
+          type: 'date',
+        })
+      );
+    } else {
+      form.append(
+        this.renderFocusTypeField(draft.type),
+        this.renderFocusTextField({
+          name: 'title',
+          label: this.runtime.i18n.t('flows.focus.titleLabel'),
+          value: draft.title,
+          placeholder: this.runtime.i18n.t('flows.focus.titlePlaceholder'),
+          required: true,
+        }),
+        this.renderFocusTextareaField({
+          name: 'description',
+          label: this.runtime.i18n.t('flows.focus.description'),
+          value: draft.description,
+          placeholder: this.runtime.i18n.t(
+            'flows.focus.descriptionPlaceholder'
+          ),
+        }),
+        this.renderFocusTextareaField({
+          name: 'successCriteria',
+          label: this.runtime.i18n.t('flows.focus.successCriteria'),
+          value: draft.successCriteria,
+          placeholder: this.runtime.i18n.t(
+            'flows.focus.successCriteriaPlaceholder'
+          ),
+          required: true,
+        }),
+        this.renderFocusTextareaField({
+          name: 'evidenceRequired',
+          label: this.runtime.i18n.t('flows.focus.evidenceRequired'),
+          value: draft.evidenceRequired,
+          placeholder: this.runtime.i18n.t(
+            'flows.focus.evidenceRequiredPlaceholder'
+          ),
+        }),
+        this.renderEditFieldGrid([
+          this.renderFocusTextField({
+            name: 'startDate',
+            label: this.runtime.i18n.t('flows.focus.startDate'),
+            value: draft.startDate,
+            placeholder: 'YYYY-MM-DD',
+            type: 'date',
+          }),
+          this.renderFocusTextField({
+            name: 'endDate',
+            label: this.runtime.i18n.t('flows.focus.endDate'),
+            value: draft.endDate,
+            placeholder: 'YYYY-MM-DD',
+            type: 'date',
+          }),
+        ])
+      );
+    }
+
+    if (this.focusError) {
+      const error = document.createElement('p');
+      error.className = 'flows-edit-error';
+      error.textContent = this.focusError;
+      form.appendChild(error);
+    }
+    body.appendChild(form);
+
+    const actionRow = createModalActionRow({ variant: 'form' });
+    actionRow.append(
+      createTextButton({
+        text: this.runtime.i18n.t('common.cancel'),
+        tone: 'text',
+        size: 'md',
+        className: getModalActionButtonClass('default'),
+        disabled: this.isSubmittingFocus,
+        onClick: () => this.closeFocusModal(),
+      })
+    );
+    const submit = createTextButton({
+      text: this.runtime.i18n.t(
+        isComplete ? 'flows.focus.completeSave' : 'common.save'
+      ),
+      tone: 'primary',
+      size: 'md',
+      className: `${getModalActionButtonClass('default')} flows-edit-primary`,
+      disabled: this.isSubmittingFocus,
+      onClick: () => form.requestSubmit(),
+    });
+    if (this.isSubmittingFocus) {
+      setTextButtonLoading(submit, true, {
+        text: this.runtime.i18n.t('flows.focus.saving'),
+      });
+    }
+    actionRow.append(submit);
+    footer.appendChild(actionRow);
+
+    requestAnimationFrame(() => {
+      const selector = isComplete
+        ? 'textarea[name="evidence"]'
+        : 'input[name="title"]';
+      form.querySelector<HTMLElement>(selector)?.focus();
+    });
+    return overlay;
+  }
+
+  private renderFocusReadonlySummary(focus: FlowFocus | null): HTMLElement {
+    const summary = document.createElement('div');
+    summary.className = 'flows-focus-complete-summary';
+    const title = document.createElement('p');
+    title.className = 'flows-focus-complete-title';
+    title.textContent = focus?.title ?? '';
+    const criteria = document.createElement('p');
+    criteria.className = 'flows-focus-complete-criteria';
+    criteria.textContent = focus?.successCriteria ?? '';
+    summary.append(title, criteria);
+    return summary;
+  }
+
+  private renderFocusTextField(options: {
+    name: string;
+    label: string;
+    value: string;
+    placeholder: string;
+    type?: string;
+    required?: boolean;
+  }): HTMLElement {
+    const input = new Input({
+      name: options.name,
+      type: options.type ?? 'text',
+      value: options.value,
+      placeholder: options.placeholder,
+      disabled: this.isSubmittingFocus,
+      required: options.required,
+    }).createElement();
+    input.dataset.flowDragIgnore = 'true';
+    return createField({
+      label: options.label,
+      control: input,
+      className: 'flows-focus-field',
+      disabled: this.isSubmittingFocus,
+    }).element;
+  }
+
+  private renderFocusTextareaField(options: {
+    name: string;
+    label: string;
+    value: string;
+    placeholder: string;
+    rows?: number;
+    required?: boolean;
+  }): HTMLElement {
+    const textarea = new Textarea({
+      name: options.name,
+      value: options.value,
+      placeholder: options.placeholder,
+      disabled: this.isSubmittingFocus,
+      required: options.required,
+      rows: options.rows ?? 3,
+      className: 'flows-focus-textarea',
+    }).createElement();
+    textarea.dataset.flowDragIgnore = 'true';
+    return createField({
+      label: options.label,
+      control: textarea,
+      className: 'flows-focus-field',
+      disabled: this.isSubmittingFocus,
+    }).element;
+  }
+
+  private renderFocusTypeField(selectedType: FocusType): HTMLElement {
+    return this.renderFocusDropdownField({
+      label: this.runtime.i18n.t('flows.focus.type'),
+      value: selectedType,
+      items: FOCUS_TYPES.map((type) => ({
+        value: type,
+        label: this.getFocusTypeLabel(type),
+        hint: this.getFocusTypeHint(type),
+        icon: this.getFocusTypeIcon(type),
+        tone: this.getFocusTypeTone(type),
+      })),
+      onSelect: (value) => {
+        if (!isFocusType(value)) return;
+        this.updateFocusDraft({ type: value });
+      },
+    });
+  }
+
+  private renderFocusDropdownField(options: {
+    label: string;
+    value: string;
+    items: FlowMetaSelectItem[];
+    onSelect: (value: string) => void;
+  }): HTMLElement {
+    const selected =
+      options.items.find((item) => item.value === options.value) ?? null;
+    const dropdown = new StaticDropdownSelect<FlowMetaSelectItem>({
+      size: 'md',
+      value: selected,
+      placeholder: options.label,
+      items: options.items,
+      getKey: (item) => item.value,
+      getLabel: (item) => item.label,
+      getHint: (item) => item.hint,
+      ariaLabel: options.label,
+      className: 'flows-edit-dropdown',
+      disabled: this.isSubmittingFocus,
+      portalTarget: document.body,
+      renderTriggerLeading: (item) => this.renderDropdownIcon(item, false),
+      renderOptionLeading: (item) => this.renderDropdownIcon(item, true),
+      renderOptionTrailing: (_item, active) => {
+        if (!active) return null;
+        const check = createIcon('check', { size: 14, strokeWidth: 2.3 });
+        check.setAttribute('aria-hidden', 'true');
+        const wrapper = document.createElement('span');
+        wrapper.className = 'flows-edit-dropdown-check';
+        wrapper.appendChild(check);
+        return wrapper;
+      },
+      onSelect: (item) => options.onSelect(item.value),
+    });
+    dropdown.element.dataset.flowDragIgnore = 'true';
+    this.dropdownDisposers.push(() => dropdown.destroy());
+
+    return createField({
+      label: options.label,
+      control: dropdown.element,
+      className: 'flows-focus-field',
+      disabled: this.isSubmittingFocus,
+    }).element;
   }
 
   private renderTextField(options: {
@@ -2219,6 +2649,272 @@ export class FlowsView {
     }
   }
 
+  private getFocusTypeLabel(type: FocusType): string {
+    return this.runtime.i18n.t(`flows.focus.types.${type}`);
+  }
+
+  private getFocusTypeHint(type: FocusType): string {
+    return this.runtime.i18n.t(`flows.focus.typeHints.${type}`);
+  }
+
+  private getFocusTypeIcon(type: FocusType): IconName {
+    switch (type) {
+      case FocusType.Objective:
+        return 'goal-circle';
+      case FocusType.Cycle:
+        return 'arrow-path';
+      case FocusType.Stage:
+        return 'map';
+      case FocusType.Milestone:
+        return 'map-pin';
+      case FocusType.Experiment:
+        return 'light-bulb';
+      case FocusType.Maintenance:
+        return 'shield-exclamation';
+      case FocusType.Mission:
+      default:
+        return 'bolt';
+    }
+  }
+
+  private getFocusTypeTone(type: FocusType): FlowMetaTone {
+    switch (type) {
+      case FocusType.Objective:
+        return 'blue';
+      case FocusType.Cycle:
+        return 'violet';
+      case FocusType.Stage:
+        return 'slate';
+      case FocusType.Milestone:
+        return 'emerald';
+      case FocusType.Experiment:
+        return 'amber';
+      case FocusType.Maintenance:
+        return 'rose';
+      case FocusType.Mission:
+      default:
+        return 'blue';
+    }
+  }
+
+  private openFocusCreateModal(column: FlowColumn): void {
+    if (!this.handlers.onCreateCurrentFlowFocus) return;
+    this.closeColumnMenu();
+    this.focusModalTarget = {
+      flowId: column.flow.id,
+      focusId: null,
+      mode: 'create',
+    };
+    this.focusDraft = this.createEmptyFocusDraft();
+    this.focusError = null;
+    this.renderCurrent();
+  }
+
+  private openFocusEditModal(column: FlowColumn, focus: FlowFocus): void {
+    if (!this.handlers.onPatchFlowFocus) return;
+    this.focusModalTarget = {
+      flowId: column.flow.id,
+      focusId: focus.id,
+      mode: 'edit',
+    };
+    this.focusDraft = this.createFocusDraft(focus);
+    this.focusError = null;
+    this.renderCurrent();
+  }
+
+  private openFocusCompleteModal(column: FlowColumn, focus: FlowFocus): void {
+    if (!this.handlers.onCompleteFlowFocus) return;
+    this.focusModalTarget = {
+      flowId: column.flow.id,
+      focusId: focus.id,
+      mode: 'complete',
+    };
+    this.focusDraft = this.createFocusDraft(focus);
+    this.focusError = null;
+    this.renderCurrent();
+  }
+
+  private closeFocusModal(): void {
+    if (this.isSubmittingFocus) return;
+    this.focusModalTarget = null;
+    this.focusDraft = null;
+    this.focusError = null;
+    this.renderCurrent();
+  }
+
+  private getFocusModalColumn(state: FlowsState): FlowColumn | null {
+    const target = this.focusModalTarget;
+    if (!target) return null;
+    return (
+      state.columns.find((column) => column.flow.id === target.flowId) ?? null
+    );
+  }
+
+  private createEmptyFocusDraft(): FlowFocusDraft {
+    return {
+      type: FocusType.Mission,
+      title: '',
+      description: '',
+      startDate: '',
+      endDate: '',
+      successCriteria: '',
+      evidenceRequired: '',
+      evidence: '',
+      closeReason: '',
+    };
+  }
+
+  private createFocusDraft(focus: FlowFocus): FlowFocusDraft {
+    return {
+      type: focus.type,
+      title: focus.title,
+      description: focus.description,
+      startDate: focus.startDate ?? '',
+      endDate: focus.endDate ?? '',
+      successCriteria: focus.successCriteria,
+      evidenceRequired: focus.evidenceRequired ?? '',
+      evidence: focus.evidence ?? '',
+      closeReason: focus.closeReason ?? '',
+    };
+  }
+
+  private updateFocusDraft(patch: Partial<FlowFocusDraft>): void {
+    if (!this.focusDraft) return;
+    this.focusDraft = {
+      ...this.focusDraft,
+      ...patch,
+    };
+  }
+
+  private async submitFocusModal(
+    column: FlowColumn,
+    form: HTMLFormElement
+  ): Promise<void> {
+    const target = this.focusModalTarget;
+    if (!target) return;
+    const draft =
+      target.mode === 'complete'
+        ? this.readFocusCompleteDraft(form)
+        : this.readFocusDraft(form);
+    this.focusDraft = draft;
+    this.focusError = null;
+    if (!this.validateFocusDraft(target.mode, draft)) {
+      this.renderCurrent();
+      return;
+    }
+    this.isSubmittingFocus = true;
+    this.renderCurrent();
+    try {
+      if (target.mode === 'create') {
+        await this.handlers.onCreateCurrentFlowFocus?.(
+          column.flow.id,
+          this.focusDraftToCreatePayload(draft)
+        );
+      } else if (target.mode === 'edit' && target.focusId) {
+        await this.handlers.onPatchFlowFocus?.(
+          column.flow.id,
+          target.focusId,
+          this.focusDraftToPatchPayload(draft)
+        );
+      } else if (target.mode === 'complete' && target.focusId) {
+        await this.handlers.onCompleteFlowFocus?.(
+          column.flow.id,
+          target.focusId,
+          this.focusDraftToCompletePayload(draft)
+        );
+      }
+      this.isSubmittingFocus = false;
+      this.closeFocusModal();
+    } catch {
+      this.isSubmittingFocus = false;
+      this.focusError = this.runtime.i18n.t('flows.focus.error');
+      this.renderCurrent();
+    }
+  }
+
+  private readFocusDraft(form: FormData | HTMLFormElement): FlowFocusDraft {
+    const formData = form instanceof FormData ? form : new FormData(form);
+    return {
+      ...(this.focusDraft ?? this.createEmptyFocusDraft()),
+      title: readFormString(formData, 'title'),
+      description: readFormString(formData, 'description'),
+      startDate: readFormString(formData, 'startDate'),
+      endDate: readFormString(formData, 'endDate'),
+      successCriteria: readFormString(formData, 'successCriteria'),
+      evidenceRequired: readFormString(formData, 'evidenceRequired'),
+    };
+  }
+
+  private readFocusCompleteDraft(form: HTMLFormElement): FlowFocusDraft {
+    const formData = new FormData(form);
+    return {
+      ...(this.focusDraft ?? this.createEmptyFocusDraft()),
+      evidence: readFormString(formData, 'evidence'),
+      closeReason: readFormString(formData, 'closeReason'),
+      endDate: readFormString(formData, 'endDate'),
+    };
+  }
+
+  private validateFocusDraft(
+    mode: FlowFocusModalMode,
+    draft: FlowFocusDraft
+  ): boolean {
+    if (mode === 'complete') {
+      if (!draft.evidence && !draft.closeReason) {
+        this.focusError = this.runtime.i18n.t(
+          'flows.focus.errors.completeEvidence'
+        );
+        return false;
+      }
+      return true;
+    }
+    if (!draft.title || !draft.successCriteria) {
+      this.focusError = this.runtime.i18n.t('flows.focus.errors.required');
+      return false;
+    }
+    return true;
+  }
+
+  private focusDraftToCreatePayload(
+    draft: FlowFocusDraft
+  ): FlowFocusCreatePayload {
+    return {
+      type: draft.type,
+      title: draft.title,
+      description: draft.description,
+      startDate: emptyToNull(draft.startDate),
+      endDate: emptyToNull(draft.endDate),
+      successCriteria: draft.successCriteria,
+      evidenceRequired: emptyToNull(draft.evidenceRequired),
+      isPrimary: true,
+    };
+  }
+
+  private focusDraftToPatchPayload(
+    draft: FlowFocusDraft
+  ): FlowFocusPatchPayload {
+    return {
+      type: draft.type,
+      title: draft.title,
+      description: draft.description,
+      startDate: emptyToNull(draft.startDate),
+      endDate: emptyToNull(draft.endDate),
+      successCriteria: draft.successCriteria,
+      evidenceRequired: emptyToNull(draft.evidenceRequired),
+      isPrimary: true,
+    };
+  }
+
+  private focusDraftToCompletePayload(
+    draft: FlowFocusDraft
+  ): FlowFocusCompletePayload {
+    return {
+      evidence: emptyToNull(draft.evidence),
+      closeReason: emptyToNull(draft.closeReason),
+      endDate: emptyToNull(draft.endDate),
+    };
+  }
+
   private getEditingColumn(state: FlowsState): FlowColumn | null {
     if (this.editingFlowId === null) return null;
     return (
@@ -2311,6 +3007,10 @@ function isFlowStatus(value: string): value is Status {
   return FLOW_STATUSES.includes(value as Status);
 }
 
+function isFocusType(value: string): value is FocusType {
+  return FOCUS_TYPES.includes(value as FocusType);
+}
+
 function getFlowTaskRef(
   task: Pick<FlowColumn['tasks'][number], 'id' | 'uuid'>
 ): PlatformTask['id'] | NonNullable<PlatformTask['uuid']> {
@@ -2355,4 +3055,9 @@ function isFlowPriority(value: string): value is FlowPriority {
 function readFormString(formData: FormData, name: string): string {
   const value = formData.get(name);
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function emptyToNull(value: string): string | null {
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
 }

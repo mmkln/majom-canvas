@@ -32,8 +32,7 @@ export class FlowsApp {
   constructor(options: FlowsAppOptions = {}) {
     this.runtime = options.runtime ?? createAppRuntime();
     const http = new HttpInterceptorClient(environment.apiUrl);
-    this.flowsApi =
-      options.flowsApi ?? new FlowsApiService(http);
+    this.flowsApi = options.flowsApi ?? new FlowsApiService(http);
     const goalsApi = options.goalsApi ?? new GoalsApiService(http);
     const storiesApi = options.storiesApi ?? new StoriesApiService(http);
     this.taskRelationCatalog =
@@ -62,6 +61,12 @@ export class FlowsApp {
         store.patchFlowTask(flowId, taskRef, patch),
       taskRelationCatalog: this.taskRelationCatalog,
       onPatchFlow: (flowId, patch) => store.patchFlow(flowId, patch),
+      onCreateCurrentFlowFocus: (flowId, payload) =>
+        store.createCurrentFlowFocus(flowId, payload),
+      onPatchFlowFocus: (flowId, focusId, payload) =>
+        store.patchFlowFocus(flowId, focusId, payload),
+      onCompleteFlowFocus: (flowId, focusId, payload) =>
+        store.completeFlowFocus(flowId, focusId, payload),
       onReorderFlow: (flowId, insertionIndex) =>
         store.reorderFlowColumns(flowId, insertionIndex),
       onDeleteFlow: (flowId) => store.deleteFlow(flowId),

@@ -4,6 +4,7 @@ export type FlowColumnViewKeys = {
   root: string;
   collapsed: string;
   header: string;
+  focus: string;
   tasks: string;
 };
 
@@ -12,6 +13,7 @@ export type FlowColumnViewRenderer = {
   isCollapsed: (column: FlowColumn) => boolean;
   renderCollapsed: (column: FlowColumn) => HTMLElement;
   renderHeader: (column: FlowColumn) => HTMLElement;
+  renderFocus: (column: FlowColumn) => HTMLElement;
   renderTasksInto: (parent: HTMLElement, column: FlowColumn) => void;
 };
 
@@ -22,6 +24,7 @@ export class FlowColumnView {
   private keys: FlowColumnViewKeys | null = null;
   private collapsedElement: HTMLElement | null = null;
   private headerElement: HTMLElement | null = null;
+  private focusElement: HTMLElement | null = null;
 
   constructor(private readonly renderer: FlowColumnViewRenderer) {
     this.element = document.createElement('section');
@@ -47,6 +50,9 @@ export class FlowColumnView {
     if (this.keys?.header !== nextKeys.header) {
       this.updateHeader(column);
     }
+    if (this.keys?.focus !== nextKeys.focus) {
+      this.updateFocus(column);
+    }
     if (this.keys?.tasks !== nextKeys.tasks) {
       this.updateTasks(column);
     }
@@ -58,6 +64,7 @@ export class FlowColumnView {
     this.keys = null;
     this.collapsedElement = null;
     this.headerElement = null;
+    this.focusElement = null;
   }
 
   private updateCollapsed(column: FlowColumn): void {
@@ -78,6 +85,16 @@ export class FlowColumnView {
       this.expandedElement.insertBefore(nextHeader, this.taskListElement);
     }
     this.headerElement = nextHeader;
+  }
+
+  private updateFocus(column: FlowColumn): void {
+    const nextFocus = this.renderer.renderFocus(column);
+    if (this.focusElement) {
+      this.focusElement.replaceWith(nextFocus);
+    } else {
+      this.expandedElement.insertBefore(nextFocus, this.taskListElement);
+    }
+    this.focusElement = nextFocus;
   }
 
   private updateTasks(column: FlowColumn): void {

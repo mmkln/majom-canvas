@@ -3,9 +3,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppRuntime } from '../../../app-runtime/index.ts';
 import {
+  FocusStatus,
+  FocusType,
   Priority,
   Status,
   type Flow,
+  type FlowFocus,
 } from '../../../majom-wrapper/interfaces/index.ts';
 import type { FlowsState } from '../domain/types.ts';
 import { FlowsView } from './FlowsView.ts';
@@ -267,6 +270,149 @@ describe('FlowsView', () => {
       ])
     );
     expect(root.querySelector('.flows-column[data-flow-id="1"]')).toBeNull();
+    view.destroy();
+  });
+
+  it('renders current focus in a separate column section', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const view = new FlowsView(root, createRuntime(), {
+      onCreateFlow: vi.fn(),
+      onPatchFlow: vi.fn(),
+      onReorderFlow: vi.fn(),
+      onDeleteFlow: vi.fn(),
+    });
+
+    view.render(
+      createState({
+        currentFocus: createFocus({
+          type: FocusType.Experiment,
+          title: 'Test offer angle',
+          successCriteria: 'One offer angle is validated.',
+        }),
+      })
+    );
+
+    const focus = root.querySelector<HTMLElement>('.flows-focus-card');
+    expect(focus?.textContent).toContain('Test offer angle');
+    expect(focus?.textContent).not.toContain('Experiment');
+    expect(focus?.textContent).not.toContain('Active');
+    expect(focus?.textContent).not.toContain('One offer angle is validated.');
+    expect(
+      focus
+        ?.querySelector<HTMLElement>('.flows-focus-type-icon')
+        ?.getAttribute('title')
+    ).toBe(
+      'Experiment: Use when the answer is unknown and you need evidence before deciding. Examples: test a new offer, try a pricing angle, validate one automation idea.'
+    );
+    expect(
+      focus?.querySelector<HTMLButtonElement>('[aria-label="Edit focus"]')
+    ).not.toBeNull();
+    expect(
+      focus?.querySelector<HTMLButtonElement>('[aria-label="Complete focus"]')
+    ).toBeNull();
+    view.destroy();
+  });
+
+  it('creates and activates a focus from the flow menu', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const onCreateCurrentFlowFocus = vi.fn(async () => undefined);
+    const view = new FlowsView(root, createRuntime(), {
+      onCreateFlow: vi.fn(),
+      onPatchFlow: vi.fn(),
+      onCreateCurrentFlowFocus,
+      onReorderFlow: vi.fn(),
+      onDeleteFlow: vi.fn(),
+    });
+    view.render(createState({ id: 7, currentFocus: null }));
+
+    root
+      .querySelector<HTMLButtonElement>('.flows-column-menu-trigger')
+      ?.click();
+    Array.from(
+      document.querySelectorAll<HTMLButtonElement>('.flows-column-menu-item')
+    )
+      .find((button) => button.textContent?.includes('Add Focus'))
+      ?.click();
+    const form = root.querySelector<HTMLFormElement>('.flows-focus-modal-form');
+    expect(form).not.toBeNull();
+    const typeDropdown = root.querySelector<HTMLButtonElement>(
+      '.flows-edit-dropdown > button[aria-label="Focus Type"]'
+    );
+    typeDropdown?.click();
+    const missionOption = Array.from(
+      document.querySelectorAll<HTMLButtonElement>(
+        `[data-dropdown-select-item="${FocusType.Mission}"]`
+      )
+    ).find((element) => !element.closest('.hidden'));
+    expect(missionOption?.getAttribute('aria-description')).toBe(
+      'Use when there is a concrete deliverable to finish. Examples: build a mini case study, ship one landing page, document one working automation.'
+    );
+    expect(
+      missionOption
+        ?.querySelector<HTMLElement>('[data-hud-dropdown-hint="true"]')
+        ?.getAttribute('title')
+    ).toBe(
+      'Use when there is a concrete deliverable to finish. Examples: build a mini case study, ship one landing page, document one working automation.'
+    );
+    typeDropdown?.click();
+
+    form!.querySelector<HTMLInputElement>('input[name="title"]')!.value =
+      'Build proof case';
+    form!.querySelector<HTMLTextAreaElement>(
+      'textarea[name="successCriteria"]'
+    )!.value = 'Case can be reused in proposals.';
+    form!.requestSubmit();
+    await flushPromises();
+
+    expect(onCreateCurrentFlowFocus).toHaveBeenCalledWith(7, {
+      type: FocusType.Mission,
+      title: 'Build proof case',
+      description: '',
+      startDate: null,
+      endDate: null,
+      successCriteria: 'Case can be reused in proposals.',
+      evidenceRequired: null,
+      isPrimary: true,
+    });
+    view.destroy();
+  });
+
+  it('patches the current focus from the focus edit modal', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const onPatchFlowFocus = vi.fn(async () => undefined);
+    const focus = createFocus({
+      id: '11111111-1111-4111-8111-111111111113',
+      title: 'Old focus',
+    });
+    const view = new FlowsView(root, createRuntime(), {
+      onCreateFlow: vi.fn(),
+      onPatchFlow: vi.fn(),
+      onPatchFlowFocus,
+      onReorderFlow: vi.fn(),
+      onDeleteFlow: vi.fn(),
+    });
+    view.render(createState({ id: 4, currentFocus: focus }));
+
+    root.querySelector<HTMLButtonElement>('[aria-label="Edit focus"]')?.click();
+    const form = root.querySelector<HTMLFormElement>('.flows-focus-modal-form');
+    form!.querySelector<HTMLInputElement>('input[name="title"]')!.value =
+      'Updated focus';
+    form!.requestSubmit();
+    await flushPromises();
+
+    expect(onPatchFlowFocus).toHaveBeenCalledWith(4, focus.id, {
+      type: FocusType.Mission,
+      title: 'Updated focus',
+      description: '',
+      startDate: null,
+      endDate: null,
+      successCriteria: 'Criteria',
+      evidenceRequired: null,
+      isPrimary: true,
+    });
     view.destroy();
   });
 
@@ -1398,6 +1544,27 @@ function createFlow(overrides: Partial<Flow> = {}): Flow {
     status: overrides.status ?? Status.Active,
     meta: overrides.meta ?? { existing: 'kept' },
     tasks: overrides.tasks ?? [],
+    currentFocus: overrides.currentFocus ?? null,
+  };
+}
+
+function createFocus(overrides: Partial<FlowFocus> = {}): FlowFocus {
+  return {
+    id: overrides.id ?? '11111111-1111-4111-8111-111111111111',
+    flowId: overrides.flowId ?? '22222222-2222-4222-8222-222222222222',
+    type: overrides.type ?? FocusType.Mission,
+    title: overrides.title ?? 'Focus',
+    description: overrides.description ?? '',
+    status: overrides.status ?? FocusStatus.Active,
+    startDate: overrides.startDate ?? null,
+    endDate: overrides.endDate ?? null,
+    successCriteria: overrides.successCriteria ?? 'Criteria',
+    evidenceRequired: overrides.evidenceRequired ?? null,
+    evidence: overrides.evidence ?? null,
+    closeReason: overrides.closeReason ?? null,
+    isPrimary: overrides.isPrimary ?? true,
+    createdAt: overrides.createdAt ?? '2026-05-18T00:00:00Z',
+    updatedAt: overrides.updatedAt ?? '2026-05-18T00:00:00Z',
   };
 }
 
