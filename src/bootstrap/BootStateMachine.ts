@@ -2,8 +2,16 @@ import type { BootEvent, BootState } from './BootState.ts';
 
 export function nextBootState(current: BootState, event: BootEvent): BootState {
   if (event === 'logout') return 'landing';
+  if (event === 'session_restore_failed') return 'landing';
 
   switch (current) {
+    case 'checking_session':
+      if (event === 'session_found' || event === 'login_success') {
+        return 'booting';
+      }
+      if (event === 'session_missing') return 'landing';
+      if (event === 'sign_in_requested') return 'login_required';
+      return 'checking_session';
     case 'landing':
       if (event === 'session_found' || event === 'login_success') {
         return 'booting';

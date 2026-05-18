@@ -28,6 +28,7 @@ export class PublicLandingPage {
   }
 
   public show(parent: HTMLElement = document.body): void {
+    document.documentElement.removeAttribute('data-majom-auth-restore');
     if (!this.root.isConnected) {
       parent.prepend(this.root);
     }

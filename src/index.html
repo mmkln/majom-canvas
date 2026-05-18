@@ -28,6 +28,25 @@
     <meta name="apple-mobile-web-app-title" content="Majom" />
     <link rel="manifest" href="/site.webmanifest" />
     <link href="./styles.css" rel="stylesheet" />
+    <style>
+        html[data-majom-auth-restore="pending"] #majom-public-landing {
+            display: none;
+        }
+        html[data-majom-auth-restore="pending"] body {
+            background: #f8fafc;
+        }
+    </style>
+    <script>
+    (function () {
+      try {
+        var token = window.localStorage && window.localStorage.getItem('refresh');
+        if (!token) return;
+        document.documentElement.setAttribute('data-majom-auth-restore', 'pending');
+      } catch (error) {
+        document.documentElement.removeAttribute('data-majom-auth-restore');
+      }
+    })();
+    </script>
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",

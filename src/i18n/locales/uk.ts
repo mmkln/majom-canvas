@@ -826,6 +826,8 @@ export const uk = {
   'notes.unpin': 'Відкріпити нотатку',
   'notes.unsaved': 'Є незбережені зміни',
   'notes.updatedAt': 'Оновлено {date}',
+  'auth.sessionExpired':
+    'Вибачте, ваша сесія завершилася. Увійдіть ще раз.',
   'loading.canvasFailed':
     'Не вдалося завантажити дані canvas. Спробуйте ще раз.',
   'login.accessLimited': 'Доступ зараз обмежений, поки Majom на ранньому етапі розробки.',

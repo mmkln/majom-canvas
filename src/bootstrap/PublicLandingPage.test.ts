@@ -16,11 +16,15 @@ describe('PublicLandingPage', () => {
     const onSignIn = vi.fn();
     const landingPage = new PublicLandingPage({ onSignIn });
 
+    document.documentElement.setAttribute('data-majom-auth-restore', 'pending');
     landingPage.show();
     const signInButton = document.querySelector<HTMLButtonElement>(
       '[data-landing-action="sign-in"]'
     );
 
+    expect(document.documentElement.hasAttribute('data-majom-auth-restore')).toBe(
+      false
+    );
     expect(signInButton?.getAttribute('data-component')).toBe('HudTextButton');
     signInButton?.click();
 

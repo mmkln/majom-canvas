@@ -812,6 +812,7 @@ export const en = {
   'notes.unpin': 'Unpin note',
   'notes.unsaved': 'Unsaved changes',
   'notes.updatedAt': 'Updated {date}',
+  'auth.sessionExpired': 'Sorry, your session has expired. Please sign in again.',
   'loading.canvasFailed': 'Failed to load canvas data. Please try again.',
   'login.accessLimited': 'Access is currently limited while Majom is in early development.',
   'login.backToOverview': 'Back to overview',

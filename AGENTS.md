@@ -112,6 +112,7 @@
 - Do not add client-side route paths or route-based navigation flows unless the user explicitly changes this project constraint.
 - Model landing, login, and authenticated workspace as app states inside the SPA, not as separate URL routes.
 - SEO work must support the single root URL first; additional indexed content should live in a separate marketing/docs surface if multi-page SEO is needed later.
+- When a stored authenticated session token may exist, do not show or paint the public landing before session validation resolves; hide the static landing with an early guard, show the existing loading screen while the SPA restores the session, and return to the landing with a session-expired toast if restore fails.
 - Use `Majom` as the public product name. Do not introduce new user-facing copy that uses the legacy two-word product name unless the user explicitly asks for it.
 - When the user provides a product screenshot for landing, preview, OG, or other marketing assets, use that exact source image once a local path is available. Do not generate or approximate a replacement unless the user explicitly asks for a generated asset.
 
