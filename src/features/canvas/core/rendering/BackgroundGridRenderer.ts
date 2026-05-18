@@ -1,8 +1,12 @@
 import type { PanZoomManager } from '../managers/PanZoomManager.ts';
+import {
+  DEFAULT_CANVAS_THEME,
+  type CanvasBackgroundPalette,
+} from '../../theme/canvasTheme.ts';
 
 type GridConfig = {
   radius: number;
-  color: string;
+  lineColor: string;
   alpha: number;
 };
 
@@ -18,6 +22,8 @@ type BackgroundSnapshot = {
   scrollX: number;
   scrollY: number;
   scaleBucket: number;
+  backgroundSurface: string;
+  gridLineColor: string;
 };
 
 type DrawInput = {
@@ -25,6 +31,7 @@ type DrawInput = {
   panZoom: PanZoomManager;
   viewportWidth: number;
   viewportHeight: number;
+  background: CanvasBackgroundPalette;
 };
 
 const roundToPrecision = (value: number, precision: number): number =>
@@ -36,16 +43,24 @@ export class BackgroundGridRenderer {
   private readonly zoomBucketStep = 0.1;
   private lastSnapshot: BackgroundSnapshot | null = null;
 
-  public draw({ ctx, panZoom, viewportWidth, viewportHeight }: DrawInput): void {
+  public draw({
+    ctx,
+    panZoom,
+    viewportWidth,
+    viewportHeight,
+    background,
+  }: DrawInput): void {
     const scale = panZoom.scale || 1;
     const scaleBucket = this.toScaleBucket(scale);
-    const config = this.resolveGridConfig(scaleBucket);
+    const config = this.resolveGridConfig(scaleBucket, background);
     const snapshot = this.buildSnapshot({
       viewportWidth,
       viewportHeight,
       scrollX: panZoom.scrollX,
       scrollY: panZoom.scrollY,
       scaleBucket,
+      backgroundSurface: background.surface,
+      gridLineColor: background.gridLine,
     });
     if (this.isSnapshotEqual(this.lastSnapshot, snapshot)) {
       return;
@@ -53,6 +68,8 @@ export class BackgroundGridRenderer {
     this.lastSnapshot = snapshot;
 
     ctx.clearRect(0, 0, viewportWidth, viewportHeight);
+    ctx.fillStyle = background.surface;
+    ctx.fillRect(0, 0, viewportWidth, viewportHeight);
 
     const tileKey = this.buildTileKey(config, scaleBucket);
     const tile = this.getOrCreateTile(tileKey, config, scaleBucket);
@@ -90,33 +107,36 @@ export class BackgroundGridRenderer {
     this.lastSnapshot = null;
   }
 
-  private resolveGridConfig(scale: number): GridConfig {
+  private resolveGridConfig(
+    scale: number,
+    background: CanvasBackgroundPalette = DEFAULT_CANVAS_THEME.background
+  ): GridConfig {
     // Keep the hex grid visible at every zoom level.
     // At low scales we use larger cells and lower alpha to keep fill cost stable.
     if (scale < 0.28) {
       return {
         radius: 150,
-        color: '#d1d5db',
+        lineColor: background.gridLine,
         alpha: 0.1,
       };
     }
     if (scale < 0.55) {
       return {
         radius: 120,
-        color: '#d1d5db',
+        lineColor: background.gridLine,
         alpha: 0.12,
       };
     }
     if (scale < 0.78) {
       return {
         radius: 96,
-        color: '#d1d5db',
+        lineColor: background.gridLine,
         alpha: 0.14,
       };
     }
     return {
       radius: 60,
-      color: '#d1d5db',
+      lineColor: background.gridLine,
       alpha: 0.15,
     };
   }
@@ -129,7 +149,7 @@ export class BackgroundGridRenderer {
   }
 
   private buildTileKey(config: GridConfig, scaleBucket: number): string {
-    return `hex:${config.radius}:${config.alpha}:${scaleBucket.toFixed(2)}`;
+    return `hex:${config.radius}:${config.lineColor}:${config.alpha}:${scaleBucket.toFixed(2)}`;
   }
 
   private getOrCreateTile(
@@ -159,7 +179,7 @@ export class BackgroundGridRenderer {
     }
 
     ctx.clearRect(0, 0, tileWidth, tileHeight);
-    ctx.strokeStyle = this.toRgba(config.color, config.alpha);
+    ctx.strokeStyle = this.toRgba(config.lineColor, config.alpha);
     ctx.lineWidth = Math.max(0.35, 1 / scaleBucket);
 
     for (let x = -horiz; x <= tileWidth + horiz; x += horiz) {
@@ -232,6 +252,8 @@ export class BackgroundGridRenderer {
       scrollX: roundToPrecision(input.scrollX, 0.5),
       scrollY: roundToPrecision(input.scrollY, 0.5),
       scaleBucket: input.scaleBucket,
+      backgroundSurface: input.backgroundSurface,
+      gridLineColor: input.gridLineColor,
     };
   }
 
@@ -245,7 +267,9 @@ export class BackgroundGridRenderer {
       previous.viewportHeight === next.viewportHeight &&
       previous.scrollX === next.scrollX &&
       previous.scrollY === next.scrollY &&
-      previous.scaleBucket === next.scaleBucket
+      previous.scaleBucket === next.scaleBucket &&
+      previous.backgroundSurface === next.backgroundSurface &&
+      previous.gridLineColor === next.gridLineColor
     );
   }
 }

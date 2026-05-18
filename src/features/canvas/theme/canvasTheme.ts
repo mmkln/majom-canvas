@@ -11,7 +11,13 @@ export type CanvasNodePalette = {
   status: Record<ElementStatus, CanvasNodeStatusPalette>;
 };
 
+export type CanvasBackgroundPalette = {
+  surface: string;
+  gridLine: string;
+};
+
 export type CanvasThemePalette = {
+  background: CanvasBackgroundPalette;
   nodes: {
     task: CanvasNodePalette;
     story: CanvasNodePalette;
@@ -54,6 +60,10 @@ export type CanvasThemePalette = {
 };
 
 const lightPalette: CanvasThemePalette = {
+  background: {
+    surface: '#F5F4EF',
+    gridLine: '#DAD9D0',
+  },
   nodes: {
     story: {
       status: {
@@ -118,6 +128,10 @@ const lightPalette: CanvasThemePalette = {
 
 const darkPalette: CanvasThemePalette = {
   ...lightPalette,
+  background: {
+    surface: '#111827',
+    gridLine: '#475569',
+  },
   nodes: {
     story: {
       status: {

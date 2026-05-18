@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BackgroundGridRenderer } from './BackgroundGridRenderer.ts';
+import type { CanvasBackgroundPalette } from '../../theme/canvasTheme.ts';
 
 describe('BackgroundGridRenderer LOD config', () => {
   it('uses coarse cells at very low scales', () => {
@@ -33,6 +34,44 @@ describe('BackgroundGridRenderer LOD config', () => {
   });
 });
 
+describe('BackgroundGridRenderer theme background contract', () => {
+  it('uses the canvas palette grid line color for every LOD config', () => {
+    const renderer = new BackgroundGridRenderer();
+    const background: CanvasBackgroundPalette = {
+      surface: '#F5F4EF',
+      gridLine: '#DAD9D0',
+    };
+    const config = (
+      renderer as unknown as {
+        resolveGridConfig: (
+          scale: number,
+          background: CanvasBackgroundPalette
+        ) => { lineColor: string };
+      }
+    ).resolveGridConfig(0.9, background);
+
+    expect(config.lineColor).toBe(background.gridLine);
+  });
+
+  it('separates cached grid tiles by line color', () => {
+    const renderer = new BackgroundGridRenderer();
+    const buildTileKey = (
+      renderer as unknown as {
+        buildTileKey: (
+          config: { radius: number; lineColor: string; alpha: number },
+          scaleBucket: number
+        ) => string;
+      }
+    ).buildTileKey.bind(renderer);
+
+    expect(
+      buildTileKey({ radius: 60, lineColor: '#DAD9D0', alpha: 0.15 }, 1)
+    ).not.toBe(
+      buildTileKey({ radius: 60, lineColor: '#475569', alpha: 0.15 }, 1)
+    );
+  });
+});
+
 describe('BackgroundGridRenderer scale buckets', () => {
   it('rounds scales to 0.1 buckets', () => {
     const renderer = new BackgroundGridRenderer();
@@ -62,11 +101,15 @@ describe('BackgroundGridRenderer snapshot normalization', () => {
           scrollX: number;
           scrollY: number;
           scaleBucket: number;
+          backgroundSurface: string;
+          gridLineColor: string;
         }) => {
           viewportWidth: number;
           viewportHeight: number;
           scrollX: number;
           scrollY: number;
+          backgroundSurface: string;
+          gridLineColor: string;
         };
       }
     ).buildSnapshot({
@@ -75,11 +118,15 @@ describe('BackgroundGridRenderer snapshot normalization', () => {
       scrollX: 10.24,
       scrollY: -3.26,
       scaleBucket: 0.5,
+      backgroundSurface: '#F5F4EF',
+      gridLineColor: '#DAD9D0',
     });
 
     expect(snapshot.viewportWidth).toBe(1000);
     expect(snapshot.viewportHeight).toBe(701);
     expect(snapshot.scrollX).toBe(10);
     expect(snapshot.scrollY).toBe(-3.5);
+    expect(snapshot.backgroundSurface).toBe('#F5F4EF');
+    expect(snapshot.gridLineColor).toBe('#DAD9D0');
   });
 });

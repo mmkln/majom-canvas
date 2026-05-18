@@ -10,6 +10,7 @@ import { GoalElement } from '../../elements/GoalElement.ts';
 import { TaskElement } from '../../elements/TaskElement.ts';
 import { ElementStatus } from '../../elements/ElementStatus.ts';
 import { CanvasClientStorage } from '../services/CanvasClientStorage.ts';
+import { DEFAULT_CANVAS_THEME } from '../../theme/canvasTheme.ts';
 
 type AnimationLoopHarness = {
   isAnimationRunning: boolean;
@@ -26,6 +27,14 @@ type ViewBounds = {
   minY: number;
   maxX: number;
   maxY: number;
+};
+
+type ThemeUpdateHarness = {
+  canvasTheme: typeof DEFAULT_CANVAS_THEME;
+  renderer: {
+    invalidateBackground: ReturnType<typeof vi.fn>;
+  };
+  requestDraw: ReturnType<typeof vi.fn>;
 };
 
 function createStorageMock(): Storage {
@@ -62,6 +71,17 @@ function runStopAnimationLoop(target: AnimationLoopHarness): void {
       stopAnimationLoop: (this: AnimationLoopHarness) => void;
     }
   ).stopAnimationLoop.call(target);
+}
+
+function runSetCanvasTheme(target: ThemeUpdateHarness): void {
+  (
+    CanvasManager.prototype as unknown as {
+      setCanvasTheme: (
+        this: ThemeUpdateHarness,
+        theme: typeof DEFAULT_CANVAS_THEME
+      ) => void;
+    }
+  ).setCanvasTheme.call(target, DEFAULT_CANVAS_THEME);
 }
 
 type AnimationFpsCapHarness = {
@@ -225,6 +245,24 @@ describe('CanvasManager animation FPS cap', () => {
     expect(harness.isAnimationRunning).toBe(false);
     expect(harness.animationFrameId).toBeNull();
     expect(harness.nextAnimationFrameAtMs).toBe(0);
+  });
+});
+
+describe('CanvasManager theme updates', () => {
+  it('invalidates the background renderer when the canvas palette changes', () => {
+    const harness: ThemeUpdateHarness = {
+      canvasTheme: DEFAULT_CANVAS_THEME,
+      renderer: {
+        invalidateBackground: vi.fn(),
+      },
+      requestDraw: vi.fn(),
+    };
+
+    runSetCanvasTheme(harness);
+
+    expect(harness.canvasTheme).toBe(DEFAULT_CANVAS_THEME);
+    expect(harness.renderer.invalidateBackground).toHaveBeenCalledTimes(1);
+    expect(harness.requestDraw).toHaveBeenCalledTimes(1);
   });
 });
 

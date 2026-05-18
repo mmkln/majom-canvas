@@ -441,14 +441,20 @@ export class CanvasManager {
       this.renderer.drawBackground(
         this.backgroundCtx,
         this.canvas.width,
-        this.canvas.height
+        this.canvas.height,
+        this.canvasTheme.background
       );
       this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     } else {
       this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
       // Fallback path if layered background cannot be created in the DOM.
       this.renderer.invalidateBackground();
-      this.renderer.drawBackground(this.ctx, this.canvas.width, this.canvas.height);
+      this.renderer.drawBackground(
+        this.ctx,
+        this.canvas.width,
+        this.canvas.height,
+        this.canvasTheme.background
+      );
     }
     this.ctx.save();
     this.ctx.translate(-this.panZoom.scrollX, -this.panZoom.scrollY);
@@ -1666,6 +1672,7 @@ export class CanvasManager {
 
   public setCanvasTheme(theme: CanvasThemePalette): void {
     this.canvasTheme = theme;
+    this.renderer.invalidateBackground();
     this.requestDraw();
   }
 
