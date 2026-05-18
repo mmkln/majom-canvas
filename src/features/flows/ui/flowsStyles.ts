@@ -347,6 +347,11 @@ const FLOWS_STYLES = `
   box-shadow: inset 0 0 0 1px #e2e8f0;
 }
 
+.flows-edit-textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
 .flows-appearance-popover {
   display: grid;
   width: 236px;

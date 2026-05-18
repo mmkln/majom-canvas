@@ -228,6 +228,7 @@ export interface Flow {
   readonly id: number;
   readonly uuid?: string;
   title: string;
+  description?: string | null;
   status: Status;
   meta?: FlowMeta;
   tasks: PlatformTask[];

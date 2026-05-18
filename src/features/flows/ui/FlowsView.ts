@@ -60,6 +60,7 @@ import { ensureFlowsStyles } from './flowsStyles.ts';
 
 type FlowEditDraft = {
   title: string;
+  description: string;
   status: Status;
   icon: FlowThemeIcon;
   color: FlowThemeColor;
@@ -1916,6 +1917,14 @@ export class FlowsView {
     });
 
     form.append(this.renderTitleField(column, draft));
+    form.append(
+      this.renderEditTextareaField({
+        name: 'description',
+        label: this.runtime.i18n.t('flows.edit.description'),
+        value: draft.description,
+        placeholder: this.runtime.i18n.t('flows.edit.descriptionPlaceholder'),
+      })
+    );
     if (!isCreate) {
       form.appendChild(
         this.renderEditFieldGrid([
@@ -2285,6 +2294,29 @@ export class FlowsView {
     }).element;
   }
 
+  private renderEditTextareaField(options: {
+    name: string;
+    label: string;
+    value: string;
+    placeholder: string;
+    rows?: number;
+  }): HTMLElement {
+    const textarea = new Textarea({
+      name: options.name,
+      value: options.value,
+      placeholder: options.placeholder,
+      disabled: this.isSubmittingEdit,
+      rows: options.rows ?? 3,
+      className: 'flows-edit-textarea',
+    }).createElement();
+    textarea.dataset.flowDragIgnore = 'true';
+    return createField({
+      label: options.label,
+      control: textarea,
+      disabled: this.isSubmittingEdit,
+    }).element;
+  }
+
   private renderTitleField(
     column: FlowColumn | null,
     draft: FlowEditDraft
@@ -2455,12 +2487,14 @@ export class FlowsView {
       if (column === null) {
         await this.handlers.onCreateFlow({
           title: draft.title,
+          description: draft.description,
           meta: this.writeDraftPresentation(null, draft, null, null),
         });
       } else {
         const presentation = readFlowPresentationSettings(column.flow);
         const patch: FlowUpdatePayload = {
           title: draft.title,
+          description: draft.description,
           meta: this.writeDraftPresentation(
             column.flow.meta,
             draft,
@@ -2505,6 +2539,7 @@ export class FlowsView {
     return this.readDraftFromForm(
       formData,
       this.runtime.i18n.t('flows.defaultFlowTitle'),
+      draft.description,
       draft.icon,
       draft.color,
       draft.status,
@@ -2517,6 +2552,7 @@ export class FlowsView {
     return this.readDraftFromForm(
       formData,
       column.flow.title,
+      draft.description,
       draft.icon,
       draft.color,
       draft.status,
@@ -2527,16 +2563,21 @@ export class FlowsView {
   private readDraftFromForm(
     formData: FormData,
     fallbackTitle: string,
+    fallbackDescription: string,
     fallbackIcon: FlowThemeIcon,
     fallbackColor: FlowThemeColor,
     status: Status,
     priority: FlowPriority | null
   ): FlowEditDraft {
     const title = readFormString(formData, 'title');
+    const description = formData.has('description')
+      ? readFormRawString(formData, 'description').trim()
+      : fallbackDescription;
     const iconValue = readFormString(formData, 'icon');
     const colorValue = readFormString(formData, 'color');
     return {
       title: title || fallbackTitle,
+      description,
       status,
       icon: FLOW_THEME_ICONS.includes(iconValue as FlowThemeIcon)
         ? (iconValue as FlowThemeIcon)
@@ -2553,6 +2594,7 @@ export class FlowsView {
     const presentation = readFlowPresentationSettings(column.flow);
     return {
       title: column.flow.title,
+      description: column.flow.description ?? '',
       status: column.flow.status,
       icon: presentation.icon ?? getFallbackFlowIcon(),
       color: presentation.color ?? getFallbackFlowColor(),
@@ -2564,6 +2606,7 @@ export class FlowsView {
   private createNewFlowDraft(): FlowEditDraft {
     return {
       title: '',
+      description: '',
       status: Status.Draft,
       icon: getFallbackFlowIcon(),
       color: getFallbackFlowColor(),
@@ -3132,6 +3175,11 @@ function isFlowPriority(value: string): value is FlowPriority {
 function readFormString(formData: FormData, name: string): string {
   const value = formData.get(name);
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function readFormRawString(formData: FormData, name: string): string {
+  const value = formData.get(name);
+  return typeof value === 'string' ? value : '';
 }
 
 function emptyToNull(value: string): string | null {

@@ -1060,6 +1060,8 @@ export const uk = {
   'flows.edit.icon': 'Іконка',
   'flows.edit.name': 'Назва flow',
   'flows.edit.namePlaceholder': 'наприклад Project X',
+  'flows.edit.description': 'Опис',
+  'flows.edit.descriptionPlaceholder': 'Опишіть, для чого цей flow',
   'flows.edit.priorityDefault': 'За замовчуванням',
   'flows.edit.save': 'Save',
   'flows.edit.saving': 'Збереження...',

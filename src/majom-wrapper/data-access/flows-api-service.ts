@@ -13,9 +13,9 @@ import type { PaginatedResponse } from './paginated-response.ts';
 type FlowListResponse = PaginatedResponse<Flow> | Flow[];
 
 export type FlowCreatePayload = Pick<Flow, 'title'> &
-  Partial<Pick<Flow, 'status' | 'meta'>>;
+  Partial<Pick<Flow, 'description' | 'status' | 'meta'>>;
 export type FlowUpdatePayload = Partial<
-  Pick<Flow, 'title' | 'status' | 'meta'>
+  Pick<Flow, 'title' | 'description' | 'status' | 'meta'>
 >;
 export type FlowFocusCreatePayload = {
   type: FocusType;

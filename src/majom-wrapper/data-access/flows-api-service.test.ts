@@ -66,6 +66,7 @@ describe('FlowsApiService', () => {
     await firstValueFrom(
       service.createFlow({
         title: 'Automation flow',
+        description: 'Owns automation delivery.',
         status: Status.Draft,
         meta: { view: 'columns' },
       })
@@ -73,26 +74,34 @@ describe('FlowsApiService', () => {
     await firstValueFrom(
       service.updateFlow(7, {
         title: 'Updated automation flow',
+        description: 'Updated delivery notes.',
         status: Status.Active,
         meta: { view: 'timeline' },
       })
     );
     await firstValueFrom(
-      service.patchFlow(7, { status: Status.Archived, meta: null })
+      service.patchFlow(7, {
+        description: '',
+        status: Status.Archived,
+        meta: null,
+      })
     );
     await firstValueFrom(service.deleteFlow(7));
 
     expect(post).toHaveBeenCalledWith('/flows/', {
       title: 'Automation flow',
+      description: 'Owns automation delivery.',
       status: Status.Draft,
       meta: { view: 'columns' },
     });
     expect(put).toHaveBeenCalledWith('/flows/7/', {
       title: 'Updated automation flow',
+      description: 'Updated delivery notes.',
       status: Status.Active,
       meta: { view: 'timeline' },
     });
     expect(patch).toHaveBeenCalledWith('/flows/7/', {
+      description: '',
       status: Status.Archived,
       meta: null,
     });
@@ -310,6 +319,7 @@ function createFlow(overrides: Partial<Flow> = {}): Flow {
   return {
     id: overrides.id ?? 1,
     title: overrides.title ?? 'Flow',
+    description: overrides.description ?? '',
     status: overrides.status ?? Status.Draft,
     meta: overrides.meta ?? null,
     tasks: overrides.tasks ?? [],

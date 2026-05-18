@@ -136,11 +136,13 @@ describe('FlowsStore', () => {
 
     await store.patchFlow(2, {
       title: 'Aardvark',
+      description: 'Updated description',
       meta: { presentation: { color: 'rose' } },
     });
 
     expect(api.patchFlow).toHaveBeenCalledWith(2, {
       title: 'Aardvark',
+      description: 'Updated description',
       meta: { presentation: { color: 'rose' } },
     });
     expect(store.snapshot.columns.map((column) => column.flow.title)).toEqual([
@@ -698,6 +700,7 @@ function createFlow(overrides: Partial<Flow> = {}): Flow {
   return {
     id: overrides.id ?? 1,
     title: overrides.title ?? 'Flow',
+    description: overrides.description ?? '',
     status: overrides.status ?? Status.Draft,
     meta: overrides.meta ?? null,
     tasks: overrides.tasks ?? [],

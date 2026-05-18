@@ -621,6 +621,11 @@ describe('FlowsView', () => {
     if (!statusDropdown || !priorityDropdown) {
       throw new Error('Expected flow settings dropdown controls');
     }
+    const descriptionInput = root.querySelector<HTMLTextAreaElement>(
+      '.flows-edit-dialog textarea[name="description"]'
+    );
+    expect(descriptionInput?.value).toBe('');
+    descriptionInput!.value = 'Updated flow description';
 
     statusDropdown.click();
     clickOpenDropdownOption(Status.Completed);
@@ -636,6 +641,7 @@ describe('FlowsView', () => {
 
     expect(onPatchFlow).toHaveBeenCalledWith(1, {
       title: 'Launch flow',
+      description: 'Updated flow description',
       status: Status.Completed,
       meta: {
         existing: 'kept',
@@ -1071,6 +1077,11 @@ describe('FlowsView', () => {
     );
     expect(titleInput?.value).toBe('');
     titleInput!.value = 'Customer onboarding';
+    const descriptionInput = root.querySelector<HTMLTextAreaElement>(
+      '.flows-edit-dialog textarea[name="description"]'
+    );
+    expect(descriptionInput?.value).toBe('');
+    descriptionInput!.value = 'Owns onboarding delivery.';
 
     root
       .querySelector<HTMLButtonElement>('.flows-edit-title-icon-button')
@@ -1089,6 +1100,7 @@ describe('FlowsView', () => {
 
     expect(onCreateFlow).toHaveBeenCalledWith({
       title: 'Customer onboarding',
+      description: 'Owns onboarding delivery.',
       meta: {
         presentation: {
           icon: 'folder',
@@ -1625,6 +1637,7 @@ function createFlow(overrides: Partial<Flow> = {}): Flow {
   return {
     id: overrides.id ?? 1,
     title: overrides.title ?? 'Launch flow',
+    description: overrides.description ?? '',
     status: overrides.status ?? Status.Active,
     meta: overrides.meta ?? { existing: 'kept' },
     tasks: overrides.tasks ?? [],

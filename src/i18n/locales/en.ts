@@ -1045,6 +1045,8 @@ export const en = {
   'flows.edit.icon': 'Icon',
   'flows.edit.name': 'Flow Name',
   'flows.edit.namePlaceholder': 'e.g. Project X',
+  'flows.edit.description': 'Description',
+  'flows.edit.descriptionPlaceholder': 'Describe what this flow is for',
   'flows.edit.priorityDefault': 'Default',
   'flows.edit.save': 'Save',
   'flows.edit.saving': 'Saving...',
