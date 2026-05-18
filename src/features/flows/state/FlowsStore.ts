@@ -40,6 +40,11 @@ const FLOW_TASK_CREATE_DEFAULTS = {
   priority: Priority.Medium,
   is_standalone: true,
 } as const;
+const HIDDEN_FLOW_TASK_STATUSES = new Set<Status>([
+  Status.Archived,
+  Status.Cancelled,
+  Status.Completed,
+]);
 
 const INITIAL_STATE: FlowsState = {
   columns: [],
@@ -169,13 +174,19 @@ export class FlowsStore {
     );
     if (!column) return;
 
+    if (!isVisibleFlowTask(created)) {
+      this.patchColumn(flowId, {
+        taskStatus: 'ready',
+        taskError: null,
+      });
+      return;
+    }
+
     this.patchColumn(flowId, {
       tasks: appendUniqueTask(column.tasks, created),
       taskStatus: 'ready',
       taskError: null,
-      openTaskCount: created.is_completed
-        ? column.openTaskCount
-        : column.openTaskCount + 1,
+      openTaskCount: column.openTaskCount + 1,
     });
   }
 
@@ -353,11 +364,12 @@ export class FlowsStore {
         })
       );
       if (version !== this.loadVersion) return;
+      const visibleTasks = response.results.filter(isVisibleFlowTask);
       this.patchColumn(flow.id, {
-        tasks: response.results,
+        tasks: visibleTasks,
         taskStatus: 'ready',
         taskError: null,
-        openTaskCount: response.count,
+        openTaskCount: resolveVisibleTaskCount(response, visibleTasks.length),
       });
     } catch {
       if (version !== this.loadVersion) return;
@@ -475,6 +487,26 @@ function isSameTask(
   return getTaskRef(task) === String(ref) || String(task.id) === String(ref);
 }
 
+function isVisibleFlowTask(
+  task: Pick<FlowTaskListItem, 'status' | 'is_completed'>
+): boolean {
+  return !task.is_completed && !HIDDEN_FLOW_TASK_STATUSES.has(task.status);
+}
+
+function isVisibleTaskModel(
+  task: Pick<TaskEditModel, 'status' | 'isCompleted'>
+): boolean {
+  return !task.isCompleted && !HIDDEN_FLOW_TASK_STATUSES.has(task.status);
+}
+
+function resolveVisibleTaskCount(
+  response: { count: number; results: FlowTaskListItem[] },
+  visiblePageCount: number
+): number {
+  const hiddenPageCount = response.results.length - visiblePageCount;
+  return Math.max(0, response.count - hiddenPageCount);
+}
+
 function applyTaskPatchToColumn(
   column: FlowColumn,
   taskRef: PlatformTask['id'] | NonNullable<PlatformTask['uuid']>,
@@ -483,7 +515,7 @@ function applyTaskPatchToColumn(
   const previousTask = column.tasks.find((task) => isSameTask(task, taskRef));
   if (!previousTask) return {};
   const nextTask = applyTaskPatchToListItem(previousTask, patch);
-  if (nextTask.is_completed) {
+  if (!isVisibleFlowTask(nextTask)) {
     return {
       tasks: column.tasks.filter((task) => !isSameTask(task, taskRef)),
       openTaskCount: Math.max(0, column.openTaskCount - 1),
@@ -504,7 +536,7 @@ function applyTaskModelToColumn(
   const exists = column.tasks.some((candidate) =>
     isSameTask(candidate, taskRef)
   );
-  if (task.isCompleted) {
+  if (!isVisibleTaskModel(task)) {
     return {
       tasks: column.tasks.filter(
         (candidate) => !isSameTask(candidate, taskRef)

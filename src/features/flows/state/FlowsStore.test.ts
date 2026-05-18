@@ -51,6 +51,42 @@ describe('FlowsStore', () => {
     expect(store.snapshot.columns[0]?.tasks[0]?.title).toBe('Task 1');
   });
 
+  it('does not publish cancelled tasks in flow columns', async () => {
+    const api = {
+      getFlows: vi.fn(() => of([createFlow({ id: 1, title: 'Alpha' })])),
+      getFlowTasks: vi.fn(() =>
+        of({
+          count: 2,
+          next: null,
+          previous: null,
+          results: [
+            createTask({ id: 10, title: 'Active task' }),
+            createTask({
+              id: 11,
+              title: 'Cancelled task',
+              status: Status.Cancelled,
+              is_completed: false,
+            }),
+          ],
+        })
+      ),
+      createFlowTask: vi.fn(),
+      getTask: vi.fn(),
+      patchTask: vi.fn(),
+      createFlow: vi.fn(),
+      patchFlow: vi.fn(),
+      deleteFlow: vi.fn(),
+    };
+    const store = new FlowsStore(api);
+
+    await store.load();
+
+    expect(store.snapshot.columns[0]?.tasks.map((task) => task.title)).toEqual([
+      'Active task',
+    ]);
+    expect(store.snapshot.columns[0]?.openTaskCount).toBe(1);
+  });
+
   it('publishes a load error state when the backend request fails', async () => {
     const store = new FlowsStore({
       getFlows: vi.fn(() => throwError(() => new Error('network'))),
@@ -412,6 +448,47 @@ describe('FlowsStore', () => {
       goal_id: 7,
       story_id: 17,
     });
+    expect(store.snapshot.columns[0]?.tasks).toEqual([]);
+    expect(store.snapshot.columns[0]?.openTaskCount).toBe(0);
+  });
+
+  it('removes a flow task from open tasks when cancelled', async () => {
+    const api = {
+      getFlows: vi.fn(() => of([createFlow({ id: 1, title: 'Alpha' })])),
+      getFlowTasks: vi.fn(() =>
+        of({
+          count: 1,
+          next: null,
+          previous: null,
+          results: [
+            createTask({ id: 10, uuid: 'task-10', title: 'Open task' }),
+          ],
+        })
+      ),
+      createFlowTask: vi.fn(),
+      getTask: vi.fn(),
+      patchTask: vi.fn(() =>
+        of(
+          createFullTask({
+            id: 10,
+            uuid: 'task-10',
+            title: 'Cancelled task',
+            status: Status.Cancelled,
+            is_completed: false,
+          })
+        )
+      ),
+      createFlow: vi.fn(),
+      patchFlow: vi.fn(),
+      deleteFlow: vi.fn(),
+    };
+    const store = new FlowsStore(api);
+    await store.load();
+
+    await store.patchFlowTask(1, 'task-10', {
+      status: Status.Cancelled,
+    });
+
     expect(store.snapshot.columns[0]?.tasks).toEqual([]);
     expect(store.snapshot.columns[0]?.openTaskCount).toBe(0);
   });
