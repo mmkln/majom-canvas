@@ -11,6 +11,7 @@ import type {
   FlowFocusPatchPayload,
   FlowCreatePayload,
   FlowsApiService,
+  FlowTaskCreatePayload,
   FlowTaskListItem,
   FlowUpdatePayload,
 } from '../../../majom-wrapper/data-access/flows-api-service.ts';
@@ -80,7 +81,8 @@ export class FlowsStore {
       | 'createFlow'
       | 'patchFlow'
       | 'deleteFlow'
-    >
+    > &
+      Partial<Pick<FlowsApiService, 'deleteTask'>>
   ) {}
 
   public get snapshot(): FlowsState {
@@ -158,16 +160,13 @@ export class FlowsStore {
 
   public async createFlowTask(
     flowId: Flow['id'],
-    title: string
+    input: string | TaskEditPatch
   ): Promise<void> {
-    const normalizedTitle = title.trim();
-    if (!normalizedTitle) return;
+    const payload = createFlowTaskPayload(input);
+    if (!payload) return;
 
     const created = await firstValueFrom(
-      this.api.createFlowTask(flowId, {
-        title: normalizedTitle,
-        ...FLOW_TASK_CREATE_DEFAULTS,
-      })
+      this.api.createFlowTask(flowId, payload)
     );
     const column = this.snapshot.columns.find(
       (candidate) => candidate.flow.id === flowId
@@ -234,6 +233,29 @@ export class FlowsStore {
         this.patchColumn(flowId, applyTaskModelToColumn(currentColumn, model));
       }
       return model;
+    } catch (error) {
+      this.patchState({ columns: previousColumns });
+      throw error;
+    }
+  }
+
+  public async deleteFlowTask(
+    flowId: Flow['id'],
+    taskRef: PlatformTask['id'] | NonNullable<PlatformTask['uuid']>
+  ): Promise<void> {
+    const previousColumns = this.snapshot.columns;
+    const previousColumn = previousColumns.find(
+      (column) => column.flow.id === flowId
+    );
+    if (previousColumn) {
+      this.patchColumn(flowId, removeTaskFromColumn(previousColumn, taskRef));
+    }
+
+    try {
+      if (!this.api.deleteTask) {
+        throw new Error('Task delete port is not available.');
+      }
+      await firstValueFrom(this.api.deleteTask(taskRef));
     } catch (error) {
       this.patchState({ columns: previousColumns });
       throw error;
@@ -430,6 +452,23 @@ export class FlowsStore {
   }
 }
 
+function createFlowTaskPayload(
+  input: string | TaskEditPatch
+): FlowTaskCreatePayload | null {
+  if (typeof input === 'string') {
+    const title = input.trim();
+    return title ? { title, ...FLOW_TASK_CREATE_DEFAULTS } : null;
+  }
+  const patch = normalizeTaskEditPatch(input);
+  const title = patch.title?.trim();
+  if (!title) return null;
+  return {
+    ...FLOW_TASK_CREATE_DEFAULTS,
+    ...taskEditPatchToPlatformTaskPatch(patch),
+    title,
+  };
+}
+
 function normalizeColumns(columns: FlowColumn[]): FlowColumn[] {
   return [...columns].sort((left, right) =>
     compareFlowsForDisplay(left.flow, right.flow)
@@ -516,10 +555,7 @@ function applyTaskPatchToColumn(
   if (!previousTask) return {};
   const nextTask = applyTaskPatchToListItem(previousTask, patch);
   if (!isVisibleFlowTask(nextTask)) {
-    return {
-      tasks: column.tasks.filter((task) => !isSameTask(task, taskRef)),
-      openTaskCount: Math.max(0, column.openTaskCount - 1),
-    };
+    return removeTaskFromColumn(column, taskRef);
   }
   return {
     tasks: column.tasks.map((task) =>
@@ -537,14 +573,7 @@ function applyTaskModelToColumn(
     isSameTask(candidate, taskRef)
   );
   if (!isVisibleTaskModel(task)) {
-    return {
-      tasks: column.tasks.filter(
-        (candidate) => !isSameTask(candidate, taskRef)
-      ),
-      openTaskCount: exists
-        ? Math.max(0, column.openTaskCount - 1)
-        : column.openTaskCount,
-    };
+    return removeTaskFromColumn(column, taskRef);
   }
   const listItem = taskEditModelToListItem(task);
   return {
@@ -554,6 +583,21 @@ function applyTaskModelToColumn(
         )
       : [...column.tasks, listItem],
     openTaskCount: exists ? column.openTaskCount : column.openTaskCount + 1,
+  };
+}
+
+function removeTaskFromColumn(
+  column: FlowColumn,
+  taskRef: PlatformTask['id'] | NonNullable<PlatformTask['uuid']>
+): Partial<Omit<FlowColumn, 'flow'>> {
+  const exists = column.tasks.some((candidate) =>
+    isSameTask(candidate, taskRef)
+  );
+  return {
+    tasks: column.tasks.filter((candidate) => !isSameTask(candidate, taskRef)),
+    openTaskCount: exists
+      ? Math.max(0, column.openTaskCount - 1)
+      : column.openTaskCount,
   };
 }
 

@@ -48,6 +48,7 @@ export type TaskEditCapabilities = Partial<{
   dueDate: boolean;
   goal: boolean;
   story: boolean;
+  delete: boolean;
 }>;
 
 export const TASK_EDIT_STATUS_VALUES = [

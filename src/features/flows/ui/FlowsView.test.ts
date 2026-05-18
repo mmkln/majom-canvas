@@ -11,6 +11,7 @@ import {
   type FlowFocus,
 } from '../../../majom-wrapper/interfaces/index.ts';
 import type { FlowsState } from '../domain/types.ts';
+import type { TaskEditModel } from '../../tasks/index.ts';
 import { FlowsView } from './FlowsView.ts';
 
 function createRuntime(): AppRuntime {
@@ -62,6 +63,7 @@ function createDragEvent(
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   document.body.innerHTML = '';
 });
 
@@ -376,6 +378,58 @@ describe('FlowsView', () => {
       evidenceRequired: null,
       isPrimary: true,
     });
+    view.destroy();
+  });
+
+  it('opens the create task modal from the flow menu and saves into the flow', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const onCreateTask = vi.fn(async () => undefined);
+    const view = new FlowsView(root, createRuntime(), {
+      onCreateFlow: vi.fn(),
+      onCreateTask,
+      onPatchFlow: vi.fn(),
+      onReorderFlow: vi.fn(),
+      onDeleteFlow: vi.fn(),
+    });
+    view.render(createState());
+
+    root
+      .querySelector<HTMLButtonElement>('.flows-column-menu-trigger')
+      ?.click();
+    const menuItems = Array.from(
+      document.querySelectorAll<HTMLButtonElement>('.flows-column-menu-item')
+    );
+    expect(menuItems.map((button) => button.textContent)).toEqual([
+      'Edit',
+      'Add Focus',
+      'Add Task',
+      'Hide flow',
+      'Delete',
+    ]);
+    menuItems.find((button) => button.textContent === 'Add Task')?.click();
+
+    expect(document.querySelector('.flows-column-menu')).toBeNull();
+    expect(document.querySelector('.task-edit-modal-form')).not.toBeNull();
+    expect(
+      document.querySelector<HTMLElement>('[data-component="ModalContainer"]')
+        ?.textContent
+    ).toContain('Add Task');
+
+    const titleInput = document.querySelector<HTMLInputElement>(
+      '.task-edit-modal-input'
+    );
+    titleInput!.value = 'Created from menu';
+    titleInput!.dispatchEvent(new Event('input', { bubbles: true }));
+    Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent === 'Save')
+      ?.click();
+    await flushPromises();
+
+    expect(onCreateTask).toHaveBeenCalledWith(1, {
+      title: 'Created from menu',
+    });
+    expect(document.querySelector('.task-edit-modal-form')).toBeNull();
     view.destroy();
   });
 
@@ -768,6 +822,36 @@ describe('FlowsView', () => {
       1,
       '00000000-0000-4000-8000-000000000010',
       { title: 'Updated task' }
+    );
+    expect(document.querySelector('.task-edit-modal-form')).toBeNull();
+    view.destroy();
+  });
+
+  it('wires task deletion from the shared task edit modal', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const onDeleteTask = vi.fn(async () => undefined);
+    const view = new FlowsView(root, createRuntime(), {
+      onCreateFlow: vi.fn(),
+      onPatchTask: vi.fn(async () => createTaskEditModel()),
+      onDeleteTask,
+      onPatchFlow: vi.fn(),
+      onReorderFlow: vi.fn(),
+      onDeleteFlow: vi.fn(),
+    });
+    view.render(createState());
+
+    root.querySelector<HTMLButtonElement>('.flows-task-card')?.click();
+    document
+      .querySelector<HTMLButtonElement>('button[aria-label="Task actions"]')
+      ?.click();
+    document.querySelector<HTMLButtonElement>('[data-task-edit-delete]')?.click();
+    await flushPromises();
+
+    expect(onDeleteTask).toHaveBeenCalledWith(
+      1,
+      '00000000-0000-4000-8000-000000000010'
     );
     expect(document.querySelector('.task-edit-modal-form')).toBeNull();
     view.destroy();
@@ -1579,5 +1663,24 @@ function createTask(
     priority: overrides.priority ?? Priority.Medium,
     due_date: overrides.due_date ?? null,
     is_completed: overrides.is_completed ?? false,
+  };
+}
+
+function createTaskEditModel(
+  overrides: Partial<TaskEditModel> = {}
+): TaskEditModel {
+  return {
+    id: overrides.id ?? 10,
+    uuid: overrides.uuid ?? '00000000-0000-4000-8000-000000000010',
+    title: overrides.title ?? 'Open task',
+    description: overrides.description ?? '',
+    status: overrides.status ?? Status.Active,
+    priority: overrides.priority ?? Priority.Medium,
+    dueDate: overrides.dueDate ?? null,
+    isCompleted: overrides.isCompleted ?? false,
+    goalId: overrides.goalId ?? null,
+    goal: overrides.goal ?? null,
+    storyId: overrides.storyId ?? null,
+    story: overrides.story ?? null,
   };
 }

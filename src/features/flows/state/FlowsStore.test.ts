@@ -379,6 +379,54 @@ describe('FlowsStore', () => {
     expect(store.snapshot.columns[0]?.openTaskCount).toBe(2);
   });
 
+  it('creates a flow task from a task modal patch', async () => {
+    const api = {
+      getFlows: vi.fn(() => of([createFlow({ id: 1, title: 'Alpha' })])),
+      getFlowTasks: vi.fn(() =>
+        of({ count: 0, next: null, previous: null, results: [] })
+      ),
+      createFlowTask: vi.fn((_flowId: number, payload: any) =>
+        of(
+          createTask({
+            id: 12,
+            title: payload.title,
+            status: payload.status,
+            priority: payload.priority,
+            due_date: payload.due_date,
+          })
+        )
+      ),
+      getTask: vi.fn(),
+      patchTask: vi.fn(),
+      createFlow: vi.fn(),
+      patchFlow: vi.fn(),
+      deleteFlow: vi.fn(),
+    };
+    const store = new FlowsStore(api);
+    await store.load();
+
+    await store.createFlowTask(1, {
+      title: '  Modal task  ',
+      description: 'Details',
+      status: Status.Active,
+      priority: Priority.High,
+      dueDate: '2026-05-18',
+    });
+
+    expect(api.createFlowTask).toHaveBeenCalledWith(1, {
+      title: 'Modal task',
+      description: 'Details',
+      status: Status.Active,
+      priority: Priority.High,
+      due_date: '2026-05-18',
+      is_completed: false,
+      is_standalone: true,
+    });
+    expect(store.snapshot.columns[0]?.tasks.map((task) => task.title)).toEqual([
+      'Modal task',
+    ]);
+  });
+
   it('loads full task details for a flow task edit modal', async () => {
     const api = {
       getFlows: vi.fn(() => of([createFlow({ id: 1, title: 'Alpha' })])),
@@ -489,6 +537,37 @@ describe('FlowsStore', () => {
       status: Status.Cancelled,
     });
 
+    expect(store.snapshot.columns[0]?.tasks).toEqual([]);
+    expect(store.snapshot.columns[0]?.openTaskCount).toBe(0);
+  });
+
+  it('deletes a flow task and removes it from the open task list', async () => {
+    const api = {
+      getFlows: vi.fn(() => of([createFlow({ id: 1, title: 'Alpha' })])),
+      getFlowTasks: vi.fn(() =>
+        of({
+          count: 1,
+          next: null,
+          previous: null,
+          results: [
+            createTask({ id: 10, uuid: 'task-10', title: 'Open task' }),
+          ],
+        })
+      ),
+      createFlowTask: vi.fn(),
+      getTask: vi.fn(),
+      patchTask: vi.fn(),
+      deleteTask: vi.fn(() => of(undefined)),
+      createFlow: vi.fn(),
+      patchFlow: vi.fn(),
+      deleteFlow: vi.fn(),
+    };
+    const store = new FlowsStore(api);
+    await store.load();
+
+    await store.deleteFlowTask(1, 'task-10');
+
+    expect(api.deleteTask).toHaveBeenCalledWith('task-10');
     expect(store.snapshot.columns[0]?.tasks).toEqual([]);
     expect(store.snapshot.columns[0]?.openTaskCount).toBe(0);
   });

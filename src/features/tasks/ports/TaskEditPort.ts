@@ -24,6 +24,7 @@ export type TaskEditRepositoryPort = {
   saveTaskPatch: (
     patch: TaskEditPatch
   ) => Promise<TaskEditModel | void>;
+  deleteTask?: () => Promise<void>;
 };
 
 export type TaskRelationCatalogPort = {

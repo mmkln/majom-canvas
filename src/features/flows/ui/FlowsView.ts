@@ -144,7 +144,10 @@ const FOCUS_TYPES = [
 
 type FlowsViewHandlers = {
   onCreateFlow: (payload: FlowCreatePayload) => Promise<void> | void;
-  onCreateTask?: (flowId: Flow['id'], title: string) => Promise<void> | void;
+  onCreateTask?: (
+    flowId: Flow['id'],
+    input: string | TaskEditPatch
+  ) => Promise<void> | void;
   onLoadTask?: (
     flowId: Flow['id'],
     taskRef: PlatformTask['id'] | NonNullable<PlatformTask['uuid']>
@@ -154,6 +157,10 @@ type FlowsViewHandlers = {
     taskRef: PlatformTask['id'] | NonNullable<PlatformTask['uuid']>,
     patch: TaskEditPatch
   ) => Promise<TaskEditModel>;
+  onDeleteTask?: (
+    flowId: Flow['id'],
+    taskRef: PlatformTask['id'] | NonNullable<PlatformTask['uuid']>
+  ) => Promise<void> | void;
   taskRelationCatalog?: TaskRelationCatalogPort;
   onPatchFlow: (
     flowId: Flow['id'],
@@ -1439,6 +1446,12 @@ export class FlowsView {
         onClick: () => this.openFocusCreateModal(column),
       }),
       this.renderColumnMenuItem({
+        label: this.runtime.i18n.t('flows.tasks.add'),
+        icon: 'check-box',
+        disabled: !this.handlers.onCreateTask,
+        onClick: () => this.openTaskComposerFromMenu(column),
+      }),
+      this.renderColumnMenuItem({
         label: this.runtime.i18n.t('flows.actions.hideFlow'),
         icon: 'eye-slash',
         onClick: () => {
@@ -1526,6 +1539,11 @@ export class FlowsView {
     };
     this.editError = null;
     this.renderCurrent();
+  }
+
+  private openTaskComposerFromMenu(column: FlowColumn): void {
+    this.closeColumnMenu();
+    this.openTaskCreateModal(column);
   }
 
   private openCreateModal(): void {
@@ -1677,6 +1695,34 @@ export class FlowsView {
     return result.element;
   }
 
+  private openTaskCreateModal(column: FlowColumn): void {
+    if (!this.handlers.onCreateTask) return;
+    this.closeTaskEditModal();
+    const modal = new TaskEditModal({
+      task: createFlowTaskCreateModel(),
+      labels: {
+        ...this.getTaskEditModalLabels(),
+        title: this.runtime.i18n.t('flows.tasks.add'),
+      },
+      capabilities: {
+        delete: false,
+      },
+      port: {
+        saveTaskPatch: (patch) =>
+          Promise.resolve(this.handlers.onCreateTask!(column.flow.id, patch)),
+        searchGoals: this.handlers.taskRelationCatalog?.searchGoals,
+        searchStories: this.handlers.taskRelationCatalog?.searchStories,
+      },
+      onClose: () => {
+        if (this.taskEditModal === modal) {
+          this.taskEditModal = null;
+        }
+      },
+    });
+    this.taskEditModal = modal;
+    modal.show();
+  }
+
   private openTaskEditModal(
     column: FlowColumn,
     task: FlowColumn['tasks'][number]
@@ -1693,6 +1739,12 @@ export class FlowsView {
           : undefined,
         saveTaskPatch: (patch) =>
           this.handlers.onPatchTask!(column.flow.id, taskRef, patch),
+        deleteTask: this.handlers.onDeleteTask
+          ? () =>
+              Promise.resolve(
+                this.handlers.onDeleteTask!(column.flow.id, taskRef)
+              )
+          : undefined,
         searchGoals: this.handlers.taskRelationCatalog?.searchGoals,
         searchStories: this.handlers.taskRelationCatalog?.searchStories,
       },
@@ -1743,10 +1795,18 @@ export class FlowsView {
       cancel: this.runtime.i18n.t('common.cancel'),
       save: this.runtime.i18n.t('common.save'),
       saving: this.runtime.i18n.t('tasks.edit.saving'),
+      closeLabel: this.runtime.i18n.t('common.close'),
       loading: this.runtime.i18n.t('tasks.edit.loading'),
       loadError: this.runtime.i18n.t('tasks.edit.errors.load'),
       saveError: this.runtime.i18n.t('tasks.edit.errors.save'),
+      deleteError: this.runtime.i18n.t('tasks.edit.errors.delete'),
       titleRequired: this.runtime.i18n.t('tasks.edit.errors.titleRequired'),
+      actionsLabel: this.runtime.i18n.t('tasks.edit.actions'),
+      deleteTask: this.runtime.i18n.t('tasks.edit.delete'),
+      deleting: this.runtime.i18n.t('tasks.edit.deleting'),
+      deleteConfirm: this.runtime.i18n.t('tasks.edit.deleteConfirm', {
+        title: '{title}',
+      }),
       getStatusLabel: (status) => this.getStatusLabel(status),
       getPriorityLabel: (priority) => this.getPriorityLabel(priority),
       unsaved: {
@@ -3029,6 +3089,23 @@ function flowTaskListItemToEditModel(
     priority: task.priority,
     dueDate: normalizeTaskDate(task.due_date),
     isCompleted: task.is_completed,
+    goalId: null,
+    goal: null,
+    storyId: null,
+    story: null,
+  };
+}
+
+function createFlowTaskCreateModel(): TaskEditModel {
+  return {
+    id: 0,
+    uuid: undefined,
+    title: '',
+    description: '',
+    status: Status.Described,
+    priority: Priority.Medium,
+    dueDate: null,
+    isCompleted: false,
     goalId: null,
     goal: null,
     storyId: null,

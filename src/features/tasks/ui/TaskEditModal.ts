@@ -7,11 +7,15 @@ import {
 import { SearchDropdownSelect } from '../../../ui-lib/src/components/SearchDropdownSelect.ts';
 import { StaticDropdownSelect } from '../../../ui-lib/src/components/StaticDropdownSelect.ts';
 import {
+  AnchoredMenu,
+  createDropdownItem,
   createIconButton,
   createField,
+  createSurface,
   createTextButton,
   setTextButtonLoading,
 } from '../../../ui-lib/src/hud/index.ts';
+import { createIcon } from '../../../ui-lib/src/hud/icons.ts';
 import type {
   Priority,
   Status,
@@ -63,6 +67,11 @@ export type TaskEditModalLabels = {
   loading: string;
   loadError: string;
   saveError: string;
+  deleteTask: string;
+  deleting: string;
+  deleteError: string;
+  deleteConfirm: string;
+  actionsLabel: string;
   titleRequired: string;
   closeLabel: string;
   getStatusLabel: (status: Status) => string;
@@ -85,6 +94,7 @@ const DEFAULT_CAPABILITIES: Required<TaskEditCapabilities> = {
   dueDate: true,
   goal: true,
   story: true,
+  delete: true,
 };
 
 const DEFAULT_LABELS: TaskEditModalLabels = {
@@ -114,6 +124,11 @@ const DEFAULT_LABELS: TaskEditModalLabels = {
   loading: 'Loading task...',
   loadError: 'Could not load task.',
   saveError: 'Could not save task.',
+  deleteTask: 'Delete task',
+  deleting: 'Deleting...',
+  deleteError: 'Could not delete task.',
+  deleteConfirm: 'Delete "{title}" permanently? This action cannot be undone.',
+  actionsLabel: 'Task actions',
   titleRequired: 'Title is required',
   closeLabel: 'Close',
   getStatusLabel: formatEnumLabel,
@@ -132,6 +147,7 @@ export class TaskEditModal {
   private body: HTMLDivElement | null = null;
   private footer: HTMLDivElement | null = null;
   private saveButton: HTMLButtonElement | null = null;
+  private actionMenu: AnchoredMenu | null = null;
   private readonly dropdowns: Array<{ destroy: () => void }> = [];
   private readonly labels: TaskEditModalLabels;
   private readonly capabilities: Required<TaskEditCapabilities>;
@@ -140,7 +156,9 @@ export class TaskEditModal {
   private loading = false;
   private loadFailed = false;
   private saving = false;
+  private deleting = false;
   private saveFailed = false;
+  private deleteFailed = false;
   private titleError: string | null = null;
   private closed = false;
 
@@ -170,11 +188,13 @@ export class TaskEditModal {
           void this.requestClose();
         },
         intent: 'form',
+        hideCloseButton: true,
       }
     );
     this.overlay = overlay;
     this.body = body;
     this.footer = footer;
+    this.mountHeaderActions(container);
     container.addEventListener('keydown', (event) => {
       event.stopPropagation();
       if (event.key === 'Enter') {
@@ -198,6 +218,7 @@ export class TaskEditModal {
     if (this.closed) return;
     this.closed = true;
     this.destroyDropdowns();
+    this.destroyActionMenu();
     this.overlay?.remove();
     this.overlay = null;
     this.options.onClose?.(result);
@@ -227,6 +248,97 @@ export class TaskEditModal {
     this.footer.replaceChildren(this.renderFooter());
   }
 
+  private mountHeaderActions(container: HTMLDivElement): void {
+    const actions = document.createElement('div');
+    actions.className = 'task-edit-modal-header-actions';
+
+    if (this.canDeleteTask()) {
+      const menuButton = createIconButton({
+        icon: 'ellipsis-vertical',
+        ariaLabel: this.labels.actionsLabel,
+        title: this.labels.actionsLabel,
+        size: 'sm',
+        tone: 'text',
+        className: 'task-edit-modal-header-button',
+      });
+      menuButton.setAttribute('aria-expanded', 'false');
+
+      const panel = createSurface({
+        elevated: true,
+        className:
+          'absolute left-0 top-0 z-40 hidden min-w-[190px] overflow-hidden',
+      });
+      panel.setAttribute('role', 'menu');
+      panel.addEventListener('mousedown', (event) => {
+        event.stopPropagation();
+      });
+
+      const deleteIcon = createIcon('trash', { size: 14, strokeWidth: 1.8 });
+      deleteIcon.classList.add('shrink-0', 'text-rose-600');
+      deleteIcon.setAttribute('aria-hidden', 'true');
+
+      const deleteItem = createDropdownItem({
+        label: this.deleting ? this.labels.deleting : this.labels.deleteTask,
+        leading: deleteIcon,
+        tone: 'danger',
+        disabled: this.deleting,
+        onClick: (event) => {
+          event.stopPropagation();
+          this.actionMenu?.close();
+          void this.deleteTask();
+        },
+      });
+      deleteItem.setAttribute('role', 'menuitem');
+      deleteItem.setAttribute('data-task-edit-delete', 'true');
+      deleteItem.addEventListener('mousedown', (event) => {
+        event.stopPropagation();
+      });
+      panel.appendChild(deleteItem);
+
+      this.actionMenu = new AnchoredMenu({
+        container: menuButton,
+        panel,
+        positioning: 'viewport',
+        portalTarget: this.overlay ?? undefined,
+        onOpenChange: (open) => {
+          menuButton.setAttribute('aria-expanded', open ? 'true' : 'false');
+        },
+      });
+      this.actionMenu.mount();
+      menuButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (this.actionMenu?.isOpen()) {
+          this.actionMenu.close();
+          return;
+        }
+        this.actionMenu?.openAt({
+          anchor: menuButton,
+          placement: 'bottom-end',
+          fallbackPlacements: ['top-end', 'bottom-start', 'top-start'],
+          gap: 8,
+          margin: 12,
+          lockPlacementAfterOpen: true,
+        });
+      });
+      actions.appendChild(menuButton);
+    }
+
+    actions.appendChild(
+      createIconButton({
+        icon: 'x-mark',
+        ariaLabel: this.labels.closeLabel,
+        title: this.labels.closeLabel,
+        size: 'sm',
+        tone: 'text',
+        className: 'task-edit-modal-header-button',
+        onClick: () => {
+          void this.requestClose();
+        },
+      })
+    );
+    container.appendChild(actions);
+  }
+
   private renderBody(): HTMLElement {
     const form = document.createElement('div');
     form.className = 'task-edit-modal-form';
@@ -243,7 +355,7 @@ export class TaskEditModal {
     const titleInput = new Input({
       value: this.draft.title,
       className: 'task-edit-modal-input',
-      disabled: this.saving,
+      disabled: this.isInteractionLocked(),
       onInput: (value) => {
         this.draft.title = value;
         this.titleError = null;
@@ -262,7 +374,7 @@ export class TaskEditModal {
       const description = document.createElement('textarea');
       description.className = 'task-edit-modal-textarea';
       description.value = this.draft.description;
-      description.disabled = this.saving;
+      description.disabled = this.isInteractionLocked();
       description.addEventListener('input', () => {
         this.draft.description = description.value;
       });
@@ -304,6 +416,9 @@ export class TaskEditModal {
     if (this.saveFailed) {
       form.appendChild(this.renderMessage(this.labels.saveError));
     }
+    if (this.deleteFailed) {
+      form.appendChild(this.renderMessage(this.labels.deleteError));
+    }
     return form;
   }
 
@@ -315,7 +430,7 @@ export class TaskEditModal {
         tone: 'text',
         size: 'md',
         className: getModalActionButtonClass('default'),
-        disabled: this.saving,
+        disabled: this.isInteractionLocked(),
         onClick: () => {
           void this.requestClose();
         },
@@ -326,7 +441,7 @@ export class TaskEditModal {
       tone: 'primary',
       size: 'md',
       className: getModalActionButtonClass('default'),
-      disabled: this.loading || this.loadFailed || this.saving,
+      disabled: this.loading || this.loadFailed || this.isInteractionLocked(),
       onClick: () => {
         void this.save();
       },
@@ -348,7 +463,7 @@ export class TaskEditModal {
       onSelect: (status) => {
         this.draft.status = status;
       },
-      disabled: this.saving,
+      disabled: this.isInteractionLocked(),
       ariaLabel: this.labels.status,
       portalTarget: this.overlay ?? undefined,
     });
@@ -369,7 +484,7 @@ export class TaskEditModal {
       onSelect: (priority) => {
         this.draft.priority = priority;
       },
-      disabled: this.saving,
+      disabled: this.isInteractionLocked(),
       ariaLabel: this.labels.priority,
       portalTarget: this.overlay ?? undefined,
     });
@@ -385,7 +500,7 @@ export class TaskEditModal {
       value: this.draft.dueDate ?? '',
       type: 'date',
       className: 'task-edit-modal-input',
-      disabled: this.saving,
+      disabled: this.isInteractionLocked(),
       onInput: (value) => {
         this.draft.dueDate = value || null;
       },
@@ -423,7 +538,7 @@ export class TaskEditModal {
           hasMore: result.nextPage !== null,
         };
       },
-      disabled: this.saving,
+      disabled: this.isInteractionLocked(),
       ariaLabel: this.labels.goal,
       portalTarget: this.overlay ?? undefined,
     });
@@ -467,7 +582,7 @@ export class TaskEditModal {
           hasMore: result.nextPage !== null,
         };
       },
-      disabled: this.saving,
+      disabled: this.isInteractionLocked(),
       ariaLabel: this.labels.story,
       portalTarget: this.overlay ?? undefined,
     });
@@ -498,7 +613,7 @@ export class TaskEditModal {
       size: 'sm',
       tone: 'text',
       className: 'task-edit-modal-relation-clear',
-      disabled: this.saving || !options.selected,
+      disabled: this.isInteractionLocked() || !options.selected,
       onClick: options.onClear,
     });
     row.appendChild(clearButton);
@@ -509,6 +624,7 @@ export class TaskEditModal {
   }
 
   private async requestClose(): Promise<void> {
+    if (this.deleting) return;
     if (!this.hasUnsavedChanges()) {
       this.close();
       return;
@@ -523,8 +639,37 @@ export class TaskEditModal {
     }
   }
 
+  private async deleteTask(): Promise<void> {
+    if (
+      this.loading ||
+      this.saving ||
+      this.deleting ||
+      this.loadFailed ||
+      !this.canDeleteTask()
+    ) {
+      return;
+    }
+    const confirmed = window.confirm(
+      formatTaskLabel(this.labels.deleteConfirm, this.original)
+    );
+    if (!confirmed) return;
+
+    this.deleting = true;
+    this.deleteFailed = false;
+    this.render();
+    try {
+      await this.options.port.deleteTask!();
+      if (this.closed) return;
+      this.close({ saved: false, task: null });
+    } catch {
+      this.deleting = false;
+      this.deleteFailed = true;
+      this.render();
+    }
+  }
+
   private async save(): Promise<void> {
-    if (this.loading || this.saving || this.loadFailed) return;
+    if (this.loading || this.saving || this.deleting || this.loadFailed) return;
     if (this.draft.title.trim().length === 0) {
       this.titleError = this.labels.titleRequired;
       this.render();
@@ -556,6 +701,14 @@ export class TaskEditModal {
     return !isTaskEditPatchEmpty(createTaskEditPatch(this.original, this.draft));
   }
 
+  private canDeleteTask(): boolean {
+    return this.capabilities.delete && Boolean(this.options.port.deleteTask);
+  }
+
+  private isInteractionLocked(): boolean {
+    return this.saving || this.deleting;
+  }
+
   private renderMessage(text: string): HTMLElement {
     const message = document.createElement('div');
     message.className = 'task-edit-modal-message';
@@ -566,6 +719,11 @@ export class TaskEditModal {
   private destroyDropdowns(): void {
     this.dropdowns.splice(0).forEach((dropdown) => dropdown.destroy());
   }
+
+  private destroyActionMenu(): void {
+    this.actionMenu?.unmount();
+    this.actionMenu = null;
+  }
 }
 
 function formatEnumLabel(value: string): string {
@@ -574,4 +732,8 @@ function formatEnumLabel(value: string): string {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+function formatTaskLabel(template: string, task: TaskEditModel): string {
+  return template.replace('{title}', task.title);
 }

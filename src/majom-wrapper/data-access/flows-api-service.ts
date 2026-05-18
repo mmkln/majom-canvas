@@ -63,7 +63,14 @@ export type FlowTaskCreatePayload = Pick<PlatformTask, 'title'> &
   Partial<
     Pick<
       PlatformTask,
-      'description' | 'status' | 'priority' | 'due_date' | 'is_standalone'
+      | 'description'
+      | 'status'
+      | 'priority'
+      | 'due_date'
+      | 'is_standalone'
+      | 'is_completed'
+      | 'goal_id'
+      | 'story_id'
     >
   >;
 export type FlowTaskUpdatePayload = Partial<
@@ -235,6 +242,14 @@ export class FlowsApiService {
     return this.http.patch<PlatformTask>(
       `/tasks/${encodeURIComponent(String(ref))}/`,
       payload
+    );
+  }
+
+  public deleteTask(
+    ref: PlatformTask['id'] | NonNullable<PlatformTask['uuid']>
+  ): Observable<void> {
+    return this.http.delete<void>(
+      `/tasks/${encodeURIComponent(String(ref))}/`
     );
   }
 

@@ -8,6 +8,20 @@ const TASK_EDIT_MODAL_STYLES = `
   padding-bottom: 4px;
 }
 
+.task-edit-modal-header-actions {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.task-edit-modal-header-button {
+  height: 36px;
+  width: 36px;
+}
+
 .task-edit-modal-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

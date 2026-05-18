@@ -216,6 +216,17 @@ describe('FlowsApiService', () => {
     expect(updated.title).toBe('Updated outreach');
   });
 
+  it('deletes a task by uuid through the task endpoint', async () => {
+    const remove = vi.fn(() => of(undefined));
+    const service = new FlowsApiService({
+      delete: remove,
+    } as unknown as HttpInterceptorClient);
+
+    await firstValueFrom(service.deleteTask('task-uuid'));
+
+    expect(remove).toHaveBeenCalledWith('/tasks/task-uuid/');
+  });
+
   it('calls flow focus endpoints with camelCase payloads', async () => {
     const focus = createFocus();
     const get = vi.fn(() => of([focus]));

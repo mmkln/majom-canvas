@@ -59,6 +59,7 @@ export class FlowsApp {
       onLoadTask: (flowId, taskRef) => store.loadFlowTask(flowId, taskRef),
       onPatchTask: (flowId, taskRef, patch) =>
         store.patchFlowTask(flowId, taskRef, patch),
+      onDeleteTask: (flowId, taskRef) => store.deleteFlowTask(flowId, taskRef),
       taskRelationCatalog: this.taskRelationCatalog,
       onPatchFlow: (flowId, patch) => store.patchFlow(flowId, patch),
       onCreateCurrentFlowFocus: (flowId, payload) =>

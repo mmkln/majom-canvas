@@ -7,6 +7,7 @@ import { TaskEditModal } from './TaskEditModal.ts';
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
   document.body.innerHTML = '';
 });
 
@@ -66,6 +67,54 @@ describe('TaskEditModal', () => {
 
     expect(saveTaskPatch).not.toHaveBeenCalled();
     expect(document.querySelector('[aria-invalid="true"]')).not.toBeNull();
+  });
+
+  it('deletes the task from the header action menu after confirmation', async () => {
+    const deleteTask = vi.fn(async () => undefined);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const modal = new TaskEditModal({
+      task: createTask({ title: 'Delete me' }),
+      port: {
+        saveTaskPatch: vi.fn(),
+        deleteTask,
+      },
+    });
+
+    modal.show();
+    document
+      .querySelector<HTMLButtonElement>('button[aria-label="Task actions"]')
+      ?.click();
+    document.querySelector<HTMLButtonElement>('[data-task-edit-delete]')?.click();
+    await flushPromises();
+
+    expect(window.confirm).toHaveBeenCalledWith(
+      'Delete "Delete me" permanently? This action cannot be undone.'
+    );
+    expect(deleteTask).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('.task-edit-modal-form')).toBeNull();
+  });
+
+  it('keeps the modal open when task deletion fails', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const modal = new TaskEditModal({
+      task: createTask(),
+      port: {
+        saveTaskPatch: vi.fn(),
+        deleteTask: vi.fn(async () => {
+          throw new Error('delete failed');
+        }),
+      },
+    });
+
+    modal.show();
+    document
+      .querySelector<HTMLButtonElement>('button[aria-label="Task actions"]')
+      ?.click();
+    document.querySelector<HTMLButtonElement>('[data-task-edit-delete]')?.click();
+    await flushPromises();
+
+    expect(document.querySelector('.task-edit-modal-form')).not.toBeNull();
+    expect(document.body.textContent).toContain('Could not delete task.');
   });
 
   it('searches and saves selected goal and story relations', async () => {
