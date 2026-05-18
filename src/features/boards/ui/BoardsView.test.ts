@@ -123,6 +123,20 @@ function createHandlers(): BoardsIntentHandlers {
   };
 }
 
+function openBoardImportModal(root: HTMLElement): HTMLElement {
+  root
+    .querySelector<HTMLButtonElement>('button[aria-label="Board menu"]')
+    ?.click();
+  Array.from(root.querySelectorAll('button'))
+    .find((button) => button.textContent === 'Import board')
+    ?.click();
+  const modal = document.querySelector<HTMLElement>(
+    '[data-testid="boards-import-preview-modal"]'
+  );
+  expect(modal).not.toBeNull();
+  return modal!;
+}
+
 function createTag(overrides: Partial<Tag> = {}): Tag {
   return {
     id: 1,
@@ -2103,6 +2117,7 @@ describe('BoardsView', () => {
     expect(popover?.textContent).toContain('List actions');
     expect(popover?.textContent).toContain('Add card');
     expect(popover?.textContent).toContain('Archive this list');
+    expect(popover?.textContent).toContain('Delete this list');
     expect(popover?.textContent).not.toContain('Automation');
 
     popover
@@ -2128,6 +2143,19 @@ describe('BoardsView', () => {
       )
       ?.click();
     expect(handlers.onDeleteColumn).toHaveBeenCalledWith(COLUMN_TODO);
+
+    root
+      .querySelector<HTMLButtonElement>(
+        '[data-testid="list-actions-menu-button"]'
+      )
+      ?.click();
+    document
+      .querySelector<HTMLButtonElement>(
+        '[data-testid="list-actions-delete-list-button"]'
+      )
+      ?.click();
+    expect(handlers.onDeleteColumn).toHaveBeenCalledTimes(2);
+    expect(handlers.onDeleteColumn).toHaveBeenLastCalledWith(COLUMN_TODO);
     view.destroy();
   });
 
@@ -2205,7 +2233,7 @@ describe('BoardsView', () => {
       scope: 'board',
       target: undefined,
       policies: {
-        mode: 'merge',
+        mode: 'create',
         missingFieldPolicy: 'keep_existing',
         matchStrategy: 'title',
         unknownFieldPolicy: 'warn_and_ignore',
@@ -2216,10 +2244,277 @@ describe('BoardsView', () => {
         ?.textContent
     ).toContain('Imported board');
     expect(
+      modal?.querySelector('[data-testid="boards-import-review-mode"]')
+    ).not.toBeNull();
+    expect(
+      modal?.querySelector('[data-testid="boards-import-edit-mode"]')
+    ).toBeNull();
+    expect(
+      modal?.querySelector('[data-testid="boards-import-preview-panel"]')
+        ?.textContent
+    ).toContain('Ready to apply');
+    expect(
+      modal?.querySelector('[data-testid="boards-import-preview-panel"]')
+        ?.textContent
+    ).not.toContain('3 changes ready');
+    expect(
+      modal?.querySelector('[data-testid="boards-import-preview-panel"]')
+        ?.textContent
+    ).toContain('Will create');
+    expect(modal?.textContent).not.toContain('payload ·');
+    expect(modal?.textContent).not.toContain(
+      'Preview is ready. Applying will create new board data.'
+    );
+    expect(
       modal?.querySelector<HTMLButtonElement>(
         '[data-testid="boards-import-apply-button"]'
       )?.disabled
-    ).toBe(true);
+    ).toBe(false);
+    view.destroy();
+  });
+
+  it('guides users through import prerequisites before preview can run', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState());
+
+    const modal = openBoardImportModal(root);
+    const source = modal.querySelector<HTMLTextAreaElement>(
+      '#boards-import-source'
+    );
+    const modeSelect = modal.querySelector<HTMLSelectElement>(
+      '#boards-import-mode'
+    );
+    const previewButton = modal.querySelector<HTMLButtonElement>(
+      '[data-testid="boards-import-preview-button"]'
+    );
+    const applyButton = modal.querySelector<HTMLButtonElement>(
+      '[data-testid="boards-import-apply-button"]'
+    );
+    const backButton = modal.querySelector<HTMLButtonElement>(
+      '[data-testid="boards-import-back-button"]'
+    );
+
+    expect(modeSelect?.value).toBe('create');
+    expect(
+      modal.querySelector('[data-testid="boards-import-action-row"]')
+    ).not.toBeNull();
+    expect(
+      modal.querySelector('[data-testid="boards-import-edit-mode"]')
+    ).not.toBeNull();
+    expect(
+      modal.querySelector('[data-testid="boards-import-review-mode"]')
+    ).toBeNull();
+    expect(
+      modal.querySelector('[data-testid="boards-import-preview-panel"]')
+    ).toBeNull();
+    const formatHelp = modal.querySelector<HTMLButtonElement>(
+      '[data-testid="boards-import-format-help"]'
+    );
+    expect(formatHelp).not.toBeNull();
+    expect(formatHelp?.title).toContain('Format guide');
+    expect(formatHelp?.title).toContain(
+      'Use Markdown when generating or editing data with AI.'
+    );
+    expect(formatHelp?.title).toContain(
+      'Markdown requires headings: ## Column and ### Card.'
+    );
+    expect(modal.textContent).not.toContain(
+      'Use Markdown when generating or editing data with AI.'
+    );
+    expect(modal.textContent).not.toContain(
+      'Markdown requires headings: ## Column and ### Card.'
+    );
+    expect(
+      source?.previousElementSibling?.querySelector(
+        '[data-testid="boards-import-format-guide"]'
+      )
+    ).not.toBeNull();
+    expect(source?.spellcheck).toBe(false);
+    expect(source?.wrap).toBe('off');
+    expect(previewButton?.className).toContain(
+      'majom-boards-import__action-button--primary'
+    );
+    expect(applyButton?.className).toContain(
+      'majom-boards-import__action-button--secondary'
+    );
+    expect(previewButton?.disabled).toBe(true);
+    expect(previewButton?.hidden).toBe(false);
+    expect(applyButton?.disabled).toBe(true);
+    expect(applyButton?.hidden).toBe(true);
+    expect(backButton?.hidden).toBe(true);
+    expect(modal.textContent).toContain(
+      'Paste Markdown or JSON source to preview.'
+    );
+    expect(applyButton?.title).toBe(
+      'Paste Markdown or JSON source to preview.'
+    );
+
+    source!.value = ['---', 'title: Imported board', '---'].join('\n');
+    source!.dispatchEvent(new Event('input', { bubbles: true }));
+
+    expect(previewButton?.disabled).toBe(false);
+    expect(previewButton?.hidden).toBe(false);
+    expect(applyButton?.disabled).toBe(true);
+    expect(applyButton?.hidden).toBe(true);
+    expect(modal.textContent).toContain(
+      'Run preview after source or configuration changes before applying.'
+    );
+    expect(applyButton?.title).toBe(
+      'Run preview after source or configuration changes before applying.'
+    );
+    expect(handlers.onPreviewImport).not.toHaveBeenCalled();
+    view.destroy();
+  });
+
+  it('inserts and clears a scope-aware Markdown import template', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState());
+
+    const modal = openBoardImportModal(root);
+    const source = modal.querySelector<HTMLTextAreaElement>(
+      '#boards-import-source'
+    );
+    const previewButton = modal.querySelector<HTMLButtonElement>(
+      '[data-testid="boards-import-preview-button"]'
+    );
+    const applyButton = modal.querySelector<HTMLButtonElement>(
+      '[data-testid="boards-import-apply-button"]'
+    );
+
+    modal
+      .querySelector<HTMLButtonElement>(
+        '[data-testid="boards-import-insert-template-button"]'
+      )
+      ?.click();
+
+    expect(source?.value).toContain('title: "Project board"');
+    expect(source?.value).toContain('## Column: Backlog');
+    expect(source?.value).toContain('Checklist: Setup');
+    expect(source?.value).toContain('- [x] Confirm format');
+    expect(previewButton?.disabled).toBe(false);
+    expect(applyButton?.disabled).toBe(true);
+    expect(modal.textContent).toContain(
+      'Run preview after source or configuration changes before applying.'
+    );
+
+    modal
+      .querySelector<HTMLButtonElement>(
+        '[data-testid="boards-import-clear-source-button"]'
+      )
+      ?.click();
+
+    expect(source?.value).toBe('');
+    expect(previewButton?.disabled).toBe(true);
+    expect(applyButton?.disabled).toBe(true);
+    expect(modal.textContent).toContain(
+      'Paste Markdown or JSON source to preview.'
+    );
+    view.destroy();
+  });
+
+  it('updates the format guide and template for JSON imports', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState());
+
+    const modal = openBoardImportModal(root);
+    const source = modal.querySelector<HTMLTextAreaElement>(
+      '#boards-import-source'
+    );
+    Array.from(modal.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent === 'JSON')
+      ?.click();
+
+    const formatHelp = modal.querySelector<HTMLButtonElement>(
+      '[data-testid="boards-import-format-help"]'
+    );
+    expect(formatHelp?.title).toContain(
+      'Use JSON for exact structured imports and backups.'
+    );
+    expect(modal.textContent).not.toContain(
+      'Use JSON for exact structured imports and backups.'
+    );
+
+    modal
+      .querySelector<HTMLButtonElement>(
+        '[data-testid="boards-import-insert-template-button"]'
+      )
+      ?.click();
+    const parsed = JSON.parse(source?.value ?? '{}');
+
+    expect(parsed).toMatchObject({
+      schema: 'majom.boards.exchange',
+      version: '1.0',
+      scope: 'board',
+      payload: {
+        title: 'Project board',
+        columns: [
+          {
+            title: 'Backlog',
+            cards: [
+              {
+                title: 'First task',
+                checklists: [
+                  {
+                    title: 'Steps',
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    view.destroy();
+  });
+
+  it('copies an AI prompt that includes the selected import format', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    });
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState());
+
+    const modal = openBoardImportModal(root);
+    modal
+      .querySelector<HTMLButtonElement>(
+        '[data-testid="boards-import-copy-ai-prompt-button"]'
+      )
+      ?.click();
+    await Promise.resolve();
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(writeText.mock.calls[0]?.[0]).toContain(
+      'Generate a Majom Boards Markdown import'
+    );
+    expect(writeText.mock.calls[0]?.[0]).toContain('Return only Markdown.');
+    expect(modal.textContent).not.toContain('AI prompt copied.');
+    expect(notify).toHaveBeenCalledWith('AI prompt copied.', 'success');
     view.destroy();
   });
 
@@ -2244,11 +2539,6 @@ describe('BoardsView', () => {
     const modal = document.querySelector<HTMLElement>(
       '[data-testid="boards-import-preview-modal"]'
     );
-    const modeSelect = modal?.querySelector<HTMLSelectElement>(
-      '#boards-import-mode'
-    );
-    modeSelect!.value = 'create';
-    modeSelect!.dispatchEvent(new Event('change', { bubbles: true }));
     const source = modal?.querySelector<HTMLTextAreaElement>(
       '#boards-import-source'
     );
@@ -2287,6 +2577,193 @@ describe('BoardsView', () => {
     view.destroy();
   });
 
+  it('marks a successful import preview stale after source changes', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState());
+
+    const modal = openBoardImportModal(root);
+    const source = modal.querySelector<HTMLTextAreaElement>(
+      '#boards-import-source'
+    );
+    const previewButton = modal.querySelector<HTMLButtonElement>(
+      '[data-testid="boards-import-preview-button"]'
+    );
+    const applyButton = modal.querySelector<HTMLButtonElement>(
+      '[data-testid="boards-import-apply-button"]'
+    );
+
+    source!.value = ['---', 'title: Imported board', '---'].join('\n');
+    source!.dispatchEvent(new Event('input', { bubbles: true }));
+    previewButton?.click();
+    await Promise.resolve();
+
+    expect(previewButton?.textContent).toBe('Update preview');
+    expect(applyButton?.disabled).toBe(false);
+    expect(applyButton?.hidden).toBe(false);
+    expect(
+      modal.querySelector('[data-testid="boards-import-review-mode"]')
+    ).not.toBeNull();
+    expect(modal.textContent).toContain('Ready to apply');
+    expect(modal.textContent).not.toContain(
+      'Preview is ready. Applying will create new board data.'
+    );
+
+    modal
+      .querySelector<HTMLButtonElement>(
+        '[data-testid="boards-import-back-button"]'
+      )
+      ?.click();
+    const reopenedSource = modal.querySelector<HTMLTextAreaElement>(
+      '#boards-import-source'
+    );
+    expect(reopenedSource).not.toBeNull();
+    expect(
+      modal.querySelector('[data-testid="boards-import-edit-mode"]')
+    ).not.toBeNull();
+    expect(
+      modal.querySelector('[data-testid="boards-import-review-mode"]')
+    ).toBeNull();
+
+    reopenedSource!.value = ['---', 'title: Changed board', '---'].join('\n');
+    reopenedSource!.dispatchEvent(new Event('input', { bubbles: true }));
+
+    expect(previewButton?.textContent).toBe('Update preview');
+    expect(previewButton?.hidden).toBe(false);
+    expect(applyButton?.disabled).toBe(true);
+    expect(applyButton?.hidden).toBe(true);
+    expect(modal.textContent).toContain(
+      'Run preview after source or configuration changes before applying.'
+    );
+    expect(applyButton?.title).toBe(
+      'Run preview after source or configuration changes before applying.'
+    );
+    expect(
+      modal.querySelector('[data-testid="boards-import-preview-panel"]')
+    ).toBeNull();
+    view.destroy();
+  });
+
+  it('keeps apply disabled when the import preview has conflicts', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const blockedPlan: BoardsImportPlan = {
+      scope: 'board',
+      canApply: false,
+      counts: { create: 0, update: 0, skip: 0, conflict: 1 },
+      items: [
+        {
+          action: 'conflict',
+          entity: 'board',
+          title: 'Imported board',
+          path: 'payload',
+          reason: 'ambiguous-title-match',
+        },
+      ],
+      diagnostics: [
+        {
+          level: 'error',
+          code: 'ambiguous_title',
+          message: 'Multiple boards matched this title.',
+          path: 'payload.title',
+        },
+      ],
+      warnings: [],
+      errors: ['Multiple boards matched this title.'],
+    };
+    handlers.onPreviewImport = vi.fn(async () => blockedPlan);
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState());
+
+    const modal = openBoardImportModal(root);
+    const source = modal.querySelector<HTMLTextAreaElement>(
+      '#boards-import-source'
+    );
+    const previewButton = modal.querySelector<HTMLButtonElement>(
+      '[data-testid="boards-import-preview-button"]'
+    );
+    const applyButton = modal.querySelector<HTMLButtonElement>(
+      '[data-testid="boards-import-apply-button"]'
+    );
+
+    source!.value = ['---', 'title: Imported board', '---'].join('\n');
+    source!.dispatchEvent(new Event('input', { bubbles: true }));
+    previewButton?.click();
+    await Promise.resolve();
+
+    expect(applyButton?.disabled).toBe(true);
+    expect(applyButton?.title).toBe(
+      'Resolve preview conflicts or errors before applying.'
+    );
+    expect(modal.textContent).toContain('Blocked by conflicts or errors');
+    expect(modal.textContent).not.toContain('Review required');
+    expect(modal.textContent).toContain('Needs attention');
+    expect(modal.textContent).toContain('Ambiguous title match');
+    expect(modal.textContent).toContain('Multiple boards matched this title.');
+    expect(handlers.onApplyImport).not.toHaveBeenCalled();
+    view.destroy();
+  });
+
+  it('keeps unsupported import modes preview-only with an explicit reason', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    const raw = ['---', 'title: Imported board', '---'].join('\n');
+    view.render(createState());
+
+    root
+      .querySelector<HTMLButtonElement>('button[aria-label="Board menu"]')
+      ?.click();
+    Array.from(root.querySelectorAll('button'))
+      .find((button) => button.textContent === 'Import board')
+      ?.click();
+
+    const modal = document.querySelector<HTMLElement>(
+      '[data-testid="boards-import-preview-modal"]'
+    );
+    const modeSelect = modal?.querySelector<HTMLSelectElement>(
+      '#boards-import-mode'
+    );
+    modeSelect!.value = 'merge';
+    modeSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+    const source = modal?.querySelector<HTMLTextAreaElement>(
+      '#boards-import-source'
+    );
+    source!.value = raw;
+    source!.dispatchEvent(new Event('input', { bubbles: true }));
+    modal
+      ?.querySelector<HTMLButtonElement>(
+        '[data-testid="boards-import-preview-button"]'
+      )
+      ?.click();
+    await Promise.resolve();
+
+    const applyButton = modal?.querySelector<HTMLButtonElement>(
+      '[data-testid="boards-import-apply-button"]'
+    );
+    expect(applyButton?.disabled).toBe(true);
+    expect(modal?.textContent).toContain(
+      'Valid preview; this mode cannot apply yet'
+    );
+    expect(modal?.textContent).toContain(
+      'This mode is preview-only for now. Choose Create to apply.'
+    );
+    view.destroy();
+  });
+
   it('exports a board from the header menu into a readonly output modal', async () => {
     const root = document.createElement('div');
     document.body.append(root);
@@ -2321,6 +2798,14 @@ describe('BoardsView', () => {
     expect(output?.readOnly).toBe(true);
     expect(output?.value).toContain('schema: majom.boards.exchange');
     expect(modal?.textContent).toContain('board-books.md');
+
+    modal
+      ?.querySelector<HTMLButtonElement>('[data-testid="boards-export-copy-button"]')
+      ?.click();
+    await Promise.resolve();
+
+    expect(modal?.textContent).not.toContain('Export copied.');
+    expect(notify).toHaveBeenCalledWith('Export copied.', 'success');
     view.destroy();
   });
 

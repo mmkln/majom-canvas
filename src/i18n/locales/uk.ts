@@ -830,7 +830,8 @@ export const uk = {
     'Вибачте, ваша сесія завершилася. Увійдіть ще раз.',
   'loading.canvasFailed':
     'Не вдалося завантажити дані canvas. Спробуйте ще раз.',
-  'login.accessLimited': 'Доступ зараз обмежений, поки Majom на ранньому етапі розробки.',
+  'login.accessLimited':
+    'Доступ зараз обмежений, поки Majom на ранньому етапі розробки.',
   'login.backToOverview': 'Назад до огляду',
   'login.caption': 'Увійдіть у свій робочий простір Majom.',
   'login.errorFallback': 'Не вдалося увійти. Спробуйте ще раз.',
@@ -842,7 +843,8 @@ export const uk = {
   'login.submit': 'Увійти',
   'login.submitLoading': 'Вхід...',
   'login.title': 'Ласкаво просимо знову',
-  'login.privateWorkspaceNote': 'Ваш робочий простір залишається приватним у вашому акаунті.',
+  'login.privateWorkspaceNote':
+    'Ваш робочий простір залишається приватним у вашому акаунті.',
   'login.username.label': "Ім'я користувача",
   'login.username.placeholder': "Ім'я користувача",
   'login.usernameRequired': "Ім'я користувача обов'язкове.",
@@ -1191,7 +1193,8 @@ export const uk = {
   'tasks.edit.deleteConfirm':
     'Видалити "{title}" назавжди? Цю дію не можна скасувати.',
   'tasks.edit.unsaved.title': 'Скасувати незбережені зміни?',
-  'tasks.edit.unsaved.message': 'Є незбережені зміни. Якщо закрити зараз, редагування буде втрачено.',
+  'tasks.edit.unsaved.message':
+    'Є незбережені зміни. Якщо закрити зараз, редагування буде втрачено.',
   'tasks.edit.unsaved.keepEditing': 'Продовжити редагування',
   'tasks.edit.unsaved.discard': 'Скасувати',
   'tasks.edit.unsaved.saveChanges': 'Зберегти зміни',
@@ -1232,10 +1235,11 @@ export const uk = {
   'boards.import.apply': 'Застосувати імпорт',
   'boards.import.applyFailed': 'Не вдалося застосувати цей імпорт.',
   'boards.import.applying': 'Застосовуємо імпорт...',
-  'boards.import.count.conflict': 'Конфлікти',
-  'boards.import.count.create': 'Створити',
-  'boards.import.count.skip': 'Пропустити',
-  'boards.import.count.update': 'Оновити',
+  'boards.import.backToEdit': 'Назад до редагування',
+  'boards.import.aiPromptCopied': 'AI prompt скопійовано.',
+  'boards.import.aiPromptCopyFailed': 'Не вдалося скопіювати AI prompt.',
+  'boards.import.blockedByPlan':
+    'Усуньте конфлікти або помилки preview перед застосуванням.',
   'boards.import.entity.board': 'дошка',
   'boards.import.entity.card': 'картка',
   'boards.import.entity.checkItem': 'пункт чеклиста',
@@ -1244,6 +1248,28 @@ export const uk = {
   'boards.import.format': 'Формат імпорту',
   'boards.import.formatJson': 'JSON',
   'boards.import.formatMarkdown': 'Markdown',
+  'boards.import.guide.clear': 'Очистити',
+  'boards.import.guide.copyAiPrompt': 'Копіювати AI prompt',
+  'boards.import.guide.createOnly':
+    'Застосування зараз створює тільки нові дані.',
+  'boards.import.guide.insertTemplate': 'Вставити template',
+  'boards.import.guide.jsonRequired':
+    'JSON потребує schema, version, scope і payload.',
+  'boards.import.guide.jsonSummary':
+    'Використовуйте JSON для точного структурованого імпорту й backup.',
+  'boards.import.guide.markdownRequired':
+    'Markdown потребує headings: ## Column і ### Card.',
+  'boards.import.guide.markdownSummary':
+    'Використовуйте Markdown для генерації або редагування даних через AI.',
+  'boards.import.guide.optional':
+    'Опційні поля: Description, Checklist і пункти чеклиста.',
+  'boards.import.guide.partial':
+    'Partial input дозволений; відсутні поля отримують безпечні дефолти.',
+  'boards.import.guide.title': 'Підказка формату',
+  'boards.import.group.conflict': 'Потребує уваги',
+  'boards.import.group.create': 'Буде створено',
+  'boards.import.group.skip': 'Буде пропущено',
+  'boards.import.group.update': 'Буде оновлено',
   'boards.import.match': 'Зіставляти за',
   'boards.import.match.externalRef': 'Зовнішнім ref',
   'boards.import.match.id': 'ID',
@@ -1260,12 +1286,27 @@ export const uk = {
   'boards.import.previewEmpty':
     'Запустіть preview, щоб переглянути план імпорту.',
   'boards.import.previewFailed': 'Не вдалося переглянути цей імпорт.',
+  'boards.import.previewRequired':
+    'Запустіть preview після змін у джерелі або налаштуваннях перед застосуванням.',
   'boards.import.previewTitle': 'План імпорту',
+  'boards.import.previewUpdate': 'Оновити preview',
   'boards.import.previewing': 'Готуємо preview імпорту...',
+  'boards.import.needSource': 'Вставте Markdown або JSON для preview.',
+  'boards.import.reason.ambiguousTitle': 'Неоднозначний збіг за назвою',
+  'boards.import.reason.existingTarget': 'Зіставлено з наявним елементом',
+  'boards.import.reason.invalidSource': 'Некоректне джерело імпорту',
+  'boards.import.reason.matchedByTitle': 'Зіставлено за назвою',
+  'boards.import.reason.replaceTargetNotFound': 'Ціль для заміни не знайдено',
+  'boards.import.reason.targetBoardNotFound': 'Цільову дошку не знайдено',
+  'boards.import.reason.targetColumnNotFound': 'Цільовий список не знайдено',
   'boards.import.source': 'Джерело',
   'boards.import.sourcePlaceholder': 'Вставте Markdown або JSON',
   'boards.import.status.blocked': 'Заблоковано конфліктами або помилками',
+  'boards.import.status.previewOnly':
+    'Preview валідний; цей режим ще не можна застосувати',
   'boards.import.status.ready': 'Готово до застосування',
+  'boards.import.unsupportedMode':
+    'Цей режим поки працює тільки для preview. Виберіть “Створити”, щоб застосувати.',
   'boards.import.title.board': 'Імпорт дошки',
   'boards.import.title.card': 'Імпорт картки',
   'boards.import.title.column': 'Імпорт списку',

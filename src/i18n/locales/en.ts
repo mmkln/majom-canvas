@@ -814,7 +814,8 @@ export const en = {
   'notes.updatedAt': 'Updated {date}',
   'auth.sessionExpired': 'Sorry, your session has expired. Please sign in again.',
   'loading.canvasFailed': 'Failed to load canvas data. Please try again.',
-  'login.accessLimited': 'Access is currently limited while Majom is in early development.',
+  'login.accessLimited':
+    'Access is currently limited while Majom is in early development.',
   'login.backToOverview': 'Back to overview',
   'login.caption': 'Sign in to your Majom workspace.',
   'login.errorFallback': 'Login failed. Please try again.',
@@ -1177,7 +1178,8 @@ export const en = {
   'tasks.edit.deleteConfirm':
     'Delete "{title}" permanently? This action cannot be undone.',
   'tasks.edit.unsaved.title': 'Discard unsaved changes?',
-  'tasks.edit.unsaved.message': 'You have unsaved changes. If you close now, your edits will be lost.',
+  'tasks.edit.unsaved.message':
+    'You have unsaved changes. If you close now, your edits will be lost.',
   'tasks.edit.unsaved.keepEditing': 'Keep editing',
   'tasks.edit.unsaved.discard': 'Discard',
   'tasks.edit.unsaved.saveChanges': 'Save changes',
@@ -1218,10 +1220,11 @@ export const en = {
   'boards.import.apply': 'Apply import',
   'boards.import.applyFailed': 'Could not apply this import.',
   'boards.import.applying': 'Applying import...',
-  'boards.import.count.conflict': 'Conflicts',
-  'boards.import.count.create': 'Create',
-  'boards.import.count.skip': 'Skip',
-  'boards.import.count.update': 'Update',
+  'boards.import.backToEdit': 'Back to edit',
+  'boards.import.aiPromptCopied': 'AI prompt copied.',
+  'boards.import.aiPromptCopyFailed': 'Could not copy the AI prompt.',
+  'boards.import.blockedByPlan':
+    'Resolve preview conflicts or errors before applying.',
   'boards.import.entity.board': 'board',
   'boards.import.entity.card': 'card',
   'boards.import.entity.checkItem': 'check item',
@@ -1230,6 +1233,27 @@ export const en = {
   'boards.import.format': 'Import format',
   'boards.import.formatJson': 'JSON',
   'boards.import.formatMarkdown': 'Markdown',
+  'boards.import.guide.clear': 'Clear',
+  'boards.import.guide.copyAiPrompt': 'Copy AI prompt',
+  'boards.import.guide.createOnly': 'Apply currently creates new data only.',
+  'boards.import.guide.insertTemplate': 'Insert template',
+  'boards.import.guide.jsonRequired':
+    'JSON requires schema, version, scope, and payload.',
+  'boards.import.guide.jsonSummary':
+    'Use JSON for exact structured imports and backups.',
+  'boards.import.guide.markdownRequired':
+    'Markdown requires headings: ## Column and ### Card.',
+  'boards.import.guide.markdownSummary':
+    'Use Markdown when generating or editing data with AI.',
+  'boards.import.guide.optional':
+    'Optional fields: Description, Checklist, and checklist items.',
+  'boards.import.guide.partial':
+    'Partial input is allowed; missing fields use safe defaults.',
+  'boards.import.guide.title': 'Format guide',
+  'boards.import.group.conflict': 'Needs attention',
+  'boards.import.group.create': 'Will create',
+  'boards.import.group.skip': 'Will skip',
+  'boards.import.group.update': 'Will update',
   'boards.import.match': 'Match by',
   'boards.import.match.externalRef': 'External ref',
   'boards.import.match.id': 'ID',
@@ -1245,12 +1269,27 @@ export const en = {
   'boards.import.preview': 'Preview',
   'boards.import.previewEmpty': 'Run preview to inspect the import plan.',
   'boards.import.previewFailed': 'Could not preview this import.',
+  'boards.import.previewRequired':
+    'Run preview after source or configuration changes before applying.',
   'boards.import.previewTitle': 'Import plan',
+  'boards.import.previewUpdate': 'Update preview',
   'boards.import.previewing': 'Previewing import...',
+  'boards.import.needSource': 'Paste Markdown or JSON source to preview.',
+  'boards.import.reason.ambiguousTitle': 'Ambiguous title match',
+  'boards.import.reason.existingTarget': 'Matched existing item',
+  'boards.import.reason.invalidSource': 'Invalid import source',
+  'boards.import.reason.matchedByTitle': 'Matched by title',
+  'boards.import.reason.replaceTargetNotFound': 'Replace target not found',
+  'boards.import.reason.targetBoardNotFound': 'Target board not found',
+  'boards.import.reason.targetColumnNotFound': 'Target list not found',
   'boards.import.source': 'Source',
   'boards.import.sourcePlaceholder': 'Paste Markdown or JSON',
   'boards.import.status.blocked': 'Blocked by conflicts or errors',
+  'boards.import.status.previewOnly':
+    'Valid preview; this mode cannot apply yet',
   'boards.import.status.ready': 'Ready to apply',
+  'boards.import.unsupportedMode':
+    'This mode is preview-only for now. Choose Create to apply.',
   'boards.import.title.board': 'Import board',
   'boards.import.title.card': 'Import card',
   'boards.import.title.column': 'Import list',

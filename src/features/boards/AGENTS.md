@@ -20,6 +20,8 @@
 - Apply import policies before mutation: `mode`, missing-field behavior, match strategy, and unknown-field strictness must be represented in typed exchange contracts.
 - JSON import/export is the full-fidelity path; Markdown is tolerant and human/AI-friendly, with warnings when unsupported or unknown fields are skipped.
 - Keep card data card-owned and placement/order column-owned. Do not make Markdown placement data create duplicate source cards unless the user-facing import policy explicitly chooses that behavior.
+- Keep import format rules as compact contextual help, such as a hint or tooltip. Do not reserve persistent modal space for long Markdown/JSON guide text; keep the main import surface focused on source input, preview, configuration, and actions.
+- Treat import preview as a review mode inside the import modal, not as a cramped sidebar. Users should edit source/configuration first, then review the full import plan, with an explicit Back to edit path before applying.
 
 ## Trello-Like Card Fronts
 

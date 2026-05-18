@@ -48,6 +48,8 @@ import type {
   BoardsState,
 } from '../domain/types.ts';
 import {
+  BOARDS_EXCHANGE_SCHEMA,
+  BOARDS_EXCHANGE_VERSION,
   createDefaultBoardsImportPolicies,
   type BoardsExchangeFormat,
   type BoardsExchangeScope,
@@ -158,6 +160,11 @@ type ExportOutputModalConfig = {
   request: BoardsExportRequest;
 };
 
+type ImportFormatGuideHandle = {
+  element: HTMLElement;
+  refresh: () => void;
+};
+
 type CardChecklistPanelStatus =
   | 'idle'
   | 'loading'
@@ -245,6 +252,12 @@ const IMPORT_ENTITY_LABEL_KEYS = {
   card: 'boards.import.entity.card',
   checklist: 'boards.import.entity.checklist',
   checkItem: 'boards.import.entity.checkItem',
+} as const;
+const IMPORT_ACTION_GROUP_LABEL_KEYS = {
+  create: 'boards.import.group.create',
+  update: 'boards.import.group.update',
+  skip: 'boards.import.group.skip',
+  conflict: 'boards.import.group.conflict',
 } as const;
 
 function isMirrorCard(card: Card): boolean {
@@ -1607,6 +1620,14 @@ export class BoardsView {
           },
         }),
         this.createListActionButton({
+          labelKey: 'boards.listActions.deleteList',
+          testId: 'list-actions-delete-list-button',
+          onClick: () => {
+            this.closeListActionsPopover();
+            this.handlers.onDeleteColumn(column.id);
+          },
+        }),
+        this.createListActionButton({
           labelKey: 'boards.listActions.archiveAllCards',
           disabled: true,
         }),
@@ -2746,9 +2767,19 @@ export class BoardsView {
     this.closeTransientBoardOverlays();
 
     let format: BoardsExchangeFormat = 'markdown';
-    const policies: BoardsImportPolicies = createDefaultBoardsImportPolicies();
+    const policies: BoardsImportPolicies = {
+      ...createDefaultBoardsImportPolicies(),
+      mode: 'create',
+    };
     let lastPreviewRequest: BoardsImportRequest | null = null;
     let lastPreviewPlan: BoardsImportPlan | null = null;
+    let hasCompletedPreview = false;
+    let importModalMode: 'edit' | 'review' = 'edit';
+    let importOperation: 'idle' | 'previewing' | 'applying' = 'idle';
+    let importStatusOverride: {
+      messageKey: string;
+      tone: 'error' | 'info' | 'success' | 'warning';
+    } | null = null;
 
     const { overlay, container, body, footer } = createModalShell(
       this.runtime.i18n.t(config.titleKey),
@@ -2761,12 +2792,17 @@ export class BoardsView {
     container.classList.add(boardsModalClassNames.importModal);
     overlay.setAttribute('data-testid', 'boards-import-preview-modal');
 
-    const content = document.createElement('div');
-    content.className = boardsModalClassNames.importLayout;
+    const editContent = document.createElement('div');
+    editContent.className = boardsModalClassNames.importLayout;
+    editContent.setAttribute('data-testid', 'boards-import-edit-mode');
+    const reviewContent = document.createElement('section');
+    reviewContent.className = boardsModalClassNames.importReview;
+    reviewContent.setAttribute('data-testid', 'boards-import-review-mode');
 
     const sourcePanel = document.createElement('section');
     sourcePanel.className = boardsModalClassNames.importPanel;
 
+    let guide: ImportFormatGuideHandle | null = null;
     const formatControl = new HudSegmentedControl<BoardsExchangeFormat>({
       value: format,
       size: 'sm',
@@ -2787,13 +2823,19 @@ export class BoardsView {
       onChange: (value) => {
         format = value;
         invalidatePreview();
+        guide?.refresh();
+        syncImportControls();
       },
     });
 
-    const sourceField = this.createImportField(
-      'boards.import.source',
-      'boards-import-source'
-    );
+    const sourceField = document.createElement('section');
+    sourceField.className = boardsModalClassNames.importField;
+    const sourceHeader = document.createElement('div');
+    sourceHeader.className = boardsModalClassNames.importSourceHeader;
+    const sourceLabel = document.createElement('label');
+    sourceLabel.className = boardsModalClassNames.importLabel;
+    sourceLabel.htmlFor = 'boards-import-source';
+    sourceLabel.textContent = this.runtime.i18n.t('boards.import.source');
     const sourceInput = new Textarea({
       id: 'boards-import-source',
       rows: 14,
@@ -2801,12 +2843,12 @@ export class BoardsView {
       className: boardsModalClassNames.importSource,
       onInput: () => {
         invalidatePreview();
-        validatePreviewButton();
+        syncImportControls();
       },
     }).createElement();
-    sourceField.append(sourceInput);
-
-    sourcePanel.append(formatControl.element, sourceField);
+    sourceInput.spellcheck = false;
+    sourceInput.autocomplete = 'off';
+    sourceInput.wrap = 'off';
 
     const configPanel = document.createElement('section');
     configPanel.className = boardsModalClassNames.importPanel;
@@ -2823,6 +2865,7 @@ export class BoardsView {
         onChange: (value) => {
           policies.mode = value;
           invalidatePreview();
+          syncImportControls();
         },
       }),
       this.createImportSelect<BoardsImportMatchStrategy>({
@@ -2837,6 +2880,7 @@ export class BoardsView {
         onChange: (value) => {
           policies.matchStrategy = value;
           invalidatePreview();
+          syncImportControls();
         },
       }),
       this.createImportSelect<BoardsImportPolicies['missingFieldPolicy']>({
@@ -2851,6 +2895,7 @@ export class BoardsView {
         onChange: (value) => {
           policies.missingFieldPolicy = value;
           invalidatePreview();
+          syncImportControls();
         },
       }),
       this.createImportSelect<BoardsImportUnknownFieldPolicy>({
@@ -2864,6 +2909,7 @@ export class BoardsView {
         onChange: (value) => {
           policies.unknownFieldPolicy = value;
           invalidatePreview();
+          syncImportControls();
         },
       })
     );
@@ -2872,31 +2918,70 @@ export class BoardsView {
     previewPanel.className = boardsModalClassNames.importPreviewPanel;
     previewPanel.setAttribute('data-testid', 'boards-import-preview-panel');
     this.renderImportPreviewPlan(previewPanel, null);
-
-    content.append(sourcePanel, configPanel, previewPanel);
-    body.replaceChildren(content);
+    reviewContent.append(previewPanel);
 
     const message = createFormMessage({
       className: boardsModalClassNames.importMessage,
       ariaLive: 'polite',
     });
-    const row = createModalActionRow({ variant: 'confirm' });
+    guide = this.createImportFormatGuide({
+      scope: config.scope,
+      getFormat: () => format,
+      onInsertTemplate: () => {
+        sourceInput.value = this.getImportTemplate(config.scope, format);
+        invalidatePreview();
+        syncImportControls();
+        sourceInput.focus();
+      },
+      onCopyAiPrompt: () => {
+        void this.copyImportAiPrompt(config.scope, format);
+      },
+      onClear: () => {
+        sourceInput.value = '';
+        invalidatePreview();
+        syncImportControls();
+        sourceInput.focus();
+      },
+    });
+    sourceHeader.append(sourceLabel, guide.element);
+    sourceField.append(sourceHeader, sourceInput);
+    sourcePanel.replaceChildren(formatControl.element, sourceField);
+    const sidePanel = document.createElement('aside');
+    sidePanel.className = boardsModalClassNames.importSidePanel;
+    sidePanel.append(configPanel);
+    editContent.append(sourcePanel, sidePanel);
+
+    const row = document.createElement('div');
+    row.className = boardsModalClassNames.importActions;
+    row.setAttribute('data-testid', 'boards-import-action-row');
     const previewButton = document.createElement('button');
     previewButton.type = 'button';
-    previewButton.className = getModalActionButtonClass('default');
+    previewButton.className = boardsModalClassNames.importActionButtonSecondary;
     previewButton.textContent = this.runtime.i18n.t('boards.import.preview');
     previewButton.setAttribute('data-testid', 'boards-import-preview-button');
 
     const applyButton = document.createElement('button');
     applyButton.type = 'button';
-    applyButton.className = getModalActionButtonClass('wide');
+    applyButton.className = boardsModalClassNames.importActionButtonPrimary;
     applyButton.textContent = this.runtime.i18n.t('boards.import.apply');
     applyButton.disabled = true;
     applyButton.setAttribute('data-testid', 'boards-import-apply-button');
 
+    const backButton = document.createElement('button');
+    backButton.type = 'button';
+    backButton.className = boardsModalClassNames.importActionButtonSecondary;
+    backButton.textContent = this.runtime.i18n.t('boards.import.backToEdit');
+    backButton.setAttribute('data-testid', 'boards-import-back-button');
+    backButton.addEventListener('click', () => {
+      importModalMode = 'edit';
+      renderImportMode();
+      syncImportControls();
+      requestAnimationFrame(() => sourceInput.focus());
+    });
+
     const closeButton = document.createElement('button');
     closeButton.type = 'button';
-    closeButton.className = getModalActionButtonClass('default');
+    closeButton.className = boardsModalClassNames.importActionButtonSecondary;
     closeButton.textContent = this.runtime.i18n.t('common.close');
     closeButton.addEventListener('click', () => this.closeImportPreviewModal());
 
@@ -2910,76 +2995,162 @@ export class BoardsView {
         target: config.target,
         policies: { ...policies },
       };
-      previewButton.disabled = true;
-      applyButton.disabled = true;
-      message.show(this.runtime.i18n.t('boards.import.previewing'), 'info');
+      importOperation = 'previewing';
+      syncImportControls();
       try {
         const plan = await this.handlers.onPreviewImport(request);
         lastPreviewRequest = request;
         lastPreviewPlan = plan;
-        this.renderImportPreviewPlan(previewPanel, plan);
-        message.clear();
+        hasCompletedPreview = true;
+        importStatusOverride = null;
+        this.renderImportPreviewPlan(
+          previewPanel,
+          plan,
+          request.policies.mode === 'create'
+        );
+        importModalMode = 'review';
+        renderImportMode();
       } catch {
         lastPreviewRequest = null;
         lastPreviewPlan = null;
+        importStatusOverride = {
+          messageKey: 'boards.import.previewFailed',
+          tone: 'error',
+        };
         this.renderImportPreviewPlan(previewPanel, null);
-        message.show(
-          this.runtime.i18n.t('boards.import.previewFailed'),
-          'error'
-        );
       } finally {
-        validatePreviewButton();
-        syncApplyButton();
+        importOperation = 'idle';
+        syncImportControls();
       }
     };
 
     const applyImport = async (): Promise<void> => {
       if (!lastPreviewRequest || !lastPreviewPlan?.canApply) return;
       if (lastPreviewRequest.policies.mode !== 'create') return;
-      applyButton.disabled = true;
-      previewButton.disabled = true;
-      message.show(this.runtime.i18n.t('boards.import.applying'), 'info');
+      importOperation = 'applying';
+      syncImportControls();
       try {
         const result = await this.handlers.onApplyImport(lastPreviewRequest);
         if (!result) {
-          message.show(
-            this.runtime.i18n.t('boards.import.applyFailed'),
-            'error'
-          );
+          importStatusOverride = {
+            messageKey: 'boards.import.applyFailed',
+            tone: 'error',
+          };
           return;
         }
         this.closeImportPreviewModal();
         notify(this.runtime.i18n.t('boards.import.applied'), 'success');
       } catch {
-        message.show(this.runtime.i18n.t('boards.import.applyFailed'), 'error');
+        importStatusOverride = {
+          messageKey: 'boards.import.applyFailed',
+          tone: 'error',
+        };
       } finally {
-        validatePreviewButton();
-        syncApplyButton();
+        importOperation = 'idle';
+        syncImportControls();
       }
+    };
+
+    const renderImportStalePreview = (): void => {
+      this.renderImportPreviewPlan(previewPanel, null);
     };
 
     function invalidatePreview(): void {
       lastPreviewRequest = null;
       lastPreviewPlan = null;
-      applyButton.disabled = true;
+      importStatusOverride = null;
+      renderImportStalePreview();
     }
 
-    function validatePreviewButton(): void {
-      previewButton.disabled = sourceInput.value.trim().length === 0;
-    }
+    const renderImportMode = (): void => {
+      body.replaceChildren(
+        importModalMode === 'review' ? reviewContent : editContent
+      );
+    };
 
-    function syncApplyButton(): void {
+    const syncImportControls = (): void => {
+      const hasSource = sourceInput.value.trim().length > 0;
+      const busy = importOperation !== 'idle';
+      const hasFreshPreview = lastPreviewRequest !== null;
+      const previewCanApply = lastPreviewPlan?.canApply === true;
+      const canApplyMode = lastPreviewRequest?.policies.mode === 'create';
+      const reviewMode = importModalMode === 'review';
+
+      previewButton.disabled = busy || !hasSource;
       applyButton.disabled =
-        !lastPreviewRequest ||
-        !lastPreviewPlan?.canApply ||
-        lastPreviewRequest.policies.mode !== 'create';
-    }
+        busy ||
+        !reviewMode ||
+        !hasFreshPreview ||
+        !previewCanApply ||
+        !canApplyMode;
+      previewButton.hidden = reviewMode;
+      backButton.hidden = !reviewMode;
+      applyButton.hidden = !reviewMode;
+      previewButton.className = boardsModalClassNames.importActionButtonPrimary;
+      applyButton.className = applyButton.disabled
+        ? boardsModalClassNames.importActionButtonSecondary
+        : boardsModalClassNames.importActionButtonPrimary;
+      previewButton.textContent = this.runtime.i18n.t(
+        hasCompletedPreview
+          ? 'boards.import.previewUpdate'
+          : 'boards.import.preview'
+      );
+
+      if (importOperation === 'previewing') {
+        message.show(this.runtime.i18n.t('boards.import.previewing'), 'info');
+      } else if (importOperation === 'applying') {
+        message.show(this.runtime.i18n.t('boards.import.applying'), 'info');
+      } else if (importStatusOverride) {
+        message.show(
+          this.runtime.i18n.t(importStatusOverride.messageKey),
+          importStatusOverride.tone
+        );
+      } else if (!hasSource) {
+        message.show(this.runtime.i18n.t('boards.import.needSource'), 'info');
+      } else if (!reviewMode) {
+        if (hasFreshPreview) {
+          message.clear();
+        } else {
+          message.show(
+            this.runtime.i18n.t('boards.import.previewRequired'),
+            'info'
+          );
+        }
+      } else if (!hasFreshPreview) {
+        message.show(
+          this.runtime.i18n.t('boards.import.previewRequired'),
+          'info'
+        );
+      } else if (!previewCanApply) {
+        message.show(
+          this.runtime.i18n.t('boards.import.blockedByPlan'),
+          'error'
+        );
+      } else if (!canApplyMode) {
+        message.show(
+          this.runtime.i18n.t('boards.import.unsupportedMode'),
+          'warning'
+        );
+      } else {
+        message.clear();
+      }
+
+      const applyReason = applyButton.disabled
+        ? message.element.textContent?.trim()
+        : '';
+      if (applyReason) {
+        applyButton.title = applyReason;
+      } else {
+        applyButton.removeAttribute('title');
+      }
+    };
 
     previewButton.addEventListener('click', () => void runPreview());
     applyButton.addEventListener('click', () => void applyImport());
-    row.append(closeButton, previewButton, applyButton);
+    row.append(closeButton, backButton, previewButton, applyButton);
     footer.replaceChildren(message.element, row);
-    validatePreviewButton();
+    renderImportMode();
+    syncImportControls();
 
     this.importPreviewOverlay = overlay;
     requestAnimationFrame(() => sourceInput.focus());
@@ -3007,12 +3178,12 @@ export class BoardsView {
     const select = document.createElement('select');
     select.id = options.id;
     select.className = boardsModalClassNames.importSelect;
-    select.value = options.value;
     for (const [value, labelKey] of options.options) {
       select.append(
         this.createSelectOption(value, this.runtime.i18n.t(labelKey))
       );
     }
+    select.value = options.value;
     select.addEventListener('change', () => {
       options.onChange(select.value as TValue);
     });
@@ -3020,81 +3191,318 @@ export class BoardsView {
     return field;
   }
 
+  private createImportFormatGuide(options: {
+    scope: BoardsExchangeScope;
+    getFormat: () => BoardsExchangeFormat;
+    onInsertTemplate: () => void;
+    onCopyAiPrompt: () => void;
+    onClear: () => void;
+  }): ImportFormatGuideHandle {
+    const section = document.createElement('section');
+    section.className = boardsModalClassNames.importGuide;
+    section.setAttribute('data-testid', 'boards-import-format-guide');
+
+    const helpButton = createIconButton({
+      icon: 'light-bulb',
+      size: 'sm',
+      tone: 'text',
+      className: boardsModalClassNames.importGuideHelp,
+      ariaLabel: this.runtime.i18n.t('boards.import.guide.title'),
+      title: this.runtime.i18n.t('boards.import.guide.title'),
+    });
+    helpButton.setAttribute('data-testid', 'boards-import-format-help');
+
+    const actions = document.createElement('div');
+    actions.className = boardsModalClassNames.importGuideActions;
+    actions.append(
+      helpButton,
+      this.createImportGuideButton(
+        'boards.import.guide.insertTemplate',
+        'boards-import-insert-template-button',
+        options.onInsertTemplate
+      ),
+      this.createImportGuideButton(
+        'boards.import.guide.copyAiPrompt',
+        'boards-import-copy-ai-prompt-button',
+        options.onCopyAiPrompt
+      ),
+      this.createImportGuideButton(
+        'boards.import.guide.clear',
+        'boards-import-clear-source-button',
+        options.onClear
+      )
+    );
+
+    const refresh = (): void => {
+      const format = options.getFormat();
+      helpButton.title = this.getImportGuideTooltip(format);
+      helpButton.setAttribute(
+        'aria-label',
+        this.runtime.i18n.t('boards.import.guide.title')
+      );
+    };
+
+    section.append(actions);
+    refresh();
+    return { element: section, refresh };
+  }
+
+  private getImportGuideTooltip(format: BoardsExchangeFormat): string {
+    return [
+      this.runtime.i18n.t('boards.import.guide.title'),
+      this.runtime.i18n.t(
+        format === 'markdown'
+          ? 'boards.import.guide.markdownSummary'
+          : 'boards.import.guide.jsonSummary'
+      ),
+      this.runtime.i18n.t(
+        format === 'markdown'
+          ? 'boards.import.guide.markdownRequired'
+          : 'boards.import.guide.jsonRequired'
+      ),
+      this.runtime.i18n.t('boards.import.guide.optional'),
+      this.runtime.i18n.t('boards.import.guide.partial'),
+      this.runtime.i18n.t('boards.import.guide.createOnly'),
+    ].join('\n');
+  }
+
+  private createImportGuideButton(
+    labelKey: string,
+    testId: string,
+    onClick: () => void
+  ): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = boardsModalClassNames.importGuideButton;
+    button.textContent = this.runtime.i18n.t(labelKey);
+    button.setAttribute('data-testid', testId);
+    button.addEventListener('click', onClick);
+    return button;
+  }
+
+  private getImportTemplate(
+    scope: BoardsExchangeScope,
+    format: BoardsExchangeFormat
+  ): string {
+    if (format === 'json') {
+      return JSON.stringify(
+        {
+          schema: BOARDS_EXCHANGE_SCHEMA,
+          version: BOARDS_EXCHANGE_VERSION,
+          scope,
+          payload: this.getJsonImportTemplatePayload(scope),
+        },
+        null,
+        2
+      );
+    }
+
+    if (scope === 'column') {
+      return [
+        '## Column: Backlog',
+        '',
+        '### Card: First task',
+        'Description:',
+        'Optional description.',
+        '',
+        '### Card: Second task',
+      ].join('\n');
+    }
+
+    if (scope === 'card') {
+      return [
+        '### Card: First task',
+        'Description:',
+        'Optional description.',
+        '',
+        'Checklist: Steps',
+        '- [ ] First step',
+        '- [ ] Second step',
+      ].join('\n');
+    }
+
+    return [
+      '---',
+      'title: "Project board"',
+      '---',
+      '',
+      '## Column: Backlog',
+      '',
+      '### Card: First task',
+      'Description:',
+      'Short task description.',
+      '',
+      'Checklist: Setup',
+      '- [ ] Prepare data',
+      '- [x] Confirm format',
+    ].join('\n');
+  }
+
+  private getJsonImportTemplatePayload(
+    scope: BoardsExchangeScope
+  ): Record<string, unknown> {
+    const card = {
+      title: 'First task',
+      description: 'Optional description.',
+      checklists: [
+        {
+          title: 'Steps',
+          items: [
+            { title: 'First step', state: 'incomplete' },
+            { title: 'Second step', state: 'complete' },
+          ],
+        },
+      ],
+    };
+
+    if (scope === 'card') return card;
+    const column = { title: 'Backlog', cards: [card] };
+    if (scope === 'column') return column;
+    return { title: 'Project board', columns: [column] };
+  }
+
+  private getImportAiPrompt(
+    scope: BoardsExchangeScope,
+    format: BoardsExchangeFormat
+  ): string {
+    const scopeLabel =
+      scope === 'board' ? 'board' : scope === 'column' ? 'list' : 'card';
+    if (format === 'json') {
+      return [
+        `Generate a Majom Boards JSON import for one ${scopeLabel}.`,
+        `Use schema "${BOARDS_EXCHANGE_SCHEMA}" and version "${BOARDS_EXCHANGE_VERSION}".`,
+        'Use this shape:',
+        this.getImportTemplate(scope, 'json'),
+        'Return only valid JSON.',
+      ].join('\n\n');
+    }
+
+    return [
+      `Generate a Majom Boards Markdown import for one ${scopeLabel}.`,
+      'Use this format:',
+      '- YAML front matter with title for board imports',
+      '- ## Column: column name',
+      '- ### Card: card title',
+      '- Description: optional multiline description',
+      '- Checklist: optional checklist title',
+      '- - [ ] unchecked item',
+      '- - [x] completed item',
+      'Missing optional fields are allowed.',
+      'Return only Markdown.',
+      '',
+      this.getImportTemplate(scope, 'markdown'),
+    ].join('\n');
+  }
+
+  private async copyImportAiPrompt(
+    scope: BoardsExchangeScope,
+    format: BoardsExchangeFormat
+  ): Promise<void> {
+    const prompt = this.getImportAiPrompt(scope, format);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(prompt);
+      } else {
+        const fallback = document.createElement('textarea');
+        fallback.value = prompt;
+        fallback.style.position = 'fixed';
+        fallback.style.left = '-9999px';
+        document.body.append(fallback);
+        fallback.select();
+        document.execCommand('copy');
+        fallback.remove();
+      }
+      notify(this.runtime.i18n.t('boards.import.aiPromptCopied'), 'success');
+    } catch {
+      notify(this.runtime.i18n.t('boards.import.aiPromptCopyFailed'), 'warning');
+    }
+  }
+
   private renderImportPreviewPlan(
     host: HTMLElement,
-    plan: BoardsImportPlan | null
+    plan: BoardsImportPlan | null,
+    applyModeSupported = true
   ): void {
     host.replaceChildren();
 
-    const title = document.createElement('h3');
-    title.className = boardsModalClassNames.importPreviewTitle;
-    title.textContent = this.runtime.i18n.t('boards.import.previewTitle');
-    host.append(title);
-
     if (!plan) {
+      const title = document.createElement('h3');
+      title.className = boardsModalClassNames.importPreviewTitle;
+      title.textContent = this.runtime.i18n.t('boards.import.previewTitle');
       const empty = document.createElement('p');
       empty.className = boardsModalClassNames.importEmpty;
       empty.textContent = this.runtime.i18n.t('boards.import.previewEmpty');
-      host.append(empty);
+      host.append(title, empty);
       return;
     }
 
-    const counts = document.createElement('dl');
-    counts.className = boardsModalClassNames.importCounts;
-    (
-      [
-        ['create', 'boards.import.count.create'],
-        ['update', 'boards.import.count.update'],
-        ['skip', 'boards.import.count.skip'],
-        ['conflict', 'boards.import.count.conflict'],
-      ] as const
-    ).forEach(([key, labelKey]) => {
-      const item = document.createElement('div');
-      item.className = boardsModalClassNames.importCount;
-      const value = document.createElement('dt');
-      value.className = boardsModalClassNames.importCountValue;
-      value.textContent = String(plan.counts[key]);
-      const label = document.createElement('dd');
-      label.className = boardsModalClassNames.importCountLabel;
-      label.textContent = this.runtime.i18n.t(labelKey);
-      item.append(value, label);
-      counts.append(item);
-    });
-    host.append(counts);
-
-    const status = document.createElement('p');
-    status.className = plan.canApply
-      ? boardsModalClassNames.importStatusOk
-      : boardsModalClassNames.importStatusBlocked;
-    status.textContent = this.runtime.i18n.t(
+    const header = document.createElement('header');
+    header.className = boardsModalClassNames.importReviewHeader;
+    const headerText = document.createElement('div');
+    const eyebrow = document.createElement('p');
+    eyebrow.className = boardsModalClassNames.importReviewEyebrow;
+    eyebrow.textContent = this.runtime.i18n.t('boards.import.previewTitle');
+    const headline = document.createElement('h3');
+    headline.className = boardsModalClassNames.importReviewHeadline;
+    headline.textContent = this.runtime.i18n.t(
       plan.canApply
-        ? 'boards.import.status.ready'
-        : 'boards.import.status.blocked'
+        ? applyModeSupported
+          ? 'boards.import.status.ready'
+          : 'boards.import.status.previewOnly'
+          : 'boards.import.status.blocked'
     );
-    host.append(status);
+    headerText.append(eyebrow, headline);
+    header.append(headerText);
+    host.append(header);
 
     if (plan.items.length > 0) {
-      const list = document.createElement('ul');
-      list.className = boardsModalClassNames.importItems;
-      plan.items.slice(0, 40).forEach((planItem) => {
-        const item = document.createElement('li');
-        item.className = boardsModalClassNames.importItem;
-        const main = document.createElement('span');
-        main.className = boardsModalClassNames.importItemMain;
-        main.textContent = `${this.runtime.i18n.t(
-          IMPORT_ACTION_LABEL_KEYS[planItem.action]
-        )} ${this.runtime.i18n.t(
-          IMPORT_ENTITY_LABEL_KEYS[planItem.entity]
-        )}: ${planItem.title}`;
-        const meta = document.createElement('span');
-        meta.className = boardsModalClassNames.importItemMeta;
-        meta.textContent = planItem.reason
-          ? `${planItem.path} · ${planItem.reason}`
-          : planItem.path;
-        item.append(main, meta);
-        list.append(item);
+      const groups = document.createElement('div');
+      groups.className = boardsModalClassNames.importPlanGroups;
+      (['create', 'update', 'skip', 'conflict'] as const).forEach((action) => {
+        const groupItems = plan.items
+          .filter((planItem) => planItem.action === action)
+          .slice(0, 40);
+        if (groupItems.length === 0) return;
+        const group = document.createElement('section');
+        group.className = `${boardsModalClassNames.importPlanGroup} majom-boards-import__plan-group--${action}`;
+        const groupHeader = document.createElement('header');
+        groupHeader.className = boardsModalClassNames.importPlanGroupHeader;
+        const groupTitle = document.createElement('h4');
+        groupTitle.className = boardsModalClassNames.importPlanGroupTitle;
+        groupTitle.textContent = this.runtime.i18n.t(
+          IMPORT_ACTION_GROUP_LABEL_KEYS[action]
+        );
+        groupHeader.append(groupTitle);
+
+        const list = document.createElement('ul');
+        list.className = boardsModalClassNames.importItems;
+        groupItems.forEach((planItem) => {
+          const item = document.createElement('li');
+          item.className = boardsModalClassNames.importItem;
+          const entity = document.createElement('span');
+          entity.className = boardsModalClassNames.importItemEntity;
+          entity.textContent = this.runtime.i18n.t(
+            IMPORT_ENTITY_LABEL_KEYS[planItem.entity]
+          );
+          const text = document.createElement('span');
+          const main = document.createElement('span');
+          main.className = boardsModalClassNames.importItemMain;
+          main.textContent = planItem.title;
+          text.append(main);
+          const metaText = this.getImportPlanItemMeta(planItem);
+          if (metaText) {
+            const meta = document.createElement('span');
+            meta.className = boardsModalClassNames.importItemMeta;
+            meta.textContent = metaText;
+            text.append(meta);
+          }
+          item.append(entity, text);
+          list.append(item);
+        });
+        group.append(groupHeader, list);
+        groups.append(group);
       });
-      host.append(list);
+      host.append(groups);
     }
 
     if (plan.diagnostics.length > 0) {
@@ -3113,6 +3521,37 @@ export class BoardsView {
       });
       host.append(diagnostics);
     }
+  }
+
+  private getImportPlanItemMeta(
+    planItem: BoardsImportPlan['items'][number]
+  ): string | null {
+    if (planItem.action === 'create') return null;
+
+    const reasonLabels: Record<string, string> = {
+      'ambiguous-title-match': this.runtime.i18n.t(
+        'boards.import.reason.ambiguousTitle'
+      ),
+      'invalid-source': this.runtime.i18n.t('boards.import.reason.invalidSource'),
+      'matched-by-title': this.runtime.i18n.t(
+        'boards.import.reason.matchedByTitle'
+      ),
+      'replace-target-not-found': this.runtime.i18n.t(
+        'boards.import.reason.replaceTargetNotFound'
+      ),
+      'target-board-not-found': this.runtime.i18n.t(
+        'boards.import.reason.targetBoardNotFound'
+      ),
+      'target-column-not-found': this.runtime.i18n.t(
+        'boards.import.reason.targetColumnNotFound'
+      ),
+    };
+
+    if (planItem.reason) return reasonLabels[planItem.reason] ?? planItem.path;
+    if (planItem.targetId) {
+      return this.runtime.i18n.t('boards.import.reason.existingTarget');
+    }
+    return planItem.path;
   }
 
   private closeImportPreviewModal(): void {
@@ -3162,10 +3601,6 @@ export class BoardsView {
     content.append(meta, output);
     body.replaceChildren(content);
 
-    const message = createFormMessage({
-      className: boardsModalClassNames.exportMessage,
-      ariaLive: 'polite',
-    });
     const row = createModalActionRow({ variant: 'confirm' });
     const closeButton = document.createElement('button');
     closeButton.type = 'button';
@@ -3179,19 +3614,18 @@ export class BoardsView {
     copyButton.textContent = this.runtime.i18n.t('boards.export.copy');
     copyButton.setAttribute('data-testid', 'boards-export-copy-button');
     copyButton.addEventListener('click', () => {
-      void this.copyExportContent(result, output, message);
+      void this.copyExportContent(result, output);
     });
 
     row.append(closeButton, copyButton);
-    footer.replaceChildren(message.element, row);
+    footer.replaceChildren(row);
     this.exportOutputOverlay = overlay;
     requestAnimationFrame(() => output.focus());
   }
 
   private async copyExportContent(
     result: BoardsExportResult,
-    output: HTMLTextAreaElement,
-    message: ReturnType<typeof createFormMessage>
+    output: HTMLTextAreaElement
   ): Promise<void> {
     try {
       if (navigator.clipboard?.writeText) {
@@ -3200,10 +3634,10 @@ export class BoardsView {
         output.select();
         document.execCommand('copy');
       }
-      message.show(this.runtime.i18n.t('boards.export.copied'), 'success');
+      notify(this.runtime.i18n.t('boards.export.copied'), 'success');
     } catch {
       output.select();
-      message.show(this.runtime.i18n.t('boards.export.copyFailed'), 'warning');
+      notify(this.runtime.i18n.t('boards.export.copyFailed'), 'warning');
     }
   }
 
