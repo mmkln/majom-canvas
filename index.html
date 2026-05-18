@@ -40,14 +40,7 @@
       try {
         var token = window.localStorage && window.localStorage.getItem('refresh');
         if (!token) return;
-        var payload = token.split('.')[1];
-        if (!payload) return;
-        var normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
-        while (normalized.length % 4) normalized += '=';
-        var decoded = JSON.parse(window.atob(normalized));
-        if (decoded && decoded.exp && decoded.exp * 1000 > Date.now()) {
-          document.documentElement.setAttribute('data-majom-auth-restore', 'pending');
-        }
+        document.documentElement.setAttribute('data-majom-auth-restore', 'pending');
       } catch (error) {
         document.documentElement.removeAttribute('data-majom-auth-restore');
       }
@@ -144,8 +137,8 @@
       ]
     }
     </script>
-  <script type="module" crossorigin src="./assets/index-wC9KDwt3.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-D7_PqNys.css">
+  <script type="module" crossorigin src="./assets/index-DHuUWscB.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-wnDyuWlb.css">
 </head>
 <body>
 <main id="majom-public-landing" class="fixed inset-0 z-[180] overflow-y-auto bg-slate-50 text-slate-950">
