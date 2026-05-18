@@ -27,6 +27,32 @@
     <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-title" content="Majom" />
     <link rel="manifest" href="./site.webmanifest" />
+    <style>
+        html[data-majom-auth-restore="pending"] #majom-public-landing {
+            display: none;
+        }
+        html[data-majom-auth-restore="pending"] body {
+            background: #f8fafc;
+        }
+    </style>
+    <script>
+    (function () {
+      try {
+        var token = window.localStorage && window.localStorage.getItem('refresh');
+        if (!token) return;
+        var payload = token.split('.')[1];
+        if (!payload) return;
+        var normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+        while (normalized.length % 4) normalized += '=';
+        var decoded = JSON.parse(window.atob(normalized));
+        if (decoded && decoded.exp && decoded.exp * 1000 > Date.now()) {
+          document.documentElement.setAttribute('data-majom-auth-restore', 'pending');
+        }
+      } catch (error) {
+        document.documentElement.removeAttribute('data-majom-auth-restore');
+      }
+    })();
+    </script>
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -118,7 +144,7 @@
       ]
     }
     </script>
-  <script type="module" crossorigin src="./assets/index-CDKLpsbW.js"></script>
+  <script type="module" crossorigin src="./assets/index-wC9KDwt3.js"></script>
   <link rel="stylesheet" crossorigin href="./assets/index-D7_PqNys.css">
 </head>
 <body>
