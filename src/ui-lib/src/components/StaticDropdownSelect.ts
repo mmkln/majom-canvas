@@ -7,6 +7,7 @@ type StaticDropdownSelectOptions<T> = {
   items: T[];
   getKey: (item: T) => string;
   getLabel: (item: T) => string;
+  getHint?: (item: T) => string | null | undefined;
   onSelect: (item: T) => void;
   className?: string;
   disabled?: boolean;
@@ -29,6 +30,7 @@ export class StaticDropdownSelect<T> {
       placeholder: options.placeholder,
       getKey: options.getKey,
       getLabel: options.getLabel,
+      getHint: options.getHint,
       onSelect: options.onSelect,
       className: options.className,
       disabled: options.disabled,

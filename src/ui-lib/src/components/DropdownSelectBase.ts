@@ -19,6 +19,7 @@ type DropdownSelectBaseOptions<T> = {
   placeholder: string;
   getKey: (item: T) => string;
   getLabel: (item: T) => string;
+  getHint?: (item: T) => string | null | undefined;
   onSelect: (item: T) => void;
   className?: string;
   disabled?: boolean;
@@ -220,6 +221,7 @@ export class DropdownSelectBase<T> {
       const selected = this.options.getKey(item) === this.getSelectedKey();
       const row = createDropdownItem({
         label: this.options.getLabel(item),
+        hint: this.options.getHint?.(item) ?? undefined,
         leading: this.options.renderOptionLeading?.(item) ?? null,
         trailing:
           this.options.renderOptionTrailing?.(item, selected) ?? null,
