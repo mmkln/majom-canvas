@@ -709,6 +709,10 @@ export const en = {
   'profileSettings.appearance.wallpaperLabel': 'Wallpaper {id}',
   'profileSettings.appearance.wallpaperCount': '{count} wallpapers available',
   'profileSettings.appearance.change': 'Change wallpaper',
+  'profileSettings.appearance.upload': 'Upload image',
+  'profileSettings.appearance.uploading': 'Uploading...',
+  'profileSettings.appearance.uploadInvalid': 'Choose an image file.',
+  'profileSettings.appearance.uploadError': 'Could not upload wallpaper.',
   'profileSettings.appearance.pickerTitle': 'Choose wallpaper',
   'profileSettings.appearance.pickerSubtitle':
     'Browse the available wallpapers and preview the selected one before applying it to the workspace.',

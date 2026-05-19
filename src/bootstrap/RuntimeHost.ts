@@ -511,6 +511,8 @@ export class RuntimeHost {
         wallpapers: this.wallpaperService.wallpaperList,
         currentWallpaperId: previousWallpaperId,
         selectedWallpaperId: previousWallpaperId,
+        onUploadWallpaper: (file) =>
+          firstValueFrom(this.wallpaperService.uploadWallpaper(file)),
       });
       if (nextWallpaperId === null || nextWallpaperId === previousWallpaperId) {
         return;

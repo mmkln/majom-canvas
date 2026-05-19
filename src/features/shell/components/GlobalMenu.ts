@@ -36,7 +36,7 @@ const GLOBAL_MENU_Z_INDEX = 46;
 
 type ProfileSettingsWallpaperService = Pick<
   WallpaperService,
-  'findWallpaperById' | 'setDefaultWallpaper'
+  'findWallpaperById' | 'setDefaultWallpaper' | 'uploadWallpaper'
 > & {
   readonly wallpaperList: Wallpaper[];
 };
@@ -95,6 +95,9 @@ export class GlobalMenu {
           wallpaperList: [],
           findWallpaperById: () => null,
           setDefaultWallpaper: () => {},
+          uploadWallpaper: () => {
+            throw new Error('Wallpaper upload service is not configured.');
+          },
         } satisfies ProfileSettingsWallpaperService),
       onUserUpdated: (user) => {
         this.authController.syncUser(user);

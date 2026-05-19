@@ -5,9 +5,11 @@ import {
 } from '../../../ui-lib/src/components/Modal.ts';
 import {
   createBadge,
+  createFormMessage,
   createInput,
   createTextButton,
 } from '../../../ui-lib/src/hud/index.ts';
+import { createIcon } from '../../../ui-lib/src/hud/icons.ts';
 import type { I18nService } from '../../../i18n/index.ts';
 import type { Wallpaper } from '../../../majom-wrapper/interfaces/auth-interfaces.ts';
 import { resolveWallpaperUrl } from '../services/WallpaperService.ts';
@@ -17,6 +19,7 @@ type WallpaperPickerModalOptions = {
   wallpapers: Wallpaper[];
   currentWallpaperId?: string | number | null;
   selectedWallpaperId?: string | number | null;
+  onUploadWallpaper?: (file: File) => Promise<Wallpaper>;
 };
 
 function normalizeWallpaperId(
@@ -63,6 +66,16 @@ function findWallpaperById(
   return wallpapers.find((item) => String(item.id) === wallpaperId) ?? null;
 }
 
+function isImageFile(file: File): boolean {
+  return file.type.startsWith('image/');
+}
+
+function upsertWallpaper(list: Wallpaper[], wallpaper: Wallpaper): Wallpaper[] {
+  const nextList = list.filter((item) => item.id !== wallpaper.id);
+  nextList.push(wallpaper);
+  return nextList;
+}
+
 export function openWallpaperPickerModal(
   options: WallpaperPickerModalOptions
 ): Promise<string | null> {
@@ -76,10 +89,18 @@ export function openWallpaperPickerModal(
 
   return new Promise((resolve) => {
     const currentWallpaperId = normalizeWallpaperId(options.currentWallpaperId);
+    let wallpapers = [...options.wallpapers];
     let selectedWallpaperId = normalizeWallpaperId(
       options.selectedWallpaperId ?? options.currentWallpaperId
     );
     let searchTerm = '';
+    let uploadState: {
+      uploading: boolean;
+      error: string | null;
+    } = {
+      uploading: false,
+      error: null,
+    };
     let settled = false;
 
     const settle = (value: string | null): void => {
@@ -141,6 +162,9 @@ export function openWallpaperPickerModal(
     const meta = document.createElement('div');
     meta.className = 'mt-2 text-[12px] leading-4 text-slate-500';
 
+    const uploadMessageHost = document.createElement('div');
+    uploadMessageHost.className = 'mt-2';
+
     const browserSurface = document.createElement('div');
     browserSurface.className =
       'rounded-[1.35rem] bg-slate-50/72 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.78)]';
@@ -149,7 +173,19 @@ export function openWallpaperPickerModal(
     gridHost.className =
       'mt-3 max-h-[min(48vh,32rem)] overflow-y-auto pr-1 sm:max-h-[min(52vh,34rem)]';
 
-    browserSurface.append(searchControl.element, meta, gridHost);
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.className = 'hidden';
+    fileInput.dataset.role = 'wallpaper-picker-upload-input';
+
+    browserSurface.append(
+      searchControl.element,
+      meta,
+      uploadMessageHost,
+      gridHost,
+      fileInput
+    );
     browserColumn.appendChild(browserSurface);
 
     layout.append(previewColumn, browserColumn);
@@ -183,17 +219,27 @@ export function openWallpaperPickerModal(
 
     const getFilteredWallpapers = (): Wallpaper[] => {
       const normalizedSearch = searchTerm.trim().toLowerCase();
-      if (!normalizedSearch) return options.wallpapers;
-      return options.wallpapers.filter((wallpaper) =>
+      if (!normalizedSearch) return wallpapers;
+      return wallpapers.filter((wallpaper) =>
         getWallpaperSearchText(wallpaper).includes(normalizedSearch)
       );
     };
 
+    const renderUploadMessage = (): void => {
+      if (!uploadState.error) {
+        uploadMessageHost.replaceChildren();
+        return;
+      }
+      const message = createFormMessage({ tone: 'error', className: 'block' });
+      message.show(uploadState.error, 'error');
+      uploadMessageHost.replaceChildren(message.element);
+    };
+
     const renderPreview = (): void => {
       const selectedWallpaper =
-        findWallpaperById(options.wallpapers, selectedWallpaperId) ??
-        findWallpaperById(options.wallpapers, currentWallpaperId) ??
-        options.wallpapers[0] ??
+        findWallpaperById(wallpapers, selectedWallpaperId) ??
+        findWallpaperById(wallpapers, currentWallpaperId) ??
+        wallpapers[0] ??
         null;
 
       const surface = document.createElement('div');
@@ -230,10 +276,13 @@ export function openWallpaperPickerModal(
       const eyebrow = document.createElement('div');
       eyebrow.className =
         'text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400';
-      eyebrow.textContent = options.i18n.t('profileSettings.appearance.preview');
+      eyebrow.textContent = options.i18n.t(
+        'profileSettings.appearance.preview'
+      );
 
       const title = document.createElement('div');
-      title.className = 'text-[15px] font-semibold leading-6 tracking-tight text-slate-900';
+      title.className =
+        'text-[15px] font-semibold leading-6 tracking-tight text-slate-900';
       title.textContent =
         selectedWallpaperId === String(selectedWallpaper.id) &&
         selectedWallpaperId !== currentWallpaperId
@@ -245,7 +294,7 @@ export function openWallpaperPickerModal(
       supporting.textContent = options.i18n.t(
         'profileSettings.appearance.wallpaperCount',
         {
-          count: String(options.wallpapers.length),
+          count: String(wallpapers.length),
         }
       );
 
@@ -275,27 +324,114 @@ export function openWallpaperPickerModal(
       previewColumn.replaceChildren(surface);
     };
 
+    const handleWallpaperUpload = async (file: File): Promise<void> => {
+      if (!options.onUploadWallpaper || uploadState.uploading) return;
+      if (!isImageFile(file)) {
+        uploadState = {
+          uploading: false,
+          error: options.i18n.t('profileSettings.appearance.uploadInvalid'),
+        };
+        renderUploadMessage();
+        renderBrowser();
+        return;
+      }
+
+      uploadState = { uploading: true, error: null };
+      renderUploadMessage();
+      renderBrowser();
+      updateApplyState();
+
+      try {
+        const uploadedWallpaper = await options.onUploadWallpaper(file);
+        if (settled) return;
+        wallpapers = upsertWallpaper(wallpapers, uploadedWallpaper);
+        selectedWallpaperId = String(uploadedWallpaper.id);
+        searchTerm = '';
+        searchControl.setValue('');
+        uploadState = { uploading: false, error: null };
+        renderUploadMessage();
+        renderBrowser();
+        renderPreview();
+        updateApplyState();
+      } catch (error) {
+        if (settled) return;
+        console.warn('Failed to upload wallpaper.', error);
+        uploadState = {
+          uploading: false,
+          error: options.i18n.t('profileSettings.appearance.uploadError'),
+        };
+        renderUploadMessage();
+        renderBrowser();
+        updateApplyState();
+      }
+    };
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files?.[0] ?? null;
+      fileInput.value = '';
+      if (!file) return;
+      void handleWallpaperUpload(file);
+    });
+
+    const createUploadTile = (): HTMLButtonElement => {
+      const tile = document.createElement('button');
+      tile.type = 'button';
+      tile.dataset.role = 'wallpaper-picker-upload';
+      tile.disabled = uploadState.uploading;
+      tile.className = [
+        'group relative flex aspect-[16/9] flex-col items-center justify-center gap-2 overflow-hidden rounded-xl bg-white/72 px-3 text-center transition-[box-shadow,background-color] duration-150 ease-out',
+        uploadState.uploading
+          ? 'cursor-wait text-slate-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_1px_3px_rgba(15,23,42,0.04)]'
+          : 'text-slate-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_1px_3px_rgba(15,23,42,0.04)] hover:bg-white hover:text-indigo-600 hover:shadow-[0_8px_18px_rgba(15,23,42,0.08)]',
+      ].join(' ');
+      const icon = createIcon(uploadState.uploading ? 'arrow-path' : 'plus', {
+        size: 22,
+        strokeWidth: 1.8,
+      });
+      icon.setAttribute('aria-hidden', 'true');
+      if (uploadState.uploading) {
+        icon.classList.add('animate-spin');
+      }
+      const label = document.createElement('span');
+      label.className = 'text-sm font-semibold leading-5';
+      label.textContent = uploadState.uploading
+        ? options.i18n.t('profileSettings.appearance.uploading')
+        : options.i18n.t('profileSettings.appearance.upload');
+      tile.append(icon, label);
+      tile.addEventListener('click', () => {
+        if (uploadState.uploading) return;
+        fileInput.click();
+      });
+      return tile;
+    };
+
     const renderBrowser = (): void => {
       const filteredWallpapers = getFilteredWallpapers();
       meta.textContent = options.i18n.t(
         'profileSettings.appearance.searchResults',
         {
           visible: String(filteredWallpapers.length),
-          total: String(options.wallpapers.length),
+          total: String(wallpapers.length),
         }
       );
 
       const nextGrid = document.createElement('div');
       nextGrid.className = 'grid grid-cols-2 gap-2.5 xl:grid-cols-3';
+      if (options.onUploadWallpaper) {
+        nextGrid.appendChild(createUploadTile());
+      }
 
       if (filteredWallpapers.length === 0) {
         const empty = document.createElement('div');
         empty.className =
-          'rounded-xl bg-white/78 px-3 py-5 text-sm text-slate-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]';
+          'col-span-full rounded-xl bg-white/78 px-3 py-5 text-sm text-slate-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]';
         empty.textContent = options.i18n.t(
-          'profileSettings.appearance.searchEmpty'
+          wallpapers.length === 0 && searchTerm.trim().length === 0
+            ? 'profileSettings.appearance.empty'
+            : 'profileSettings.appearance.searchEmpty'
         );
-        gridHost.replaceChildren(empty);
+        nextGrid.appendChild(empty);
+        gridHost.replaceChildren(nextGrid);
         updateApplyState();
         renderPreview();
         return;
@@ -355,7 +491,9 @@ export function openWallpaperPickerModal(
 
     const updateApplyState = (): void => {
       applyButton.disabled =
-        !selectedWallpaperId || selectedWallpaperId === currentWallpaperId;
+        uploadState.uploading ||
+        !selectedWallpaperId ||
+        selectedWallpaperId === currentWallpaperId;
     };
 
     renderPreview();

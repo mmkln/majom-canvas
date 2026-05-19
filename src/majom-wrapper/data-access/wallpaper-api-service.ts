@@ -14,4 +14,13 @@ export class WallpaperApiService {
   public getWallpapers(): Observable<Wallpaper[]> {
     return this.http.get<Wallpaper[]>('/wallpapers/');
   }
+
+  /**
+   * Uploads a wallpaper image into the shared wallpaper catalog.
+   */
+  public uploadWallpaper(file: File): Observable<Wallpaper> {
+    const formData = new FormData();
+    formData.append('image_file', file);
+    return this.http.post<Wallpaper>('/wallpapers/', formData);
+  }
 }

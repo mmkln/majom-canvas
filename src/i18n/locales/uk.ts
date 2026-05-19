@@ -722,6 +722,10 @@ export const uk = {
   'profileSettings.appearance.wallpaperLabel': 'Шпалери {id}',
   'profileSettings.appearance.wallpaperCount': 'Доступно {count} шпалер',
   'profileSettings.appearance.change': 'Змінити шпалери',
+  'profileSettings.appearance.upload': 'Завантажити зображення',
+  'profileSettings.appearance.uploading': 'Завантаження...',
+  'profileSettings.appearance.uploadInvalid': 'Оберіть файл зображення.',
+  'profileSettings.appearance.uploadError': 'Не вдалося завантажити шпалери.',
   'profileSettings.appearance.pickerTitle': 'Оберіть шпалери',
   'profileSettings.appearance.pickerSubtitle':
     'Перегляньте доступні шпалери та попередньо оцініть вибраний варіант перед застосуванням до workspace.',

@@ -476,6 +476,10 @@ export const es: AppTranslations = {
   'profileSettings.appearance.wallpaperLabel': 'Fondo {id}',
   'profileSettings.appearance.wallpaperCount': '{count} fondos disponibles',
   'profileSettings.appearance.change': 'Cambiar fondo',
+  'profileSettings.appearance.upload': 'Subir imagen',
+  'profileSettings.appearance.uploading': 'Subiendo...',
+  'profileSettings.appearance.uploadInvalid': 'Elige un archivo de imagen.',
+  'profileSettings.appearance.uploadError': 'No se pudo subir el fondo.',
   'profileSettings.appearance.pickerTitle': 'Elegir fondo',
   'profileSettings.appearance.pickerSubtitle':
     'Explora los fondos disponibles y previsualiza el seleccionado antes de aplicarlo al workspace.',

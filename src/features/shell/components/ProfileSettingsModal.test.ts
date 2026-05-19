@@ -40,6 +40,14 @@ function createWallpaperService(wallpapers: Wallpaper[]) {
       return wallpapers.find((item) => String(item.id) === normalized) ?? null;
     }),
     setDefaultWallpaper,
+    uploadWallpaper: vi.fn((file: File) => {
+      const wallpaper = createWallpaper(
+        wallpapers.length + 1,
+        `/uploads/${file.name}`
+      );
+      wallpapers.push(wallpaper);
+      return of(wallpaper);
+    }),
   };
 }
 
@@ -525,6 +533,61 @@ describe('ProfileSettingsModal', () => {
     await flushPromises();
 
     expect(document.body.textContent).toContain('Wallpaper updated.');
+
+    modal.destroy();
+  });
+
+  it('uploads a wallpaper from the picker before applying it', async () => {
+    const wallpapers = [createWallpaper(1, '/wallpaper-one.webp')];
+    const uploadedWallpaper = createWallpaper(2, '/uploads/custom.webp');
+    const wallpaperService = createWallpaperService(wallpapers);
+    wallpaperService.uploadWallpaper.mockImplementation((file: File) => {
+      expect(file.name).toBe('custom.webp');
+      wallpapers.push(uploadedWallpaper);
+      return of(uploadedWallpaper);
+    });
+    const setUserWallpaper = vi.fn(() => of(createUser({ wallpaper_id: '2' })));
+    const modal = new ProfileSettingsModal({
+      runtime: createAppRuntime({ initialLocale: 'en', energyService: null }),
+      userApiService: createUserApiService({ setUserWallpaper }),
+      wallpaperService,
+    });
+
+    modal.open(createUser({ wallpaper_id: '1' }));
+
+    document
+      .querySelector<HTMLButtonElement>(
+        'button[data-role="profile-settings-wallpaper-browse"]'
+      )
+      ?.click();
+
+    const input = document.querySelector<HTMLInputElement>(
+      'input[data-role="wallpaper-picker-upload-input"]'
+    );
+    expect(input).not.toBeNull();
+    Object.defineProperty(input, 'files', {
+      configurable: true,
+      value: [new File(['image'], 'custom.webp', { type: 'image/webp' })],
+    });
+    input?.dispatchEvent(new Event('change', { bubbles: true }));
+
+    await flushPromises();
+    await flushPromises();
+
+    expect(wallpaperService.uploadWallpaper).toHaveBeenCalledTimes(1);
+    document
+      .querySelector<HTMLButtonElement>(
+        'button[data-role="wallpaper-picker-apply"]'
+      )
+      ?.click();
+
+    await flushPromises();
+    await flushPromises();
+
+    expect(setUserWallpaper).toHaveBeenCalledWith('2');
+    expect(wallpaperService.setDefaultWallpaper).toHaveBeenCalledWith(
+      uploadedWallpaper
+    );
 
     modal.destroy();
   });

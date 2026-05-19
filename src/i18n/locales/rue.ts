@@ -134,6 +134,10 @@ export const rue: AppTranslations = {
   'profileSettings.appearance.wallpaperLabel': 'Тло {id}',
   'profileSettings.appearance.wallpaperCount': 'Доступно тлів: {count}',
   'profileSettings.appearance.change': 'Змінити тло',
+  'profileSettings.appearance.upload': 'Upload image',
+  'profileSettings.appearance.uploading': 'Uploading...',
+  'profileSettings.appearance.uploadInvalid': 'Choose an image file.',
+  'profileSettings.appearance.uploadError': 'Could not upload wallpaper.',
   'profileSettings.appearance.pickerTitle': 'Выбрати тло',
   'profileSettings.appearance.pickerSubtitle':
     'Переглянь доступны тла і подиви ся на выбране перед приміньом у workspace-і.',

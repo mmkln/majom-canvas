@@ -67,8 +67,26 @@ export class HttpInterceptorClient {
 
   private normalizeBody(body: any): any {
     if (body === undefined || body === null) return body;
+    if (this.isFormDataBody(body)) return body;
     if (Array.isArray(body)) return JSON.stringify(body);
     return body;
+  }
+
+  private isFormDataBody(body: any): body is FormData {
+    return typeof FormData !== 'undefined' && body instanceof FormData;
+  }
+
+  private getMutationHeaders(
+    body: any,
+    headers: Record<string, string> = {}
+  ): Record<string, string> {
+    if (this.isFormDataBody(body)) {
+      return { ...headers };
+    }
+    return {
+      'Content-Type': 'application/json',
+      ...headers,
+    };
   }
 
   public get<T>(path: string, options: any = {}): Observable<T> {
@@ -113,10 +131,7 @@ export class HttpInterceptorClient {
   public post<T>(path: string, body: any, options: any = {}): Observable<T> {
     requestTracker.start();
     const authService = this.authService;
-    const baseHeaders = {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    };
+    const baseHeaders = this.getMutationHeaders(body, options.headers);
     let headers = this.attachAuth(baseHeaders);
     const normalizedBody = this.normalizeBody(body);
     const accessToken = authService.getAuthToken();
@@ -163,10 +178,7 @@ export class HttpInterceptorClient {
   public put<T>(path: string, body: any, options: any = {}): Observable<T> {
     requestTracker.start();
     const authService = this.authService;
-    const baseHeaders = {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    };
+    const baseHeaders = this.getMutationHeaders(body, options.headers);
     let headers = this.attachAuth(baseHeaders);
     const normalizedBody = this.normalizeBody(body);
     const accessToken = authService.getAuthToken();
@@ -213,10 +225,7 @@ export class HttpInterceptorClient {
   public patch<T>(path: string, body: any, options: any = {}): Observable<T> {
     requestTracker.start();
     const authService = this.authService;
-    const baseHeaders = {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    };
+    const baseHeaders = this.getMutationHeaders(body, options.headers);
     let headers = this.attachAuth(baseHeaders);
     const normalizedBody = this.normalizeBody(body);
     const accessToken = authService.getAuthToken();

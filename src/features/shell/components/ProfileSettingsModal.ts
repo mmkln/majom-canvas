@@ -48,7 +48,7 @@ type ProfileSettingsUserApi = Pick<
 
 type ProfileSettingsWallpaperService = Pick<
   WallpaperService,
-  'findWallpaperById' | 'setDefaultWallpaper'
+  'findWallpaperById' | 'setDefaultWallpaper' | 'uploadWallpaper'
 > & {
   readonly wallpaperList: Wallpaper[];
 };
@@ -1923,6 +1923,8 @@ export class ProfileSettingsModal {
       currentWallpaperId:
         this.serverSnapshot.wallpaper?.id ?? this.serverSnapshot.wallpaper_id,
       selectedWallpaperId: this.draft?.wallpaperId,
+      onUploadWallpaper: (file) =>
+        firstValueFrom(this.wallpaperService.uploadWallpaper(file)),
     });
     if (nextWallpaperId === null) return;
     await this.saveWallpaper(nextWallpaperId);

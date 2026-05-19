@@ -37,6 +37,12 @@ export function resolveWallpaperUrl(
   }
 }
 
+function upsertWallpaper(list: Wallpaper[], wallpaper: Wallpaper): Wallpaper[] {
+  const nextList = list.filter((item) => item.id !== wallpaper.id);
+  nextList.push(wallpaper);
+  return nextList;
+}
+
 /**
  * WallpaperService is the source of truth for authenticated workspace wallpaper.
  */
@@ -66,6 +72,16 @@ export class WallpaperService {
     return this.wallpaperApi.getWallpapers().pipe(
       tap((list) => {
         this.wallpaperListSubject.next(Array.isArray(list) ? list : []);
+      })
+    );
+  }
+
+  public uploadWallpaper(file: File): Observable<Wallpaper> {
+    return this.wallpaperApi.uploadWallpaper(file).pipe(
+      tap((wallpaper) => {
+        this.wallpaperListSubject.next(
+          upsertWallpaper(this.wallpaperListSubject.value, wallpaper)
+        );
       })
     );
   }
