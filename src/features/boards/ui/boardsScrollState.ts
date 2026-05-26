@@ -55,3 +55,17 @@ export function restoreBoardsScroll(
       }
     });
 }
+
+export class BoardsScrollCoordinator {
+  constructor(private readonly root: HTMLElement) {}
+
+  public capture(shouldPreserveScroll: boolean): BoardsScrollSnapshot | null {
+    return shouldPreserveScroll ? captureBoardsScroll(this.root) : null;
+  }
+
+  public restore(snapshot: BoardsScrollSnapshot | null): void {
+    if (!snapshot) return;
+    restoreBoardsScroll(this.root, snapshot);
+    requestAnimationFrame(() => restoreBoardsScroll(this.root, snapshot));
+  }
+}

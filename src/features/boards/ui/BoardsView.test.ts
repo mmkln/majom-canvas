@@ -22,6 +22,7 @@ import type {
 } from '../exchange/schema.ts';
 import { BoardsView } from './BoardsView.ts';
 import { notify } from '../../../ui-lib/src/services/NotificationService.ts';
+import { createBoardsCommandSuccess } from '../domain/boardsCommandResult.ts';
 
 vi.mock('../../../ui-lib/src/services/NotificationService.ts', () => ({
   notify: vi.fn(),
@@ -104,22 +105,24 @@ function createHandlers(): BoardsIntentHandlers {
     onCreateCard: vi.fn(),
     onPatchCard: vi.fn(),
     onLoadCardChecklists: vi.fn(async () => []),
-    onCreateCardChecklist: vi.fn(async () => null),
-    onDeleteCardChecklist: vi.fn(),
-    onCreateCardCheckItem: vi.fn(async () => null),
-    onPatchCardCheckItem: vi.fn(async () => null),
-    onDeleteCardCheckItem: vi.fn(),
-    onCreateCardEntityLink: vi.fn(async () => null),
-    onCreateCardEntityFromCard: vi.fn(async () => null),
-    onDeleteCardEntityLink: vi.fn(),
-    onDeleteLinkedEntity: vi.fn(),
+    onCreateCardChecklist: vi.fn(async () => createBoardsCommandSuccess(null)),
+    onDeleteCardChecklist: vi.fn(async () => createBoardsCommandSuccess()),
+    onCreateCardCheckItem: vi.fn(async () => createBoardsCommandSuccess(null)),
+    onPatchCardCheckItem: vi.fn(async () => createBoardsCommandSuccess(null)),
+    onDeleteCardCheckItem: vi.fn(async () => createBoardsCommandSuccess()),
+    onCreateCardEntityLink: vi.fn(async () => createBoardsCommandSuccess(null)),
+    onCreateCardEntityFromCard: vi.fn(async () =>
+      createBoardsCommandSuccess(null)
+    ),
+    onDeleteCardEntityLink: vi.fn(async () => createBoardsCommandSuccess()),
+    onDeleteLinkedEntity: vi.fn(async () => createBoardsCommandSuccess()),
     onCreateCardMirror: vi.fn(),
     onPatchCardPlacement: vi.fn(),
     onDeleteCardPlacement: vi.fn(),
     onDeleteCard: vi.fn(),
     onPreviewImport: vi.fn(async () => importPlan),
     onExportData: vi.fn(async () => exportResult),
-    onApplyImport: vi.fn(async () => applyResult),
+    onApplyImport: vi.fn(async () => createBoardsCommandSuccess(applyResult)),
   };
 }
 
@@ -646,6 +649,48 @@ describe('BoardsView', () => {
     view.destroy();
   });
 
+  it('keeps the quick card editor open during unrelated board data updates', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const board = createBoard();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState(board));
+
+    root
+      .querySelector<HTMLElement>(`[data-board-card-id="${CARD_BOOK}"]`)
+      ?.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          clientX: 120,
+          clientY: 80,
+        })
+      );
+    const title = document.querySelector<HTMLTextAreaElement>(
+      '[data-testid="quick-card-editor-card-title"]'
+    );
+    expect(title).not.toBeNull();
+    title!.value = 'Draft quick title';
+    title!.dispatchEvent(new Event('input', { bubbles: true }));
+
+    view.render(
+      createState({
+        ...board,
+        title: 'Renamed board',
+      })
+    );
+
+    const rerenderedTitle = document.querySelector<HTMLTextAreaElement>(
+      '[data-testid="quick-card-editor-card-title"]'
+    );
+    expect(rerenderedTitle?.value).toBe('Draft quick title');
+    view.destroy();
+  });
+
   it('deletes a card from the quick editor after confirmation', async () => {
     const root = document.createElement('div');
     document.body.append(root);
@@ -680,7 +725,7 @@ describe('BoardsView', () => {
         '[data-testid="delete-card-confirm-button"]'
       )
       ?.click();
-    await Promise.resolve();
+    await flushPromises();
 
     expect(handlers.onDeleteCard).toHaveBeenCalledWith(CARD_BOOK);
     expect(
@@ -870,6 +915,96 @@ describe('BoardsView', () => {
     view.destroy();
   });
 
+  it('keeps card details open with the user draft when card save fails', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    vi.mocked(handlers.onPatchCard).mockReturnValue({
+      ok: false,
+      error: {
+        code: 'boards.save_failed',
+        messageKey: 'boards.errors.save',
+        recoverable: true,
+      },
+    });
+    const runtime = createRuntime();
+    const view = new BoardsView(root, {
+      runtime,
+      handlers,
+    });
+    view.render(createState());
+
+    root
+      .querySelector<HTMLButtonElement>(
+        `[data-board-card-open="${PLACEMENT_BOOK}"]`
+      )
+      ?.click();
+
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+    const title = dialog.querySelector<HTMLTextAreaElement>(
+      '[data-board-card-modal-title="true"]'
+    )!;
+    title.value = 'Unsaved title';
+    title.dispatchEvent(new Event('input', { bubbles: true }));
+    Array.from(dialog.querySelectorAll('button'))
+      .find((button) => button.textContent === 'Save')
+      ?.click();
+
+    expect(handlers.onPatchCard).toHaveBeenCalledWith(CARD_BOOK, {
+      title: 'Unsaved title',
+    });
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(
+      document.querySelector<HTMLTextAreaElement>(
+        '[data-board-card-modal-title="true"]'
+      )?.value
+    ).toBe('Unsaved title');
+    expect(notify).toHaveBeenCalledWith(
+      runtime.i18n.t('boards.errors.save'),
+      'error'
+    );
+    view.destroy();
+  });
+
+  it('does not recreate an open card details modal during board data updates', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState());
+
+    root
+      .querySelector<HTMLButtonElement>(
+        `[data-board-card-open="${PLACEMENT_BOOK}"]`
+      )
+      ?.click();
+    await flushPromises();
+
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    const scrollable = dialog!.querySelector<HTMLElement>(
+      '[data-auto-scrollable="true"]'
+    );
+    expect(scrollable).not.toBeNull();
+    scrollable!.scrollTop = 120;
+
+    const updatedBoard = createBoard();
+    updatedBoard.title = 'Updated board title';
+    view.render(createState(updatedBoard));
+    await flushPromises();
+
+    expect(document.querySelector<HTMLElement>('[role="dialog"]')).toBe(dialog);
+    expect(
+      document
+        .querySelector<HTMLElement>('[role="dialog"]')
+        ?.querySelector<HTMLElement>('[data-auto-scrollable="true"]')?.scrollTop
+    ).toBe(120);
+    view.destroy();
+  });
+
   it('toggles card completion from the card details title control', () => {
     const root = document.createElement('div');
     document.body.append(root);
@@ -981,6 +1116,7 @@ describe('BoardsView', () => {
       )
       ?.click();
     await flushPromises();
+    await flushPromises();
 
     expect(handlers.onDeleteCardCheckItem).toHaveBeenCalledWith(CHECKITEM_OPEN);
 
@@ -1012,6 +1148,7 @@ describe('BoardsView', () => {
       new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
     );
     await flushPromises();
+    await flushPromises();
 
     expect(handlers.onPatchCardCheckItem).toHaveBeenCalledWith(CHECKITEM_OPEN, {
       title: 'Connect booking calendar',
@@ -1026,6 +1163,58 @@ describe('BoardsView', () => {
     expect(handlers.onPatchCardCheckItem).toHaveBeenCalledWith(CHECKITEM_OPEN, {
       state: 'complete',
     });
+    view.destroy();
+  });
+
+  it('keeps the card check item menu open during unrelated board data updates', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    vi.mocked(handlers.onLoadCardChecklists).mockResolvedValue([
+      createChecklist(),
+    ]);
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState());
+
+    root
+      .querySelector<HTMLButtonElement>(
+        `[data-board-card-open="${PLACEMENT_BOOK}"]`
+      )
+      ?.click();
+    await flushPromises();
+
+    const openItemRow = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-testid="card-check-item"]')
+    ).find((row) => row.textContent?.includes('Connect calendar'));
+    openItemRow
+      ?.querySelector<HTMLButtonElement>(
+        '[data-testid="card-check-item-menu-button"]'
+      )
+      ?.click();
+
+    const popover = document.querySelector<HTMLElement>(
+      '[data-testid="card-check-item-menu-popover"]'
+    );
+    expect(popover).not.toBeNull();
+
+    const updatedBoard = createBoard();
+    updatedBoard.title = 'Updated board title';
+    view.render(createState(updatedBoard));
+    await flushPromises();
+
+    expect(
+      document.querySelector<HTMLElement>(
+        '[data-testid="card-check-item-menu-popover"]'
+      )
+    ).toBe(popover);
+    expect(
+      document.querySelector<HTMLElement>(
+        '[data-testid="card-check-item-menu-popover"]'
+      )?.textContent
+    ).toContain('Delete');
     view.destroy();
   });
 
@@ -1363,6 +1552,56 @@ describe('BoardsView', () => {
     view.destroy();
   });
 
+  it('keeps the card checklist popover open during unrelated board data updates', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState());
+
+    root
+      .querySelector<HTMLButtonElement>(
+        `[data-board-card-open="${PLACEMENT_BOOK}"]`
+      )
+      ?.click();
+    await flushPromises();
+
+    const checklistButton = Array.from(
+      document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')
+    ).find((button) => button.textContent === 'Checklist');
+    checklistButton?.click();
+
+    const popover = document.querySelector<HTMLElement>(
+      '[data-testid="card-back-checklist-popover"]'
+    );
+    expect(popover).not.toBeNull();
+    const input = popover!.querySelector<HTMLInputElement>('input')!;
+    input.value = 'Backend-safe checklist';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+
+    const updatedBoard = createBoard();
+    updatedBoard.title = 'Updated board title';
+    view.render(createState(updatedBoard));
+    await flushPromises();
+
+    expect(
+      document.querySelector<HTMLElement>(
+        '[data-testid="card-back-checklist-popover"]'
+      )
+    ).toBe(popover);
+    expect(
+      document
+        .querySelector<HTMLElement>(
+          '[data-testid="card-back-checklist-popover"]'
+        )
+        ?.querySelector<HTMLInputElement>('input')?.value
+    ).toBe('Backend-safe checklist');
+    view.destroy();
+  });
+
   it('links a card to an existing task from card details', async () => {
     const root = document.createElement('div');
     document.body.append(root);
@@ -1493,6 +1732,55 @@ describe('BoardsView', () => {
     view.destroy();
   });
 
+  it('keeps the card entity link menu open during unrelated board data updates', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const board = createBoard();
+    board.columns[0]!.cards[0]!.entity_links = [createCardEntityLink()];
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState(board));
+
+    root
+      .querySelector<HTMLButtonElement>(
+        `[data-board-card-open="${PLACEMENT_BOOK}"]`
+      )
+      ?.click();
+    await flushPromises();
+
+    document
+      .querySelector<HTMLButtonElement>(
+        '[data-testid="card-entity-link-menu-button"]'
+      )
+      ?.click();
+
+    const popover = document.querySelector<HTMLElement>(
+      '[data-testid="card-entity-link-menu-popover"]'
+    );
+    expect(popover).not.toBeNull();
+
+    const updatedBoard = createBoard();
+    updatedBoard.title = 'Updated board title';
+    updatedBoard.columns[0]!.cards[0]!.entity_links = [createCardEntityLink()];
+    view.render(createState(updatedBoard));
+    await flushPromises();
+
+    expect(
+      document.querySelector<HTMLElement>(
+        '[data-testid="card-entity-link-menu-popover"]'
+      )
+    ).toBe(popover);
+    expect(
+      document.querySelector<HTMLElement>(
+        '[data-testid="card-entity-link-menu-popover"]'
+      )?.textContent
+    ).toContain('Open entity');
+    view.destroy();
+  });
+
   it('saves selected card labels immediately through the card patch payload', async () => {
     const root = document.createElement('div');
     document.body.append(root);
@@ -1610,6 +1898,66 @@ describe('BoardsView', () => {
     view.destroy();
   });
 
+  it('keeps the card labels popover open during unrelated board data updates', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      tagCatalog: createTagCatalog([
+        createTag({
+          id: 2,
+          title: 'Strategy',
+          slug: 'strategy',
+          color: '#7c3aed',
+        }),
+      ]),
+      handlers,
+    });
+    view.render(createState());
+    await flushPromises();
+
+    root
+      .querySelector<HTMLButtonElement>(
+        `[data-board-card-open="${PLACEMENT_BOOK}"]`
+      )
+      ?.click();
+    const labelButton = Array.from(
+      document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')
+    ).find((button) => button.textContent === 'Labels');
+    labelButton?.click();
+
+    const popover = document.querySelector<HTMLElement>(
+      '[data-testid="card-back-label-picker-popover"]'
+    );
+    expect(popover).not.toBeNull();
+    const searchInput = popover!.querySelector<HTMLInputElement>(
+      '[data-goal-tag-search-input="true"]'
+    )!;
+    searchInput.value = 'strategy';
+    searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+    const updatedBoard = createBoard();
+    updatedBoard.title = 'Updated board title';
+    view.render(createState(updatedBoard));
+    await flushPromises();
+
+    expect(
+      document.querySelector<HTMLElement>(
+        '[data-testid="card-back-label-picker-popover"]'
+      )
+    ).toBe(popover);
+    expect(
+      document.querySelector<HTMLInputElement>(
+        '[data-goal-tag-search-input="true"]'
+      )?.value
+    ).toBe('strategy');
+    expect(
+      document.querySelector('[data-role="goal-tag-picker-list"]')?.textContent
+    ).toContain('Strategy');
+    view.destroy();
+  });
+
   it('opens the move card popover from the card details list button', () => {
     const root = document.createElement('div');
     document.body.append(root);
@@ -1666,6 +2014,66 @@ describe('BoardsView', () => {
     view.destroy();
   });
 
+  it('keeps the move card popover open during unrelated board data updates', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const board = createBoard();
+    board.columns.push({
+      id: COLUMN_READING,
+      board: BOARD_ID,
+      title: 'Reading',
+      order: 1,
+      cards: [],
+    });
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState(board));
+
+    root
+      .querySelector<HTMLButtonElement>(
+        `[data-board-card-open="${PLACEMENT_BOOK}"]`
+      )
+      ?.click();
+    document
+      .querySelector<HTMLButtonElement>('[data-testid="card-back-list-button"]')
+      ?.click();
+
+    const popover = document.querySelector<HTMLElement>(
+      '[data-testid="move-card-popover"]'
+    );
+    expect(popover).not.toBeNull();
+    const listSelect = popover!.querySelector<HTMLSelectElement>(
+      '[data-testid="move-card-list-select-select"]'
+    )!;
+    listSelect.value = COLUMN_READING;
+    listSelect.dispatchEvent(new Event('change', { bubbles: true }));
+
+    const updatedBoard = createBoard();
+    updatedBoard.title = 'Updated board title';
+    updatedBoard.columns.push({
+      id: COLUMN_READING,
+      board: BOARD_ID,
+      title: 'Reading',
+      order: 1,
+      cards: [],
+    });
+    view.render(createState(updatedBoard));
+    await flushPromises();
+
+    expect(
+      document.querySelector<HTMLElement>('[data-testid="move-card-popover"]')
+    ).toBe(popover);
+    expect(
+      document.querySelector<HTMLSelectElement>(
+        '[data-testid="move-card-list-select-select"]'
+      )?.value
+    ).toBe(COLUMN_READING);
+    view.destroy();
+  });
+
   it('opens card details actions menu and starts mirroring from it', () => {
     const root = document.createElement('div');
     document.body.append(root);
@@ -1712,6 +2120,65 @@ describe('BoardsView', () => {
     );
     expect(mirrorPopover).not.toBeNull();
     expect(mirrorPopover?.textContent).toContain('Mirror card');
+    view.destroy();
+  });
+
+  it('keeps the card actions popover open during unrelated board data updates', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const board = createBoard();
+    board.columns.push({
+      id: COLUMN_READING,
+      board: BOARD_ID,
+      title: 'Reading',
+      order: 1,
+      cards: [],
+    });
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState(board));
+
+    root
+      .querySelector<HTMLButtonElement>(
+        `[data-board-card-open="${PLACEMENT_BOOK}"]`
+      )
+      ?.click();
+    document
+      .querySelector<HTMLButtonElement>(
+        '[data-testid="card-back-actions-button"]'
+      )
+      ?.click();
+
+    const popover = document.querySelector<HTMLElement>(
+      '[data-testid="card-back-actions-popover"]'
+    );
+    expect(popover).not.toBeNull();
+
+    const updatedBoard = createBoard();
+    updatedBoard.title = 'Updated board title';
+    updatedBoard.columns.push({
+      id: COLUMN_READING,
+      board: BOARD_ID,
+      title: 'Reading',
+      order: 1,
+      cards: [],
+    });
+    view.render(createState(updatedBoard));
+    await flushPromises();
+
+    expect(
+      document.querySelector<HTMLElement>(
+        '[data-testid="card-back-actions-popover"]'
+      )
+    ).toBe(popover);
+    expect(
+      document.querySelector<HTMLElement>(
+        '[data-testid="card-back-actions-popover"]'
+      )?.textContent
+    ).toContain('Mirror');
     view.destroy();
   });
 
@@ -2037,7 +2504,7 @@ describe('BoardsView', () => {
         '[data-testid="delete-card-cancel-button"]'
       )
       ?.click();
-    await Promise.resolve();
+    await flushPromises();
 
     expect(handlers.onDeleteCard).not.toHaveBeenCalled();
 
@@ -2047,7 +2514,7 @@ describe('BoardsView', () => {
         '[data-testid="delete-card-confirm-button"]'
       )
       ?.click();
-    await Promise.resolve();
+    await flushPromises();
 
     expect(handlers.onDeleteCard).toHaveBeenCalledWith(CARD_BOOK);
     view.destroy();
@@ -2212,6 +2679,69 @@ describe('BoardsView', () => {
       activeBoard.id,
       starredBoard.id,
     ]);
+    view.destroy();
+  });
+
+  it('keeps the board picker open during unrelated board data updates', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    const board = createBoard();
+    const groupedBoard: Board = {
+      id: SOURCE_BOARD_ID,
+      title: 'Shared Notes',
+      meta: { group: { id: 'work', name: 'Work' } },
+      columns: [],
+    };
+    view.render({
+      boards: [board, groupedBoard],
+      selectedBoardId: board.id,
+      status: 'idle',
+      error: null,
+    });
+
+    root
+      .querySelector<HTMLButtonElement>('[data-testid="board-picker-button"]')
+      ?.click();
+    const popover = document.querySelector<HTMLElement>(
+      '[data-testid="board-picker-popover"]'
+    );
+    expect(popover).not.toBeNull();
+    const search = popover!.querySelector<HTMLInputElement>(
+      'input[aria-label="Search boards"]'
+    );
+    search!.value = 'shared';
+    search!.dispatchEvent(new Event('input', { bubbles: true }));
+
+    const updatedBoard = createBoard();
+    updatedBoard.title = 'Books updated';
+    view.render({
+      boards: [updatedBoard, groupedBoard],
+      selectedBoardId: updatedBoard.id,
+      status: 'idle',
+      error: null,
+    });
+    await flushPromises();
+
+    expect(
+      document.querySelector<HTMLElement>(
+        '[data-testid="board-picker-popover"]'
+      )
+    ).toBe(popover);
+    expect(
+      document.querySelector<HTMLInputElement>(
+        'input[aria-label="Search boards"]'
+      )?.value
+    ).toBe('shared');
+    expect(
+      document.querySelector(
+        `[data-board-picker-board-id="${SOURCE_BOARD_ID}"]`
+      )
+    ).not.toBeNull();
     view.destroy();
   });
 
@@ -2563,7 +3093,7 @@ describe('BoardsView', () => {
         '[data-testid="boards-import-preview-button"]'
       )
       ?.click();
-    await Promise.resolve();
+    await flushPromises();
 
     expect(handlers.onPreviewImport).toHaveBeenCalledWith({
       raw,
@@ -2844,7 +3374,7 @@ describe('BoardsView', () => {
         '[data-testid="boards-import-copy-ai-prompt-button"]'
       )
       ?.click();
-    await Promise.resolve();
+    await flushPromises();
 
     expect(writeText).toHaveBeenCalledTimes(1);
     expect(writeText.mock.calls[0]?.[0]).toContain(
@@ -2887,14 +3417,14 @@ describe('BoardsView', () => {
         '[data-testid="boards-import-preview-button"]'
       )
       ?.click();
-    await Promise.resolve();
+    await flushPromises();
 
     const applyButton = modal?.querySelector<HTMLButtonElement>(
       '[data-testid="boards-import-apply-button"]'
     );
     expect(applyButton?.disabled).toBe(false);
     applyButton?.click();
-    await Promise.resolve();
+    await flushPromises();
 
     expect(handlers.onApplyImport).toHaveBeenCalledWith({
       raw,
@@ -2939,7 +3469,7 @@ describe('BoardsView', () => {
     source!.value = ['---', 'title: Imported board', '---'].join('\n');
     source!.dispatchEvent(new Event('input', { bubbles: true }));
     previewButton?.click();
-    await Promise.resolve();
+    await flushPromises();
 
     expect(previewButton?.textContent).toBe('Update preview');
     expect(applyButton?.disabled).toBe(false);
@@ -3036,7 +3566,7 @@ describe('BoardsView', () => {
     source!.value = ['---', 'title: Imported board', '---'].join('\n');
     source!.dispatchEvent(new Event('input', { bubbles: true }));
     previewButton?.click();
-    await Promise.resolve();
+    await flushPromises();
 
     expect(applyButton?.disabled).toBe(true);
     expect(applyButton?.title).toBe(
@@ -3087,7 +3617,7 @@ describe('BoardsView', () => {
         '[data-testid="boards-import-preview-button"]'
       )
       ?.click();
-    await Promise.resolve();
+    await flushPromises();
 
     const applyButton = modal?.querySelector<HTMLButtonElement>(
       '[data-testid="boards-import-apply-button"]'
@@ -3119,7 +3649,7 @@ describe('BoardsView', () => {
       (button) => button.textContent === 'Export board as Markdown'
     );
     exportBoardItem?.click();
-    await Promise.resolve();
+    await flushPromises();
 
     expect(handlers.onExportData).toHaveBeenCalledWith({
       scope: 'board',
@@ -3202,6 +3732,43 @@ describe('BoardsView', () => {
       'New book',
       ''
     );
+    view.destroy();
+  });
+
+  it('keeps the card composer draft during unrelated board data updates', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const board = createBoard();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState(board));
+
+    const addCardButton = Array.from(root.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Add card'
+    );
+    addCardButton?.click();
+
+    const titleInput = root.querySelector<HTMLTextAreaElement>(
+      'textarea[placeholder="Enter a title or paste a link"]'
+    );
+    expect(titleInput).not.toBeNull();
+    titleInput!.value = 'Draft card';
+    titleInput!.dispatchEvent(new Event('input', { bubbles: true }));
+
+    view.render(
+      createState({
+        ...board,
+        title: 'Renamed board',
+      })
+    );
+
+    const rerenderedTitleInput = root.querySelector<HTMLTextAreaElement>(
+      'textarea[placeholder="Enter a title or paste a link"]'
+    );
+    expect(rerenderedTitleInput?.value).toBe('Draft card');
     view.destroy();
   });
 

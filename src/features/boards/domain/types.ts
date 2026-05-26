@@ -21,6 +21,35 @@ import type {
 
 export type BoardsRequestStatus = 'idle' | 'loading' | 'saving' | 'error';
 export type BoardsIntentResult<T> = T | Promise<T>;
+export type BoardsCommandError = {
+  code: string;
+  messageKey: string;
+  recoverable: boolean;
+};
+export type BoardsCommandResult<T = void> =
+  | { ok: true; data: T }
+  | { ok: false; error: BoardsCommandError };
+export type BoardsCommandKind =
+  | 'create-board'
+  | 'patch-board'
+  | 'delete-board'
+  | 'create-column'
+  | 'patch-column'
+  | 'delete-column'
+  | 'create-card'
+  | 'patch-card'
+  | 'patch-card-placement'
+  | 'delete-card-placement'
+  | 'delete-card'
+  | 'create-card-mirror';
+export type BoardsCommandStatus = 'running' | 'confirmed' | 'rejected';
+export type BoardsCommandRecord = {
+  id: string;
+  kind: BoardsCommandKind;
+  status: BoardsCommandStatus;
+  optimisticMutationId?: string;
+  error?: BoardsCommandError;
+};
 export type BoardsOptimisticEntityState = 'creating' | 'saving' | 'deleting';
 
 export type BoardsOptimisticState = {
@@ -95,74 +124,89 @@ export type BoardEntityCatalogPort = {
 export type BoardsIntentHandlers = {
   onRefresh: () => void;
   onSelectBoard: (boardId: Board['id']) => void;
-  onCreateBoard: (title: string) => void;
+  onCreateBoard: (title: string) => BoardsIntentResult<BoardsCommandResult>;
   onPatchBoard: (
     boardId: Board['id'],
     patch: { title?: string; meta?: BoardMeta }
-  ) => void;
+  ) => BoardsIntentResult<BoardsCommandResult>;
   onToggleBoardStar: (boardId: Board['id']) => void;
   onUpdateBoardGroup: (
     boardId: Board['id'],
     group: { id: string; name: string } | null
   ) => void;
-  onDeleteBoard: (boardId: Board['id']) => void;
-  onCreateColumn: (boardId: Board['id'], title: string) => void;
-  onPatchColumn: (columnId: BoardColumn['id'], patch: BoardColumnPatch) => void;
-  onDeleteColumn: (columnId: BoardColumn['id']) => void;
+  onDeleteBoard: (
+    boardId: Board['id']
+  ) => BoardsIntentResult<BoardsCommandResult>;
+  onCreateColumn: (
+    boardId: Board['id'],
+    title: string
+  ) => BoardsIntentResult<BoardsCommandResult>;
+  onPatchColumn: (
+    columnId: BoardColumn['id'],
+    patch: BoardColumnPatch
+  ) => BoardsIntentResult<BoardsCommandResult>;
+  onDeleteColumn: (
+    columnId: BoardColumn['id']
+  ) => BoardsIntentResult<BoardsCommandResult>;
   onCreateCard: (
     columnId: BoardColumn['id'],
     title: string,
     description: string
-  ) => void;
-  onPatchCard: (cardId: Card['id'], patch: BoardCardPatch) => void;
+  ) => BoardsIntentResult<BoardsCommandResult>;
+  onPatchCard: (
+    cardId: Card['id'],
+    patch: BoardCardPatch
+  ) => BoardsIntentResult<BoardsCommandResult>;
   onLoadCardChecklists: (
     cardId: Card['id']
   ) => BoardsIntentResult<CardChecklist[]>;
   onCreateCardChecklist: (
     cardId: Card['id'],
     title: string
-  ) => BoardsIntentResult<CardChecklist | null>;
+  ) => BoardsIntentResult<BoardsCommandResult<CardChecklist | null>>;
   onDeleteCardChecklist: (
     checklistId: CardChecklist['id']
-  ) => BoardsIntentResult<void>;
+  ) => BoardsIntentResult<BoardsCommandResult>;
   onCreateCardCheckItem: (
     checklistId: CardChecklist['id'],
     title: string
-  ) => BoardsIntentResult<CardCheckItem | null>;
+  ) => BoardsIntentResult<BoardsCommandResult<CardCheckItem | null>>;
   onPatchCardCheckItem: (
     itemId: CardCheckItem['id'],
     patch: { title?: string; state?: CardCheckItem['state'] }
-  ) => BoardsIntentResult<CardCheckItem | null>;
+  ) => BoardsIntentResult<BoardsCommandResult<CardCheckItem | null>>;
   onDeleteCardCheckItem: (
     itemId: CardCheckItem['id']
-  ) => BoardsIntentResult<void>;
+  ) => BoardsIntentResult<BoardsCommandResult>;
   onCreateCardEntityLink: (
     cardId: Card['id'],
     entityType: CardEntityLinkType,
     entityId: string
-  ) => BoardsIntentResult<CardEntityLink | null>;
+  ) => BoardsIntentResult<BoardsCommandResult<CardEntityLink | null>>;
   onCreateCardEntityFromCard: (
     card: Card,
     entityType: CardEntityLinkType
-  ) => BoardsIntentResult<CardEntityLink | null>;
+  ) => BoardsIntentResult<BoardsCommandResult<CardEntityLink | null>>;
   onDeleteCardEntityLink: (
     linkId: CardEntityLink['id']
-  ) => BoardsIntentResult<void>;
+  ) => BoardsIntentResult<BoardsCommandResult>;
   onDeleteLinkedEntity: (
     card: Card,
     link: CardEntityLink
-  ) => BoardsIntentResult<void>;
+  ) => BoardsIntentResult<BoardsCommandResult>;
   onCreateCardMirror: (
     cardId: Card['id'],
     columnId: BoardColumn['id'],
     target: BoardCardPlacementTarget
-  ) => void;
+  ) => BoardsIntentResult<BoardsCommandResult>;
   onPatchCardPlacement: (
     placementId: CardPlacement['id'],
     patch: BoardCardPlacementPatch
-  ) => void;
-  onDeleteCardPlacement: (placementId: CardPlacement['id']) => void;
-  onDeleteCard: (cardId: Card['id']) => void;
+  ) => BoardsIntentResult<BoardsCommandResult>;
+  onDeleteCardPlacement: (
+    placementId: CardPlacement['id']
+  ) => BoardsIntentResult<BoardsCommandResult>;
+  onDeleteCard: (cardId: Card['id']) => BoardsIntentResult<BoardsCommandResult>;
   onPreviewImport: (
     request: BoardsImportRequest
   ) => BoardsIntentResult<BoardsImportPlan>;
@@ -171,5 +215,5 @@ export type BoardsIntentHandlers = {
   ) => BoardsIntentResult<BoardsExportResult | null>;
   onApplyImport: (
     request: BoardsImportRequest
-  ) => BoardsIntentResult<BoardsImportApplyResult | null>;
+  ) => BoardsIntentResult<BoardsCommandResult<BoardsImportApplyResult | null>>;
 };

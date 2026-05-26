@@ -816,7 +816,8 @@ export const en = {
   'notes.unpin': 'Unpin note',
   'notes.unsaved': 'Unsaved changes',
   'notes.updatedAt': 'Updated {date}',
-  'auth.sessionExpired': 'Sorry, your session has expired. Please sign in again.',
+  'auth.sessionExpired':
+    'Sorry, your session has expired. Please sign in again.',
   'loading.canvasFailed': 'Failed to load canvas data. Please try again.',
   'login.accessLimited':
     'Access is currently limited while Majom is in early development.',
@@ -1404,6 +1405,8 @@ export const en = {
   'boards.cardLinks.search': 'Search',
   'boards.cardLinks.searchPlaceholder': 'Search existing entities',
   'boards.cardLinks.selectType': 'Entity type',
+  'boards.cardLinks.saveFailed': 'Failed to update linked entities.',
+  'boards.cardLinks.saving': 'Updating linked entities...',
   'boards.cardLinks.story': 'Story',
   'boards.cardLinks.storyBadge': 'Linked stories',
   'boards.cardLinks.task': 'Task',

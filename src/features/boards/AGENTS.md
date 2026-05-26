@@ -1,5 +1,11 @@
 # Boards Feature
 
+## Architecture Refactoring
+
+- For broad Boards architecture work, read `src/features/boards/BOARDS-REFACTORING-PLAN.md` first.
+- Keep refactoring incremental by phase: command contract, command service, card details controller, stable rendering roots, import/export controller, board surface controller, then cross-domain use cases.
+- Do not add new local workarounds to `BoardsView` for command lifecycle, modal state, or full-rerender recovery when the refactoring plan calls for a dedicated owner.
+
 ## Board Selection Session State
 
 - Treat the selected board as tab/window-scoped runtime state owned by `BoardsStore`.
@@ -22,6 +28,13 @@
 - Keep card data card-owned and placement/order column-owned. Do not make Markdown placement data create duplicate source cards unless the user-facing import policy explicitly chooses that behavior.
 - Keep import format rules as compact contextual help, such as a hint or tooltip. Do not reserve persistent modal space for long Markdown/JSON guide text; keep the main import surface focused on source input, preview, configuration, and actions.
 - Treat import preview as a review mode inside the import modal, not as a cramped sidebar. Users should edit source/configuration first, then review the full import plan, with an explicit Back to edit path before applying.
+
+## Board Surface Session State
+
+- Keep card composer drafts, list composer drafts, and inline board/list title edit drafts in `BoardSurfaceController`.
+- `BoardsView` may render inputs and forward input/submit/cancel intents, but it must not use DOM refs as the source of truth for these drafts.
+- Reset surface session state when the selected board changes; preserve it across unrelated data refreshes of the same selected board.
+- Route card/list drag-drop results through typed `BoardSurfaceController` intents before invoking mutation handlers; gesture controllers should stay focused on pointer mechanics and target calculation.
 
 ## Trello-Like Card Fronts
 
@@ -60,6 +73,7 @@
 - Treat card links to Task/Story/Goal as explicit domain links, not as a conversion that makes a card equal to a task, story, or goal.
 - Keep the MVP relation shape simple: `card`, `entity_type`, `entity_id`, plus metadata returned by the backend for display.
 - Persist link/unlink through `BoardsStore` and `BoardsApiService`; `BoardsView` may own only picker/search UI state.
+- Keep cross-domain Task/Story/Goal creation and deletion orchestration in `BoardsEntityLinkUseCases`; `BoardsApp` should only wire API ports and handlers.
 - Card fronts should show compact link badges from `card.entity_links`; detailed link management belongs in card details or an explicit card action surface.
 - Linked entity rows in card details should expose open, unlink, and delete-entity actions from a right-side row menu that appears on hover/focus/open, not as always-visible inline buttons.
 - Mirror placements must show the same linked entities because links are owned by `Card.id`, not `placement_id`.

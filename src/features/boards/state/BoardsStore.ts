@@ -1,10 +1,5 @@
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import type {
-  BoardUpdatePayload,
-  BoardPlacementTargetPayload,
-  BoardCardPlacementUpdatePayload,
-  BoardCardUpdatePayload,
-  BoardColumnUpdatePayload,
   CardCheckItemUpdatePayload,
   BoardCardEntityLinkCreatePayload,
   BoardsApiService,
@@ -19,7 +14,11 @@ import type {
   CardEntityLinkType,
   CardPlacement,
 } from '../../../majom-wrapper/interfaces/index.ts';
-import type { BoardsOptimisticState, BoardsState } from '../domain/types.ts';
+import type {
+  BoardsCommandResult,
+  BoardsOptimisticState,
+  BoardsState,
+} from '../domain/types.ts';
 import {
   compareCardsByPlacementPos,
   getCardPlacementId,
@@ -60,6 +59,10 @@ import {
   exportCard,
   exportColumn,
 } from '../exchange/exportSerializer.ts';
+import {
+  createBoardsCommandFailure,
+  createBoardsCommandSuccess,
+} from '../domain/boardsCommandResult.ts';
 
 type BoardsStoreOptions = {
   now?: () => Date;
@@ -131,7 +134,6 @@ export class BoardsStore {
   private pendingMutations: BoardsOptimisticMutation[] = [];
   private resolvedOptimisticIds: BoardsOptimisticState['resolved'] =
     createEmptyBoardsOptimisticState().resolved;
-  private mutationSequence = 0;
   private tempIdSequence = 0;
   private readonly boardMetaMutationVersions = new Map<Board['id'], number>();
   private readonly now: () => Date;
@@ -222,12 +224,13 @@ export class BoardsStore {
 
   public async applyImport(
     request: BoardsImportRequest
-  ): Promise<BoardsImportApplyResult | null> {
-    if (request.policies.mode !== 'create') return null;
+  ): Promise<BoardsCommandResult<BoardsImportApplyResult | null>> {
+    if (request.policies.mode !== 'create')
+      return createBoardsCommandSuccess(null);
     const plan = this.previewImport(request);
-    if (!plan.canApply) return null;
+    if (!plan.canApply) return createBoardsCommandSuccess(null);
     const parsed = parseBoardsImport(request);
-    if (!parsed.envelope) return null;
+    if (!parsed.envelope) return createBoardsCommandSuccess(null);
 
     return this.runMutationResult(async () => {
       if (request.scope === 'board') {
@@ -261,33 +264,24 @@ export class BoardsStore {
     }
   }
 
-  public async createBoard(title: string): Promise<void> {
-    const normalizedTitle = title.trim();
-    if (!normalizedTitle) return;
-    await this.runMutation(async () => {
-      const board = await firstValueFrom(
-        this.api.createBoard({ title: normalizedTitle })
-      );
-      await this.reload(board.id);
+  public publishCommandState(commandState: {
+    hasRunningCommands: boolean;
+    errorKey: string | null;
+  }): void {
+    this.patchState({
+      status: commandState.hasRunningCommands
+        ? 'saving'
+        : commandState.errorKey
+          ? 'error'
+          : 'idle',
+      error: commandState.errorKey,
     });
   }
 
-  public async deleteBoard(boardId: Board['id']): Promise<void> {
-    await this.runMutation(async () => {
-      await firstValueFrom(this.api.deleteBoard(boardId));
-      await this.reload(null);
-    });
-  }
-
-  public async patchBoard(
-    boardId: Board['id'],
-    patch: BoardUpdatePayload
+  public async reloadBoardSnapshot(
+    preferredBoardId: Board['id'] | null = this.snapshot.selectedBoardId
   ): Promise<void> {
-    if (!this.findBoard(boardId)) return;
-    await this.runMutation(async () => {
-      await firstValueFrom(this.api.updateBoard(boardId, patch));
-      await this.reload(boardId);
-    });
+    await this.reload(preferredBoardId);
   }
 
   public toggleBoardStar(boardId: Board['id']): void {
@@ -303,137 +297,77 @@ export class BoardsStore {
     this.patchBoardMeta(boardId, (board) => setBoardMetaGroup(board, group));
   }
 
-  public async createColumn(
-    boardId: Board['id'],
-    title: string
-  ): Promise<void> {
-    const normalizedTitle = title.trim();
-    if (!normalizedTitle) return;
-    const board = this.findBoard(boardId);
-    if (!board) return;
-    const tempColumnId = this.createTempIdValue('column');
-    await this.runOptimisticMutation(
-      {
-        id: this.createMutationId(),
-        type: 'create-column',
-        boardId,
-        column: {
-          id: tempColumnId,
-          board: boardId,
-          title: normalizedTitle,
-          order: board.columns.length,
-          cards: [],
-        },
-      },
-      async () => {
-        const createdColumn = await firstValueFrom(
-          this.api.createColumn({
-            board: boardId,
-            title: normalizedTitle,
-            position: 'end',
-          })
-        );
-        this.rememberResolvedOptimisticIds({
-          columns: { [tempColumnId]: createdColumn.id },
-        });
-      },
-      () => this.reload(boardId)
-    );
+  public hasCard(cardId: Card['id']): boolean {
+    return this.findCard(cardId) !== null;
   }
 
-  public async deleteColumn(columnId: BoardColumn['id']): Promise<void> {
-    if (!this.findColumn(columnId)) return;
-    await this.runOptimisticMutation(
-      {
-        id: this.createMutationId(),
-        type: 'delete-column',
-        columnId,
-      },
-      async () => {
-        await firstValueFrom(this.api.deleteColumn(columnId));
-      }
-    );
+  public hasCardPlacement(placementId: CardPlacement['id']): boolean {
+    return this.findCardPlacement(placementId) !== null;
   }
 
-  public async patchColumn(
-    columnId: BoardColumn['id'],
-    patch: BoardColumnUpdatePayload
-  ): Promise<void> {
-    if (!this.findColumn(columnId)) return;
-    await this.runOptimisticMutation(
-      {
-        id: this.createMutationId(),
-        type: 'patch-column',
-        columnId,
-        patch,
-      },
-      async () => {
-        await firstValueFrom(this.api.updateColumn(columnId, patch));
-      }
-    );
+  public hasColumn(columnId: BoardColumn['id']): boolean {
+    return this.findColumn(columnId) !== null;
   }
 
-  public async createCard(
-    columnId: BoardColumn['id'],
-    title: string,
-    description: string
-  ): Promise<void> {
-    const normalizedTitle = title.trim();
-    if (!normalizedTitle) return;
-    const column = this.findColumn(columnId);
-    if (!column) return;
-    const normalizedDescription = description.trim();
-    const tempCardId = this.createTempIdValue('card');
-    const tempPlacementId = this.createTempIdValue('placement');
-    await this.runOptimisticMutation(
-      {
-        id: this.createMutationId(),
-        type: 'create-card',
-        columnId,
-        card: {
-          id: tempCardId,
-          placement_id: tempPlacementId,
-          column: columnId,
-          title: normalizedTitle,
-          description: normalizedDescription,
-          order: column.cards.length,
-        },
-      },
-      async () => {
-        const createdCard = await firstValueFrom(
-          this.api.createCard({
-            column: columnId,
-            title: normalizedTitle,
-            description: normalizedDescription,
-            position: 'bottom',
-          })
-        );
-        this.rememberResolvedOptimisticIds({
-          cards: { [tempCardId]: createdCard.id },
-          placements: {
-            [tempPlacementId]: getCardPlacementId(createdCard),
-          },
-        });
-      }
-    );
+  public findBoardSnapshot(boardId: Board['id']): Board | null {
+    return this.findBoard(boardId);
   }
 
-  public async patchCard(
-    cardId: Card['id'],
-    patch: BoardCardUpdatePayload
+  public findColumnSnapshot(columnId: BoardColumn['id']): BoardColumn | null {
+    return this.findColumn(columnId);
+  }
+
+  public createOptimisticTempId(kind: BoardsOptimisticTempIdKind): string {
+    return this.createTempIdValue(kind);
+  }
+
+  public applyOptimisticMutation(mutation: BoardsOptimisticMutation): void {
+    this.pendingMutations = [...this.pendingMutations, mutation];
+    this.publishProjectedState({ status: 'saving', error: null });
+  }
+
+  public async confirmOptimisticMutation(
+    mutationId: string,
+    resolved?: Partial<BoardsOptimisticState['resolved']>,
+    commandState: {
+      hasRunningCommands: boolean;
+      errorKey: string | null;
+    } = { hasRunningCommands: false, errorKey: null }
   ): Promise<void> {
-    if (!this.findCard(cardId)) return;
-    await this.runOptimisticMutation(
-      {
-        id: this.createMutationId(),
-        type: 'patch-card',
-        cardId,
-        patch,
-      },
-      async () => {
-        await firstValueFrom(this.api.updateCard(cardId, patch));
-      }
+    if (resolved) {
+      this.rememberResolvedOptimisticIds(resolved);
+    }
+    this.pendingMutations = this.pendingMutations.filter(
+      (candidate) => candidate.id !== mutationId
     );
+    await this.reloadPreservingSelection();
+    this.publishProjectedState({
+      status: commandState.hasRunningCommands
+        ? 'saving'
+        : commandState.errorKey
+          ? 'error'
+          : 'idle',
+      error: commandState.errorKey,
+    });
+  }
+
+  public rejectOptimisticMutation(
+    mutationId: string,
+    commandState: {
+      hasRunningCommands: boolean;
+      errorKey: string | null;
+    } = {
+      hasRunningCommands: false,
+      errorKey: 'boards.errors.save',
+    }
+  ): void {
+    this.pendingMutations = this.pendingMutations.filter(
+      (candidate) => candidate.id !== mutationId
+    );
+    this.publishProjectedState({
+      status: commandState.hasRunningCommands ? 'saving' : 'error',
+      error: commandState.errorKey ?? 'boards.errors.save',
+    });
   }
 
   public async loadCardChecklists(
@@ -451,9 +385,10 @@ export class BoardsStore {
   public async createCardChecklist(
     cardId: Card['id'],
     title: string
-  ): Promise<CardChecklist | null> {
+  ): Promise<BoardsCommandResult<CardChecklist | null>> {
     const normalizedTitle = title.trim();
-    if (!normalizedTitle || !this.findCard(cardId)) return null;
+    if (!normalizedTitle || !this.findCard(cardId))
+      return createBoardsCommandSuccess(null);
     return this.runMutationResult(async () => {
       const checklist = await firstValueFrom(
         this.api.createCardChecklist(cardId, {
@@ -468,8 +403,8 @@ export class BoardsStore {
 
   public async deleteCardChecklist(
     checklistId: CardChecklist['id']
-  ): Promise<void> {
-    await this.runMutation(async () => {
+  ): Promise<BoardsCommandResult> {
+    return this.runMutation(async () => {
       await firstValueFrom(this.api.deleteCardChecklist(checklistId));
       await this.reloadPreservingSelection();
     });
@@ -478,9 +413,9 @@ export class BoardsStore {
   public async createCardCheckItem(
     checklistId: CardChecklist['id'],
     title: string
-  ): Promise<CardCheckItem | null> {
+  ): Promise<BoardsCommandResult<CardCheckItem | null>> {
     const normalizedTitle = title.trim();
-    if (!normalizedTitle) return null;
+    if (!normalizedTitle) return createBoardsCommandSuccess(null);
     return this.runMutationResult(async () => {
       const item = await firstValueFrom(
         this.api.createCardCheckItem(checklistId, {
@@ -496,7 +431,7 @@ export class BoardsStore {
   public async patchCardCheckItem(
     itemId: CardCheckItem['id'],
     patch: CardCheckItemUpdatePayload
-  ): Promise<CardCheckItem | null> {
+  ): Promise<BoardsCommandResult<CardCheckItem | null>> {
     return this.runMutationResult(async () => {
       const item = await firstValueFrom(
         this.api.updateCardCheckItem(itemId, patch)
@@ -506,8 +441,10 @@ export class BoardsStore {
     });
   }
 
-  public async deleteCardCheckItem(itemId: CardCheckItem['id']): Promise<void> {
-    await this.runMutation(async () => {
+  public async deleteCardCheckItem(
+    itemId: CardCheckItem['id']
+  ): Promise<BoardsCommandResult> {
+    return this.runMutation(async () => {
       await firstValueFrom(this.api.deleteCardCheckItem(itemId));
       await this.reloadPreservingSelection();
     });
@@ -517,8 +454,8 @@ export class BoardsStore {
     cardId: Card['id'],
     entityType: CardEntityLinkType,
     entityId: string
-  ): Promise<CardEntityLink | null> {
-    if (!this.findCard(cardId)) return null;
+  ): Promise<BoardsCommandResult<CardEntityLink | null>> {
+    if (!this.findCard(cardId)) return createBoardsCommandSuccess(null);
     const payload: BoardCardEntityLinkCreatePayload = {
       card: cardId,
       entity_type: entityType,
@@ -533,77 +470,11 @@ export class BoardsStore {
 
   public async deleteCardEntityLink(
     linkId: CardEntityLink['id']
-  ): Promise<void> {
-    await this.runMutation(async () => {
+  ): Promise<BoardsCommandResult> {
+    return this.runMutation(async () => {
       await firstValueFrom(this.api.deleteCardEntityLink(linkId));
       await this.reloadPreservingSelection();
     });
-  }
-
-  public async createCardMirror(
-    cardId: Card['id'],
-    columnId: BoardColumn['id'],
-    target: BoardPlacementTargetPayload
-  ): Promise<void> {
-    if (!this.findCard(cardId) || !this.findColumn(columnId)) return;
-    await this.runMutation(async () => {
-      await firstValueFrom(
-        this.api.createCardPlacement({
-          card: cardId,
-          column: columnId,
-          ...target,
-        })
-      );
-      await this.reloadPreservingSelection();
-    });
-  }
-
-  public async patchCardPlacement(
-    placementId: CardPlacement['id'],
-    patch: BoardCardPlacementUpdatePayload
-  ): Promise<void> {
-    if (!this.findCardPlacement(placementId)) return;
-    await this.runOptimisticMutation(
-      {
-        id: this.createMutationId(),
-        type: 'patch-card-placement',
-        placementId,
-        patch,
-      },
-      async () => {
-        await firstValueFrom(this.api.updateCardPlacement(placementId, patch));
-      }
-    );
-  }
-
-  public async deleteCardPlacement(
-    placementId: CardPlacement['id']
-  ): Promise<void> {
-    if (!this.findCardPlacement(placementId)) return;
-    await this.runOptimisticMutation(
-      {
-        id: this.createMutationId(),
-        type: 'delete-card-placement',
-        placementId,
-      },
-      async () => {
-        await firstValueFrom(this.api.deleteCardPlacement(placementId));
-      }
-    );
-  }
-
-  public async deleteCard(cardId: Card['id']): Promise<void> {
-    if (!this.findCard(cardId)) return;
-    await this.runOptimisticMutation(
-      {
-        id: this.createMutationId(),
-        type: 'delete-card',
-        cardId,
-      },
-      async () => {
-        await firstValueFrom(this.api.deleteCard(cardId));
-      }
-    );
   }
 
   private async applyBoardCreateImport(
@@ -805,65 +676,38 @@ export class BoardsStore {
     return request;
   }
 
-  private async runMutation(action: () => Promise<void>): Promise<void> {
+  private async runMutation(
+    action: () => Promise<void>
+  ): Promise<BoardsCommandResult> {
     this.patchState({ status: 'saving', error: null });
     try {
       await action();
       this.patchState({ status: 'idle', error: null });
+      return createBoardsCommandSuccess();
     } catch {
       this.patchState({
         status: 'error',
         error: 'boards.errors.save',
       });
+      return createBoardsCommandFailure();
     }
   }
 
   private async runMutationResult<T>(
     action: () => Promise<T>
-  ): Promise<T | null> {
+  ): Promise<BoardsCommandResult<T>> {
     this.patchState({ status: 'saving', error: null });
     try {
       const result = await action();
       this.patchState({ status: 'idle', error: null });
-      return result;
+      return createBoardsCommandSuccess(result);
     } catch {
       this.patchState({
         status: 'error',
         error: 'boards.errors.save',
       });
-      return null;
+      return createBoardsCommandFailure();
     }
-  }
-
-  private async runOptimisticMutation(
-    mutation: BoardsOptimisticMutation,
-    action: () => Promise<void>,
-    reloadAfterConfirm: () => Promise<void> = () =>
-      this.reloadPreservingSelection()
-  ): Promise<void> {
-    this.pendingMutations = [...this.pendingMutations, mutation];
-    this.publishProjectedState({ status: 'saving', error: null });
-    try {
-      await action();
-      this.pendingMutations = this.pendingMutations.filter(
-        (candidate) => candidate.id !== mutation.id
-      );
-      await reloadAfterConfirm();
-      this.publishProjectedState({ status: 'idle', error: null });
-    } catch {
-      this.pendingMutations = this.pendingMutations.filter(
-        (candidate) => candidate.id !== mutation.id
-      );
-      this.publishProjectedState({
-        status: 'error',
-        error: 'boards.errors.save',
-      });
-    }
-  }
-
-  private createMutationId(): string {
-    this.mutationSequence += 1;
-    return `boards-mutation-${this.mutationSequence}`;
   }
 
   private rememberResolvedOptimisticIds(

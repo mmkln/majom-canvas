@@ -830,8 +830,7 @@ export const uk = {
   'notes.unpin': 'Відкріпити нотатку',
   'notes.unsaved': 'Є незбережені зміни',
   'notes.updatedAt': 'Оновлено {date}',
-  'auth.sessionExpired':
-    'Вибачте, ваша сесія завершилася. Увійдіть ще раз.',
+  'auth.sessionExpired': 'Вибачте, ваша сесія завершилася. Увійдіть ще раз.',
   'loading.canvasFailed':
     'Не вдалося завантажити дані canvas. Спробуйте ще раз.',
   'login.accessLimited':
@@ -1859,6 +1858,8 @@ export const uk = {
   'boards.cardLinks.search': 'Пошук',
   'boards.cardLinks.searchPlaceholder': 'Шукати існуючі сутності',
   'boards.cardLinks.selectType': 'Тип сутності',
+  'boards.cardLinks.saveFailed': 'Не вдалося оновити привʼязані сутності.',
+  'boards.cardLinks.saving': 'Оновлюємо привʼязані сутності...',
   'boards.cardLinks.story': 'Історія',
   'boards.cardLinks.storyBadge': 'Привʼязані історії',
   'boards.cardLinks.task': 'Задача',

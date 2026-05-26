@@ -8,6 +8,8 @@ import { GoalsApiService } from '../../majom-wrapper/data-access/goals-api-servi
 import { getDefaultTagColor } from '../../majom-wrapper/utils/tagColor.ts';
 import { AppRuntime, createAppRuntime } from '../../app-runtime/index.ts';
 import { BoardsStore } from './state/BoardsStore.ts';
+import { BoardsCommandService } from './state/BoardsCommandService.ts';
+import { BoardsEntityLinkUseCases } from './state/BoardsEntityLinkUseCases.ts';
 import { BoardsView } from './ui/BoardsView.ts';
 import type { BoardEntityLinkSearchItem } from './domain/types.ts';
 
@@ -30,12 +32,6 @@ function mapEntitySearchItem(
     title: entity.title,
     status: entity.status ?? null,
   };
-}
-
-function getCardEntityDescription(
-  description: string | null | undefined
-): string {
-  return description?.trim() ?? '';
 }
 
 export class BoardsApp {
@@ -62,7 +58,26 @@ export class BoardsApp {
     const tasksApi = new TasksApiService(http);
     const storiesApi = new StoriesApiService(http);
     const goalsApi = new GoalsApiService(http);
-    const store = new BoardsStore(new BoardsApiService(http));
+    const boardsApi = new BoardsApiService(http);
+    const store = new BoardsStore(boardsApi);
+    const commands = new BoardsCommandService(boardsApi, store);
+    const entityLinkUseCases = new BoardsEntityLinkUseCases({
+      createTask: (payload) => firstValueFrom(tasksApi.createTask(payload)),
+      createStory: (payload) => firstValueFrom(storiesApi.createStory(payload)),
+      createGoal: (payload) => firstValueFrom(goalsApi.createGoal(payload)),
+      deleteTask: async (id) => {
+        await firstValueFrom(tasksApi.deleteTask(id));
+      },
+      deleteStory: async (id) => {
+        await firstValueFrom(storiesApi.deleteStory(id));
+      },
+      deleteGoal: async (id) => {
+        await firstValueFrom(goalsApi.deleteGoal(id));
+      },
+      createCardEntityLink: (cardId, entityType, entityId) =>
+        store.createCardEntityLink(cardId, entityType, entityId),
+      reloadBoards: () => store.load(),
+    });
     const view = new BoardsView(root, {
       runtime: this.runtime,
       tagCatalog: {
@@ -106,20 +121,20 @@ export class BoardsApp {
       handlers: {
         onRefresh: () => void store.load(),
         onSelectBoard: (boardId) => store.selectBoard(boardId),
-        onCreateBoard: (title) => void store.createBoard(title),
-        onPatchBoard: (boardId, patch) => void store.patchBoard(boardId, patch),
+        onCreateBoard: (title) => commands.createBoard(title),
+        onPatchBoard: (boardId, patch) => commands.patchBoard(boardId, patch),
         onToggleBoardStar: (boardId) => store.toggleBoardStar(boardId),
         onUpdateBoardGroup: (boardId, group) =>
           store.updateBoardGroup(boardId, group),
-        onDeleteBoard: (boardId) => void store.deleteBoard(boardId),
+        onDeleteBoard: (boardId) => commands.deleteBoard(boardId),
         onCreateColumn: (boardId, title) =>
-          void store.createColumn(boardId, title),
+          commands.createColumn(boardId, title),
         onPatchColumn: (columnId, patch) =>
-          void store.patchColumn(columnId, patch),
-        onDeleteColumn: (columnId) => void store.deleteColumn(columnId),
+          commands.patchColumn(columnId, patch),
+        onDeleteColumn: (columnId) => commands.deleteColumn(columnId),
         onCreateCard: (columnId, title, description) =>
-          void store.createCard(columnId, title, description),
-        onPatchCard: (cardId, patch) => void store.patchCard(cardId, patch),
+          commands.createCard(columnId, title, description),
+        onPatchCard: (cardId, patch) => commands.patchCard(cardId, patch),
         onLoadCardChecklists: (cardId) => store.loadCardChecklists(cardId),
         onCreateCardChecklist: (cardId, title) =>
           store.createCardChecklist(cardId, title),
@@ -132,64 +147,18 @@ export class BoardsApp {
         onDeleteCardCheckItem: (itemId) => store.deleteCardCheckItem(itemId),
         onCreateCardEntityLink: (cardId, entityType, entityId) =>
           store.createCardEntityLink(cardId, entityType, entityId),
-        onCreateCardEntityFromCard: async (card, entityType) => {
-          if (entityType === 'task') {
-            const task = await firstValueFrom(
-              tasksApi.createTask({
-                title: card.title.trim(),
-                description: getCardEntityDescription(card.description),
-                is_standalone: true,
-              })
-            );
-            return store.createCardEntityLink(
-              card.id,
-              entityType,
-              task.uuid ?? String(task.id)
-            );
-          }
-          if (entityType === 'story') {
-            const story = await firstValueFrom(
-              storiesApi.createStory({
-                title: card.title.trim(),
-                description: getCardEntityDescription(card.description),
-              })
-            );
-            return store.createCardEntityLink(
-              card.id,
-              entityType,
-              story.uuid ?? String(story.id)
-            );
-          }
-          const goal = await firstValueFrom(
-            goalsApi.createGoal({
-              title: card.title.trim(),
-              description: getCardEntityDescription(card.description),
-            })
-          );
-          return store.createCardEntityLink(
-            card.id,
-            entityType,
-            goal.uuid ?? String(goal.id)
-          );
-        },
+        onCreateCardEntityFromCard: (card, entityType) =>
+          entityLinkUseCases.createEntityFromCard(card, entityType),
         onDeleteCardEntityLink: (linkId) => store.deleteCardEntityLink(linkId),
-        onDeleteLinkedEntity: async (_card, link) => {
-          if (link.entity_type === 'task') {
-            await firstValueFrom(tasksApi.deleteTask(link.entity_id));
-          } else if (link.entity_type === 'story') {
-            await firstValueFrom(storiesApi.deleteStory(link.entity_id));
-          } else {
-            await firstValueFrom(goalsApi.deleteGoal(link.entity_id));
-          }
-          await store.load();
-        },
+        onDeleteLinkedEntity: (_card, link) =>
+          entityLinkUseCases.deleteLinkedEntity(link),
         onCreateCardMirror: (cardId, columnId, target) =>
-          void store.createCardMirror(cardId, columnId, target),
+          commands.createCardMirror(cardId, columnId, target),
         onPatchCardPlacement: (placementId, patch) =>
-          void store.patchCardPlacement(placementId, patch),
+          commands.patchCardPlacement(placementId, patch),
         onDeleteCardPlacement: (placementId) =>
-          void store.deleteCardPlacement(placementId),
-        onDeleteCard: (cardId) => void store.deleteCard(cardId),
+          commands.deleteCardPlacement(placementId),
+        onDeleteCard: (cardId) => commands.deleteCard(cardId),
         onPreviewImport: (request) => store.previewImport(request),
         onExportData: (request) => store.exportData(request),
         onApplyImport: (request) => store.applyImport(request),

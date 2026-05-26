@@ -2,6 +2,9 @@ const STYLE_ELEMENT_ID = 'majom-boards-view-styles';
 
 export const boardsViewClassNames = {
   root: 'majom-boards',
+  surfaceRoot: 'majom-boards__surface-root',
+  overlayRoot: 'majom-boards__overlay-root',
+  modalRoot: 'majom-boards__modal-root',
   shell: 'majom-boards__shell',
   header: 'majom-boards__header',
   titleBlock: 'majom-boards__title-block',
@@ -352,6 +355,7 @@ const BOARDS_VIEW_CSS = `
   width: 100%;
   height: 100%;
   overflow: hidden;
+  position: relative;
   color: var(--mb-text);
   background: transparent;
 }
@@ -367,6 +371,16 @@ const BOARDS_VIEW_CSS = `
   min-height: 0;
   height: 100%;
   flex-direction: column;
+}
+
+.majom-boards__surface-root {
+  min-height: 0;
+  height: 100%;
+}
+
+.majom-boards__overlay-root,
+.majom-boards__modal-root {
+  display: contents;
 }
 
 .majom-boards__header {
