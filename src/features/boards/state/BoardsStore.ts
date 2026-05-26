@@ -35,6 +35,11 @@ import {
   setBoardMetaStarred,
   type BoardMetaRecord,
 } from '../domain/boardMeta.ts';
+import {
+  projectBoards,
+  type BoardsOptimisticMutation,
+  type BoardsOptimisticTempIdKind,
+} from '../domain/optimisticBoards.ts';
 
 import type {
   BoardsExportRequest,
@@ -56,6 +61,7 @@ import {
 
 type BoardsStoreOptions = {
   now?: () => Date;
+  createTempId?: (kind: BoardsOptimisticTempIdKind) => string;
 };
 
 type ImportedCardCreateResult = {
@@ -118,14 +124,27 @@ export class BoardsStore {
     INITIAL_STATE
   );
   public readonly state$ = this.stateSubject.asObservable();
+  private confirmedBoards: Board[] = INITIAL_STATE.boards;
+  private pendingMutations: BoardsOptimisticMutation[] = [];
+  private mutationSequence = 0;
+  private tempIdSequence = 0;
   private readonly boardMetaMutationVersions = new Map<Board['id'], number>();
   private readonly now: () => Date;
+  private readonly createTempIdValue: (
+    kind: BoardsOptimisticTempIdKind
+  ) => string;
 
   constructor(
     private readonly api: BoardsApiService,
     options: BoardsStoreOptions = {}
   ) {
     this.now = options.now ?? (() => new Date());
+    this.createTempIdValue =
+      options.createTempId ??
+      ((kind) => {
+        this.tempIdSequence += 1;
+        return `temp:${kind}:${this.tempIdSequence}`;
+      });
   }
 
   public get snapshot(): BoardsState {
@@ -287,23 +306,44 @@ export class BoardsStore {
     if (!normalizedTitle) return;
     const board = this.findBoard(boardId);
     if (!board) return;
-    await this.runMutation(async () => {
-      await firstValueFrom(
-        this.api.createColumn({
+    await this.runOptimisticMutation(
+      {
+        id: this.createMutationId(),
+        type: 'create-column',
+        boardId,
+        column: {
+          id: this.createTempIdValue('column'),
           board: boardId,
           title: normalizedTitle,
-          position: 'end',
-        })
-      );
-      await this.reload(boardId);
-    });
+          order: board.columns.length,
+          cards: [],
+        },
+      },
+      async () => {
+        await firstValueFrom(
+          this.api.createColumn({
+            board: boardId,
+            title: normalizedTitle,
+            position: 'end',
+          })
+        );
+      },
+      () => this.reload(boardId)
+    );
   }
 
   public async deleteColumn(columnId: BoardColumn['id']): Promise<void> {
-    await this.runMutation(async () => {
-      await firstValueFrom(this.api.deleteColumn(columnId));
-      await this.reloadPreservingSelection();
-    });
+    if (!this.findColumn(columnId)) return;
+    await this.runOptimisticMutation(
+      {
+        id: this.createMutationId(),
+        type: 'delete-column',
+        columnId,
+      },
+      async () => {
+        await firstValueFrom(this.api.deleteColumn(columnId));
+      }
+    );
   }
 
   public async patchColumn(
@@ -311,10 +351,17 @@ export class BoardsStore {
     patch: BoardColumnUpdatePayload
   ): Promise<void> {
     if (!this.findColumn(columnId)) return;
-    await this.runMutation(async () => {
-      await firstValueFrom(this.api.updateColumn(columnId, patch));
-      await this.reloadPreservingSelection();
-    });
+    await this.runOptimisticMutation(
+      {
+        id: this.createMutationId(),
+        type: 'patch-column',
+        columnId,
+        patch,
+      },
+      async () => {
+        await firstValueFrom(this.api.updateColumn(columnId, patch));
+      }
+    );
   }
 
   public async createCard(
@@ -326,17 +373,32 @@ export class BoardsStore {
     if (!normalizedTitle) return;
     const column = this.findColumn(columnId);
     if (!column) return;
-    await this.runMutation(async () => {
-      await firstValueFrom(
-        this.api.createCard({
+    const normalizedDescription = description.trim();
+    await this.runOptimisticMutation(
+      {
+        id: this.createMutationId(),
+        type: 'create-card',
+        columnId,
+        card: {
+          id: this.createTempIdValue('card'),
+          placement_id: this.createTempIdValue('placement'),
           column: columnId,
           title: normalizedTitle,
-          description: description.trim(),
-          position: 'bottom',
-        })
-      );
-      await this.reloadPreservingSelection();
-    });
+          description: normalizedDescription,
+          order: column.cards.length,
+        },
+      },
+      async () => {
+        await firstValueFrom(
+          this.api.createCard({
+            column: columnId,
+            title: normalizedTitle,
+            description: normalizedDescription,
+            position: 'bottom',
+          })
+        );
+      }
+    );
   }
 
   public async patchCard(
@@ -344,10 +406,17 @@ export class BoardsStore {
     patch: BoardCardUpdatePayload
   ): Promise<void> {
     if (!this.findCard(cardId)) return;
-    await this.runMutation(async () => {
-      await firstValueFrom(this.api.updateCard(cardId, patch));
-      await this.reloadPreservingSelection();
-    });
+    await this.runOptimisticMutation(
+      {
+        id: this.createMutationId(),
+        type: 'patch-card',
+        cardId,
+        patch,
+      },
+      async () => {
+        await firstValueFrom(this.api.updateCard(cardId, patch));
+      }
+    );
   }
 
   public async loadCardChecklists(
@@ -477,27 +546,47 @@ export class BoardsStore {
     patch: BoardCardPlacementUpdatePayload
   ): Promise<void> {
     if (!this.findCardPlacement(placementId)) return;
-    await this.runMutation(async () => {
-      await firstValueFrom(this.api.updateCardPlacement(placementId, patch));
-      await this.reloadPreservingSelection();
-    });
+    await this.runOptimisticMutation(
+      {
+        id: this.createMutationId(),
+        type: 'patch-card-placement',
+        placementId,
+        patch,
+      },
+      async () => {
+        await firstValueFrom(this.api.updateCardPlacement(placementId, patch));
+      }
+    );
   }
 
   public async deleteCardPlacement(
     placementId: CardPlacement['id']
   ): Promise<void> {
     if (!this.findCardPlacement(placementId)) return;
-    await this.runMutation(async () => {
-      await firstValueFrom(this.api.deleteCardPlacement(placementId));
-      await this.reloadPreservingSelection();
-    });
+    await this.runOptimisticMutation(
+      {
+        id: this.createMutationId(),
+        type: 'delete-card-placement',
+        placementId,
+      },
+      async () => {
+        await firstValueFrom(this.api.deleteCardPlacement(placementId));
+      }
+    );
   }
 
   public async deleteCard(cardId: Card['id']): Promise<void> {
-    await this.runMutation(async () => {
-      await firstValueFrom(this.api.deleteCard(cardId));
-      await this.reloadPreservingSelection();
-    });
+    if (!this.findCard(cardId)) return;
+    await this.runOptimisticMutation(
+      {
+        id: this.createMutationId(),
+        type: 'delete-card',
+        cardId,
+      },
+      async () => {
+        await firstValueFrom(this.api.deleteCard(cardId));
+      }
+    );
   }
 
   private async applyBoardCreateImport(
@@ -729,16 +818,47 @@ export class BoardsStore {
     }
   }
 
+  private async runOptimisticMutation(
+    mutation: BoardsOptimisticMutation,
+    action: () => Promise<void>,
+    reloadAfterConfirm: () => Promise<void> = () =>
+      this.reloadPreservingSelection()
+  ): Promise<void> {
+    this.pendingMutations = [...this.pendingMutations, mutation];
+    this.publishProjectedState({ status: 'saving', error: null });
+    try {
+      await action();
+      this.pendingMutations = this.pendingMutations.filter(
+        (candidate) => candidate.id !== mutation.id
+      );
+      await reloadAfterConfirm();
+      this.publishProjectedState({ status: 'idle', error: null });
+    } catch {
+      this.pendingMutations = this.pendingMutations.filter(
+        (candidate) => candidate.id !== mutation.id
+      );
+      this.publishProjectedState({
+        status: 'error',
+        error: 'boards.errors.save',
+      });
+    }
+  }
+
+  private createMutationId(): string {
+    this.mutationSequence += 1;
+    return `boards-mutation-${this.mutationSequence}`;
+  }
+
   private async reloadPreservingSelection(): Promise<void> {
     await this.reload(this.snapshot.selectedBoardId);
   }
 
   private async reload(preferredBoardId: Board['id'] | null): Promise<void> {
     const boards = normalizeBoards(await firstValueFrom(this.api.getBoards()));
+    this.confirmedBoards = boards;
     const selectedBoardId = resolveSelectedBoardId(boards, preferredBoardId);
     persistBoardsSessionSelectedBoardId(selectedBoardId);
-    this.patchState({
-      boards,
+    this.publishProjectedState({
       selectedBoardId,
     });
   }
@@ -780,12 +900,12 @@ export class BoardsStore {
     boardId: Board['id'],
     meta: Board['meta'] | null | undefined
   ): void {
-    this.patchState({
-      boards: normalizeBoards(
-        this.snapshot.boards.map((board) =>
-          board.id === boardId ? { ...board, meta: meta ?? null } : board
-        )
-      ),
+    this.confirmedBoards = normalizeBoards(
+      this.confirmedBoards.map((board) =>
+        board.id === boardId ? { ...board, meta: meta ?? null } : board
+      )
+    );
+    this.publishProjectedState({
       error: null,
     });
   }
@@ -826,6 +946,16 @@ export class BoardsStore {
     this.stateSubject.next({
       ...this.snapshot,
       ...patch,
+    });
+  }
+
+  private publishProjectedState(
+    patch: Partial<Omit<BoardsState, 'boards'>> = {}
+  ): void {
+    this.stateSubject.next({
+      ...this.snapshot,
+      ...patch,
+      boards: projectBoards(this.confirmedBoards, this.pendingMutations),
     });
   }
 }

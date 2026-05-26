@@ -592,6 +592,105 @@ describe('BoardsStore', () => {
     store.destroy();
   });
 
+  it('shows a created column before the backend confirms it', async () => {
+    const board = createBoard({ columns: [] });
+    const createdColumn = {
+      id: COLUMN_TODO,
+      board: BOARD_ID,
+      title: 'Todo',
+      order: 0,
+      cards: [],
+    };
+    const createColumn = new Subject<Board['columns'][number]>();
+    const api = {
+      getBoards: vi
+        .fn()
+        .mockReturnValueOnce(of([board]))
+        .mockReturnValueOnce(of([createBoard({ columns: [createdColumn] })])),
+      createColumn: vi.fn(() => createColumn.asObservable()),
+    } as unknown as BoardsApiService;
+    const store = new BoardsStore(api, {
+      createTempId: (kind) => `temp:${kind}`,
+    });
+    await store.load();
+
+    const save = store.createColumn(BOARD_ID, ' Todo ');
+
+    expect(store.snapshot.status).toBe('saving');
+    expect(store.snapshot.boards[0]?.columns[0]?.id).toBe('temp:column');
+    expect(store.snapshot.boards[0]?.columns[0]?.title).toBe('Todo');
+
+    createColumn.next(createdColumn);
+    await save;
+
+    expect(store.snapshot.status).toBe('idle');
+    expect(store.snapshot.boards[0]?.columns[0]?.id).toBe(COLUMN_TODO);
+    store.destroy();
+  });
+
+  it('shows a created card before the backend confirms it', async () => {
+    const loadedBoard = createBoard({
+      columns: [
+        {
+          id: COLUMN_TODO,
+          board: BOARD_ID,
+          title: 'Todo',
+          order: 0,
+          cards: [],
+        },
+      ],
+    });
+    const createdCard = {
+      id: CARD_NEW,
+      placement_id: PLACEMENT_LATE,
+      column: COLUMN_TODO,
+      title: 'New',
+      description: 'Details',
+      order: 0,
+    };
+    const createCard = new Subject<Board['columns'][number]['cards'][number]>();
+    const api = {
+      getBoards: vi
+        .fn()
+        .mockReturnValueOnce(of([loadedBoard]))
+        .mockReturnValueOnce(
+          of([
+            createBoard({
+              columns: [
+                {
+                  ...loadedBoard.columns[0]!,
+                  cards: [createdCard],
+                },
+              ],
+            }),
+          ])
+        ),
+      createCard: vi.fn(() => createCard.asObservable()),
+    } as unknown as BoardsApiService;
+    const store = new BoardsStore(api, {
+      createTempId: (kind) => `temp:${kind}`,
+    });
+    await store.load();
+
+    const save = store.createCard(COLUMN_TODO, ' New ', ' Details ');
+
+    expect(store.snapshot.status).toBe('saving');
+    expect(store.snapshot.boards[0]?.columns[0]?.cards[0]?.id).toBe(
+      'temp:card'
+    );
+    expect(store.snapshot.boards[0]?.columns[0]?.cards[0]?.placement_id).toBe(
+      'temp:placement'
+    );
+    expect(store.snapshot.boards[0]?.columns[0]?.cards[0]?.title).toBe('New');
+
+    createCard.next(createdCard);
+    await save;
+
+    expect(store.snapshot.status).toBe('idle');
+    expect(store.snapshot.boards[0]?.columns[0]?.cards[0]?.id).toBe(CARD_NEW);
+    store.destroy();
+  });
+
   it('patches a board title and keeps the board selected after reload', async () => {
     const api = {
       getBoards: vi
@@ -649,6 +748,81 @@ describe('BoardsStore', () => {
       title: 'Must Read',
     });
     expect(store.snapshot.boards[0]?.columns[0]?.title).toBe('Must Read');
+    store.destroy();
+  });
+
+  it('shows a patched column title before the backend confirms it', async () => {
+    const board = createBoard({
+      columns: [
+        {
+          id: COLUMN_TODO,
+          board: BOARD_ID,
+          title: 'Todo',
+          order: 0,
+          cards: [],
+        },
+      ],
+    });
+    const updateColumn = new Subject<Board['columns'][number]>();
+    const api = {
+      getBoards: vi
+        .fn()
+        .mockReturnValueOnce(of([board]))
+        .mockReturnValueOnce(
+          of([
+            createBoard({
+              columns: [{ ...board.columns[0]!, title: 'Must Read' }],
+            }),
+          ])
+        ),
+      updateColumn: vi.fn(() => updateColumn.asObservable()),
+    } as unknown as BoardsApiService;
+    const store = new BoardsStore(api);
+    await store.load();
+
+    const save = store.patchColumn(COLUMN_TODO, { title: 'Must Read' });
+
+    expect(store.snapshot.status).toBe('saving');
+    expect(store.snapshot.boards[0]?.columns[0]?.title).toBe('Must Read');
+
+    updateColumn.next({ ...board.columns[0]!, title: 'Must Read' });
+    await save;
+
+    expect(store.snapshot.status).toBe('idle');
+    expect(store.snapshot.boards[0]?.columns[0]?.title).toBe('Must Read');
+    store.destroy();
+  });
+
+  it('rolls back an optimistic column title when the backend rejects it', async () => {
+    const board = createBoard({
+      columns: [
+        {
+          id: COLUMN_TODO,
+          board: BOARD_ID,
+          title: 'Todo',
+          order: 0,
+          cards: [],
+        },
+      ],
+    });
+    const updateColumn = new Subject<Board['columns'][number]>();
+    const api = {
+      getBoards: vi.fn(() => of([board])),
+      updateColumn: vi.fn(() => updateColumn.asObservable()),
+    } as unknown as BoardsApiService;
+    const store = new BoardsStore(api);
+    await store.load();
+
+    const save = store.patchColumn(COLUMN_TODO, { title: 'Must Read' });
+
+    expect(store.snapshot.boards[0]?.columns[0]?.title).toBe('Must Read');
+
+    updateColumn.error(new Error('nope'));
+    await save;
+
+    expect(store.snapshot.status).toBe('error');
+    expect(store.snapshot.error).toBe('boards.errors.save');
+    expect(store.snapshot.boards[0]?.columns[0]?.title).toBe('Todo');
     store.destroy();
   });
 
@@ -714,6 +888,71 @@ describe('BoardsStore', () => {
     expect(store.snapshot.boards[0]?.columns[0]?.cards[0]?.tag_ids).toEqual([
       1, 2,
     ]);
+    store.destroy();
+  });
+
+  it('shows a patched card before the backend confirms it', async () => {
+    const board = createBoard({
+      columns: [
+        {
+          id: COLUMN_TODO,
+          board: BOARD_ID,
+          title: 'Todo',
+          order: 0,
+          cards: [
+            {
+              id: CARD_EXISTING,
+              placement_id: PLACEMENT_EXISTING,
+              column: COLUMN_TODO,
+              title: 'Existing',
+              description: '',
+              order: 0,
+            },
+          ],
+        },
+      ],
+    });
+    const updateCard = new Subject<Board['columns'][number]['cards'][number]>();
+    const api = {
+      getBoards: vi
+        .fn()
+        .mockReturnValueOnce(of([board]))
+        .mockReturnValueOnce(
+          of([
+            createBoard({
+              columns: [
+                {
+                  ...board.columns[0]!,
+                  cards: [
+                    {
+                      ...board.columns[0]!.cards[0]!,
+                      title: 'Updated',
+                    },
+                  ],
+                },
+              ],
+            }),
+          ])
+        ),
+      updateCard: vi.fn(() => updateCard.asObservable()),
+    } as unknown as BoardsApiService;
+    const store = new BoardsStore(api);
+    await store.load();
+
+    const save = store.patchCard(CARD_EXISTING, { title: 'Updated' });
+
+    expect(store.snapshot.status).toBe('saving');
+    expect(store.snapshot.boards[0]?.columns[0]?.cards[0]?.title).toBe(
+      'Updated'
+    );
+
+    updateCard.next({ ...board.columns[0]!.cards[0]!, title: 'Updated' });
+    await save;
+
+    expect(store.snapshot.status).toBe('idle');
+    expect(store.snapshot.boards[0]?.columns[0]?.cards[0]?.title).toBe(
+      'Updated'
+    );
     store.destroy();
   });
 
@@ -849,6 +1088,143 @@ describe('BoardsStore', () => {
       column: COLUMN_DONE,
       position: 'bottom',
     });
+    store.destroy();
+  });
+
+  it('shows a moved card placement before the backend confirms it', async () => {
+    const board = createBoard({
+      columns: [
+        {
+          id: COLUMN_TODO,
+          board: BOARD_ID,
+          title: 'Todo',
+          order: 0,
+          cards: [
+            {
+              id: CARD_EXISTING,
+              placement_id: PLACEMENT_EXISTING,
+              column: COLUMN_TODO,
+              title: 'Existing',
+              description: '',
+              order: 0,
+            },
+          ],
+        },
+        {
+          id: COLUMN_DONE,
+          board: BOARD_ID,
+          title: 'Done',
+          order: 1,
+          cards: [],
+        },
+      ],
+    });
+    const updateCardPlacement = new Subject<{
+      id: string;
+      card: string;
+      column: string;
+      order: number;
+      archived: boolean;
+    }>();
+    const api = {
+      getBoards: vi
+        .fn()
+        .mockReturnValueOnce(of([board]))
+        .mockReturnValueOnce(
+          of([
+            createBoard({
+              columns: [
+                { ...board.columns[0]!, cards: [] },
+                {
+                  ...board.columns[1]!,
+                  cards: [
+                    {
+                      ...board.columns[0]!.cards[0]!,
+                      column: COLUMN_DONE,
+                    },
+                  ],
+                },
+              ],
+            }),
+          ])
+        ),
+      updateCardPlacement: vi.fn(() => updateCardPlacement.asObservable()),
+    } as unknown as BoardsApiService;
+    const store = new BoardsStore(api);
+    await store.load();
+
+    const save = store.patchCardPlacement(PLACEMENT_EXISTING, {
+      column: COLUMN_DONE,
+      position: 'bottom',
+    });
+
+    expect(store.snapshot.boards[0]?.columns[0]?.cards).toHaveLength(0);
+    expect(store.snapshot.boards[0]?.columns[1]?.cards[0]?.id).toBe(
+      CARD_EXISTING
+    );
+
+    updateCardPlacement.next({
+      id: PLACEMENT_EXISTING,
+      card: CARD_EXISTING,
+      column: COLUMN_DONE,
+      order: 0,
+      archived: false,
+    });
+    await save;
+
+    expect(store.snapshot.boards[0]?.columns[1]?.cards[0]?.column).toBe(
+      COLUMN_DONE
+    );
+    store.destroy();
+  });
+
+  it('hides a deleted card before the backend confirms it', async () => {
+    const board = createBoard({
+      columns: [
+        {
+          id: COLUMN_TODO,
+          board: BOARD_ID,
+          title: 'Todo',
+          order: 0,
+          cards: [
+            {
+              id: CARD_EXISTING,
+              placement_id: PLACEMENT_EXISTING,
+              column: COLUMN_TODO,
+              title: 'Existing',
+              description: '',
+              order: 0,
+            },
+          ],
+        },
+      ],
+    });
+    const deleteCard = new Subject<void>();
+    const api = {
+      getBoards: vi
+        .fn()
+        .mockReturnValueOnce(of([board]))
+        .mockReturnValueOnce(
+          of([
+            createBoard({
+              columns: [{ ...board.columns[0]!, cards: [] }],
+            }),
+          ])
+        ),
+      deleteCard: vi.fn(() => deleteCard.asObservable()),
+    } as unknown as BoardsApiService;
+    const store = new BoardsStore(api);
+    await store.load();
+
+    const save = store.deleteCard(CARD_EXISTING);
+
+    expect(store.snapshot.boards[0]?.columns[0]?.cards).toHaveLength(0);
+
+    deleteCard.next();
+    await save;
+
+    expect(store.snapshot.status).toBe('idle');
+    expect(store.snapshot.boards[0]?.columns[0]?.cards).toHaveLength(0);
     store.destroy();
   });
 
