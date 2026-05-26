@@ -347,6 +347,48 @@ describe('BoardsView', () => {
     view.destroy();
   });
 
+  it('preserves board and column scroll across rerenders of the same board', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const board = createBoard();
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render(createState(board));
+
+    const canvas = root.querySelector<HTMLElement>(
+      '[data-board-canvas="true"]'
+    )!;
+    const cardsContainer = root.querySelector<HTMLElement>(
+      '[data-board-cards-container="true"]'
+    )!;
+    canvas.scrollLeft = 320;
+    cardsContainer.scrollTop = 140;
+
+    view.render(
+      createState({
+        ...board,
+        columns: [
+          {
+            ...board.columns[0]!,
+            title: 'Reading soon',
+          },
+        ],
+      })
+    );
+
+    expect(
+      root.querySelector<HTMLElement>('[data-board-canvas="true"]')?.scrollLeft
+    ).toBe(320);
+    expect(
+      root.querySelector<HTMLElement>('[data-board-cards-container="true"]')
+        ?.scrollTop
+    ).toBe(140);
+    view.destroy();
+  });
+
   it('renders backend card tags on the card front', () => {
     const root = document.createElement('div');
     document.body.append(root);
@@ -2800,7 +2842,9 @@ describe('BoardsView', () => {
     expect(modal?.textContent).toContain('board-books.md');
 
     modal
-      ?.querySelector<HTMLButtonElement>('[data-testid="boards-export-copy-button"]')
+      ?.querySelector<HTMLButtonElement>(
+        '[data-testid="boards-export-copy-button"]'
+      )
       ?.click();
     await Promise.resolve();
 

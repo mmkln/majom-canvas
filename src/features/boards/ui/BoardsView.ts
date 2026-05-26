@@ -85,6 +85,10 @@ import {
   boardsViewClassNames,
   installBoardsViewStyles,
 } from './boardsViewStyles.ts';
+import {
+  captureBoardsScroll,
+  restoreBoardsScroll,
+} from './boardsScrollState.ts';
 import { notify } from '../../../ui-lib/src/services/NotificationService.ts';
 
 type BoardsViewOptions = {
@@ -471,6 +475,11 @@ export class BoardsView {
   }
 
   public render(state: BoardsState): void {
+    const previousSelectedBoardId = this.state?.selectedBoardId ?? null;
+    const scrollSnapshot =
+      previousSelectedBoardId === state.selectedBoardId
+        ? captureBoardsScroll(this.root)
+        : null;
     const reopenBoardPicker = this.boardPickerPopover
       ? {
           ...this.boardPickerPopover.viewState,
@@ -495,6 +504,12 @@ export class BoardsView {
     this.closeCardEntityLinkMenuPopover();
     this.closeQuickCardEditor();
     this.root.replaceChildren(this.renderShell(state));
+    if (scrollSnapshot) {
+      restoreBoardsScroll(this.root, scrollSnapshot);
+      requestAnimationFrame(() =>
+        restoreBoardsScroll(this.root, scrollSnapshot)
+      );
+    }
     this.syncCardModal(state);
     if (reopenBoardPicker) {
       requestAnimationFrame(() => {
@@ -3414,7 +3429,10 @@ export class BoardsView {
       }
       notify(this.runtime.i18n.t('boards.import.aiPromptCopied'), 'success');
     } catch {
-      notify(this.runtime.i18n.t('boards.import.aiPromptCopyFailed'), 'warning');
+      notify(
+        this.runtime.i18n.t('boards.import.aiPromptCopyFailed'),
+        'warning'
+      );
     }
   }
 
@@ -3449,7 +3467,7 @@ export class BoardsView {
         ? applyModeSupported
           ? 'boards.import.status.ready'
           : 'boards.import.status.previewOnly'
-          : 'boards.import.status.blocked'
+        : 'boards.import.status.blocked'
     );
     headerText.append(eyebrow, headline);
     header.append(headerText);
@@ -3532,7 +3550,9 @@ export class BoardsView {
       'ambiguous-title-match': this.runtime.i18n.t(
         'boards.import.reason.ambiguousTitle'
       ),
-      'invalid-source': this.runtime.i18n.t('boards.import.reason.invalidSource'),
+      'invalid-source': this.runtime.i18n.t(
+        'boards.import.reason.invalidSource'
+      ),
       'matched-by-title': this.runtime.i18n.t(
         'boards.import.reason.matchedByTitle'
       ),
