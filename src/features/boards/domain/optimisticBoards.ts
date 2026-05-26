@@ -8,6 +8,7 @@ import type {
   BoardCardPatch,
   BoardCardPlacementPatch,
   BoardColumnPatch,
+  BoardsOptimisticState,
 } from './types.ts';
 
 export type BoardsOptimisticTempIdKind = 'column' | 'card' | 'placement';
@@ -58,6 +59,19 @@ export type BoardsOptimisticMutation =
       type: 'delete-card';
       cardId: Card['id'];
     };
+
+export function createEmptyBoardsOptimisticState(): BoardsOptimisticState {
+  return {
+    cards: {},
+    placements: {},
+    columns: {},
+    resolved: {
+      cards: {},
+      placements: {},
+      columns: {},
+    },
+  };
+}
 
 function applyColumnPatch(
   column: BoardColumn,
@@ -340,4 +354,59 @@ export function projectBoards(
     (boards, mutation) => applyMutation(boards, mutation),
     confirmedBoards
   );
+}
+
+export function projectBoardsOptimisticState(
+  pendingMutations: readonly BoardsOptimisticMutation[],
+  resolved: BoardsOptimisticState['resolved'] = {
+    cards: {},
+    placements: {},
+    columns: {},
+  }
+): BoardsOptimisticState {
+  const optimistic = createEmptyBoardsOptimisticState();
+  optimistic.resolved = {
+    cards: { ...resolved.cards },
+    placements: { ...resolved.placements },
+    columns: { ...resolved.columns },
+  };
+
+  pendingMutations.forEach((mutation) => {
+    if (mutation.type === 'create-column') {
+      optimistic.columns[mutation.column.id] = 'creating';
+      return;
+    }
+    if (mutation.type === 'delete-column') {
+      optimistic.columns[mutation.columnId] = 'deleting';
+      return;
+    }
+    if (mutation.type === 'patch-column') {
+      optimistic.columns[mutation.columnId] = 'saving';
+      return;
+    }
+    if (mutation.type === 'create-card') {
+      optimistic.cards[mutation.card.id] = 'creating';
+      optimistic.placements[getCardPlacementId(mutation.card)] = 'creating';
+      return;
+    }
+    if (mutation.type === 'delete-card') {
+      optimistic.cards[mutation.cardId] = 'deleting';
+      return;
+    }
+    if (mutation.type === 'patch-card') {
+      optimistic.cards[mutation.cardId] = 'saving';
+      return;
+    }
+    if (mutation.type === 'delete-card-placement') {
+      optimistic.placements[mutation.placementId] = 'deleting';
+      return;
+    }
+    if (mutation.type === 'patch-card-placement') {
+      optimistic.placements[mutation.placementId] = mutation.patch.archived
+        ? 'deleting'
+        : 'saving';
+    }
+  });
+
+  return optimistic;
 }

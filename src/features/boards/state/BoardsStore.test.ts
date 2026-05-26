@@ -682,12 +682,24 @@ describe('BoardsStore', () => {
       'temp:placement'
     );
     expect(store.snapshot.boards[0]?.columns[0]?.cards[0]?.title).toBe('New');
+    expect(store.snapshot.optimistic.cards['temp:card']).toBe('creating');
+    expect(store.snapshot.optimistic.placements['temp:placement']).toBe(
+      'creating'
+    );
 
     createCard.next(createdCard);
     await save;
 
     expect(store.snapshot.status).toBe('idle');
     expect(store.snapshot.boards[0]?.columns[0]?.cards[0]?.id).toBe(CARD_NEW);
+    expect(store.snapshot.optimistic.cards).toEqual({});
+    expect(store.snapshot.optimistic.placements).toEqual({});
+    expect(store.snapshot.optimistic.resolved.cards['temp:card']).toBe(
+      CARD_NEW
+    );
+    expect(
+      store.snapshot.optimistic.resolved.placements['temp:placement']
+    ).toBe(PLACEMENT_LATE);
     store.destroy();
   });
 

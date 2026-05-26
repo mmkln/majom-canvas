@@ -284,6 +284,16 @@ function createState(board = createBoard()): BoardsState {
     selectedBoardId: board.id,
     status: 'idle',
     error: null,
+    optimistic: {
+      cards: {},
+      placements: {},
+      columns: {},
+      resolved: {
+        cards: {},
+        placements: {},
+        columns: {},
+      },
+    },
   };
 }
 
@@ -1016,6 +1026,292 @@ describe('BoardsView', () => {
     expect(handlers.onPatchCardCheckItem).toHaveBeenCalledWith(CHECKITEM_OPEN, {
       state: 'complete',
     });
+    view.destroy();
+  });
+
+  it('opens pending card details without loading backend-only card data', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const board = createBoard();
+    board.columns[0]!.cards[0] = {
+      id: 'temp:card',
+      placement_id: 'temp:placement',
+      column: COLUMN_TODO,
+      title: 'New card',
+      description: '',
+      order: 0,
+    };
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render({
+      ...createState(board),
+      optimistic: {
+        cards: { 'temp:card': 'creating' },
+        placements: { 'temp:placement': 'creating' },
+        columns: {},
+        resolved: {
+          cards: {},
+          placements: {},
+          columns: {},
+        },
+      },
+    });
+
+    root
+      .querySelector<HTMLButtonElement>(
+        '[data-board-card-open="temp:placement"]'
+      )
+      ?.click();
+    await flushPromises();
+
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(handlers.onLoadCardChecklists).not.toHaveBeenCalled();
+    expect(
+      Array.from(
+        document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')
+      ).find((button) => button.textContent === 'Checklist')?.disabled
+    ).toBe(true);
+    expect(notify).not.toHaveBeenCalledWith(expect.any(String), 'error');
+    view.destroy();
+  });
+
+  it('keeps pending card details open after the backend resolves real card ids', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const pendingBoard = createBoard();
+    pendingBoard.columns[0]!.cards[0] = {
+      id: 'temp:card',
+      placement_id: 'temp:placement',
+      column: COLUMN_TODO,
+      title: 'New card',
+      description: '',
+      order: 0,
+    };
+    const confirmedBoard = createBoard();
+    confirmedBoard.columns[0]!.cards[0] = {
+      id: CARD_BOOK,
+      placement_id: PLACEMENT_BOOK,
+      column: COLUMN_TODO,
+      title: 'New card',
+      description: '',
+      order: 0,
+    };
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render({
+      ...createState(pendingBoard),
+      optimistic: {
+        cards: { 'temp:card': 'creating' },
+        placements: { 'temp:placement': 'creating' },
+        columns: {},
+        resolved: {
+          cards: {},
+          placements: {},
+          columns: {},
+        },
+      },
+    });
+
+    root
+      .querySelector<HTMLButtonElement>(
+        '[data-board-card-open="temp:placement"]'
+      )
+      ?.click();
+    await flushPromises();
+
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(handlers.onLoadCardChecklists).not.toHaveBeenCalled();
+
+    view.render({
+      ...createState(confirmedBoard),
+      optimistic: {
+        cards: {},
+        placements: {},
+        columns: {},
+        resolved: {
+          cards: { 'temp:card': CARD_BOOK },
+          placements: { 'temp:placement': PLACEMENT_BOOK },
+          columns: {},
+        },
+      },
+    });
+    await flushPromises();
+
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(handlers.onLoadCardChecklists).toHaveBeenCalledTimes(1);
+    expect(handlers.onLoadCardChecklists).toHaveBeenCalledWith(CARD_BOOK);
+    expect(handlers.onLoadCardChecklists).not.toHaveBeenCalledWith('temp:card');
+    view.destroy();
+  });
+
+  it('preserves dirty pending card details fields when backend data resolves', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const pendingBoard = createBoard();
+    pendingBoard.columns[0]!.cards[0] = {
+      id: 'temp:card',
+      placement_id: 'temp:placement',
+      column: COLUMN_TODO,
+      title: 'New card',
+      description: '',
+      order: 0,
+    };
+    const confirmedBoard = createBoard();
+    confirmedBoard.columns[0]!.cards[0] = {
+      id: CARD_BOOK,
+      placement_id: PLACEMENT_BOOK,
+      column: COLUMN_TODO,
+      title: 'Backend card title',
+      description: 'Backend description',
+      order: 0,
+    };
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render({
+      ...createState(pendingBoard),
+      optimistic: {
+        cards: { 'temp:card': 'creating' },
+        placements: { 'temp:placement': 'creating' },
+        columns: {},
+        resolved: {
+          cards: {},
+          placements: {},
+          columns: {},
+        },
+      },
+    });
+
+    root
+      .querySelector<HTMLButtonElement>(
+        '[data-board-card-open="temp:placement"]'
+      )
+      ?.click();
+    const title = document.querySelector<HTMLTextAreaElement>(
+      '[data-board-card-modal-title="true"]'
+    )!;
+    const description = document.querySelector<HTMLTextAreaElement>(
+      '[data-board-card-modal-description="true"]'
+    )!;
+    title.value = 'User typed title';
+    title.dispatchEvent(new Event('input', { bubbles: true }));
+    description.value = 'User typed description';
+    description.dispatchEvent(new Event('input', { bubbles: true }));
+
+    view.render({
+      ...createState(confirmedBoard),
+      optimistic: {
+        cards: {},
+        placements: {},
+        columns: {},
+        resolved: {
+          cards: { 'temp:card': CARD_BOOK },
+          placements: { 'temp:placement': PLACEMENT_BOOK },
+          columns: {},
+        },
+      },
+    });
+
+    expect(
+      document.querySelector<HTMLTextAreaElement>(
+        '[data-board-card-modal-title="true"]'
+      )?.value
+    ).toBe('User typed title');
+    expect(
+      document.querySelector<HTMLTextAreaElement>(
+        '[data-board-card-modal-description="true"]'
+      )?.value
+    ).toBe('User typed description');
+    expect(handlers.onPatchCard).not.toHaveBeenCalled();
+    view.destroy();
+  });
+
+  it('queues pending card details save until the backend resolves real card ids', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const handlers = createHandlers();
+    const pendingBoard = createBoard();
+    pendingBoard.columns[0]!.cards[0] = {
+      id: 'temp:card',
+      placement_id: 'temp:placement',
+      column: COLUMN_TODO,
+      title: 'New card',
+      description: '',
+      order: 0,
+    };
+    const confirmedBoard = createBoard();
+    confirmedBoard.columns[0]!.cards[0] = {
+      id: CARD_BOOK,
+      placement_id: PLACEMENT_BOOK,
+      column: COLUMN_TODO,
+      title: 'New card',
+      description: '',
+      order: 0,
+    };
+    const view = new BoardsView(root, {
+      runtime: createRuntime(),
+      handlers,
+    });
+    view.render({
+      ...createState(pendingBoard),
+      optimistic: {
+        cards: { 'temp:card': 'creating' },
+        placements: { 'temp:placement': 'creating' },
+        columns: {},
+        resolved: {
+          cards: {},
+          placements: {},
+          columns: {},
+        },
+      },
+    });
+
+    root
+      .querySelector<HTMLButtonElement>(
+        '[data-board-card-open="temp:placement"]'
+      )
+      ?.click();
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+    dialog.querySelector<HTMLTextAreaElement>(
+      '[data-board-card-modal-title="true"]'
+    )!.value = 'Queued title';
+    dialog.querySelector<HTMLTextAreaElement>(
+      '[data-board-card-modal-description="true"]'
+    )!.value = 'Queued description';
+    Array.from(dialog.querySelectorAll('button'))
+      .find((button) => button.textContent === 'Save')
+      ?.click();
+
+    expect(handlers.onPatchCard).not.toHaveBeenCalled();
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+
+    view.render({
+      ...createState(confirmedBoard),
+      optimistic: {
+        cards: {},
+        placements: {},
+        columns: {},
+        resolved: {
+          cards: { 'temp:card': CARD_BOOK },
+          placements: { 'temp:placement': PLACEMENT_BOOK },
+          columns: {},
+        },
+      },
+    });
+
+    expect(handlers.onPatchCard).toHaveBeenCalledWith(CARD_BOOK, {
+      title: 'Queued title',
+      description: 'Queued description',
+    });
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
     view.destroy();
   });
 

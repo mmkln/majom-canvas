@@ -26,6 +26,9 @@
 ## Trello-Like Card Fronts
 
 - Card fronts should open card details; do not place delete actions directly on the card front.
+- Optimistically created cards may open their details before the backend confirms them. Do not call backend-only card detail APIs for temp cards; render the available optimistic card data, disable actions that require a persisted `Card.id`, and keep the modal open until the mutation is confirmed or rejected.
+- Keep optimistic temp-to-real id reconciliation in `BoardsStore` state. `BoardsView` may consume explicit `optimistic.resolved` mappings to migrate an open card details modal from a temp placement id to the confirmed placement id, but it should not infer those mappings from titles, positions, or board reload shape.
+- Keep card details edit-session state out of DOM fields. Use the Card Details Session model/controller for modal draft values, dirty fields, pending submit, and backend reconciliation so rerenders never reset user-entered card details unless the session is explicitly closed or submitted.
 - Card labels use the shared backend `Tag` contract: read `card.tags`, persist card assignments with `card.tag_ids`.
 - Reuse `TagPickerField` for card label selection and label editor screens; do not create a feature-local tag picker for Boards.
 - Label title/color edits use the shared tag API callbacks, while card assignments save immediately through `card.tag_ids` PATCH requests.

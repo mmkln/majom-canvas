@@ -66,7 +66,6 @@ import {
 import { getCardPlacementId } from '../domain/cardIdentity.ts';
 import {
   getBoardCardTagIds,
-  haveSameBoardCardTagIds,
   normalizeBoardCardTagIds,
 } from '../domain/cardTags.ts';
 import {
@@ -90,6 +89,12 @@ import {
   restoreBoardsScroll,
 } from './boardsScrollState.ts';
 import { notify } from '../../../ui-lib/src/services/NotificationService.ts';
+import {
+  createCardDetailsPatch,
+  hasCardDetailsPatch,
+  hasRequestedCardDetailsTagIds,
+} from '../domain/cardDetailsSession.ts';
+import { CardDetailsSessionController } from '../state/CardDetailsSessionController.ts';
 
 type BoardsViewOptions = {
   runtime?: AppRuntime;
@@ -424,8 +429,6 @@ export class BoardsView {
     null;
   private cardEntityLinkMenuPopover: CardEntityLinkMenuPopoverController | null =
     null;
-  private cardModalDraftTagIds: number[] | null = null;
-  private cardModalRequestedTagIds: number[] | null = null;
   private cardModalLabelsHost: HTMLDivElement | null = null;
   private cardModalQuickActionList: HTMLUListElement | null = null;
   private cardModalChecklistHost: HTMLDivElement | null = null;
@@ -440,6 +443,7 @@ export class BoardsView {
   private lastNotifiedErrorKey: string | null = null;
   private readonly dragController: BoardDragController;
   private readonly columnDragController: BoardColumnDragController;
+  private readonly cardDetailsSession = new CardDetailsSessionController();
   private readonly cardDrafts = new Map<BoardColumn['id'], CardDraft>();
 
   constructor(
@@ -2404,9 +2408,11 @@ export class BoardsView {
     if (!this.state) return;
     const location = this.findCardLocation(placementId, this.state);
     if (!location) return;
+    const shouldLoadBackendDetails = !this.isPendingCardLocation(location);
     this.activeCardPlacementId = placementId;
-    this.cardModalDraftTagIds = getBoardCardTagIds(location.card);
-    this.cardModalRequestedTagIds = [...this.cardModalDraftTagIds];
+    this.cardDetailsSession.open(location.card, placementId, {
+      isResolved: shouldLoadBackendDetails,
+    });
     this.hiddenCheckedChecklistIds.clear();
     this.expandedCheckItemComposerIds.clear();
     this.cardChecklistPanelState = {
@@ -2416,17 +2422,87 @@ export class BoardsView {
       error: null,
     };
     this.renderCardModal(location);
-    void this.loadCardModalChecklists(location.card.id);
+    if (shouldLoadBackendDetails) {
+      void this.loadCardModalChecklists(location.card.id);
+    }
+  }
+
+  private isPendingCardLocation(location: CardLocation): boolean {
+    return this.isPendingCard(location.card, location.placementId);
+  }
+
+  private isPendingCard(
+    card: Card,
+    placementId: CardPlacement['id'] = getCardPlacementId(card)
+  ): boolean {
+    if (!this.state) return false;
+    return (
+      this.state.optimistic.cards[card.id] === 'creating' ||
+      this.state.optimistic.placements[placementId] === 'creating'
+    );
   }
 
   private syncCardModal(state: BoardsState): void {
     if (this.activeCardPlacementId === null) return;
-    const location = this.findCardLocation(this.activeCardPlacementId, state);
+    const previousChecklistCardId =
+      this.cardChecklistPanelState?.cardId ?? null;
+    const location = this.resolveActiveCardModalLocation(state);
     if (!location) {
       this.closeCardModal();
       return;
     }
+    this.cardDetailsSession.reconcile(location.card, location.placementId, {
+      isResolved: !this.isPendingCardLocation(location),
+    });
+    if (previousChecklistCardId !== location.card.id) {
+      this.cardChecklistPanelState = {
+        cardId: location.card.id,
+        status: 'idle',
+        checklists: [],
+        error: null,
+      };
+    }
     this.renderCardModal(location);
+    if (
+      previousChecklistCardId !== location.card.id &&
+      !this.isPendingCardLocation(location)
+    ) {
+      void this.loadCardModalChecklists(location.card.id);
+    }
+    this.flushQueuedCardDetailsSubmit();
+  }
+
+  private resolveActiveCardModalLocation(
+    state: BoardsState
+  ): CardLocation | null {
+    if (this.activeCardPlacementId === null) return null;
+    const directLocation = this.findCardLocation(
+      this.activeCardPlacementId,
+      state
+    );
+    if (directLocation) return directLocation;
+
+    const resolvedPlacementId =
+      state.optimistic.resolved.placements[this.activeCardPlacementId];
+    if (!resolvedPlacementId) return null;
+
+    const resolvedLocation = this.findCardLocation(resolvedPlacementId, state);
+    if (!resolvedLocation) return null;
+    this.activeCardPlacementId = resolvedPlacementId;
+    return resolvedLocation;
+  }
+
+  private flushQueuedCardDetailsSubmit(): void {
+    const session = this.cardDetailsSession.snapshot;
+    if (!session?.pendingSubmit || !session.identity.isResolved) return;
+    const patch = createCardDetailsPatch(session);
+    if (hasCardDetailsPatch(patch)) {
+      this.handlers.onPatchCard(session.identity.cardId, patch);
+      this.cardDetailsSession.markSubmitted();
+    }
+    if (session.closeAfterSubmit) {
+      this.closeCardModal();
+    }
   }
 
   private renderCardModal(location: CardLocation): void {
@@ -2442,14 +2518,19 @@ export class BoardsView {
     this.cardModalChecklistHost = null;
 
     const { board, column, card } = location;
-    if (this.cardModalDraftTagIds === null) {
-      this.cardModalDraftTagIds = getBoardCardTagIds(card);
+    if (!this.cardDetailsSession.snapshot) {
+      this.cardDetailsSession.open(card, location.placementId, {
+        isResolved: !this.isPendingCardLocation(location),
+      });
     }
-    if (this.cardModalRequestedTagIds === null) {
-      this.cardModalRequestedTagIds = getBoardCardTagIds(card);
-    }
+    const session = this.cardDetailsSession.snapshot;
+    const draft = session?.draft ?? {
+      title: card.title,
+      description: card.description ?? '',
+      tagIds: getBoardCardTagIds(card),
+    };
     const { overlay, container, header, divider, body } = createPaneModalShell(
-      card.title,
+      draft.title,
       {
         onClose: () => this.closeCardModal(),
         hideCloseButton: true,
@@ -2474,13 +2555,16 @@ export class BoardsView {
     titleInput.dir = 'auto';
     titleInput.rows = CARD_BACK_TITLE_EDITOR_ROWS;
     titleInput.maxLength = CARD_BACK_TITLE_MAX_LENGTH;
-    titleInput.value = card.title;
-    titleInput.setAttribute('aria-label', card.title);
+    titleInput.value = draft.title;
+    titleInput.setAttribute('aria-label', draft.title);
+    titleInput.addEventListener('input', () => {
+      this.cardDetailsSession.updateDraft({ title: titleInput.value });
+    });
 
     const description = document.createElement('textarea');
     description.className = boardsModalClassNames.descriptionEditor;
     description.dataset.boardCardModalDescription = 'true';
-    description.value = card.description;
+    description.value = draft.description;
     description.placeholder = this.runtime.i18n.t(
       'boards.cardDescriptionPlaceholder'
     );
@@ -2491,6 +2575,11 @@ export class BoardsView {
 
     const cardBack = document.createElement('div');
     cardBack.className = boardsModalClassNames.cardBack;
+    description.addEventListener('input', () => {
+      this.cardDetailsSession.updateDraft({
+        description: description.value,
+      });
+    });
     cardBack.append(
       this.renderCardBackTopbar(board, column, card),
       this.renderCardBackLayout(board, column, card, titleInput, description)
@@ -4074,6 +4163,7 @@ export class BoardsView {
     card: Card
   ): void {
     list.replaceChildren();
+    const isPendingCard = this.isPendingCard(card);
     const actionItems: Array<
       | { labelKey: string; icon: IconName; disabled: true }
       | {
@@ -4090,34 +4180,61 @@ export class BoardsView {
         onClick: (button) => this.openCardLabelsPopover(button, card),
       });
     }
-    actionItems.push(
-      {
-        labelKey: 'boards.cardLinks.link',
-        icon: 'link',
-        onClick: () => this.openCardEntityLinkModal(card),
-      },
-      {
-        labelKey: 'boards.cardLinks.createTask',
-        icon: 'check-box',
-        onClick: () => void this.createEntityFromCard(card, 'task'),
-      },
-      {
-        labelKey: 'boards.cardLinks.createStory',
-        icon: 'document',
-        onClick: () => void this.createEntityFromCard(card, 'story'),
-      },
-      {
-        labelKey: 'boards.cardLinks.createGoal',
-        icon: 'goal-circle',
-        onClick: () => void this.createEntityFromCard(card, 'goal'),
-      },
-      { labelKey: 'boards.cardBack.dates', icon: 'calendar', disabled: true },
-      {
-        labelKey: 'boards.cardBack.checklist',
-        icon: 'check-box',
-        onClick: (button) => this.openCardChecklistPopover(button, card),
-      }
-    );
+    if (isPendingCard) {
+      actionItems.push(
+        { labelKey: 'boards.cardLinks.link', icon: 'link', disabled: true },
+        {
+          labelKey: 'boards.cardLinks.createTask',
+          icon: 'check-box',
+          disabled: true,
+        },
+        {
+          labelKey: 'boards.cardLinks.createStory',
+          icon: 'document',
+          disabled: true,
+        },
+        {
+          labelKey: 'boards.cardLinks.createGoal',
+          icon: 'goal-circle',
+          disabled: true,
+        },
+        { labelKey: 'boards.cardBack.dates', icon: 'calendar', disabled: true },
+        {
+          labelKey: 'boards.cardBack.checklist',
+          icon: 'check-box',
+          disabled: true,
+        }
+      );
+    } else {
+      actionItems.push(
+        {
+          labelKey: 'boards.cardLinks.link',
+          icon: 'link',
+          onClick: () => this.openCardEntityLinkModal(card),
+        },
+        {
+          labelKey: 'boards.cardLinks.createTask',
+          icon: 'check-box',
+          onClick: () => void this.createEntityFromCard(card, 'task'),
+        },
+        {
+          labelKey: 'boards.cardLinks.createStory',
+          icon: 'document',
+          onClick: () => void this.createEntityFromCard(card, 'story'),
+        },
+        {
+          labelKey: 'boards.cardLinks.createGoal',
+          icon: 'goal-circle',
+          onClick: () => void this.createEntityFromCard(card, 'goal'),
+        },
+        { labelKey: 'boards.cardBack.dates', icon: 'calendar', disabled: true },
+        {
+          labelKey: 'boards.cardBack.checklist',
+          icon: 'check-box',
+          onClick: (button) => this.openCardChecklistPopover(button, card),
+        }
+      );
+    }
 
     actionItems.forEach((action) => {
       const item = document.createElement('li');
@@ -4224,10 +4341,9 @@ export class BoardsView {
   }
 
   private getCardModalDraftTagIds(card: Card): number[] {
-    if (this.cardModalDraftTagIds === null) {
-      this.cardModalDraftTagIds = getBoardCardTagIds(card);
-    }
-    return this.cardModalDraftTagIds;
+    return (
+      this.cardDetailsSession.snapshot?.draft.tagIds ?? getBoardCardTagIds(card)
+    );
   }
 
   private getCardModalDraftTagItems(card: Card): TagPickerItem[] {
@@ -4254,10 +4370,10 @@ export class BoardsView {
 
   private patchCardModalTagIds(card: Card, selectedIds: number[]): void {
     const nextTagIds = normalizeBoardCardTagIds(selectedIds);
-    const requestedTagIds =
-      this.cardModalRequestedTagIds ?? getBoardCardTagIds(card);
-    if (haveSameBoardCardTagIds(nextTagIds, requestedTagIds)) return;
-    this.cardModalRequestedTagIds = nextTagIds;
+    const session = this.cardDetailsSession.snapshot;
+    if (session && !session.identity.isResolved) return;
+    if (session && hasRequestedCardDetailsTagIds(session, nextTagIds)) return;
+    this.cardDetailsSession.updateRequestedTagIds(nextTagIds);
     this.handlers.onPatchCard(card.id, { tag_ids: nextTagIds });
   }
 
@@ -4312,7 +4428,7 @@ export class BoardsView {
       onUpdate: (id, patch) => this.updateTagFromCardBack(id, patch),
       onDelete: (id) => this.deleteTagFromCardBack(id),
       onChange: (selectedIds) => {
-        this.cardModalDraftTagIds = selectedIds;
+        this.cardDetailsSession.updateDraft({ tagIds: selectedIds });
         this.refreshCardModalLabelControls(card);
         this.patchCardModalTagIds(card, selectedIds);
       },
@@ -4474,9 +4590,11 @@ export class BoardsView {
       await this.tagCatalog.deleteTag(id);
       this.tagItems = this.tagItems.filter((tag) => tag.id !== id);
       const { card } = this.findActiveCardLocation();
-      this.cardModalDraftTagIds = this.getCardModalDraftTagIds(card).filter(
-        (tagId) => tagId !== id
-      );
+      this.cardDetailsSession.updateDraft({
+        tagIds: this.getCardModalDraftTagIds(card).filter(
+          (tagId) => tagId !== id
+        ),
+      });
     } catch {
       throw new Error(this.runtime.i18n.t('boards.cardBack.tagsDeleteFailed'));
     }
@@ -5834,26 +5952,22 @@ export class BoardsView {
   ): void {
     const nextTitle = titleInput.value.trim();
     if (!nextTitle) return;
-    const nextDescription = descriptionInput.value;
-    const nextTagIds = this.getCardModalDraftTagIds(card);
-    const patch: { title?: string; description?: string; tag_ids?: number[] } =
-      {};
-    if (nextTitle !== card.title) patch.title = nextTitle;
-    if (nextDescription !== card.description)
-      patch.description = nextDescription;
-    const requestedTagIds =
-      this.cardModalRequestedTagIds ?? getBoardCardTagIds(card);
-    if (!haveSameBoardCardTagIds(nextTagIds, requestedTagIds)) {
-      patch.tag_ids = nextTagIds;
+    const session = this.cardDetailsSession.updateDraft({
+      title: titleInput.value,
+      description: descriptionInput.value,
+    });
+    if (!session) return;
+    if (!session.identity.isResolved) {
+      this.cardDetailsSession.queueSubmit({ closeAfterSubmit: true });
+      return;
+    }
+
+    const patch = createCardDetailsPatch(session);
+    if (hasCardDetailsPatch(patch)) {
+      this.handlers.onPatchCard(session.identity.cardId, patch);
+      this.cardDetailsSession.markSubmitted();
     }
     this.closeCardModal();
-    if (
-      patch.title !== undefined ||
-      patch.description !== undefined ||
-      patch.tag_ids !== undefined
-    ) {
-      this.handlers.onPatchCard(card.id, patch);
-    }
   }
 
   private closeCardModal(): void {
@@ -5862,8 +5976,7 @@ export class BoardsView {
     this.closeCardChecklistPopover();
     this.closeCardCheckItemMenuPopover();
     this.closeMoveCardPopover();
-    this.cardModalDraftTagIds = null;
-    this.cardModalRequestedTagIds = null;
+    this.cardDetailsSession.close();
     this.cardModalLabelsHost = null;
     this.cardModalQuickActionList = null;
     this.cardModalChecklistHost = null;

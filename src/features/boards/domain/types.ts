@@ -21,6 +21,18 @@ import type {
 
 export type BoardsRequestStatus = 'idle' | 'loading' | 'saving' | 'error';
 export type BoardsIntentResult<T> = T | Promise<T>;
+export type BoardsOptimisticEntityState = 'creating' | 'saving' | 'deleting';
+
+export type BoardsOptimisticState = {
+  cards: Record<Card['id'], BoardsOptimisticEntityState>;
+  placements: Record<CardPlacement['id'], BoardsOptimisticEntityState>;
+  columns: Record<BoardColumn['id'], BoardsOptimisticEntityState>;
+  resolved: {
+    cards: Record<Card['id'], Card['id']>;
+    placements: Record<CardPlacement['id'], CardPlacement['id']>;
+    columns: Record<BoardColumn['id'], BoardColumn['id']>;
+  };
+};
 
 export type BoardCardPatch = {
   title?: string;
@@ -55,6 +67,7 @@ export type BoardsState = {
   selectedBoardId: Board['id'] | null;
   status: BoardsRequestStatus;
   error: string | null;
+  optimistic: BoardsOptimisticState;
 };
 
 export type BoardTagCatalogPort = {

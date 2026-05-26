@@ -19,7 +19,7 @@ import type {
   CardEntityLinkType,
   CardPlacement,
 } from '../../../majom-wrapper/interfaces/index.ts';
-import type { BoardsState } from '../domain/types.ts';
+import type { BoardsOptimisticState, BoardsState } from '../domain/types.ts';
 import {
   compareCardsByPlacementPos,
   getCardPlacementId,
@@ -36,7 +36,9 @@ import {
   type BoardMetaRecord,
 } from '../domain/boardMeta.ts';
 import {
+  createEmptyBoardsOptimisticState,
   projectBoards,
+  projectBoardsOptimisticState,
   type BoardsOptimisticMutation,
   type BoardsOptimisticTempIdKind,
 } from '../domain/optimisticBoards.ts';
@@ -87,6 +89,7 @@ const INITIAL_STATE: BoardsState = {
   selectedBoardId: null,
   status: 'idle',
   error: null,
+  optimistic: createEmptyBoardsOptimisticState(),
 };
 
 function toSortablePosition(value: string | number | null | undefined): number {
@@ -126,6 +129,8 @@ export class BoardsStore {
   public readonly state$ = this.stateSubject.asObservable();
   private confirmedBoards: Board[] = INITIAL_STATE.boards;
   private pendingMutations: BoardsOptimisticMutation[] = [];
+  private resolvedOptimisticIds: BoardsOptimisticState['resolved'] =
+    createEmptyBoardsOptimisticState().resolved;
   private mutationSequence = 0;
   private tempIdSequence = 0;
   private readonly boardMetaMutationVersions = new Map<Board['id'], number>();
@@ -306,13 +311,14 @@ export class BoardsStore {
     if (!normalizedTitle) return;
     const board = this.findBoard(boardId);
     if (!board) return;
+    const tempColumnId = this.createTempIdValue('column');
     await this.runOptimisticMutation(
       {
         id: this.createMutationId(),
         type: 'create-column',
         boardId,
         column: {
-          id: this.createTempIdValue('column'),
+          id: tempColumnId,
           board: boardId,
           title: normalizedTitle,
           order: board.columns.length,
@@ -320,13 +326,16 @@ export class BoardsStore {
         },
       },
       async () => {
-        await firstValueFrom(
+        const createdColumn = await firstValueFrom(
           this.api.createColumn({
             board: boardId,
             title: normalizedTitle,
             position: 'end',
           })
         );
+        this.rememberResolvedOptimisticIds({
+          columns: { [tempColumnId]: createdColumn.id },
+        });
       },
       () => this.reload(boardId)
     );
@@ -374,14 +383,16 @@ export class BoardsStore {
     const column = this.findColumn(columnId);
     if (!column) return;
     const normalizedDescription = description.trim();
+    const tempCardId = this.createTempIdValue('card');
+    const tempPlacementId = this.createTempIdValue('placement');
     await this.runOptimisticMutation(
       {
         id: this.createMutationId(),
         type: 'create-card',
         columnId,
         card: {
-          id: this.createTempIdValue('card'),
-          placement_id: this.createTempIdValue('placement'),
+          id: tempCardId,
+          placement_id: tempPlacementId,
           column: columnId,
           title: normalizedTitle,
           description: normalizedDescription,
@@ -389,7 +400,7 @@ export class BoardsStore {
         },
       },
       async () => {
-        await firstValueFrom(
+        const createdCard = await firstValueFrom(
           this.api.createCard({
             column: columnId,
             title: normalizedTitle,
@@ -397,6 +408,12 @@ export class BoardsStore {
             position: 'bottom',
           })
         );
+        this.rememberResolvedOptimisticIds({
+          cards: { [tempCardId]: createdCard.id },
+          placements: {
+            [tempPlacementId]: getCardPlacementId(createdCard),
+          },
+        });
       }
     );
   }
@@ -849,6 +866,25 @@ export class BoardsStore {
     return `boards-mutation-${this.mutationSequence}`;
   }
 
+  private rememberResolvedOptimisticIds(
+    resolved: Partial<BoardsOptimisticState['resolved']>
+  ): void {
+    this.resolvedOptimisticIds = {
+      cards: {
+        ...this.resolvedOptimisticIds.cards,
+        ...(resolved.cards ?? {}),
+      },
+      placements: {
+        ...this.resolvedOptimisticIds.placements,
+        ...(resolved.placements ?? {}),
+      },
+      columns: {
+        ...this.resolvedOptimisticIds.columns,
+        ...(resolved.columns ?? {}),
+      },
+    };
+  }
+
   private async reloadPreservingSelection(): Promise<void> {
     await this.reload(this.snapshot.selectedBoardId);
   }
@@ -956,6 +992,10 @@ export class BoardsStore {
       ...this.snapshot,
       ...patch,
       boards: projectBoards(this.confirmedBoards, this.pendingMutations),
+      optimistic: projectBoardsOptimisticState(
+        this.pendingMutations,
+        this.resolvedOptimisticIds
+      ),
     });
   }
 }
