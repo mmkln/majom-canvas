@@ -1,202 +1,142 @@
-import {
-  AuthResponse,
-  LoginCredentials,
-  User,
-} from '../interfaces/auth-interfaces.js';
 import { environment } from '../../config/environment.js';
-import { jwtDecode, JwtPayload } from 'jwt-decode';
 import {
   ACCESS_TOKEN_KEY,
   REFRESH_TOKEN_KEY,
 } from '../../config/storage-keys.js';
+import type {
+  AuthResponse,
+  LoginCredentials,
+  User,
+} from '../interfaces/auth-interfaces.js';
 
-/**
- * AuthService handles authentication requests to the backend.
- */
+export type SessionUser = {
+  id: string;
+  email: string;
+  username: string;
+};
+
+type SessionPayload = {
+  authenticated: true;
+  user: SessionUser;
+  csrfToken: string;
+};
+
+export type StartLoginOptions = {
+  switchAccount?: boolean;
+};
+
+export function buildSsoLoginUrl(
+  baseUrl: string,
+  options: StartLoginOptions = {}
+): string {
+  const query = options.switchAccount ? '?switch=1' : '';
+  return `${baseUrl}/auth/sso/login/${query}`;
+}
+
+let activeSession: SessionPayload | null = null;
+
+function isSessionPayload(value: unknown): value is SessionPayload {
+  if (!value || typeof value !== 'object') return false;
+  const payload = value as Partial<SessionPayload>;
+  const user = payload.user as Partial<SessionUser> | undefined;
+  return (
+    payload.authenticated === true &&
+    typeof payload.csrfToken === 'string' &&
+    typeof user?.id === 'string' &&
+    typeof user.email === 'string' &&
+    typeof user.username === 'string'
+  );
+}
+
+function removeLegacyBrowserTokens(): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+}
+
+export function getSessionCsrfToken(): string | null {
+  return activeSession?.csrfToken ?? null;
+}
+
+export function getAuthenticatedUserId(): string | null {
+  return activeSession?.user.id ?? null;
+}
+
+/** Browser authentication boundary backed by a Django HttpOnly session. */
 export class AuthService {
   private baseUrl: string = environment.apiUrl;
 
   constructor(baseUrl?: string) {
-    if (baseUrl) {
-      this.baseUrl = baseUrl;
-    }
+    if (baseUrl) this.baseUrl = baseUrl;
   }
 
-  /**
-   * Sends a login request to the backend with the provided credentials.
-   * @param credentials Username and password for login.
-   * @returns Promise with the authentication response containing tokens.
-   */
-  async login(credentials: LoginCredentials): Promise<AuthResponse> {
+  public async restoreSession(): Promise<boolean> {
+    const response = await fetch(`${this.baseUrl}/auth/sso/session/`, {
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+    });
+
+    removeLegacyBrowserTokens();
+    if (response.status === 401) {
+      this.clearSession();
+      return false;
+    }
+    if (!response.ok) {
+      this.clearSession();
+      throw new Error('Unable to restore the sign-in session.');
+    }
+
+    const payload: unknown = await response.json();
+    if (!isSessionPayload(payload)) {
+      this.clearSession();
+      throw new Error('The sign-in service returned an invalid session.');
+    }
+
+    activeSession = payload;
+    return true;
+  }
+
+  public startLogin(options: StartLoginOptions = {}): void {
+    window.location.assign(buildSsoLoginUrl(this.baseUrl, options));
+  }
+
+  /** Compatibility entrypoint for older UI owners; login now redirects to OIDC. */
+  public login(_credentials: LoginCredentials): Promise<AuthResponse> {
+    void _credentials;
+    this.startLogin();
+    return new Promise<AuthResponse>(() => undefined);
+  }
+
+  public async logout(): Promise<void> {
+    const csrfToken = getSessionCsrfToken();
     try {
-      const response = await fetch(`${this.baseUrl}/token/`, {
+      await fetch(`${this.baseUrl}/auth/sso/logout/`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(credentials),
+        credentials: 'include',
+        headers: csrfToken ? { 'X-CSRFToken': csrfToken } : {},
       });
-
-      if (!response.ok) {
-        throw new Error('Login failed. Please check your credentials.');
-      }
-
-      const data: AuthResponse = await response.json();
-      this.setTokens({ access: data.access, refresh: data.refresh });
-      return data;
-    } catch (error: unknown) {
-      throw new Error(
-        error instanceof Error
-          ? error.message
-          : 'An error occurred during login.'
-      );
+    } finally {
+      this.clearSession();
     }
   }
 
-  /**
-   * Refreshes the access token using the refresh token.
-   * @returns Promise with the new access token.
-   */
-  async refreshToken(): Promise<{ access: string }> {
-    try {
-      const refreshToken = this.getRefreshToken();
-      if (!refreshToken) {
-        throw new Error('No refresh token available.');
-      }
+  public clearSession(): void {
+    activeSession = null;
+    removeLegacyBrowserTokens();
+  }
 
-      const response = await fetch(`${this.baseUrl}/token/refresh/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ refresh: refreshToken }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Token refresh failed.');
-      }
-
-      const data = await response.json();
-      this.setToken(data.access);
-      return { access: data.access };
-    } catch (error: unknown) {
-      throw new Error(
-        error instanceof Error
-          ? error.message
-          : 'An error occurred during token refresh.'
-      );
+  public async getUser(): Promise<User> {
+    const response = await fetch(`${this.baseUrl}/user/`, {
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) {
+      throw new Error('Failed to fetch user data.');
     }
+    return (await response.json()) as User;
   }
 
-  /**
-   * Logs out the user by clearing tokens from local storage.
-   */
-  logout(): void {
-    this.removeTokens();
-  }
-
-  /**
-   * Sets both access and refresh tokens in local storage.
-   * @param tokens Object containing access and refresh tokens.
-   */
-  setTokens(tokens: { access: string; refresh: string }): void {
-    localStorage.setItem(ACCESS_TOKEN_KEY, tokens.access);
-    localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refresh);
-  }
-
-  /**
-   * Sets the access token in local storage.
-   * @param token The access token.
-   */
-  setToken(token: string): void {
-    localStorage.setItem(ACCESS_TOKEN_KEY, token);
-  }
-
-  /**
-   * Sets the refresh token in local storage.
-   * @param token The refresh token.
-   */
-  setRefreshToken(token: string): void {
-    localStorage.setItem(REFRESH_TOKEN_KEY, token);
-  }
-
-  /**
-   * Removes both tokens from local storage.
-   */
-  removeTokens(): void {
-    localStorage.removeItem(ACCESS_TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
-  }
-
-  /**
-   * Retrieves the stored access token.
-   * @returns The access token or null if not found.
-   */
-  getAuthToken(): string | null {
-    return localStorage.getItem(ACCESS_TOKEN_KEY);
-  }
-
-  /**
-   * Fetches the current authenticated user's data.
-   * @returns Promise with the user data.
-   */
-  async getUser(): Promise<User> {
-    try {
-      const token = this.getAuthToken();
-      if (!token) {
-        throw new Error('No auth token found. User is not authenticated.');
-      }
-      const response = await fetch(`${this.baseUrl}/user/`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch user data.');
-      }
-      const user: User = await response.json();
-      return user;
-    } catch (error: unknown) {
-      throw new Error(
-        error instanceof Error
-          ? error.message
-          : 'An error occurred while fetching user data.'
-      );
-    }
-  }
-
-  /**
-   * Retrieves the stored refresh token.
-   * @returns The refresh token or null if not found.
-   */
-  getRefreshToken(): string | null {
-    return localStorage.getItem(REFRESH_TOKEN_KEY);
-  }
-
-  /**
-   * Checks if the user is authenticated based on the presence of a refresh token and its validity.
-   * @returns True if the user is authenticated and token is not expired, false otherwise.
-   */
-  isLoggedIn(): boolean {
-    const token = this.getRefreshToken();
-    return token ? !this.isTokenExpired(token) : false;
-  }
-
-  /**
-   * Checks if a token is expired by decoding it and comparing the expiration time.
-   * @param token The token to check.
-   * @returns True if the token is expired or invalid, false otherwise.
-   */
-  isTokenExpired(token: string): boolean {
-    try {
-      const decoded = jwtDecode<JwtPayload>(token);
-      if (!decoded?.exp) {
-        return true;
-      }
-      const expiryTime = decoded.exp * 1000;
-      return Date.now() > expiryTime;
-    } catch (error) {
-      return true;
-    }
+  public isLoggedIn(): boolean {
+    return activeSession !== null;
   }
 }

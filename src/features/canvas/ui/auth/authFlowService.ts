@@ -23,9 +23,12 @@ export type LogoutRequest = {
 class AuthFlowService {
   private readonly loginRequestSubject = new Subject<LoginRequest>();
   private readonly logoutRequestSubject = new Subject<LogoutRequest>();
+  private readonly accountSwitchRequestSubject = new Subject<void>();
 
   public readonly loginRequests$ = this.loginRequestSubject.asObservable();
   public readonly logoutRequests$ = this.logoutRequestSubject.asObservable();
+  public readonly accountSwitchRequests$ =
+    this.accountSwitchRequestSubject.asObservable();
 
   public requestLogin(reason: LoginRequestReason = 'unknown'): void {
     this.loginRequestSubject.next({ reason });
@@ -33,6 +36,10 @@ class AuthFlowService {
 
   public requestLogout(reason: LogoutRequestReason = 'unknown'): void {
     this.logoutRequestSubject.next({ reason });
+  }
+
+  public requestAccountSwitch(): void {
+    this.accountSwitchRequestSubject.next();
   }
 }
 

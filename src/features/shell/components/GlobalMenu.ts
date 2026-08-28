@@ -234,6 +234,11 @@ export class GlobalMenu {
       disabled: !this.authState.isAuthenticated,
       onClick: () => this.handleLogout(),
     });
+    const switchAccountButton = createDropdownItem({
+      label: this.i18n.t('header.switchAccount'),
+      disabled: !this.authState.isAuthenticated,
+      onClick: () => this.handleAccountSwitch(),
+    });
     const profileSettingsButton = createDropdownItem({
       label: this.i18n.t('profileSettings.open'),
       disabled:
@@ -259,6 +264,7 @@ export class GlobalMenu {
       profileSettingsButton,
       this.localeSubmenu.trigger,
       createDivider(),
+      switchAccountButton,
       logoutButton
     );
 
@@ -273,6 +279,12 @@ export class GlobalMenu {
       logout: () => this.authController.logout(),
       onAfterLogout: () => this.close(),
     });
+  }
+
+  private handleAccountSwitch(): void {
+    if (!this.authState.isAuthenticated) return;
+    this.close();
+    authFlowService.requestAccountSwitch();
   }
 
   private async handleLocaleChange(nextLocale: AppLocale): Promise<void> {

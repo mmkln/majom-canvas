@@ -756,6 +756,7 @@ export const uk = {
   'profileSettings.delete.success': 'Запит на видалення акаунта створено.',
   'header.aiAssistant': 'AI асистент',
   'header.logout': 'Вийти',
+  'header.switchAccount': 'Змінити акаунт',
   'header.openAppMenu': 'Відкрити меню застосунку',
   'header.openGlobalMenu': 'Відкрити глобальне меню',
   'header.openNotes': 'Відкрити нотатки',

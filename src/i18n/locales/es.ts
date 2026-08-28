@@ -515,6 +515,7 @@ export const es: AppTranslations = {
   'header.aiAssistant': 'Asistente de IA',
   'header.closeRoutines': 'Cerrar rutinas',
   'header.logout': 'Cerrar sesión',
+  'header.switchAccount': 'Cambiar de cuenta',
   'header.openAppMenu': 'Abrir menú de la app',
   'header.openGlobalMenu': 'Abrir menú global',
   'header.openNotes': 'Abrir notas',

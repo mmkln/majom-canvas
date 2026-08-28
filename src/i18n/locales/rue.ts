@@ -171,6 +171,7 @@ export const rue: AppTranslations = {
   'header.aiAssistant': 'AI помічник',
   'header.closeRoutines': 'Закрити звыкы',
   'header.logout': 'Выйти',
+  'header.switchAccount': 'Змінити акаунт',
   'header.openAppMenu': 'Отворити меню аплікації',
   'header.openGlobalMenu': 'Отворити глобалне меню',
   'header.openNotes': 'Отворити нотаткы',

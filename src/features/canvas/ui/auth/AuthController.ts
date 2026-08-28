@@ -101,7 +101,8 @@ export class AuthController {
   }
 
   public logout(): void {
-    this.authService.logout();
+    // BootOrchestrator owns the server-side logout request and hard reset.
+    this.authService.clearSession();
     this.userLoadSubscription?.unsubscribe();
     this.userLoadSubscription = null;
     this.patchState({

@@ -5,13 +5,10 @@ import { AuthService } from '../majom-wrapper/data-access/auth-service.ts';
 import { HttpInterceptorClient } from '../majom-wrapper/data-access/http-interceptor.ts';
 import { UserApiService } from '../majom-wrapper/data-access/user-api-service.ts';
 import { WallpaperApiService } from '../majom-wrapper/data-access/wallpaper-api-service.ts';
-import type { LoginCredentials } from '../majom-wrapper/interfaces/auth-interfaces.ts';
 import {
   authFlowService,
   type LogoutRequest,
 } from '../features/canvas/ui/auth/authFlowService.ts';
-import type { LoginSubmitResult } from '../features/canvas/ui/auth/AuthController.ts';
-import { LoginPage } from '../features/canvas/ui/components/LoginPage.ts';
 import { LoadingScreen } from '../features/canvas/ui/components/LoadingScreen.ts';
 import { WallpaperService } from '../features/shell/services/WallpaperService.ts';
 import {
@@ -39,11 +36,11 @@ export class BootOrchestrator {
   private readonly runtimeHost: RuntimeHost;
   private readonly globalHeader: GlobalAppHeader;
   private readonly landingPage: PublicLandingPage;
-  private readonly loginPage: LoginPage;
   private readonly loadingScreen: LoadingScreen;
   private readonly minLoadingScreenMs: number;
   private logoutSubscription: Subscription | null = null;
   private loginSubscription: Subscription | null = null;
+  private accountSwitchSubscription: Subscription | null = null;
   private readonly windowFocusHandler: () => void;
   private readonly visibilityChangeHandler: () => void;
   private state: BootState = 'checking_session';
@@ -57,24 +54,10 @@ export class BootOrchestrator {
       userApiService: this.userApi,
     });
     this.landingPage = new PublicLandingPage({
-      onSignIn: () => {
-        this.dispatch('sign_in_requested');
-        this.render();
-      },
+      onSignIn: () => this.beginLogin(),
     });
     this.loadingScreen = new LoadingScreen({ runtime: this.runtime });
     this.minLoadingScreenMs = this.resolveMinLoadingScreenDuration();
-    this.loginPage = new LoginPage({
-      runtime: this.runtime,
-      secondaryAction: {
-        text: (i18n) => i18n.t('login.backToOverview'),
-        onClick: () => {
-          this.dispatch('login_cancelled');
-          this.render();
-        },
-      },
-      onSubmit: async (credentials) => this.handleLoginSubmit(credentials),
-    });
     this.windowFocusHandler = () => {
       void this.refreshUserPreferences();
     };
@@ -90,21 +73,8 @@ export class BootOrchestrator {
     document.addEventListener('visibilitychange', this.visibilityChangeHandler);
     this.runtimeHost.hideCanvas();
     this.dispatch('app_start');
-
-    if (!this.hasStoredSessionToken()) {
-      this.dispatch('session_missing');
-      this.render();
-      return;
-    }
-
-    this.dispatch('session_found');
     this.render();
-    if (!this.authService.isLoggedIn()) {
-      void this.failStoredSessionAfterLoadingPaint();
-      return;
-    }
-
-    void this.bootstrapRuntime();
+    void this.restoreSessionAndBoot();
   }
 
   private bindAuthFlow(): void {
@@ -115,9 +85,13 @@ export class BootOrchestrator {
     );
     this.loginSubscription = authFlowService.loginRequests$.subscribe(() => {
       if (this.authService.isLoggedIn()) return;
-      this.dispatch('sign_in_requested');
-      this.render();
+      this.beginLogin();
     });
+    this.accountSwitchSubscription =
+      authFlowService.accountSwitchRequests$.subscribe(() => {
+        if (!this.authService.isLoggedIn()) return;
+        this.beginAccountSwitch();
+      });
   }
 
   private dispatch(event: BootEvent): void {
@@ -126,19 +100,20 @@ export class BootOrchestrator {
 
   private render(): void {
     if (this.state === 'checking_session') {
+      document.documentElement.setAttribute('data-majom-auth-restore', 'pending');
       this.globalHeader.unmount();
       this.runtimeHost.hideCanvas();
-      this.loadingScreen.hide();
-      this.loginPage.hide();
       this.landingPage.hide();
+      this.loadingScreen.showLoading((i18n) => i18n.t('loading.fetchingData'));
       return;
     }
+
+    document.documentElement.removeAttribute('data-majom-auth-restore');
 
     if (this.state === 'landing') {
       this.globalHeader.unmount();
       this.runtimeHost.hideCanvas();
       this.loadingScreen.hide();
-      this.loginPage.hide();
       this.landingPage.show();
       return;
     }
@@ -146,10 +121,8 @@ export class BootOrchestrator {
     if (this.state === 'login_required') {
       this.globalHeader.unmount();
       this.runtimeHost.hideCanvas();
-      this.loadingScreen.hide();
       this.landingPage.hide();
-      this.loginPage.show();
-      this.loginPage.focusPrimaryField();
+      this.loadingScreen.showLoading((i18n) => i18n.t('loading.fetchingData'));
       return;
     }
 
@@ -157,7 +130,6 @@ export class BootOrchestrator {
       this.globalHeader.unmount();
       this.runtimeHost.hideCanvas();
       this.landingPage.hide();
-      this.loginPage.hide();
       this.loadingScreen.showLoading((i18n) => i18n.t('loading.fetchingData'));
       return;
     }
@@ -166,7 +138,6 @@ export class BootOrchestrator {
       this.globalHeader.unmount();
       this.runtimeHost.hideCanvas();
       this.landingPage.hide();
-      this.loginPage.hide();
       this.loadingScreen.showError(
         (i18n) => i18n.t('loading.canvasFailed'),
         () => {
@@ -177,32 +148,39 @@ export class BootOrchestrator {
     }
 
     this.landingPage.hide();
-    this.loginPage.hide();
     this.loadingScreen.hide();
     this.globalHeader.mount(document.body);
     this.runtimeHost.showCanvas();
   }
 
-  private async handleLoginSubmit(
-    credentials: LoginCredentials
-  ): Promise<LoginSubmitResult> {
+  private async restoreSessionAndBoot(): Promise<void> {
     try {
-      await this.authService.login(credentials);
+      const sessionFound = await this.authService.restoreSession();
+      if (!sessionFound) {
+        this.dispatch('session_missing');
+        this.render();
+        return;
+      }
       this.sessionRestoreFailureHandled = false;
-      this.dispatch('login_success');
+      this.dispatch('session_found');
       this.render();
-      void this.bootstrapRuntime();
-      return { ok: true };
-    } catch (error: unknown) {
-      this.authService.logout();
-      return {
-        ok: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : this.i18n.t('login.errorFallback'),
-      };
+      await this.bootstrapRuntime();
+    } catch (error) {
+      console.error('Failed to restore the browser session.', error);
+      this.handleSessionRestoreFailure();
     }
+  }
+
+  private beginLogin(): void {
+    if (this.authService.isLoggedIn()) return;
+    this.dispatch('sign_in_requested');
+    this.render();
+    this.authService.startLogin();
+  }
+
+  private beginAccountSwitch(): void {
+    if (!this.authService.isLoggedIn()) return;
+    this.authService.startLogin({ switchAccount: true });
   }
 
   private async retryBoot(): Promise<void> {
@@ -264,7 +242,7 @@ export class BootOrchestrator {
     this.wallpaperService.applyUserWallpaper(hydratedUser);
   }
 
-  private handleHardLogout(): void {
+  private async handleHardLogout(): Promise<void> {
     if (this.logoutInProgress) return;
     this.logoutInProgress = true;
     window.removeEventListener('focus', this.windowFocusHandler);
@@ -273,17 +251,20 @@ export class BootOrchestrator {
       this.visibilityChangeHandler
     );
     this.dispatch('logout');
-    this.authService.logout();
     clearUserPreferences();
     this.runtimeHost.dispose();
     this.globalHeader.unmount();
     this.render();
-    window.location.reload();
+    try {
+      await this.authService.logout();
+    } finally {
+      window.location.reload();
+    }
   }
 
   private handleLogoutRequest(request: LogoutRequest): void {
     if (request.reason === 'manual') {
-      this.handleHardLogout();
+      void this.handleHardLogout();
       return;
     }
 
@@ -294,26 +275,11 @@ export class BootOrchestrator {
     if (this.sessionRestoreFailureHandled) return;
 
     this.sessionRestoreFailureHandled = true;
-    this.authService.logout();
+    this.authService.clearSession();
     clearUserPreferences();
     this.dispatch('session_restore_failed');
     this.render();
     notify(this.i18n.t('auth.sessionExpired'), 'error');
-  }
-
-  private hasStoredSessionToken(): boolean {
-    return this.authService.getRefreshToken() !== null;
-  }
-
-  private async failStoredSessionAfterLoadingPaint(): Promise<void> {
-    await new Promise<void>((resolve) => {
-      if (typeof window.requestAnimationFrame === 'function') {
-        window.requestAnimationFrame(() => resolve());
-        return;
-      }
-      window.setTimeout(resolve, 0);
-    });
-    this.handleSessionRestoreFailure();
   }
 
   private async refreshUserPreferences(): Promise<void> {

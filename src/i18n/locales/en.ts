@@ -742,6 +742,7 @@ export const en = {
   'profileSettings.delete.success': 'Account deletion requested.',
   'header.aiAssistant': 'AI Assistant',
   'header.logout': 'Logout',
+  'header.switchAccount': 'Switch account',
   'header.openAppMenu': 'Open app menu',
   'header.openGlobalMenu': 'Open global menu',
   'header.openNotes': 'Open notes',

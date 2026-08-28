@@ -1,67 +1,20 @@
 // @ts-ignore: implicit any for rxjs-http-client types
 import { RxJSHttpClient } from 'rxjs-http-client';
-import { Observable, throwError, of, from } from 'rxjs';
-import {
-  catchError,
-  switchMap,
-  map,
-  finalize,
-  shareReplay,
-} from 'rxjs/operators';
-import { AuthService } from './auth-service.js';
-import { ACCESS_TOKEN_KEY } from '../../config/storage-keys.js';
+import { Observable, from, of, throwError } from 'rxjs';
+import { catchError, finalize, switchMap } from 'rxjs/operators';
+import { getSessionCsrfToken } from './auth-service.js';
 import { requestTracker } from './request-tracker.js';
 import { authFlowService } from '../../features/canvas/ui/auth/authFlowService.ts';
 
-/**
- * HTTP client wrapper: automatically attaches JWT and handles errors.
- */
+/** HTTP client wrapper backed by the browser's HttpOnly Django session. */
 export class HttpInterceptorClient {
-  private client = new RxJSHttpClient();
-  private authService: AuthService;
-  private refreshAccessToken$?: Observable<string>;
+  private readonly client = new RxJSHttpClient();
 
-  constructor(private readonly baseUrl: string) {
-    this.authService = new AuthService(this.baseUrl);
-  }
-
-  private attachAuth(
-    headers: Record<string, string> = {}
-  ): Record<string, string> {
-    // Use access token set by AuthService under key 'jwt'
-    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
-    return { ...headers, Authorization: token ? `Bearer ${token}` : '' };
-  }
-
-  private getRefreshedAccessToken(): Observable<string> {
-    if (!this.refreshAccessToken$) {
-      this.refreshAccessToken$ = from(this.authService.refreshToken()).pipe(
-        map(({ access }) => access),
-        catchError((error) => {
-          this.handleUnauthorizedSession();
-          return throwError(() => error);
-        }),
-        finalize(() => {
-          this.refreshAccessToken$ = undefined;
-        }),
-        shareReplay(1)
-      );
-    }
-    return this.refreshAccessToken$;
-  }
-
-  private handleUnauthorizedSession(): void {
-    this.authService.logout();
-    authFlowService.requestLogout('unauthorized');
-  }
+  constructor(private readonly baseUrl: string) {}
 
   private parseResponse<T>(res: any): Observable<T> {
-    if (!res || typeof res.status !== 'number') {
-      return of(res as T);
-    }
-    if (res.status === 204 || res.status === 205) {
-      return of(undefined as T);
-    }
+    if (!res || typeof res.status !== 'number') return of(res as T);
+    if (res.status === 204 || res.status === 205) return of(undefined as T);
     return from(res.json() as Promise<T>);
   }
 
@@ -80,234 +33,96 @@ export class HttpInterceptorClient {
     body: any,
     headers: Record<string, string> = {}
   ): Record<string, string> {
-    if (this.isFormDataBody(body)) {
-      return { ...headers };
-    }
+    const csrfToken = getSessionCsrfToken();
     return {
-      'Content-Type': 'application/json',
+      ...(this.isFormDataBody(body) ? {} : { 'Content-Type': 'application/json' }),
+      ...(csrfToken ? { 'X-CSRFToken': csrfToken } : {}),
       ...headers,
     };
   }
 
+  private handleError(method: string, error: any): Observable<never> {
+    if (error?.status === 401) {
+      authFlowService.requestLogout('unauthorized');
+    }
+    console.error(`${method} Error:`, error);
+    return throwError(() => error);
+  }
+
   public get<T>(path: string, options: any = {}): Observable<T> {
     requestTracker.start();
-    const authService = this.authService;
-    let headers = this.attachAuth(options.headers);
-    const accessToken = authService.getAuthToken();
-    const request$ =
-      accessToken && authService.isTokenExpired(accessToken)
-        ? this.getRefreshedAccessToken().pipe(
-            switchMap((access) => {
-              headers = this.attachAuth(options.headers);
-              return this.client.get<T>(`${this.baseUrl}${path}`, {
-                ...options,
-                headers,
-              });
-            })
-          )
-        : this.client.get<T>(`${this.baseUrl}${path}`, { ...options, headers });
-    return request$.pipe(
-      switchMap((res: any) => this.parseResponse<T>(res)),
-      catchError((err) => {
-        if (err.status === 401) {
-          return this.getRefreshedAccessToken().pipe(
-            switchMap((access) => {
-              headers = this.attachAuth(options.headers);
-              return this.client.get<T>(`${this.baseUrl}${path}`, {
-                ...options,
-                headers,
-              });
-            }),
-            switchMap((res: any) => this.parseResponse<T>(res))
-          );
-        }
-        console.error('GET Error:', err);
-        return throwError(() => err);
-      }),
-      finalize(() => requestTracker.end())
-    );
+    return this.client
+      .get<T>(`${this.baseUrl}${path}`, {
+        ...options,
+        credentials: 'include',
+      })
+      .pipe(
+        switchMap((res: any) => this.parseResponse<T>(res)),
+        catchError((error) => this.handleError('GET', error)),
+        finalize(() => requestTracker.end())
+      );
   }
 
   public post<T>(path: string, body: any, options: any = {}): Observable<T> {
     requestTracker.start();
-    const authService = this.authService;
-    const baseHeaders = this.getMutationHeaders(body, options.headers);
-    let headers = this.attachAuth(baseHeaders);
-    const normalizedBody = this.normalizeBody(body);
-    const accessToken = authService.getAuthToken();
-    const request$ =
-      accessToken && authService.isTokenExpired(accessToken)
-        ? this.getRefreshedAccessToken().pipe(
-            switchMap((access) => {
-              headers = this.attachAuth(baseHeaders);
-              return this.client.post<T>(`${this.baseUrl}${path}`, {
-                ...options,
-                body: normalizedBody,
-                headers,
-              });
-            })
-          )
-        : this.client.post<T>(`${this.baseUrl}${path}`, {
-            ...options,
-            body: normalizedBody,
-            headers,
-          });
-    return request$.pipe(
-      switchMap((res: any) => this.parseResponse<T>(res)),
-      catchError((err) => {
-        if (err.status === 401) {
-          return this.getRefreshedAccessToken().pipe(
-            switchMap((access) => {
-              headers = this.attachAuth(baseHeaders);
-              return this.client.post<T>(`${this.baseUrl}${path}`, {
-                ...options,
-                body: normalizedBody,
-                headers,
-              });
-            }),
-            switchMap((res: any) => this.parseResponse<T>(res))
-          );
-        }
-        console.error('POST Error:', err);
-        return throwError(() => err);
-      }),
-      finalize(() => requestTracker.end())
-    );
+    return this.client
+      .post<T>(`${this.baseUrl}${path}`, {
+        ...options,
+        body: this.normalizeBody(body),
+        credentials: 'include',
+        headers: this.getMutationHeaders(body, options.headers),
+      })
+      .pipe(
+        switchMap((res: any) => this.parseResponse<T>(res)),
+        catchError((error) => this.handleError('POST', error)),
+        finalize(() => requestTracker.end())
+      );
   }
 
   public put<T>(path: string, body: any, options: any = {}): Observable<T> {
     requestTracker.start();
-    const authService = this.authService;
-    const baseHeaders = this.getMutationHeaders(body, options.headers);
-    let headers = this.attachAuth(baseHeaders);
-    const normalizedBody = this.normalizeBody(body);
-    const accessToken = authService.getAuthToken();
-    const request$ =
-      accessToken && authService.isTokenExpired(accessToken)
-        ? this.getRefreshedAccessToken().pipe(
-            switchMap((access) => {
-              headers = this.attachAuth(baseHeaders);
-              return this.client.put<T>(`${this.baseUrl}${path}`, {
-                ...options,
-                body: normalizedBody,
-                headers,
-              });
-            })
-          )
-        : this.client.put<T>(`${this.baseUrl}${path}`, {
-            ...options,
-            body: normalizedBody,
-            headers,
-          });
-    return request$.pipe(
-      switchMap((res: any) => this.parseResponse<T>(res)),
-      catchError((err) => {
-        if (err.status === 401) {
-          return this.getRefreshedAccessToken().pipe(
-            switchMap((access) => {
-              headers = this.attachAuth(baseHeaders);
-              return this.client.put<T>(`${this.baseUrl}${path}`, {
-                ...options,
-                body: normalizedBody,
-                headers,
-              });
-            }),
-            switchMap((res: any) => this.parseResponse<T>(res))
-          );
-        }
-        console.error('PUT Error:', err);
-        return throwError(() => err);
-      }),
-      finalize(() => requestTracker.end())
-    );
+    return this.client
+      .put<T>(`${this.baseUrl}${path}`, {
+        ...options,
+        body: this.normalizeBody(body),
+        credentials: 'include',
+        headers: this.getMutationHeaders(body, options.headers),
+      })
+      .pipe(
+        switchMap((res: any) => this.parseResponse<T>(res)),
+        catchError((error) => this.handleError('PUT', error)),
+        finalize(() => requestTracker.end())
+      );
   }
 
   public patch<T>(path: string, body: any, options: any = {}): Observable<T> {
     requestTracker.start();
-    const authService = this.authService;
-    const baseHeaders = this.getMutationHeaders(body, options.headers);
-    let headers = this.attachAuth(baseHeaders);
-    const normalizedBody = this.normalizeBody(body);
-    const accessToken = authService.getAuthToken();
-    const request$ =
-      accessToken && authService.isTokenExpired(accessToken)
-        ? this.getRefreshedAccessToken().pipe(
-            switchMap((access) => {
-              headers = this.attachAuth(baseHeaders);
-              return this.client.patch<T>(`${this.baseUrl}${path}`, {
-                ...options,
-                body: normalizedBody,
-                headers,
-              });
-            })
-          )
-        : this.client.patch<T>(`${this.baseUrl}${path}`, {
-            ...options,
-            body: normalizedBody,
-            headers,
-          });
-    return request$.pipe(
-      switchMap((res: any) => this.parseResponse<T>(res)),
-      catchError((err) => {
-        if (err.status === 401) {
-          return this.getRefreshedAccessToken().pipe(
-            switchMap((access) => {
-              headers = this.attachAuth(baseHeaders);
-              return this.client.patch<T>(`${this.baseUrl}${path}`, {
-                ...options,
-                body: normalizedBody,
-                headers,
-              });
-            }),
-            switchMap((res: any) => this.parseResponse<T>(res))
-          );
-        }
-        console.error('PATCH Error:', err);
-        return throwError(() => err);
-      }),
-      finalize(() => requestTracker.end())
-    );
+    return this.client
+      .patch<T>(`${this.baseUrl}${path}`, {
+        ...options,
+        body: this.normalizeBody(body),
+        credentials: 'include',
+        headers: this.getMutationHeaders(body, options.headers),
+      })
+      .pipe(
+        switchMap((res: any) => this.parseResponse<T>(res)),
+        catchError((error) => this.handleError('PATCH', error)),
+        finalize(() => requestTracker.end())
+      );
   }
 
   public delete<T>(path: string, options: any = {}): Observable<T> {
     requestTracker.start();
-    const authService = this.authService;
-    let headers = this.attachAuth(options.headers);
-    const accessToken = authService.getAuthToken();
-    const request$ =
-      accessToken && authService.isTokenExpired(accessToken)
-        ? this.getRefreshedAccessToken().pipe(
-            switchMap((access) => {
-              headers = this.attachAuth(options.headers);
-              return this.client.delete<T>(`${this.baseUrl}${path}`, {
-                ...options,
-                headers,
-              });
-            })
-          )
-        : this.client.delete<T>(`${this.baseUrl}${path}`, {
-            ...options,
-            headers,
-          });
-    return request$.pipe(
-      switchMap((res: any) => this.parseResponse<T>(res)),
-      catchError((err) => {
-        if (err.status === 401) {
-          return this.getRefreshedAccessToken().pipe(
-            switchMap((access) => {
-              headers = this.attachAuth(options.headers);
-              return this.client.delete<T>(`${this.baseUrl}${path}`, {
-                ...options,
-                headers,
-              });
-            }),
-            switchMap((res: any) => this.parseResponse<T>(res))
-          );
-        }
-        console.error('DELETE Error:', err);
-        return throwError(() => err);
-      }),
-      finalize(() => requestTracker.end())
-    );
+    return this.client
+      .delete<T>(`${this.baseUrl}${path}`, {
+        ...options,
+        credentials: 'include',
+        headers: this.getMutationHeaders(undefined, options.headers),
+      })
+      .pipe(
+        switchMap((res: any) => this.parseResponse<T>(res)),
+        catchError((error) => this.handleError('DELETE', error)),
+        finalize(() => requestTracker.end())
+      );
   }
 }

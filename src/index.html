@@ -38,13 +38,7 @@
     </style>
     <script>
     (function () {
-      try {
-        var token = window.localStorage && window.localStorage.getItem('refresh');
-        if (!token) return;
-        document.documentElement.setAttribute('data-majom-auth-restore', 'pending');
-      } catch (error) {
-        document.documentElement.removeAttribute('data-majom-auth-restore');
-      }
+      document.documentElement.setAttribute('data-majom-auth-restore', 'pending');
     })();
     </script>
     <script type="application/ld+json">
