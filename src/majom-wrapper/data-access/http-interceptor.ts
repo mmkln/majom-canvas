@@ -2,11 +2,11 @@
 import { RxJSHttpClient } from 'rxjs-http-client';
 import { Observable, from, of, throwError } from 'rxjs';
 import { catchError, finalize, switchMap } from 'rxjs/operators';
-import { getSessionCsrfToken } from './auth-service.js';
+import { getAccessToken, refreshAccessToken } from './auth-service.js';
 import { requestTracker } from './request-tracker.js';
 import { authFlowService } from '../../features/canvas/ui/auth/authFlowService.ts';
 
-/** HTTP client wrapper backed by the browser's HttpOnly Django session. */
+/** HTTP client wrapper with one refresh-and-retry for expired Bearer tokens. */
 export class HttpInterceptorClient {
   private readonly client = new RxJSHttpClient();
 
@@ -33,12 +33,21 @@ export class HttpInterceptorClient {
     body: any,
     headers: Record<string, string> = {}
   ): Record<string, string> {
-    const csrfToken = getSessionCsrfToken();
     return {
-      ...(this.isFormDataBody(body) ? {} : { 'Content-Type': 'application/json' }),
-      ...(csrfToken ? { 'X-CSRFToken': csrfToken } : {}),
+      ...(this.isFormDataBody(body)
+        ? {}
+        : { 'Content-Type': 'application/json' }),
       ...headers,
     };
+  }
+
+  private withAuthorization(
+    headers: Record<string, string> = {}
+  ): Record<string, string> {
+    const accessToken = getAccessToken();
+    return accessToken
+      ? { ...headers, Authorization: `Bearer ${accessToken}` }
+      : headers;
   }
 
   private handleError(method: string, error: any): Observable<never> {
@@ -49,80 +58,87 @@ export class HttpInterceptorClient {
     return throwError(() => error);
   }
 
+  private requestWithRefresh<T>(
+    method: string,
+    request: (headers: Record<string, string>) => Observable<any>,
+    headers: Record<string, string> = {}
+  ): Observable<T> {
+    const send = () => request(this.withAuthorization(headers));
+    return send().pipe(
+      switchMap((res: any) => this.parseResponse<T>(res)),
+      catchError((error) => {
+        if (error?.status !== 401) return this.handleError(method, error);
+        return from(refreshAccessToken(this.baseUrl)).pipe(
+          switchMap(() => send()),
+          switchMap((res: any) => this.parseResponse<T>(res)),
+          catchError((retryError) => this.handleError(method, retryError))
+        );
+      })
+    );
+  }
+
   public get<T>(path: string, options: any = {}): Observable<T> {
     requestTracker.start();
-    return this.client
-      .get<T>(`${this.baseUrl}${path}`, {
-        ...options,
-        credentials: 'include',
-      })
-      .pipe(
-        switchMap((res: any) => this.parseResponse<T>(res)),
-        catchError((error) => this.handleError('GET', error)),
-        finalize(() => requestTracker.end())
-      );
+    return this.requestWithRefresh<T>(
+      'GET',
+      (headers) =>
+        this.client.get<T>(`${this.baseUrl}${path}`, { ...options, headers }),
+      options.headers
+    ).pipe(finalize(() => requestTracker.end()));
   }
 
   public post<T>(path: string, body: any, options: any = {}): Observable<T> {
     requestTracker.start();
-    return this.client
-      .post<T>(`${this.baseUrl}${path}`, {
-        ...options,
-        body: this.normalizeBody(body),
-        credentials: 'include',
-        headers: this.getMutationHeaders(body, options.headers),
-      })
-      .pipe(
-        switchMap((res: any) => this.parseResponse<T>(res)),
-        catchError((error) => this.handleError('POST', error)),
-        finalize(() => requestTracker.end())
-      );
+    return this.requestWithRefresh<T>(
+      'POST',
+      (headers) =>
+        this.client.post<T>(`${this.baseUrl}${path}`, {
+          ...options,
+          body: this.normalizeBody(body),
+          headers,
+        }),
+      this.getMutationHeaders(body, options.headers)
+    ).pipe(finalize(() => requestTracker.end()));
   }
 
   public put<T>(path: string, body: any, options: any = {}): Observable<T> {
     requestTracker.start();
-    return this.client
-      .put<T>(`${this.baseUrl}${path}`, {
-        ...options,
-        body: this.normalizeBody(body),
-        credentials: 'include',
-        headers: this.getMutationHeaders(body, options.headers),
-      })
-      .pipe(
-        switchMap((res: any) => this.parseResponse<T>(res)),
-        catchError((error) => this.handleError('PUT', error)),
-        finalize(() => requestTracker.end())
-      );
+    return this.requestWithRefresh<T>(
+      'PUT',
+      (headers) =>
+        this.client.put<T>(`${this.baseUrl}${path}`, {
+          ...options,
+          body: this.normalizeBody(body),
+          headers,
+        }),
+      this.getMutationHeaders(body, options.headers)
+    ).pipe(finalize(() => requestTracker.end()));
   }
 
   public patch<T>(path: string, body: any, options: any = {}): Observable<T> {
     requestTracker.start();
-    return this.client
-      .patch<T>(`${this.baseUrl}${path}`, {
-        ...options,
-        body: this.normalizeBody(body),
-        credentials: 'include',
-        headers: this.getMutationHeaders(body, options.headers),
-      })
-      .pipe(
-        switchMap((res: any) => this.parseResponse<T>(res)),
-        catchError((error) => this.handleError('PATCH', error)),
-        finalize(() => requestTracker.end())
-      );
+    return this.requestWithRefresh<T>(
+      'PATCH',
+      (headers) =>
+        this.client.patch<T>(`${this.baseUrl}${path}`, {
+          ...options,
+          body: this.normalizeBody(body),
+          headers,
+        }),
+      this.getMutationHeaders(body, options.headers)
+    ).pipe(finalize(() => requestTracker.end()));
   }
 
   public delete<T>(path: string, options: any = {}): Observable<T> {
     requestTracker.start();
-    return this.client
-      .delete<T>(`${this.baseUrl}${path}`, {
-        ...options,
-        credentials: 'include',
-        headers: this.getMutationHeaders(undefined, options.headers),
-      })
-      .pipe(
-        switchMap((res: any) => this.parseResponse<T>(res)),
-        catchError((error) => this.handleError('DELETE', error)),
-        finalize(() => requestTracker.end())
-      );
+    return this.requestWithRefresh<T>(
+      'DELETE',
+      (headers) =>
+        this.client.delete<T>(`${this.baseUrl}${path}`, {
+          ...options,
+          headers,
+        }),
+      this.getMutationHeaders(undefined, options.headers)
+    ).pipe(finalize(() => requestTracker.end()));
   }
 }

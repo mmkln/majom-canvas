@@ -282,6 +282,13 @@
 
 ## Scenario Index
 
+### Integrate Central Browser Sign-In
+
+- Use when the request changes login, logout, session restore, CSRF, protected API transport, or the central OIDC integration.
+- Owner: `src/bootstrap` + `src/majom-wrapper/data-access`
+- Read first: `docs/AUTH-SESSION-INTEGRATION.md`
+- Expected result: `BootOrchestrator` owns session startup, `AuthService` owns the token-session contract, the frontend exchanges the single-use SSO code for application JWTs, and protected API requests use Bearer authorization with one refresh-and-retry.
+
 ### Canvas Layering
 
 - Use when the task touches both `src/features/canvas` and `src/features/canvas-core`, or when the user asks about boundaries, ownership, extraction, or architecture between them.

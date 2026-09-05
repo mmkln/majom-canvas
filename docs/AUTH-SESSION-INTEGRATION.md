@@ -9,37 +9,39 @@ cookie is HttpOnly.
 
 - `BootOrchestrator` is the single owner of startup session validation and the
   landing/loading/workspace state transition.
-- `AuthService` owns the typed `/auth/sso/session/` contract and in-memory
-  authenticated identity/CSRF state.
-- `HttpInterceptorClient` owns browser API transport: `credentials: include`
-  on every request and `X-CSRFToken` on mutations.
+- `AuthService` owns the typed token-session contract: callback-code exchange,
+  in-memory access token, persisted refresh token, and current identity.
+- `HttpInterceptorClient` owns Bearer transport and one refresh-and-retry for an
+  expired access token.
 - `authFlowService` remains the feature-to-bootstrap request channel for login
   and logout. Features do not implement token refresh or session recovery.
 
 ## Required backend endpoints
 
-- `GET /auth/sso/login/` starts the OIDC redirect.
-- `GET /auth/sso/callback/` exchanges the code and creates the Django session.
-- `GET /auth/sso/session/` returns `{authenticated, user, csrfToken}` or `401`.
-- `POST /auth/sso/logout/` closes only the local application session.
+- `GET /auth/sso/login/?flow=token&return_to=<allowed-frontend>` starts the OIDC redirect.
+- `GET /auth/sso/callback/` returns a short-lived single-use `#sso_code` to the frontend.
+- `POST /auth/sso/exchange/` returns `{user, access, refresh}`.
+- `POST /auth/token/refresh/` refreshes the application access token.
+- `GET /auth/sso/me/` returns the authenticated identity for a Bearer token.
+- `POST /auth/token/blacklist/` revokes the refresh token during logout.
 
 ## Startup contract
 
-An HttpOnly cookie is intentionally unreadable to JavaScript, so the early
-guard in `src/index.html` always marks auth restore as pending. The public
-landing must remain hidden until `AuthService.restoreSession()` resolves. A
-`401` transitions to the landing without an error toast; an invalid or failed
-stored session clears in-memory auth and uses the existing session-expired flow.
+The early guard in `src/index.html` always marks auth restore as pending. The
+public landing must remain hidden until `AuthService.restoreSession()` either
+exchanges `#sso_code` or refreshes the persisted application refresh token. A
+failed refresh transitions to the landing without an error toast.
 
 ## Security invariants
 
-- Never store access, refresh, or ID tokens in `localStorage` or
-  `sessionStorage`.
-- Treat the backend session endpoint as the only browser auth source of truth.
-- Keep CSRF enabled for session-authenticated mutations.
+- Never expose the identity-provider access, refresh, or ID tokens to the SPA.
+- Keep the application access token in memory; persist only the application
+  refresh token needed to restore a session after reload.
+- Send `Authorization: Bearer <access>` for protected API calls; do not depend
+  on cross-site cookies or CSRF for JWT-authenticated mutations.
 - Redirect to OIDC for login; do not collect the central password in this SPA.
-- On `401`, clear the in-memory session and notify `BootOrchestrator`; do not
-  add a hidden refresh-token retry loop.
+- On `401`, `HttpInterceptorClient` refreshes once and retries the original
+  request once; a failed refresh clears the session and notifies `BootOrchestrator`.
 - Do not edit `src/features/canvas-core` for auth integration.
 
 ## Verification
